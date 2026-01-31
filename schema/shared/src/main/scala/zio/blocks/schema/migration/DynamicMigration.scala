@@ -55,7 +55,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   }
 
   /**
-   * Compose two migrations. The result applies this migration first, then that migration.
+   * Compose two migrations. The result applies this migration first, then that
+   * migration.
    */
   def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(actions ++ that.actions)
@@ -184,7 +185,7 @@ object DynamicMigration {
               Left(MigrationError.missingField(path, fieldName))
             } else {
               val (name, fieldValue) = fields(fieldIdx)
-              val unwrapped = fieldValue match {
+              val unwrapped          = fieldValue match {
                 case DynamicValue.Variant("Some", inner) =>
                   inner match {
                     case DynamicValue.Record(innerFields) =>
@@ -212,7 +213,7 @@ object DynamicMigration {
               Left(MigrationError.missingField(path, fieldName))
             } else {
               val (name, fieldValue) = fields(fieldIdx)
-              val wrapped = fieldValue match {
+              val wrapped            = fieldValue match {
                 case DynamicValue.Null =>
                   DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))
                 case v =>
@@ -285,7 +286,7 @@ object DynamicMigration {
         value match {
           case DynamicValue.Sequence(elements) =>
             val nestedMigration = DynamicMigration(nestedActions)
-            val results = elements.zipWithIndex.map { case (elem, idx) =>
+            val results         = elements.zipWithIndex.map { case (elem, idx) =>
               nestedMigration.applyAt(elem, path.at(idx))
             }
             val errors = results.collect { case Left(e) => e }
@@ -302,7 +303,7 @@ object DynamicMigration {
         value match {
           case DynamicValue.Map(entries) =>
             val nestedMigration = DynamicMigration(nestedActions)
-            val results = entries.map { case (k, v) =>
+            val results         = entries.map { case (k, v) =>
               nestedMigration.applyAt(k, path).map(newK => (newK, v))
             }
             val errors = results.collect { case Left(e) => e }
@@ -319,7 +320,7 @@ object DynamicMigration {
         value match {
           case DynamicValue.Map(entries) =>
             val nestedMigration = DynamicMigration(nestedActions)
-            val results = entries.map { case (k, v) =>
+            val results         = entries.map { case (k, v) =>
               nestedMigration.applyAt(v, path).map(newV => (k, newV))
             }
             val errors = results.collect { case Left(e) => e }
@@ -446,7 +447,9 @@ object DynamicMigration {
                       splitFields.find(_._1 == name)
                     }
                     if (newFields.length != targetFields.length) {
-                      Left(MigrationError.expressionFailed(path, "splitter", "Splitter did not produce all target fields"))
+                      Left(
+                        MigrationError.expressionFailed(path, "splitter", "Splitter did not produce all target fields")
+                      )
                     } else {
                       val filteredFields = fields.filterNot(_._1 == sourceField)
                       Right(DynamicValue.Record(filteredFields ++ Chunk.fromIterable(newFields)))

@@ -31,8 +31,10 @@ import zio.blocks.schema.Schema
  *   - Schema validation at build time
  *   - Bidirectional migration support
  *
- * @tparam A The source type
- * @tparam B The target type
+ * @tparam A
+ *   The source type
+ * @tparam B
+ *   The target type
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
@@ -47,7 +49,7 @@ final case class Migration[A, B](
     val dynamicValue = sourceSchema.toDynamicValue(value)
     dynamicMigration(dynamicValue).flatMap { migratedValue =>
       targetSchema.fromDynamicValue(migratedValue) match {
-        case Right(result) => Right(result)
+        case Right(result)     => Right(result)
         case Left(schemaError) =>
           Left(
             MigrationError.incompatibleSchemas(
@@ -78,8 +80,8 @@ final case class Migration[A, B](
   /**
    * Reverse migration (structural inverse; runtime is best-effort).
    *
-   * Note: The reverse migration may fail at runtime if the forward
-   * migration loses information that cannot be recovered.
+   * Note: The reverse migration may fail at runtime if the forward migration
+   * loses information that cannot be recovered.
    */
   def reverse: Migration[B, A] =
     Migration(
@@ -128,8 +130,8 @@ object Migration {
     Migration(dynamicMigration, sourceSchema, targetSchema)
 
   /**
-   * Start building a migration with field tracking.
-   * This is the primary entry point for creating migrations.
+   * Start building a migration with field tracking. This is the primary entry
+   * point for creating migrations.
    */
   def builder[A, B](implicit sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] =
     MigrationBuilder(sourceSchema, targetSchema, Vector.empty)

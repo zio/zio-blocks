@@ -25,8 +25,10 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
  * explicitly handled, enabling compile-time validation that all fields are
  * addressed.
  *
- * @tparam A Source type
- * @tparam B Target type
+ * @tparam A
+ *   Source type
+ * @tparam B
+ *   Target type
  */
 final case class MigrationBuilder[A, B](
   sourceSchema: Schema[A],
@@ -138,8 +140,8 @@ final case class MigrationBuilder[A, B](
   def atField(fieldName: String)(
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
-    val nestedBuilder  = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions  = nestedBuilder.actions
+    val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
+    val nestedActions = nestedBuilder.actions
     copy(actions = actions :+ MigrationAction.AtField(fieldName, nestedActions))
   }
 
@@ -262,10 +264,12 @@ final case class MigrationBuilder[A, B](
    * Build the migration with full validation.
    *
    * This method validates that:
-   *   - All source fields are addressed (kept, renamed, dropped, or transformed)
+   *   - All source fields are addressed (kept, renamed, dropped, or
+   *     transformed)
    *   - All target fields are provided (from source or added)
    *
-   * @throws IllegalArgumentException if validation fails
+   * @throws IllegalArgumentException
+   *   if validation fails
    */
   def build: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
@@ -273,8 +277,8 @@ final case class MigrationBuilder[A, B](
   /**
    * Build the migration without full validation.
    *
-   * Use this when you want to create a partial migration or
-   * when validation is not needed.
+   * Use this when you want to create a partial migration or when validation is
+   * not needed.
    */
   def buildPartial: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
@@ -297,8 +301,8 @@ object MigrationBuilder {
   /**
    * Create a builder with field tracking enabled.
    *
-   * This is the recommended entry point for creating migrations,
-   * as it enables compile-time validation of field handling.
+   * This is the recommended entry point for creating migrations, as it enables
+   * compile-time validation of field handling.
    */
   def withFieldTracking[A, B](implicit
     sourceSchema: Schema[A],

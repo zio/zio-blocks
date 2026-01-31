@@ -21,7 +21,8 @@ import zio.blocks.schema.DynamicOptic
 /**
  * Errors that can occur during schema migration.
  *
- * All errors include path information via `DynamicOptic` for precise diagnostics.
+ * All errors include path information via `DynamicOptic` for precise
+ * diagnostics.
  */
 sealed trait MigrationError extends Exception {
   def path: DynamicOptic

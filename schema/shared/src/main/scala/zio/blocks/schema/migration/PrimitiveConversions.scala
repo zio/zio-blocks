@@ -67,7 +67,7 @@ object PrimitiveConversions {
     case PrimitiveValue.Byte(b)       => b.toString
     case PrimitiveValue.Boolean(b)    => b.toString
     case PrimitiveValue.Char(c)       => c.toString
-    case PrimitiveValue.BigInt(b) => b.toString
+    case PrimitiveValue.BigInt(b)     => b.toString
     case PrimitiveValue.BigDecimal(b) => b.toString
     case other                        => other.toString
   }
@@ -146,11 +146,11 @@ object PrimitiveConversions {
     case PrimitiveValue.Boolean(b) => Right(b)
     case PrimitiveValue.Int(i)     => Right(i != 0)
     case PrimitiveValue.Long(l)    => Right(l != 0L)
-    case PrimitiveValue.String(s) =>
+    case PrimitiveValue.String(s)  =>
       s.toLowerCase match {
-        case "true" | "1" | "yes" | "on"   => Right(true)
-        case "false" | "0" | "no" | "off"  => Right(false)
-        case _                             => Left(s"Cannot parse '$s' as Boolean")
+        case "true" | "1" | "yes" | "on"  => Right(true)
+        case "false" | "0" | "no" | "off" => Right(false)
+        case _                            => Left(s"Cannot parse '$s' as Boolean")
       }
     case other => Left(s"Cannot convert ${other.getClass.getSimpleName} to Boolean")
   }
@@ -166,21 +166,21 @@ object PrimitiveConversions {
 
   private def primitiveToBigInt(pv: PrimitiveValue): Either[String, BigInt] = pv match {
     case PrimitiveValue.BigInt(b) => Right(b)
-    case PrimitiveValue.Long(l)       => Right(BigInt(l))
-    case PrimitiveValue.Int(i)        => Right(BigInt(i))
-    case PrimitiveValue.String(s)     => parseBigIntSafe(s)
-    case other                        => Left(s"Cannot convert ${other.getClass.getSimpleName} to BigInt")
+    case PrimitiveValue.Long(l)   => Right(BigInt(l))
+    case PrimitiveValue.Int(i)    => Right(BigInt(i))
+    case PrimitiveValue.String(s) => parseBigIntSafe(s)
+    case other                    => Left(s"Cannot convert ${other.getClass.getSimpleName} to BigInt")
   }
 
   private def primitiveToBigDecimal(pv: PrimitiveValue): Either[String, BigDecimal] = pv match {
-    case PrimitiveValue.BigDecimal(b)  => Right(b)
-    case PrimitiveValue.BigInt(b)  => Right(BigDecimal(b))
-    case PrimitiveValue.Double(d)      => Right(BigDecimal(d))
-    case PrimitiveValue.Float(f)       => Right(BigDecimal(f.toDouble))
-    case PrimitiveValue.Long(l)        => Right(BigDecimal(l))
-    case PrimitiveValue.Int(i)         => Right(BigDecimal(i))
-    case PrimitiveValue.String(s)      => parseBigDecimalSafe(s)
-    case other                         => Left(s"Cannot convert ${other.getClass.getSimpleName} to BigDecimal")
+    case PrimitiveValue.BigDecimal(b) => Right(b)
+    case PrimitiveValue.BigInt(b)     => Right(BigDecimal(b))
+    case PrimitiveValue.Double(d)     => Right(BigDecimal(d))
+    case PrimitiveValue.Float(f)      => Right(BigDecimal(f.toDouble))
+    case PrimitiveValue.Long(l)       => Right(BigDecimal(l))
+    case PrimitiveValue.Int(i)        => Right(BigDecimal(i))
+    case PrimitiveValue.String(s)     => parseBigDecimalSafe(s)
+    case other                        => Left(s"Cannot convert ${other.getClass.getSimpleName} to BigDecimal")
   }
 
   // Safe parsing helpers

@@ -150,16 +150,20 @@ object MigrationSpec extends SchemaBaseSpec {
           MigrationAction.RenameField("street", "streetName")
         )
 
-        val dv = DynamicValue.Record(Chunk(
-          ("street", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
-          ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
-        ))
+        val dv = DynamicValue.Record(
+          Chunk(
+            ("street", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
+            ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
+          )
+        )
 
-        val result = dynamicMigration(dv)
-        val expected = DynamicValue.Record(Chunk(
-          ("streetName", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
-          ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
-        ))
+        val result   = dynamicMigration(dv)
+        val expected = DynamicValue.Record(
+          Chunk(
+            ("streetName", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
+            ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
+          )
+        )
 
         assertTrue(result == Right(expected))
       },
@@ -171,10 +175,12 @@ object MigrationSpec extends SchemaBaseSpec {
           )
         )
 
-        val dv = DynamicValue.Record(Chunk(
-          ("street", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
-          ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
-        ))
+        val dv = DynamicValue.Record(
+          Chunk(
+            ("street", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
+            ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
+          )
+        )
 
         val result = dynamicMigration(dv)
         assertTrue(result.isRight)
@@ -182,20 +188,27 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("nested migration with AtField") {
         val dynamicMigration = DynamicMigration(
-          MigrationAction.AtField("address", Vector(
-            MigrationAction.RenameField("street", "streetName")
-          ))
+          MigrationAction.AtField(
+            "address",
+            Vector(
+              MigrationAction.RenameField("street", "streetName")
+            )
+          )
         )
 
-        val addressDv = DynamicValue.Record(Chunk(
-          ("street", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
-          ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
-        ))
+        val addressDv = DynamicValue.Record(
+          Chunk(
+            ("street", DynamicValue.Primitive(PrimitiveValue.String("123 Main St"))),
+            ("city", DynamicValue.Primitive(PrimitiveValue.String("Boston")))
+          )
+        )
 
-        val dv = DynamicValue.Record(Chunk(
-          ("name", DynamicValue.Primitive(PrimitiveValue.String("Person"))),
-          ("address", addressDv)
-        ))
+        val dv = DynamicValue.Record(
+          Chunk(
+            ("name", DynamicValue.Primitive(PrimitiveValue.String("Person"))),
+            ("address", addressDv)
+          )
+        )
 
         val result = dynamicMigration(dv)
         assertTrue(result.isRight)
@@ -229,10 +242,13 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(reverse.isInstanceOf[MigrationAction.AddField])
       },
       test("AtField reverse reverses nested actions") {
-        val action = MigrationAction.AtField("address", Vector(
-          MigrationAction.RenameField("a", "b"),
-          MigrationAction.RenameField("c", "d")
-        ))
+        val action = MigrationAction.AtField(
+          "address",
+          Vector(
+            MigrationAction.RenameField("a", "b"),
+            MigrationAction.RenameField("c", "d")
+          )
+        )
         val reverse = action.reverse
 
         assertTrue(reverse.isInstanceOf[MigrationAction.AtField])
@@ -246,7 +262,7 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("ResolvedExpr")(
       test("Literal evaluates to constant") {
-        val expr = ResolvedExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
+        val expr   = ResolvedExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
         val result = expr.eval(DynamicValue.Null, DynamicOptic.root)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("hello"))))
       },
@@ -257,23 +273,30 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(input))
       },
       test("FieldAccess extracts field value") {
-        val dv = DynamicValue.Record(Chunk(
-          ("name", DynamicValue.Primitive(PrimitiveValue.String("John"))),
-          ("age", DynamicValue.Primitive(PrimitiveValue.Int(30)))
-        ))
+        val dv = DynamicValue.Record(
+          Chunk(
+            ("name", DynamicValue.Primitive(PrimitiveValue.String("John"))),
+            ("age", DynamicValue.Primitive(PrimitiveValue.Int(30)))
+          )
+        )
         val expr   = ResolvedExpr.FieldAccess("name")
         val result = expr.eval(dv, DynamicOptic.root)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("John"))))
       },
       test("Concat concatenates string values") {
-        val dv = DynamicValue.Record(Chunk(
-          ("first", DynamicValue.Primitive(PrimitiveValue.String("Hello"))),
-          ("second", DynamicValue.Primitive(PrimitiveValue.String("World")))
-        ))
-        val expr = ResolvedExpr.Concat(Vector(
-          ResolvedExpr.FieldAccess("first"),
-          ResolvedExpr.FieldAccess("second")
-        ), " ")
+        val dv = DynamicValue.Record(
+          Chunk(
+            ("first", DynamicValue.Primitive(PrimitiveValue.String("Hello"))),
+            ("second", DynamicValue.Primitive(PrimitiveValue.String("World")))
+          )
+        )
+        val expr = ResolvedExpr.Concat(
+          Vector(
+            ResolvedExpr.FieldAccess("first"),
+            ResolvedExpr.FieldAccess("second")
+          ),
+          " "
+        )
         val result = expr.eval(dv, DynamicOptic.root)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("Hello World"))))
       },
@@ -305,7 +328,7 @@ object MigrationSpec extends SchemaBaseSpec {
         val pvFalse = PrimitiveValue.Boolean(false)
         assertTrue(
           PrimitiveConversions.convertPrimitive(pvTrue, "int") == Right(PrimitiveValue.Int(1)) &&
-          PrimitiveConversions.convertPrimitive(pvFalse, "int") == Right(PrimitiveValue.Int(0))
+            PrimitiveConversions.convertPrimitive(pvFalse, "int") == Right(PrimitiveValue.Int(0))
         )
       },
       test("int to boolean") {
@@ -313,7 +336,7 @@ object MigrationSpec extends SchemaBaseSpec {
         val pvNonZero = PrimitiveValue.Int(42)
         assertTrue(
           PrimitiveConversions.convertPrimitive(pvZero, "boolean") == Right(PrimitiveValue.Boolean(false)) &&
-          PrimitiveConversions.convertPrimitive(pvNonZero, "boolean") == Right(PrimitiveValue.Boolean(true))
+            PrimitiveConversions.convertPrimitive(pvNonZero, "boolean") == Right(PrimitiveValue.Boolean(true))
         )
       },
       test("long to double") {
@@ -328,10 +351,18 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("string to boolean") {
         assertTrue(
-          PrimitiveConversions.convertPrimitive(PrimitiveValue.String("true"), "boolean") == Right(PrimitiveValue.Boolean(true)) &&
-          PrimitiveConversions.convertPrimitive(PrimitiveValue.String("false"), "boolean") == Right(PrimitiveValue.Boolean(false)) &&
-          PrimitiveConversions.convertPrimitive(PrimitiveValue.String("yes"), "boolean") == Right(PrimitiveValue.Boolean(true)) &&
-          PrimitiveConversions.convertPrimitive(PrimitiveValue.String("no"), "boolean") == Right(PrimitiveValue.Boolean(false))
+          PrimitiveConversions.convertPrimitive(PrimitiveValue.String("true"), "boolean") == Right(
+            PrimitiveValue.Boolean(true)
+          ) &&
+            PrimitiveConversions.convertPrimitive(PrimitiveValue.String("false"), "boolean") == Right(
+              PrimitiveValue.Boolean(false)
+            ) &&
+            PrimitiveConversions.convertPrimitive(PrimitiveValue.String("yes"), "boolean") == Right(
+              PrimitiveValue.Boolean(true)
+            ) &&
+            PrimitiveConversions.convertPrimitive(PrimitiveValue.String("no"), "boolean") == Right(
+              PrimitiveValue.Boolean(false)
+            )
         )
       },
       test("int to bigint") {
@@ -348,9 +379,11 @@ object MigrationSpec extends SchemaBaseSpec {
     suite("Collection Migrations")(
       test("transform sequence elements") {
         val dynamicMigration = DynamicMigration(
-          MigrationAction.AtElements(Vector(
-            MigrationAction.RenameField("name", "fullName")
-          ))
+          MigrationAction.AtElements(
+            Vector(
+              MigrationAction.RenameField("name", "fullName")
+            )
+          )
         )
 
         val elem1 = DynamicValue.Record(Chunk(("name", DynamicValue.Primitive(PrimitiveValue.String("John")))))

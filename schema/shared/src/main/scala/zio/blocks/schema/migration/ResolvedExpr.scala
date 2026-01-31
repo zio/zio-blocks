@@ -22,8 +22,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 /**
  * A pure, serializable expression for value-level transformations.
  *
- * ResolvedExpr represents computations without closures or functions,
- * making migrations fully serializable and introspectable.
+ * ResolvedExpr represents computations without closures or functions, making
+ * migrations fully serializable and introspectable.
  *
  * Constraints for this implementation:
  *   - Primitive to primitive conversions only
@@ -38,8 +38,8 @@ sealed trait ResolvedExpr {
   def eval(source: DynamicValue, path: DynamicOptic): Either[MigrationError, DynamicValue]
 
   /**
-   * Returns a best-effort reverse of this expression.
-   * Not all expressions are reversible.
+   * Returns a best-effort reverse of this expression. Not all expressions are
+   * reversible.
    */
   def reverse: Option[ResolvedExpr]
 }
@@ -161,8 +161,8 @@ object ResolvedExpr {
       condition.eval(source, path).flatMap { condValue =>
         val isTruthy = condValue match {
           case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => b
-          case DynamicValue.Null                                                           => false
-          case _                                                                           => true
+          case DynamicValue.Null                                 => false
+          case _                                                 => true
         }
         if (isTruthy) thenExpr.eval(source, path)
         else elseExpr.eval(source, path)

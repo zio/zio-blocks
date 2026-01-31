@@ -39,8 +39,8 @@ package zio.blocks.schema.migration
 sealed trait MigrationAction {
 
   /**
-   * Returns the structural reverse of this action.
-   * Every migration action has a reverse.
+   * Returns the structural reverse of this action. Every migration action has a
+   * reverse.
    */
   def reverse: MigrationAction
 }
@@ -54,8 +54,7 @@ object MigrationAction {
   /**
    * Add a new field with a default value.
    *
-   * Forward: Adds field with default
-   * Reverse: Drops the field
+   * Forward: Adds field with default Reverse: Drops the field
    */
   final case class AddField(
     fieldName: String,
@@ -67,8 +66,8 @@ object MigrationAction {
   /**
    * Drop a field from the record.
    *
-   * Forward: Removes the field
-   * Reverse: Adds the field back (requires defaultForReverse)
+   * Forward: Removes the field Reverse: Adds the field back (requires
+   * defaultForReverse)
    */
   final case class DropField(
     fieldName: String,
@@ -83,8 +82,7 @@ object MigrationAction {
   /**
    * Rename a field.
    *
-   * Forward: from -> to
-   * Reverse: to -> from
+   * Forward: from -> to Reverse: to -> from
    */
   final case class RenameField(
     from: String,
@@ -96,8 +94,8 @@ object MigrationAction {
   /**
    * Transform a field's value using an expression.
    *
-   * Forward: Apply transform to field value
-   * Reverse: Apply reverse transform (if available)
+   * Forward: Apply transform to field value Reverse: Apply reverse transform
+   * (if available)
    */
   final case class TransformField(
     fieldName: String,
@@ -114,8 +112,8 @@ object MigrationAction {
   /**
    * Make an optional field mandatory.
    *
-   * Forward: Option[A] -> A (with default for None)
-   * Reverse: A -> Option[A] (wraps in Some)
+   * Forward: Option[A] -> A (with default for None) Reverse: A -> Option[A]
+   * (wraps in Some)
    */
   final case class MandateField(
     fieldName: String,
@@ -127,8 +125,8 @@ object MigrationAction {
   /**
    * Make a mandatory field optional.
    *
-   * Forward: A -> Option[A] (wraps in Some)
-   * Reverse: Option[A] -> A (requires default)
+   * Forward: A -> Option[A] (wraps in Some) Reverse: Option[A] -> A (requires
+   * default)
    */
   final case class OptionalizeField(
     fieldName: String
@@ -139,8 +137,7 @@ object MigrationAction {
   /**
    * Change a field's primitive type.
    *
-   * Forward: Apply converter
-   * Reverse: Apply reverse converter
+   * Forward: Apply converter Reverse: Apply reverse converter
    */
   final case class ChangeFieldType(
     fieldName: String,
@@ -166,8 +163,8 @@ object MigrationAction {
   /**
    * Apply nested actions to a specific field.
    *
-   * This is the KEY innovation for nested migrations.
-   * Enables migrations like: _.address.street -> _.address.streetName
+   * This is the KEY innovation for nested migrations. Enables migrations like:
+   * _.address.street -> _.address.streetName
    *
    * {{{
    *   AtField("address", Vector(
@@ -329,8 +326,8 @@ object MigrationAction {
   // ===========================================================================
 
   /**
-   * A sequence of actions to be applied in order.
-   * This is the root container for migrations.
+   * A sequence of actions to be applied in order. This is the root container
+   * for migrations.
    */
   final case class Sequence(actions: Vector[MigrationAction]) extends MigrationAction {
     def reverse: MigrationAction = Sequence(actions.reverse.map(_.reverse))

@@ -23,29 +23,27 @@ package zio.blocks.schema
  * structural transformations between schema versions as first-class,
  * serializable data.
  *
- * == Key Features ==
+ * ==Key Features==
  *
- *   - '''Pure Data Migrations''': All migrations are represented as case classes
- *     with no closures, making them fully serializable.
- *
- *   - '''Hierarchical Actions''': Supports nested migrations via AtField, AtCase,
- *     AtElements, enabling migrations like `_.address.street -> _.address.streetName`.
- *
+ *   - '''Pure Data Migrations''': All migrations are represented as case
+ *     classes with no closures, making them fully serializable.
+ *   - '''Hierarchical Actions''': Supports nested migrations via AtField,
+ *     AtCase, AtElements, enabling migrations like
+ *     `_.address.street -> _.address.streetName`.
  *   - '''Bidirectional''': Every migration has a structural reverse.
+ *   - '''Introspectable''': Migration logic can be inspected, transformed, and
+ *     used to generate DDL, upgraders, or downgraders.
  *
- *   - '''Introspectable''': Migration logic can be inspected, transformed,
- *     and used to generate DDL, upgraders, or downgraders.
- *
- * == Architecture ==
+ * ==Architecture==
  *
  * The system has two layers:
  *
- *   - '''DynamicMigration''': Untyped, fully serializable core that operates
- *     on DynamicValue.
+ *   - '''DynamicMigration''': Untyped, fully serializable core that operates on
+ *     DynamicValue.
+ *   - '''Migration[A, B]''': Typed wrapper with schemas for compile-time
+ *     safety.
  *
- *   - '''Migration[A, B]''': Typed wrapper with schemas for compile-time safety.
- *
- * == Example Usage ==
+ * ==Example Usage==
  *
  * {{{
  * import zio.blocks.schema.migration._
@@ -75,7 +73,7 @@ package zio.blocks.schema
  * val v1Again = migration.reverse(v2.toOption.get)
  * }}}
  *
- * == Nested Migrations ==
+ * ==Nested Migrations==
  *
  * For nested structures, use `atField`:
  *
