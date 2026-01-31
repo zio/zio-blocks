@@ -1,6 +1,7 @@
 package zio.blocks.schema.json.patch
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.json.JsonPatch._
@@ -453,8 +454,8 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       val original    = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
       val nestedPatch = JsonPatch(
         Vector(
-          JsonPatchOp(IndexedSeq.empty, Op.ObjectEdit(Vector(ObjectOp.Add("c", Json.Number(3))))),
-          JsonPatchOp(IndexedSeq.empty, Op.ObjectEdit(Vector(ObjectOp.Remove("a"))))
+          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Vector(ObjectOp.Add("c", Json.Number(3))))),
+          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Vector(ObjectOp.Remove("a"))))
         )
       )
       val patch  = JsonPatch.root(Op.Nested(nestedPatch))
@@ -469,7 +470,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       )
       val innerPatch = JsonPatch(
         Vector(
-          JsonPatchOp(IndexedSeq.empty, Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Number(3))))))
+          JsonPatchOp(DynamicOptic.root, Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Number(3))))))
         )
       )
       val nestedModify = Op.ObjectEdit(Vector(ObjectOp.Modify("values", innerPatch)))
@@ -510,6 +511,117 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
             )
           )
         )
+      )
+    },
+    test("Full path and nested path produce identical results") {
+      val original = Json.Object(
+        "a" -> Json.Object(
+          "b" -> Json.Object(
+            "c" -> Json.Number(1)
+          )
+        )
+      )
+
+      // Approach 1: Full path - navigate directly to target
+      val fullPathPatch = JsonPatch(
+        Vector(
+          JsonPatchOp(
+            path = DynamicOptic.root.field("a").field("b").field("c"),
+            operation = Op.Set(Json.Number(42))
+          )
+        )
+      )
+
+      // Approach 2: Nested path - use Op.Nested to compose patches
+      val nestedPathPatch = JsonPatch(
+        Vector(
+          JsonPatchOp(
+            path = DynamicOptic.root.field("a"),
+            operation = Op.Nested(
+              JsonPatch(
+                Vector(
+                  JsonPatchOp(
+                    path = DynamicOptic.root.field("b"),
+                    operation = Op.Nested(
+                      JsonPatch(
+                        Vector(
+                          JsonPatchOp(
+                            path = DynamicOptic.root.field("c"),
+                            operation = Op.Set(Json.Number(42))
+                          )
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+
+      val resultFullPath   = fullPathPatch.apply(original, PatchMode.Strict)
+      val resultNestedPath = nestedPathPatch.apply(original, PatchMode.Strict)
+
+      assertTrue(
+        resultFullPath == resultNestedPath &&
+          resultFullPath == Right(
+            Json.Object(
+              "a" -> Json.Object(
+                "b" -> Json.Object(
+                  "c" -> Json.Number(42)
+                )
+              )
+            )
+          )
+      )
+    },
+    test("Full path and nested path equivalence with array index navigation") {
+      val original = Json.Array(
+        Json.Object("name" -> Json.String("Alice")),
+        Json.Object("name" -> Json.String("Bob"))
+      )
+
+      // Approach 1: Full path to array[1].name
+      val fullPathPatch = JsonPatch(
+        Vector(
+          JsonPatchOp(
+            path = DynamicOptic.root.at(1).field("name"),
+            operation = Op.Set(Json.String("Charlie"))
+          )
+        )
+      )
+
+      // Approach 2: Nested - first navigate to array[1], then apply nested patch for name
+      val nestedPathPatch = JsonPatch(
+        Vector(
+          JsonPatchOp(
+            path = DynamicOptic.root.at(1),
+            operation = Op.Nested(
+              JsonPatch(
+                Vector(
+                  JsonPatchOp(
+                    path = DynamicOptic.root.field("name"),
+                    operation = Op.Set(Json.String("Charlie"))
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+
+      val resultFullPath   = fullPathPatch.apply(original, PatchMode.Strict)
+      val resultNestedPath = nestedPathPatch.apply(original, PatchMode.Strict)
+
+      assertTrue(
+        resultFullPath == resultNestedPath &&
+          resultFullPath == Right(
+            Json.Array(
+              Json.Object("name" -> Json.String("Alice")),
+              Json.Object("name" -> Json.String("Charlie"))
+            )
+          )
       )
     }
   )

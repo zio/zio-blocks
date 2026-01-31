@@ -2,6 +2,7 @@ package zio.blocks.schema.tostring
 
 import zio.test._
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.json.{Json, JsonPatch}
 
 object JsonPatchToStringSpec extends ZIOSpecDefault {
@@ -198,7 +199,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
       val patch = JsonPatch(
         Vector(
           JsonPatch.JsonPatchOp(
-            IndexedSeq.empty,
+            DynamicOptic.root,
             JsonPatch.Op.ObjectEdit(
               Vector(
                 JsonPatch.ObjectOp.Add("name", Json.String("John")),

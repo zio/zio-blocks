@@ -72,7 +72,7 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
 
     while (idx < ops.length && error.isRight) {
       val op = ops(idx)
-      JsonPatch.applyOp(current, op.path, op.operation, mode) match {
+      JsonPatch.applyOp(current, op.path.nodes, op.operation, mode) match {
         case Right(updated) =>
           current = updated
         case Left(err) =>
@@ -99,9 +99,8 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
    */
   def toDynamicPatch: DynamicPatch = {
     val dynamicOps = ops.map { jsonOp =>
-      val dynamicOptic = DynamicOptic(jsonOp.path)
-      val dynamicOp    = JsonPatch.opToDynamicOperation(jsonOp.operation)
-      DynamicPatch.DynamicPatchOp(dynamicOptic, dynamicOp)
+      val dynamicOp = JsonPatch.opToDynamicOperation(jsonOp.operation)
+      DynamicPatch.DynamicPatchOp(jsonOp.path, dynamicOp)
     }
     DynamicPatch(dynamicOps)
   }
@@ -116,7 +115,7 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
     }
 }
 
-object JsonPatch {
+object JsonPatch extends JsonPatchCompanionVersionSpecific {
 
   /** Empty patch - identity element for composition. */
   val empty: JsonPatch = JsonPatch(Vector.empty)
@@ -145,7 +144,7 @@ object JsonPatch {
       val dynOp = patch.ops(idx)
       operationFromDynamic(dynOp.operation) match {
         case Right(op) =>
-          builder.addOne(JsonPatchOp(dynOp.path.nodes, op))
+          builder.addOne(JsonPatchOp(dynOp.path, op))
         case Left(err) =>
           error = Some(err)
       }
@@ -976,7 +975,7 @@ object JsonPatch {
    *   A new patch with the operation at the root path
    */
   def root(operation: Op): JsonPatch =
-    JsonPatch(Vector(JsonPatchOp(DynamicOptic.root.nodes, operation)))
+    JsonPatch(Vector(JsonPatchOp(DynamicOptic.root, operation)))
 
   /**
    * Creates a patch with a single operation at the given path.
@@ -989,10 +988,10 @@ object JsonPatch {
    *   A new patch with the operation at the specified path
    */
   def apply(path: DynamicOptic, operation: Op): JsonPatch =
-    JsonPatch(Vector(JsonPatchOp(path.nodes, operation)))
+    JsonPatch(Vector(JsonPatchOp(path, operation)))
 
   private[json] def renderOp(sb: StringBuilder, op: JsonPatchOp, indent: String): Unit = {
-    val pathStr = renderPath(op.path)
+    val pathStr = renderPath(op.path.nodes)
     op.operation match {
       case Op.Set(value) =>
         sb.append(indent).append(pathStr).append(" = ").append(value).append("\n")
@@ -1074,7 +1073,7 @@ object JsonPatch {
             sb.append(indent).append("~ [").append(index).append(": ").append(v).append("]\n")
           case _ =>
             sb.append(indent).append("~ [").append(index).append("]:\n")
-            renderOp(sb, JsonPatchOp(IndexedSeq.empty, nestedOp), indent + "  ")
+            renderOp(sb, JsonPatchOp(DynamicOptic.root, nestedOp), indent + "  ")
         }
     }
 
@@ -1297,11 +1296,11 @@ object JsonPatch {
    * A single patch operation paired with the path to apply it at.
    *
    * @param path
-   *   The path nodes indicating where to apply the operation
+   *   The path indicating where to apply the operation
    * @param operation
    *   The operation to apply at the path
    */
-  final case class JsonPatchOp(path: IndexedSeq[DynamicOptic.Node], operation: Op)
+  final case class JsonPatchOp(path: DynamicOptic, operation: Op)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Operations
@@ -1381,8 +1380,8 @@ object JsonPatch {
      * @example
      *   {{{
      * Op.Nested(JsonPatch(Vector(
-     *   JsonPatchOp(Vector(Node.Field("a")), Op.Set(Json.Num(1))),
-     *   JsonPatchOp(Vector(Node.Field("b")), Op.Set(Json.Num(2)))
+     *   JsonPatchOp(DynamicOptic.root.field("a"), Op.Set(Json.Num(1))),
+     *   JsonPatchOp(DynamicOptic.root.field("b"), Op.Set(Json.Num(2)))
      * )))
      * // Applies both changes within the nested context
      *   }}}

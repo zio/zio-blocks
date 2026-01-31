@@ -1,7 +1,7 @@
 package zio.blocks.schema.json.patch
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, PrimitiveValue, SchemaBaseSpec, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaBaseSpec, SchemaError}
 import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.json.JsonPatch._
 import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
@@ -107,8 +107,8 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val json  = Json.Object("x" -> Json.Number(1))
       val patch = JsonPatch(
         Vector(
-          JsonPatchOp(IndexedSeq.empty, Op.ObjectEdit(Vector(ObjectOp.Add("y", Json.Number(2))))),
-          JsonPatchOp(IndexedSeq.empty, Op.ObjectEdit(Vector(ObjectOp.Add("z", Json.Number(3)))))
+          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Vector(ObjectOp.Add("y", Json.Number(2))))),
+          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Vector(ObjectOp.Add("z", Json.Number(3)))))
         )
       )
       val result   = json.patch(patch)
@@ -448,8 +448,8 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("roundtrip preserves Nested operation") {
       val innerPatch = JsonPatch(
         Vector(
-          JsonPatchOp(IndexedSeq.empty, Op.Set(Json.Number(42))),
-          JsonPatchOp(IndexedSeq.empty, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(10))))
+          JsonPatchOp(DynamicOptic.root, Op.Set(Json.Number(42))),
+          JsonPatchOp(DynamicOptic.root, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(10))))
         )
       )
       val original  = JsonPatch.root(Op.Nested(innerPatch))
@@ -460,7 +460,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val original = JsonPatch(
         Vector(
           JsonPatchOp(
-            IndexedSeq.empty,
+            DynamicOptic.root,
             Op.ObjectEdit(
               Vector(
                 ObjectOp.Add("users", Json.Array()),
@@ -478,7 +478,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
             )
           ),
           JsonPatchOp(
-            IndexedSeq.empty,
+            DynamicOptic.root,
             Op.ArrayEdit(
               Vector(
                 ArrayOp.Append(Chunk(Json.Object("id" -> Json.Number(1))))
