@@ -182,7 +182,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders object modify") {
       val nestedPatch = JsonPatch.root(JsonPatch.Op.Set(Json.String("New York")))
-      val patch = JsonPatch.root(
+      val patch       = JsonPatch.root(
         JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("city", nestedPatch)))
       )
       assertTrue(
