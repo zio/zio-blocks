@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.SchemaError
-
 import scala.collection.Factory
 
 trait Into[-A, +B] {

@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.test._
 
@@ -445,9 +446,9 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
       test("dependentSchemas applies schema when property is present") {
         val schema = JsonSchema.Object(
           dependentSchemas = Some(
-            Map(
+            ChunkMap(
               "credit_card" -> JsonSchema.obj(
-                properties = Some(Map("billing_address" -> JsonSchema.string())),
+                properties = Some(ChunkMap("billing_address" -> JsonSchema.string())),
                 required = Some(Set("billing_address"))
               )
             )

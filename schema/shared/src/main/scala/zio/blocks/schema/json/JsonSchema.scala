@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 
 import java.net.URI
@@ -611,8 +611,8 @@ object JsonSchema {
     $dynamicAnchor: Option[Anchor] = None,
     $ref: Option[UriReference] = None,
     $dynamicRef: Option[UriReference] = None,
-    $vocabulary: Option[Map[URI, scala.Boolean]] = None,
-    $defs: Option[Map[String, JsonSchema]] = None,
+    $vocabulary: Option[ChunkMap[URI, scala.Boolean]] = None,
+    $defs: Option[ChunkMap[String, JsonSchema]] = None,
     $comment: Option[String] = None,
     // =========================================================================
     // Applicator Vocabulary (Composition)
@@ -630,11 +630,11 @@ object JsonSchema {
     // =========================================================================
     // Applicator Vocabulary (Object)
     // =========================================================================
-    properties: Option[Map[String, JsonSchema]] = None,
-    patternProperties: Option[Map[RegexPattern, JsonSchema]] = None,
+    properties: Option[ChunkMap[String, JsonSchema]] = None,
+    patternProperties: Option[ChunkMap[RegexPattern, JsonSchema]] = None,
     additionalProperties: Option[JsonSchema] = None,
     propertyNames: Option[JsonSchema] = None,
-    dependentSchemas: Option[Map[String, JsonSchema]] = None,
+    dependentSchemas: Option[ChunkMap[String, JsonSchema]] = None,
     // =========================================================================
     // Applicator Vocabulary (Array)
     // =========================================================================
@@ -680,7 +680,7 @@ object JsonSchema {
     minProperties: Option[NonNegativeInt] = None,
     maxProperties: Option[NonNegativeInt] = None,
     required: Option[Set[String]] = None,
-    dependentRequired: Option[Map[String, Set[String]]] = None,
+    dependentRequired: Option[ChunkMap[String, Set[String]]] = None,
     // =========================================================================
     // Format Vocabulary
     // =========================================================================
@@ -705,7 +705,7 @@ object JsonSchema {
     // Extensions
     // =========================================================================
     /** Unrecognized keywords for round-trip fidelity and vendor extensions. */
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends JsonSchema {
 
     override def toJson: Json = {
@@ -1326,14 +1326,15 @@ object JsonSchema {
     array(items = Some(items))
 
   def obj(
-    properties: Option[Map[String, JsonSchema]] = None,
+    properties: Option[ChunkMap[String, JsonSchema]] = None,
     required: Option[Set[String]] = None,
     additionalProperties: Option[JsonSchema] = None,
-    patternProperties: Option[Map[RegexPattern, JsonSchema]] = None,
+    patternProperties: Option[ChunkMap[RegexPattern, JsonSchema]] = None,
     propertyNames: Option[JsonSchema] = None,
     minProperties: Option[NonNegativeInt] = None,
     maxProperties: Option[NonNegativeInt] = None,
-    unevaluatedProperties: Option[JsonSchema] = None
+    unevaluatedProperties: Option[JsonSchema] = None,
+    title: Option[String] = None
   ): JsonSchema = Object(
     `type` = Some(SchemaType.Single(JsonSchemaType.Object)),
     properties = properties,
@@ -1343,7 +1344,8 @@ object JsonSchema {
     propertyNames = propertyNames,
     minProperties = minProperties,
     maxProperties = maxProperties,
-    unevaluatedProperties = unevaluatedProperties
+    unevaluatedProperties = unevaluatedProperties,
+    title = title
   )
 
   def enumOf(values: ::[Json]): JsonSchema =
@@ -1410,13 +1412,13 @@ object JsonSchema {
         case None => Right(None)
       }
 
-    def getSchemaMap(key: String): Either[SchemaError, Option[Map[String, JsonSchema]]] =
+    def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] =
       fieldMap.get(key) match {
         case Some(o: Json.Object) =>
           val results = o.value.map { case (k, v) => fromJson(v).map(s => k -> s) }
           val errs    = results.collect { case Left(e) => e }
           if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
-          else Right(Some(results.collect { case Right(kv) => kv }.toMap))
+          else Right(Some(ChunkMap.fromChunk(results.collect { case Right(kv) => kv })))
         case Some(_) =>
           Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))
         case None => Right(None)
@@ -1460,17 +1462,17 @@ object JsonSchema {
       contentSchemaVal       <- getSchema("contentSchema")
     } yield {
       // Parse pattern properties specially
-      val patternPropsOpt: Option[Map[RegexPattern, JsonSchema]] = fieldMap.get("patternProperties") match {
+      val patternPropsOpt: Option[ChunkMap[RegexPattern, JsonSchema]] = fieldMap.get("patternProperties") match {
         case Some(o: Json.Object) =>
           val parsed = o.value.flatMap { case (pattern, json) =>
             fromJson(json).toOption.map(schema => RegexPattern.unsafe(pattern) -> schema)
           }
-          if (parsed.nonEmpty) Some(parsed.toMap) else None
+          if (parsed.nonEmpty) Some(ChunkMap.fromChunk(parsed)) else None
         case _ => None
       }
 
       // Parse dependent required
-      val dependentRequiredOpt: Option[Map[String, Set[String]]] = fieldMap.get("dependentRequired") match {
+      val dependentRequiredOpt: Option[ChunkMap[String, Set[String]]] = fieldMap.get("dependentRequired") match {
         case Some(o: Json.Object) =>
           val parsed = o.value.map { case (k, v) =>
             v match {
@@ -1478,7 +1480,7 @@ object JsonSchema {
               case _               => k -> Set.empty[String]
             }
           }
-          if (parsed.nonEmpty) Some(parsed.toMap) else None
+          if (parsed.nonEmpty) Some(ChunkMap.fromChunk(parsed)) else None
         case _ => None
       }
 
@@ -1545,7 +1547,7 @@ object JsonSchema {
         "writeOnly",
         "examples"
       )
-      val extensions = fieldMap.filterNot { case (k, _) => knownKeys.contains(k) }
+      val extensions = ChunkMap.from(fieldMap.filterNot { case (k, _) => knownKeys.contains(k) })
 
       Object(
         $id = getString("$id").map(UriReference(_)),

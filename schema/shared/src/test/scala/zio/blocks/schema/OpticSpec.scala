@@ -136,15 +136,15 @@ object OpticSpec extends SchemaBaseSpec {
 
              object Test extends CompanionOptics[Test] {
                implicit val schema: Schema[Test] = Schema.derived
-               val lens                          = optic(_.equals(null))
+               val lens: Lens[Test, _]           = optic(_.equals(null))
              }"""
         }.map(
           assert(_)(
             isLeft(
-              startsWithString(
+              (startsWithString(
                 "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '"
-              ) &&
-                endsWithString(".equals(null)'.")
+              ) && endsWithString(".equals(null)'.")) ||
+                containsString("Recursive value") // Scala 3.5+
             )
           )
         )
@@ -315,9 +315,16 @@ object OpticSpec extends SchemaBaseSpec {
 
              object Test extends CompanionOptics[Test] {
                implicit val schema: Schema[Test] = Schema.derived
-               val prism                         = optic(null.asInstanceOf[Test => Double])
+               val prism: Prism[Test, _]         = optic(null.asInstanceOf[Test => Double])
              }"""
-        }.map(assert(_)(isLeft(startsWithString("Expected a lambda expression, got 'null.asInstanceOf["))))
+        }.map(
+          assert(_)(
+            isLeft(
+              startsWithString("Expected a lambda expression, got 'null.asInstanceOf[") ||
+                containsString("Recursive value") // Scala 3.5+
+            )
+          )
+        )
       },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&
@@ -3451,10 +3458,9 @@ object OpticSpecTypes {
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
       typeId = TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("OpticSpec")),
-      wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,
-        unwrap = (x: Wrapper) => x.value
+        unwrap = (x: Wrapper) => Right(x.value)
       )
     )
     implicit val schema: Schema[Wrapper] = new Schema(reflect)

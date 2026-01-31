@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.test._
 
@@ -9,7 +10,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
     suite("Structure preservation")(
       test("closed object schema produces Reflect.Record") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age")),
           additionalProperties = Some(JsonSchema.False)
         )
@@ -20,7 +21,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("closed object schema has no open modifier") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name")),
           additionalProperties = Some(JsonSchema.False)
         )
@@ -36,7 +37,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("open object schema produces Reflect.Record with open modifier") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string()))
+          properties = Some(ChunkMap("name" -> JsonSchema.string()))
         )
         val schema = Schema.fromJsonSchema(jsonSchema)
 
@@ -50,7 +51,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("object schema has correct field names") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         val schema = Schema.fromJsonSchema(jsonSchema)
@@ -119,9 +120,9 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
             new ::(
               JsonSchema.obj(
                 properties = Some(
-                  Map(
+                  ChunkMap(
                     "CreditCard" -> JsonSchema.obj(
-                      properties = Some(Map("ccNum" -> JsonSchema.string())),
+                      properties = Some(ChunkMap("ccNum" -> JsonSchema.string())),
                       required = Some(Set("ccNum"))
                     )
                   )
@@ -131,9 +132,9 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
               ),
               JsonSchema.obj(
                 properties = Some(
-                  Map(
+                  ChunkMap(
                     "BankAccount" -> JsonSchema.obj(
-                      properties = Some(Map("accNo" -> JsonSchema.string())),
+                      properties = Some(ChunkMap("accNo" -> JsonSchema.string())),
                       required = Some(Set("accNo"))
                     )
                   )
@@ -155,9 +156,9 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
             new ::(
               JsonSchema.obj(
                 properties = Some(
-                  Map(
+                  ChunkMap(
                     "CreditCard" -> JsonSchema.obj(
-                      properties = Some(Map("ccNum" -> JsonSchema.string()))
+                      properties = Some(ChunkMap("ccNum" -> JsonSchema.string()))
                     )
                   )
                 ),
@@ -165,9 +166,9 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
               ),
               JsonSchema.obj(
                 properties = Some(
-                  Map(
+                  ChunkMap(
                     "BankAccount" -> JsonSchema.obj(
-                      properties = Some(Map("accNo" -> JsonSchema.string()))
+                      properties = Some(ChunkMap("accNo" -> JsonSchema.string()))
                     )
                   )
                 ),
@@ -200,8 +201,8 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = JsonSchema.Object(
           oneOf = Some(
             new ::(
-              JsonSchema.obj(properties = Some(Map("left" -> JsonSchema.string()))),
-              JsonSchema.obj(properties = Some(Map("right" -> JsonSchema.integer()))) :: Nil
+              JsonSchema.obj(properties = Some(ChunkMap("left" -> JsonSchema.string()))),
+              JsonSchema.obj(properties = Some(ChunkMap("right" -> JsonSchema.integer()))) :: Nil
             )
           )
         )
@@ -266,7 +267,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
     suite("Behavioral compatibility invariants")(
       test("required fields must be present in closed record") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age")),
           additionalProperties = Some(JsonSchema.False)
         )
@@ -278,7 +279,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("closed record decodes known fields (extra fields silently dropped for now)") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name")),
           additionalProperties = Some(JsonSchema.False)
         )
@@ -290,7 +291,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("open record decodes known fields (extra fields silently dropped for now)") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string()))
+          properties = Some(ChunkMap("name" -> JsonSchema.string()))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)
         val codec       = schemaForJs.derive(JsonFormat)
@@ -300,7 +301,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("round-trip through closed record preserves known fields") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name")),
           additionalProperties = Some(JsonSchema.False)
         )
@@ -366,7 +367,7 @@ object StructuredSchemaFromJsonSchemaSpec extends SchemaBaseSpec {
       },
       test("object schema rejects missing required properties") {
         val jsonSchema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(jsonSchema)

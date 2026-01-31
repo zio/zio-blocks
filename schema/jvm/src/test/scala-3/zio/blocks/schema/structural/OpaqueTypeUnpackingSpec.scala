@@ -37,7 +37,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[User]
+          val schema: Schema[User] = Schema.derived[User]
           val structural: Schema[{def id: String; def name: String}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -45,7 +45,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec.{Person => PersonType, _}
-          val schema = Schema.derived[PersonType]
+          val schema: Schema[PersonType] = Schema.derived[PersonType]
           val structural: Schema[{def age: Int; def name: String}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -53,7 +53,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[GameResult]
+          val schema: Schema[GameResult] = Schema.derived[GameResult]
           val structural: Schema[{def player: String; def score: Double}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       }
@@ -63,7 +63,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[NestedOpaque]
+          val schema: Schema[NestedOpaque] = Schema.derived[NestedOpaque]
           val structural: Schema[{def score: Double; def user: User}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       }
@@ -73,7 +73,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[ListOfOpaque]
+          val schema: Schema[ListOfOpaque] = Schema.derived[ListOfOpaque]
           val structural: Schema[{def ids: List[String]}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -81,7 +81,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[OptionalOpaque]
+          val schema: Schema[OptionalOpaque] = Schema.derived[OptionalOpaque]
           val structural: Schema[{def maybeId: Option[String]}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       }
@@ -100,7 +100,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[User]
+          val schema: Schema[User] = Schema.derived[User]
           val structural: Schema[{def id: String; def name: String}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       }
@@ -110,7 +110,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[User]
+          val schema: Schema[User] = Schema.derived[User]
           val structural: Schema[{def id: String; def name: String}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -118,7 +118,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec.{Person => PersonType, _}
-          val schema = Schema.derived[PersonType]
+          val schema: Schema[PersonType] = Schema.derived[PersonType]
           val structural: Schema[{def age: Int; def name: String}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       },
@@ -126,7 +126,7 @@ object OpaqueTypeUnpackingSpec extends SchemaBaseSpec {
         typeCheck("""
           import zio.blocks.schema._
           import zio.blocks.schema.structural.OpaqueTypeUnpackingSpec._
-          val schema = Schema.derived[GameResult]
+          val schema: Schema[GameResult] = Schema.derived[GameResult]
           val structural: Schema[{def player: String; def score: Double}] = schema.structural
         """).map(result => assertTrue(result.isRight))
       }

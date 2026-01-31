@@ -139,7 +139,7 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val ownerSchema: Schema[Owner] =
-    Schema[List[Owner.Segment]].transform(Owner.apply, _.segments)
+    Schema[List[Owner.Segment]].transform(to = Owner.apply, from = _.segments)
 
   // ============================================================================
   // TermPath.Segment
@@ -191,7 +191,7 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val termPathSchema: Schema[TermPath] =
-    Schema[List[TermPath.Segment]].transform(TermPath.apply, _.segments)
+    Schema[List[TermPath.Segment]].transform(to = TermPath.apply, from = _.segments)
 
   // ============================================================================
   // TypeRepr - Highly recursive, all cases

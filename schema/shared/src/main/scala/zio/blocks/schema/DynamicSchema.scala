@@ -2081,7 +2081,6 @@ object DynamicSchema extends TypeIdSchemas {
         new Reflect.Wrapper[NoBinding, Any, Any](
           wrapped = wrapped.asInstanceOf[Reflect.Unbound[Any]],
           typeId = tid,
-          wrapperPrimitiveType = scala.None,
           wrapperBinding = NoBinding(),
           doc = doc,
           modifiers = modifiers,

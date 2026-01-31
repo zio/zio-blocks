@@ -1,5 +1,6 @@
 package zio.blocks.schema.structural
 import zio.blocks.schema.SchemaBaseSpec
+import zio.blocks.schema.{Schema, Reflect}
 
 import zio.test._
 
@@ -29,7 +30,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class Simple(x: Int, y: String)
 
-          val schema = Schema.derived[Simple]
+          val schema: Schema[Simple] = Schema.derived[Simple]
           val structural: Schema[{def x: Int; def y: String}] = schema.structural
           """
         }.map { result =>
@@ -46,7 +47,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
             e: Boolean, f: Byte, g: Short, h: Char, i: String
           )
 
-          val schema = Schema.derived[Primitives]
+          val schema: Schema[Primitives] = Schema.derived[Primitives]
           val structural: Schema[{def a: Int; def b: Long; def c: Float; def d: Double; def e: Boolean; def f: Byte; def g: Short; def h: Char; def i: String}] = schema.structural
           """
         }.map { result =>
@@ -60,7 +61,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class WithOption(required: String, optional: Option[Int])
 
-          val schema = Schema.derived[WithOption]
+          val schema: Schema[WithOption] = Schema.derived[WithOption]
           val structural: Schema[{def optional: Option[Int]; def required: String}] = schema.structural
           """
         }.map { result =>
@@ -74,7 +75,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class WithList(items: List[Int])
 
-          val schema = Schema.derived[WithList]
+          val schema: Schema[WithList] = Schema.derived[WithList]
           val structural: Schema[{def items: List[Int]}] = schema.structural
           """
         }.map { result =>
@@ -88,7 +89,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class WithSet(items: Set[String])
 
-          val schema = Schema.derived[WithSet]
+          val schema: Schema[WithSet] = Schema.derived[WithSet]
           val structural: Schema[{def items: Set[String]}] = schema.structural
           """
         }.map { result =>
@@ -102,7 +103,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class WithVector(items: Vector[Double])
 
-          val schema = Schema.derived[WithVector]
+          val schema: Schema[WithVector] = Schema.derived[WithVector]
           val structural: Schema[{def items: Vector[Double]}] = schema.structural
           """
         }.map { result =>
@@ -116,7 +117,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class WithMap(mapping: Map[String, Int])
 
-          val schema = Schema.derived[WithMap]
+          val schema: Schema[WithMap] = Schema.derived[WithMap]
           val structural: Schema[{def mapping: Map[String, Int]}] = schema.structural
           """
         }.map { result =>
@@ -131,7 +132,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
           case class Inner(value: Int)
           case class Outer(name: String, inner: Inner)
 
-          val schema = Schema.derived[Outer]
+          val schema: Schema[Outer] = Schema.derived[Outer]
           val structural: Schema[{def inner: Inner; def name: String}] = schema.structural
           """
         }.map { result =>
@@ -148,7 +149,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
           case class Level1(level2: Level2)
           case class Root(level1: Level1)
 
-          val schema = Schema.derived[Root]
+          val schema: Schema[Root] = Schema.derived[Root]
           val structural: Schema[{def level1: Level1}] = schema.structural
           """
         }.map { result =>
@@ -162,7 +163,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class Empty()
 
-          val schema = Schema.derived[Empty]
+          val schema: Schema[Empty] = Schema.derived[Empty]
           val structural: Schema[{}] = schema.structural
           """
         }.map { result =>
@@ -176,7 +177,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case object Singleton
 
-          val schema = Schema.derived[Singleton.type]
+          val schema: Schema[Singleton.type] = Schema.derived[Singleton.type]
           val structural: Schema[{}] = schema.structural
           """
         }.map { result =>
@@ -198,7 +199,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
             f21: Int, f22: Int, f23: Int, f24: Int, f25: Int
           )
 
-          val schema = Schema.derived[Large25]
+          val schema: Schema[Large25] = Schema.derived[Large25]
           schema.structural
           """
         }.map { result =>
@@ -219,7 +220,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
             f26: Int, f27: String, f28: Long, f29: Double, f30: Boolean
           )
 
-          val schema = Schema.derived[Large30]
+          val schema: Schema[Large30] = Schema.derived[Large30]
           schema.structural
           """
         }.map { result =>
@@ -229,53 +230,37 @@ object SupportedTypesSpec extends SchemaBaseSpec {
     ),
     suite("Tuple Types")(
       test("tuple2 converts to structural") {
-        typeCheck {
-          """
-          import zio.blocks.schema._
-
-          val schema = Schema.derived[(Int, String)]
-          val structural: Schema[{def _1: Int; def _2: String}] = schema.structural
-          """
-        }.map { result =>
-          assertTrue(result.isRight)
+        val schema     = Schema.derived[(Int, String)]
+        val structural = schema.structural
+        val fieldNames = (structural.reflect: @unchecked) match {
+          case record: Reflect.Record[_, _] => record.fields.map(_.name).toList
         }
+        assertTrue(fieldNames == List("_1", "_2"))
       },
       test("tuple3 converts to structural") {
-        typeCheck {
-          """
-          import zio.blocks.schema._
-
-          val schema = Schema.derived[(Int, String, Boolean)]
-          val structural: Schema[{def _1: Int; def _2: String; def _3: Boolean}] = schema.structural
-          """
-        }.map { result =>
-          assertTrue(result.isRight)
+        val schema     = Schema.derived[(Int, String, Boolean)]
+        val structural = schema.structural
+        val fieldNames = (structural.reflect: @unchecked) match {
+          case record: Reflect.Record[_, _] => record.fields.map(_.name).toList
         }
+        assertTrue(fieldNames == List("_1", "_2", "_3"))
       },
       test("nested tuple converts to structural") {
-        typeCheck {
-          """
-          import zio.blocks.schema._
-
-          val schema = Schema.derived[((Int, String), (Boolean, Double))]
-          val structural: Schema[{def _1: (Int, String); def _2: (Boolean, Double)}] = schema.structural
-          """
-        }.map { result =>
-          assertTrue(result.isRight)
+        val schema     = Schema.derived[((Int, String), (Boolean, Double))]
+        val structural = schema.structural
+        val fieldNames = (structural.reflect: @unchecked) match {
+          case record: Reflect.Record[_, _] => record.fields.map(_.name).toList
         }
+        assertTrue(fieldNames == List("_1", "_2"))
       },
       test("tuple with case class converts to structural") {
-        typeCheck {
-          """
-          import zio.blocks.schema._
-
-          case class Point(x: Int, y: Int)
-          val schema = Schema.derived[(Point, String)]
-          val structural: Schema[{def _1: Point; def _2: String}] = schema.structural
-          """
-        }.map { result =>
-          assertTrue(result.isRight)
+        case class Point(x: Int, y: Int)
+        val schema     = Schema.derived[(Point, String)]
+        val structural = schema.structural
+        val fieldNames = (structural.reflect: @unchecked) match {
+          case record: Reflect.Record[_, _] => record.fields.map(_.name).toList
         }
+        assertTrue(fieldNames == List("_1", "_2"))
       }
     ),
 // Sum Types (Error Handling) tests are in Scala 2 specific: SumTypeErrorSpec.scala
@@ -288,7 +273,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class WithEither(result: Either[String, Int])
 
-          val schema = Schema.derived[WithEither]
+          val schema: Schema[WithEither] = Schema.derived[WithEither]
           val structural: Schema[{def result: Either[String, Int]}] = schema.structural
           """
         }.map { result =>
@@ -302,7 +287,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class Complex(items: Option[List[Int]])
 
-          val schema = Schema.derived[Complex]
+          val schema: Schema[Complex] = Schema.derived[Complex]
           val structural: Schema[{def items: Option[List[Int]]}] = schema.structural
           """
         }.map { result =>
@@ -316,7 +301,7 @@ object SupportedTypesSpec extends SchemaBaseSpec {
 
           case class ComplexMap(data: Map[String, List[Int]])
 
-          val schema = Schema.derived[ComplexMap]
+          val schema: Schema[ComplexMap] = Schema.derived[ComplexMap]
           val structural: Schema[{def data: Map[String, List[Int]]}] = schema.structural
           """
         }.map { result =>

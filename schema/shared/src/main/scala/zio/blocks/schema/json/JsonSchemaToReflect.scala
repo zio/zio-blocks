@@ -1,12 +1,23 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.{Owner, TypeId}
 
 private[schema] object JsonSchemaToReflect {
+
+  private def extractTitle(schema: JsonSchema): Option[String] = schema match {
+    case obj: JsonSchema.Object => obj.title
+    case _                      => None
+  }
+
+  private def typeIdFromTitle(title: Option[String]): TypeId[DynamicValue] =
+    title match {
+      case Some(name) => TypeId.nominal[DynamicValue](name, Owner.Root)
+      case None       => TypeId.of[DynamicValue]
+    }
 
   private[json] sealed trait Shape
   private[json] object Shape {
@@ -123,7 +134,7 @@ private[schema] object JsonSchemaToReflect {
 
     val allConstFields: List[Set[String]] = caseObjects.map { obj =>
       obj.properties
-        .getOrElse(Map.empty)
+        .getOrElse(ChunkMap.empty)
         .collect {
           case (name, propSchema: JsonSchema.Object) if propSchema.const.isDefined => name
         }
@@ -134,11 +145,11 @@ private[schema] object JsonSchemaToReflect {
 
     commonConstFields.headOption.flatMap { discField =>
       val extracted = caseObjects.flatMap { obj =>
-        val props = obj.properties.getOrElse(Map.empty)
+        val props = obj.properties.getOrElse(ChunkMap.empty)
         props.get(discField) match {
           case Some(propSchema: JsonSchema.Object) =>
             propSchema.const.collect { case Json.String(caseName) =>
-              val bodyProps    = props - discField
+              val bodyProps    = props.removed(discField)
               val bodyRequired = obj.required.map(_ - discField).filter(_.nonEmpty)
               val bodySchema   = JsonSchema.obj(
                 properties = if (bodyProps.nonEmpty) Some(bodyProps) else None,
@@ -178,7 +189,7 @@ private[schema] object JsonSchemaToReflect {
     if (hasOnlyAdditionalProps) {
       Some(Shape.MapShape(obj.additionalProperties.get))
     } else if (hasProperties) {
-      val props    = obj.properties.getOrElse(Map.empty).toList
+      val props    = obj.properties.getOrElse(ChunkMap.empty).toList
       val required = obj.required.getOrElse(Set.empty)
       val closed   = obj.additionalProperties.contains(JsonSchema.False)
       Some(Shape.Record(props, required, closed))
@@ -197,20 +208,22 @@ private[schema] object JsonSchemaToReflect {
       case _                                               => None
     }
 
-  private def build(shape: Shape, @scala.annotation.unused originalSchema: JsonSchema): Reflect[Binding, DynamicValue] =
+  private def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
+    val title = extractTitle(originalSchema)
     shape match {
       case Shape.Primitive(kind, schemaObj)       => buildPrimitive(kind, schemaObj)
       case Shape.Record(fields, required, closed) =>
-        buildRecord(fields, required, closed)
+        buildRecord(fields, required, closed, title)
       case Shape.MapShape(values)          => buildMap(values)
       case Shape.Sequence(items)           => buildSequence(items)
       case Shape.Tuple(prefixItems)        => buildTuple(prefixItems)
-      case Shape.Enum(cases)               => buildEnum(cases)
-      case Shape.KeyVariant(cases)         => buildKeyVariant(cases)
-      case Shape.FieldVariant(disc, cases) => buildFieldVariant(disc, cases)
+      case Shape.Enum(cases)               => buildEnum(cases, title)
+      case Shape.KeyVariant(cases)         => buildKeyVariant(cases, title)
+      case Shape.FieldVariant(disc, cases) => buildFieldVariant(disc, cases, title)
       case Shape.OptionOf(inner)           => buildOption(inner)
       case Shape.Dynamic                   => Reflect.dynamic[Binding]
     }
+  }
 
   private def buildPrimitive(kind: Shape.PrimKind, schemaObj: JsonSchema.Object): Reflect[Binding, DynamicValue] =
     kind match {
@@ -292,15 +305,15 @@ private[schema] object JsonSchemaToReflect {
       wrap = a => Right(primitiveType.toDynamicValue(a)),
       unwrap = dv =>
         primitiveType.fromDynamicValue(dv) match {
-          case Right(a) => a
+          case Right(a) => Right(a)
           case Left(_)  =>
             primitiveType match {
-              case _: PrimitiveType.String     => "".asInstanceOf[A]
-              case _: PrimitiveType.BigInt     => BigInt(0).asInstanceOf[A]
-              case _: PrimitiveType.BigDecimal => BigDecimal(0).asInstanceOf[A]
-              case _: PrimitiveType.Boolean    => false.asInstanceOf[A]
-              case PrimitiveType.Unit          => ().asInstanceOf[A]
-              case _                           => null.asInstanceOf[A]
+              case _: PrimitiveType.String     => Right("".asInstanceOf[A])
+              case _: PrimitiveType.BigInt     => Right(BigInt(0).asInstanceOf[A])
+              case _: PrimitiveType.BigDecimal => Right(BigDecimal(0).asInstanceOf[A])
+              case _: PrimitiveType.Boolean    => Right(false.asInstanceOf[A])
+              case PrimitiveType.Unit          => Right(().asInstanceOf[A])
+              case _                           => Right(null.asInstanceOf[A])
             }
         }
     )
@@ -308,7 +321,6 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper[Binding, DynamicValue, A](
       wrapped = innerReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -316,7 +328,8 @@ private[schema] object JsonSchemaToReflect {
   private def buildRecord(
     fields: List[(String, JsonSchema)],
     @scala.annotation.unused required: Set[String],
-    closed: Boolean
+    closed: Boolean,
+    title: Option[String]
   ): Reflect[Binding, DynamicValue] = {
     val fieldCount = fields.length
 
@@ -367,7 +380,7 @@ private[schema] object JsonSchemaToReflect {
 
     val baseRecord = new Reflect.Record[Binding, DynamicValue](
       fields = fieldTerms,
-      typeId = TypeId.of[DynamicValue],
+      typeId = typeIdFromTitle(title),
       recordBinding = recordBinding
     )
 
@@ -388,15 +401,14 @@ private[schema] object JsonSchemaToReflect {
     val wrapperBinding = new Binding.Wrapper[DynamicValue, Map[DynamicValue, DynamicValue]](
       wrap = map => Right(DynamicValue.Map(Chunk.from(map.toSeq))),
       unwrap = {
-        case DynamicValue.Map(entries) => entries.toMap
-        case _                         => Map.empty
+        case DynamicValue.Map(entries) => Right(entries.toMap)
+        case _                         => Right(Map.empty)
       }
     )
 
     new Reflect.Wrapper[Binding, DynamicValue, Map[DynamicValue, DynamicValue]](
       wrapped = mapReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -410,15 +422,14 @@ private[schema] object JsonSchemaToReflect {
     val wrapperBinding = new Binding.Wrapper[DynamicValue, Chunk[DynamicValue]](
       wrap = chunk => Right(DynamicValue.Sequence(chunk)),
       unwrap = {
-        case DynamicValue.Sequence(elements) => elements
-        case _                               => Chunk.empty
+        case DynamicValue.Sequence(elements) => Right(elements)
+        case _                               => Right(Chunk.empty)
       }
     )
 
     new Reflect.Wrapper[Binding, DynamicValue, Chunk[DynamicValue]](
       wrapped = seqReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -475,7 +486,7 @@ private[schema] object JsonSchemaToReflect {
     )
   }
 
-  private def buildEnum(cases: List[String]): Reflect[Binding, DynamicValue] = {
+  private def buildEnum(cases: List[String], title: Option[String]): Reflect[Binding, DynamicValue] = {
     val caseTerms: IndexedSeq[Term[Binding, DynamicValue, DynamicValue]] = cases.map { caseName =>
       val emptyRecordBinding = new Binding.Record[DynamicValue](
         constructor = new Constructor[DynamicValue] {
@@ -523,12 +534,15 @@ private[schema] object JsonSchemaToReflect {
 
     new Reflect.Variant[Binding, DynamicValue](
       cases = caseTerms,
-      typeId = TypeId.of[DynamicValue],
+      typeId = typeIdFromTitle(title),
       variantBinding = variantBinding
     )
   }
 
-  private def buildKeyVariant(cases: List[(String, JsonSchema)]): Reflect[Binding, DynamicValue] = {
+  private def buildKeyVariant(
+    cases: List[(String, JsonSchema)],
+    title: Option[String]
+  ): Reflect[Binding, DynamicValue] = {
     val caseTerms: IndexedSeq[Term[Binding, DynamicValue, DynamicValue]] = cases.map { case (caseName, bodySchema) =>
       val bodyReflect = toReflect(bodySchema)
       new Term[Binding, DynamicValue, DynamicValue](caseName, bodyReflect)
@@ -559,29 +573,29 @@ private[schema] object JsonSchemaToReflect {
 
     new Reflect.Variant[Binding, DynamicValue](
       cases = caseTerms,
-      typeId = TypeId.of[DynamicValue],
+      typeId = typeIdFromTitle(title),
       variantBinding = variantBinding
     )
   }
 
   private def buildFieldVariant(
     @scala.annotation.unused discriminator: String,
-    cases: List[(String, JsonSchema)]
+    cases: List[(String, JsonSchema)],
+    title: Option[String]
   ): Reflect[Binding, DynamicValue] =
-    buildKeyVariant(cases)
+    buildKeyVariant(cases, title)
 
   private def buildOption(innerSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
     val innerReflect = toReflect(innerSchema)
 
     val wrapperBinding = new Binding.Wrapper[DynamicValue, DynamicValue](
       wrap = dv => Right(dv),
-      unwrap = identity
+      unwrap = dv => Right(dv)
     )
 
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = innerReflect,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = wrapperBinding
     )
   }
@@ -609,13 +623,12 @@ private[schema] object JsonSchemaToReflect {
           case None        => Right(dv)
         }
       },
-      unwrap = identity
+      unwrap = dv => Right(dv)
     )
 
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = inner,
       typeId = TypeId.of[DynamicValue],
-      wrapperPrimitiveType = None,
       wrapperBinding = validatingBinding
     )
   }

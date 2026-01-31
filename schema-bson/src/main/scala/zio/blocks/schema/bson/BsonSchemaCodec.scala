@@ -1047,15 +1047,17 @@ object BsonSchemaCodec {
       val wrappedCodec = deriveCodec(wrappedReflect.asInstanceOf[Reflect.Bound[B]], config)
 
       val encoder = new BsonEncoder[A] {
-        def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit = {
-          val unwrapped = binding.unwrap(value)
-          wrappedCodec.encoder.encode(writer, unwrapped, ctx)
-        }
+        def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit =
+          binding.unwrap(value) match {
+            case Right(unwrapped) => wrappedCodec.encoder.encode(writer, unwrapped, ctx)
+            case Left(error)      => throw error
+          }
 
-        def toBsonValue(value: A): BsonValue = {
-          val unwrapped = binding.unwrap(value)
-          wrappedCodec.encoder.toBsonValue(unwrapped)
-        }
+        def toBsonValue(value: A): BsonValue =
+          binding.unwrap(value) match {
+            case Right(unwrapped) => wrappedCodec.encoder.toBsonValue(unwrapped)
+            case Left(error)      => throw error
+          }
       }
 
       val decoder = new BsonDecoder[A] {

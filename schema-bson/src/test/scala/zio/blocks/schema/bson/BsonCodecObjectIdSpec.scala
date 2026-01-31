@@ -32,10 +32,9 @@ object BsonCodecObjectIdSpec extends SchemaBaseSpec {
           "CustomerId",
           Owner.fromPackagePath("zio.blocks.schema.bson").term("BsonCodecObjectIdSpec")
         ),
-        wrapperPrimitiveType = None,
         wrapperBinding = new zio.blocks.schema.binding.Binding.Wrapper[CustomerId, ObjectId](
           wrap = oid => Right(CustomerId(oid)),
-          unwrap = _.value
+          unwrap = cid => Right(cid.value)
         )
       )
     )

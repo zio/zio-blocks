@@ -161,8 +161,7 @@ object TermToString extends ZIOSpecDefault {
         val userIdReflect = Reflect.Wrapper[Binding, String, String](
           wrapped = Reflect.string[Binding],
           typeId = TypeId.nominal[String]("UserId", Owner.Root),
-          wrapperPrimitiveType = None,
-          wrapperBinding = Binding.Wrapper[String, String](s => Right(s), identity)
+          wrapperBinding = Binding.Wrapper[String, String](s => Right(s), s => Right(s))
         )
         val term = Term("userId", userIdReflect)
         assertTrue(term.toString == "userId: wrapper UserId(String)")
@@ -196,8 +195,7 @@ object TermToString extends ZIOSpecDefault {
         val validatedEmailReflect = Reflect.Wrapper[Binding, EmailParts, EmailParts](
           wrapped = emailPartsReflect,
           typeId = TypeId.nominal[EmailParts]("ValidatedEmail", Owner.Root),
-          wrapperPrimitiveType = None,
-          wrapperBinding = Binding.Wrapper[EmailParts, EmailParts](e => Right(e), identity)
+          wrapperBinding = Binding.Wrapper[EmailParts, EmailParts](e => Right(e), e => Right(e))
         )
 
         val term = Term("email", validatedEmailReflect)

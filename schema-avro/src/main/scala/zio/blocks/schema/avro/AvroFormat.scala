@@ -114,7 +114,6 @@ object AvroFormat
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
           typeId: TypeId[A],
-          wrapperPrimitiveType: Option[PrimitiveType[A]],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
@@ -125,7 +124,6 @@ object AvroFormat
             new Reflect.Wrapper(
               wrapped.asInstanceOf[Reflect[Binding, B]],
               typeId,
-              wrapperPrimitiveType,
               binding,
               doc,
               modifiers
@@ -849,7 +847,7 @@ object AvroFormat
             if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
-              new AvroBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(AvroBinaryCodec.objectType) {
+              new AvroBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(AvroBinaryCodec.objectType) {
                 case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
                 case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
                 case _: PrimitiveType.Char      => AvroBinaryCodec.charType
@@ -861,8 +859,8 @@ object AvroFormat
                 case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
                 case _                          => AvroBinaryCodec.objectType
               }) {
-                private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap
+                private[this] val unwrap       = binding.unwrap
                 private[this] val wrappedCodec = codec
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
@@ -879,7 +877,11 @@ object AvroFormat
                   }
                 }
 
-                def encode(value: A, encoder: BinaryEncoder): Unit = wrappedCodec.encode(unwrap(value), encoder)
+                def encode(value: A, encoder: BinaryEncoder): Unit =
+                  unwrap(value) match {
+                    case Right(wrapped) => wrappedCodec.encode(wrapped, encoder)
+                    case Left(err)      => throw err
+                  }
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {

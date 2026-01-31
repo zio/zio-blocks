@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.test._
 
@@ -46,7 +47,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
       test("delegation works for complex schemas") {
         val json   = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
         val schema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name", "age"))
         )
         assertTrue(
@@ -109,7 +110,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
       },
       test("object validation") {
         val schema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
         assertTrue(
@@ -188,11 +189,11 @@ object JsonCheckSpec extends SchemaBaseSpec {
     suite("Nested validation via Json methods")(
       test("nested object validation") {
         val addressSchema = JsonSchema.obj(
-          properties = Some(Map("city" -> JsonSchema.string())),
+          properties = Some(ChunkMap("city" -> JsonSchema.string())),
           required = Some(Set("city"))
         )
         val schema = JsonSchema.obj(
-          properties = Some(Map("address" -> addressSchema)),
+          properties = Some(ChunkMap("address" -> addressSchema)),
           required = Some(Set("address"))
         )
         val valid   = Json.Object("address" -> Json.Object("city" -> Json.String("NYC")))
@@ -204,7 +205,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
       },
       test("array items validation") {
         val itemSchema = JsonSchema.obj(
-          properties = Some(Map("id" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("id" -> JsonSchema.integer())),
           required = Some(Set("id"))
         )
         val schema  = JsonSchema.array(items = Some(itemSchema))
@@ -228,7 +229,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
       },
       test("check provides error details for missing required field") {
         val schema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
         val error = Json.Object().check(schema)

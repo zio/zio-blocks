@@ -50,7 +50,10 @@ sealed trait SchemaExpr[A, +B] { self =>
       SchemaExpr.LogicalOperator.Or
     )
 
-  private final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] = self.asInstanceOf[SchemaExpr[A, B2]]
+  private final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] = {
+    val _ = ev // suppress unused warning
+    self.asInstanceOf[SchemaExpr[A, B2]]
+  }
 }
 
 object SchemaExpr {

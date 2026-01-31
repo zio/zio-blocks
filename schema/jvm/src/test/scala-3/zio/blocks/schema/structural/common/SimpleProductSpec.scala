@@ -23,7 +23,7 @@ object SimpleProductSpec extends SchemaBaseSpec {
       typeCheck("""
         import zio.blocks.schema._
         case class Person(name: String, age: Int)
-        val schema = Schema.derived[Person]
+        val schema: Schema[Person] = Schema.derived[Person]
         val structural: Schema[{def age: Int; def name: String}] = schema.structural
       """).map(result => assertTrue(result.isRight))
     }

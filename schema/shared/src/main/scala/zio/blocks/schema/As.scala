@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.SchemaError
-
 /**
  * Bidirectional conversion between types A and B.
  *

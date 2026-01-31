@@ -555,7 +555,7 @@ object Binding extends BindingCompanionVersionSpecific {
 
   final case class Wrapper[A, B](
     wrap: B => Either[SchemaError, A],
-    unwrap: A => B
+    unwrap: A => Either[SchemaError, B]
   ) extends Binding[BindingType.Wrapper[A, B], A]
 
   final case class Dynamic() extends Binding[BindingType.Dynamic, DynamicValue]

@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.test._
 
@@ -128,10 +129,10 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("object with all constraints round-trips") {
         val schema = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
           required = Some(Set("name")),
           additionalProperties = Some(JsonSchema.boolean),
-          patternProperties = Some(Map(RegexPattern.unsafe("^x_") -> JsonSchema.string())),
+          patternProperties = Some(ChunkMap(RegexPattern.unsafe("^x_") -> JsonSchema.string())),
           propertyNames = Some(JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(20)))),
           minProperties = Some(NonNegativeInt.unsafe(1)),
           maxProperties = Some(NonNegativeInt.unsafe(10)),
@@ -187,7 +188,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("if/then/else schema round-trips") {
         val schema = JsonSchema.Object(
-          `if` = Some(JsonSchema.obj(properties = Some(Map("type" -> JsonSchema.constOf(Json.String("a")))))),
+          `if` = Some(JsonSchema.obj(properties = Some(ChunkMap("type" -> JsonSchema.constOf(Json.String("a")))))),
           `then` = Some(JsonSchema.obj(required = Some(Set("a_field")))),
           `else` = Some(JsonSchema.obj(required = Some(Set("b_field"))))
         )
@@ -197,7 +198,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("dependentSchemas round-trips") {
         val schema = JsonSchema.Object(
-          dependentSchemas = Some(Map("credit_card" -> JsonSchema.obj(required = Some(Set("billing_address")))))
+          dependentSchemas = Some(ChunkMap("credit_card" -> JsonSchema.obj(required = Some(Set("billing_address")))))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -205,7 +206,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("dependentRequired round-trips") {
         val schema = JsonSchema.Object(
-          dependentRequired = Some(Map("credit_card" -> Set("billing_address", "security_code")))
+          dependentRequired = Some(ChunkMap("credit_card" -> Set("billing_address", "security_code")))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -213,7 +214,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("$ref schema round-trips") {
         val schema = JsonSchema.Object(
-          $defs = Some(Map("address" -> JsonSchema.obj(properties = Some(Map("street" -> JsonSchema.string()))))),
+          $defs =
+            Some(ChunkMap("address" -> JsonSchema.obj(properties = Some(ChunkMap("street" -> JsonSchema.string()))))),
           $ref = Some(UriReference("#/$defs/address"))
         )
         val json      = schema.toJson
@@ -223,19 +225,19 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       test("deeply nested schema round-trips") {
         val schema = JsonSchema.obj(
           properties = Some(
-            Map(
+            ChunkMap(
               "users" -> JsonSchema.array(
                 items = Some(
                   JsonSchema.obj(
                     properties = Some(
-                      Map(
+                      ChunkMap(
                         "name"    -> JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))),
                         "email"   -> JsonSchema.string(format = Some("email")),
                         "age"     -> JsonSchema.integer(minimum = Some(BigDecimal(0))),
                         "tags"    -> JsonSchema.array(items = Some(JsonSchema.string()), uniqueItems = Some(true)),
                         "address" -> JsonSchema.obj(
                           properties = Some(
-                            Map(
+                            ChunkMap(
                               "street"  -> JsonSchema.string(),
                               "city"    -> JsonSchema.string(),
                               "country" -> JsonSchema.string()
@@ -259,7 +261,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
     ),
     suite("Extension preservation")(
       test("unknown keywords survive round-trip") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-custom-extension" -> Json.String("custom value"),
           "x-another"          -> Json.Number(42),
           "x-complex"          -> Json.Object("nested" -> Json.Array(Json.Boolean(true), Json.Boolean(false)))
@@ -280,7 +282,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         )
       },
       test("multiple vendor extensions preserve order-independent") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-openapi-example" -> Json.String("example"),
           "x-nullable"        -> Json.Boolean(true),
           "x-deprecated-info" -> Json.Object("since" -> Json.String("v2.0"))
@@ -311,7 +313,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           $dynamicAnchor = Some(Anchor("dynamicAnchor")),
           $ref = Some(UriReference("#/$defs/base")),
           $dynamicRef = Some(UriReference("#dynamicAnchor")),
-          $defs = Some(Map("base" -> JsonSchema.string())),
+          $defs = Some(ChunkMap("base" -> JsonSchema.string())),
           $comment = Some("This is a comment")
         )
         val json     = schema.toJson
@@ -418,12 +420,12 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           minProperties = Some(NonNegativeInt.unsafe(1)),
           maxProperties = Some(NonNegativeInt.unsafe(10)),
           required = Some(Set("name", "age")),
-          properties = Some(Map("name" -> JsonSchema.string())),
-          patternProperties = Some(Map(RegexPattern.unsafe("^x_") -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
+          patternProperties = Some(ChunkMap(RegexPattern.unsafe("^x_") -> JsonSchema.string())),
           additionalProperties = Some(JsonSchema.False),
           propertyNames = Some(JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(20)))),
-          dependentRequired = Some(Map("foo" -> Set("bar"))),
-          dependentSchemas = Some(Map("baz" -> JsonSchema.obj(required = Some(Set("qux"))))),
+          dependentRequired = Some(ChunkMap("foo" -> Set("bar"))),
+          dependentSchemas = Some(ChunkMap("baz" -> JsonSchema.obj(required = Some(Set("qux"))))),
           unevaluatedProperties = Some(JsonSchema.False)
         )
         val json     = schema.toJson
@@ -461,7 +463,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("conditional keywords serialize correctly") {
         val schema = JsonSchema.Object(
-          `if` = Some(JsonSchema.obj(properties = Some(Map("type" -> JsonSchema.constOf(Json.String("a")))))),
+          `if` = Some(JsonSchema.obj(properties = Some(ChunkMap("type" -> JsonSchema.constOf(Json.String("a")))))),
           `then` = Some(JsonSchema.obj(required = Some(Set("a")))),
           `else` = Some(JsonSchema.obj(required = Some(Set("b"))))
         )
@@ -478,7 +480,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val schema = JsonSchema.Object(
           contentEncoding = Some("base64"),
           contentMediaType = Some("application/json"),
-          contentSchema = Some(JsonSchema.obj(properties = Some(Map("data" -> JsonSchema.string()))))
+          contentSchema = Some(JsonSchema.obj(properties = Some(ChunkMap("data" -> JsonSchema.string()))))
         )
         val json     = schema.toJson
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
@@ -679,7 +681,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("round-trip preserves validation behavior for object schema") {
         val original = JsonSchema.obj(
-          properties = Some(Map("name" -> JsonSchema.string())),
+          properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
         val roundtrip = JsonSchema.fromJson(original.toJson).toOption.get

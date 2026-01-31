@@ -1007,12 +1007,10 @@ object AvroFormatSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
+    implicit val typeId: TypeId[UserId] =
+      TypeId.nominal[UserId]("UserId", Owner.fromPackagePath("zio.blocks.schema.avro").term("AvroFormatSpec"))
     implicit val schema: Schema[UserId] =
-      Schema[Long]
-        .transform[UserId](x => new UserId(x), _.value)
-        .withTypeId(
-          TypeId.nominal[UserId]("UserId", Owner.fromPackagePath("zio.blocks.schema.avro").term("AvroFormatSpec"))
-        )
+      Schema[Long].transform[UserId](x => new UserId(x), _.value)
   }
 
   case class Email(value: String)
@@ -1024,13 +1022,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
         TypeId.nominal[Email]("Email", Owner.fromPackagePath("zio.blocks.avro").term("AvroFormatSpec")),
-        None,
         Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))
             case _                  => new Left(SchemaError.validationFailed("Expected Email"))
           },
-          _.value
+          (e: Email) => Right(e.value)
         )
       )
     )
@@ -1039,15 +1036,11 @@ object AvroFormatSpec extends SchemaBaseSpec {
   case class TransactionId(value: UUID)
 
   object TransactionId {
+    implicit val typeId: TypeId[TransactionId] =
+      TypeId
+        .nominal[TransactionId]("TransactionId", Owner.fromPackagePath("zio.blocks.schema.avro").term("AvroFormatSpec"))
     implicit val schema: Schema[TransactionId] =
-      Schema[UUID]
-        .transform[TransactionId](x => new TransactionId(x), _.value)
-        .withTypeId(
-          TypeId.nominal[TransactionId](
-            "TransactionId",
-            Owner.fromPackagePath("zio.blocks.schema.avro").term("AvroFormatSpec")
-          )
-        )
+      Schema[UUID].transform[TransactionId](x => new TransactionId(x), _.value)
   }
 
   case class Record3(userId: UserId, email: Email)
