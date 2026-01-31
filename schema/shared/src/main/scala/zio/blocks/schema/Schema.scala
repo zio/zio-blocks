@@ -272,8 +272,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
 
   /**
-   * Marks this schema as an opaque type, setting both the TypeId and the
-   * underlying primitive type for optimized register storage.
+   * Marks this schema as an opaque type by updating its TypeId.
+   *
+   * The underlying primitive type for optimized register storage is derived
+   * automatically from the `TypeId`'s representation. This requires the
+   * implicit `TypeId[B]` to be a `TypeId.opaque` or `TypeId.alias` with a
+   * primitive representation (e.g., `TypeRepr.Ref(TypeId.int)`).
    *
    * Use this after `transform` or `transformOrFail` when creating schemas for
    * opaque types or newtypes whose runtime representation is the same as the
@@ -298,7 +302,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * @tparam B
    *   The opaque type whose TypeId should be used
    * @return
-   *   A new schema with the updated TypeId and primitive type set
+   *   A new schema with the updated TypeId (primitive type derived from TypeId)
    */
   def asOpaqueType[B](implicit typeId: TypeId[B]): Schema[B] =
     new Schema(reflect.typeId(typeId.asInstanceOf[TypeId[A]])).asInstanceOf[Schema[B]]
