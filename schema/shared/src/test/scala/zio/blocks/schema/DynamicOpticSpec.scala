@@ -154,8 +154,8 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    val typeId: TypeId[PosInt]          = TypeId.of
-    implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).asOpaqueType[PosInt](typeId)
+    implicit lazy val typeId: TypeId[PosInt] = TypeId.of[PosInt]
+    implicit lazy val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value)
   }
 }

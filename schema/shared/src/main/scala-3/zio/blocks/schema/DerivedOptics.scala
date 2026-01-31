@@ -39,8 +39,8 @@ import scala.language.implicitConversions
  * {{{
  * opaque type Age = Int
  * object Age extends DerivedOptics {
- *   // Ensure a Wrapper schema is available (e.g. using wrapTotal)
- *   given schema: Schema[Age] = Schema.int.wrapTotal(Age.apply, _.value)
+ *   // Ensure a Wrapper schema is available using transform
+ *   given schema: Schema[Age] = Schema[Int].transform(Age.apply, _.value)
  *
  *   def apply(i: Int): Age = i
  *   extension (a: Age) def value: Int = a

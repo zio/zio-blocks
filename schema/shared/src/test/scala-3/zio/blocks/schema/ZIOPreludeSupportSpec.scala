@@ -162,7 +162,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
           else Left(SchemaError.validationFailed("String must not be empty")),
         _.asInstanceOf[String]
       )
-      .asOpaqueType[Name]
+
   }
 
   type Kilogram = Kilogram.Type
@@ -170,7 +170,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object Kilogram extends Newtype[Double] {
     given TypeId[Kilogram]                = TypeId.opaque("Kilogram", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Kilogram] =
-      Schema[Double].transform(_.asInstanceOf[Kilogram], _.asInstanceOf[Double]).asOpaqueType[Kilogram]
+      Schema[Double].transform(_.asInstanceOf[Kilogram], _.asInstanceOf[Double])
   }
 
   type Meter = Meter.Type
@@ -178,7 +178,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object Meter extends Subtype[Double] {
     given TypeId[Meter]                = TypeId.opaque("Meter", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Meter] =
-      Schema[Double].transform(_.asInstanceOf[Meter], _.asInstanceOf[Double]).asOpaqueType[Meter]
+      Schema[Double].transform(_.asInstanceOf[Meter], _.asInstanceOf[Double])
   }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
@@ -230,6 +230,6 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object EmojiDataId extends Subtype[Int] {
     given TypeId[EmojiDataId]                = TypeId.opaque("EmojiDataId", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.int))
     implicit val schema: Schema[EmojiDataId] =
-      Schema[Int].transform(_.asInstanceOf[EmojiDataId], _.asInstanceOf[Int]).asOpaqueType[EmojiDataId]
+      Schema[Int].transform(_.asInstanceOf[EmojiDataId], _.asInstanceOf[Int])
   }
 }

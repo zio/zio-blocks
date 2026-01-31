@@ -80,7 +80,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object Name extends Newtype[String] {
     override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
 
-    val typeId: TypeId[Name] =
+    implicit val typeId: TypeId[Name] =
       TypeId.opaque[Name]("Name", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.string))
     implicit val schema: Schema[Name] = Schema[String]
       .transformOrFail[Name](
@@ -89,26 +89,24 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
           else Left(SchemaError.validationFailed("String must not be empty")),
         (n: Name) => n.asInstanceOf[String]
       )
-      .asOpaqueType[Name](typeId)
   }
 
   type Kilogram = Kilogram.Type
 
   object Kilogram extends Subtype[Double] {
-    val typeId: TypeId[Kilogram] =
+    implicit val typeId: TypeId[Kilogram] =
       TypeId.opaque[Kilogram]("Kilogram", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Kilogram] = Schema[Double]
       .transform[Kilogram](_.asInstanceOf[Kilogram], _.asInstanceOf[Double])
-      .asOpaqueType[Kilogram](typeId)
   }
 
   type Meter = Meter.Type
 
   object Meter extends Newtype[Double] {
-    val typeId: TypeId[Meter] =
+    implicit val typeId: TypeId[Meter] =
       TypeId.opaque[Meter]("Meter", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Meter] =
-      Schema[Double].transform[Meter](_.asInstanceOf[Meter], _.asInstanceOf[Double]).asOpaqueType[Meter](typeId)
+      Schema[Double].transform[Meter](_.asInstanceOf[Meter], _.asInstanceOf[Double])
   }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])

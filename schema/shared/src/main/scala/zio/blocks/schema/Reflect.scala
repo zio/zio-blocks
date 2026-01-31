@@ -1123,6 +1123,7 @@ object Reflect {
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] { self =>
+    require((wrapped ne null) && (typeId ne null), "Wrapper requires non-null wrapped and typeId")
     protected def inner: Any = (wrapped, typeId, doc, modifiers)
 
     def wrapperPrimitiveType: Option[PrimitiveType[A]] =
@@ -1867,6 +1868,7 @@ object Reflect {
   }
 
   private[schema] def primitiveTypeFromTypeId[A](typeId: TypeId[A]): Option[PrimitiveType[A]] = {
+    if (typeId eq null) return None
     val underlyingRepr: Option[TypeRepr] =
       if (typeId.isOpaque) typeId.representation
       else if (typeId.isAlias) typeId.aliasedTo

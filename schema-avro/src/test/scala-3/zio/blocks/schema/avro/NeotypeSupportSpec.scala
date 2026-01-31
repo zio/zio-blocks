@@ -25,7 +25,7 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   ): Schema[B] =
     Schema[A]
       .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
-      .asOpaqueType[B]
+      
 
   type Name = Name.Type
 

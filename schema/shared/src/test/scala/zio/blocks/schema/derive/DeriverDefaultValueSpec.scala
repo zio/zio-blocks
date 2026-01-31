@@ -50,7 +50,6 @@ object DeriverDefaultValueSpec extends SchemaBaseSpec {
     implicit val schema: Schema[StringWrapper] =
       Schema[String]
         .transformOrFail(s => Right(StringWrapper(s)), (w: StringWrapper) => w.value)
-        .withTypeId[StringWrapper]
   }
 
   class CapturingDeriver extends Deriver[CapturedValues] {

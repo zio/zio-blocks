@@ -170,7 +170,6 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   ): Schema[B] =
     Schema[A]
       .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
-      .asOpaqueType[B]
 
   inline given subTypeSchema[A, B <: A](using
     subType: Subtype.WithType[A, B],
@@ -179,7 +178,6 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   ): Schema[B] =
     Schema[A]
       .transformOrFail(a => subType.make(a).left.map(SchemaError.validationFailed), _.asInstanceOf[A])
-      .asOpaqueType[B]
 
   private val neotypeSupportOwner: Owner = Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")
 
