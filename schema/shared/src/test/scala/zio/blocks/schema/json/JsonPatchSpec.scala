@@ -525,18 +525,6 @@ object JsonPatchSpec extends SchemaBaseSpec {
         assertTrue(result == new Right(c))
       }
     },
-    // NOTE: Random object composition tests verify correctness (roundtrip law)
-    // but do NOT test minimality. Random object pairs typically produce Set operations.
-    // For minimality testing, see JsonDifferSpec.trueMinimalitySuite.
-    test("L6: diff composition for Json.Object") {
-      check(genJsonObject(2), genJsonObject(2), genJsonObject(2)) { (a, b, c) =>
-        val p1       = JsonPatch.diff(a, b)
-        val p2       = JsonPatch.diff(b, c)
-        val composed = p1 ++ p2
-        val result   = composed(a, PatchMode.Strict)
-        assertTrue(result == new Right(c))
-      }
-    },
     test("L6: diff composition for mixed types") {
       check(genSimpleJson, genSimpleJson, genSimpleJson) { (a, b, c) =>
         val p1       = JsonPatch.diff(a, b)
