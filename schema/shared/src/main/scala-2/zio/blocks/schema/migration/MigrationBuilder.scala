@@ -4,12 +4,7 @@ import scala.language.experimental.macros
 import zio.blocks.schema.{DynamicOptic, Schema}
 
 /**
- * Builder for constructing type-safe, compile-time validated migrations (Scala
- * 2).
- *
- * CRITICAL DESIGN: All builder methods are REGULAR methods (not macros). Only
- * the `select()` macro is a macro. This ensures the builder works correctly
- * when stored in a `val`.
+ * Builder for constructing type-safe, compile-time validated migrations.
  *
  * Type parameters track which fields have been handled:
  * @tparam A
@@ -201,6 +196,139 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
    */
   def renameCase(from: String, to: String): MigrationBuilder[A, B, SrcRemaining, TgtRemaining] = {
     val action = MigrationAction.RenameCase(DynamicOptic.root, from, to)
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Nested Migration Operations (with compile-time completeness checking)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Apply a nested migration to a record field.
+   *
+   * The nested migration must be a complete Migration[F1, F2] built with full
+   * compile-time field tracking. This ensures validation at ALL nesting levels.
+   *
+   * {{{
+   * case class AddressV0(street: String)
+   * case class AddressV1(street: String, city: String)
+   * case class PersonV0(name: String, address: AddressV0)
+   * case class PersonV1(name: String, address: AddressV1)
+   *
+   * val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+   *   .keepField(select(_.name))
+   *   .inField(select[PersonV0](_.address), select[PersonV1](_.address))(
+   *     MigrationBuilder.withFieldTracking[AddressV0, AddressV1]
+   *       .keepField(select(_.street))
+   *       .addField(select(_.city), "Unknown")
+   *       .build  // ← Compile-time validation for address fields
+   *   )
+   *   .build  // ← Compile-time validation for person fields
+   * }}}
+   */
+  def inField[F1, F2, SrcName <: String, TgtName <: String](
+    srcField: FieldSelector[A, F1, SrcName],
+    tgtField: FieldSelector[B, F2, TgtName]
+  )(
+    nestedMigration: Migration[F1, F2]
+  )(implicit
+    srcEv: Contains[SrcRemaining, SrcName],
+    tgtEv: Contains[TgtRemaining, TgtName],
+    srcRemove: Remove[SrcRemaining, SrcName],
+    tgtRemove: Remove[TgtRemaining, TgtName]
+  ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
+    val renameAction = if (srcField.name != tgtField.name) {
+      Some(MigrationAction.Rename(DynamicOptic.root, srcField.name, tgtField.name))
+    } else None
+
+    val fieldPath       = DynamicOptic.root.field(tgtField.name)
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to a field with the same name in source and
+   * target.
+   */
+  def inFieldSame[F1, F2, Name <: String](
+    field: FieldSelector[A, F1, Name]
+  )(
+    nestedMigration: Migration[F1, F2]
+  )(implicit
+    srcEv: Contains[SrcRemaining, Name],
+    tgtEv: Contains[TgtRemaining, Name],
+    srcRemove: Remove[SrcRemaining, Name],
+    tgtRemove: Remove[TgtRemaining, Name]
+  ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
+    val fieldPath       = DynamicOptic.root.field(field.name)
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to each element in a sequence field.
+   *
+   * {{{
+   * case class PersonV0(name: String, addresses: List[AddressV0])
+   * case class PersonV1(name: String, addresses: List[AddressV1])
+   *
+   * val addressMigration = MigrationBuilder.withFieldTracking[AddressV0, AddressV1]
+   *   .keepField(select(_.street))
+   *   .addField(select(_.city), "Unknown")
+   *   .build
+   *
+   * val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+   *   .keepField(select(_.name))
+   *   .inElements(select[PersonV0](_.addresses))(addressMigration)
+   *   .build
+   * }}}
+   */
+  def inElements[E1, E2, Name <: String](
+    field: FieldSelector[A, _ <: Iterable[E1], Name]
+  )(
+    nestedMigration: Migration[E1, E2]
+  )(implicit
+    srcEv: Contains[SrcRemaining, Name],
+    tgtEv: Contains[TgtRemaining, Name],
+    srcRemove: Remove[SrcRemaining, Name],
+    tgtRemove: Remove[TgtRemaining, Name]
+  ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
+    val fieldPath       = DynamicOptic.root.field(field.name).elements
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to each value in a map field.
+   */
+  def inMapValues[K, V1, V2, Name <: String](
+    field: FieldSelector[A, _ <: Map[K, V1], Name]
+  )(
+    nestedMigration: Migration[V1, V2]
+  )(implicit
+    srcEv: Contains[SrcRemaining, Name],
+    tgtEv: Contains[TgtRemaining, Name],
+    srcRemove: Remove[SrcRemaining, Name],
+    tgtRemove: Remove[TgtRemaining, Name]
+  ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
+    val fieldPath       = DynamicOptic.root.field(field.name).mapValues
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to a specific enum case.
+   */
+  def inCase[C1, C2](
+    caseName: String
+  )(
+    nestedMigration: Migration[C1, C2]
+  ): MigrationBuilder[A, B, SrcRemaining, TgtRemaining] = {
+    val action = MigrationAction.TransformCase(DynamicOptic.root, caseName, nestedMigration.dynamicMigration.actions)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
   }
 

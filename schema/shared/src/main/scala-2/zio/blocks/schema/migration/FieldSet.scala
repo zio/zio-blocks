@@ -43,22 +43,27 @@ object FieldSet {
     type Out
   }
 
-  object Remove {
+  trait LowPriorityRemove {
+
+    /**
+     * Removing from tail (head doesn't match) - lower priority than removeHead
+     */
+    implicit def removeTail[Name, Head, Tail, TailOut](implicit
+      @annotation.unused ev: Remove.Aux[Tail, Name, TailOut]
+    ): Remove.Aux[Head :: Tail, Name, Head :: TailOut] =
+      new Remove[Head :: Tail, Name] { type Out = Head :: TailOut }
+  }
+
+  object Remove extends LowPriorityRemove {
     type Aux[S, Name, O] = Remove[S, Name] { type Out = O }
 
     /** Removing from empty set yields empty set */
     implicit def removeFromEmpty[Name]: Aux[HNil, Name, HNil] =
       new Remove[HNil, Name] { type Out = HNil }
 
-    /** Removing head element */
+    /** Removing head element - higher priority than removeTail */
     implicit def removeHead[Name, Tail]: Aux[Name :: Tail, Name, Tail] =
       new Remove[Name :: Tail, Name] { type Out = Tail }
-
-    /** Removing from tail (head doesn't match) */
-    implicit def removeTail[Name, Head, Tail, TailOut](implicit
-      @annotation.unused ev: Aux[Tail, Name, TailOut]
-    ): Aux[Head :: Tail, Name, Head :: TailOut] =
-      new Remove[Head :: Tail, Name] { type Out = Head :: TailOut }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -72,17 +77,20 @@ object FieldSet {
    */
   sealed trait Contains[S, Name]
 
-  object Contains {
+  trait LowPriorityContains {
 
-    /** Found at head */
-    implicit def containsHead[Name, Tail]: Contains[Name :: Tail, Name] =
-      new Contains[Name :: Tail, Name] {}
-
-    /** Found in tail */
+    /** Found in tail - lower priority than containsHead */
     implicit def containsTail[Name, Head, Tail](implicit
       ev: Contains[Tail, Name]
     ): Contains[Head :: Tail, Name] =
       new Contains[Head :: Tail, Name] {}
+  }
+
+  object Contains extends LowPriorityContains {
+
+    /** Found at head - higher priority than containsTail */
+    implicit def containsHead[Name, Tail]: Contains[Name :: Tail, Name] =
+      new Contains[Name :: Tail, Name] {}
   }
 
   // ─────────────────────────────────────────────────────────────────────────

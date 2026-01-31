@@ -26,6 +26,12 @@ sealed trait MigrationAction {
 
   /** Apply this action to a DynamicValue */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+
+  /**
+   * Create a copy of this action with the path prefixed by the given prefix.
+   * Used for nested migrations where actions need to be scoped to a sub-path.
+   */
+  def prefixPath(prefix: DynamicOptic): MigrationAction
 }
 
 object MigrationAction {
@@ -51,6 +57,8 @@ object MigrationAction {
   ) extends MigrationAction {
 
     def reverse: MigrationAction = DropField(at, fieldName, default)
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
@@ -82,6 +90,8 @@ object MigrationAction {
 
     def reverse: MigrationAction = AddField(at, fieldName, defaultForReverse)
 
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
         Right(fields.filterNot(_._1 == fieldName))
@@ -102,6 +112,8 @@ object MigrationAction {
   ) extends MigrationAction {
 
     def reverse: MigrationAction = Rename(at, to, from)
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
@@ -130,6 +142,8 @@ object MigrationAction {
 
     def reverse: MigrationAction = TransformValue(at, fieldName, reverseTransform, transform)
 
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
@@ -156,6 +170,8 @@ object MigrationAction {
   ) extends MigrationAction {
 
     def reverse: MigrationAction = Optionalize(at, fieldName)
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       // Work at record level so we have context for FieldAccess in defaults
@@ -209,6 +225,8 @@ object MigrationAction {
     def reverse: MigrationAction =
       Mandate(at, fieldName, Resolved.Fail("Cannot reverse optionalize without default"))
 
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
@@ -235,6 +253,8 @@ object MigrationAction {
   ) extends MigrationAction {
 
     def reverse: MigrationAction = ChangeType(at, fieldName, reverseConverter, converter)
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
@@ -266,6 +286,8 @@ object MigrationAction {
 
     def reverse: MigrationAction = RenameCase(at, to, from)
 
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Variant(caseName, caseValue) if caseName == from =>
@@ -292,6 +314,8 @@ object MigrationAction {
       caseName,
       caseActions.reverseIterator.map(_.reverse).toVector
     )
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
@@ -326,6 +350,8 @@ object MigrationAction {
 
     def reverse: MigrationAction = TransformElements(at, reverseTransform, elementTransform)
 
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Sequence(elements) =>
@@ -355,6 +381,8 @@ object MigrationAction {
 
     def reverse: MigrationAction = TransformKeys(at, reverseTransform, keyTransform)
 
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Record(entries) =>
@@ -378,6 +406,8 @@ object MigrationAction {
   ) extends MigrationAction {
 
     def reverse: MigrationAction = TransformValues(at, reverseTransform, valueTransform)
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {

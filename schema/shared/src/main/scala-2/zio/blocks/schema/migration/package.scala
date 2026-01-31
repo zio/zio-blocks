@@ -60,7 +60,7 @@ package object migration {
    * // fields.fieldNames == List("name", "age")
    * }}}
    */
-  implicit def schemaFields[A](implicit schema: Schema[A]): SchemaFields[A] = macro SchemaFieldsMacros.derivedImpl[A]
+  implicit def schemaFields[A]: SchemaFields[A] = macro SchemaFieldsMacros.derivedImpl[A]
 
   /**
    * Create a [[SchemaFields]] from the type structure (case class fields).

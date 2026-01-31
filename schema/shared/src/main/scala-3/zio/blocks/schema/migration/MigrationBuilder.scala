@@ -5,17 +5,6 @@ import zio.blocks.schema.{DynamicOptic, Schema}
 /**
  * Builder for constructing type-safe, compile-time validated migrations.
  *
- * CRITICAL DESIGN: All builder methods are REGULAR methods (not inline). Only
- * the `select()` macro is inline. This ensures the builder works correctly when
- * stored in a `val`:
- *
- * {{{
- * val builder = MigrationBuilder.create[PersonV0, PersonV1]
- * val b2 = builder.addField(select(_.age), 0)
- * val b3 = b2.renameField(select(_.name), select(_.fullName))
- * b3.build  // ✅ Compiles - type tracking preserved through vals
- * }}}
- *
  * Type parameters track which fields have been handled:
  * @tparam A
  *   Source type
@@ -38,9 +27,6 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
 
   /**
    * Add a new field to the target schema with a default value.
-   *
-   * NOT INLINE - takes a FieldSelector that already has the field name as a
-   * type parameter.
    */
   def addField[F, Name <: String](
     target: FieldSelector[B, F, Name],
@@ -109,8 +95,7 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   }
 
   /**
-   * Keep a field unchanged (field exists in both schemas with same name and
-   * type).
+   * Keep a field unchanged (exists in both schemas with same name and type).
    */
   def keepField[F, Name <: String](
     @scala.annotation.unused field: FieldSelector[A, F, Name]
@@ -118,7 +103,6 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
     srcEv: FieldSet.Contains[SrcRemaining, Name] =:= true,
     tgtEv: FieldSet.Contains[TgtRemaining, Name] =:= true
   ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], FieldSet.Remove[TgtRemaining, Name]] =
-    // No action needed - field is kept as-is
     new MigrationBuilder(sourceSchema, targetSchema, actions)
 
   /**
@@ -141,7 +125,6 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
     } else None
 
     val transformAction = MigrationAction.ChangeType(DynamicOptic.root, to.name, converter, reverseConverter)
-
     new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector :+ transformAction)
   }
 
@@ -162,7 +145,6 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
       Some(MigrationAction.Rename(DynamicOptic.root, source.name, target.name))
     } else None
     val mandateAction = MigrationAction.Mandate(DynamicOptic.root, target.name, resolvedDefault)
-
     new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector :+ mandateAction)
   }
 
@@ -180,7 +162,6 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
       Some(MigrationAction.Rename(DynamicOptic.root, source.name, target.name))
     } else None
     val optionalizeAction = MigrationAction.Optionalize(DynamicOptic.root, target.name)
-
     new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector :+ optionalizeAction)
   }
 
@@ -197,14 +178,137 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Nested Migration Operations (with compile-time completeness checking)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Apply a nested migration to a record field.
+   *
+   * The nested migration must be a complete Migration[F1, F2] built with full
+   * compile-time field tracking. This ensures validation at ALL nesting levels.
+   *
+   * {{{
+   * case class AddressV0(street: String)
+   * case class AddressV1(street: String, city: String)
+   * case class PersonV0(name: String, address: AddressV0)
+   * case class PersonV1(name: String, address: AddressV1)
+   *
+   * val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+   *   .keepField(select(_.name))
+   *   .inField(select[PersonV0](_.address), select[PersonV1](_.address))(
+   *     MigrationBuilder.withFieldTracking[AddressV0, AddressV1]
+   *       .keepField(select(_.street))
+   *       .addField(select(_.city), "Unknown")
+   *       .build  // ← Compile-time validation for address fields
+   *   )
+   *   .build  // ← Compile-time validation for person fields
+   * }}}
+   */
+  def inField[F1, F2, SrcName <: String, TgtName <: String](
+    srcField: FieldSelector[A, F1, SrcName],
+    tgtField: FieldSelector[B, F2, TgtName]
+  )(
+    nestedMigration: Migration[F1, F2]
+  )(using
+    srcEv: FieldSet.Contains[SrcRemaining, SrcName] =:= true,
+    tgtEv: FieldSet.Contains[TgtRemaining, TgtName] =:= true
+  ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, SrcName], FieldSet.Remove[TgtRemaining, TgtName]] = {
+    val renameAction = if (srcField.name != tgtField.name) {
+      Some(MigrationAction.Rename(DynamicOptic.root, srcField.name, tgtField.name))
+    } else None
+
+    val fieldPath       = DynamicOptic.root.field(tgtField.name)
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to a field with the same name in source and
+   * target.
+   */
+  def inFieldSame[F1, F2, Name <: String](
+    field: FieldSelector[A, F1, Name]
+  )(
+    nestedMigration: Migration[F1, F2]
+  )(using
+    srcEv: FieldSet.Contains[SrcRemaining, Name] =:= true,
+    tgtEv: FieldSet.Contains[TgtRemaining, Name] =:= true
+  ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], FieldSet.Remove[TgtRemaining, Name]] = {
+    val fieldPath       = DynamicOptic.root.field(field.name)
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to each element in a sequence field.
+   *
+   * {{{
+   * case class PersonV0(name: String, addresses: List[AddressV0])
+   * case class PersonV1(name: String, addresses: List[AddressV1])
+   *
+   * val addressMigration = MigrationBuilder.withFieldTracking[AddressV0, AddressV1]
+   *   .keepField(select(_.street))
+   *   .addField(select(_.city), "Unknown")
+   *   .build
+   *
+   * val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+   *   .keepField(select(_.name))
+   *   .inElements(select[PersonV0](_.addresses))(addressMigration)
+   *   .build
+   * }}}
+   */
+  def inElements[E1, E2, Name <: String](
+    field: FieldSelector[A, ? <: Iterable[E1], Name]
+  )(
+    nestedMigration: Migration[E1, E2]
+  )(using
+    srcEv: FieldSet.Contains[SrcRemaining, Name] =:= true,
+    tgtEv: FieldSet.Contains[TgtRemaining, Name] =:= true
+  ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], FieldSet.Remove[TgtRemaining, Name]] = {
+    val fieldPath       = DynamicOptic.root.field(field.name).elements
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to each value in a map field.
+   */
+  def inMapValues[K, V1, V2, Name <: String](
+    field: FieldSelector[A, ? <: Map[K, V1], Name]
+  )(
+    nestedMigration: Migration[V1, V2]
+  )(using
+    srcEv: FieldSet.Contains[SrcRemaining, Name] =:= true,
+    tgtEv: FieldSet.Contains[TgtRemaining, Name] =:= true
+  ): MigrationBuilder[A, B, FieldSet.Remove[SrcRemaining, Name], FieldSet.Remove[TgtRemaining, Name]] = {
+    val fieldPath       = DynamicOptic.root.field(field.name).mapValues
+    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+  }
+
+  /**
+   * Apply a nested migration to a specific enum case.
+   */
+  def inCase[C1, C2](
+    caseName: String
+  )(
+    nestedMigration: Migration[C1, C2]
+  ): MigrationBuilder[A, B, SrcRemaining, TgtRemaining] = {
+    val action = MigrationAction.TransformCase(DynamicOptic.root, caseName, nestedMigration.dynamicMigration.actions)
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Build Methods
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
    * Build the migration with full compile-time validation.
    *
-   * NOT INLINE - this is a regular method with type constraints. Only compiles
-   * when ALL source fields are consumed and ALL target fields are provided.
+   * Only compiles when ALL source fields are consumed and ALL target fields are
+   * provided. This is enforced by requiring evidence that both remaining field
+   * sets are EmptyTuple.
    */
   def build(using
     srcEmpty: SrcRemaining =:= EmptyTuple,
@@ -252,8 +356,8 @@ object MigrationBuilder {
   /**
    * Create a new migration builder with compile-time field tracking.
    *
-   * This uses [[SchemaFields]] to extract field names from the schemas at
-   * compile time, enabling full validation that all fields are handled.
+   * This extracts field names from the case class types at compile time,
+   * enabling full validation that all fields are handled.
    *
    * The [[build]] method will only compile when:
    *   - All source fields have been consumed (dropped, renamed, or kept)
@@ -271,7 +375,7 @@ object MigrationBuilder {
    *   .build  // ✅ Compiles - all fields handled
    * }}}
    */
-  inline def withFieldTracking[A, B](using
+  transparent inline def withFieldTracking[A, B](using
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B, ?, ?] =
@@ -287,7 +391,6 @@ object MigrationBuilder {
   )(using quotes: scala.quoted.Quotes): scala.quoted.Expr[MigrationBuilder[A, B, ?, ?]] = {
     import quotes.reflect.*
 
-    // Try to extract field names from case class types
     def extractFieldNames(tpe: TypeRepr): List[String] =
       tpe.classSymbol match {
         case Some(cls) if cls.flags.is(Flags.Case) =>
@@ -301,7 +404,6 @@ object MigrationBuilder {
     val srcFields = extractFieldNames(TypeRepr.of[A])
     val tgtFields = extractFieldNames(TypeRepr.of[B])
 
-    // Build tuple types from field names
     def buildTupleType(names: List[String]): TypeRepr =
       names.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
         val nameType = ConstantType(StringConstant(name))
@@ -324,9 +426,6 @@ object MigrationBuilder {
 
   /**
    * Create a migration builder with explicit field names.
-   *
-   * Use this when you need to specify field names manually (e.g., for
-   * non-case-class types or when automatic extraction doesn't work).
    */
   inline def withFields[A, B](
     inline srcFields: String*
@@ -346,7 +445,6 @@ object MigrationBuilder {
   )(using quotes: scala.quoted.Quotes): scala.quoted.Expr[MigrationBuilder[A, B, ?, ?]] = {
     import quotes.reflect.*
 
-    // Extract string literals from varargs
     def extractStrings(expr: scala.quoted.Expr[Seq[String]]): List[String] =
       expr match {
         case scala.quoted.Varargs(exprs) =>
@@ -363,7 +461,6 @@ object MigrationBuilder {
     val srcNames = extractStrings(srcFields)
     val tgtNames = extractStrings(tgtFields)
 
-    // Build tuple types
     def buildTupleType(names: List[String]): TypeRepr =
       names.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
         val nameType = ConstantType(StringConstant(name))
@@ -385,7 +482,8 @@ object MigrationBuilder {
   }
 
   /**
-   * Internal constructor for creating a builder with specific field sets.
+   * Internal constructor for creating a builder with specific field sets. Used
+   * by macros and nested migration methods.
    */
   private[migration] def initial[A, B, SrcFields <: Tuple, TgtFields <: Tuple](
     sourceSchema: Schema[A],

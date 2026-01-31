@@ -46,7 +46,7 @@ object SelectorMacros {
      * @return
      *   A FieldSelector with the field name captured as a type parameter
      */
-    inline def apply[F](inline selector: S => F): FieldSelector[S, F, ?] =
+    transparent inline def apply[F](inline selector: S => F): FieldSelector[S, F, ?] =
       ${ selectImpl[S, F]('selector) }
   }
 

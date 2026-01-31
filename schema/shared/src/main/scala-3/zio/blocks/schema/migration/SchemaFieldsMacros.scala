@@ -1,41 +1,58 @@
 package zio.blocks.schema.migration
 
 import scala.quoted.*
-import zio.blocks.schema.Schema
 
 /**
- * Macros for extracting field names from Schema at compile time.
+ * Macros for extracting field names from case class types at compile time.
  *
- * These macros inspect the Schema[A] at compile time and extract field names as
- * a type-level tuple of singleton string types, enabling compile-time
- * validation of migration completeness.
+ * Inspects type A and extracts field names as a type-level tuple of singleton
+ * string types, enabling compile-time validation of migration completeness.
  */
 object SchemaFieldsMacros {
 
   /**
-   * Derive a SchemaFields instance for type A.
+   * Derive a SchemaFields instance for type A with concrete field types.
    *
-   * For record types, extracts field names as a tuple type. For non-record
-   * types, returns EmptyTuple.
+   * For case class types, extracts field names as a tuple type like: ("name" *:
+   * "age" *: EmptyTuple)
+   *
+   * For non-case-class types, returns EmptyTuple.
+   *
+   * This is the primary way to get SchemaFields with proper type information.
    */
-  inline given derived[A](using schema: Schema[A]): SchemaFields[A] =
-    ${ deriveSchemaFieldsImpl[A]('schema) }
+  inline def derived[A]: SchemaFields[A] = ${ derivedImpl[A] }
 
-  /**
-   * Implementation of the derived macro.
-   */
-  def deriveSchemaFieldsImpl[A: Type](schema: Expr[Schema[A]])(using Quotes): Expr[SchemaFields[A]] =
-    // Extract field names at runtime from the schema
-    // Since Schema is a value, we create a SchemaFields that uses runtime extraction
-    // but captures the field names as a type when possible
-    '{
-      val s     = $schema
-      val names = SchemaFields.extractFieldNames(s)
-      new SchemaFields[A] {
-        type Fields = EmptyTuple // We use EmptyTuple as a placeholder
-        def fieldNames: List[String] = names
+  private def derivedImpl[A: Type](using Quotes): Expr[SchemaFields[A]] = {
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[A]
+
+    // Extract field names from case class
+    val fieldNames: List[String] = tpe.classSymbol match {
+      case Some(cls) if cls.flags.is(Flags.Case) =>
+        cls.primaryConstructor.paramSymss.flatten
+          .filter(_.isValDef)
+          .map(_.name)
+      case _ =>
+        Nil
+    }
+
+    if (fieldNames.isEmpty) {
+      '{ SchemaFields.emptyWith[A, EmptyTuple] }
+    } else {
+      // Build the tuple type from field names
+      val tupleType = fieldNames.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
+        val nameType = ConstantType(StringConstant(name))
+        TypeRepr.of[*:].appliedTo(List(nameType, acc))
+      }
+
+      tupleType.asType match {
+        case '[t] =>
+          val namesExpr = Expr(fieldNames)
+          '{ SchemaFields[A, t]($namesExpr) }
       }
     }
+  }
 
   /**
    * Create a SchemaFields with field names extracted at macro expansion time

@@ -57,7 +57,7 @@ package object migration {
    * // fields.fieldNames == List("name", "age")
    * }}}
    */
-  inline given schemaFields[A](using schema: Schema[A]): SchemaFields[A] =
+  inline given schemaFields[A]: SchemaFields[A] =
     SchemaFieldsMacros.derived[A]
 
   /**

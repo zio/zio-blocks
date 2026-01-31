@@ -69,6 +69,11 @@ final case class Migration[A, B](
   }
 
   /**
+   * Alias for [[apply]].
+   */
+  def migrate(value: A): Either[MigrationError, B] = apply(value)
+
+  /**
    * Apply this migration, throwing an exception on failure.
    *
    * Use `apply` for production code; this is provided for convenience in tests
