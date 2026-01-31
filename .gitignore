@@ -30,6 +30,7 @@ TAGS
 metals.sbt
 
 # Golem
+.golem/
 .golem-apps/
 .golem-local/
 .golem-local-run/

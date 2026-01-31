@@ -6,6 +6,6 @@ environments:
     componentPresets: debug
 
 includes:
-- .golem/common-*/golem.yaml
-- .golem/components-*/*/golem.yaml
+- .golem/common-scala-js/golem.yaml
+- .golem/components-js/scala-demo/golem.yaml
 

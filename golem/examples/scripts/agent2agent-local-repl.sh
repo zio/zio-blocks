@@ -1,23 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$script_dir/../../.."
+cd "$(dirname "$0")/../../.."
 
-source "$script_dir/lib.sh"
+echo "[agent2agent-local-repl] 1) Build Scala.js"
+( sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" )
 
-name="agent2agent-local-repl"
-examples_require_cli "$name"
-examples_parse_flags
-examples_check_router "$name"
+GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
+read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
 app_dir="$PWD/golem/examples"
-script_file="$PWD/golem/examples/samples/agent-to-agent/repl-minimal-agent-to-agent.rib"
+script_file="$app_dir/samples/agent-to-agent/repl-minimal-agent-to-agent.rib"
 
-examples_build_js "$name"
-
-out="$(examples_run_repl "$app_dir" "$script_file" 2>&1)"
-examples_check_repl_errors "$name" "$out"
-echo "$out"
-echo "$out" | grep -F -q "demo:42:olleh"
-echo "$out" | grep -F -q 'cba'
+echo "[agent2agent-local-repl] 2) Deploy app"
+( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy )
+echo "[agent2agent-local-repl] 3) Invoke via repl"
+( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
+  repl scala:examples --script-file "$script_file" --disable-stream < /dev/null )

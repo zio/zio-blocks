@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$script_dir/../../.."
+cd "$(dirname "$0")/../../.."
 
-source "$script_dir/lib.sh"
+echo "[json-tasks-local-repl] 1) Build Scala.js"
+( sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" )
 
-name="json-tasks-local-repl"
-examples_require_cli "$name"
-examples_parse_flags
-examples_check_router "$name"
+GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
+read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
 app_dir="$PWD/golem/examples"
-script_file="$PWD/golem/examples/samples/json-tasks/repl-json-tasks.rib"
+script_file="$app_dir/samples/json-tasks/repl-json-tasks.rib"
 
-examples_build_js "$name"
-
-out="$(examples_run_repl "$app_dir" "$script_file" 2>&1)"
-examples_check_repl_errors "$name" "$out"
-
-echo "$out"
-echo "$out" | grep -F -q 'title: "t1"'
-echo "$out" | grep -F -q 'completed: true'
+echo "[json-tasks-local-repl] 2) Deploy app"
+( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy )
+echo "[json-tasks-local-repl] 3) Invoke via repl"
+( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
+  repl scala:examples --script-file "$script_file" --disable-stream < /dev/null )

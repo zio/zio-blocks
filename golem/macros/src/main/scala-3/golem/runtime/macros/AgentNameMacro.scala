@@ -41,4 +41,5 @@ object AgentNameMacro {
         Expr(defaultTypeNameFromTrait(sym))
     }
   }
+
 }

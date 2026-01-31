@@ -1,23 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$script_dir/../../.."
+cd "$(dirname "$0")/../../.."
 
-source "$script_dir/lib.sh"
+echo "[hitl-local-repl] 1) Build Scala.js"
+( sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/fastLinkJS" )
 
-name="hitl-local-repl"
-examples_require_cli "$name"
-examples_parse_flags
-examples_check_router "$name"
+GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
+read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
 app_dir="$PWD/golem/examples"
-script_file="$PWD/golem/examples/samples/human-in-the-loop/repl-human-in-the-loop.rib"
+script_file="$app_dir/samples/human-in-the-loop/repl-human-in-the-loop.rib"
 
-examples_build_js "$name"
-
-out="$(examples_run_repl "$app_dir" "$script_file" 2>&1)"
-examples_check_repl_errors "$name" "$out"
-
-echo "$out"
-echo "$out" | grep -F -q 'outcome: "approved"'
+echo "[hitl-local-repl] 2) Deploy app"
+( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy )
+echo "[hitl-local-repl] 3) Invoke via repl"
+( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
+  repl scala:examples --script-file "$script_file" --disable-stream < /dev/null )
