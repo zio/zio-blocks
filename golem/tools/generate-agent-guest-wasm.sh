@@ -8,7 +8,8 @@ set -euo pipefail
 # - When upgrading Golem, regenerating the guest runtime avoids mysterious linker/discovery failures.
 #
 # This script:
-# 1) downloads `golem` WIT for a chosen tag (default: v1.4.1)
+# 1) uses a local `golem` WIT directory for a chosen tag (default: v1.4.1)
+#    (set GOLEM_WIT_DIR to override)
 # 2) stages a WIT package for `golem:agent` (using a static agent.wit + deps)
 # 3) runs `wasm-rquickjs generate-wrapper-crate` (injecting `@composition` for golem-cli)
 # 4) builds the component with `cargo component`
@@ -29,10 +30,9 @@ repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 tag="${1:-v1.4.1}"
 
 gen_dir="$repo_root/.generated"
-wit_dir="$gen_dir/golem-${tag}/wit"
+wit_dir="${GOLEM_WIT_DIR:-$repo_root/golem/tools/wit-${tag}/wit}"
 agent_wit_root="$gen_dir/agent-wit-root-${tag}"
 agent_wit_template="$repo_root/golem/tools/agent-wit/agent.wit"
-agent_js_template="$repo_root/golem/tools/agent-wit/user.js"
 wrapper_dir="$gen_dir/agent-guest-wrapper-${tag}"
 out_wasm="$wrapper_dir/target/wasm32-wasip1/release/agent_guest.wasm"
 
@@ -42,15 +42,11 @@ echo "[agent-guest] tag=$tag" >&2
 mkdir -p "$gen_dir"
 
 if [[ ! -d "$wit_dir" ]]; then
-  echo "[agent-guest] Downloading golem WIT for $tag..." >&2
-  rm -rf "$gen_dir/golem-${tag}"
-  mkdir -p "$gen_dir/golem-${tag}"
-
-  # codeload tarballs unpack to `golem-<tag-without-leading-v>`; we strip that path.
-  tag_no_v="${tag#v}"
-  curl -L -sSf "https://codeload.github.com/golemcloud/golem/tar.gz/refs/tags/${tag}" \
-    | tar -xz -C "$gen_dir/golem-${tag}" --strip-components=1 "golem-${tag_no_v}/wit"
+  echo "[agent-guest] ERROR: golem WIT dir not found: $wit_dir" >&2
+  echo "[agent-guest] Provide a local WIT checkout via GOLEM_WIT_DIR or vendor it at $repo_root/golem/tools/wit-${tag}/wit" >&2
+  exit 1
 fi
+echo "[agent-guest] Using local WIT dir: $wit_dir" >&2
 
 echo "[agent-guest] Staging WIT package for golem:agent..." >&2
 rm -rf "$agent_wit_root"
@@ -58,11 +54,6 @@ mkdir -p "$agent_wit_root/deps"
 
 if [[ ! -f "$agent_wit_template" ]]; then
   echo "[agent-guest] ERROR: missing WIT template at $agent_wit_template" >&2
-  exit 1
-fi
-
-if [[ ! -f "$agent_js_template" ]]; then
-  echo "[agent-guest] ERROR: missing JS template at $agent_js_template" >&2
   exit 1
 fi
 
@@ -95,7 +86,7 @@ rm -rf "$wrapper_dir"
 wasm-rquickjs generate-wrapper-crate \
   --wit "$agent_wit_root" \
   --world golem:agent/agent-guest \
-  --js-modules "user=$agent_js_template" \
+  --js-modules "user=@composition" \
   --js-modules "@composition=@composition" \
   --output "$wrapper_dir"
 

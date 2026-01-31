@@ -53,13 +53,9 @@ examples_run_repl() {
   local script_file="$2"
   cd "$app_dir"
   env -u ARGV0 golem-cli "${EXAMPLE_FLAGS[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy
-  if [[ -n "${REPL_TIMEOUT_SECS:-}" ]]; then
-    timeout "$REPL_TIMEOUT_SECS" env -u ARGV0 golem-cli "${EXAMPLE_FLAGS[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
-      repl scala:examples --script-file "$script_file" --disable-stream < /dev/null
-  else
-    env -u ARGV0 golem-cli "${EXAMPLE_FLAGS[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
-      repl scala:examples --script-file "$script_file" --disable-stream < /dev/null
-  fi
+  local timeout_secs="${REPL_TIMEOUT_SECS:-60}"
+  timeout "$timeout_secs" env -u ARGV0 golem-cli "${EXAMPLE_FLAGS[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
+    repl scala:examples --script-file "$script_file" --disable-stream < /dev/null
 }
 
 examples_check_repl_errors() {
@@ -69,6 +65,7 @@ examples_check_repl_errors() {
   if echo "$output" | grep -F -q 'CustomError(' || \
      echo "$output" | grep -F -q 'JavaScript error:' || \
      echo "$output" | grep -F -q 'Exception during call' || \
+     echo "$output" | grep -F -q '[runtime error]' || \
      echo "$output" | grep -F -q '[ERROR'; then
     echo "[$name] ERROR: repl output contains an error:" >&2
     if [[ -n "$hint" ]]; then

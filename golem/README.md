@@ -220,6 +220,9 @@ To regenerate the base runtime (when upgrading Golem/WIT versions):
 ./golem/tools/generate-agent-guest-wasm.sh v1.4.1
 ```
 
+This script expects a local checkout of the Golem WIT definitions at:
+`golem/tools/wit-<tag>/wit` (or set `GOLEM_WIT_DIR` to a custom path).
+
 That script stages a deterministic WIT package using `golem/tools/agent-wit/agent.wit` plus its dependencies, then runs `wasm-rquickjs generate-wrapper-crate` (with `--js-modules 'user=@composition'`) and `cargo component build`. This mirrors the TypeScript flow: wrapper crate → component build → compose in golem-cli.
 
 The base WIT definition is owned by the SDK (`golem/tools/agent-wit/agent.wit`), so user projects do not need a local "base WIT directory".
