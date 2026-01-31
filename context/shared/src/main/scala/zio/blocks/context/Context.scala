@@ -47,7 +47,7 @@ final class Context[+R] private (
    *   the type to retrieve (must be a supertype of some type in R)
    * @return
    *   the stored value
-   * @throws NoSuchElementException
+   * @throws java.util.NoSuchElementException
    *   if no matching value is found (indicates a bug)
    */
   def get[A >: R](implicit ev: IsNominalType[A]): A = {
