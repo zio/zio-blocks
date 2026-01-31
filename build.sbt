@@ -39,6 +39,18 @@ addCommandAlias(
   "testNative",
   "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
 )
+addCommandAlias(
+  "docJVM",
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc"
+)
+addCommandAlias(
+  "docJS",
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+)
+addCommandAlias(
+  "docNative",
+  "typeidNative/doc; chunkNative/doc; schemaNative/doc; streamsNative/doc; schema-toonNative/doc; schema-messagepackNative/doc"
+)
 
 lazy val root = project
   .in(file("."))
