@@ -293,6 +293,22 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   def structuralHash(id: TypeId[_]): Int = TypeIdOps.structuralHash(id)
 
+  /**
+   * Returns the type constructor by stripping all type arguments.
+   *
+   * For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns a TypeId
+   * equivalent to `TypeId.of[List[_]]` (the unapplied type constructor).
+   *
+   * This is useful for TypeRegistry lookups where Seq/Map bindings are stored
+   * by their type constructor rather than applied types.
+   *
+   * @param id
+   *   The TypeId to unapply
+   * @return
+   *   A TypeId with empty typeArgs representing the type constructor
+   */
+  def unapplied(id: TypeId[_]): TypeId[_] = TypeIdOps.unapplied(id)
+
   // ========== Erased TypeId for Type-Indexed Maps ==========
 
   type Unknown
