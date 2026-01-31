@@ -2590,6 +2590,169 @@ object JsonPatchSpec extends SchemaBaseSpec {
       val patch  = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("any"))))
       val result = patch(json, PatchMode.Strict)
       assertTrue(result.isLeft)
+    },
+    // Additional branch coverage tests for Lenient/Clobber modes
+    test("ObjectOp.Modify on missing key in Lenient mode skips operation") {
+      val json       = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("2")))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("missing", innerPatch))))
+      val result     = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("ObjectOp.Modify on missing key in Clobber mode creates key") {
+      val json       = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("2")))
+      val patch      = JsonPatch.root(JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("new", innerPatch))))
+      val result     = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(new Json.Object(Chunk(("a", new Json.Number("1")), ("new", new Json.Number("2")))))
+      )
+    },
+    test("navigateAndApply AtIndex on non-array in Lenient mode skips") {
+      val json  = new Json.String("hello")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(0))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("navigateAndApply AtIndex on non-array in Clobber mode creates array") {
+      val json  = new Json.String("hello")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(0))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("1")))))
+    },
+    test("navigateAndApply AtIndex with negative index in Clobber mode on non-array skips") {
+      val json  = new Json.String("hello")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(-1))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("navigateAndApply AtIndex with negative index in Clobber mode on array skips") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(-1))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("2")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(json))
+    },
+    test("navigateAndApply nested path AtIndex then Field in Clobber mode") {
+      val json  = new Json.Array(Chunk(new Json.String("a")))
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(0), DynamicOptic.Node.Field("x"))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Object(Chunk(("x", new Json.Number("1"))))))))
+    },
+    test("navigateAndApply AtIndex beyond array bounds in Clobber mode pads with null") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(3))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("2")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(new Json.Array(Chunk(new Json.Number("1"), Json.Null, Json.Null, new Json.Number("2"))))
+      )
+    },
+    test("navigateAndApply nested path beyond bounds in Clobber mode") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(2), DynamicOptic.Node.Field("x"))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result.isRight && result.toOption.get.asInstanceOf[Json.Array].value.length == 3)
+    },
+    test("navigateAndApply AtIndex out of bounds in Lenient mode skips") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.AtIndex(5))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("2")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("navigateAndApply Field on non-object in Lenient mode skips") {
+      val json  = new Json.Number("42")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.Field("x"))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("navigateAndApply Field on non-object in Clobber mode creates object") {
+      val json  = new Json.Number("42")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.Field("x"))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(result == new Right(new Json.Object(Chunk(("x", new Json.Number("1"))))))
+    },
+    test("navigateAndApply nested Field path in Clobber mode creates nested objects") {
+      val json  = new Json.Number("42")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.Field("a"), DynamicOptic.Node.Field("b"))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Clobber)
+      assertTrue(
+        result == new Right(new Json.Object(Chunk(("a", new Json.Object(Chunk(("b", new Json.Number("1"))))))))
+      )
+    },
+    test("navigateAndApply missing Field in Lenient mode skips") {
+      val json  = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.Field("missing"))
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("2")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("navigateAndApply Elements on non-array in Strict mode fails") {
+      val json  = new Json.String("hello")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.Elements)
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Strict)
+      assertTrue(result.isLeft)
+    },
+    test("navigateAndApply Elements on non-array in Lenient mode skips") {
+      val json  = new Json.String("hello")
+      val path  = Vector[DynamicOptic.Node](DynamicOptic.Node.Elements)
+      val patch =
+        new JsonPatch(Vector(JsonPatch.JsonPatchOp(DynamicOptic(path), JsonPatch.Op.Set(new Json.Number("1")))))
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(json))
+    },
+    test("JsonPatch.toString produces non-empty output") {
+      val patch = JsonPatch.root(JsonPatch.Op.Set(new Json.Number("1")))
+      assertTrue(patch.toString.nonEmpty)
+    },
+    test("ArrayEdit Lenient mode skips errors in ops loop") {
+      val json  = new Json.Array(Chunk(new Json.Number("1")))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ArrayEdit(
+          Vector(
+            JsonPatch.ArrayOp.Delete(10, 1),
+            JsonPatch.ArrayOp.Append(Chunk(new Json.Number("2")))
+          )
+        )
+      )
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))))
+    },
+    test("ObjectEdit Lenient mode skips errors in ops loop") {
+      val json  = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch = JsonPatch.root(
+        JsonPatch.Op.ObjectEdit(
+          Vector(
+            JsonPatch.ObjectOp.Remove("nonexistent"),
+            JsonPatch.ObjectOp.Add("b", new Json.Number("2"))
+          )
+        )
+      )
+      val result = patch(json, PatchMode.Lenient)
+      assertTrue(result == new Right(new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))))
     }
   )
 }

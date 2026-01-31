@@ -937,6 +937,115 @@ object JsonDifferSpec extends ZIOSpecDefault {
       val b     = new Json.Number("also-not-a-number")
       val patch = JsonDiffer.diff(a, b)
       assertTrue(patch.ops.head.op.isInstanceOf[JsonPatch.Op.Set])
+    },
+    // Additional branch coverage tests
+    test("string with common prefix and suffix differs in middle") {
+      val a      = new Json.String("abcXYZdef")
+      val b      = new Json.String("abc123def")
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("array with single element modification uses Modify not Delete+Insert") {
+      val a     = new Json.Array(Chunk(new Json.Object(Chunk(("x", new Json.Number("1"))))))
+      val b     = new Json.Array(Chunk(new Json.Object(Chunk(("x", new Json.Number("2"))))))
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.ArrayEdit(ops) => ops.exists(_.isInstanceOf[JsonPatch.ArrayOp.Modify])
+        case _                           => false
+      })
+    },
+    test("object with multiple changes produces single ObjectEdit") {
+      val a     = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
+      val b     = new Json.Object(Chunk(("a", new Json.Number("10")), ("c", new Json.Number("3"))))
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.length == 1 && patch.ops.head.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+    },
+    test("deeply nested object modification") {
+      val inner1 = new Json.Object(Chunk(("x", new Json.Number("1"))))
+      val inner2 = new Json.Object(Chunk(("x", new Json.Number("2"))))
+      val a      = new Json.Object(Chunk(("nested", inner1)))
+      val b      = new Json.Object(Chunk(("nested", inner2)))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("array element type change uses Set") {
+      val a      = new Json.Array(Chunk(new Json.Number("1")))
+      val b      = new Json.Array(Chunk(new Json.String("1")))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("large string with minimal edit") {
+      val base   = "a" * 100
+      val a      = new Json.String(base)
+      val b      = new Json.String(base + "b")
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("array swap two elements") {
+      val a      = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
+      val b      = new Json.Array(Chunk(new Json.Number("2"), new Json.Number("1")))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("object key rename via add and remove") {
+      val a      = new Json.Object(Chunk(("old", new Json.Number("1"))))
+      val b      = new Json.Object(Chunk(("new", new Json.Number("1"))))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("string with repeated characters") {
+      val a      = new Json.String("aaaaaa")
+      val b      = new Json.String("aaabbb")
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("number with trailing zeros normalization") {
+      val a     = new Json.Number("10.00")
+      val b     = new Json.Number("20.00")
+      val patch = JsonDiffer.diff(a, b)
+      assertTrue(patch.ops.nonEmpty)
+    },
+    test("object with null value") {
+      val a      = new Json.Object(Chunk(("a", Json.Null)))
+      val b      = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("array insert at beginning") {
+      val a      = new Json.Array(Chunk(new Json.Number("2"), new Json.Number("3")))
+      val b      = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("array delete from beginning") {
+      val a      = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val b      = new Json.Array(Chunk(new Json.Number("2"), new Json.Number("3")))
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("string delete from middle") {
+      val a      = new Json.String("abcdef")
+      val b      = new Json.String("abef")
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
+    },
+    test("string insert in middle") {
+      val a      = new Json.String("abef")
+      val b      = new Json.String("abcdef")
+      val patch  = JsonDiffer.diff(a, b)
+      val result = patch(a, PatchMode.Strict)
+      assertTrue(result == new Right(b))
     }
   )
 
