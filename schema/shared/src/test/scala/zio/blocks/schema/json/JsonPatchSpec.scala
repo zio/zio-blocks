@@ -744,61 +744,56 @@ object JsonPatchSpec extends SchemaBaseSpec {
     },
     // ─────────────────────────────────────────────────────────────────────────
     // L6 with tweaks (diff composition using tweaks instead of random pairs)
+    // These tests assert non-Set operations by checking root op type
     // ─────────────────────────────────────────────────────────────────────────
-    test("L6 with tweaks: diff composition with varied sequential tweaks") {
-      // Use genTweakedJsonPair for both a->b and b->c to ensure varied operations
-      // (add field, remove field, modify value, append to array, etc.)
-      check(genTweakedJsonPair, genTweakedJsonPair) { case ((a, b), (_, tweakTarget)) =>
-        // Apply second tweak style to b to create c
-        // We reuse the tweak pattern but apply it fresh to b
-        val c = b match {
-          case obj: Json.Object =>
-            // Add a unique field to ensure c differs from b
-            new Json.Object(obj.fields :+ ("_composition_tweak", new Json.Number("42")))
-          case arr: Json.Array =>
-            new Json.Array(arr.value :+ new Json.String("composition_element"))
-          case str: Json.String =>
-            new Json.String(str.value + "_composed")
-          case num: Json.Number =>
-            new Json.Number((BigDecimal(num.value) + 1).toString)
-          case other => other
-        }
+    test("L6 with tweaks: diff composition with add operations produces ObjectEdit") {
+      // a -> (add field) -> b -> (add another field) -> c
+      check(genObjectWithAddedField) { case (a, b) =>
+        val bObj = b.asInstanceOf[Json.Object]
+        // Add a different field to b to create c
+        val c = new Json.Object(bObj.fields :+ ("_second_added_field", new Json.Number("99")))
 
         val patch1   = JsonPatch.diff(a, b)
         val patch2   = JsonPatch.diff(b, c)
         val composed = patch1 ++ patch2
 
-        // Verify (diff(a,b) ++ diff(b,c))(a) == Right(c)
-        val composedResult = composed(a, PatchMode.Strict)
+        // Assert root ops are ObjectEdit (not Set)
+        val isObjectEdit1 = patch1.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+        val isObjectEdit2 = patch2.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
 
-        assertTrue(composedResult == new Right(c))
+        assertTrue(isObjectEdit1) &&
+        assertTrue(isObjectEdit2) &&
+        assertTrue(composed(a, PatchMode.Strict) == new Right(c))
       }
     },
-    test("L6 with tweaks: diff composition for remove operations") {
-      check(genObjectWithRemovedField, Gen.alphaNumericStringBounded(1, 10)) { case ((a, b), _) =>
-        // a has more fields than b (removal), now remove another field from b to get c
-        val c = b match {
-          case obj: Json.Object if obj.fields.nonEmpty =>
-            new Json.Object(obj.fields.dropRight(1))
-          case other => other
-        }
+    test("L6 with tweaks: diff composition with remove operations produces ObjectEdit") {
+      // Test with objects that have at least 2 fields to ensure non-trivial removals
+      check(genJsonObject(3).filter(_.fields.length >= 2)) { a =>
+        // Remove first field to get b
+        val b = new Json.Object(a.fields.drop(1))
+        // Remove another field to get c (b has at least 1 field)
+        val c = new Json.Object(b.fields.drop(1))
 
         val patch1   = JsonPatch.diff(a, b)
         val patch2   = JsonPatch.diff(b, c)
         val composed = patch1 ++ patch2
 
-        val composedResult = composed(a, PatchMode.Strict)
-        assertTrue(composedResult == new Right(c))
+        // Assert root ops are ObjectEdit (not Set)
+        val isObjectEdit1 = patch1.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+        val isObjectEdit2 = patch2.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+
+        assertTrue(isObjectEdit1) &&
+        assertTrue(isObjectEdit2) &&
+        assertTrue(composed(a, PatchMode.Strict) == new Right(c))
       }
     },
-    test("L6 with tweaks: diff composition for nested modifications") {
+    test("L6 with tweaks: diff composition with nested modifications produces ObjectEdit") {
       check(genNestedFieldModified) { case (a, b) =>
         // Apply another nested modification to b to get c
-        // Note: genNestedFieldModified always produces Json.Object
         val bObj           = b.asInstanceOf[Json.Object]
         val modifiedFields = bObj.fields.map {
           case (key, innerObj: Json.Object) =>
-            val tweaked = new Json.Object(innerObj.fields :+ ("_nested_tweak", new Json.Boolean(true)))
+            val tweaked = new Json.Object(innerObj.fields :+ ("_nested_tweak", Json.True))
             (key, tweaked)
           case other => other
         }
@@ -808,8 +803,57 @@ object JsonPatchSpec extends SchemaBaseSpec {
         val patch2   = JsonPatch.diff(b, c)
         val composed = patch1 ++ patch2
 
-        val composedResult = composed(a, PatchMode.Strict)
-        assertTrue(composedResult == new Right(c))
+        // Assert root ops are ObjectEdit (not Set)
+        val isObjectEdit1 = patch1.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+        val isObjectEdit2 = patch2.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+
+        assertTrue(isObjectEdit1) &&
+        assertTrue(isObjectEdit2) &&
+        assertTrue(composed(a, PatchMode.Strict) == new Right(c))
+      }
+    },
+    test("L6 with tweaks: diff composition with array modifications produces ArrayEdit") {
+      // a (array) -> append -> b -> append again -> c
+      check(genArrayWithAppendedElement) { case (a, b) =>
+        val bArr = b.asInstanceOf[Json.Array]
+        // Append another element to b
+        val c = new Json.Array(bArr.value :+ new Json.String("second_appended"))
+
+        val patch1   = JsonPatch.diff(a, b)
+        val patch2   = JsonPatch.diff(b, c)
+        val composed = patch1 ++ patch2
+
+        // Assert root ops are ArrayEdit (not Set)
+        val isArrayEdit1 = patch1.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ArrayEdit])
+        val isArrayEdit2 = patch2.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ArrayEdit])
+
+        assertTrue(isArrayEdit1) &&
+        assertTrue(isArrayEdit2) &&
+        assertTrue(composed(a, PatchMode.Strict) == new Right(c))
+      }
+    },
+    test("L6 with tweaks: diff composition with mixed operation types") {
+      // a -> (add field at end) -> b -> (remove first original field, keep added) -> c
+      // Use objects with at least 2 fields so we have something to remove
+      check(genJsonObject(3).filter(_.fields.length >= 2)) { a =>
+        // Add a field at the end to get b
+        val addedKey = "_added_field"
+        val b        = new Json.Object(a.fields :+ (addedKey, new Json.Number("42")))
+        // Remove the first original field from a (not the added one) to get c
+        // b.fields = original fields + added field, so drop(1) removes first original
+        val c = new Json.Object(b.fields.drop(1))
+
+        val patch1   = JsonPatch.diff(a, b)
+        val patch2   = JsonPatch.diff(b, c)
+        val composed = patch1 ++ patch2
+
+        // Assert root ops are ObjectEdit (not Set)
+        val isObjectEdit1 = patch1.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+        val isObjectEdit2 = patch2.ops.headOption.exists(_.op.isInstanceOf[JsonPatch.Op.ObjectEdit])
+
+        assertTrue(isObjectEdit1) &&
+        assertTrue(isObjectEdit2) &&
+        assertTrue(composed(a, PatchMode.Strict) == new Right(c))
       }
     }
   )
