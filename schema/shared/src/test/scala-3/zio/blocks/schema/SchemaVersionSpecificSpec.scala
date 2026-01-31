@@ -804,16 +804,18 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val dv                         = scoreSchema.toDynamicValue(value)
         assert(scoreSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
       },
-      test("wrapperPrimitiveType returns Some for actual opaque types") {
+      test("underlyingPrimitiveType returns Some for actual opaque types") {
         val wrapper = InnerId.schema.reflect.asWrapperUnknown
-        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isSome(equalTo(PrimitiveType.String(Validation.None))))
+        assert(wrapper.flatMap(_.wrapper.underlyingPrimitiveType))(
+          isSome(equalTo(PrimitiveType.String(Validation.None)))
+        )
       },
-      test("wrapperPrimitiveType returns None for case class wrappers") {
+      test("underlyingPrimitiveType returns None for case class wrappers") {
         case class IntWrapper(value: Int)
         given TypeId[IntWrapper]       = TypeId.of
         val schema: Schema[IntWrapper] = Schema[Int].transform(to = IntWrapper(_), from = _.value)
         val wrapper                    = schema.reflect.asWrapperUnknown
-        assert(wrapper.flatMap(_.wrapper.wrapperPrimitiveType))(isNone)
+        assert(wrapper.flatMap(_.wrapper.underlyingPrimitiveType))(isNone)
       }
     )
   )
