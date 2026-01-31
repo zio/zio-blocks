@@ -287,7 +287,7 @@ object ChunkMap extends MapFactory[ChunkMap] {
    * of the duplicate values). Use `from()` or the builder if duplicate handling
    * is needed.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if keys and values have different lengths
    */
   def fromChunks[K, V](keys: Chunk[K], values: Chunk[V]): ChunkMap[K, V] = {
