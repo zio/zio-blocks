@@ -4,9 +4,20 @@ import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.{Owner, TypeId}
 
 private[schema] object JsonSchemaToReflect {
+
+  private def extractTitle(schema: JsonSchema): Option[String] = schema match {
+    case obj: JsonSchema.Object => obj.title
+    case _                      => None
+  }
+
+  private def typeIdFromTitle(title: Option[String]): TypeId[DynamicValue] =
+    title match {
+      case Some(name) => TypeId.nominal[DynamicValue](name, Owner.Root)
+      case None       => TypeId.of[DynamicValue]
+    }
 
   private[json] sealed trait Shape
   private[json] object Shape {
@@ -197,20 +208,22 @@ private[schema] object JsonSchemaToReflect {
       case _                                               => None
     }
 
-  private def build(shape: Shape, @scala.annotation.unused originalSchema: JsonSchema): Reflect[Binding, DynamicValue] =
+  private def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
+    val title = extractTitle(originalSchema)
     shape match {
       case Shape.Primitive(kind, schemaObj)       => buildPrimitive(kind, schemaObj)
       case Shape.Record(fields, required, closed) =>
-        buildRecord(fields, required, closed)
+        buildRecord(fields, required, closed, title)
       case Shape.MapShape(values)          => buildMap(values)
       case Shape.Sequence(items)           => buildSequence(items)
       case Shape.Tuple(prefixItems)        => buildTuple(prefixItems)
-      case Shape.Enum(cases)               => buildEnum(cases)
-      case Shape.KeyVariant(cases)         => buildKeyVariant(cases)
-      case Shape.FieldVariant(disc, cases) => buildFieldVariant(disc, cases)
+      case Shape.Enum(cases)               => buildEnum(cases, title)
+      case Shape.KeyVariant(cases)         => buildKeyVariant(cases, title)
+      case Shape.FieldVariant(disc, cases) => buildFieldVariant(disc, cases, title)
       case Shape.OptionOf(inner)           => buildOption(inner)
       case Shape.Dynamic                   => Reflect.dynamic[Binding]
     }
+  }
 
   private def buildPrimitive(kind: Shape.PrimKind, schemaObj: JsonSchema.Object): Reflect[Binding, DynamicValue] =
     kind match {
@@ -316,7 +329,8 @@ private[schema] object JsonSchemaToReflect {
   private def buildRecord(
     fields: List[(String, JsonSchema)],
     @scala.annotation.unused required: Set[String],
-    closed: Boolean
+    closed: Boolean,
+    title: Option[String]
   ): Reflect[Binding, DynamicValue] = {
     val fieldCount = fields.length
 
@@ -367,7 +381,7 @@ private[schema] object JsonSchemaToReflect {
 
     val baseRecord = new Reflect.Record[Binding, DynamicValue](
       fields = fieldTerms,
-      typeId = TypeId.of[DynamicValue],
+      typeId = typeIdFromTitle(title),
       recordBinding = recordBinding
     )
 
@@ -475,7 +489,7 @@ private[schema] object JsonSchemaToReflect {
     )
   }
 
-  private def buildEnum(cases: List[String]): Reflect[Binding, DynamicValue] = {
+  private def buildEnum(cases: List[String], title: Option[String]): Reflect[Binding, DynamicValue] = {
     val caseTerms: IndexedSeq[Term[Binding, DynamicValue, DynamicValue]] = cases.map { caseName =>
       val emptyRecordBinding = new Binding.Record[DynamicValue](
         constructor = new Constructor[DynamicValue] {
@@ -523,12 +537,15 @@ private[schema] object JsonSchemaToReflect {
 
     new Reflect.Variant[Binding, DynamicValue](
       cases = caseTerms,
-      typeId = TypeId.of[DynamicValue],
+      typeId = typeIdFromTitle(title),
       variantBinding = variantBinding
     )
   }
 
-  private def buildKeyVariant(cases: List[(String, JsonSchema)]): Reflect[Binding, DynamicValue] = {
+  private def buildKeyVariant(
+    cases: List[(String, JsonSchema)],
+    title: Option[String]
+  ): Reflect[Binding, DynamicValue] = {
     val caseTerms: IndexedSeq[Term[Binding, DynamicValue, DynamicValue]] = cases.map { case (caseName, bodySchema) =>
       val bodyReflect = toReflect(bodySchema)
       new Term[Binding, DynamicValue, DynamicValue](caseName, bodyReflect)
@@ -559,16 +576,17 @@ private[schema] object JsonSchemaToReflect {
 
     new Reflect.Variant[Binding, DynamicValue](
       cases = caseTerms,
-      typeId = TypeId.of[DynamicValue],
+      typeId = typeIdFromTitle(title),
       variantBinding = variantBinding
     )
   }
 
   private def buildFieldVariant(
     @scala.annotation.unused discriminator: String,
-    cases: List[(String, JsonSchema)]
+    cases: List[(String, JsonSchema)],
+    title: Option[String]
   ): Reflect[Binding, DynamicValue] =
-    buildKeyVariant(cases)
+    buildKeyVariant(cases, title)
 
   private def buildOption(innerSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
     val innerReflect = toReflect(innerSchema)
