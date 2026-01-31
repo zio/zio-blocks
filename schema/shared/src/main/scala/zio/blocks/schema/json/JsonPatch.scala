@@ -66,8 +66,8 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
    *   }}}
    */
   def apply(value: Json, mode: PatchMode = PatchMode.Strict): Either[SchemaError, Json] = {
-    var current: Json                 = value
-    var idx                           = 0
+    var current: Json                    = value
+    var idx                              = 0
     var error: Either[SchemaError, Unit] = Right(())
 
     while (idx < ops.length && error.isRight) {
@@ -91,8 +91,8 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
   /**
    * Converts this JsonPatch to a DynamicPatch.
    *
-   * This allows JsonPatch operations to be used with the generic patching infrastructure
-   * or serialized using DynamicPatch's schema.
+   * This allows JsonPatch operations to be used with the generic patching
+   * infrastructure or serialized using DynamicPatch's schema.
    *
    * @return
    *   A DynamicPatch equivalent to this JsonPatch
@@ -137,9 +137,9 @@ object JsonPatch {
    *   Either an error for unsupported operations, or the equivalent JsonPatch
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[SchemaError, JsonPatch] = {
-    val builder = Vector.newBuilder[JsonPatchOp]
+    val builder                    = Vector.newBuilder[JsonPatchOp]
     var error: Option[SchemaError] = None
-    var idx = 0
+    var idx                        = 0
 
     while (idx < patch.ops.length && error.isEmpty) {
       val dynOp = patch.ops(idx)
@@ -214,8 +214,8 @@ object JsonPatch {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Diff two JSON numbers by computing their delta.
-   * Always uses NumberDelta to represent the change.
+   * Diff two JSON numbers by computing their delta. Always uses NumberDelta to
+   * represent the change.
    */
   private def diffNumber(oldNum: Json.Number, newNum: Json.Number): JsonPatch = {
     val oldVal = BigDecimal(oldNum.value)
@@ -225,8 +225,8 @@ object JsonPatch {
   }
 
   /**
-   * Diff two JSON strings using LCS algorithm.
-   * Uses StringEdit when more compact than Set.
+   * Diff two JSON strings using LCS algorithm. Uses StringEdit when more
+   * compact than Set.
    */
   private def diffString(oldStr: Json.String, newStr: Json.String): JsonPatch =
     if (oldStr.value == newStr.value) {
@@ -251,9 +251,9 @@ object JsonPatch {
     }
 
   /**
-   * Compute string edit operations using LCS algorithm.
-   * Returns a sequence of Insert/Delete operations with indices adjusted for
-   * previously applied edits.
+   * Compute string edit operations using LCS algorithm. Returns a sequence of
+   * Insert/Delete operations with indices adjusted for previously applied
+   * edits.
    */
   private def computeStringEdits(oldStr: String, newStr: String): Vector[StringOp] = {
     if (oldStr == newStr) return Vector.empty
@@ -313,8 +313,8 @@ object JsonPatch {
   }
 
   /**
-   * Compute the longest common subsequence of two strings.
-   * Standard DP algorithm returning the LCS string.
+   * Compute the longest common subsequence of two strings. Standard DP
+   * algorithm returning the LCS string.
    */
   private def longestCommonSubsequence(s1: String, s2: String): String = {
     val m = s1.length
@@ -358,9 +358,9 @@ object JsonPatch {
   }
 
   /**
-   * Diff two JSON arrays using LCS-based alignment.
-   * Produces Insert/Delete/Append operations that describe how to transform
-   * the old elements into the new ones.
+   * Diff two JSON arrays using LCS-based alignment. Produces
+   * Insert/Delete/Append operations that describe how to transform the old
+   * elements into the new ones.
    */
   private def diffArray(oldElems: Chunk[Json], newElems: Chunk[Json]): JsonPatch =
     if (oldElems == newElems) {
@@ -376,7 +376,8 @@ object JsonPatch {
     }
 
   /**
-   * Convert the difference between two arrays into ArrayOps using LCS alignment.
+   * Convert the difference between two arrays into ArrayOps using LCS
+   * alignment.
    */
   private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Vector[ArrayOp] = {
     val ops       = Vector.newBuilder[ArrayOp]
@@ -417,9 +418,9 @@ object JsonPatch {
   }
 
   /**
-   * LCS helper that returns the indices of aligned elements.
-   * Uses DP algorithm to find the longest common subsequence,
-   * then backtracks to extract matching index pairs.
+   * LCS helper that returns the indices of aligned elements. Uses DP algorithm
+   * to find the longest common subsequence, then backtracks to extract matching
+   * index pairs.
    */
   private def longestCommonSubsequenceIndices(
     oldElems: Chunk[Json],
@@ -462,8 +463,8 @@ object JsonPatch {
   }
 
   /**
-   * Diff two JSON objects by comparing fields.
-   * Produces Add, Remove, and Modify operations.
+   * Diff two JSON objects by comparing fields. Produces Add, Remove, and Modify
+   * operations.
    */
   private def diffObject(
     oldFields: Chunk[(String, Json)],
@@ -523,8 +524,8 @@ object JsonPatch {
     }
 
   /**
-   * Navigate to the target location and apply the operation.
-   * Uses a recursive approach that rebuilds the structure on the way back.
+   * Navigate to the target location and apply the operation. Uses a recursive
+   * approach that rebuilds the structure on the way back.
    */
   private def navigateAndApply(
     value: Json,
@@ -664,7 +665,7 @@ object JsonPatch {
       val elementTrace = DynamicOptic.Node.AtIndex(idx) :: trace
       applyOperation(elements(idx), operation, mode, elementTrace) match {
         case Right(updated) => results(idx) = updated
-        case Left(err) =>
+        case Left(err)      =>
           if (mode != PatchMode.Strict) {
             results(idx) = elements(idx) // Keep original on error
           } else {
@@ -696,7 +697,7 @@ object JsonPatch {
       val elementTrace = DynamicOptic.Node.AtIndex(idx) :: trace
       navigateAndApply(elements(idx), path, pathIdx, operation, mode, elementTrace) match {
         case Right(updated) => results(idx) = updated
-        case Left(err) =>
+        case Left(err)      =>
           if (mode != PatchMode.Strict) {
             results(idx) = elements(idx) // Keep original on error
           } else {
@@ -859,7 +860,7 @@ object JsonPatch {
     while (idx < ops.length && error.isEmpty) {
       applyArrayOp(result, ops(idx), mode, trace) match {
         case Right(updated) => result = updated
-        case Left(err) =>
+        case Left(err)      =>
           mode match {
             case PatchMode.Strict  => error = Some(err)
             case PatchMode.Lenient => () // Skip
@@ -989,7 +990,7 @@ object JsonPatch {
     while (idx < ops.length && error.isEmpty) {
       applyObjectOp(result, ops(idx), mode, trace) match {
         case Right(updated) => result = updated
-        case Left(err) =>
+        case Left(err)      =>
           mode match {
             case PatchMode.Strict  => error = Some(err)
             case PatchMode.Lenient => () // Skip
@@ -1233,9 +1234,9 @@ object JsonPatch {
 
   private def stringOpToDynamic(op: StringOp): DynamicPatch.StringOp =
     op match {
-      case StringOp.Insert(index, text)        => DynamicPatch.StringOp.Insert(index, text)
-      case StringOp.Delete(index, length)      => DynamicPatch.StringOp.Delete(index, length)
-      case StringOp.Append(text)               => DynamicPatch.StringOp.Append(text)
+      case StringOp.Insert(index, text)         => DynamicPatch.StringOp.Insert(index, text)
+      case StringOp.Delete(index, length)       => DynamicPatch.StringOp.Delete(index, length)
+      case StringOp.Append(text)                => DynamicPatch.StringOp.Append(text)
       case StringOp.Modify(index, length, text) => DynamicPatch.StringOp.Modify(index, length, text)
     }
 
@@ -1318,9 +1319,9 @@ object JsonPatch {
 
   private def stringOpFromDynamic(op: DynamicPatch.StringOp): StringOp =
     op match {
-      case DynamicPatch.StringOp.Insert(index, text)        => StringOp.Insert(index, text)
-      case DynamicPatch.StringOp.Delete(index, length)      => StringOp.Delete(index, length)
-      case DynamicPatch.StringOp.Append(text)               => StringOp.Append(text)
+      case DynamicPatch.StringOp.Insert(index, text)         => StringOp.Insert(index, text)
+      case DynamicPatch.StringOp.Delete(index, length)       => StringOp.Delete(index, length)
+      case DynamicPatch.StringOp.Append(text)                => StringOp.Append(text)
       case DynamicPatch.StringOp.Modify(index, length, text) => StringOp.Modify(index, length, text)
     }
 
@@ -1363,9 +1364,9 @@ object JsonPatch {
     }
 
   private def sequenceAll[A](results: Vector[Either[SchemaError, A]]): Either[SchemaError, Vector[A]] = {
-    val builder = Vector.newBuilder[A]
+    val builder                    = Vector.newBuilder[A]
     var error: Option[SchemaError] = None
-    var idx = 0
+    var idx                        = 0
 
     while (idx < results.length && error.isEmpty) {
       results(idx) match {

@@ -11,11 +11,14 @@ import zio.test._
  * Laws verified:
  *   - LAW-01: Monoid left identity - (empty ++ p).apply(j) == p.apply(j)
  *   - LAW-02: Monoid right identity - (p ++ empty).apply(j) == p.apply(j)
- *   - LAW-03: Monoid associativity - ((p1 ++ p2) ++ p3).apply(j) == (p1 ++ (p2 ++ p3)).apply(j)
+ *   - LAW-03: Monoid associativity - ((p1 ++ p2) ++ p3).apply(j) == (p1 ++ (p2
+ * ++ p3)).apply(j)
  *   - LAW-04: Roundtrip - diff(a, b).apply(a) == Right(b)
  *   - LAW-05: Identity diff - diff(j, j).isEmpty
- *   - LAW-06: Diff composition - (diff(a, b) ++ diff(b, c)).apply(a) == Right(c)
- *   - LAW-07: Lenient subsumes Strict - if Strict succeeds, Lenient produces same result
+ *   - LAW-06: Diff composition - (diff(a, b) ++ diff(b, c)).apply(a) ==
+ *     Right(c)
+ *   - LAW-07: Lenient subsumes Strict - if Strict succeeds, Lenient produces
+ *     same result
  */
 object JsonPatchLawsSpec extends SchemaBaseSpec {
 
@@ -33,17 +36,17 @@ object JsonPatchLawsSpec extends SchemaBaseSpec {
   private val monoidLaws = suite("Monoid Laws")(
     test("LAW-01: Left identity - (empty ++ p).apply(j) == p.apply(j)") {
       check(JsonGen.genJson, JsonGen.genJson) { (a, b) =>
-        val p      = JsonPatch.diff(a, b)
-        val left   = (JsonPatch.empty ++ p).apply(a)
-        val right  = p.apply(a)
+        val p     = JsonPatch.diff(a, b)
+        val left  = (JsonPatch.empty ++ p).apply(a)
+        val right = p.apply(a)
         assertTrue(left == right)
       }
     },
     test("LAW-02: Right identity - (p ++ empty).apply(j) == p.apply(j)") {
       check(JsonGen.genJson, JsonGen.genJson) { (a, b) =>
-        val p      = JsonPatch.diff(a, b)
-        val left   = (p ++ JsonPatch.empty).apply(a)
-        val right  = p.apply(a)
+        val p     = JsonPatch.diff(a, b)
+        val left  = (p ++ JsonPatch.empty).apply(a)
+        val right = p.apply(a)
         assertTrue(left == right)
       }
     },

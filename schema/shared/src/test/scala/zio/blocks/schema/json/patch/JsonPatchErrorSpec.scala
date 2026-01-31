@@ -11,7 +11,8 @@ import zio.test._
  * Tests for JsonPatch error cases and PatchMode comparison.
  *
  * Error categories tested:
- *   - Invalid paths: field not found, index out of bounds, navigation into wrong types
+ *   - Invalid paths: field not found, index out of bounds, navigation into
+ *     wrong types
  *   - Type mismatches: wrong operation for type
  *   - Out of bounds: array and string indices
  *   - PatchMode comparison: Strict vs Lenient vs Clobber behavior
@@ -32,8 +33,8 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
 
   private def assertError(result: Either[SchemaError, Json], expectedMessage: String): TestResult =
     result match {
-      case Left(err)  => assertTrue(err.message.contains(expectedMessage))
-      case Right(_) => assertTrue(false)
+      case Left(err) => assertTrue(err.message.contains(expectedMessage))
+      case Right(_)  => assertTrue(false)
     }
 
   private def assertSuccess(result: Either[SchemaError, Json], expected: Json): TestResult =

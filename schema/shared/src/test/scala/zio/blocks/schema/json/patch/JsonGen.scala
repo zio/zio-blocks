@@ -25,7 +25,10 @@ object JsonGen {
   /** Generates `Json.Boolean(true)` or `Json.Boolean(false)`. */
   val genBoolean: Gen[Any, Json] = Gen.boolean.map(Json.Boolean(_))
 
-  /** Generates `Json.Number` with integers, decimals, negative, positive, and zero. */
+  /**
+   * Generates `Json.Number` with integers, decimals, negative, positive, and
+   * zero.
+   */
   val genNumber: Gen[Any, Json] = Gen.oneOf(
     Gen.const(Json.Number("0")),
     Gen.const(Json.Number("-0")),
@@ -35,7 +38,9 @@ object JsonGen {
     Gen.bigDecimal(BigDecimal(-1000000), BigDecimal(1000000)).map(bd => Json.Number(bd.toString))
   )
 
-  /** Generates `Json.String` with empty, short, long, and alphanumeric content. */
+  /**
+   * Generates `Json.String` with empty, short, long, and alphanumeric content.
+   */
   val genString: Gen[Any, Json] = Gen.oneOf(
     Gen.const(Json.String("")),
     Gen.alphaNumericStringBounded(1, 5).map(Json.String(_)),
@@ -54,8 +59,8 @@ object JsonGen {
   private val maxElements: Int = 10
 
   /**
-   * Generates `Json.Array` with 0 to maxElements elements.
-   * At depth 0, only primitives are generated.
+   * Generates `Json.Array` with 0 to maxElements elements. At depth 0, only
+   * primitives are generated.
    */
   private def genArrayWithDepth(depth: Int): Gen[Any, Json] =
     Gen.listOfBounded(0, maxElements)(genJsonWithDepth(depth - 1)).map { elems =>
@@ -63,8 +68,8 @@ object JsonGen {
     }
 
   /**
-   * Generates `Json.Object` with 0 to maxElements fields and unique keys.
-   * At depth 0, only primitives are generated for values.
+   * Generates `Json.Object` with 0 to maxElements fields and unique keys. At
+   * depth 0, only primitives are generated for values.
    */
   private def genObjectWithDepth(depth: Int): Gen[Any, Json] =
     Gen
@@ -81,8 +86,8 @@ object JsonGen {
       }
 
   /**
-   * Generates any Json value recursively, bounded by depth.
-   * At depth 0, only primitives are generated.
+   * Generates any Json value recursively, bounded by depth. At depth 0, only
+   * primitives are generated.
    */
   private def genJsonWithDepth(depth: Int): Gen[Any, Json] =
     if (depth <= 0) genPrimitive
