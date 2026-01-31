@@ -2,7 +2,7 @@ package zio.blocks.schema.json
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaError}
-import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
+import zio.blocks.schema.patch.{DynamicPatch, LCS, PatchMode}
 
 /**
  * An untyped patch that operates on [[Json]] values. Patches are composable and
@@ -260,7 +260,7 @@ object JsonPatch {
     if (oldStr.isEmpty) return Vector(StringOp.Insert(0, newStr))
     if (newStr.isEmpty) return Vector(StringOp.Delete(0, oldStr.length))
 
-    val lcs   = longestCommonSubsequence(oldStr, newStr)
+    val lcs   = LCS.stringLCS(oldStr, newStr)
     val edits = Vector.newBuilder[StringOp]
 
     var oldIdx = 0
@@ -313,51 +313,6 @@ object JsonPatch {
   }
 
   /**
-   * Compute the longest common subsequence of two strings. Standard DP
-   * algorithm returning the LCS string.
-   */
-  private def longestCommonSubsequence(s1: String, s2: String): String = {
-    val m = s1.length
-    val n = s2.length
-
-    // DP table where dp(i)(j) = length of LCS of s1[0..i) and s2[0..j)
-    val dp = Array.ofDim[Int](m + 1, n + 1)
-
-    // Fill the DP table
-    var i = 1
-    while (i <= m) {
-      var j = 1
-      while (j <= n) {
-        if (s1(i - 1) == s2(j - 1)) {
-          dp(i)(j) = dp(i - 1)(j - 1) + 1
-        } else {
-          dp(i)(j) = Math.max(dp(i - 1)(j), dp(i)(j - 1))
-        }
-        j += 1
-      }
-      i += 1
-    }
-
-    // Reconstruct the LCS
-    val result = new StringBuilder
-    i = m
-    var j = n
-    while (i > 0 && j > 0) {
-      if (s1(i - 1) == s2(j - 1)) {
-        result.insert(0, s1(i - 1))
-        i -= 1
-        j -= 1
-      } else if (dp(i - 1)(j) > dp(i)(j - 1)) {
-        i -= 1
-      } else {
-        j -= 1
-      }
-    }
-
-    result.toString
-  }
-
-  /**
    * Diff two JSON arrays using LCS-based alignment. Produces
    * Insert/Delete/Append operations that describe how to transform the old
    * elements into the new ones.
@@ -381,7 +336,7 @@ object JsonPatch {
    */
   private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Vector[ArrayOp] = {
     val ops       = Vector.newBuilder[ArrayOp]
-    val matches   = longestCommonSubsequenceIndices(oldElems, newElems)
+    val matches   = LCS.indicesLCS(oldElems, newElems)(_ == _)
     var oldIdx    = 0
     var newIdx    = 0
     var cursor    = 0
@@ -415,51 +370,6 @@ object JsonPatch {
     emitInsert(newElems.slice(newIdx, newElems.length))
 
     ops.result()
-  }
-
-  /**
-   * LCS helper that returns the indices of aligned elements. Uses DP algorithm
-   * to find the longest common subsequence, then backtracks to extract matching
-   * index pairs.
-   */
-  private def longestCommonSubsequenceIndices(
-    oldElems: Chunk[Json],
-    newElems: Chunk[Json]
-  ): Vector[(Int, Int)] = {
-    val m  = oldElems.length
-    val n  = newElems.length
-    val dp = Array.ofDim[Int](m + 1, n + 1)
-
-    var i = 1
-    while (i <= m) {
-      var j = 1
-      while (j <= n) {
-        if (oldElems(i - 1) == newElems(j - 1)) {
-          dp(i)(j) = dp(i - 1)(j - 1) + 1
-        } else {
-          dp(i)(j) = Math.max(dp(i - 1)(j), dp(i)(j - 1))
-        }
-        j += 1
-      }
-      i += 1
-    }
-
-    val builder = Vector.newBuilder[(Int, Int)]
-    i = m
-    var j = n
-    while (i > 0 && j > 0) {
-      if (oldElems(i - 1) == newElems(j - 1)) {
-        builder.addOne((i - 1, j - 1))
-        i -= 1
-        j -= 1
-      } else if (dp(i - 1)(j) >= dp(i)(j - 1)) {
-        i -= 1
-      } else {
-        j -= 1
-      }
-    }
-
-    builder.result().reverse
   }
 
   /**
