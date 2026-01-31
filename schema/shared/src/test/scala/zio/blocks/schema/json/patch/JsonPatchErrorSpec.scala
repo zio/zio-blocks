@@ -7,16 +7,6 @@ import zio.blocks.schema.json.JsonPatch._
 import zio.blocks.schema.patch.PatchMode
 import zio.test._
 
-/**
- * Tests for JsonPatch error cases and PatchMode comparison.
- *
- * Error categories tested:
- *   - Invalid paths: field not found, index out of bounds, navigation into
- *     wrong types
- *   - Type mismatches: wrong operation for type
- *   - Out of bounds: array and string indices
- *   - PatchMode comparison: Strict vs Lenient vs Clobber behavior
- */
 object JsonPatchErrorSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("Error Cases")(
@@ -27,10 +17,6 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     errorMessageVerificationSuite
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Helper for error assertions
-  // ─────────────────────────────────────────────────────────────────────────
-
   private def assertError(result: Either[SchemaError, Json], expectedMessage: String): TestResult =
     result match {
       case Left(err) => assertTrue(err.message.contains(expectedMessage))
@@ -40,9 +26,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private def assertSuccess(result: Either[SchemaError, Json], expected: Json): TestResult =
     assertTrue(result == Right(expected))
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Invalid Path Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val invalidPathSuite = suite("Invalid Path")(
     test("Field not found in object produces SchemaError") {
@@ -103,9 +87,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Type Mismatch Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val typeMismatchSuite = suite("Type Mismatch")(
     test("NumberDelta on non-number produces SchemaError") {
@@ -194,9 +176,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Out of Bounds Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val outOfBoundsSuite = suite("Out of Bounds")(
     test("Array insert at negative index fails in Strict mode") {
@@ -268,9 +248,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // PatchMode Comparison Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val patchModeComparisonSuite = suite("PatchMode Comparison")(
     objectOpAddModeSuite,
@@ -444,9 +422,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Error Message Verification Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val errorMessageVerificationSuite = suite("Error Message Verification")(
     test("Missing field error contains field name") {

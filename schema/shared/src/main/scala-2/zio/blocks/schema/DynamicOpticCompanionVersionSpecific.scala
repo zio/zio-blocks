@@ -4,15 +4,14 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
+// In Scala 2, we are manually deriving the Schema.
+// In Scala 3, these are derived using Schema.derived.
+
 trait DynamicOpticCompanionVersionSpecific {
 
   import DynamicOptic.Node
 
-  // Schema instances - manually written for Scala 2 compatibility
-  // For easier testing in Scala 3, you can use schema.derive for all schemas.
-  // example - `implicit lazy val dynamicOpticSchema: Schema[DynamicOptic] = Schema.derived`
-
-  // Schemas for case objects
+  // Schema for case objects
   implicit lazy val elementsSchema: Schema[Node.Elements.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Elements.type](
       fields = Vector.empty,

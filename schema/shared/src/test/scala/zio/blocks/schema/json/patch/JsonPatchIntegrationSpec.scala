@@ -7,16 +7,6 @@ import zio.blocks.schema.json.JsonPatch._
 import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
 import zio.test._
 
-/**
- * Integration tests for JsonPatch with Json and DynamicPatch conversions.
- *
- * Tests cover:
- *   - Json.diff method (returns JsonPatch)
- *   - Json.patch method (applies JsonPatch)
- *   - toDynamicPatch conversion
- *   - fromDynamicPatch conversion
- *   - Roundtrip property: fromDynamicPatch(p.toDynamicPatch) == Right(p)
- */
 object JsonPatchIntegrationSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("JsonPatch Integration")(
@@ -26,10 +16,6 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     fromDynamicPatchSuite,
     roundtripSuite
   )
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Json.diff Method Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val jsonDiffSuite = suite("Json.diff method")(
     test("diff returns empty patch for identical values") {
@@ -77,10 +63,6 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Json.patch Method Suite
-  // ─────────────────────────────────────────────────────────────────────────
-
   private lazy val jsonPatchSuite = suite("Json.patch method")(
     test("patch uses Strict mode by default") {
       val json = Json.Object("a" -> Json.Number(1))
@@ -123,9 +105,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // toDynamicPatch Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val toDynamicPatchSuite = suite("toDynamicPatch")(
     test("empty patch converts to empty DynamicPatch") {
@@ -222,9 +202,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // fromDynamicPatch Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val fromDynamicPatchSuite = suite("fromDynamicPatch")(
     test("empty DynamicPatch converts to empty JsonPatch") {
@@ -382,9 +360,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Roundtrip Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val roundtripSuite = suite("Roundtrip: fromDynamicPatch(p.toDynamicPatch) == Right(p)")(
     test("roundtrip preserves empty patch") {
@@ -491,9 +467,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       assertTrue(roundtrip == Right(original))
     },
     test("roundtrip with property-based test (semantic equality)") {
-      // Note: Some edge cases like -0 vs 0 may not be structurally equal after roundtrip,
-      // but they should be semantically equivalent (applying both patches gives same result).
-      // We compare through DynamicValue to normalize numeric representations.
+
       check(JsonGen.genJson, JsonGen.genJson) { (a, b) =>
         val patch     = a.diff(b)
         val roundtrip = JsonPatch.fromDynamicPatch(patch.toDynamicPatch)

@@ -6,17 +6,14 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
-// All JsonPatch-related schemas are manually derived for Scala 2 compatibility.
+// In Scala 2, we are manually deriving the Schema.
 // In Scala 3, these are derived using Schema.derived.
-// Since Op, ArrayOp, and ObjectOp contain recursive references (ArrayOp.Modify contains Op,
-// ObjectOp.Modify contains JsonPatch), we use Reflect.Deferred to handle the recursion.
+
 trait JsonPatchCompanionVersionSpecific {
 
   import JsonPatch._
 
-  // ─────────────────────────────────────────────────────────────────────────
   // StringOp Schemas
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] =
     new Schema(
@@ -177,9 +174,7 @@ trait JsonPatchCompanionVersionSpecific {
     )
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // PrimitiveOp Schemas
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val primitiveOpNumberDeltaSchema: Schema[PrimitiveOp.NumberDelta] =
     new Schema(
@@ -260,9 +255,7 @@ trait JsonPatchCompanionVersionSpecific {
     )
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // ArrayOp Schemas
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val arrayOpInsertSchema: Schema[ArrayOp.Insert] =
     new Schema(
@@ -418,9 +411,7 @@ trait JsonPatchCompanionVersionSpecific {
     )
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // ObjectOp Schemas
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val objectOpAddSchema: Schema[ObjectOp.Add] =
     new Schema(
@@ -545,9 +536,7 @@ trait JsonPatchCompanionVersionSpecific {
     )
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op Schemas
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val opSetSchema: Schema[Op.Set] =
     new Schema(
@@ -722,9 +711,7 @@ trait JsonPatchCompanionVersionSpecific {
     )
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // JsonPatchOp Schema
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val jsonPatchOpSchema: Schema[JsonPatchOp] =
     new Schema(
@@ -755,9 +742,7 @@ trait JsonPatchCompanionVersionSpecific {
       )
     )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // JsonPatch Schema
-  // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val schema: Schema[JsonPatch] =
     new Schema(

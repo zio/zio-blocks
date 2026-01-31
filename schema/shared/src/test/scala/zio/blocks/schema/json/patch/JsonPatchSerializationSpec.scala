@@ -8,19 +8,6 @@ import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema.patch.PatchMode
 import zio.test._
 
-/**
- * Serialization tests for JsonPatch and its component types.
- *
- * Tests are organized by type:
- *   - StringOp: Insert, Delete, Append, Modify
- *   - PrimitiveOp: NumberDelta, StringEdit
- *   - ArrayOp: Insert, Append, Delete, Modify
- *   - ObjectOp: Add, Remove, Modify
- *   - Op: Set, PrimitiveDelta, ArrayEdit, ObjectEdit, Nested
- *   - JsonPatchOp: path + operation
- *   - JsonPatch: collection of operations
- *   - End-to-end: full workflow tests
- */
 object JsonPatchSerializationSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("JsonPatchSerializationSpec")(
@@ -35,9 +22,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     endToEndSuite
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // StringOp Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val stringOpSuite = suite("StringOp serialization")(
     test("StringOp.Insert serializes") {
@@ -72,9 +57,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // PrimitiveOp Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val primitiveOpSuite = suite("PrimitiveOp serialization")(
     test("PrimitiveOp.NumberDelta with positive value") {
@@ -115,9 +98,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // ArrayOp Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val arrayOpSuite = suite("ArrayOp serialization")(
     test("ArrayOp.Insert serializes") {
@@ -152,9 +133,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // ObjectOp Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val objectOpSuite = suite("ObjectOp serialization")(
     test("ObjectOp.Add serializes") {
@@ -185,9 +164,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val opSuite = suite("Op serialization")(
     test("Op.Set with simple value") {
@@ -246,9 +223,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // JsonPatchOp Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val jsonPatchOpSuite = suite("JsonPatchOp serialization")(
     test("JsonPatchOp with empty path") {
@@ -288,9 +263,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // JsonPatch Serialization Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val jsonPatchSuite = suite("JsonPatch serialization")(
     test("empty JsonPatch serializes") {
@@ -326,9 +299,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Complex Nested Patch Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val complexNestedSuite = suite("Complex nested patch serialization")(
     test("deeply nested Op.Nested (3 levels)") {
@@ -385,7 +356,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
         )
       )
 
-      // Just verify roundtrip works for complex nested structure
+      // Verify roundtrip works for complex nested structure
       import zio.blocks.schema.json._
       val schema  = Schema[JsonPatch]
       val codec   = schema.derive(JsonBinaryCodecDeriver)
@@ -395,9 +366,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // End-to-End Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val endToEndSuite = suite("End-to-end workflow")(
     test("Full workflow: diff -> serialize patch -> deserialize -> apply") {

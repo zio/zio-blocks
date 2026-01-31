@@ -8,17 +8,6 @@ import zio.blocks.schema.json.JsonPatch._
 import zio.blocks.schema.patch.PatchMode
 import zio.test._
 
-/**
- * Comprehensive unit tests for all JsonPatch operation types.
- *
- * Tests are organized by operation type:
- *   - Op.Set: value replacement
- *   - Op.PrimitiveDelta: NumberDelta and StringEdit
- *   - Op.ArrayEdit: Insert, Append, Delete, Modify
- *   - Op.ObjectEdit: Add, Remove, Modify
- *   - Op.Nested: nested patches
- *   - Edge cases: empty values, deep nesting, large collections
- */
 object JsonPatchOperationSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("Operations")(
@@ -30,9 +19,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     edgeCasesSuite
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op.Set Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val setOperationSuite = suite("Op.Set")(
     test("Set replaces value entirely") {
@@ -92,9 +79,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op.PrimitiveDelta Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val primitiveDeltaSuite = suite("Op.PrimitiveDelta")(
     numberDeltaSuite,
@@ -221,9 +206,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op.ArrayEdit Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val arrayEditSuite = suite("Op.ArrayEdit")(
     arrayInsertSuite,
@@ -343,9 +326,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op.ObjectEdit Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val objectEditSuite = suite("Op.ObjectEdit")(
     objectAddSuite,
@@ -445,9 +426,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Op.Nested Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val nestedOperationSuite = suite("Op.Nested")(
     test("Nested patch with multiple operations") {
@@ -626,9 +605,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Edge Cases Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val edgeCasesSuite = suite("Edge Cases")(
     emptyValuesSuite,

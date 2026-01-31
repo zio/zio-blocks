@@ -8,9 +8,6 @@ private[schema] object LCS {
   /**
    * Compute the longest common subsequence of two strings using dynamic
    * programming. Returns the LCS string itself.
-   *
-   * Time complexity: O(m * n) where m and n are the string lengths. Space
-   * complexity: O(m * n) for the DP table.
    */
   def stringLCS(s1: String, s2: String): String = {
     val m = s1.length
@@ -58,9 +55,6 @@ private[schema] object LCS {
    * Returns pairs of (oldIndex, newIndex) for matching elements.
    *
    * The indices are returned in forward order (smallest to largest).
-   *
-   * Time complexity: O(m * n) where m and n are the sequence lengths. Space
-   * complexity: O(m * n) for the DP table.
    *
    * @param oldSeq
    *   The original sequence

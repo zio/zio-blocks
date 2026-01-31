@@ -8,16 +8,6 @@ import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
  * An untyped patch that operates on [[Json]] values. Patches are composable and
  * can be applied with different failure handling modes.
  *
- * JsonPatch mirrors the structure of [[zio.blocks.schema.patch.DynamicPatch]]
- * but is specialized for JSON's simpler data model (4 leaf types vs 30+
- * primitives, string-only keys).
- *
- * @example
- *   {{{
- * val patch = JsonPatch.diff(oldJson, newJson)
- * patch.apply(someJson, PatchMode.Strict)
- *   }}}
- *
  * @param ops
  *   The sequence of patch operations to apply
  */
@@ -26,12 +16,6 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
   /**
    * Composes two patches. The result applies this patch first, then that patch.
    *
-   * @example
-   *   {{{
-   * val combined = patch1 ++ patch2
-   * // Equivalent to: patch1.apply(value).flatMap(patch2.apply)
-   *   }}}
-   *
    * @param that
    *   The patch to apply after this one
    * @return
@@ -39,12 +23,6 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
    */
   def ++(that: JsonPatch): JsonPatch = JsonPatch(ops ++ that.ops)
 
-  /**
-   * Checks if this patch is empty (no operations).
-   *
-   * @return
-   *   true if this patch has no operations
-   */
   def isEmpty: Boolean = ops.isEmpty
 
   /**
@@ -59,11 +37,6 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
    *   - Clobber: Overwrite/force on conflicts
    * @return
    *   Either an error or the patched value
-   *
-   * @example
-   *   {{{
-   * val patched = patch.apply(json, PatchMode.Strict)
-   *   }}}
    */
   def apply(value: Json, mode: PatchMode = PatchMode.Strict): Either[SchemaError, Json] = {
     var current: Json                    = value
@@ -123,9 +96,7 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
   /**
    * Converts a DynamicPatch to a JsonPatch.
    *
-   * This conversion can fail for operations that are not representable in JSON:
-   *   - Temporal deltas (InstantDelta, DurationDelta, LocalDateDelta, etc.)
-   *   - Map keys that are not strings
+   * Temporal Deltas and Map Key which are not Strings, fail.
    *
    * Numeric deltas from DynamicPatch (IntDelta, LongDelta, etc.) are widened to
    * NumberDelta (BigDecimal) since JSON has a single number type.
@@ -164,14 +135,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
    *   - ArrayEdit with LCS-based Insert/Delete operations
    *   - ObjectEdit for field changes
    *
-   * @example
-   *   {{{
-   * val patch = JsonPatch.diff(oldJson, newJson)
-   * assert(patch.apply(oldJson) == Right(newJson))
-   *   }}}
-   *
-   * Algebraic law: `diff(a, b).apply(a) == Right(b)` for all Json values.
-   *
    * @param source
    *   The original Json value
    * @param target
@@ -181,9 +144,7 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
    */
   def diff(source: Json, target: Json): JsonPatch = JsonDiffer.diff(source, target)
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Apply Implementation
-  // ─────────────────────────────────────────────────────────────────────────
 
   /**
    * Apply a single operation at a path within a value.
@@ -875,9 +836,7 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     sb.toString
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // DynamicPatch Conversion Helpers
-  // ─────────────────────────────────────────────────────────────────────────
 
   /**
    * Converts a JsonPatch.Op to a DynamicPatch.Operation.
@@ -1056,10 +1015,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     error.toLeft(builder.result())
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Internal Types
-  // ─────────────────────────────────────────────────────────────────────────
-
   /**
    * A single patch operation paired with the path to apply it at.
    *
@@ -1070,10 +1025,7 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
    */
   final case class JsonPatchOp(path: DynamicOptic, operation: Op)
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Operations
-  // ─────────────────────────────────────────────────────────────────────────
-
   /**
    * Top-level operation type for JSON patches. Each operation describes a
    * change to be applied to a [[Json]] value.
@@ -1085,12 +1037,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Replaces the target value entirely.
      *
-     * @example
-     *   {{{
-     * Op.Set(Json.Str("new value"))
-     * // Replaces whatever is at the target path with the new value
-     *   }}}
-     *
      * @param value
      *   The new JSON value to set
      */
@@ -1099,12 +1045,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Applies a primitive delta operation. Used for numeric increments or
      * string edits.
-     *
-     * @example
-     *   {{{
-     * Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(5)))
-     * // Adds 5 to the target number
-     *   }}}
      *
      * @param op
      *   The primitive operation to apply
@@ -1115,12 +1055,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
      * Applies array edit operations. Used for inserting, appending, deleting,
      * or modifying array elements.
      *
-     * @example
-     *   {{{
-     * Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Num(42)))))
-     * // Appends 42 to the target array
-     *   }}}
-     *
      * @param ops
      *   The array operations to apply in sequence
      */
@@ -1130,29 +1064,13 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
      * Applies object edit operations. Used for adding, removing, or modifying
      * object fields.
      *
-     * @example
-     *   {{{
-     * Op.ObjectEdit(Vector(ObjectOp.Add("name", Json.Str("Alice"))))
-     * // Adds a "name" field to the target object
-     *   }}}
-     *
      * @param ops
      *   The object operations to apply in sequence
      */
     final case class ObjectEdit(ops: Vector[ObjectOp]) extends Op
 
     /**
-     * Groups operations that share a common path prefix. Avoids path repetition
-     * in nested structures.
-     *
-     * @example
-     *   {{{
-     * Op.Nested(JsonPatch(Vector(
-     *   JsonPatchOp(DynamicOptic.root.field("a"), Op.Set(Json.Num(1))),
-     *   JsonPatchOp(DynamicOptic.root.field("b"), Op.Set(Json.Num(2)))
-     * )))
-     * // Applies both changes within the nested context
-     *   }}}
+     * Groups operations that share a common path prefix.
      *
      * @param patch
      *   The nested patch to apply
@@ -1160,30 +1078,14 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     final case class Nested(patch: JsonPatch) extends Op
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Primitive Operations
-  // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Primitive delta operations for numbers and strings. JSON has only one
-   * numeric type (represented as BigDecimal) unlike DynamicPatch which has
-   * separate types for Int, Long, Double, etc.
-   */
   sealed trait PrimitiveOp
 
   object PrimitiveOp {
 
     /**
      * Adds a delta to a numeric value.
-     *
-     * @example
-     *   {{{
-     * PrimitiveOp.NumberDelta(BigDecimal(10))
-     * // Adds 10 to the target number
-     *
-     * PrimitiveOp.NumberDelta(BigDecimal(-5))
-     * // Subtracts 5 from the target number
-     *   }}}
      *
      * @param delta
      *   The amount to add (can be negative for subtraction)
@@ -1193,41 +1095,20 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Applies string edit operations to a string value.
      *
-     * @example
-     *   {{{
-     * PrimitiveOp.StringEdit(Vector(
-     *   StringOp.Insert(0, "Hello, "),
-     *   StringOp.Append("!")
-     * ))
-     * // Prepends "Hello, " and appends "!" to the target string
-     *   }}}
-     *
      * @param ops
      *   The string operations to apply in sequence
      */
     final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // String Operations
-  // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * String edit operations for insert, delete, append, and modify. These
-   * operations are applied to string values within JSON.
-   */
   sealed trait StringOp
 
   object StringOp {
 
     /**
      * Inserts text at the given index.
-     *
-     * @example
-     *   {{{
-     * StringOp.Insert(5, "world")
-     * // "Hello!" -> "Helloworld!"
-     *   }}}
      *
      * @param index
      *   The position to insert at (0-based)
@@ -1239,12 +1120,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Deletes characters starting at the given index.
      *
-     * @example
-     *   {{{
-     * StringOp.Delete(5, 6)
-     * // "Hello world!" -> "Hello!"
-     *   }}}
-     *
      * @param index
      *   The starting position (0-based)
      * @param length
@@ -1255,12 +1130,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Appends text to the end of the string.
      *
-     * @example
-     *   {{{
-     * StringOp.Append(" world!")
-     * // "Hello" -> "Hello world!"
-     *   }}}
-     *
      * @param text
      *   The text to append
      */
@@ -1268,12 +1137,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
 
     /**
      * Replaces a substring with new text.
-     *
-     * @example
-     *   {{{
-     * StringOp.Modify(6, 5, "universe")
-     * // "Hello world!" -> "Hello universe!"
-     *   }}}
      *
      * @param index
      *   The starting position (0-based)
@@ -1285,27 +1148,14 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     final case class Modify(index: Int, length: Int, text: String) extends StringOp
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Array Operations
-  // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Array edit operations for inserting, appending, deleting, and modifying
-   * array elements. These mirror DynamicPatch.SeqOp but use [[Json]] instead of
-   * DynamicValue.
-   */
   sealed trait ArrayOp
 
   object ArrayOp {
 
     /**
      * Inserts elements at the given index.
-     *
-     * @example
-     *   {{{
-     * ArrayOp.Insert(1, Chunk(Json.Num(42), Json.Num(43)))
-     * // [1, 4] -> [1, 42, 43, 4]
-     *   }}}
      *
      * @param index
      *   The position to insert at (0-based)
@@ -1317,12 +1167,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Appends elements to the end of the array.
      *
-     * @example
-     *   {{{
-     * ArrayOp.Append(Chunk(Json.Num(42)))
-     * // [1, 2, 3] -> [1, 2, 3, 42]
-     *   }}}
-     *
      * @param values
      *   The values to append
      */
@@ -1330,12 +1174,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
 
     /**
      * Removes elements starting at the given index.
-     *
-     * @example
-     *   {{{
-     * ArrayOp.Delete(1, 2)
-     * // [1, 2, 3, 4] -> [1, 4]
-     *   }}}
      *
      * @param index
      *   The starting position (0-based)
@@ -1347,12 +1185,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Applies an operation to the element at the given index.
      *
-     * @example
-     *   {{{
-     * ArrayOp.Modify(0, Op.Set(Json.Num(99)))
-     * // [1, 2, 3] -> [99, 2, 3]
-     *   }}}
-     *
      * @param index
      *   The index of the element to modify (0-based)
      * @param op
@@ -1361,27 +1193,14 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     final case class Modify(index: Int, op: Op) extends ArrayOp
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Object Operations
-  // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Object edit operations for adding, removing, and modifying object fields.
-   * These mirror DynamicPatch.MapOp but use String keys (JSON objects always
-   * have string keys).
-   */
   sealed trait ObjectOp
 
   object ObjectOp {
 
     /**
      * Adds a field to the object.
-     *
-     * @example
-     *   {{{
-     * ObjectOp.Add("name", Json.Str("Alice"))
-     * // {} -> {"name": "Alice"}
-     *   }}}
      *
      * @param key
      *   The field name
@@ -1393,12 +1212,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
     /**
      * Removes a field from the object.
      *
-     * @example
-     *   {{{
-     * ObjectOp.Remove("name")
-     * // {"name": "Alice", "age": 30} -> {"age": 30}
-     *   }}}
-     *
      * @param key
      *   The field name to remove
      */
@@ -1406,14 +1219,6 @@ object JsonPatch extends JsonPatchCompanionVersionSpecific {
 
     /**
      * Applies a patch to the value at the given field.
-     *
-     * @example
-     *   {{{
-     * ObjectOp.Modify("address", JsonPatch.root(Op.ObjectEdit(Vector(
-     *   ObjectOp.Add("zip", Json.Str("12345"))
-     * ))))
-     * // Adds a "zip" field to the nested "address" object
-     *   }}}
      *
      * @param key
      *   The field name

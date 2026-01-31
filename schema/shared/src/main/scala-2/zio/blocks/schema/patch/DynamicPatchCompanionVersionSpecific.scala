@@ -6,13 +6,9 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
-// All of the StringOp, PrimitiveOp, SeqOp, MapOp, Operation, DynamicPatchOp, DynamicPatch schemas are manually derived.
-// Scala 2 fails to compile if schema.derive is used in the same run as compile
-// Since Patch is a recursively defined type, we use Reflect.Deferred to defer the evaluation of the certain schemas.
-// The manual derivation code works, with all tests passing.
-// A cleaner way do this to use schema.derived (only in scala 3), implicit derivations for all the schemas.
-// example -`implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] = Schema.derived`
-// As they are definitely to be right.
+// In Scala 2, we are manually deriving the Schema.
+// In Scala 3, these are derived using Schema.derived.
+
 trait DynamicPatchCompanionVersionSpecific {
 
   import DynamicPatch._

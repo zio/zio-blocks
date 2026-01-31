@@ -4,11 +4,10 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
 
-trait PatchModeCompanionVersionSpecific {
+// In Scala 2, we are manually deriving the Schema.
+// In Scala 3, these are derived using Schema.derived.
 
-  // Schema instances for case objects - manually written for Scala 2 compatibility
-  // For easier testing in Scala 3, you can use schema.derive for all schemas.
-  // example - `implicit lazy val strictSchema: Schema[Strict.type] = Schema.derived`
+trait PatchModeCompanionVersionSpecific {
 
   implicit lazy val strictSchema: Schema[PatchMode.Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Strict.type](
@@ -46,7 +45,6 @@ trait PatchModeCompanionVersionSpecific {
     )
   )
 
-  // Schema instance for PatchMode - manually written for Scala 2 compatibility
   implicit lazy val schema: Schema[PatchMode] = {
     import zio.blocks.schema._
 

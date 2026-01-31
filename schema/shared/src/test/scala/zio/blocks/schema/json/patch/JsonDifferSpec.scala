@@ -5,17 +5,6 @@ import zio.blocks.schema.json.{Json, JsonDiffer, JsonPatch}
 import zio.blocks.schema.json.JsonPatch._
 import zio.test._
 
-/**
- * Tests for [[JsonDiffer]] - the JSON diff computation engine.
- *
- * Tests are organized by JSON type:
- *   - Numbers: delta computation
- *   - Strings: LCS-based edit operations
- *   - Arrays: LCS-based insert/delete/append operations
- *   - Objects: field add/remove/modify operations
- *   - Type mismatches: complete replacement
- *   - Edge cases: empty values, identical values
- */
 object JsonDifferSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("JsonDiffer")(
@@ -28,9 +17,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     propertyBasedSuite
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Number Diff Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val numberDiffSuite = suite("Number diff")(
     test("diff produces NumberDelta for positive change") {
@@ -95,9 +82,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // String Diff Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val stringDiffSuite = suite("String diff")(
     test("diff produces StringEdit for prefix change") {
@@ -152,9 +137,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Array Diff Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val arrayDiffSuite = suite("Array diff")(
     test("diff produces Append for elements added at end") {
@@ -241,9 +224,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Object Diff Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val objectDiffSuite = suite("Object diff")(
     test("diff produces Add for new fields") {
@@ -345,9 +326,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Type Mismatch Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val typeMismatchSuite = suite("Type mismatch")(
     test("diff produces Set when changing from Number to String") {
@@ -417,9 +396,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Edge Cases Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val edgeCasesSuite = suite("Edge cases")(
     test("diff of identical values produces empty patch") {
@@ -467,9 +444,7 @@ object JsonDifferSpec extends SchemaBaseSpec {
     }
   )
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Property-based Suite
-  // ─────────────────────────────────────────────────────────────────────────
 
   private lazy val propertyBasedSuite = suite("Property-based")(
     test("diff(a, b).apply(a) == Right(b) for all Json values") {

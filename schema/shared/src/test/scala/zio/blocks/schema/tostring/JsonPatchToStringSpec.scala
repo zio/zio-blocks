@@ -233,8 +233,14 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
       val source = Json.Object(Chunk("name" -> Json.String("Alice"), "age" -> Json.Number("30")))
       val target = Json.Object(Chunk("name" -> Json.String("Bob"), "age" -> Json.Number("30")))
       val patch  = JsonPatch.diff(source, target)
-      // The diff should produce a Modify operation for the name field
-      assertTrue(patch.toString.contains("name"))
+      assertTrue(
+        patch.toString ==
+          """JsonPatch {
+            |  root:
+            |    ~ {"name"}:
+            |      root = "Bob"
+            |}""".stripMargin
+      )
     },
     test("renders diff-generated patch for array changes") {
       val source = Json.Array(Chunk(Json.Number("1"), Json.Number("2"), Json.Number("3")))

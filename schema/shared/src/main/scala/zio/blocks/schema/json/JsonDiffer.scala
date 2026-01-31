@@ -6,38 +6,11 @@ import zio.blocks.schema.patch.LCS
 /**
  * Computes differences between [[Json]] values, producing [[JsonPatch]]
  * instances that can transform one JSON value into another.
- *
- * The differ uses efficient algorithms to produce minimal patches:
- *   - NumberDelta for number changes
- *   - StringEdit with LCS-based operations when more compact than Set
- *   - ArrayEdit with LCS-based Insert/Delete operations
- *   - ObjectEdit for field changes
- *
- * @example
- *   {{{
- * val patch = JsonDiffer.diff(oldJson, newJson)
- * assert(patch.apply(oldJson) == Right(newJson))
- *   }}}
  */
 object JsonDiffer {
 
   /**
    * Compute the diff between two Json values.
-   *
-   * Returns a JsonPatch that transforms `source` into `target`. The patch uses
-   * minimal operations:
-   *   - NumberDelta for number changes
-   *   - StringEdit when more compact than Set
-   *   - ArrayEdit with LCS-based Insert/Delete operations
-   *   - ObjectEdit for field changes
-   *
-   * @example
-   *   {{{
-   * val patch = JsonDiffer.diff(oldJson, newJson)
-   * assert(patch.apply(oldJson) == Right(newJson))
-   *   }}}
-   *
-   * Algebraic law: `diff(a, b).apply(a) == Right(b)` for all Json values.
    *
    * @param source
    *   The original Json value
@@ -75,12 +48,10 @@ object JsonDiffer {
       }
     }
 
-  // ─────────────────────────────────────────────────────────────────────────
   // Diff Helpers
-  // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Diff two JSON numbers by computing their delta. Always uses NumberDelta to
+   * Diff two JSON numbers by computing their delta. Uses NumberDelta to
    * represent the change.
    */
   private def diffNumber(oldNum: Json.Number, newNum: Json.Number): JsonPatch = {
