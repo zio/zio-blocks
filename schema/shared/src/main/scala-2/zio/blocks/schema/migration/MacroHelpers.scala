@@ -3,6 +3,20 @@ package zio.blocks.schema.migration
 import scala.reflect.macros.blackbox
 
 /**
+ * Type category for classification during shape extraction.
+ */
+sealed trait TypeCategory
+object TypeCategory {
+  case object Primitive  extends TypeCategory
+  case object Record     extends TypeCategory
+  case object Sealed     extends TypeCategory
+  case object OptionType extends TypeCategory
+  case object SeqType    extends TypeCategory
+  case object MapType    extends TypeCategory
+  case object EitherType extends TypeCategory
+}
+
+/**
  * Shared macro helper functions for compile-time type introspection.
  *
  * Note: This is implemented as a trait to be mixed in, which properly handles
@@ -139,30 +153,101 @@ private[migration] trait MacroHelpers {
   }
 
   /**
-   * Extract all field paths from a type, recursively descending into nested
-   * case classes.
+   * Categorize a type into its structural category.
+   *
+   * This is used to determine how to extract the shape tree from a type. The
+   * order of checks matters:
+   *   1. Check for Either first (before sealed check, as Either is a sealed
+   *      trait)
+   *   2. Check for Option (specific container)
+   *   3. Check for Map (specific container)
+   *   4. Check for other sequences/collections
+   *   5. Check for sealed traits
+   *   6. Check for product types (case classes)
+   *   7. Default to Primitive
+   */
+  protected def categorizeType(tpe: c.Type): TypeCategory = {
+    val dealiased = tpe.dealias
+
+    // Use baseClasses to check inheritance - more reliable than <:< with existentials
+    // baseClasses returns all classes in the inheritance hierarchy
+    val baseNames = dealiased.baseClasses.map(_.fullName).toSet
+
+    def hasBase(name: String): Boolean = baseNames.contains(name)
+
+    // Check for Either first (it's a sealed trait but we handle it specially)
+    if (hasBase("scala.util.Either")) {
+      TypeCategory.EitherType
+    }
+    // Check for Option
+    else if (hasBase("scala.Option")) {
+      TypeCategory.OptionType
+    }
+    // Check for Map
+    else if (
+      hasBase("scala.collection.Map") || hasBase("scala.collection.immutable.Map") ||
+      hasBase("scala.collection.mutable.Map")
+    ) {
+      TypeCategory.MapType
+    }
+    // Check for sequences/collections
+    else if (
+      hasBase("scala.collection.Seq") || hasBase("scala.collection.immutable.Seq") ||
+      hasBase("scala.collection.Iterable") || hasBase("scala.collection.immutable.Iterable") ||
+      hasBase("scala.Array")
+    ) {
+      TypeCategory.SeqType
+    }
+    // Check for sealed traits (but not the containers we already handled)
+    else if (isSealedTrait(dealiased)) {
+      TypeCategory.Sealed
+    }
+    // Check for product types (case classes)
+    else if (isProductType(dealiased.typeSymbol)) {
+      TypeCategory.Record
+    }
+    // Default to primitive
+    else {
+      TypeCategory.Primitive
+    }
+  }
+
+  /**
+   * Extract a ShapeNode tree from a type.
+   *
+   * Recursively descends into the type structure to build a hierarchical
+   * representation:
+   *   - Product types (case classes) become RecordNode with field shapes
+   *   - Sum types (sealed traits) become SealedNode with case shapes
+   *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
+   *     R's shape
+   *   - Option[A] becomes OptionNode with A's shape
+   *   - List/Vector/Set[A] become SeqNode with A's shape
+   *   - Map[K, V] becomes MapNode with K's and V's shapes
+   *   - Primitives become PrimitiveNode
+   *
+   * Recursion handling:
+   *   - Any recursion (direct or through containers) produces a compile error
+   *   - Container elements are fully explored to extract their complete shape
    *
    * @param tpe
-   *   The type to extract paths from
-   * @param prefix
-   *   The current path prefix (e.g., "address." for nested fields)
+   *   The type to extract the shape from
    * @param visiting
    *   Set of type full names currently being visited (for recursion detection)
    * @param errorContext
-   *   Context string for error messages (e.g., "Migration validation")
+   *   Context string for error messages
    * @return
-   *   List of dot-separated field paths
+   *   The ShapeNode representing the type's structure
    */
-  protected def extractFieldPathsFromType(
+  protected def extractShapeTree(
     tpe: c.Type,
-    prefix: String,
     visiting: Set[String],
-    errorContext: String = "Migration validation"
-  ): List[String] = {
+    errorContext: String = "Shape extraction"
+  ): ShapeNode = {
     val dealiased = tpe.dealias
     val typeKey   = dealiased.typeSymbol.fullName
 
-    // Check for recursion
+    // Check for recursion - always report as error
     if (visiting.contains(typeKey)) {
       c.abort(
         c.enclosingPosition,
@@ -172,37 +257,89 @@ private[migration] trait MacroHelpers {
       )
     }
 
-    // Skip extraction for container types and primitives
-    if (isContainerType(dealiased) || isPrimitiveType(dealiased)) {
-      return Nil
-    }
-
-    // Only extract fields from product types (case classes)
-    if (!isProductType(dealiased.typeSymbol)) {
-      return Nil
-    }
-
     val newVisiting = visiting + typeKey
-    val fields      = getProductFields(dealiased)
 
-    fields.flatMap { case (fieldName, fieldType) =>
-      val fullPath    = if (prefix.isEmpty) fieldName else s"$prefix$fieldName"
-      val nestedPaths = extractFieldPathsFromType(fieldType, s"$fullPath.", newVisiting, errorContext)
-      fullPath :: nestedPaths
-    }
-  }
+    categorizeType(dealiased) match {
+      case TypeCategory.Primitive =>
+        ShapeNode.PrimitiveNode
 
-  /**
-   * Extract case names from a sealed trait.
-   */
-  protected def extractCaseNamesFromType(tpe: c.Type): List[String] = {
-    val dealiased = tpe.dealias
+      case TypeCategory.Record =>
+        val fields      = getProductFields(dealiased)
+        val fieldShapes = fields.map { case (fieldName, fieldType) =>
+          fieldName -> extractShapeTree(fieldType, newVisiting, errorContext)
+        }.toMap
+        ShapeNode.RecordNode(fieldShapes)
 
-    if (isSealedTrait(dealiased)) {
-      val subTypes = directSubTypes(dealiased)
-      subTypes.map(getCaseName)
-    } else {
-      Nil
+      case TypeCategory.Sealed =>
+        val subTypes   = directSubTypes(dealiased)
+        val caseShapes = subTypes.map { subTpe =>
+          val caseName  = getCaseName(subTpe)
+          val caseShape = extractShapeTree(subTpe, newVisiting, errorContext)
+          caseName -> caseShape
+        }.toMap
+        ShapeNode.SealedNode(caseShapes)
+
+      case TypeCategory.EitherType =>
+        // Either[L, R] -> SealedNode with Left and Right cases
+        // Use baseType to get proper type arguments
+        val eitherBase = dealiased.baseType(typeOf[Either[_, _]].typeSymbol)
+        val typeArgs   = eitherBase.typeArgs
+        if (typeArgs.size == 2) {
+          val leftShape  = extractShapeTree(typeArgs(0), newVisiting, errorContext)
+          val rightShape = extractShapeTree(typeArgs(1), newVisiting, errorContext)
+          ShapeNode.SealedNode(Map("Left" -> leftShape, "Right" -> rightShape))
+        } else {
+          ShapeNode.PrimitiveNode
+        }
+
+      case TypeCategory.OptionType =>
+        // Use baseType to get proper type arguments
+        val optionBase = dealiased.baseType(typeOf[Option[_]].typeSymbol)
+        val typeArgs   = optionBase.typeArgs
+        if (typeArgs.size == 1) {
+          val elementShape = extractShapeTree(typeArgs.head, newVisiting, errorContext)
+          ShapeNode.OptionNode(elementShape)
+        } else {
+          ShapeNode.PrimitiveNode
+        }
+
+      case TypeCategory.SeqType =>
+        // Use baseType to get proper type arguments - try multiple base types
+        val seqBase = {
+          val bases = List(
+            dealiased.baseType(typeOf[Seq[_]].typeSymbol),
+            dealiased.baseType(typeOf[List[_]].typeSymbol),
+            dealiased.baseType(typeOf[Vector[_]].typeSymbol),
+            dealiased.baseType(typeOf[Set[_]].typeSymbol),
+            dealiased.baseType(typeOf[Iterable[_]].typeSymbol)
+          )
+          bases.find(_ != NoType).getOrElse(dealiased)
+        }
+        val typeArgs = if (seqBase.typeArgs.nonEmpty) seqBase.typeArgs else dealiased.typeArgs
+        if (typeArgs.size >= 1) {
+          val elementShape = extractShapeTree(typeArgs.head, newVisiting, errorContext)
+          ShapeNode.SeqNode(elementShape)
+        } else {
+          ShapeNode.PrimitiveNode
+        }
+
+      case TypeCategory.MapType =>
+        // Use baseType to get proper type arguments - try multiple base types
+        val mapBase = {
+          val bases = List(
+            dealiased.baseType(typeOf[Map[_, _]].typeSymbol),
+            dealiased.baseType(typeOf[scala.collection.Map[_, _]].typeSymbol)
+          )
+          bases.find(_ != NoType).getOrElse(dealiased)
+        }
+        val typeArgs = if (mapBase.typeArgs.nonEmpty) mapBase.typeArgs else dealiased.typeArgs
+        if (typeArgs.size >= 2) {
+          val keyShape   = extractShapeTree(typeArgs(0), newVisiting, errorContext)
+          val valueShape = extractShapeTree(typeArgs(1), newVisiting, errorContext)
+          ShapeNode.MapNode(keyShape, valueShape)
+        } else {
+          ShapeNode.PrimitiveNode
+        }
     }
   }
 }

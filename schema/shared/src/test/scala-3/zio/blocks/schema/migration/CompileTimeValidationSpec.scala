@@ -75,7 +75,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("proof exists when all removed fields are handled") {
         // DropSource -> DropTarget requires handling "extra"
         // With structured paths: (("field", "extra"),) is the path tuple for "extra"
-        type ExtraPath = ("field", "extra") *: EmptyTuple
+        type ExtraPath        = ("field", "extra") *: EmptyTuple
         type HandledWithExtra = ExtraPath *: EmptyTuple
 
         // Proof should exist when "extra" is handled
@@ -85,7 +85,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("proof exists when all added fields are provided") {
         // AddSource -> AddTarget requires providing "extra"
         // With structured paths: (("field", "extra"),) is the path tuple for "extra"
-        type ExtraPath = ("field", "extra") *: EmptyTuple
+        type ExtraPath         = ("field", "extra") *: EmptyTuple
         type ProvidedWithExtra = ExtraPath *: EmptyTuple
 
         // Proof should exist when "extra" is provided
@@ -103,8 +103,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         // Having extra fields handled/provided beyond what's required is OK
         // With structured paths, we need path tuples for each field
         type ExtraPath = ("field", "extra") *: EmptyTuple
-        type NamePath = ("field", "name") *: EmptyTuple
-        type AgePath = ("field", "age") *: EmptyTuple
+        type NamePath  = ("field", "name") *: EmptyTuple
+        type AgePath   = ("field", "age") *: EmptyTuple
         summon[ValidationProof[DropSource, DropTarget, ExtraPath *: NamePath *: EmptyTuple, AgePath *: EmptyTuple]]
         assertTrue(true)
       }
@@ -487,7 +487,9 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         type PathB = ("field", "b") *: EmptyTuple
         type PathX = ("field", "x") *: EmptyTuple
         type PathY = ("field", "y") *: EmptyTuple
-        summon[ValidationProof[AllChangedSrc, AllChangedTgt, PathA *: PathB *: EmptyTuple, PathX *: PathY *: EmptyTuple]]
+        summon[
+          ValidationProof[AllChangedSrc, AllChangedTgt, PathA *: PathB *: EmptyTuple, PathX *: PathY *: EmptyTuple]
+        ]
 
         val migration = MigrationBuilder
           .newBuilder[AllChangedSrc, AllChangedTgt]
@@ -528,13 +530,17 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val st = summon[ShapeTree[NestedOuter]]
         // Verify the tree contains nested RecordNode for "inner"
         assertTrue(
-          st.tree == ShapeNode.RecordNode(Map(
-            "inner" -> ShapeNode.RecordNode(Map(
-              "x" -> ShapeNode.PrimitiveNode,
-              "y" -> ShapeNode.PrimitiveNode
-            )),
-            "z" -> ShapeNode.PrimitiveNode
-          ))
+          st.tree == ShapeNode.RecordNode(
+            Map(
+              "inner" -> ShapeNode.RecordNode(
+                Map(
+                  "x" -> ShapeNode.PrimitiveNode,
+                  "y" -> ShapeNode.PrimitiveNode
+                )
+              ),
+              "z" -> ShapeNode.PrimitiveNode
+            )
+          )
         )
       },
       test("unchanged nested structure requires no handling") {
@@ -677,10 +683,12 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         val st = summon[ShapeTree[SimpleResult]]
         // The tree should be a SealedNode with "Err" and "Ok" cases
         assertTrue(
-          st.tree == ShapeNode.SealedNode(Map(
-            "Err" -> ShapeNode.RecordNode(Map("msg" -> ShapeNode.PrimitiveNode)),
-            "Ok"  -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode))
-          ))
+          st.tree == ShapeNode.SealedNode(
+            Map(
+              "Err" -> ShapeNode.RecordNode(Map("msg" -> ShapeNode.PrimitiveNode)),
+              "Ok"  -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode))
+            )
+          )
         )
       },
       test("ShapeTree returns RecordNode for non-sealed types") {
@@ -716,9 +724,9 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         // Verify that we need to handle the case changes
         // With structured paths: (("case", "Active"),) is the path tuple for a case
-        type ActivePath = ("case", "Active") *: EmptyTuple
-        type InactivePath = ("case", "Inactive") *: EmptyTuple
-        type Active2Path = ("case", "Active2") *: EmptyTuple
+        type ActivePath    = ("case", "Active") *: EmptyTuple
+        type InactivePath  = ("case", "Inactive") *: EmptyTuple
+        type Active2Path   = ("case", "Active2") *: EmptyTuple
         type Inactive2Path = ("case", "Inactive2") *: EmptyTuple
         summon[
           ValidationProof[
@@ -752,9 +760,9 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         // Need to handle "case:CardPayment" and provide "case:CreditCard"
         // Also need to handle "case:CashPayment" and provide "case:CashPayment2"
-        type CardPaymentPath = ("case", "CardPayment") *: EmptyTuple
-        type CashPaymentPath = ("case", "CashPayment") *: EmptyTuple
-        type CreditCardPath = ("case", "CreditCard") *: EmptyTuple
+        type CardPaymentPath  = ("case", "CardPayment") *: EmptyTuple
+        type CashPaymentPath  = ("case", "CashPayment") *: EmptyTuple
+        type CreditCardPath   = ("case", "CreditCard") *: EmptyTuple
         type CashPayment2Path = ("case", "CashPayment2") *: EmptyTuple
         summon[
           ValidationProof[
@@ -1192,8 +1200,9 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         // Needs "removed" handled and "added" provided
         // With structured paths
         type RemovedPath = ("field", "removed") *: EmptyTuple
-        type AddedPath = ("field", "added") *: EmptyTuple
-        val proof = ValidationProof.requireValidation[SrcWithExtra, TgtWithExtra, RemovedPath *: EmptyTuple, AddedPath *: EmptyTuple]
+        type AddedPath   = ("field", "added") *: EmptyTuple
+        val proof = ValidationProof
+          .requireValidation[SrcWithExtra, TgtWithExtra, RemovedPath *: EmptyTuple, AddedPath *: EmptyTuple]
         assertTrue(proof != null)
       },
       test("requireValidation produces error for incomplete migration") {

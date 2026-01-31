@@ -16,183 +16,10 @@ import scala.quoted.*
  */
 
 /**
- * Hierarchical representation of a type's shape.
- *
- * ShapeNode provides a tree-based view of a type's structure, enabling:
- *   - Structural comparison between types (diff)
- *   - Path-based navigation
- *   - Compile-time validation with precise error messages
- *
- * Each node represents a structural element:
- *   - RecordNode: Product types (case classes) with named fields
- *   - SealedNode: Sum types (sealed traits/enums) with named cases
- *   - SeqNode: Sequence containers (List, Vector, Set, etc.)
- *   - OptionNode: Optional values
- *   - MapNode: Key-value mappings
- *   - PrimitiveNode: Leaf types (String, Int, etc.)
- */
-sealed trait ShapeNode
-
-object ShapeNode {
-
-  /** Product type with named fields mapping to their shapes. */
-  case class RecordNode(fields: Map[String, ShapeNode]) extends ShapeNode
-
-  /** Sum type with named cases mapping to their shapes. */
-  case class SealedNode(cases: Map[String, ShapeNode]) extends ShapeNode
-
-  /** Sequence container with element shape. */
-  case class SeqNode(element: ShapeNode) extends ShapeNode
-
-  /** Optional value container with element shape. */
-  case class OptionNode(element: ShapeNode) extends ShapeNode
-
-  /** Map container with key and value shapes. */
-  case class MapNode(key: ShapeNode, value: ShapeNode) extends ShapeNode
-
-  /** Leaf node for primitive types. */
-  case object PrimitiveNode extends ShapeNode
-}
-
-/**
- * Path segment for navigating within a ShapeNode tree.
- *
- * Segments represent the different ways to navigate into a type's structure:
- *   - Field: Named field access in a record
- *   - Case: Named case in a sealed trait/enum
- *   - Element: Element access in a sequence or option
- *   - Key: Key access in a map
- *   - Value: Value access in a map
- *   - Wrapped: Access to wrapped value in a newtype
- */
-sealed trait Segment {
-  def render: String = this match {
-    case Segment.Field(name) => s".$name"
-    case Segment.Case(name)  => s"[case:$name]"
-    case Segment.Element     => "[element]"
-    case Segment.Key         => "[key]"
-    case Segment.Value       => "[value]"
-    case Segment.Wrapped     => "[wrapped]"
-  }
-}
-
-object Segment {
-  case class Field(name: String) extends Segment
-  case class Case(name: String) extends Segment
-  case object Element extends Segment
-  case object Key extends Segment
-  case object Value extends Segment
-  case object Wrapped extends Segment
-}
-
-/**
- * A path is a sequence of segments representing a location within a ShapeNode tree.
+ * A path is a sequence of segments representing a location within a ShapeNode
+ * tree. (Scala 3 top-level type alias for convenience)
  */
 type Path = List[Segment]
-
-object Path {
-
-  /** Render a path as a human-readable string (e.g., ".address.city" or "[element].name"). */
-  def render(path: Path): String =
-    if (path.isEmpty) "<root>"
-    else path.map(_.render).mkString
-}
-
-/**
- * Runtime diff computation for ShapeNode trees.
- *
- * TreeDiff compares two ShapeNode trees and identifies structural differences:
- *   - Removed paths: Present in source but not in target
- *   - Added paths: Present in target but not in source
- *
- * Type changes (same path, different structure) appear in BOTH lists.
- */
-object TreeDiff {
-
-  /**
-   * Compute the difference between source and target shape trees.
-   *
-   * @param source The source ShapeNode tree
-   * @param target The target ShapeNode tree
-   * @return A tuple of (removed paths, added paths)
-   *
-   * Examples:
-   *   - Field removed: path appears in removed list
-   *   - Field added: path appears in added list
-   *   - Field type changed: path appears in BOTH lists
-   *   - Nested changes: paths include full prefix
-   */
-  def diff(source: ShapeNode, target: ShapeNode): (List[Path], List[Path]) =
-    diffImpl(source, target, Nil)
-
-  private def diffImpl(source: ShapeNode, target: ShapeNode, prefix: Path): (List[Path], List[Path]) = {
-    (source, target) match {
-      // Both primitives - identical, no diff
-      case (ShapeNode.PrimitiveNode, ShapeNode.PrimitiveNode) =>
-        (Nil, Nil)
-
-      // Both records - compare fields
-      case (ShapeNode.RecordNode(sourceFields), ShapeNode.RecordNode(targetFields)) =>
-        diffMaps(sourceFields, targetFields, prefix, Segment.Field.apply)
-
-      // Both sealed - compare cases
-      case (ShapeNode.SealedNode(sourceCases), ShapeNode.SealedNode(targetCases)) =>
-        diffMaps(sourceCases, targetCases, prefix, Segment.Case.apply)
-
-      // Both sequences - compare elements
-      case (ShapeNode.SeqNode(sourceElem), ShapeNode.SeqNode(targetElem)) =>
-        diffImpl(sourceElem, targetElem, prefix :+ Segment.Element)
-
-      // Both options - compare elements
-      case (ShapeNode.OptionNode(sourceElem), ShapeNode.OptionNode(targetElem)) =>
-        diffImpl(sourceElem, targetElem, prefix :+ Segment.Element)
-
-      // Both maps - compare keys and values
-      case (ShapeNode.MapNode(sourceKey, sourceVal), ShapeNode.MapNode(targetKey, targetVal)) =>
-        val (keyRemoved, keyAdded) = diffImpl(sourceKey, targetKey, prefix :+ Segment.Key)
-        val (valRemoved, valAdded) = diffImpl(sourceVal, targetVal, prefix :+ Segment.Value)
-        (keyRemoved ++ valRemoved, keyAdded ++ valAdded)
-
-      // Different node types - type changed, path is in both removed and added
-      case _ =>
-        val path = if (prefix.isEmpty) List(Nil) else List(prefix)
-        (path, path)
-    }
-  }
-
-  private def diffMaps(
-    sourceMap: Map[String, ShapeNode],
-    targetMap: Map[String, ShapeNode],
-    prefix: Path,
-    mkSegment: String => Segment
-  ): (List[Path], List[Path]) = {
-    val allKeys = (sourceMap.keySet ++ targetMap.keySet).toList.sorted
-
-    allKeys.foldLeft((List.empty[Path], List.empty[Path])) { case ((removedAcc, addedAcc), key) =>
-      val segment = mkSegment(key)
-      val path    = prefix :+ segment
-
-      (sourceMap.get(key), targetMap.get(key)) match {
-        // Only in source - removed
-        case (Some(_), None) =>
-          (path :: removedAcc, addedAcc)
-
-        // Only in target - added
-        case (None, Some(_)) =>
-          (removedAcc, path :: addedAcc)
-
-        // In both - recurse to find nested diffs
-        case (Some(sourceNode), Some(targetNode)) =>
-          val (nestedRemoved, nestedAdded) = diffImpl(sourceNode, targetNode, path)
-          (nestedRemoved ++ removedAcc, nestedAdded ++ addedAcc)
-
-        // Neither (shouldn't happen given allKeys construction)
-        case (None, None) =>
-          (removedAcc, addedAcc)
-      }
-    }
-  }
-}
 
 object ShapeExtraction {
 
@@ -352,7 +179,7 @@ object ShapeExtraction {
   }
 
   /** Convert a ShapeNode to an Expr at compile time. */
-  private def shapeNodeToExpr(using q: Quotes)(node: ShapeNode): Expr[ShapeNode] = {
+  private def shapeNodeToExpr(using q: Quotes)(node: ShapeNode): Expr[ShapeNode] =
     node match {
       case ShapeNode.PrimitiveNode =>
         '{ ShapeNode.PrimitiveNode }
@@ -388,17 +215,20 @@ object ShapeExtraction {
         val valueExpr = shapeNodeToExpr(value)
         '{ ShapeNode.MapNode($keyExpr, $valueExpr) }
     }
-  }
 
   /**
-   * Typeclass for extracting the hierarchical shape tree of a type at compile time.
+   * Typeclass for extracting the hierarchical shape tree of a type at compile
+   * time.
    *
-   * ShapeTree provides a unified view that replaces both FieldPaths and CasePaths:
+   * ShapeTree provides a unified view that replaces both FieldPaths and
+   * CasePaths:
    *   - Fields are represented as RecordNode entries
    *   - Cases are represented as SealedNode entries
-   *   - Container types (List, Option, Map) are represented as their respective nodes
+   *   - Container types (List, Option, Map) are represented as their respective
+   *     nodes
    *
-   * Use TreeDiff.diff to compare two ShapeTree instances and identify structural changes.
+   * Use TreeDiff.diff to compare two ShapeTree instances and identify
+   * structural changes.
    *
    * {{{
    * case class Address(street: String, city: String)
@@ -425,7 +255,9 @@ object ShapeExtraction {
     /** Concrete implementation of ShapeTree. */
     final class Impl[A](val tree: ShapeNode) extends ShapeTree[A]
 
-    /** Given instance that extracts the shape tree from a type at compile time. */
+    /**
+     * Given instance that extracts the shape tree from a type at compile time.
+     */
     inline given derived[A]: ShapeTree[A] = ${ derivedImpl[A] }
 
     private def derivedImpl[A: Type](using q: Quotes): Expr[ShapeTree[A]] = {
@@ -441,18 +273,22 @@ object ShapeExtraction {
   }
 
   /**
-   * Typeclass for computing the migration diff between two types at compile time.
+   * Typeclass for computing the migration diff between two types at compile
+   * time.
    *
-   * MigrationPaths uses ShapeTree extraction and TreeDiff to identify structural
-   * changes between source and target types. This replaces the combination of
-   * FieldPaths + CasePaths for validation.
+   * MigrationPaths uses ShapeTree extraction and TreeDiff to identify
+   * structural changes between source and target types. This replaces the
+   * combination of FieldPaths + CasePaths for validation.
    *
    * Type members:
-   *   - Removed: Tuple of structured path tuples representing paths in A but not in B (or type changed)
-   *   - Added: Tuple of structured path tuples representing paths in B but not in A (or type changed)
+   *   - Removed: Tuple of structured path tuples representing paths in A but
+   *     not in B (or type changed)
+   *   - Added: Tuple of structured path tuples representing paths in B but not
+   *     in A (or type changed)
    *
-   * Paths that exist in both A and B with the same structure do not appear in either tuple.
-   * When a path exists in both but with different types, it appears in BOTH Removed and Added.
+   * Paths that exist in both A and B with the same structure do not appear in
+   * either tuple. When a path exists in both but with different types, it
+   * appears in BOTH Removed and Added.
    *
    * Path format uses structured tuples where each segment is represented as:
    *   - Field segment: ("field", "fieldName") - e.g., ("field", "address")
@@ -510,7 +346,8 @@ object ShapeExtraction {
     }
 
     /**
-     * Convert a Path (List[Segment]) to a sort key string for deterministic ordering.
+     * Convert a Path (List[Segment]) to a sort key string for deterministic
+     * ordering.
      */
     private def pathToSortKey(path: Path): String = {
       if (path.isEmpty) return ""
@@ -528,7 +365,8 @@ object ShapeExtraction {
      * Convert a single Path (List[Segment]) to a structured tuple type.
      *
      * Examples:
-     *   - List(Field("address"), Field("city")) -> (("field", "address"), ("field", "city"))
+     *   - List(Field("address"), Field("city")) -> (("field", "address"),
+     *     ("field", "city"))
      *   - List(Case("Success")) -> (("case", "Success"),)
      *   - List(Field("items"), Element) -> (("field", "items"), "element")
      */
@@ -549,9 +387,9 @@ object ShapeExtraction {
     /**
      * Convert a Segment to its type representation.
      *
-     * - Field("name") -> ("field", "name") tuple type
-     * - Case("name") -> ("case", "name") tuple type
-     * - Element/Key/Value/Wrapped -> single string literal type
+     *   - Field("name") -> ("field", "name") tuple type
+     *   - Case("name") -> ("case", "name") tuple type
+     *   - Element/Key/Value/Wrapped -> single string literal type
      */
     private def segmentToType(using q: Quotes)(segment: Segment): q.reflect.TypeRepr = {
       import q.reflect.*
@@ -584,7 +422,8 @@ object ShapeExtraction {
     }
 
     /**
-     * Convert a list of Paths to a Tuple type where each element is a structured path tuple.
+     * Convert a list of Paths to a Tuple type where each element is a
+     * structured path tuple.
      */
     private def pathsToTupleType(using q: Quotes)(paths: List[Path]): q.reflect.TypeRepr = {
       import q.reflect.*
@@ -596,7 +435,8 @@ object ShapeExtraction {
     }
 
     /**
-     * Convert a Path (List[Segment]) to a flat string representation for error messages.
+     * Convert a Path (List[Segment]) to a flat string representation for error
+     * messages.
      *
      * Examples:
      *   - List(Field("address"), Field("city")) -> "address.city"
