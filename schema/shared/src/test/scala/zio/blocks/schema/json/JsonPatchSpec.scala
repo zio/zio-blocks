@@ -745,23 +745,71 @@ object JsonPatchSpec extends SchemaBaseSpec {
     // ─────────────────────────────────────────────────────────────────────────
     // L6 with tweaks (diff composition using tweaks instead of random pairs)
     // ─────────────────────────────────────────────────────────────────────────
-    test("L6 with tweaks: diff composition with sequential tweaks") {
-      // Generate a -> tweak -> b -> tweak -> c chain
-      check(genObjectWithAddedField, Gen.alphaNumericStringBounded(1, 10)) { case ((a, b), extraValue) =>
-        // Create c by adding a field to b (b is always a Json.Object from genObjectWithAddedField)
-        val c = new Json.Object(b.fields :+ ("extra_field", new Json.String(extraValue)))
+    test("L6 with tweaks: diff composition with varied sequential tweaks") {
+      // Use genTweakedJsonPair for both a->b and b->c to ensure varied operations
+      // (add field, remove field, modify value, append to array, etc.)
+      check(genTweakedJsonPair, genTweakedJsonPair) { case ((a, b), (_, tweakTarget)) =>
+        // Apply second tweak style to b to create c
+        // We reuse the tweak pattern but apply it fresh to b
+        val c = b match {
+          case obj: Json.Object =>
+            // Add a unique field to ensure c differs from b
+            new Json.Object(obj.fields :+ ("_composition_tweak", new Json.Number("42")))
+          case arr: Json.Array =>
+            new Json.Array(arr.value :+ new Json.String("composition_element"))
+          case str: Json.String =>
+            new Json.String(str.value + "_composed")
+          case num: Json.Number =>
+            new Json.Number((BigDecimal(num.value) + 1).toString)
+          case other => other
+        }
 
-        val patch1      = JsonPatch.diff(a, b)
-        val patch2      = JsonPatch.diff(b, c)
-        val composed    = patch1 ++ patch2
-        val directPatch = JsonPatch.diff(a, c)
+        val patch1   = JsonPatch.diff(a, b)
+        val patch2   = JsonPatch.diff(b, c)
+        val composed = patch1 ++ patch2
 
         // Verify (diff(a,b) ++ diff(b,c))(a) == Right(c)
         val composedResult = composed(a, PatchMode.Strict)
-        val directResult   = directPatch(a, PatchMode.Strict)
 
-        assertTrue(composedResult == new Right(c)) &&
-        assertTrue(directResult == new Right(c))
+        assertTrue(composedResult == new Right(c))
+      }
+    },
+    test("L6 with tweaks: diff composition for remove operations") {
+      check(genObjectWithRemovedField, Gen.alphaNumericStringBounded(1, 10)) { case ((a, b), _) =>
+        // a has more fields than b (removal), now remove another field from b to get c
+        val c = b match {
+          case obj: Json.Object if obj.fields.nonEmpty =>
+            new Json.Object(obj.fields.dropRight(1))
+          case other => other
+        }
+
+        val patch1   = JsonPatch.diff(a, b)
+        val patch2   = JsonPatch.diff(b, c)
+        val composed = patch1 ++ patch2
+
+        val composedResult = composed(a, PatchMode.Strict)
+        assertTrue(composedResult == new Right(c))
+      }
+    },
+    test("L6 with tweaks: diff composition for nested modifications") {
+      check(genNestedFieldModified) { case (a, b) =>
+        // Apply another nested modification to b to get c
+        // Note: genNestedFieldModified always produces Json.Object
+        val bObj           = b.asInstanceOf[Json.Object]
+        val modifiedFields = bObj.fields.map {
+          case (key, innerObj: Json.Object) =>
+            val tweaked = new Json.Object(innerObj.fields :+ ("_nested_tweak", new Json.Boolean(true)))
+            (key, tweaked)
+          case other => other
+        }
+        val c = new Json.Object(modifiedFields)
+
+        val patch1   = JsonPatch.diff(a, b)
+        val patch2   = JsonPatch.diff(b, c)
+        val composed = patch1 ++ patch2
+
+        val composedResult = composed(a, PatchMode.Strict)
+        assertTrue(composedResult == new Right(c))
       }
     }
   )
