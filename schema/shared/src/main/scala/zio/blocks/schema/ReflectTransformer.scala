@@ -74,7 +74,6 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     path: DynamicOptic,
     wrapped: Reflect[G, B],
     typeId: TypeId[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     metadata: F[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -183,7 +182,6 @@ object ReflectTransformer {
       path: DynamicOptic,
       wrapped: Reflect[G, B],
       typeId: TypeId[A],
-      wrapperPrimitiveType: Option[PrimitiveType[A]],
       metadata: F[BindingType.Wrapper[A, B], A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
@@ -195,7 +193,6 @@ object ReflectTransformer {
       } yield new Reflect.Wrapper(
         wrapped,
         typeId,
-        wrapperPrimitiveType,
         binding,
         doc,
         modifiers,

@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-import zio.blocks.typeid.{Owner, TypeId}
+import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
@@ -24,17 +24,29 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeId.nominal[Name]("Name", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+          TypeId.opaque[Name](
+            "Name",
+            Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.string)
+          )
         )
       ) &&
       assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeId.nominal[Kilogram]("Kilogram", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+          TypeId.opaque[Kilogram](
+            "Kilogram",
+            Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.double)
+          )
         )
       ) &&
       assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeId.nominal[Meter]("Meter", Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+          TypeId.opaque[Meter](
+            "Meter",
+            Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"),
+            representation = TypeRepr.Ref(TypeId.double)
+          )
         )
       ) &&
       assert(Planet.distanceFromSun.focus.typeId)(
@@ -142,7 +154,7 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   object Name extends Newtype[String] {
     override inline def assertion: zio.prelude.Assertion[String] = !zio.prelude.Assertion.isEmptyString
 
-    given TypeId[Name]                = TypeId.nominal("Name", zioPreludeOwner)
+    given TypeId[Name]                = TypeId.opaque("Name", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.string))
     implicit val schema: Schema[Name] = Schema[String]
       .transformOrFail(
         s =>
@@ -150,23 +162,23 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
           else Left(SchemaError.validationFailed("String must not be empty")),
         _.asInstanceOf[String]
       )
-      .asOpaqueType[Name]
+
   }
 
   type Kilogram = Kilogram.Type
 
   object Kilogram extends Newtype[Double] {
-    given TypeId[Kilogram]                = TypeId.nominal("Kilogram", zioPreludeOwner)
+    given TypeId[Kilogram]                = TypeId.opaque("Kilogram", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Kilogram] =
-      Schema[Double].transform(_.asInstanceOf[Kilogram], _.asInstanceOf[Double]).asOpaqueType[Kilogram]
+      Schema[Double].transform(_.asInstanceOf[Kilogram], _.asInstanceOf[Double])
   }
 
   type Meter = Meter.Type
 
   object Meter extends Subtype[Double] {
-    given TypeId[Meter]                = TypeId.nominal("Meter", zioPreludeOwner)
+    given TypeId[Meter]                = TypeId.opaque("Meter", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.double))
     implicit val schema: Schema[Meter] =
-      Schema[Double].transform(_.asInstanceOf[Meter], _.asInstanceOf[Double]).asOpaqueType[Meter]
+      Schema[Double].transform(_.asInstanceOf[Meter], _.asInstanceOf[Double])
   }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
@@ -216,8 +228,8 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
   type EmojiDataId = EmojiDataId.Type
 
   object EmojiDataId extends Subtype[Int] {
-    given TypeId[EmojiDataId]                = TypeId.nominal("EmojiDataId", zioPreludeOwner)
+    given TypeId[EmojiDataId]                = TypeId.opaque("EmojiDataId", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.int))
     implicit val schema: Schema[EmojiDataId] =
-      Schema[Int].transform(_.asInstanceOf[EmojiDataId], _.asInstanceOf[Int]).asOpaqueType[EmojiDataId]
+      Schema[Int].transform(_.asInstanceOf[EmojiDataId], _.asInstanceOf[Int])
   }
 }

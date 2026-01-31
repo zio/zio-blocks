@@ -364,7 +364,6 @@ class JsonBinaryCodecDeriver private[json] (
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -375,7 +374,6 @@ class JsonBinaryCodecDeriver private[json] (
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
         typeId,
-        wrapperPrimitiveType,
         binding,
         doc,
         modifiers
@@ -1978,7 +1976,7 @@ class JsonBinaryCodecDeriver private[json] (
       if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
         val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
         val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[JsonBinaryCodec[Wrapped]]
-        new JsonBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(JsonBinaryCodec.objectType) {
+        new JsonBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(JsonBinaryCodec.objectType) {
           case _: PrimitiveType.Boolean   => JsonBinaryCodec.booleanType
           case _: PrimitiveType.Byte      => JsonBinaryCodec.byteType
           case _: PrimitiveType.Char      => JsonBinaryCodec.charType

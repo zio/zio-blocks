@@ -3458,7 +3458,6 @@ object OpticSpecTypes {
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
       typeId = TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("OpticSpec")),
-      wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,
         unwrap = (x: Wrapper) => Right(x.value)

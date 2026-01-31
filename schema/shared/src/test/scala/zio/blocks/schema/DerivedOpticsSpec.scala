@@ -361,7 +361,6 @@ object DerivedOpticsSpec extends SchemaBaseSpec {
             new Reflect.Wrapper[Binding, CustomWrapper, String](
               Schema[String].reflect,
               TypeId.of[CustomWrapper],
-              None,
               new Binding.Wrapper[CustomWrapper, String](
                 (s: String) => Right(CustomWrapper(s)),
                 (w: CustomWrapper) => Right(w.value)

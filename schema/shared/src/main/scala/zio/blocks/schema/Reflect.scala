@@ -1117,14 +1117,17 @@ object Reflect {
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (wrapped, typeId, wrapperPrimitiveType, doc, modifiers)
+    require((wrapped ne null) && (typeId ne null), "Wrapper requires non-null wrapped and typeId")
+    protected def inner: Any = (wrapped, typeId, doc, modifiers)
+
+    def underlyingPrimitiveType: Option[PrimitiveType[A]] =
+      PrimitiveType.fromTypeId(typeId)
 
     type NodeBinding = BindingType.Wrapper[A, B]
 
@@ -1172,7 +1175,6 @@ object Reflect {
                      path,
                      wrapped,
                      typeId,
-                     wrapperPrimitiveType,
                      wrapperBinding,
                      doc,
                      modifiers,
@@ -1867,7 +1869,7 @@ object Reflect {
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
     if (reflect.isWrapper) {
-      reflect.asWrapperUnknown.get.wrapper.wrapperPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
+      reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
     } else reflect.asPrimitive.map(_.primitiveType)
 
   private class StringToIntMap(size: Int) {
