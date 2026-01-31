@@ -657,6 +657,120 @@ object JsonDifferSpec extends ZIOSpecDefault {
   )
 
   // ─────────────────────────────────────────────────────────────────────────
+  // True Minimality Tests (exact operation counts)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  val trueMinimalitySuite: Spec[Any, Nothing] = suite("True Minimality (exact operation counts)")(
+    test("appending to string produces exactly 1 Insert at end position") {
+      val a     = new Json.String("hello")
+      val b     = new Json.String("hello world")
+      val patch = JsonDiffer.diff(a, b)
+
+      val stringEditOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(ops)) => ops
+          case _                                                                  => Vector.empty
+        }
+      }
+      // LCS-based differ produces Insert at end position (5 = "hello".length)
+      assertTrue(stringEditOps.length == 1) &&
+      assertTrue(stringEditOps.head match {
+        case JsonPatch.StringOp.Insert(5, " world") => true
+        case _                                      => false
+      })
+    },
+    test("appending to array produces exactly 1 Append operation") {
+      val a     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2")))
+      val b     = new Json.Array(Chunk(new Json.Number("1"), new Json.Number("2"), new Json.Number("3")))
+      val patch = JsonDiffer.diff(a, b)
+
+      val arrayOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.ArrayEdit(ops) => ops
+          case _                           => Vector.empty
+        }
+      }
+      assertTrue(arrayOps.length == 1) &&
+      assertTrue(arrayOps.head.isInstanceOf[JsonPatch.ArrayOp.Append])
+    },
+    test("adding one field to object produces exactly 1 Add operation") {
+      val a     = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val b     = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
+      val patch = JsonDiffer.diff(a, b)
+
+      val objectOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.ObjectEdit(ops) => ops
+          case _                            => Vector.empty
+        }
+      }
+      assertTrue(objectOps.length == 1) &&
+      assertTrue(objectOps.head.isInstanceOf[JsonPatch.ObjectOp.Add])
+    },
+    test("removing one field from object produces exactly 1 Remove operation") {
+      val a     = new Json.Object(Chunk(("a", new Json.Number("1")), ("b", new Json.Number("2"))))
+      val b     = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch = JsonDiffer.diff(a, b)
+
+      val objectOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.ObjectEdit(ops) => ops
+          case _                            => Vector.empty
+        }
+      }
+      assertTrue(objectOps.length == 1) &&
+      assertTrue(objectOps.head.isInstanceOf[JsonPatch.ObjectOp.Remove])
+    },
+    test("modifying one number produces exactly 1 NumberDelta with correct delta") {
+      val a     = new Json.Number("10")
+      val b     = new Json.Number("15")
+      val patch = JsonDiffer.diff(a, b)
+
+      assertTrue(patch.ops.length == 1) &&
+      assertTrue(patch.ops.head.op match {
+        case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(delta)) => delta == BigDecimal(5)
+        case _                                                                     => false
+      })
+    },
+    test("identical values produce exactly 0 operations") {
+      val json  = new Json.Object(Chunk(("a", new Json.Number("1"))))
+      val patch = JsonDiffer.diff(json, json)
+      assertTrue(patch.ops.isEmpty)
+    },
+    test("prepending to string produces exactly 1 Insert at index 0") {
+      val a     = new Json.String("world")
+      val b     = new Json.String("hello world")
+      val patch = JsonDiffer.diff(a, b)
+
+      val stringEditOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(ops)) => ops
+          case _                                                                  => Vector.empty
+        }
+      }
+      assertTrue(stringEditOps.length == 1) &&
+      assertTrue(stringEditOps.head match {
+        case JsonPatch.StringOp.Insert(0, _) => true
+        case _                               => false
+      })
+    },
+    test("deleting from end of string produces exactly 1 Delete operation") {
+      val a     = new Json.String("hello world")
+      val b     = new Json.String("hello")
+      val patch = JsonDiffer.diff(a, b)
+
+      val stringEditOps = patch.ops.flatMap { op =>
+        op.op match {
+          case JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(ops)) => ops
+          case _                                                                  => Vector.empty
+        }
+      }
+      assertTrue(stringEditOps.length == 1) &&
+      assertTrue(stringEditOps.head.isInstanceOf[JsonPatch.StringOp.Delete])
+    }
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Main Spec
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -666,6 +780,7 @@ object JsonDifferSpec extends ZIOSpecDefault {
     arrayMinimalitySuite,
     objectMinimalitySuite,
     numberMinimalitySuite,
-    branchCoverageSuite
+    branchCoverageSuite,
+    trueMinimalitySuite
   )
 }

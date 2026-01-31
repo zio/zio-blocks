@@ -358,9 +358,16 @@ object JsonPatch {
     /**
      * Append text to the end of the string.
      *
-     * Semantically equivalent to `Insert(str.length, text)` but provided as a
-     * separate operation to mirror [[DynamicPatch.StringOp.Append]] for
-     * consistency and to enable optimized diff/patch serialization.
+     * This operation is distinct from `Insert(str.length, text)` for two
+     * reasons:
+     *
+     *   1. '''Isomorphic conversion''': [[DynamicPatch.StringOp.Append]] exists
+     *      as a separate variant. Converting Append to Insert would lose
+     *      semantic information during roundtrip through DynamicPatch.
+     *   2. '''Intent preservation''': Append explicitly signals "add to end"
+     *      intent, which may enable future optimizations in serialization or
+     *      conflict resolution (e.g., two Appends can be merged, two Inserts at
+     *      different computed indices cannot).
      */
     final case class Append(text: java.lang.String) extends StringOp
 
