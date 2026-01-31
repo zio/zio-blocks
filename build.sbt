@@ -39,6 +39,18 @@ addCommandAlias(
   "testNative",
   "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
 )
+addCommandAlias(
+  "docJVM",
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc"
+)
+addCommandAlias(
+  "docJS",
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+)
+addCommandAlias(
+  "docNative",
+  "typeidNative/doc; chunkNative/doc; schemaNative/doc; streamsNative/doc; schema-toonNative/doc; schema-messagepackNative/doc"
+)
 
 lazy val root = project
   .in(file("."))
@@ -199,9 +211,9 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-markdown"))
+  .settings(stdSettings("zio-blocks-docs"))
   .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks.markdown"))
+  .settings(buildInfoSettings("zio.blocks.docs"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)

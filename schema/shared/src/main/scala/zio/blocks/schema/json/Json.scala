@@ -5,6 +5,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, S
 import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
 import scala.util.control.NonFatal
 
@@ -429,14 +430,31 @@ sealed trait Json {
   def toKV: Chunk[(DynamicOptic, Json)] = Json.toKVImpl(this, DynamicOptic.root)
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Stubbed Methods (to be implemented later)
+  // Patch Methods
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Computes the difference between this JSON and another. */
-  def diff(that: Json): Json = ???
+  /**
+   * Computes the difference between this JSON and another.
+   *
+   * @param that
+   *   The target JSON value
+   * @return
+   *   A JsonPatch that transforms this to that
+   */
+  def diff(that: Json): JsonPatch = JsonPatch.diff(this, that)
 
-  /** Applies a JSON patch to this value. */
-  def patch(patch: Json): Either[SchemaError, Json] = ???
+  /**
+   * Applies a JSON patch to this value.
+   *
+   * @param patch
+   *   The patch to apply
+   * @param mode
+   *   The patch mode controlling failure handling (default: Strict)
+   * @return
+   *   Either an error or the patched value
+   */
+  def patch(patch: JsonPatch, mode: PatchMode = PatchMode.Strict): Either[SchemaError, Json] =
+    patch.apply(this, mode)
 
   /** Checks if this JSON conforms to a JSON Schema. */
   def check(schema: JsonSchema): Option[SchemaError] = schema.check(this)

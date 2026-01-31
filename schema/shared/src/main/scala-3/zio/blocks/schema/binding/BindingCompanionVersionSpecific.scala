@@ -20,7 +20,7 @@ trait BindingCompanionVersionSpecific {
    *   - Option, Either, and their subtypes
    *   - Standard collections (List, Vector, Set, Map, etc.)
    *   - [[DynamicValue]]
-   *   - Structural types (JVM only, requires `@experimental`)
+   *   - Structural types (JVM only)
    *
    * @tparam A
    *   the type to derive a binding for
@@ -51,14 +51,12 @@ trait BindingCompanionVersionSpecific {
     new Binding.Map(mc, md)
 }
 
-@experimental
 private object BindingCompanionVersionSpecificImpl {
   import scala.quoted.*
 
   def of[A: Type](using Quotes): Expr[Any] = new BindingCompanionVersionSpecificImpl().of[A]
 }
 
-@experimental
 private class BindingCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect.*
 
@@ -1963,7 +1961,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
   private case class StructuralFieldForGen(name: String, memberTpe: TypeRepr, kind: String, index: Int)
 
-  @experimental
   private def deriveStructuralRecordBindingSimple[A: Type](tpe: TypeRepr): Expr[Any] = {
     if (!Platform.supportsReflection) {
       fail(
@@ -1999,7 +1996,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     '{ new Binding.Record[A]($constructorExpr, $deconstructorExpr) }
   }
 
-  @experimental
   private def generateStructuralConstructorWithRealMethods[A: Type](
     fields: Seq[StructuralFieldForGen],
     totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset]
@@ -2069,7 +2065,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     }
   }
 
-  @experimental
   private def generateAnonymousClassFactory[A: Type](fields: Seq[StructuralFieldForGen]): Expr[Array[Any] => A] = {
     // Generate a lambda using quoted expressions that creates an anonymous class with real methods.
     // Each method reads from the captured `values` array at a specific index.
