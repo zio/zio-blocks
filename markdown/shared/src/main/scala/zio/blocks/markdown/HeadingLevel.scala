@@ -55,7 +55,7 @@ object HeadingLevel {
    *   The heading level (must be 1-6)
    * @return
    *   The heading level
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if n is not 1-6
    */
   def unsafeFromInt(n: Int): HeadingLevel =

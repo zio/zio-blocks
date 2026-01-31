@@ -884,7 +884,6 @@ object ReflectSpec extends SchemaBaseSpec {
   val wrapperReflect: Reflect.Wrapper[Binding, Wrapper, Long] = new Reflect.Wrapper(
     wrapped = Schema[Long].reflect,
     typeId = TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("ReflectSpec")),
-    wrapperPrimitiveType = None,
     wrapperBinding = Binding.Wrapper(
       wrap = (x: Long) => Right(Wrapper(x)),
       unwrap = (x: Wrapper) => Right(x.value)

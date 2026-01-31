@@ -668,7 +668,6 @@ object SchemaSpec extends SchemaBaseSpec {
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
               zio.blocks.typeid.TypeId.of[Chunk[V]],
-              None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), x => Right(x.toList))
             )
           )
@@ -2005,18 +2004,18 @@ object SchemaSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    val typeId: TypeId[PosInt]          = TypeId.of
-    implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeId[PosInt](typeId)
+    implicit lazy val typeId: TypeId[PosInt] = TypeId.of[PosInt]
+    implicit lazy val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value)
     val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    val typeId: TypeId[Email]          = TypeId.of
-    implicit val schema: Schema[Email] =
-      Schema[String].transform[Email](x => new Email(x), _.value).withTypeId[Email](typeId)
+    implicit lazy val typeId: TypeId[Email] = TypeId.of[Email]
+    implicit lazy val schema: Schema[Email] =
+      Schema[String].transform[Email](x => new Email(x), _.value)
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 
@@ -2125,7 +2124,6 @@ object SchemaSpec extends SchemaBaseSpec {
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
             typeId: zio.blocks.typeid.TypeId[A],
-            wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect],
@@ -2143,21 +2141,21 @@ object SchemaSpec extends SchemaBaseSpec {
   case class ProductId(value: Long)
 
   object ProductId {
-    val customTypeId: TypeId[ProductId] =
+    implicit val customTypeId: TypeId[ProductId] =
       TypeId.nominal[ProductId]("ProductId", zio.blocks.typeid.Owner.fromPackagePath("com.acme.catalog"))
 
     implicit val schema: Schema[ProductId] =
-      Schema[Long].transform[ProductId](ProductId.apply, _.value).withTypeId(customTypeId)
+      Schema[Long].transform[ProductId](ProductId.apply, _.value)
   }
 
   case class CategoryId(value: String)
 
   object CategoryId {
-    val customTypeId: TypeId[CategoryId] =
+    implicit val customTypeId: TypeId[CategoryId] =
       TypeId.nominal[CategoryId]("CategoryId", zio.blocks.typeid.Owner.fromPackagePath("com.acme.catalog"))
 
     implicit val schema: Schema[CategoryId] =
-      Schema[String].transform[CategoryId](CategoryId.apply, _.value).withTypeId(customTypeId)
+      Schema[String].transform[CategoryId](CategoryId.apply, _.value)
   }
 
   case class ListContainer(items: List[ProductId])

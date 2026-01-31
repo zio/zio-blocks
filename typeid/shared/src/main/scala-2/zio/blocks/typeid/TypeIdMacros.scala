@@ -71,17 +71,7 @@ object TypeIdMacros {
               q"_root_.zio.blocks.typeid.TypeId.unit.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]"
             )
           case _ =>
-            val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, tpe)
-            val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
-
-            if (implicitSearch != EmptyTree) {
-              val isDerived = implicitSearch.symbol.fullName.contains("TypeIdMacros") ||
-                implicitSearch.symbol.fullName.contains("derived")
-              if (isDerived) deriveTypeId[A](c)
-              else c.Expr[TypeId[A]](implicitSearch)
-            } else {
-              deriveTypeId[A](c)
-            }
+            deriveTypeId[A](c)
         }
     }
   }

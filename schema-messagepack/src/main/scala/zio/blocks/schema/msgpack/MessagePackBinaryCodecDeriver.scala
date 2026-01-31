@@ -108,7 +108,6 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: zio.blocks.typeid.TypeId[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
@@ -119,7 +118,6 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
         typeId,
-        wrapperPrimitiveType,
         binding,
         doc,
         modifiers
@@ -591,7 +589,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
       val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, B]]
       val codec   = deriveCodec(wrapper.wrapped)
-      new MessagePackBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(objectType) {
+      new MessagePackBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(objectType) {
         case _: PrimitiveType.Boolean   => booleanType
         case _: PrimitiveType.Byte      => byteType
         case _: PrimitiveType.Char      => charType
