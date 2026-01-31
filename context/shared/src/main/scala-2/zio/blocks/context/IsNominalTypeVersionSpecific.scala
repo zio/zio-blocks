@@ -25,7 +25,7 @@ private[context] object IsNominalTypeMacros {
       case _                                       => false
     }
 
-    val dealiased = tpe.dealias
+    val dealiased      = tpe.dealias
     val isIntersection = dealiased match {
       case RefinedType(parents, _) if parents.size > 1 => true
       case _                                           => false

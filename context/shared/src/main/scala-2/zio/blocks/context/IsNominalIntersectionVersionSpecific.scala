@@ -19,16 +19,16 @@ private[context] object IsNominalIntersectionMacros {
     }
 
     def isNominal(t: Type): Boolean = t match {
-      case RefinedType(_, scope) if scope.nonEmpty   => false
+      case RefinedType(_, scope) if scope.nonEmpty     => false
       case RefinedType(parents, _) if parents.size > 1 => false
-      case ExistentialType(_, _)                     => false
-      case PolyType(_, _)                            => false
-      case TypeBounds(_, _)                          => false
-      case ConstantType(_)                           => false
-      case t if t.takesTypeArgs                      => true
-      case t if t.typeSymbol.isClass                 => true
-      case t if t.typeSymbol.isModuleClass           => true
-      case _                                         => false
+      case ExistentialType(_, _)                       => false
+      case PolyType(_, _)                              => false
+      case TypeBounds(_, _)                            => false
+      case ConstantType(_)                             => false
+      case t if t.takesTypeArgs                        => true
+      case t if t.typeSymbol.isClass                   => true
+      case t if t.typeSymbol.isModuleClass             => true
+      case _                                           => false
     }
 
     val tpe     = weakTypeOf[A]
