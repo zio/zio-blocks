@@ -131,7 +131,7 @@ object TypeRepr {
 
     override def hashCode(): Int = types.toSet.hashCode()
 
-    override def toString: String = s"Intersection(${types.mkString(", ")})"
+    override def toString: String = TypeIdPrinter.render(this)
   }
 
   object Intersection {
@@ -156,7 +156,7 @@ object TypeRepr {
 
     override def hashCode(): Int = types.toSet.hashCode()
 
-    override def toString: String = s"Union(${types.mkString(", ")})"
+    override def toString: String = TypeIdPrinter.render(this)
   }
 
   object Union {

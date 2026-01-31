@@ -796,7 +796,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     },
     test("toString contains kind and fullName") {
       val intId = TypeId.of[Int]
-      assertTrue(intId.toString.contains("TypeId."), intId.toString.contains("Int"))
+      assertTrue(intId.toString == "Int")
     },
     test("TypeId.applied creates applied type") {
       val applied = TypeId.applied[List[Int]](TypeId.of[List[_]], TypeRepr.Ref(TypeId.int))
