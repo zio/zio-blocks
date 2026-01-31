@@ -6,6 +6,12 @@ Zero-dependency Scala building blocks (2.13 + 3.x; JVM/JS/Native).
 
 If `.git/bin/sbtn` doesn't exist, download [sbtn](https://github.com/sbt/sbtn-dist/releases) and place it there. Always run: `export PATH="$PWD/.git/bin:$PATH"`
 
+If `sbt --client` is causing trouble, try:
+
+```bash
+sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project/target/active.json project/target/.sbt-server-connection.json
+```
+
 ## Mindset
 
 **sbt is slow—minutes per compile/test.** Wasted cycles waste hours.
@@ -83,7 +89,7 @@ ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
 
 Commit at stable points (minimum: when fast loop is green).
 
-PR open and think you're done? Run verify + format, push, then loop: wait if necessary, check CI and review comments (prefer `gh` CLI), fix CI issues and **valid** CI comments via workflow, push. Repeat until green and approved.
+PR open and think you're done? Run verify + format, commit, push, update PR title/description, then loop: wait if necessary, check CI and review PR comments (prefer `gh` CLI), fix all CI issues (including conflicts) and all **valid** PR comments via workflow. Don't stop until CI is green, and PR is approved and merged.
 
 ## Boundaries
 
