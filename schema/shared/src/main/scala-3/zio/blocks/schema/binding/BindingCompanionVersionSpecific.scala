@@ -1,6 +1,5 @@
 package zio.blocks.schema.binding
 
-import scala.annotation.experimental
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -2002,7 +2001,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   ): Expr[Constructor[A]] = {
     val fieldKindsExpr = Expr(fields.map(_.kind).toArray)
 
-    // Generate an expression that creates an anonymous class with real methods
+    // Generate anonymous class factory using Symbol.newClass (Scala 3.5+ only)
     val instanceCreatorExpr: Expr[Array[Any] => A] = generateAnonymousClassFactory[A](fields)
 
     '{
@@ -2065,90 +2064,14 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     }
   }
 
+  /**
+   * Generates a factory function that creates anonymous class instances for
+   * structural types. Delegates to StructuralBindingMacros which is only
+   * available in Scala 3.5+ (via scala-3.5+/ directory).
+   */
   private def generateAnonymousClassFactory[A: Type](fields: Seq[StructuralFieldForGen]): Expr[Array[Any] => A] = {
-    // Generate a lambda using quoted expressions that creates an anonymous class with real methods.
-    // Each method reads from the captured `values` array at a specific index.
-    //
-    // We generate code like:
-    //   (values: Array[Any]) => {
-    //     class Anon$ { def name: String = values(0).asInstanceOf[String]; def age: Int = values(1).asInstanceOf[Int] }
-    //     (new Anon$).asInstanceOf[A]
-    //   }
-
-    val parents        = List(TypeRepr.of[Object])
-    val className      = Symbol.freshName("Structural")
-    val arrayOfAnyType = TypeRepr.of[Array[Any]]
-
-    // Create the lambda symbol first (it will be the owner of everything inside)
-    val lambdaSym = Symbol.newMethod(
-      Symbol.spliceOwner,
-      "factory",
-      MethodType(List("values"))(_ => List(arrayOfAnyType), _ => TypeRepr.of[A])
-    )
-
-    // Create class symbol with methods for each field (parameterless constructor)
-    // The class is owned by the lambda
-    // IMPORTANT: Use ByNameType for nullary methods (def name: String), not MethodType(Nil)
-    // which creates methods with empty parameter list (def name(): String)
-    val classSymbol = Symbol.newClass(
-      lambdaSym,
-      className,
-      parents,
-      decls = cls => {
-        fields.map { f =>
-          Symbol.newMethod(cls, f.name, ByNameType(f.memberTpe))
-        }.toList
-      },
-      selfType = None
-    )
-
-    val lambdaDef = DefDef(
-      lambdaSym,
-      {
-        case List(List(valuesParam: Term)) =>
-          // Create method definitions that reference the `valuesParam` directly
-          val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
-            val methodSym = classSymbol.declaredMethod(f.name).head
-            DefDef(
-              methodSym,
-              { _ =>
-                // Method body: values(idx).asInstanceOf[FieldType]
-                val indexExpr = Literal(IntConstant(idx))
-                val arrayGet  = Apply(Select.unique(valuesParam, "apply"), List(indexExpr))
-                val casted    = f.memberTpe.asType match {
-                  case '[t] =>
-                    Some(TypeApply(Select.unique(arrayGet, "asInstanceOf"), List(TypeTree.of[t])))
-                }
-                casted
-              }
-            )
-          }.toList
-
-          // Create the class definition
-          val classDef = ClassDef(
-            classSymbol,
-            parents.map(Inferred(_)),
-            body = methodDefs
-          )
-
-          // Create instance: new ClassName()
-          val newInstance = New(TypeIdent(classSymbol))
-            .select(classSymbol.primaryConstructor)
-            .appliedToNone
-
-          // Cast to A
-          val castInstance = Typed(newInstance, TypeTree.of[A])
-
-          Some(Block(List(classDef), castInstance))
-
-        case _ =>
-          fail("Unexpected parameter list shape in lambda definition")
-      }
-    )
-
-    // Create and return the lambda expression
-    val closure = Closure(Ref(lambdaSym), None)
-    Block(List(lambdaDef), closure).asExprOf[Array[Any] => A]
+    val fieldInfos = fields.map(f => StructuralBindingMacros.StructuralFieldInfo(f.name, f.memberTpe, f.kind, f.index))
+    StructuralBindingMacros.generateAnonymousClassFactory[A](fieldInfos, fail)
   }
 
   private def generateStructuralDeconstructor[A: Type](

@@ -9,6 +9,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
+  val Scala33: String  = "3.3.7" // LTS
   val Scala3: String   = "3.7.4"
 
   lazy val isRelease: Boolean = {
@@ -44,11 +45,13 @@ object BuildHelper {
   /**
    * Find all applicable Scala 3.x minor version directories.
    *
-   * Supports two directory naming conventions:
-   *   - `scala-3.X` (without +): for version X up to but not including the next
-   *     version-specific directory. Only the best match (highest X <= target)
-   *     is included.
+   * Supports three directory naming conventions:
+   *   - `scala-3.X` (without suffix): for version X up to but not including the
+   *     next version-specific directory. Only the best match (highest X <=
+   *     target) is included.
    *   - `scala-3.X+` (with +): for version X and ALL later versions. All
+   *     matching directories are included.
+   *   - `scala-3.X-` (with -): for versions BEFORE X (not including X). All
    *     matching directories are included.
    *
    * Examples with scala-3, scala-3.5+, scala-3.7:
@@ -60,6 +63,12 @@ object BuildHelper {
    *   - Scala 3.7 uses: scala-3, scala-3.7 (scala-3.5 superseded)
    *   - Scala 3.6 uses: scala-3, scala-3.5
    *   - Scala 3.4 uses: scala-3
+   *
+   * Examples with scala-3.5-, scala-3.5+:
+   *   - Scala 3.7 uses: scala-3.5+ (mutually exclusive)
+   *   - Scala 3.5 uses: scala-3.5+ (mutually exclusive)
+   *   - Scala 3.4 uses: scala-3.5- (mutually exclusive)
+   *   - Scala 3.3 uses: scala-3.5- (mutually exclusive)
    *
    * @param targetMinor
    *   the minor version of the Scala 3 compiler being used
@@ -80,6 +89,7 @@ object BuildHelper {
     baseDir: File
   ): Seq[String] = {
     val Scala3PlusPattern  = """scala-3\.(\d+)\+""".r
+    val Scala3MinusPattern = """scala-3\.(\d+)-""".r
     val Scala3ExactPattern = """scala-3\.(\d+)""".r
 
     val allDirs = for {
@@ -90,18 +100,25 @@ object BuildHelper {
       if child.isDirectory
     } yield child.getName
 
+    // scala-3.X+ directories: include if X <= target (i.e., target >= X)
     val plusMinors = allDirs.collect { case Scala3PlusPattern(m) =>
       scala.util.Try(m.toInt).toOption
     }.flatten.distinct.filter(_ <= targetMinor)
 
+    // scala-3.X- directories: include if target < X (i.e., target is before X)
+    val minusMinors = allDirs.collect { case Scala3MinusPattern(m) =>
+      scala.util.Try(m.toInt).toOption
+    }.flatten.distinct.filter(targetMinor < _)
+
+    // scala-3.X directories: include only the best match (highest X <= target)
     val exactMinors = allDirs.collect { case Scala3ExactPattern(m) =>
       scala.util.Try(m.toInt).toOption
     }.flatten.distinct.filter(_ <= targetMinor)
 
     val bestExact = exactMinors.sorted.lastOption
 
-    val result = plusMinors.map(m => s"3.$m+") ++ bestExact.map(m => s"3.$m").toSeq
-    result.sortBy(s => s.stripSuffix("+").stripPrefix("3.").toInt)
+    val result = plusMinors.map(m => s"3.$m+") ++ minusMinors.map(m => s"3.$m-") ++ bestExact.map(m => s"3.$m").toSeq
+    result.sortBy(s => s.stripSuffix("+").stripSuffix("-").stripPrefix("3.").toInt)
   }
 
   def crossPlatformSources(scalaVer: String, platform: String, conf: String, baseDir: File): Seq[File] = {
@@ -137,72 +154,72 @@ object BuildHelper {
     }
   )
 
-  def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala213)): Seq[Def.Setting[?]] = Seq(
-    name                     := prjName,
-    crossScalaVersions       := scalaVersions,
-    scalaVersion             := scalaVersions.head,
-    ThisBuild / scalaVersion := scalaVersions.head,
-    ThisBuild / publishTo    := {
-      val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
-      if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
-      else localStaging.value
-    },
-    scalacOptions ++= Seq(
-      "-deprecation",
-      "-encoding",
-      "UTF-8",
-      "-feature",
-      "-unchecked"
-    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, minor)) =>
-        Seq(
-          "-release",
-          if (minor < 8) "11" else "17",
-          "-rewrite",
-          "-no-indent",
-          "-explain",
-          "-explain-cyclic",
-          "-experimental",
-          "-Wunused:all",
-          "-Wconf:msg=unused.*&src=.*/test/.*:s",                          // suppress unused warnings in test sources
-          "-Wconf:msg=nowarn annotation does not suppress any warnings:s", // nowarn difference between Scala 3.3 and 3.5
-          "-Wconf:msg=with as a type operator has been deprecated:s",      // `with` works in both Scala 2 and 3, & only in Scala 3
-          "-Wconf:msg=`_` is deprecated for wildcard arguments:s",         // cross-build with Scala 2 requires [_] syntax
-          "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent",    // workaround for `@deprecated("reasons") case class C() derives Schema`
-          "-Wconf:msg=Ignoring .*this.* qualifier:s",
-          "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
-          "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
-          "-Wconf:id=E029:s",                                                      // suppress non-exhaustive pattern match warnings in macro code
-          "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
-          "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
-          "-Werror"
-        )
-      case _ =>
-        Seq(
-          "-release",
-          "11",
-          "-language:existentials",
-          "-opt:l:method",
-          "-Ywarn-unused",
-          "-Xfatal-warnings"
-        )
-    }),
-    versionScheme := Some("early-semver"),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
-    Test / parallelExecution := true,
-    Compile / fork           := false,
-    Test / fork              := false, // set fork to `true` to improve log readability
-    // For compatibility with Java 9+ module system;
-    // without Automatic-Module-Name, the module name is derived from the jar file which is invalid because of the scalaVersion suffix.
-    Compile / packageBin / packageOptions +=
-      Package.ManifestAttributes(
-        "Automatic-Module-Name" -> s"${organization.value}.$prjName".replaceAll("-", ".")
-      ),
-    coverageFailOnMinimum      := true,
-    coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 90,
-    coverageExcludedFiles      := ".*BuildInfo.*"
-  )
+  def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala33, Scala213)): Seq[Def.Setting[?]] =
+    Seq(
+      name                     := prjName,
+      crossScalaVersions       := scalaVersions,
+      scalaVersion             := scalaVersions.head,
+      ThisBuild / scalaVersion := scalaVersions.head,
+      ThisBuild / publishTo    := {
+        val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
+        if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
+        else localStaging.value
+      },
+      scalacOptions ++= Seq(
+        "-deprecation",
+        "-encoding",
+        "UTF-8",
+        "-feature",
+        "-unchecked"
+      ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, minor)) =>
+          Seq(
+            "-release",
+            if (minor < 8) "11" else "17",
+            "-rewrite",
+            "-no-indent",
+            "-explain",
+            "-explain-cyclic",
+            "-Wunused:all",
+            "-Wconf:msg=unused.*&src=.*/test/.*:s",                          // suppress unused warnings in test sources
+            "-Wconf:msg=nowarn annotation does not suppress any warnings:s", // nowarn difference between Scala 3.3 and 3.5
+            "-Wconf:msg=with as a type operator has been deprecated:s",      // `with` works in both Scala 2 and 3, & only in Scala 3
+            "-Wconf:msg=`_` is deprecated for wildcard arguments:s",         // cross-build with Scala 2 requires [_] syntax
+            "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent",    // workaround for `@deprecated("reasons") case class C() derives Schema`
+            "-Wconf:msg=Ignoring .*this.* qualifier:s",
+            "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
+            "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
+            "-Wconf:id=E029:s",                                                      // suppress non-exhaustive pattern match warnings in macro code
+            "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
+            "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
+            "-Werror"
+          ) ++ (if (minor >= 5) Seq("-experimental") else Seq.empty)
+        case _ =>
+          Seq(
+            "-release",
+            "11",
+            "-language:existentials",
+            "-opt:l:method",
+            "-Ywarn-unused",
+            "-Xfatal-warnings"
+          )
+      }),
+      versionScheme := Some("early-semver"),
+      testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+      Test / parallelExecution := true,
+      Compile / fork           := false,
+      Test / fork              := false, // set fork to `true` to improve log readability
+      // For compatibility with Java 9+ module system;
+      // without Automatic-Module-Name, the module name is derived from the jar file which is invalid because of the scalaVersion suffix.
+      Compile / packageBin / packageOptions +=
+        Package.ManifestAttributes(
+          "Automatic-Module-Name" -> s"${organization.value}.$prjName".replaceAll("-", ".")
+        ),
+      coverageFailOnMinimum      := true,
+      coverageMinimumStmtTotal   := 95,
+      coverageMinimumBranchTotal := 90,
+      coverageExcludedFiles      := ".*BuildInfo.*"
+    )
 
   def nativeSettings: Seq[Def.Setting[?]] = Seq(
     nativeConfig ~= {
