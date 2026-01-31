@@ -49,14 +49,14 @@ cd scala-demo
 Create these directories:
 
 ```bash
-mkdir -p scala/project scala/src/main/scala/demo
+    mkdir -p project src/main/scala/demo
 mkdir -p .golem/common-scala-js .golem/components-js/scala-demo/src golem-temp
 ```
 
 All commands below assume your working directory is the **project root** (the directory that contains `golem.yaml`,
 `.golem/common-scala-js/`, `.golem/components-js/`, and `golem-temp/`).
 
-Create `scala/project/plugins.sbt`:
+Create `project/plugins.sbt`:
 
 ```scala
 addSbtPlugin("dev.zio" % "zio-golem-sbt" % "<SDK_VERSION>")
@@ -72,7 +72,7 @@ generates the required exported entrypoint automatically.
 
 ## 2) Add dependencies + enable plugins
 
-Create `scala/build.sbt`:
+Create `build.sbt`:
 
 ```scala
 import org.scalajs.linker.interface.ModuleKind
@@ -105,7 +105,7 @@ sbt -batch -no-colors -Dsbt.supershell=false golemPublishLocal
 
 ## 3) Write a minimal agent
 
-Create `scala/src/main/scala/demo/CounterAgent.scala`:
+Create `src/main/scala/demo/CounterAgent.scala`:
 
 ```scala
 package demo
@@ -170,7 +170,7 @@ import zio.blocks.schema.Schema
 final case class State(value: Int) derives Schema
 ```
 
-Create `scala/src/main/scala/demo/CounterAgentImpl.scala`:
+Create `src/main/scala/demo/CounterAgentImpl.scala`:
 
 ```scala
 package demo

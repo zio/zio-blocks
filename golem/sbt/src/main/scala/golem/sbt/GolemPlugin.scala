@@ -93,7 +93,7 @@ object GolemPlugin extends AutoPlugin {
         //
         // This supports common layouts:
         // - standalone getting-started: <root>/scala (build) + <root>/app (manifest)
-        // - monorepo/crossProject: <root>/golem/examples/scala/js (build) + <root>/golem/examples (manifest)
+        // - monorepo/crossProject: <root>/golem/examples/js (build) + <root>/golem/examples (manifest)
         val projectRoot = (ThisProject / baseDirectory).value
         val buildRoot   = (ThisBuild / baseDirectory).value
 

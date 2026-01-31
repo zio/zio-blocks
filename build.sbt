@@ -435,7 +435,7 @@ lazy val zioGolemTools = project
 
 lazy val zioGolemExamples = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .in(file("golem/examples/scala"))
+  .in(file("golem/examples"))
   .settings(stdSettings("zio-golem-examples"))
   .settings(crossProjectSettings)
   .settings(

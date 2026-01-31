@@ -12,7 +12,7 @@ GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
 echo "[gettingStarted/run.sh] 1) Build Scala.js"
-( cd scala && sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" )
+( sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS" )
 
 echo "[gettingStarted/run.sh] 2) Deploy app"
 env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$PWD/golem.yaml" deploy

@@ -8,7 +8,7 @@ Implementation details (component templates, build wiring) live under
 `.golem/` so the top-level layout stays focused on the Scala sources,
 manifests, and sample scripts.
 
-Scala sources live under `scala/` (shared agent traits + JS implementations).
+Scala sources live under `shared/`, `js/`, and `jvm/` (shared traits + JS/JVM implementations).
 
 Run any sample:
 
