@@ -26,10 +26,14 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
  * `build` method can only be called when both type parameters are EmptyTuple,
  * ensuring at compile time that all fields are properly addressed.
  *
- * @tparam A The source type
- * @tparam B The target type
- * @tparam SrcRemaining Tuple of source field names that haven't been handled yet
- * @tparam TgtRemaining Tuple of target field names that haven't been provided yet
+ * @tparam A
+ *   The source type
+ * @tparam B
+ *   The target type
+ * @tparam SrcRemaining
+ *   Tuple of source field names that haven't been handled yet
+ * @tparam TgtRemaining
+ *   Tuple of target field names that haven't been provided yet
  *
  * Example:
  * {{{
@@ -100,7 +104,8 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
     )
 
   /**
-   * Keep a field unchanged using just the source selector (infers target has same name).
+   * Keep a field unchanged using just the source selector (infers target has
+   * same name).
    */
   def keepField[F, Name <: String](
     field: FieldSelector[A, F, Name]
@@ -257,10 +262,11 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
   // ===========================================================================
 
   /**
-   * Apply nested actions to a field where source and target have the same nested type.
+   * Apply nested actions to a field where source and target have the same
+   * nested type.
    *
-   * The nested builder uses the string-based MigrationBuilder API for flexibility,
-   * while the outer builder tracks field handling at compile time.
+   * The nested builder uses the string-based MigrationBuilder API for
+   * flexibility, while the outer builder tracks field handling at compile time.
    *
    * Example:
    * {{{
@@ -344,8 +350,8 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
    * Apply FULLY TYPE-SAFE nested actions with compile-time field tracking.
    *
    * This macro-based method creates a nested TypedMigrationBuilder with proper
-   * type-level field tracking. Both the outer and nested builders track
-   * fields at compile time.
+   * type-level field tracking. Both the outer and nested builders track fields
+   * at compile time.
    *
    * Example:
    * {{{
@@ -376,8 +382,8 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
     )
 
   /**
-   * Apply FULLY TYPE-SAFE nested actions with compile-time field tracking
-   * when source and target nested types differ.
+   * Apply FULLY TYPE-SAFE nested actions with compile-time field tracking when
+   * source and target nested types differ.
    */
   inline def atFieldTypedTransform[F1, F2, SrcName <: String, TgtName <: String](
     from: FieldSelector[A, F1, SrcName],
@@ -506,8 +512,8 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
    * Build the migration with compile-time validation.
    *
    * This method can only be called when:
-   * - SrcRemaining is EmptyTuple (all source fields handled)
-   * - TgtRemaining is EmptyTuple (all target fields provided)
+   *   - SrcRemaining is EmptyTuple (all source fields handled)
+   *   - TgtRemaining is EmptyTuple (all target fields provided)
    *
    * If any fields are not handled, this will fail to compile.
    */
@@ -520,9 +526,9 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
   /**
    * Build without complete validation (for partial migrations).
    *
-   * Use this when you intentionally want to create a migration that
-   * doesn't handle all fields. The remaining fields must be handled
-   * elsewhere or have default values.
+   * Use this when you intentionally want to create a migration that doesn't
+   * handle all fields. The remaining fields must be handled elsewhere or have
+   * default values.
    */
   def buildPartial: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
@@ -537,8 +543,8 @@ final class TypedMigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: T
 /**
  * Helper class for type-safe nested field migrations.
  *
- * This enables a fluent API for nested migrations with full compile-time
- * field tracking:
+ * This enables a fluent API for nested migrations with full compile-time field
+ * tracking:
  * {{{
  *   builder.atFieldTyped(select(_.address))
  *     .using(nestedBuilder => nestedBuilder.renameField(...).build)
@@ -556,18 +562,20 @@ final class AtFieldTypedBuilder[A, B, F1, F2, OutSrc <: Tuple, OutTgt <: Tuple](
   /**
    * Apply the nested migration function and complete the nested operation.
    *
-   * The nested function receives a TypedMigrationBuilder for the field type
-   * and must return a Migration (by calling .build or .buildPartial).
+   * The nested function receives a TypedMigrationBuilder for the field type and
+   * must return a Migration (by calling .build or .buildPartial).
    */
   transparent inline def using(
     nested: Any => Migration[F1, F2]
   ): TypedMigrationBuilder[A, B, OutSrc, OutTgt] =
-    ${ AtFieldTypedBuilder.usingImpl[A, B, F1, F2, OutSrc, OutTgt](
-      'this,
-      'nested,
-      'srcFieldSchema,
-      'tgtFieldSchema
-    ) }
+    ${
+      AtFieldTypedBuilder.usingImpl[A, B, F1, F2, OutSrc, OutTgt](
+        'this,
+        'nested,
+        'srcFieldSchema,
+        'tgtFieldSchema
+      )
+    }
 
   // Allow building without nested modifications (identity nested migration)
   def identity: TypedMigrationBuilder[A, B, OutSrc, OutTgt] =
@@ -629,8 +637,8 @@ object TypedMigrationBuilder {
   /**
    * Create a new TypedMigrationBuilder.
    *
-   * This is a transparent inline macro that extracts the actual field tuple types
-   * from the case classes A and B, enabling compile-time field tracking.
+   * This is a transparent inline macro that extracts the actual field tuple
+   * types from the case classes A and B, enabling compile-time field tracking.
    */
   transparent inline def apply[A, B](using
     sourceSchema: Schema[A],
@@ -652,15 +660,16 @@ object TypedMigrationBuilder {
     )
 
   /**
-   * Type alias for extracting field names from a type.
-   * This is implemented by the macro.
+   * Type alias for extracting field names from a type. This is implemented by
+   * the macro.
    */
   type ExtractFields[A] <: Tuple
 
   import scala.quoted.*
 
   /**
-   * Macro to create a TypedMigrationBuilder with properly extracted field types.
+   * Macro to create a TypedMigrationBuilder with properly extracted field
+   * types.
    */
   def createBuilderImpl[A: Type, B: Type](
     sourceSchema: Expr[Schema[A]],
@@ -705,14 +714,14 @@ object TypedMigrationBuilder {
   }
 
   /**
-   * Build a tuple type from a list of field names as singleton strings.
-   * This is public so NestedFieldExtractor can use it.
+   * Build a tuple type from a list of field names as singleton strings. This is
+   * public so NestedFieldExtractor can use it.
    */
   def buildFieldTupleType(names: List[String])(using Quotes): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
 
     names match {
-      case Nil => TypeRepr.of[EmptyTuple]
+      case Nil          => TypeRepr.of[EmptyTuple]
       case head :: tail =>
         val headType = ConstantType(StringConstant(head))
         val tailType = buildFieldTupleType(tail)

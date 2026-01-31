@@ -19,13 +19,17 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.DynamicOptic
 
 /**
- * A type-safe field selector that captures the field name as a singleton string type.
+ * A type-safe field selector that captures the field name as a singleton string
+ * type.
  *
  * This enables compile-time validation of field names in migrations.
  *
- * @tparam S The source/record type containing the field
- * @tparam F The field's value type
- * @tparam Name The field name as a singleton string type (e.g., "name")
+ * @tparam S
+ *   The source/record type containing the field
+ * @tparam F
+ *   The field's value type
+ * @tparam Name
+ *   The field name as a singleton string type (e.g., "name")
  *
  * Example:
  * {{{
@@ -100,12 +104,15 @@ object FieldSelector {
 /**
  * A path selector for nested field access.
  *
- * This tracks the full path from root to a nested field, enabling
- * nested migrations like `atField(_.address.street)`.
+ * This tracks the full path from root to a nested field, enabling nested
+ * migrations like `atField(_.address.street)`.
  *
- * @tparam S The root source type
- * @tparam F The final field type at the end of the path
- * @tparam Path A tuple of field names representing the path
+ * @tparam S
+ *   The root source type
+ * @tparam F
+ *   The final field type at the end of the path
+ * @tparam Path
+ *   A tuple of field names representing the path
  */
 final class PathSelector[S, F, Path <: Tuple](
   val path: Path,
@@ -117,9 +124,9 @@ final class PathSelector[S, F, Path <: Tuple](
    */
   def pathStrings: Seq[String] = {
     def toSeq(t: Tuple): Seq[String] = t match {
-      case EmptyTuple      => Seq.empty
+      case EmptyTuple          => Seq.empty
       case (h: String) *: tail => h +: toSeq(tail)
-      case _               => Seq.empty
+      case _                   => Seq.empty
     }
     toSeq(path)
   }

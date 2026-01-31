@@ -22,8 +22,8 @@ import zio.blocks.schema.DynamicOptic
 /**
  * Macros for creating type-safe field selectors from accessor expressions.
  *
- * These macros extract field names from expressions like `_.name` and
- * create FieldSelector instances with the name as a singleton string type.
+ * These macros extract field names from expressions like `_.name` and create
+ * FieldSelector instances with the name as a singleton string type.
  *
  * Example:
  * {{{
@@ -36,8 +36,7 @@ import zio.blocks.schema.DynamicOptic
 object SelectorMacros {
 
   /**
-   * Entry point for field selection.
-   * Usage: `select[Person](_.name)`
+   * Entry point for field selection. Usage: `select[Person](_.name)`
    */
   inline def select[S]: SelectBuilder[S] = new SelectBuilder[S]
 
@@ -45,17 +44,18 @@ object SelectorMacros {
    * Builder class that enables the `select[S](_.field)` syntax.
    */
   class SelectBuilder[S] {
+
     /**
-     * Create a FieldSelector from a field accessor expression.
-     * The field name is captured as a singleton string type.
+     * Create a FieldSelector from a field accessor expression. The field name
+     * is captured as a singleton string type.
      */
     transparent inline def apply[F](inline selector: S => F): FieldSelector[S, F, ?] =
       ${ selectImpl[S, F]('selector) }
   }
 
   /**
-   * Implementation of the select macro.
-   * Extracts the field name from the selector expression and creates a FieldSelector.
+   * Implementation of the select macro. Extracts the field name from the
+   * selector expression and creates a FieldSelector.
    */
   def selectImpl[S: Type, F: Type](selector: Expr[S => F])(using Quotes): Expr[FieldSelector[S, F, ?]] = {
     import quotes.reflect.*
@@ -72,7 +72,7 @@ object SelectorMacros {
     // For single field access, use the simple form
     if (fieldPath.length == 1) {
       val fieldName = fieldPath.head
-      val nameType = ConstantType(StringConstant(fieldName))
+      val nameType  = ConstantType(StringConstant(fieldName))
 
       nameType.asType match {
         case '[name] =>
@@ -86,7 +86,7 @@ object SelectorMacros {
     } else {
       // For nested access, build the full path
       val firstName = fieldPath.head
-      val nameType = ConstantType(StringConstant(firstName))
+      val nameType  = ConstantType(StringConstant(firstName))
 
       nameType.asType match {
         case '[name] =>
@@ -102,8 +102,8 @@ object SelectorMacros {
   }
 
   /**
-   * Extract the field path from a selector expression.
-   * Handles both simple `_.name` and nested `_.address.street` paths.
+   * Extract the field path from a selector expression. Handles both simple
+   * `_.name` and nested `_.address.street` paths.
    */
   private def extractFieldPath(using Quotes)(term: quotes.reflect.Term): List[String] = {
     import quotes.reflect.*
@@ -136,8 +136,8 @@ object SelectorMacros {
       case other =>
         report.errorAndAbort(
           s"Unsupported selector expression: ${other.show}. " +
-          s"Expected a simple field access like `_.name` or `_.address.street`. " +
-          s"Term type: ${other.getClass.getSimpleName}"
+            s"Expected a simple field access like `_.name` or `_.address.street`. " +
+            s"Term type: ${other.getClass.getSimpleName}"
         )
     }
 
@@ -145,8 +145,8 @@ object SelectorMacros {
   }
 
   /**
-   * Macro to create a PathSelector from a nested field access.
-   * Usage: `path[Person](_.address.street)`
+   * Macro to create a PathSelector from a nested field access. Usage:
+   * `path[Person](_.address.street)`
    */
   inline def path[S]: PathBuilder[S] = new PathBuilder[S]
 
@@ -168,7 +168,7 @@ object SelectorMacros {
 
     // Build a tuple type of the field names
     def buildTupleType(names: List[String]): TypeRepr = names match {
-      case Nil => TypeRepr.of[EmptyTuple]
+      case Nil          => TypeRepr.of[EmptyTuple]
       case head :: tail =>
         val headType = ConstantType(StringConstant(head))
         val tailType = buildTupleType(tail)

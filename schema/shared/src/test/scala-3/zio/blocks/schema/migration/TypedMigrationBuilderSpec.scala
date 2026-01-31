@@ -23,9 +23,9 @@ import zio.test._
  * Comprehensive tests for the type-safe migration system.
  *
  * These tests demonstrate the key differentiators from PR #882:
- * 1. Compile-time field tracking using phantom type parameters
- * 2. Type-safe field selectors with singleton string types
- * 3. NESTED MIGRATION SUPPORT - the critical feature that was missing
+ *   1. Compile-time field tracking using phantom type parameters
+ *   2. Type-safe field selectors with singleton string types
+ *   3. NESTED MIGRATION SUPPORT - the critical feature that was missing
  */
 object TypedMigrationBuilderSpec extends ZIOSpecDefault {
 
@@ -176,7 +176,7 @@ object TypedMigrationBuilderSpec extends ZIOSpecDefault {
           }
           .build
 
-        val v1 = CompanyV1("Acme Corp", AddressV1("123 Main St", "Boston"))
+        val v1     = CompanyV1("Acme Corp", AddressV1("123 Main St", "Boston"))
         val result = migration(v1)
         assertTrue(result == Right(CompanyV2("Acme Corp", AddressV2("123 Main St", "Boston", "00000"))))
       },
@@ -204,7 +204,7 @@ object TypedMigrationBuilderSpec extends ZIOSpecDefault {
           "Engineering",
           EmployeeV1(1, ContactV1("john@acme.com", "555-1234"))
         )
-        val result = migration(v1)
+        val result   = migration(v1)
         val expected = DepartmentV2(
           "Engineering",
           EmployeeV2(1, ContactV2("john@acme.com", "555-1234", "000-000-0000"))
@@ -249,18 +249,21 @@ object TypedMigrationBuilderSpec extends ZIOSpecDefault {
             val builder = nestedBuilder.asInstanceOf[TypedMigrationBuilder[AddressV1, AddressV2, ?, ?]]
             // Build partial since we're casting
             Migration(
-              DynamicMigration(Vector(
-                MigrationAction.RenameField("street", "streetName"),
-                MigrationAction.KeepField("city"),
-                MigrationAction.AddField("zipCode", ResolvedExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
-              )),
+              DynamicMigration(
+                Vector(
+                  MigrationAction.RenameField("street", "streetName"),
+                  MigrationAction.KeepField("city"),
+                  MigrationAction
+                    .AddField("zipCode", ResolvedExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
+                )
+              ),
               AddressV1.schema,
               AddressV2.schema
             )
           }
           .build
 
-        val v1 = CompanyV1("Acme Corp", AddressV1("123 Main St", "Boston"))
+        val v1     = CompanyV1("Acme Corp", AddressV1("123 Main St", "Boston"))
         val result = migration(v1)
         assertTrue(result == Right(CompanyV2("Acme Corp", AddressV2("123 Main St", "Boston", "00000"))))
       }
@@ -332,8 +335,8 @@ object TypedMigrationBuilderSpec extends ZIOSpecDefault {
         assertTrue(v2 == Right(AddressV2("123 Main St", "Boston", "00000")))
 
         // Test reverse
-        val reverse       = forward.reverse
-        val reversedOpt   = v2.flatMap(reverse.apply)
+        val reverse     = forward.reverse
+        val reversedOpt = v2.flatMap(reverse.apply)
         assertTrue(reversedOpt.isRight)
       }
     ),
@@ -350,7 +353,7 @@ object TypedMigrationBuilderSpec extends ZIOSpecDefault {
         assertTrue(
           actions.exists {
             case MigrationAction.RenameField("name", "fullName") => true
-            case _                                                => false
+            case _                                               => false
           },
           actions.exists {
             case MigrationAction.KeepField("age") => true
