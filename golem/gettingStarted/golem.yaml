@@ -6,6 +6,6 @@ environments:
     componentPresets: debug
 
 includes:
-- common-*/golem.yaml
-- components-*/*/golem.yaml
+- .golem/common-*/golem.yaml
+- .golem/components-*/*/golem.yaml
 

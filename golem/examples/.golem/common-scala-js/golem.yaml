@@ -1,0 +1,19 @@
+# golem-app-manifest-header
+
+componentTemplates:
+  scala.js:
+    build:
+    - command: bash ../../build-scalajs.sh {{ component_name }}
+    - injectToPrebuiltQuickjs: ../../../golem-temp/agent_guest.wasm
+      module: src/scala.js
+      moduleWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
+      into: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+    - generateAgentWrapper: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
+      basedOnCompiledWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+    - composeAgentWrapper: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
+      withAgent: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+      to: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
+    sourceWit: ../../../golem-temp/agent_guest.wasm
+    generatedWit: ../../../golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
+    componentWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
+    linkedWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wasm

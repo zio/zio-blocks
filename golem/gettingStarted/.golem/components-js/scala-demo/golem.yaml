@@ -1,4 +1,3 @@
 components:
   scala:demo:
     templates: scala.js
-

@@ -11,7 +11,7 @@ fi
 component_dir="$PWD"
 
 # Preferred layout: app root at `gettingStarted/`, Scala build at `gettingStarted/scala/`.
-app_root="$(cd "$(dirname "$0")" && pwd)"
+app_root="$(cd "$(dirname "$0")/.." && pwd)"
 scala_dir="$app_root/scala"
 
 if [[ ! -f "$scala_dir/build.sbt" ]]; then
@@ -58,4 +58,3 @@ fi
 
 mkdir -p "$component_dir/src"
 cp "$bundle" "$component_dir/src/scala.js"
-

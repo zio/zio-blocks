@@ -50,11 +50,11 @@ Create these directories:
 
 ```bash
 mkdir -p scala/project scala/src/main/scala/demo
-mkdir -p common-scala-js components-js/scala-demo/src golem-temp
+mkdir -p .golem/common-scala-js .golem/components-js/scala-demo/src golem-temp
 ```
 
 All commands below assume your working directory is the **project root** (the directory that contains `golem.yaml`,
-`common-scala-js/`, `components-js/`, and `golem-temp/`).
+`.golem/common-scala-js/`, `.golem/components-js/`, and `golem-temp/`).
 
 Create `scala/project/plugins.sbt`:
 
@@ -205,11 +205,11 @@ environments:
     componentPresets: debug
 
 includes:
-- common-*/golem.yaml
-- components-*/*/golem.yaml
+- .golem/common-*/golem.yaml
+- .golem/components-*/*/golem.yaml
 ```
 
-Create `common-scala-js/golem.yaml`:
+Create `.golem/common-scala-js/golem.yaml`:
 
 ```yaml
 componentTemplates:
@@ -220,22 +220,22 @@ componentTemplates:
       - src
       targets:
       - src/scala.js
-    - injectToPrebuiltQuickjs: ../../golem-temp/agent_guest.wasm
+    - injectToPrebuiltQuickjs: ../../../golem-temp/agent_guest.wasm
       module: src/scala.js
-      moduleWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
-      into: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-    - generateAgentWrapper: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
-      basedOnCompiledWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-    - composeAgentWrapper: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
-      withAgent: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-      to: ../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    sourceWit: ../../golem-temp/agent_guest.wasm
-    generatedWit: ../../golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
-    componentWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    linkedWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wasm
+      moduleWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
+      into: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+    - generateAgentWrapper: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
+      basedOnCompiledWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+    - composeAgentWrapper: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
+      withAgent: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+      to: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
+    sourceWit: ../../../golem-temp/agent_guest.wasm
+    generatedWit: ../../../golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
+    componentWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
+    linkedWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wasm
 ```
 
-Create `components-js/scala-demo/golem.yaml`:
+Create `.golem/components-js/scala-demo/golem.yaml`:
 
 ```yaml
 components:
@@ -248,7 +248,7 @@ components:
 
 Golem AI is a unified API, but you still need to add the provider WASM as a
 component dependency. Add a `dependencies:` section under your component in
-`components-js/<component>/golem.yaml`.
+`.golem/components-js/<component>/golem.yaml`.
 
 Example (Ollama provider for LLMs):
 
@@ -261,7 +261,7 @@ components:
       url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0/golem_llm_ollama.wasm
 ```
 
-Create `build-scalajs.sh`:
+Create `.golem/build-scalajs.sh`:
 
 ```bash
 #!/usr/bin/env bash
@@ -275,7 +275,7 @@ fi
 
 component_dir="$PWD"
 
-app_root="$(cd "$(dirname "$0")" && pwd)"
+app_root="$(cd "$(dirname "$0")/.." && pwd)"
 scala_dir="$app_root/scala"
 
 build_log="$(mktemp)"
@@ -342,7 +342,7 @@ cp "$bundle" "$component_dir/src/scala.js"
 Then:
 
 ```bash
-chmod +x build-scalajs.sh
+chmod +x .golem/build-scalajs.sh
 ```
 
 ## 5) Base guest runtime (no user files)

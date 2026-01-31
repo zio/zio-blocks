@@ -10,17 +10,18 @@ fi
 # Invoked by `golem-cli` as a build step (via `template: scala.js`).
 # Working directory is the component folder (e.g. components-js/<component>/).
 
-app_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$app_dir/../.." && pwd)"
+internal_dir="$(cd "$(dirname "$0")" && pwd)"
+app_root="$(cd "$internal_dir/.." && pwd)"
+repo_root="$(cd "$internal_dir/../../.." && pwd)"
 component_dir="$PWD"
-agent_wasm="$app_dir/golem-temp/agent_guest.wasm"
+agent_wasm="$app_root/golem-temp/agent_guest.wasm"
 
 tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
 
 case "$component" in
   scala:examples)
     sbt_project="zioGolemExamplesJS"
-    sbt_bundle_glob="$repo_root/golem/examples/js/target/scala-*/zio-golem-examples-js-fastopt/main.js"
+    sbt_bundle_glob="$repo_root/golem/examples/scala/js/target/scala-*/zio-golem-examples-js-fastopt/main.js"
     out_file="$component_dir/src/scala.js"
     ;;
   *)
@@ -118,6 +119,4 @@ fi
 mkdir -p "$(dirname "$out_file")"
 cp "$bundle" "$out_file"
 
-
 echo "[scala.js] Wrote Scala.js bundle to $out_file" >&2
-

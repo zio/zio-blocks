@@ -2,17 +2,17 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$script_dir/../.."
+cd "$script_dir/../../.."
 
 source "$script_dir/lib.sh"
 
-name="hitl-local-repl"
+name="snapshot-counter-local-repl"
 examples_require_cli "$name"
 examples_parse_flags
 examples_check_router "$name"
 
 app_dir="$PWD/golem/examples"
-script_file="$PWD/golem/examples/samples/human-in-the-loop/repl-human-in-the-loop.rib"
+script_file="$PWD/golem/examples/samples/snapshot-counter/repl-snapshot-counter.rib"
 
 examples_build_js "$name"
 
@@ -20,5 +20,5 @@ out="$(examples_run_repl "$app_dir" "$script_file" 2>&1)"
 examples_check_repl_errors "$name" "$out"
 
 echo "$out"
-echo "$out" | grep -F -q 'outcome: "approved"'
-
+echo "$out" | grep -E -q 'a: [0-9]+'
+echo "$out" | grep -E -q 'b: [0-9]+'

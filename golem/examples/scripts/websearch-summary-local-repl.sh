@@ -7,7 +7,7 @@ if [[ "${RUN_WEBSEARCH_EXAMPLES:-}" != "1" ]]; then
 fi
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$script_dir/../.."
+cd "$script_dir/../../.."
 
 source "$script_dir/lib.sh"
 
@@ -34,4 +34,3 @@ examples_check_repl_errors "$name" "$out"
 
 echo "$out"
 echo "$out" | grep -F -q 'Finished research for topic'
-

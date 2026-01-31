@@ -7,7 +7,7 @@ if [[ "${RUN_LLM_EXAMPLES:-}" != "1" ]]; then
 fi
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-cd "$script_dir/../.."
+cd "$script_dir/../../.."
 
 source "$script_dir/lib.sh"
 
@@ -66,4 +66,3 @@ examples_check_repl_errors "$name" "$out" "Hint: check your LLM provider env var
 
 echo "$out"
 echo "$out" | grep -F -q 'h:'
-
