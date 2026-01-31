@@ -33,24 +33,24 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 
   /**
    * Adds a field to a record with a default value using selector syntax. Adds
-   * the target field name to Provided.
+   * the target field path to Provided as a structured tuple.
    */
-  transparent inline def addField[FieldName <: String & Singleton](
+  transparent inline def addField[FieldPath <: Tuple](
     inline target: B => Any,
     default: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldName]] =
-    ${ MigrationBuilderMacrosImpl.addFieldImpl[A, B, Handled, Provided, FieldName]('builder, 'target, 'default) }
+  ): MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldPath]] =
+    ${ MigrationBuilderMacrosImpl.addFieldImpl[A, B, Handled, Provided, FieldPath]('builder, 'target, 'default) }
 
   /**
    * Removes a field from a record using selector syntax. Adds the source field
-   * name to Handled.
+   * path to Handled as a structured tuple.
    */
-  transparent inline def dropField[FieldName <: String & Singleton](
+  transparent inline def dropField[FieldPath <: Tuple](
     inline source: A => Any,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Provided] =
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Provided] =
     ${
-      MigrationBuilderMacrosImpl.dropFieldImpl[A, B, Handled, Provided, FieldName](
+      MigrationBuilderMacrosImpl.dropFieldImpl[A, B, Handled, Provided, FieldPath](
         'builder,
         'source,
         'defaultForReverse
@@ -58,45 +58,45 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
     }
 
   /**
-   * Renames a field in a record using selector syntax. Adds source to Handled
-   * and target to Provided.
+   * Renames a field in a record using selector syntax. Adds source path to Handled
+   * and target path to Provided as structured tuples.
    */
-  transparent inline def renameField[FromName <: String & Singleton, ToName <: String & Singleton](
+  transparent inline def renameField[FromPath <: Tuple, ToPath <: Tuple](
     inline from: A => Any,
     inline to: B => Any
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FromName], Tuple.Append[Provided, ToName]] =
-    ${ MigrationBuilderMacrosImpl.renameFieldImpl[A, B, Handled, Provided, FromName, ToName]('builder, 'from, 'to) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]] =
+    ${ MigrationBuilderMacrosImpl.renameFieldImpl[A, B, Handled, Provided, FromPath, ToPath]('builder, 'from, 'to) }
 
   /**
    * Applies a transformation expression to a field value using selector syntax.
-   * Adds the field name to both Handled and Provided.
+   * Adds the field path to both Handled and Provided as a structured tuple.
    */
-  transparent inline def transformField[FieldName <: String & Singleton](
+  transparent inline def transformField[FieldPath <: Tuple](
     inline at: A => Any,
     transform: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]] =
-    ${ MigrationBuilderMacrosImpl.transformFieldImpl[A, B, Handled, Provided, FieldName]('builder, 'at, 'transform) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
+    ${ MigrationBuilderMacrosImpl.transformFieldImpl[A, B, Handled, Provided, FieldPath]('builder, 'at, 'transform) }
 
   /**
    * Unwraps an Option field using selector syntax, using default for None
-   * values. Adds the field name to both Handled and Provided.
+   * values. Adds the field path to both Handled and Provided as a structured tuple.
    */
-  transparent inline def mandateField[FieldName <: String & Singleton](
+  transparent inline def mandateField[FieldPath <: Tuple](
     inline at: A => Any,
     default: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]] =
-    ${ MigrationBuilderMacrosImpl.mandateFieldImpl[A, B, Handled, Provided, FieldName]('builder, 'at, 'default) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
+    ${ MigrationBuilderMacrosImpl.mandateFieldImpl[A, B, Handled, Provided, FieldPath]('builder, 'at, 'default) }
 
   /**
    * Wraps a field value in Option (as Some) using selector syntax. Adds the
-   * field name to both Handled and Provided.
+   * field path to both Handled and Provided as a structured tuple.
    */
-  transparent inline def optionalizeField[FieldName <: String & Singleton](
+  transparent inline def optionalizeField[FieldPath <: Tuple](
     inline at: A => Any,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]] =
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
     ${
-      MigrationBuilderMacrosImpl.optionalizeFieldImpl[A, B, Handled, Provided, FieldName](
+      MigrationBuilderMacrosImpl.optionalizeFieldImpl[A, B, Handled, Provided, FieldPath](
         'builder,
         'at,
         'defaultForReverse
@@ -105,20 +105,20 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 
   /**
    * Converts a field from one primitive type to another using selector syntax.
-   * Adds the field name to both Handled and Provided.
+   * Adds the field path to both Handled and Provided as a structured tuple.
    */
-  transparent inline def changeFieldType[FieldName <: String & Singleton](
+  transparent inline def changeFieldType[FieldPath <: Tuple](
     inline at: A => Any,
     converter: PrimitiveConverter
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]] =
-    ${ MigrationBuilderMacrosImpl.changeFieldTypeImpl[A, B, Handled, Provided, FieldName]('builder, 'at, 'converter) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
+    ${ MigrationBuilderMacrosImpl.changeFieldTypeImpl[A, B, Handled, Provided, FieldPath]('builder, 'at, 'converter) }
 
   /**
    * Joins multiple source fields into a single target field using selector
    * syntax. All source fields must share a common parent path.
    *
-   * Adds all source field names to Handled and the target field name to
-   * Provided.
+   * Adds all source field paths to Handled and the target field path to
+   * Provided as structured tuples.
    */
   transparent inline def joinFields(
     inline target: B => Any,
@@ -138,8 +138,8 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    * Splits a single source field into multiple target fields using selector
    * syntax. All target fields must share a common parent path.
    *
-   * Adds the source field name to Handled and all target field names to
-   * Provided.
+   * Adds the source field path to Handled and all target field paths to
+   * Provided as structured tuples.
    */
   transparent inline def splitField(
     inline source: A => Any,
@@ -187,28 +187,29 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
     ${ MigrationBuilderMacrosImpl.transformValuesImpl[A, B, Handled, Provided]('builder, 'at, 'transform) }
 
   /**
-   * Renames a variant case using selector syntax. Adds the source case name to
-   * Handled and the target case name to Provided (both prefixed with "case:").
+   * Renames a variant case using selector syntax. Adds the source case path to
+   * Handled and the target case path to Provided as structured tuples.
+   * Case paths are single-element tuples like (("case", "OldName"),).
    */
-  transparent inline def renameCase[FromCase <: String & Singleton, ToCase <: String & Singleton](
+  transparent inline def renameCase[FromPath <: Tuple, ToPath <: Tuple](
     inline from: A => Any,
     to: String
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, FromCase], Tuple.Append[Provided, ToCase]] =
-    ${ MigrationBuilderMacrosImpl.renameCaseImpl[A, B, Handled, Provided, FromCase, ToCase]('builder, 'from, 'to) }
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]] =
+    ${ MigrationBuilderMacrosImpl.renameCaseImpl[A, B, Handled, Provided, FromPath, ToPath]('builder, 'from, 'to) }
 
   /**
    * Applies nested migration actions to a specific variant case using selector
-   * syntax. Adds the case name to both Handled and Provided (prefixed with
-   * "case:") since the case is being transformed but not renamed.
+   * syntax. Adds the case path to both Handled and Provided as a structured tuple
+   * since the case is being transformed but not renamed.
    */
-  transparent inline def transformCase[CaseName <: String & Singleton](
+  transparent inline def transformCase[CasePath <: Tuple](
     inline at: A => Any
   )(
     nestedActions: MigrationBuilder[A, A, EmptyTuple, EmptyTuple] => MigrationBuilder[A, A, ?, ?]
-  ): MigrationBuilder[A, B, Tuple.Append[Handled, CaseName], Tuple.Append[Provided, CaseName]] =
+  ): MigrationBuilder[A, B, Tuple.Append[Handled, CasePath], Tuple.Append[Provided, CasePath]] =
     ${
       MigrationBuilderMacrosImpl
-        .transformCaseImpl[A, B, Handled, Provided, CaseName]('builder, 'at, 'nestedActions)
+        .transformCaseImpl[A, B, Handled, Provided, CasePath]('builder, 'at, 'nestedActions)
     }
 }
 
@@ -216,29 +217,66 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.quoted.*
 
+  /**
+   * Convert a list of field names to a structured path tuple type.
+   *
+   * Example: List("address", "city") -> (("field", "address"), ("field", "city"))
+   */
+  private def fieldPathToTupleType(using q: Quotes)(fieldNames: List[String]): q.reflect.TypeRepr = {
+    import q.reflect.*
+
+    if (fieldNames.isEmpty) {
+      TypeRepr.of[EmptyTuple]
+    } else {
+      fieldNames.foldRight(TypeRepr.of[EmptyTuple]) { (name, acc) =>
+        // Create ("field", name) tuple type
+        val fieldLit = ConstantType(StringConstant("field"))
+        val nameLit  = ConstantType(StringConstant(name))
+        val segmentType = TypeRepr.of[Tuple2].appliedTo(List(fieldLit, nameLit))
+        TypeRepr.of[*:].appliedTo(List(segmentType, acc))
+      }
+    }
+  }
+
+  /**
+   * Convert a case name to a structured path tuple type.
+   *
+   * Example: "Success" -> (("case", "Success"),)
+   */
+  private def casePathToTupleType(using q: Quotes)(caseName: String): q.reflect.TypeRepr = {
+    import q.reflect.*
+
+    // Create ("case", name) tuple type
+    val caseLit = ConstantType(StringConstant("case"))
+    val nameLit = ConstantType(StringConstant(caseName))
+    val segmentType = TypeRepr.of[Tuple2].appliedTo(List(caseLit, nameLit))
+    // Wrap in single-element tuple: (("case", name),)
+    TypeRepr.of[*:].appliedTo(List(segmentType, TypeRepr.of[EmptyTuple]))
+  }
+
   def addFieldImpl[
     A: Type,
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FieldName <: String & Singleton: Type
+    FieldPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     target: Expr[B => Any],
     default: Expr[SchemaExpr[DynamicValue, ?]]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldName]]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldPath]]] = {
     import q.reflect.*
-    val optic     = MigrationBuilderMacros.extractOptic[B, Any](target)
-    val fieldName = extractFieldNameFromSelector(target.asTerm)
+    val optic      = MigrationBuilderMacros.extractOptic[B, Any](target)
+    val fieldNames = extractFieldPathFromSelector(target.asTerm)
 
-    // Create literal type for field name
-    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
-    given Type[FieldName] = fieldNameType
+    // Create structured path tuple type
+    val fieldPathType      = fieldPathToTupleType(fieldNames).asType.asInstanceOf[Type[FieldPath]]
+    given Type[FieldPath] = fieldPathType
 
     '{
       $builder
         .addField($optic, $default)
-        .asInstanceOf[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldPath]]]
     }
   }
 
@@ -247,24 +285,24 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FieldName <: String & Singleton: Type
+    FieldPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     source: Expr[A => Any],
     defaultForReverse: Expr[SchemaExpr[DynamicValue, ?]]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Provided]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Provided]] = {
     import q.reflect.*
-    val optic     = MigrationBuilderMacros.extractOptic[A, Any](source)
-    val fieldName = extractFieldNameFromSelector(source.asTerm)
+    val optic      = MigrationBuilderMacros.extractOptic[A, Any](source)
+    val fieldNames = extractFieldPathFromSelector(source.asTerm)
 
-    // Create literal type for field name
-    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
-    given Type[FieldName] = fieldNameType
+    // Create structured path tuple type
+    val fieldPathType      = fieldPathToTupleType(fieldNames).asType.asInstanceOf[Type[FieldPath]]
+    given Type[FieldPath] = fieldPathType
 
     '{
       $builder
         .dropField($optic, $defaultForReverse)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Provided]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Provided]]
     }
   }
 
@@ -273,29 +311,29 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FromName <: String & Singleton: Type,
-    ToName <: String & Singleton: Type
+    FromPath <: Tuple: Type,
+    ToPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     from: Expr[A => Any],
     to: Expr[B => Any]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromName], Tuple.Append[Provided, ToName]]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]]] = {
     import q.reflect.*
     val fromOptic   = MigrationBuilderMacros.extractOptic[A, Any](from)
     val toFieldName = MigrationBuilderMacros.extractFieldName[B, Any](to)
-    val fromName    = extractFieldNameFromSelector(from.asTerm)
-    val toName      = extractFieldNameFromSelector(to.asTerm)
+    val fromNames   = extractFieldPathFromSelector(from.asTerm)
+    val toNames     = extractFieldPathFromSelector(to.asTerm)
 
-    // Create literal types for field names
-    val fromNameType     = ConstantType(StringConstant(fromName)).asType.asInstanceOf[Type[FromName]]
-    val toNameType       = ConstantType(StringConstant(toName)).asType.asInstanceOf[Type[ToName]]
-    given Type[FromName] = fromNameType
-    given Type[ToName]   = toNameType
+    // Create structured path tuple types
+    val fromPathType     = fieldPathToTupleType(fromNames).asType.asInstanceOf[Type[FromPath]]
+    val toPathType       = fieldPathToTupleType(toNames).asType.asInstanceOf[Type[ToPath]]
+    given Type[FromPath] = fromPathType
+    given Type[ToPath]   = toPathType
 
     '{
       $builder
         .renameField($fromOptic, $toFieldName)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromName], Tuple.Append[Provided, ToName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]]]
     }
   }
 
@@ -304,26 +342,26 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FieldName <: String & Singleton: Type
+    FieldPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     transform: Expr[SchemaExpr[DynamicValue, ?]]
   )(using
     q: Quotes
-  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
+  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] = {
     import q.reflect.*
-    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
-    val fieldName = extractFieldNameFromSelector(at.asTerm)
+    val optic      = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldNames = extractFieldPathFromSelector(at.asTerm)
 
-    // Create literal type for field name
-    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
-    given Type[FieldName] = fieldNameType
+    // Create structured path tuple type
+    val fieldPathType      = fieldPathToTupleType(fieldNames).asType.asInstanceOf[Type[FieldPath]]
+    given Type[FieldPath] = fieldPathType
 
     '{
       $builder
         .transformField($optic, $transform)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]]
     }
   }
 
@@ -332,26 +370,26 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FieldName <: String & Singleton: Type
+    FieldPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     default: Expr[SchemaExpr[DynamicValue, ?]]
   )(using
     q: Quotes
-  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
+  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] = {
     import q.reflect.*
-    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
-    val fieldName = extractFieldNameFromSelector(at.asTerm)
+    val optic      = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldNames = extractFieldPathFromSelector(at.asTerm)
 
-    // Create literal type for field name
-    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
-    given Type[FieldName] = fieldNameType
+    // Create structured path tuple type
+    val fieldPathType      = fieldPathToTupleType(fieldNames).asType.asInstanceOf[Type[FieldPath]]
+    given Type[FieldPath] = fieldPathType
 
     '{
       $builder
         .mandateField($optic, $default)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]]
     }
   }
 
@@ -360,26 +398,26 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FieldName <: String & Singleton: Type
+    FieldPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     defaultForReverse: Expr[SchemaExpr[DynamicValue, ?]]
   )(using
     q: Quotes
-  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
+  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] = {
     import q.reflect.*
-    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
-    val fieldName = extractFieldNameFromSelector(at.asTerm)
+    val optic      = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldNames = extractFieldPathFromSelector(at.asTerm)
 
-    // Create literal type for field name
-    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
-    given Type[FieldName] = fieldNameType
+    // Create structured path tuple type
+    val fieldPathType      = fieldPathToTupleType(fieldNames).asType.asInstanceOf[Type[FieldPath]]
+    given Type[FieldPath] = fieldPathType
 
     '{
       $builder
         .optionalizeField($optic, $defaultForReverse)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]]
     }
   }
 
@@ -388,26 +426,26 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FieldName <: String & Singleton: Type
+    FieldPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     converter: Expr[PrimitiveConverter]
   )(using
     q: Quotes
-  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]] = {
+  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] = {
     import q.reflect.*
-    val optic     = MigrationBuilderMacros.extractOptic[A, Any](at)
-    val fieldName = extractFieldNameFromSelector(at.asTerm)
+    val optic      = MigrationBuilderMacros.extractOptic[A, Any](at)
+    val fieldNames = extractFieldPathFromSelector(at.asTerm)
 
-    // Create literal type for field name
-    val fieldNameType     = ConstantType(StringConstant(fieldName)).asType.asInstanceOf[Type[FieldName]]
-    given Type[FieldName] = fieldNameType
+    // Create structured path tuple type
+    val fieldPathType      = fieldPathToTupleType(fieldNames).asType.asInstanceOf[Type[FieldPath]]
+    given Type[FieldPath] = fieldPathType
 
     '{
       $builder
         .changeFieldType($optic, $converter)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldName], Tuple.Append[Provided, FieldName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]]
     }
   }
 
@@ -425,24 +463,24 @@ private[migration] object MigrationBuilderMacrosImpl {
     import q.reflect.*
     val targetOptic  = MigrationBuilderMacros.extractOptic[B, Any](target)
     val sourceOptics = MigrationBuilderMacros.extractOptics[A, Any](sourcePaths)
-    val targetName   = extractFieldNameFromSelector(target.asTerm)
+    val targetPath   = extractFieldPathFromSelector(target.asTerm)
 
-    // Extract all source field names from the Seq
-    val sourceNames = extractFieldNamesFromSeq(sourcePaths.asTerm)
+    // Extract all source field paths from the Seq
+    val sourcePathsList = extractFieldPathsFromSeq(sourcePaths.asTerm)
 
-    if (sourceNames.isEmpty) {
+    if (sourcePathsList.isEmpty) {
       report.errorAndAbort("joinFields requires at least one source field", sourcePaths.asTerm.pos)
     }
 
-    // Build the new Handled type by appending all source field names
-    val newHandledRepr = sourceNames.foldLeft(TypeRepr.of[Handled]) { (acc, name) =>
-      val nameType = ConstantType(StringConstant(name))
-      TypeRepr.of[Tuple.Append].appliedTo(List(acc, nameType))
+    // Build the new Handled type by appending all source field paths as structured tuples
+    val newHandledRepr = sourcePathsList.foldLeft(TypeRepr.of[Handled]) { (acc, path) =>
+      val pathType = fieldPathToTupleType(path)
+      TypeRepr.of[Tuple.Append].appliedTo(List(acc, pathType))
     }
 
-    // Build the new Provided type by appending the target field name
-    val targetNameType  = ConstantType(StringConstant(targetName))
-    val newProvidedRepr = TypeRepr.of[Tuple.Append].appliedTo(List(TypeRepr.of[Provided], targetNameType))
+    // Build the new Provided type by appending the target field path as structured tuple
+    val targetPathType  = fieldPathToTupleType(targetPath)
+    val newProvidedRepr = TypeRepr.of[Tuple.Append].appliedTo(List(TypeRepr.of[Provided], targetPathType))
 
     // Build the result type
     val resultTypeRepr = TypeRepr
@@ -475,23 +513,23 @@ private[migration] object MigrationBuilderMacrosImpl {
     import q.reflect.*
     val sourceOptic  = MigrationBuilderMacros.extractOptic[A, Any](source)
     val targetOptics = MigrationBuilderMacros.extractOptics[B, Any](targetPaths)
-    val sourceName   = extractFieldNameFromSelector(source.asTerm)
+    val sourcePath   = extractFieldPathFromSelector(source.asTerm)
 
-    // Extract all target field names from the Seq
-    val targetNames = extractFieldNamesFromSeq(targetPaths.asTerm)
+    // Extract all target field paths from the Seq
+    val targetPathsList = extractFieldPathsFromSeq(targetPaths.asTerm)
 
-    if (targetNames.isEmpty) {
+    if (targetPathsList.isEmpty) {
       report.errorAndAbort("splitField requires at least one target field", targetPaths.asTerm.pos)
     }
 
-    // Build the new Handled type by appending the source field name
-    val sourceNameType = ConstantType(StringConstant(sourceName))
-    val newHandledRepr = TypeRepr.of[Tuple.Append].appliedTo(List(TypeRepr.of[Handled], sourceNameType))
+    // Build the new Handled type by appending the source field path as structured tuple
+    val sourcePathType = fieldPathToTupleType(sourcePath)
+    val newHandledRepr = TypeRepr.of[Tuple.Append].appliedTo(List(TypeRepr.of[Handled], sourcePathType))
 
-    // Build the new Provided type by appending all target field names
-    val newProvidedRepr = targetNames.foldLeft(TypeRepr.of[Provided]) { (acc, name) =>
-      val nameType = ConstantType(StringConstant(name))
-      TypeRepr.of[Tuple.Append].appliedTo(List(acc, nameType))
+    // Build the new Provided type by appending all target field paths as structured tuples
+    val newProvidedRepr = targetPathsList.foldLeft(TypeRepr.of[Provided]) { (acc, path) =>
+      val pathType = fieldPathToTupleType(path)
+      TypeRepr.of[Tuple.Append].appliedTo(List(acc, pathType))
     }
 
     // Build the result type
@@ -543,13 +581,13 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    FromCase <: String & Singleton: Type,
-    ToCase <: String & Singleton: Type
+    FromPath <: Tuple: Type,
+    ToPath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     from: Expr[A => Any],
     to: Expr[String]
-  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromCase], Tuple.Append[Provided, ToCase]]] = {
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]]] = {
     import q.reflect.*
 
     val (fromOptic, fromCaseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](from)
@@ -571,16 +609,16 @@ private[migration] object MigrationBuilderMacrosImpl {
         )
     }
 
-    // Create literal types for case names with "case:" prefix
-    val fromCaseType     = ConstantType(StringConstant(s"case:$caseNameStr")).asType.asInstanceOf[Type[FromCase]]
-    val toCaseType       = ConstantType(StringConstant(s"case:$toCaseStr")).asType.asInstanceOf[Type[ToCase]]
-    given Type[FromCase] = fromCaseType
-    given Type[ToCase]   = toCaseType
+    // Create structured path tuple types for case names: (("case", "CaseName"),)
+    val fromPathType     = casePathToTupleType(caseNameStr).asType.asInstanceOf[Type[FromPath]]
+    val toPathType       = casePathToTupleType(toCaseStr).asType.asInstanceOf[Type[ToPath]]
+    given Type[FromPath] = fromPathType
+    given Type[ToPath]   = toPathType
 
     '{
       $builder
         .renameCase($fromOptic, $fromCaseName, $to)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromCase], Tuple.Append[Provided, ToCase]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]]]
     }
   }
 
@@ -639,14 +677,14 @@ private[migration] object MigrationBuilderMacrosImpl {
     B: Type,
     Handled <: Tuple: Type,
     Provided <: Tuple: Type,
-    CaseName <: String & Singleton: Type
+    CasePath <: Tuple: Type
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     nestedActions: Expr[MigrationBuilder[A, A, EmptyTuple, EmptyTuple] => MigrationBuilder[A, A, ?, ?]]
   )(using
     q: Quotes
-  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, CaseName], Tuple.Append[Provided, CaseName]]] = {
+  ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, CasePath], Tuple.Append[Provided, CasePath]]] = {
     import q.reflect.*
 
     val (atOptic, caseName) = MigrationBuilderMacros.extractCaseSelector[A, Any](at)
@@ -654,9 +692,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     // Extract the case name from the selector
     val caseNameStr = extractCaseNameFromSelector(at.asTerm)
 
-    // Create literal type for case name with "case:" prefix
-    val caseNameType     = ConstantType(StringConstant(s"case:$caseNameStr")).asType.asInstanceOf[Type[CaseName]]
-    given Type[CaseName] = caseNameType
+    // Create structured path tuple type for case name: (("case", "CaseName"),)
+    val casePathType     = casePathToTupleType(caseNameStr).asType.asInstanceOf[Type[CasePath]]
+    given Type[CasePath] = casePathType
 
     '{
       val sourceSchema                                                 = $builder.sourceSchema
@@ -665,17 +703,16 @@ private[migration] object MigrationBuilderMacrosImpl {
       val transformedBuilder = $nestedActions.apply(emptyBuilder)
       $builder
         .transformCase($atOptic, $caseName, transformedBuilder.actions)
-        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, CaseName], Tuple.Append[Provided, CaseName]]]
+        .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, CasePath], Tuple.Append[Provided, CasePath]]]
     }
   }
 
   /**
-   * Helper to extract full field path from selector expression.
+   * Helper to extract field path from selector expression as a List of field names.
    *
-   * For nested selectors like `_.address.street`, returns the full path
-   * "address.street" instead of just "street".
+   * For nested selectors like `_.address.street`, returns List("address", "street").
    */
-  private def extractFieldNameFromSelector(using q: Quotes)(term: q.reflect.Term): String = {
+  private def extractFieldPathFromSelector(using q: Quotes)(term: q.reflect.Term): List[String] = {
     import q.reflect.*
 
     def toPathBody(t: Term): Term = t match {
@@ -706,19 +743,18 @@ private[migration] object MigrationBuilderMacrosImpl {
       report.errorAndAbort("Selector must access at least one field", term.pos)
     }
 
-    // Return the full dot-separated path
-    path.mkString(".")
+    path
   }
 
   /**
-   * Helper to extract all field names from a Seq of selector expressions.
+   * Helper to extract all field paths from a Seq of selector expressions.
    *
    * For `Seq(_.firstName, _.lastName)`, returns
-   * `List("firstName", "lastName")`. For nested selectors like
+   * `List(List("firstName"), List("lastName"))`. For nested selectors like
    * `Seq(_.person.firstName, _.person.lastName)`, returns
-   * `List("person.firstName", "person.lastName")`.
+   * `List(List("person", "firstName"), List("person", "lastName"))`.
    */
-  private def extractFieldNamesFromSeq(using q: Quotes)(term: q.reflect.Term): List[String] = {
+  private def extractFieldPathsFromSeq(using q: Quotes)(term: q.reflect.Term): List[List[String]] = {
     import q.reflect.*
 
     def unwrap(t: Term): Term = t match {
@@ -742,6 +778,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
 
     val selectors = extractSelectors(term)
-    selectors.map(extractFieldNameFromSelector)
+    selectors.map(extractFieldPathFromSelector)
   }
+
 }

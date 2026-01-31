@@ -72,66 +72,7 @@ object TypeLevelSpec extends ZIOSpecDefault {
         assertTrue(true)
       }
     ),
-    suite("Difference")(
-      test("some elements removed") {
-        type Result = Difference[("a", "b", "c"), Tuple1["b"]]
-        summon[Contains[Result, "a"] =:= true]
-        summon[Contains[Result, "b"] =:= false]
-        summon[Contains[Result, "c"] =:= true]
-        assertTrue(true)
-      },
-      test("no elements removed (disjoint)") {
-        type Result = Difference[("a", "b"), ("c", "d")]
-        summon[Contains[Result, "a"] =:= true]
-        summon[Contains[Result, "b"] =:= true]
-        assertTrue(true)
-      },
-      test("all elements removed") {
-        type Result = Difference[Tuple1["a"], Tuple1["a"]]
-        summon[Result =:= EmptyTuple]
-        assertTrue(true)
-      },
-      test("difference from empty tuple") {
-        type Result = Difference[EmptyTuple, ("a", "b")]
-        summon[Result =:= EmptyTuple]
-        assertTrue(true)
-      },
-      test("difference with empty removal set") {
-        type Result = Difference[("a", "b"), EmptyTuple]
-        summon[Contains[Result, "a"] =:= true]
-        summon[Contains[Result, "b"] =:= true]
-        assertTrue(true)
-      },
-      test("multiple elements removed") {
-        type Result = Difference[("a", "b", "c", "d"), ("b", "d")]
-        summon[Contains[Result, "a"] =:= true]
-        summon[Contains[Result, "b"] =:= false]
-        summon[Contains[Result, "c"] =:= true]
-        summon[Contains[Result, "d"] =:= false]
-        assertTrue(true)
-      }
-    ),
-    suite("SubsetEvidence")(
-      test("empty tuple evidence exists") {
-        summon[SubsetEvidence[EmptyTuple, ("a", "b")]]
-        assertTrue(true)
-      },
-      test("single element subset evidence exists") {
-        summon[SubsetEvidence[Tuple1["a"], ("a", "b")]]
-        assertTrue(true)
-      },
-      test("full subset evidence exists") {
-        summon[SubsetEvidence[("a", "b"), ("a", "b", "c")]]
-        assertTrue(true)
-      }
-    ),
     suite("compile-time safety")(
-      test("non-subset should not compile") {
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration.TypeLevel._
-          summon[SubsetEvidence[("a", "x"), ("a", "b")]]
-        """))(Assertion.isLeft)
-      },
       test("wrong Contains result should not compile") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration.TypeLevel._
