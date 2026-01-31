@@ -309,4 +309,25 @@ object SchemaExpr {
     private[this] def toDynamicValue(value: Int): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Int(value))
   }
+
+
+  /** Marker used by migration DSL + macros. Must be rewritten before evaluation. */
+  case object DefaultValueMarker extends SchemaExpr[Any, Nothing] {
+    override def eval(input: Any): Either[OpticCheck, Seq[Nothing]] =
+      throw new IllegalStateException("DefaultValueMarker must be rewritten by migration macros")
+
+    override def evalDynamic(input: Any): Either[OpticCheck, Seq[DynamicValue]] =
+      throw new IllegalStateException("DefaultValueMarker must be rewritten by migration macros")
+  }
+
+
+  final case class DefaultValueFromSchema[A](schema: Schema[A]) extends SchemaExpr[Any, A] {
+    override def eval(input: Any): Either[OpticCheck, Seq[A]] =
+      throw new IllegalStateException("DefaultValueFromSchema must be handled by migration interpreter")
+
+    override def evalDynamic(input: Any): Either[OpticCheck, Seq[DynamicValue]] =
+      throw new IllegalStateException("DefaultValueFromSchema must be handled by migration interpreter")
+  }
+
+
 }
