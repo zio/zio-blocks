@@ -363,12 +363,13 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("escapes control characters") {
       // ASCII control character (e.g., SOH = 0x01)
-      val patch = JsonPatch.root(JsonPatch.Op.Set(Json.String("hello\u0001world")))
+      val patch          = JsonPatch.root(JsonPatch.Op.Set(Json.String("hello\u0001world")))
+      val escapedControl = "\\u0001"
       assertTrue(
         patch.toString ==
-          """JsonPatch {
-            |  root = "hello\u0001world"
-            |}""".stripMargin
+          s"""JsonPatch {
+             |  root = "hello${escapedControl}world"
+             |}""".stripMargin
       )
     },
     test("escapes multiple special characters in one string") {
