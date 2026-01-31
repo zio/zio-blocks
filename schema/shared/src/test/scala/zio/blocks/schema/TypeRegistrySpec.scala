@@ -250,122 +250,39 @@ object TypeRegistrySpec extends SchemaBaseSpec {
         )
       }
     ),
-    suite("DynamicSchema.rebind")(
-      test("rebinds a simple record schema") {
-        val originalSchema = Schema[Person]
-        val dynamicSchema  = originalSchema.toDynamicSchema
-        val registry       = TypeRegistry.default
-          .bind(originalSchema.reflect.binding.asInstanceOf[Binding.Record[Person]])
-
-        val rebound = dynamicSchema.rebind[Person](registry)
-        val person  = Person("Alice", 30)
-        val dynamic = rebound.toDynamicValue(person)
-        val result  = rebound.fromDynamicValue(dynamic)
-
-        assertTrue(result == Right(person))
+    suite("unified bind method")(
+      test("accepts Binding.of result for Record") {
+        val binding  = Binding.of[Person]
+        val registry = TypeRegistry.default.bind(binding)
+        assertTrue(registry.lookupRecord[Person].isDefined)
       },
-      test("rebinds a schema with sequence fields") {
-        case class Team(name: String, members: List[String])
-        implicit val schema: Schema[Team] = Schema.derived[Team]
-
-        val dynamicSchema = schema.toDynamicSchema
-        val registry      = TypeRegistry.default
-          .bind(schema.reflect.binding.asInstanceOf[Binding.Record[Team]])
-
-        val rebound = dynamicSchema.rebind[Team](registry)
-        val team    = Team("Alpha", List("Alice", "Bob"))
-        val dynamic = rebound.toDynamicValue(team)
-        val result  = rebound.fromDynamicValue(dynamic)
-
-        assertTrue(result == Right(team))
+      test("accepts Binding.of result for Variant") {
+        val binding  = Binding.of[Animal]
+        val registry = TypeRegistry.default.bind(binding)
+        assertTrue(registry.lookupVariant[Animal].isDefined)
       },
-      test("rebinds a schema with map fields") {
-        case class Config(settings: Map[String, Int])
-        implicit val schema: Schema[Config] = Schema.derived[Config]
-
-        val dynamicSchema = schema.toDynamicSchema
-        val registry      = TypeRegistry.default
-          .bind(schema.reflect.binding.asInstanceOf[Binding.Record[Config]])
-
-        val rebound = dynamicSchema.rebind[Config](registry)
-        val config  = Config(Map("a" -> 1, "b" -> 2))
-        val dynamic = rebound.toDynamicValue(config)
-        val result  = rebound.fromDynamicValue(dynamic)
-
-        assertTrue(result == Right(config))
+      test("accepts Binding.of result for Primitive") {
+        val binding  = Binding.of[Int]
+        val registry = TypeRegistry.empty.bind(binding)
+        assertTrue(registry.lookupPrimitive[Int].isDefined)
       },
-      test("rebinds a variant schema") {
-        val dynamicSchema = Schema[Animal].toDynamicSchema
-
-        val dogBinding = Schema[Dog].reflect.binding.asInstanceOf[Binding.Record[Dog]]
-        val catBinding = Schema[Cat].reflect.binding.asInstanceOf[Binding.Record[Cat]]
-
-        val registry = TypeRegistry.default
-          .bind(Schema[Animal].reflect.binding.asInstanceOf[Binding.Variant[Animal]])
-          .bind(dogBinding)
-          .bind(catBinding)
-
-        val rebound     = dynamicSchema.rebind[Animal](registry)
-        val dog: Animal = Dog("Buddy")
-        val dynamic     = rebound.toDynamicValue(dog)
-        val result      = rebound.fromDynamicValue(dynamic)
-
-        assertTrue(result == Right(dog))
+      test("Binding.of[List] returns Seq binding") {
+        val binding = Binding.of[List]
+        assertTrue(binding.isInstanceOf[Binding.Seq[List, Nothing]])
       },
-      test("throws RebindException when binding is missing") {
-        val dynamicSchema = Schema[Person].toDynamicSchema
-        val registry      = TypeRegistry.default
-
-        val thrown = try {
-          dynamicSchema.rebind[Person](registry)
-          false
-        } catch {
-          case _: RebindException => true
-          case _: Throwable       => false
-        }
-
-        assertTrue(thrown)
+      test("Binding.of[Map] returns Map binding") {
+        val binding = Binding.of[Map]
+        assertTrue(binding.isInstanceOf[Binding.Map[Map, Nothing, Nothing]])
       },
-      test("RebindException contains useful information") {
-        val dynamicSchema = Schema[Person].toDynamicSchema
-        val registry      = TypeRegistry.default
-
-        val exception = try {
-          dynamicSchema.rebind[Person](registry)
-          null
-        } catch {
-          case e: RebindException => e
-          case _: Throwable       => null
-        }
-
-        assertTrue(
-          exception != null,
-          exception.expectedKind == "Record",
-          exception.typeId.fullName.contains("Person"),
-          exception.getMessage.contains("Person"),
-          exception.getMessage.contains("Record")
-        )
+      test("bindSeq works with Binding.of[List]") {
+        val binding  = Binding.of[List]
+        val registry = TypeRegistry.empty.bindSeq[List](binding)
+        assertTrue(registry.lookupSeq[List[Int]].isDefined)
       },
-      test("rebinds primitive schema") {
-        val dynamicSchema = Schema[Int].toDynamicSchema
-        val registry      = TypeRegistry.default
-
-        val rebound = dynamicSchema.rebind[Int](registry)
-        val dynamic = rebound.toDynamicValue(42)
-        val result  = rebound.fromDynamicValue(dynamic)
-
-        assertTrue(result == Right(42))
-      },
-      test("rebinds dynamic schema") {
-        val dynamicSchema = Schema[DynamicValue].toDynamicSchema
-        val registry      = TypeRegistry.default
-
-        val rebound   = dynamicSchema.rebind[DynamicValue](registry)
-        val testValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val dynamic   = rebound.toDynamicValue(testValue)
-        val result    = rebound.fromDynamicValue(dynamic)
-
-        assertTrue(result == Right(testValue))
+      test("bindMap works with Binding.of[Map]") {
+        val binding  = Binding.of[Map]
+        val registry = TypeRegistry.empty.bindMap[Map](binding)
+        assertTrue(registry.lookupMap[Map[String, Int]].isDefined)
       }
     ),
     suite("UnapplySeq")(

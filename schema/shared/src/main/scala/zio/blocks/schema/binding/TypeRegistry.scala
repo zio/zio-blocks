@@ -31,79 +31,45 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
   import TypeRegistry._
 
   /**
-   * Binds a record type to its binding.
+   * Binds a type to its binding, automatically dispatching based on binding
+   * kind.
+   *
+   * This unified entry point accepts any proper binding type (Record, Variant,
+   * Primitive, Wrapper, or Dynamic) and stores it appropriately. It works with
+   * `Binding.of[A]` which returns `Any` in Scala 2.
+   *
+   * For sequence and map types, use [[bindSeq]] and [[bindMap]] instead.
    *
    * @tparam A
    *   The type to bind
    * @param binding
-   *   The record binding providing constructor and deconstructor
+   *   Any proper binding (Record, Variant, Primitive, Wrapper, or Dynamic)
    * @param typeId
    *   The TypeId for type A (usually derived implicitly)
    * @return
    *   A new TypeRegistry with the binding added
-   */
-  def bind[A](binding: Binding.Record[A])(implicit typeId: TypeId[A]): TypeRegistry =
-    updated(keyForProper(typeId), Entry.Record(binding))
-
-  /**
-   * Binds a variant type to its binding.
+   * @throws IllegalArgumentException
+   *   if the binding is a Seq or Map binding (use bindSeq/bindMap instead)
    *
-   * @tparam A
-   *   The type to bind
-   * @param binding
-   *   The variant binding providing discriminator and matchers
-   * @param typeId
-   *   The TypeId for type A (usually derived implicitly)
-   * @return
-   *   A new TypeRegistry with the binding added
+   * @example
+   *   {{{
+   * case class Person(name: String, age: Int)
+   * val registry = TypeRegistry.default.bind(Binding.of[Person])
+   *   }}}
    */
-  def bind[A](binding: Binding.Variant[A])(implicit typeId: TypeId[A]): TypeRegistry =
-    updated(keyForProper(typeId), Entry.Variant(binding))
-
-  /**
-   * Binds a primitive type to its binding.
-   *
-   * @tparam A
-   *   The type to bind
-   * @param binding
-   *   The primitive binding
-   * @param typeId
-   *   The TypeId for type A (usually derived implicitly)
-   * @return
-   *   A new TypeRegistry with the binding added
-   */
-  def bind[A](binding: Binding.Primitive[A])(implicit typeId: TypeId[A]): TypeRegistry =
-    updated(keyForProper(typeId), Entry.Primitive(binding))
-
-  /**
-   * Binds a wrapper type to its binding.
-   *
-   * @tparam A
-   *   The outer (wrapped) type
-   * @tparam B
-   *   The inner (underlying) type
-   * @param binding
-   *   The wrapper binding providing wrap and unwrap functions
-   * @param typeId
-   *   The TypeId for type A (usually derived implicitly)
-   * @return
-   *   A new TypeRegistry with the binding added
-   */
-  def bind[A, B](binding: Binding.Wrapper[A, B])(implicit typeId: TypeId[A]): TypeRegistry =
-    updated(keyForProper(typeId), Entry.Wrapper(binding))
-
-  /**
-   * Binds the dynamic type to its binding.
-   *
-   * @param binding
-   *   The dynamic binding
-   * @param typeId
-   *   The TypeId for DynamicValue (usually derived implicitly)
-   * @return
-   *   A new TypeRegistry with the binding added
-   */
-  def bind(binding: Binding.Dynamic)(implicit typeId: TypeId[zio.blocks.schema.DynamicValue]): TypeRegistry =
-    updated(keyForProper(typeId), Entry.Dynamic(binding))
+  def bind[A](binding: Binding[_, A])(implicit typeId: TypeId[A]): TypeRegistry = binding match {
+    case b: Binding.Record[A] @unchecked     => updated(keyForProper(typeId), Entry.Record(b))
+    case b: Binding.Variant[A] @unchecked    => updated(keyForProper(typeId), Entry.Variant(b))
+    case b: Binding.Primitive[A] @unchecked  => updated(keyForProper(typeId), Entry.Primitive(b))
+    case b: Binding.Wrapper[A, _] @unchecked =>
+      updated(keyForProper(typeId), Entry.Wrapper(b.asInstanceOf[Binding.Wrapper[Any, Any]]))
+    case b: Binding.Dynamic =>
+      updated(keyForProper(typeId), Entry.Dynamic(b))
+    case _: Binding.Seq[_, _] =>
+      throw new IllegalArgumentException("Use bindSeq for sequence bindings")
+    case _: Binding.Map[_, _, _] =>
+      throw new IllegalArgumentException("Use bindMap for map bindings")
+  }
 
   /**
    * Binds a sequence type constructor to its binding.
@@ -428,7 +394,6 @@ object TypeRegistry {
    *   - Map
    */
   val default: TypeRegistry = {
-    import zio.blocks.schema.DynamicValue
     import zio.blocks.chunk.Chunk
 
     empty
@@ -465,7 +430,7 @@ object TypeRegistry {
       .bind(Binding.Primitive.currency)
       .bind(Binding.Primitive.uuid)
       // Dynamic
-      .bind(Binding.Dynamic())(TypeId.of[DynamicValue])
+      .bind(Binding.Dynamic())
       // Sequences
       .bindSeq[Set](Binding.Seq.set[Nothing])
       .bindSeq[List](Binding.Seq.list[Nothing])

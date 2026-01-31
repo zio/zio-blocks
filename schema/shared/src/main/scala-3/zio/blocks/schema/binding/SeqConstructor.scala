@@ -830,4 +830,54 @@ object SeqConstructor {
 
     val emptyChar: IArray[Char] = IArray.unsafeFromArray(Array.emptyCharArray)
   }
+
+  implicit val arrayConstructor: SeqConstructor[Array] = new ArrayConstructor {
+    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+      new Builder(new Array[AnyRef](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+
+    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def resultObject[A](builder: ObjectBuilder[A]): Array[A] = {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
+    }
+
+    def emptyObject[A]: Array[A] = Array.empty[AnyRef].asInstanceOf[Array[A]]
+  }
+
+  implicit val iArrayConstructor: SeqConstructor[IArray] = new IArrayConstructor {
+    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+      new Builder(new Array[AnyRef](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+
+    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def resultObject[A](builder: ObjectBuilder[A]): IArray[A] = IArray.unsafeFromArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
+    }
+
+    def emptyObject[A]: IArray[A] = IArray.unsafeFromArray(Array.empty[AnyRef]).asInstanceOf[IArray[A]]
+  }
 }
