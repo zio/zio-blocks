@@ -6,7 +6,6 @@ import zio.test._
 import zio.test.Assertion._
 import TypeLevel._
 import MigrationBuilderSyntax._
-import ShapeExtraction.{CasePaths, FieldPaths}
 
 object CompileTimeValidationSpec extends ZIOSpecDefault {
 
@@ -1178,25 +1177,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       // Error shows "Unprovided cases for target"
       assertZIO(result)(isLeft(containsString("Unprovided cases for target")))
     },
-    test("FieldPaths extracts nested paths correctly") {
-      // Verify FieldPaths typeclass extracts full nested paths
-      val fp = implicitly[FieldPaths[NestedPersonV1]]
-      // The Paths type should contain: "address", "address.city", "address.street", "name"
-      // We verify by checking that the implicit resolves
-      assertTrue(fp != null)
-    },
-    test("CasePaths extracts case names for sealed traits") {
-      // Verify CasePaths typeclass extracts case names with "case:" prefix
-      val cp = implicitly[CasePaths[ResultV1]]
-      // The Cases type should contain: "case:FailureV1", "case:SuccessV1"
-      // We verify by checking that the implicit resolves
-      assertTrue(cp != null)
-    },
-    test("CasePaths returns empty for non-sealed types") {
-      // Non-sealed types should have empty CasePaths
-      val cp = implicitly[CasePaths[PersonA]]
-      // CasePaths for a regular case class should be TNil
-      assertTrue(cp != null)
+    test("ShapeTree extracts nested structure correctly") {
+      // Verify ShapeTree typeclass extracts full nested structure
+      val st = implicitly[ShapeExtraction.ShapeTree[NestedPersonV1]]
+      // The tree should contain the full nested structure
+      assertTrue(st.tree != null)
     }
   )
 
@@ -1279,17 +1264,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
   // Edge Cases Suite
   val EdgeCasesSuite = suite("edge cases")(
-    test("container types do not recurse into element types") {
-      // Container fields (Option, List, Set, Map) should NOT have their element types recursed
-      // So only top-level container fields appear in paths, not nested contents
-      val fp = implicitly[FieldPaths[WithContainers]]
-      // Paths should be: "list", "map", "opt", "set" - no nested paths like "opt.street"
-      assertTrue(fp != null)
+    test("container types extract with ShapeTree") {
+      // Container fields should have proper ShapeNode representation
+      val st = implicitly[ShapeExtraction.ShapeTree[WithContainers]]
+      // ShapeTree should show SeqNode, OptionNode, MapNode for container fields
+      assertTrue(st.tree != null)
     },
     test("deeply nested containers extract correctly") {
-      // List[Option[Map[String, Vector[Int]]]] should just be a single path "items"
-      val fp = implicitly[FieldPaths[DeeplyNestedContainers]]
-      assertTrue(fp != null)
+      // List[Option[Map[String, Vector[Int]]]] should extract as nested ShapeNodes
+      val st = implicitly[ShapeExtraction.ShapeTree[DeeplyNestedContainers]]
+      assertTrue(st.tree != null)
     },
     test("migration with container fields works") {
       // Containers with different element types should still migrate if container field names match
@@ -1297,16 +1281,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       assertTrue(migration != null)
     },
     test("sealed trait with case objects extracts all cases") {
-      // CasePaths should include both case classes and case objects
-      val cp = implicitly[CasePaths[WithCaseObject]]
-      // Should have "case:NoneValue" and "case:SomeValue"
-      assertTrue(cp != null)
+      // ShapeTree should include both case classes and case objects as SealedNode
+      val st = implicitly[ShapeExtraction.ShapeTree[WithCaseObject]]
+      // Should have "NoneValue" and "SomeValue" cases
+      assertTrue(st.tree != null)
     },
     test("enum-like sealed trait with only case objects") {
       // All case objects should be extracted
-      val cp = implicitly[CasePaths[Color]]
-      // Should have "case:Blue", "case:Green", "case:Red"
-      assertTrue(cp != null)
+      val st = implicitly[ShapeExtraction.ShapeTree[Color]]
+      // Should have "Blue", "Green", "Red" cases
+      assertTrue(st.tree != null)
     },
     test("identical sealed traits with case objects require no handling") {
       // Same case object structure should compile without handling

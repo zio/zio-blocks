@@ -8,274 +8,294 @@ import TypeLevel._
 /**
  * Compile-time shape extraction for migration validation.
  *
- * Extracts the complete structure of a type at compile time, including:
- *   - All field paths (including nested paths like "address.street")
- *   - Sealed trait case names
- *   - Field paths within each case
- *
- * Also provides typeclasses that extract field paths and case names from types
- * at compile time, encoding them as TList type members for type-level
- * validation.
+ * Provides typeclasses for extracting type structure at compile time:
+ *   - ShapeTree[A]: Hierarchical shape representation
+ *   - MigrationPaths[A, B]: Computed diff between two types
  */
 object ShapeExtraction {
 
   /**
-   * Typeclass for extracting all field paths (including nested paths) from a
-   * type at compile time. The Paths type member contains the paths as a TList
-   * of string literal types.
+   * Typeclass for extracting the complete shape tree of a type at compile time.
+   * Returns a hierarchical ShapeNode representing the type's structure.
    *
-   * For nested case classes, returns all dot-separated paths:
+   *   - Product types (case classes) become RecordNode with field shapes
+   *   - Sum types (sealed traits) become SealedNode with case shapes
+   *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
+   *     R's shape
+   *   - Option[A] becomes OptionNode with A's shape
+   *   - List/Vector/Set[A] become SeqNode with A's shape
+   *   - Map[K, V] becomes MapNode with K's and V's shapes
+   *   - Primitives become PrimitiveNode
+   */
+  sealed trait ShapeTree[A] {
+    def tree: ShapeNode
+  }
+
+  object ShapeTree {
+
+    /** Concrete implementation of ShapeTree. */
+    final class Impl[A](val tree: ShapeNode) extends ShapeTree[A]
+
+    /** Implicit derivation macro for ShapeTree. */
+    implicit def derived[A]: ShapeTree[A] = macro ShapeExtractionMacros.shapeTreeDerivedImpl[A]
+  }
+
+  /**
+   * Typeclass for computing migration paths between two types at compile time.
+   * Computes the structural diff using ShapeTree and TreeDiff, exposing the
+   * removed and added paths as TList type members with structured tuple paths.
+   *
+   * {{{
+   * case class V1(name: String, age: Int)
+   * case class V2(name: String, email: String)
+   *
+   * // MigrationPaths[V1, V2].Removed contains (("field", "age"),)
+   * // MigrationPaths[V1, V2].Added contains (("field", "email"),)
+   * }}}
+   */
+  sealed trait MigrationPaths[A, B] {
+    type Removed <: TList
+    type Added <: TList
+  }
+
+  object MigrationPaths {
+
+    /** Concrete implementation with computed Removed and Added types. */
+    final class Impl[A, B, R <: TList, Add <: TList] extends MigrationPaths[A, B] {
+      type Removed = R
+      type Added   = Add
+    }
+
+    /** Auxiliary type alias for dependent type extraction. */
+    type Aux[A, B, R <: TList, Add <: TList] = MigrationPaths[A, B] { type Removed = R; type Added = Add }
+
+    /** Implicit derivation macro for MigrationPaths. */
+    implicit def derived[A, B]: MigrationPaths[A, B] = macro ShapeExtractionMacros.migrationPathsDerivedImpl[A, B]
+
+    /**
+     * Convert a Path (List[Segment]) to a flat string for error messages and
+     * validation. Used at compile time in macros.
+     */
+    def pathToFlatString(path: List[Segment]): String = {
+      if (path.isEmpty) return "<root>"
+      path.map {
+        case Segment.Field(name) => name
+        case Segment.Case(name)  => s"case:$name"
+        case Segment.Element     => "element"
+        case Segment.Key         => "key"
+        case Segment.Value       => "value"
+        case Segment.Wrapped     => "wrapped"
+      }.mkString(".")
+    }
+  }
+
+  /**
+   * Extract the shape tree from a type at compile time.
+   *
+   * Returns a hierarchical ShapeNode representing the type's complete
+   * structure.
+   *
    * {{{
    * case class Address(street: String, city: String)
    * case class Person(name: String, address: Address)
    *
-   * FieldPaths[Person].Paths =:= "address" :: "address.city" :: "address.street" :: "name" :: TNil
-   * }}}
-   */
-  sealed trait FieldPaths[A] {
-    type Paths <: TList
-  }
-
-  object FieldPaths {
-
-    /** Concrete implementation of FieldPaths with the Paths type member. */
-    class Impl[A, P <: TList] extends FieldPaths[A] {
-      type Paths = P
-    }
-
-    /** Auxiliary type alias for dependent type extraction. */
-    type Aux[A, P <: TList] = FieldPaths[A] { type Paths = P }
-
-    /** Implicit derivation macro for FieldPaths. */
-    implicit def derived[A]: FieldPaths[A] = macro ShapeExtractionMacros.fieldPathsDerivedImpl[A]
-  }
-
-  /**
-   * Typeclass for extracting case names from a sealed trait at compile time.
-   * The Cases type member contains the case names as a TList of string literal
-   * types with "case:" prefix.
-   *
-   * For sealed traits:
-   * {{{
-   * sealed trait Result
-   * case class Success(value: Int) extends Result
-   * case class Failure(error: String) extends Result
-   *
-   * CasePaths[Result].Cases =:= "case:Failure" :: "case:Success" :: TNil
-   * }}}
-   *
-   * For non-sealed types, Cases is TNil.
-   */
-  sealed trait CasePaths[A] {
-    type Cases <: TList
-  }
-
-  object CasePaths {
-
-    /** Concrete implementation of CasePaths with the Cases type member. */
-    class Impl[A, C <: TList] extends CasePaths[A] {
-      type Cases = C
-    }
-
-    /** Auxiliary type alias for dependent type extraction. */
-    type Aux[A, C <: TList] = CasePaths[A] { type Cases = C }
-
-    /** Implicit derivation macro for CasePaths. */
-    implicit def derived[A]: CasePaths[A] = macro ShapeExtractionMacros.casePathsDerivedImpl[A]
-  }
-
-  /**
-   * Represents the complete shape of a type.
-   *
-   * @param fieldPaths
-   *   All dot-separated field paths in sorted order (e.g., List("address",
-   *   "address.city", "address.street", "name"))
-   * @param caseNames
-   *   Case names for sealed traits in sorted order (e.g., List("Failure",
-   *   "Success"))
-   * @param caseFieldPaths
-   *   Field paths for each case, keyed by case name (e.g., Map("Success" ->
-   *   List("value"), "Failure" -> List("error")))
-   */
-  case class Shape(
-    fieldPaths: List[String],
-    caseNames: List[String],
-    caseFieldPaths: Map[String, List[String]]
-  )
-
-  /**
-   * Extract all field paths from a type at compile time.
-   *
-   * For nested case classes, returns all dot-separated paths:
-   * {{{
-   * case class Address(street: String, city: String)
-   * case class Person(name: String, address: Address)
-   *
-   * extractFieldPaths[Person]
-   * // Returns: List("address", "address.city", "address.street", "name")
+   * extractShapeTree[Person]
+   * // Returns: RecordNode(Map(
+   * //   "name" -> PrimitiveNode,
+   * //   "address" -> RecordNode(Map(
+   * //     "street" -> PrimitiveNode,
+   * //     "city" -> PrimitiveNode
+   * //   ))
+   * // ))
    * }}}
    *
    * For recursive types, produces a compile-time error.
    */
-  def extractFieldPaths[A]: List[String] = macro ShapeExtractionMacros.extractFieldPathsMacro[A]
-
-  /**
-   * Extract case names from a sealed trait at compile time.
-   *
-   * {{{
-   * sealed trait Result
-   * case class Success(value: Int) extends Result
-   * case class Failure(error: String) extends Result
-   *
-   * extractCaseNames[Result]
-   * // Returns: List("Failure", "Success")
-   * }}}
-   *
-   * For non-sealed types, returns an empty list.
-   */
-  def extractCaseNames[A]: List[String] = macro ShapeExtractionMacros.extractCaseNamesMacro[A]
-
-  /**
-   * Extract the complete shape of a type at compile time.
-   *
-   * Combines field paths, case names, and case field paths into a single Shape
-   * object. For sealed traits, extracts both the case names and the field paths
-   * within each case.
-   *
-   * {{{
-   * sealed trait Payment
-   * case class Card(number: String, expiry: String) extends Payment
-   * case class Cash(amount: Int) extends Payment
-   *
-   * extractShape[Payment]
-   * // Returns: Shape(
-   * //   fieldPaths = List(),
-   * //   caseNames = List("Card", "Cash"),
-   * //   caseFieldPaths = Map(
-   * //     "Card" -> List("expiry", "number"),
-   * //     "Cash" -> List("amount")
-   * //   )
-   * // )
-   * }}}
-   */
-  def extractShape[A]: Shape = macro ShapeExtractionMacros.extractShapeMacro[A]
+  def extractShapeTree[A]: ShapeNode = macro ShapeExtractionMacros.extractShapeTreeMacro[A]
 }
 
 private[migration] object ShapeExtractionMacros {
 
-  def extractFieldPathsMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[List[String]] = {
+  def extractShapeTreeMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeNode] = {
     val helper = new ShapeExtractionHelper[c.type](c)
-    helper.extractFieldPaths[A]
+    helper.extractShapeTreeImpl[A]
   }
 
-  def extractCaseNamesMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[List[String]] = {
+  def shapeTreeDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.ShapeTree[A]] = {
     val helper = new ShapeExtractionHelper[c.type](c)
-    helper.extractCaseNames[A]
+    helper.shapeTreeDerived[A]
   }
 
-  def extractShapeMacro[A: c.WeakTypeTag](c: blackbox.Context): c.Tree = {
+  def migrationPathsDerivedImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](
+    c: blackbox.Context
+  ): c.Expr[ShapeExtraction.MigrationPaths[A, B]] = {
     val helper = new ShapeExtractionHelper[c.type](c)
-    helper.extractShape[A]
-  }
-
-  def fieldPathsDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.FieldPaths[A]] = {
-    val helper = new ShapeExtractionHelper[c.type](c)
-    helper.fieldPathsDerived[A]
-  }
-
-  def casePathsDerivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ShapeExtraction.CasePaths[A]] = {
-    val helper = new ShapeExtractionHelper[c.type](c)
-    helper.casePathsDerived[A]
+    helper.migrationPathsDerived[A, B]
   }
 }
 
 private[migration] class ShapeExtractionHelper[C <: blackbox.Context](val c: C) extends MacroHelpers {
   import c.universe._
 
-  def extractFieldPaths[A: c.WeakTypeTag]: c.Expr[List[String]] = {
-    val tpe    = weakTypeOf[A].dealias
-    val paths  = extractFieldPathsFromType(tpe, "", Set.empty, "Migration shape extraction")
-    val sorted = paths.sorted
+  /**
+   * Convert a Segment to a type-level representation.
+   *   - Field("name") -> ("field", "name")
+   *   - Case("name") -> ("case", "name")
+   *   - Element -> "element"
+   *   - Key -> "key"
+   *   - Value -> "value"
+   *   - Wrapped -> "wrapped"
+   */
+  private def segmentToType(segment: Segment): c.Type = {
+    val tuple2Type = typeOf[(_, _)].typeConstructor
 
-    c.Expr[List[String]](q"${sorted.toList}")
-  }
+    segment match {
+      case Segment.Field(name) =>
+        val fieldLit = c.internal.constantType(Constant("field"))
+        val nameLit  = c.internal.constantType(Constant(name))
+        appliedType(tuple2Type, List(fieldLit, nameLit))
 
-  def extractCaseNames[A: c.WeakTypeTag]: c.Expr[List[String]] = {
-    val tpe   = weakTypeOf[A].dealias
-    val names = extractCaseNamesFromType(tpe)
+      case Segment.Case(name) =>
+        val caseLit = c.internal.constantType(Constant("case"))
+        val nameLit = c.internal.constantType(Constant(name))
+        appliedType(tuple2Type, List(caseLit, nameLit))
 
-    c.Expr[List[String]](q"${names.sorted.toList}")
-  }
+      case Segment.Element =>
+        c.internal.constantType(Constant("element"))
 
-  def extractShape[A: c.WeakTypeTag]: c.Tree = {
-    val tpe = weakTypeOf[A].dealias
+      case Segment.Key =>
+        c.internal.constantType(Constant("key"))
 
-    // Extract field paths (for product types)
-    val fieldPaths = extractFieldPathsFromType(tpe, "", Set.empty, "Migration shape extraction").sorted.toList
+      case Segment.Value =>
+        c.internal.constantType(Constant("value"))
 
-    // Extract case names (for sum types)
-    val caseNames = extractCaseNamesFromType(tpe).sorted.toList
-
-    // Extract field paths for each case
-    val caseFieldPaths: Map[String, List[String]] =
-      if (isSealedTrait(tpe)) {
-        val subTypes = directSubTypes(tpe)
-        subTypes.map { subTpe =>
-          val caseName  = getCaseName(subTpe)
-          val casePaths = extractFieldPathsFromType(subTpe, "", Set.empty, "Migration shape extraction").sorted.toList
-          caseName -> casePaths
-        }.toMap
-      } else {
-        Map.empty
-      }
-
-    // Build literal map entries for caseFieldPaths
-    val mapEntries = caseFieldPaths.toList.map { case (k, v) =>
-      q"($k, ${v.toList})"
+      case Segment.Wrapped =>
+        c.internal.constantType(Constant("wrapped"))
     }
-
-    q"_root_.zio.blocks.schema.migration.ShapeExtraction.Shape($fieldPaths, $caseNames, _root_.scala.collection.immutable.Map(..$mapEntries))"
-  }
-
-  def fieldPathsDerived[A: c.WeakTypeTag]: c.Expr[ShapeExtraction.FieldPaths[A]] = {
-    val tpe   = weakTypeOf[A].dealias
-    val paths = extractFieldPathsFromType(tpe, "", Set.empty).sorted
-
-    // Build TList type from paths
-    val tlistType = pathsToTListType(paths)
-
-    // Create the instance with correct type
-    val implClass  = typeOf[ShapeExtraction.FieldPaths.Impl[_, _]].typeSymbol
-    val resultType = appliedType(implClass, List(tpe, tlistType))
-
-    c.Expr[ShapeExtraction.FieldPaths[A]](q"new $resultType")
-  }
-
-  def casePathsDerived[A: c.WeakTypeTag]: c.Expr[ShapeExtraction.CasePaths[A]] = {
-    val tpe       = weakTypeOf[A].dealias
-    val caseNames = extractCaseNamesFromType(tpe).sorted.map(name => s"case:$name")
-
-    // Build TList type from case names
-    val tlistType = pathsToTListType(caseNames)
-
-    // Create the instance with correct type
-    val implClass  = typeOf[ShapeExtraction.CasePaths.Impl[_, _]].typeSymbol
-    val resultType = appliedType(implClass, List(tpe, tlistType))
-
-    c.Expr[ShapeExtraction.CasePaths[A]](q"new $resultType")
   }
 
   /**
-   * Convert a list of path strings to a TList type. List("a", "b", "c") => "a"
-   * :: "b" :: "c" :: TNil
+   * Convert a Path (List[Segment]) to a type-level tuple representation.
+   * List(Field("a"), Field("b")) -> (("field", "a"), ("field", "b"))
    */
-  private def pathsToTListType(paths: List[String]): c.Type = {
+  private def pathToTupleType(path: List[Segment]): c.Type =
+    if (path.isEmpty) {
+      typeOf[Unit] // EmptyTuple equivalent in Scala 2
+    } else {
+      val tuple2Type = typeOf[(_, _)].typeConstructor
+
+      // Create segment types
+      val segmentTypes = path.map(segmentToType)
+
+      // Build nested tuple from right to left
+      segmentTypes.reduceRight { (seg, acc) =>
+        appliedType(tuple2Type, List(seg, acc))
+      }
+    }
+
+  /**
+   * Convert a list of Paths to a TList of tuple types.
+   */
+  private def pathsToTupleListType(paths: List[List[Segment]]): c.Type = {
     val tnilType  = typeOf[TNil]
     val tconsType = typeOf[TCons[_, _]].typeConstructor
 
     paths.foldRight(tnilType) { (path, acc) =>
-      val pathType = c.internal.constantType(Constant(path))
+      val pathType = pathToTupleType(path)
       appliedType(tconsType, List(pathType, acc))
     }
   }
+
+  /**
+   * Extract the shape tree from a type and return it as an Expr.
+   */
+  def extractShapeTreeImpl[A: c.WeakTypeTag]: c.Expr[ShapeNode] = {
+    val tpe  = weakTypeOf[A].dealias
+    val tree = extractShapeTree(tpe, Set.empty, "Shape tree extraction")
+    shapeNodeToExpr(tree)
+  }
+
+  /**
+   * Derive a ShapeTree typeclass instance for type A.
+   */
+  def shapeTreeDerived[A: c.WeakTypeTag]: c.Expr[ShapeExtraction.ShapeTree[A]] = {
+    val tpe      = weakTypeOf[A].dealias
+    val tree     = extractShapeTree(tpe, Set.empty, "ShapeTree derivation")
+    val treeExpr = shapeNodeToExpr(tree)
+
+    c.Expr[ShapeExtraction.ShapeTree[A]](
+      q"new _root_.zio.blocks.schema.migration.ShapeExtraction.ShapeTree.Impl[$tpe]($treeExpr)"
+    )
+  }
+
+  /**
+   * Derive a MigrationPaths typeclass instance for types A and B. Computes the
+   * structural diff using TreeDiff and exposes removed/added paths as TList
+   * types. Paths are stored as structured tuples (("field", "name"), ...).
+   */
+  def migrationPathsDerived[A: c.WeakTypeTag, B: c.WeakTypeTag]: c.Expr[ShapeExtraction.MigrationPaths[A, B]] = {
+    val aType = weakTypeOf[A].dealias
+    val bType = weakTypeOf[B].dealias
+
+    // Extract shape trees for both types
+    val treeA = extractShapeTree(aType, Set.empty, "MigrationPaths derivation")
+    val treeB = extractShapeTree(bType, Set.empty, "MigrationPaths derivation")
+
+    // Compute diff using TreeDiff
+    val (removed, added) = TreeDiff.diff(treeA, treeB)
+
+    // Sort paths by their string representation for determinism
+    val removedSorted = removed.sortBy(ShapeExtraction.MigrationPaths.pathToFlatString)
+    val addedSorted   = added.sortBy(ShapeExtraction.MigrationPaths.pathToFlatString)
+
+    // Build TList types from the paths as structured tuples
+    val removedType = pathsToTupleListType(removedSorted)
+    val addedType   = pathsToTupleListType(addedSorted)
+
+    // Create the instance with correct type
+    val implClass  = typeOf[ShapeExtraction.MigrationPaths.Impl[_, _, _, _]].typeSymbol
+    val resultType = appliedType(implClass, List(aType, bType, removedType, addedType))
+
+    c.Expr[ShapeExtraction.MigrationPaths[A, B]](q"new $resultType")
+  }
+
+  /**
+   * Convert a ShapeNode to an Expr at compile time.
+   */
+  private def shapeNodeToExpr(node: ShapeNode): c.Expr[ShapeNode] =
+    node match {
+      case ShapeNode.PrimitiveNode =>
+        c.Expr[ShapeNode](q"_root_.zio.blocks.schema.migration.ShapeNode.PrimitiveNode")
+
+      case ShapeNode.RecordNode(fields) =>
+        val fieldEntries = fields.toList.map { case (name, child) =>
+          val childExpr = shapeNodeToExpr(child)
+          q"($name, $childExpr)"
+        }
+        c.Expr[ShapeNode](
+          q"_root_.zio.blocks.schema.migration.ShapeNode.RecordNode(_root_.scala.collection.immutable.Map(..$fieldEntries))"
+        )
+
+      case ShapeNode.SealedNode(cases) =>
+        val caseEntries = cases.toList.map { case (name, child) =>
+          val childExpr = shapeNodeToExpr(child)
+          q"($name, $childExpr)"
+        }
+        c.Expr[ShapeNode](
+          q"_root_.zio.blocks.schema.migration.ShapeNode.SealedNode(_root_.scala.collection.immutable.Map(..$caseEntries))"
+        )
+
+      case ShapeNode.SeqNode(element) =>
+        val elementExpr = shapeNodeToExpr(element)
+        c.Expr[ShapeNode](q"_root_.zio.blocks.schema.migration.ShapeNode.SeqNode($elementExpr)")
+
+      case ShapeNode.OptionNode(element) =>
+        val elementExpr = shapeNodeToExpr(element)
+        c.Expr[ShapeNode](q"_root_.zio.blocks.schema.migration.ShapeNode.OptionNode($elementExpr)")
+
+      case ShapeNode.MapNode(key, value) =>
+        val keyExpr   = shapeNodeToExpr(key)
+        val valueExpr = shapeNodeToExpr(value)
+        c.Expr[ShapeNode](q"_root_.zio.blocks.schema.migration.ShapeNode.MapNode($keyExpr, $valueExpr)")
+    }
 }

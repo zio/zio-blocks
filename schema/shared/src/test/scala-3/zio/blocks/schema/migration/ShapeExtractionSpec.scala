@@ -97,82 +97,112 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       test("flat case class returns RecordNode with primitive fields") {
         val tree = extractShapeTree[PersonForTree]
         assertTrue(
-          tree == RecordNode(Map(
-            "name" -> PrimitiveNode,
-            "age"  -> PrimitiveNode
-          ))
+          tree == RecordNode(
+            Map(
+              "name" -> PrimitiveNode,
+              "age"  -> PrimitiveNode
+            )
+          )
         )
       },
       test("nested case class returns nested RecordNodes") {
         val tree = extractShapeTree[PersonWithAddressForTree]
         assertTrue(
-          tree == RecordNode(Map(
-            "name" -> PrimitiveNode,
-            "address" -> RecordNode(Map(
-              "street" -> PrimitiveNode,
-              "city"   -> PrimitiveNode
-            ))
-          ))
+          tree == RecordNode(
+            Map(
+              "name"    -> PrimitiveNode,
+              "address" -> RecordNode(
+                Map(
+                  "street" -> PrimitiveNode,
+                  "city"   -> PrimitiveNode
+                )
+              )
+            )
+          )
         )
       },
       test("List[Person] returns SeqNode with RecordNode element") {
         val tree = extractShapeTree[WithListOfPerson]
         assertTrue(
-          tree == RecordNode(Map(
-            "items" -> SeqNode(RecordNode(Map(
-              "name" -> PrimitiveNode,
-              "age"  -> PrimitiveNode
-            )))
-          ))
+          tree == RecordNode(
+            Map(
+              "items" -> SeqNode(
+                RecordNode(
+                  Map(
+                    "name" -> PrimitiveNode,
+                    "age"  -> PrimitiveNode
+                  )
+                )
+              )
+            )
+          )
         )
       },
       test("Option[Address] returns OptionNode with RecordNode element") {
         val tree = extractShapeTree[WithOptionAddress]
         assertTrue(
-          tree == RecordNode(Map(
-            "address" -> OptionNode(RecordNode(Map(
-              "street" -> PrimitiveNode,
-              "city"   -> PrimitiveNode
-            )))
-          ))
+          tree == RecordNode(
+            Map(
+              "address" -> OptionNode(
+                RecordNode(
+                  Map(
+                    "street" -> PrimitiveNode,
+                    "city"   -> PrimitiveNode
+                  )
+                )
+              )
+            )
+          )
         )
       },
       test("Map[String, Person] returns MapNode with key and value shapes") {
         val tree = extractShapeTree[WithMapStringPerson]
         assertTrue(
-          tree == RecordNode(Map(
-            "data" -> MapNode(
-              PrimitiveNode,
-              RecordNode(Map(
-                "name" -> PrimitiveNode,
-                "age"  -> PrimitiveNode
-              ))
+          tree == RecordNode(
+            Map(
+              "data" -> MapNode(
+                PrimitiveNode,
+                RecordNode(
+                  Map(
+                    "name" -> PrimitiveNode,
+                    "age"  -> PrimitiveNode
+                  )
+                )
+              )
             )
-          ))
+          )
         )
       },
       test("Either[ErrorInfo, SuccessData] returns SealedNode with Left and Right") {
         val tree = extractShapeTree[Either[ErrorInfo, SuccessData]]
         assertTrue(
-          tree == SealedNode(Map(
-            "Left" -> RecordNode(Map(
-              "code"    -> PrimitiveNode,
-              "message" -> PrimitiveNode
-            )),
-            "Right" -> RecordNode(Map(
-              "value" -> PrimitiveNode,
-              "count" -> PrimitiveNode
-            ))
-          ))
+          tree == SealedNode(
+            Map(
+              "Left" -> RecordNode(
+                Map(
+                  "code"    -> PrimitiveNode,
+                  "message" -> PrimitiveNode
+                )
+              ),
+              "Right" -> RecordNode(
+                Map(
+                  "value" -> PrimitiveNode,
+                  "count" -> PrimitiveNode
+                )
+              )
+            )
+          )
         )
       },
       test("sealed trait with case object returns SealedNode with empty RecordNode for case object") {
         val tree = extractShapeTree[StatusForTree]
         assertTrue(
-          tree == SealedNode(Map(
-            "ActiveStatus"   -> RecordNode(Map("since" -> PrimitiveNode)),
-            "InactiveStatus" -> RecordNode(Map.empty)
-          ))
+          tree == SealedNode(
+            Map(
+              "ActiveStatus"   -> RecordNode(Map("since" -> PrimitiveNode)),
+              "InactiveStatus" -> RecordNode(Map.empty)
+            )
+          )
         )
       },
       test("primitive type returns PrimitiveNode") {
@@ -182,11 +212,13 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       test("simple enum returns SealedNode with empty RecordNodes") {
         val tree = extractShapeTree[Color]
         assertTrue(
-          tree == SealedNode(Map(
-            "Red"   -> RecordNode(Map.empty),
-            "Green" -> RecordNode(Map.empty),
-            "Blue"  -> RecordNode(Map.empty)
-          ))
+          tree == SealedNode(
+            Map(
+              "Red"   -> RecordNode(Map.empty),
+              "Green" -> RecordNode(Map.empty),
+              "Blue"  -> RecordNode(Map.empty)
+            )
+          )
         )
       },
       test("List[Int] returns SeqNode with PrimitiveNode element") {
@@ -241,69 +273,89 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       test("derives ShapeTree for flat case class") {
         val st = summon[ShapeTree[PersonForTree]]
         assertTrue(
-          st.tree == RecordNode(Map(
-            "name" -> PrimitiveNode,
-            "age"  -> PrimitiveNode
-          ))
+          st.tree == RecordNode(
+            Map(
+              "name" -> PrimitiveNode,
+              "age"  -> PrimitiveNode
+            )
+          )
         )
       },
       test("derives ShapeTree for nested case class") {
         val st = summon[ShapeTree[PersonWithAddressForTree]]
         assertTrue(
-          st.tree == RecordNode(Map(
-            "name" -> PrimitiveNode,
-            "address" -> RecordNode(Map(
-              "street" -> PrimitiveNode,
-              "city"   -> PrimitiveNode
-            ))
-          ))
+          st.tree == RecordNode(
+            Map(
+              "name"    -> PrimitiveNode,
+              "address" -> RecordNode(
+                Map(
+                  "street" -> PrimitiveNode,
+                  "city"   -> PrimitiveNode
+                )
+              )
+            )
+          )
         )
       },
       test("derives ShapeTree for sealed trait") {
         val st = summon[ShapeTree[StatusForTree]]
         assertTrue(
-          st.tree == SealedNode(Map(
-            "ActiveStatus"   -> RecordNode(Map("since" -> PrimitiveNode)),
-            "InactiveStatus" -> RecordNode(Map.empty)
-          ))
+          st.tree == SealedNode(
+            Map(
+              "ActiveStatus"   -> RecordNode(Map("since" -> PrimitiveNode)),
+              "InactiveStatus" -> RecordNode(Map.empty)
+            )
+          )
         )
       },
       test("derives ShapeTree for container types") {
         val st = summon[ShapeTree[WithListOfPerson]]
         assertTrue(
-          st.tree == RecordNode(Map(
-            "items" -> SeqNode(RecordNode(Map(
-              "name" -> PrimitiveNode,
-              "age"  -> PrimitiveNode
-            )))
-          ))
+          st.tree == RecordNode(
+            Map(
+              "items" -> SeqNode(
+                RecordNode(
+                  Map(
+                    "name" -> PrimitiveNode,
+                    "age"  -> PrimitiveNode
+                  )
+                )
+              )
+            )
+          )
         )
       },
       test("derives ShapeTree for Either") {
         val st = summon[ShapeTree[Either[ErrorInfo, SuccessData]]]
         assertTrue(
-          st.tree == SealedNode(Map(
-            "Left" -> RecordNode(Map(
-              "code"    -> PrimitiveNode,
-              "message" -> PrimitiveNode
-            )),
-            "Right" -> RecordNode(Map(
-              "value" -> PrimitiveNode,
-              "count" -> PrimitiveNode
-            ))
-          ))
+          st.tree == SealedNode(
+            Map(
+              "Left" -> RecordNode(
+                Map(
+                  "code"    -> PrimitiveNode,
+                  "message" -> PrimitiveNode
+                )
+              ),
+              "Right" -> RecordNode(
+                Map(
+                  "value" -> PrimitiveNode,
+                  "count" -> PrimitiveNode
+                )
+              )
+            )
+          )
         )
       }
     ),
     suite("TreeDiff")(
       test("identical trees have empty diff") {
-        val tree = RecordNode(Map("name" -> PrimitiveNode, "age" -> PrimitiveNode))
+        val tree             = RecordNode(Map("name" -> PrimitiveNode, "age" -> PrimitiveNode))
         val (removed, added) = TreeDiff.diff(tree, tree)
         assertTrue(removed.isEmpty, added.isEmpty)
       },
       test("added field appears in added list") {
-        val source = RecordNode(Map("name" -> PrimitiveNode))
-        val target = RecordNode(Map("name" -> PrimitiveNode, "age" -> PrimitiveNode))
+        val source           = RecordNode(Map("name" -> PrimitiveNode))
+        val target           = RecordNode(Map("name" -> PrimitiveNode, "age" -> PrimitiveNode))
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed.isEmpty,
@@ -311,8 +363,8 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("removed field appears in removed list") {
-        val source = RecordNode(Map("name" -> PrimitiveNode, "age" -> PrimitiveNode))
-        val target = RecordNode(Map("name" -> PrimitiveNode))
+        val source           = RecordNode(Map("name" -> PrimitiveNode, "age" -> PrimitiveNode))
+        val target           = RecordNode(Map("name" -> PrimitiveNode))
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Field("age"))),
@@ -321,22 +373,26 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       },
       test("changed field type appears in BOTH lists") {
         // name changed from Primitive to Record
-        val source = RecordNode(Map("name" -> PrimitiveNode))
-        val target = RecordNode(Map("name" -> RecordNode(Map("first" -> PrimitiveNode))))
+        val source           = RecordNode(Map("name" -> PrimitiveNode))
+        val target           = RecordNode(Map("name" -> RecordNode(Map("first" -> PrimitiveNode))))
         val (removed, added) = TreeDiff.diff(source, target)
-        val expectedPath = List(Segment.Field("name"))
+        val expectedPath     = List(Segment.Field("name"))
         assertTrue(
           removed == List(expectedPath),
           added == List(expectedPath)
         )
       },
       test("nested changes have correct prefixed paths") {
-        val source = RecordNode(Map(
-          "address" -> RecordNode(Map("city" -> PrimitiveNode))
-        ))
-        val target = RecordNode(Map(
-          "address" -> RecordNode(Map("zip" -> PrimitiveNode))
-        ))
+        val source = RecordNode(
+          Map(
+            "address" -> RecordNode(Map("city" -> PrimitiveNode))
+          )
+        )
+        val target = RecordNode(
+          Map(
+            "address" -> RecordNode(Map("zip" -> PrimitiveNode))
+          )
+        )
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Field("address"), Segment.Field("city"))),
@@ -344,20 +400,28 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("multiple changes at different levels") {
-        val source = RecordNode(Map(
-          "name" -> PrimitiveNode,
-          "address" -> RecordNode(Map(
-            "street" -> PrimitiveNode,
-            "city"   -> PrimitiveNode
-          ))
-        ))
-        val target = RecordNode(Map(
-          "age" -> PrimitiveNode,
-          "address" -> RecordNode(Map(
-            "street" -> PrimitiveNode,
-            "zip"    -> PrimitiveNode
-          ))
-        ))
+        val source = RecordNode(
+          Map(
+            "name"    -> PrimitiveNode,
+            "address" -> RecordNode(
+              Map(
+                "street" -> PrimitiveNode,
+                "city"   -> PrimitiveNode
+              )
+            )
+          )
+        )
+        val target = RecordNode(
+          Map(
+            "age"     -> PrimitiveNode,
+            "address" -> RecordNode(
+              Map(
+                "street" -> PrimitiveNode,
+                "zip"    -> PrimitiveNode
+              )
+            )
+          )
+        )
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed.toSet == Set(
@@ -371,14 +435,18 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("sealed trait case changes") {
-        val source = SealedNode(Map(
-          "Success" -> RecordNode(Map("value" -> PrimitiveNode)),
-          "Failure" -> RecordNode(Map("error" -> PrimitiveNode))
-        ))
-        val target = SealedNode(Map(
-          "Success" -> RecordNode(Map("value" -> PrimitiveNode)),
-          "Error"   -> RecordNode(Map("message" -> PrimitiveNode))
-        ))
+        val source = SealedNode(
+          Map(
+            "Success" -> RecordNode(Map("value" -> PrimitiveNode)),
+            "Failure" -> RecordNode(Map("error" -> PrimitiveNode))
+          )
+        )
+        val target = SealedNode(
+          Map(
+            "Success" -> RecordNode(Map("value" -> PrimitiveNode)),
+            "Error"   -> RecordNode(Map("message" -> PrimitiveNode))
+          )
+        )
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Case("Failure"))),
@@ -386,12 +454,16 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("case field changes within sealed trait") {
-        val source = SealedNode(Map(
-          "Success" -> RecordNode(Map("value" -> PrimitiveNode))
-        ))
-        val target = SealedNode(Map(
-          "Success" -> RecordNode(Map("result" -> PrimitiveNode))
-        ))
+        val source = SealedNode(
+          Map(
+            "Success" -> RecordNode(Map("value" -> PrimitiveNode))
+          )
+        )
+        val target = SealedNode(
+          Map(
+            "Success" -> RecordNode(Map("result" -> PrimitiveNode))
+          )
+        )
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Case("Success"), Segment.Field("value"))),
@@ -399,8 +471,8 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("sequence element changes have element segment") {
-        val source = SeqNode(RecordNode(Map("name" -> PrimitiveNode)))
-        val target = SeqNode(RecordNode(Map("title" -> PrimitiveNode)))
+        val source           = SeqNode(RecordNode(Map("name" -> PrimitiveNode)))
+        val target           = SeqNode(RecordNode(Map("title" -> PrimitiveNode)))
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Element, Segment.Field("name"))),
@@ -408,8 +480,8 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("option element changes have element segment") {
-        val source = OptionNode(RecordNode(Map("x" -> PrimitiveNode)))
-        val target = OptionNode(RecordNode(Map("y" -> PrimitiveNode)))
+        val source           = OptionNode(RecordNode(Map("x" -> PrimitiveNode)))
+        val target           = OptionNode(RecordNode(Map("y" -> PrimitiveNode)))
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Element, Segment.Field("x"))),
@@ -417,8 +489,8 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("map key changes have key segment") {
-        val source = MapNode(RecordNode(Map("id" -> PrimitiveNode)), PrimitiveNode)
-        val target = MapNode(RecordNode(Map("key" -> PrimitiveNode)), PrimitiveNode)
+        val source           = MapNode(RecordNode(Map("id" -> PrimitiveNode)), PrimitiveNode)
+        val target           = MapNode(RecordNode(Map("key" -> PrimitiveNode)), PrimitiveNode)
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Key, Segment.Field("id"))),
@@ -426,8 +498,8 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("map value changes have value segment") {
-        val source = MapNode(PrimitiveNode, RecordNode(Map("x" -> PrimitiveNode)))
-        val target = MapNode(PrimitiveNode, RecordNode(Map("y" -> PrimitiveNode)))
+        val source           = MapNode(PrimitiveNode, RecordNode(Map("x" -> PrimitiveNode)))
+        val target           = MapNode(PrimitiveNode, RecordNode(Map("y" -> PrimitiveNode)))
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Value, Segment.Field("x"))),
@@ -458,7 +530,7 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       test("node type change at root") {
         val source: ShapeNode = RecordNode(Map("x" -> PrimitiveNode))
         val target: ShapeNode = SeqNode(PrimitiveNode)
-        val (removed, added) = TreeDiff.diff(source, target)
+        val (removed, added)  = TreeDiff.diff(source, target)
         // Root type change - empty path in both lists
         assertTrue(
           removed == List(Nil),
@@ -466,12 +538,16 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         )
       },
       test("deeply nested container changes") {
-        val source = RecordNode(Map(
-          "data" -> SeqNode(OptionNode(RecordNode(Map("old" -> PrimitiveNode))))
-        ))
-        val target = RecordNode(Map(
-          "data" -> SeqNode(OptionNode(RecordNode(Map("new" -> PrimitiveNode))))
-        ))
+        val source = RecordNode(
+          Map(
+            "data" -> SeqNode(OptionNode(RecordNode(Map("old" -> PrimitiveNode))))
+          )
+        )
+        val target = RecordNode(
+          Map(
+            "data" -> SeqNode(OptionNode(RecordNode(Map("new" -> PrimitiveNode))))
+          )
+        )
         val (removed, added) = TreeDiff.diff(source, target)
         assertTrue(
           removed == List(List(Segment.Field("data"), Segment.Element, Segment.Element, Segment.Field("old"))),
@@ -581,8 +657,8 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       },
       test("sealed trait case changes") {
         sealed trait StatusV1
-        case class Active(since: String)  extends StatusV1
-        case class Inactive()             extends StatusV1
+        case class Active(since: String) extends StatusV1
+        case class Inactive()            extends StatusV1
 
         sealed trait StatusV2
         case class Running(since: String) extends StatusV2

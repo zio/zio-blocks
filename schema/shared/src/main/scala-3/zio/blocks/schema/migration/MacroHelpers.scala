@@ -299,12 +299,16 @@ private[migration] object MacroHelpers {
    * representation:
    *   - Product types (case classes) become RecordNode with field shapes
    *   - Sum types (sealed traits) become SealedNode with case shapes
-   *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" -> R's
-   *     shape
+   *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
+   *     R's shape
    *   - Option[A] becomes OptionNode with A's shape
    *   - List/Vector/Set[A] become SeqNode with A's shape
    *   - Map[K, V] becomes MapNode with K's and V's shapes
    *   - Primitives become PrimitiveNode
+   *
+   * Recursion handling:
+   *   - Any recursion (direct or through containers) produces a compile error
+   *   - Container elements are fully explored to extract their complete shape
    *
    * @param tpe
    *   The type to extract the shape from
@@ -315,7 +319,9 @@ private[migration] object MacroHelpers {
    * @return
    *   The ShapeNode representing the type's structure
    */
-  def extractShapeTree(using q: Quotes)(
+  def extractShapeTree(using
+    q: Quotes
+  )(
     tpe: q.reflect.TypeRepr,
     visiting: Set[String],
     errorContext: String = "Shape extraction"
@@ -325,7 +331,7 @@ private[migration] object MacroHelpers {
     val dealiased = tpe.dealias
     val typeKey   = dealiased.typeSymbol.fullName
 
-    // Check for recursion
+    // Check for recursion - always report as error
     if (visiting.contains(typeKey)) {
       report.errorAndAbort(
         s"Recursive type detected: ${dealiased.show}. " +
@@ -341,16 +347,16 @@ private[migration] object MacroHelpers {
         ShapeNode.PrimitiveNode
 
       case TypeCategory.Record =>
-        val fields = getProductFields(dealiased)
+        val fields      = getProductFields(dealiased)
         val fieldShapes = fields.map { case (fieldName, fieldType) =>
           fieldName -> extractShapeTree(fieldType, newVisiting, errorContext)
         }.toMap
         ShapeNode.RecordNode(fieldShapes)
 
       case TypeCategory.Sealed =>
-        val subTypes = directSubTypes(dealiased)
+        val subTypes   = directSubTypes(dealiased)
         val caseShapes = subTypes.map { subTpe =>
-          val caseName = getCaseName(subTpe)
+          val caseName  = getCaseName(subTpe)
           val caseShape =
             if (isEnumValue(subTpe)) {
               // Simple enum cases (like `case Red`) have no fields

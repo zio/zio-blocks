@@ -23,9 +23,9 @@ import zio.blocks.schema.migration.ShapeExtraction._
  * Type parameters:
  *   - A: Source type
  *   - B: Target type
- *   - Handled: Tuple of structured path tuples that have been handled.
- *     Field paths: (("field", "address"), ("field", "city"))
- *     Case paths: (("case", "CaseName"),)
+ *   - Handled: Tuple of structured path tuples that have been handled. Field
+ *     paths: (("field", "address"), ("field", "city")) Case paths: (("case",
+ *     "CaseName"),)
  *   - Provided: Tuple of structured path tuples that have been provided.
  */
 sealed trait ValidationProof[A, B, Handled <: Tuple, Provided <: Tuple]
@@ -46,8 +46,8 @@ object ValidationProof {
    *   - All added paths (in B but not A, or type changed) are in Provided
    *
    * Uses MigrationPaths which computes the diff using ShapeTree and TreeDiff.
-   * This approach handles both field paths and case names uniformly, and properly
-   * detects type changes (same path, different structure).
+   * This approach handles both field paths and case names uniformly, and
+   * properly detects type changes (same path, different structure).
    */
   transparent inline given derive[A, B, Handled <: Tuple, Provided <: Tuple](using
     mp: MigrationPaths[A, B]
@@ -99,8 +99,8 @@ object ValidationProof {
     val unprovided = addedStrings.diff(provided)
 
     // Categorize unhandled/unprovided into fields and cases
-    val unhandledFields = unhandled.filterNot(_.startsWith("case:"))
-    val unhandledCases  = unhandled.filter(_.startsWith("case:"))
+    val unhandledFields  = unhandled.filterNot(_.startsWith("case:"))
+    val unhandledCases   = unhandled.filter(_.startsWith("case:"))
     val unprovidedFields = unprovided.filterNot(_.startsWith("case:"))
     val unprovidedCases  = unprovided.filter(_.startsWith("case:"))
 
@@ -159,18 +159,20 @@ object ValidationProof {
   }
 
   /**
-   * Extract structured path tuples from a Tuple type and convert them to flat strings.
+   * Extract structured path tuples from a Tuple type and convert them to flat
+   * strings.
    *
-   * Each path in the tuple is a structured tuple like (("field", "address"), ("field", "city"))
-   * which gets converted to "address.city" for comparison and error messages.
+   * Each path in the tuple is a structured tuple like (("field", "address"),
+   * ("field", "city")) which gets converted to "address.city" for comparison
+   * and error messages.
    */
   private def extractTupleStrings(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
     import q.reflect.*
 
     /**
-     * Extract a single path tuple and convert it to a flat string.
-     * Path format: (("field", "address"), ("field", "city")) -> "address.city"
-     *              (("case", "Success"),) -> "case:Success"
+     * Extract a single path tuple and convert it to a flat string. Path format:
+     * (("field", "address"), ("field", "city")) -> "address.city" (("case",
+     * "Success"),) -> "case:Success"
      */
     def pathTupleToString(pathType: TypeRepr): Option[String] = {
       val segments = extractPathSegments(pathType)
@@ -179,12 +181,11 @@ object ValidationProof {
     }
 
     /**
-     * Extract segments from a path tuple type.
-     * Each segment is either:
-     * - ("field", "name") -> "name"
-     * - ("case", "name") -> "case:name"
-     * - "element" -> "element"
-     * - etc.
+     * Extract segments from a path tuple type. Each segment is either:
+     *   - ("field", "name") -> "name"
+     *   - ("case", "name") -> "case:name"
+     *   - "element" -> "element"
+     *   - etc.
      */
     def extractPathSegments(pathType: TypeRepr): List[String] = {
       val dealiased = pathType.dealias
@@ -196,8 +197,7 @@ object ValidationProof {
         case _ if dealiased =:= TypeRepr.of[EmptyTuple] =>
           Nil
         // Handle Tuple2 for segment pairs (already a segment, not a path)
-        case AppliedType(tycon, List(_, _))
-            if tycon.typeSymbol.fullName == "scala.Tuple2" =>
+        case AppliedType(tycon, List(_, _)) if tycon.typeSymbol.fullName == "scala.Tuple2" =>
           segmentToString(dealiased).toList
         case _ =>
           Nil
@@ -205,10 +205,8 @@ object ValidationProof {
     }
 
     /**
-     * Convert a segment type to a string.
-     * ("field", "name") -> "name"
-     * ("case", "name") -> "case:name"
-     * "element" literal -> "element"
+     * Convert a segment type to a string. ("field", "name") -> "name" ("case",
+     * "name") -> "case:name" "element" literal -> "element"
      */
     def segmentToString(segType: TypeRepr): Option[String] = {
       val dealiased = segType.dealias
