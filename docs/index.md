@@ -28,7 +28,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
 - **Modular**: Each block is a separate artifact. Import only what you need.
 - **Cross-Platform**: Full support for JVM, Scala.js, and Scala Native.
-- **Cross-Version**: Full support for Scala 2.13 and Scala 3.5+ with source compatibility—adopt Scala 3 on your timeline, not ours.
+- **Cross-Version**: Full support for Scala 2.13 and Scala 3.x with source compatibility—adopt Scala 3 on your timeline, not ours.
 - **High Performance**: Optimized implementations that avoid boxing, minimize allocations, and leverage platform-specific features.
 - **Type Safety**: Leverage Scala's type system for correctness without runtime overhead.
 
@@ -290,7 +290,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Scala & Platform Support
 
-ZIO Blocks supports **Scala 2.13** and **Scala 3.5+** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
+ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
 | Platform | Schema | Chunk | Docs | Streams |
 |----------|--------|-------|------|---------|

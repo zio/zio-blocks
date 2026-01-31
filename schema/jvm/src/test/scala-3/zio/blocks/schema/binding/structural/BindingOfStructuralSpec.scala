@@ -14,7 +14,6 @@ import scala.language.reflectiveCalls
  * structural types (refinement types), with full constructor/deconstructor
  * support using register-based serialization.
  */
-@experimental
 object BindingOfStructuralSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("BindingOfStructuralSpec")(
