@@ -37,10 +37,11 @@ object RemoteAgentClient {
         .registeredAgentType(name)
         .toRight(s"Agent type '$name' is not registered on this host")
         .flatMap { agentType =>
-          val resolvedTypeName = agentType.agentType.typeName
-          AgentHostApi.makeAgentId(resolvedTypeName, constructorPayload, phantom).map { id =>
+          val displayTypeName = agentType.agentType.typeName
+          val runtimeTypeName = kebabCase(displayTypeName)
+          AgentHostApi.makeAgentId(runtimeTypeName, constructorPayload, phantom).map { id =>
             val rpcClient = WasmRpcApi.newClient(agentType.implementedBy.asInstanceOf[js.Dynamic], id)
-            RemoteAgentClient(resolvedTypeName, id, agentType, new WasmRpcInvoker(rpcClient))
+            RemoteAgentClient(displayTypeName, id, agentType, new WasmRpcInvoker(rpcClient))
           }
         }
 
