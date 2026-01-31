@@ -119,7 +119,7 @@ object AgentClientRuntime {
     private def runFireAndForget[In, Out0](method: AgentMethod[Trait, In, Out0], input: In): Future[Unit] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
-      val functionName = normalizeFunctionName(method.functionName)
+      val functionName                 = normalizeFunctionName(method.functionName)
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
         _      <- client.rpc.trigger(functionName, params)
@@ -135,7 +135,7 @@ object AgentClientRuntime {
     ): Future[Unit] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
-      val functionName = normalizeFunctionName(method.functionName)
+      val functionName                 = normalizeFunctionName(method.functionName)
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
         _      <- client.rpc.scheduleInvocation(datetime, functionName, params)
@@ -149,9 +149,9 @@ object AgentClientRuntime {
     val methodIdx = functionName.indexOf(".{")
     if (methodIdx <= 0) return functionName
 
-    val prefix  = functionName.substring(0, methodIdx)
-    val suffix  = functionName.substring(methodIdx)
-    val slashAt = prefix.lastIndexOf('/')
+    val prefix            = functionName.substring(0, methodIdx)
+    val suffix            = functionName.substring(methodIdx)
+    val slashAt           = prefix.lastIndexOf('/')
     val (base, agentName) =
       if (slashAt >= 0) (prefix.substring(0, slashAt + 1), prefix.substring(slashAt + 1))
       else ("", prefix)
@@ -161,8 +161,8 @@ object AgentClientRuntime {
   }
 
   private def kebabCase(value: String): String = {
-    val builder = new StringBuilder(value.length * 2)
-    var i       = 0
+    val builder     = new StringBuilder(value.length * 2)
+    var i           = 0
     var prevWasDash = false
     while (i < value.length) {
       val ch = value.charAt(i)
@@ -183,7 +183,6 @@ object AgentClientRuntime {
     }
     builder.toString
   }
-
 
   private[rpc] object TestHooks {
     def withRemoteResolver[T](resolver: (String, js.Dynamic) => Either[String, RemoteAgentClient])(thunk: => T): T = {

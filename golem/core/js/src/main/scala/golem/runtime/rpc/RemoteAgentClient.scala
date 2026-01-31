@@ -47,11 +47,11 @@ object RemoteAgentClient {
 
     resolveOnce(agentTypeName) match {
       case ok @ Right(_) => ok
-      case Left(err) =>
+      case Left(err)     =>
         kebabCase(agentTypeName) match {
           case fallbackName if fallbackName != agentTypeName =>
             resolveOnce(fallbackName) match {
-              case ok @ Right(_) => ok
+              case ok @ Right(_)     => ok
               case Left(fallbackErr) =>
                 Left(s"$err (fallback: $fallbackErr)")
             }
@@ -78,7 +78,7 @@ object RemoteAgentClient {
   private def invokeWithFallback[A](functionName: String)(call: String => Either[String, A]): Either[String, A] =
     safeCall(call(functionName)) match {
       case ok @ Right(_) => ok
-      case Left(err) =>
+      case Left(err)     =>
         if (isMissingInterface(err)) {
           fallbackFunctionName(functionName) match {
             case Some(fallback) =>
@@ -101,9 +101,9 @@ object RemoteAgentClient {
     val methodIdx = functionName.indexOf(".{")
     if (methodIdx <= 0) return None
 
-    val prefix  = functionName.substring(0, methodIdx)
-    val suffix  = functionName.substring(methodIdx)
-    val slashAt = prefix.lastIndexOf('/')
+    val prefix            = functionName.substring(0, methodIdx)
+    val suffix            = functionName.substring(methodIdx)
+    val slashAt           = prefix.lastIndexOf('/')
     val (base, agentName) =
       if (slashAt >= 0) (prefix.substring(0, slashAt + 1), prefix.substring(slashAt + 1))
       else ("", prefix)
@@ -113,8 +113,8 @@ object RemoteAgentClient {
   }
 
   private def kebabCase(value: String): String = {
-    val builder = new StringBuilder(value.length * 2)
-    var i       = 0
+    val builder     = new StringBuilder(value.length * 2)
+    var i           = 0
     var prevWasDash = false
     while (i < value.length) {
       val ch = value.charAt(i)

@@ -88,7 +88,7 @@ object AgentDefinitionMacroImpl {
   ): c.Tree = {
     import c.universe._
 
-    val methodName = method.name.toString
+    val methodName   = method.name.toString
     val descExpr     = optionalStringExpr(c)(annotationString(c)(method, descriptionType))
     val promptExpr   = optionalStringExpr(c)(annotationString(c)(method, promptType))
     val inputSchema  = methodInputSchema(c)(method)

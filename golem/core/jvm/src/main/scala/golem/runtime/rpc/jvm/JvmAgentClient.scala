@@ -115,7 +115,7 @@ object JvmAgentClient {
             err.contains("Agent type not found") || err.contains("Failed to parse agent name")
 
           val primary = runInvoke(agentId, fn)
-          val out =
+          val out     =
             primary match {
               case Right(ok) => ok
               case Left(err) =>

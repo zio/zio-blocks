@@ -122,7 +122,7 @@ object AgentDefinitionMacro {
   private def methodMetadata(using Quotes)(method: quotes.reflect.Symbol): Expr[MethodMetadata] = {
     import quotes.reflect.*
 
-    val methodName = method.name
+    val methodName   = method.name
     val descExpr     = optionalString(annotationString(method, TypeRepr.of[description]))
     val promptExpr   = optionalString(annotationString(method, TypeRepr.of[prompt]))
     val inputSchema  = methodInputSchema(method)
