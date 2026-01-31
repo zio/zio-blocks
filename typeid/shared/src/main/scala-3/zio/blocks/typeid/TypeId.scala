@@ -34,9 +34,6 @@ sealed trait TypeId[A <: AnyKind] {
   /** Returns true if this is an applied type (has type arguments) */
   final def isApplied: Boolean = typeArgs.nonEmpty
 
-  /**
-   * Returns this TypeId with its type parameter erased, for use as a map key.
-   */
   final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
 
   // Derived properties

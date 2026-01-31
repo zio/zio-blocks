@@ -35,9 +35,6 @@ sealed trait TypeId[A] {
 
   final def isApplied: Boolean = typeArgs.nonEmpty
 
-  /**
-   * Returns this TypeId with its type parameter erased, for use as a map key.
-   */
   final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
 
   final def arity: Int = typeParams.size
