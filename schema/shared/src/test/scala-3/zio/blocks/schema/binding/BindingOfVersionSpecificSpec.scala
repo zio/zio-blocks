@@ -5,7 +5,6 @@ import zio.blocks.schema.{SchemaBaseSpec, SchemaError}
 import zio.prelude.Newtype
 import zio.test._
 
-@experimental
 object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
   private def isSeq(b: Any): Boolean = b match {
     case _: Binding.Seq[?, ?] => true
