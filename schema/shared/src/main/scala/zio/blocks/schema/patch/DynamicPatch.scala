@@ -995,16 +995,11 @@ object DynamicPatch {
     implicit object ForLazyList   extends CollectionDummy
   }
 
-  // All of the StringOp, PrimitiveOp, SeqOp, MapOp, Operation, DynamicPatchOp, DynamicPatch schemas are manually derived.
-  // Scala 2 fails to compile if schema.derive is used in the same run as compile
-  // Since Patch is a recursively defined type, we use Reflect.Deferred to defer the evaluation of the certain schemas.
-  // The manual derivation code works, with all tests passing.
-  // A cleaner way do this to use schema.derived (only in scala 3), implicit derivations for all the schemas.
-  // example -`implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] = Schema.derived`
-  // As they are definitely to be right.
-  implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  // Schema instances for DynamicPatch types
+  // Manual derivation for Scala 2 compatability
+  // In Scala 3, You can derive Schema using `Schema.derive`
 
+  implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Insert](
         fields = Vector(
@@ -1029,11 +1024,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val stringOpDeleteSchema: Schema[StringOp.Delete] = {
-    import zio.blocks.schema.binding.RegisterOffset
-
+  implicit lazy val stringOpDeleteSchema: Schema[StringOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Delete](
         fields = Vector(
@@ -1061,11 +1053,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val stringOpAppendSchema: Schema[StringOp.Append] = {
-    import zio.blocks.schema.binding.RegisterOffset
-
+  implicit lazy val stringOpAppendSchema: Schema[StringOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Append](
         fields = Vector(
@@ -1087,11 +1076,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val stringOpModifySchema: Schema[StringOp.Modify] = {
-    import zio.blocks.schema.binding.RegisterOffset
-
+  implicit lazy val stringOpModifySchema: Schema[StringOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Modify](
         fields = Vector(
@@ -1122,7 +1108,6 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
   implicit lazy val stringOpSchema: Schema[StringOp] = new Schema(
     reflect = new Reflect.Variant[Binding, StringOp](
@@ -1172,8 +1157,8 @@ object DynamicPatch {
       modifiers = Vector.empty
     )
   )
-  implicit lazy val primitiveOpIntDeltaSchema: Schema[PrimitiveOp.IntDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+
+  implicit lazy val primitiveOpIntDeltaSchema: Schema[PrimitiveOp.IntDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.IntDelta](
         fields = Vector(Schema[Int].reflect.asTerm("delta")),
@@ -1193,10 +1178,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpLongDeltaSchema: Schema[PrimitiveOp.LongDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpLongDeltaSchema: Schema[PrimitiveOp.LongDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LongDelta](
         fields = Vector(Schema[Long].reflect.asTerm("delta")),
@@ -1216,10 +1199,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpDoubleDeltaSchema: Schema[PrimitiveOp.DoubleDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpDoubleDeltaSchema: Schema[PrimitiveOp.DoubleDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DoubleDelta](
         fields = Vector(Schema[Double].reflect.asTerm("delta")),
@@ -1239,10 +1220,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpFloatDeltaSchema: Schema[PrimitiveOp.FloatDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpFloatDeltaSchema: Schema[PrimitiveOp.FloatDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.FloatDelta](
         fields = Vector(Schema[Float].reflect.asTerm("delta")),
@@ -1262,10 +1241,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpShortDeltaSchema: Schema[PrimitiveOp.ShortDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpShortDeltaSchema: Schema[PrimitiveOp.ShortDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ShortDelta](
         fields = Vector(Schema[Short].reflect.asTerm("delta")),
@@ -1285,10 +1262,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpByteDeltaSchema: Schema[PrimitiveOp.ByteDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpByteDeltaSchema: Schema[PrimitiveOp.ByteDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ByteDelta](
         fields = Vector(Schema[Byte].reflect.asTerm("delta")),
@@ -1308,10 +1283,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpBigIntDeltaSchema: Schema[PrimitiveOp.BigIntDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpBigIntDeltaSchema: Schema[PrimitiveOp.BigIntDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigIntDelta](
         fields = Vector(Schema[BigInt].reflect.asTerm("delta")),
@@ -1331,10 +1304,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpBigDecimalDeltaSchema: Schema[PrimitiveOp.BigDecimalDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpBigDecimalDeltaSchema: Schema[PrimitiveOp.BigDecimalDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigDecimalDelta](
         fields = Vector(Schema[BigDecimal].reflect.asTerm("delta")),
@@ -1354,10 +1325,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
         fields = Vector(Schema[Vector[StringOp]].reflect.asTerm("ops")),
@@ -1377,10 +1346,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpInstantDeltaSchema: Schema[PrimitiveOp.InstantDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpInstantDeltaSchema: Schema[PrimitiveOp.InstantDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.InstantDelta](
         fields = Vector(Schema[java.time.Duration].reflect.asTerm("delta")),
@@ -1400,10 +1367,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpDurationDeltaSchema: Schema[PrimitiveOp.DurationDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpDurationDeltaSchema: Schema[PrimitiveOp.DurationDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DurationDelta](
         fields = Vector(Schema[java.time.Duration].reflect.asTerm("delta")),
@@ -1423,10 +1388,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpLocalDateDeltaSchema: Schema[PrimitiveOp.LocalDateDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpLocalDateDeltaSchema: Schema[PrimitiveOp.LocalDateDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateDelta](
         fields = Vector(Schema[java.time.Period].reflect.asTerm("delta")),
@@ -1446,10 +1409,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpLocalDateTimeDeltaSchema: Schema[PrimitiveOp.LocalDateTimeDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpLocalDateTimeDeltaSchema: Schema[PrimitiveOp.LocalDateTimeDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateTimeDelta](
         fields = Vector(
@@ -1477,10 +1438,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val primitiveOpPeriodDeltaSchema: Schema[PrimitiveOp.PeriodDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val primitiveOpPeriodDeltaSchema: Schema[PrimitiveOp.PeriodDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.PeriodDelta](
         fields = Vector(Schema[java.time.Period].reflect.asTerm("delta")),
@@ -1500,7 +1459,6 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
   implicit lazy val primitiveOpSchema: Schema[PrimitiveOp] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveOp](
@@ -1631,8 +1589,7 @@ object DynamicPatch {
     )
   )
 
-  implicit lazy val seqOpInsertSchema: Schema[SeqOp.Insert] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val seqOpInsertSchema: Schema[SeqOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Insert](
         fields = Vector(
@@ -1657,10 +1614,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val seqOpAppendSchema: Schema[SeqOp.Append] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val seqOpAppendSchema: Schema[SeqOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Append](
         fields = Vector(Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
@@ -1680,10 +1635,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val seqOpDeleteSchema: Schema[SeqOp.Delete] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val seqOpDeleteSchema: Schema[SeqOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Delete](
         fields = Vector(
@@ -1708,10 +1661,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val seqOpModifySchema: Schema[SeqOp.Modify] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val seqOpModifySchema: Schema[SeqOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Modify](
         fields = Vector(
@@ -1736,7 +1687,6 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
   implicit lazy val seqOpSchema: Schema[SeqOp] = new Schema(
     reflect = new Reflect.Variant[Binding, SeqOp](
@@ -1787,8 +1737,7 @@ object DynamicPatch {
     )
   )
 
-  implicit lazy val mapOpAddSchema: Schema[MapOp.Add] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val mapOpAddSchema: Schema[MapOp.Add] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Add](
         fields = Vector(
@@ -1816,10 +1765,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val mapOpRemoveSchema: Schema[MapOp.Remove] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val mapOpRemoveSchema: Schema[MapOp.Remove] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Remove](
         fields = Vector(Schema[DynamicValue].reflect.asTerm("key")),
@@ -1839,10 +1786,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val mapOpModifySchema: Schema[MapOp.Modify] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val mapOpModifySchema: Schema[MapOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Modify](
         fields = Vector(
@@ -1870,7 +1815,6 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
   implicit lazy val mapOpSchema: Schema[MapOp] = new Schema(
     reflect = new Reflect.Variant[Binding, MapOp](
@@ -1913,8 +1857,7 @@ object DynamicPatch {
     )
   )
 
-  implicit lazy val operationSetSchema: Schema[Operation.Set] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val operationSetSchema: Schema[Operation.Set] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Set](
         fields = Vector(Schema[DynamicValue].reflect.asTerm("value")),
@@ -1934,10 +1877,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val operationPrimitiveDeltaSchema: Schema[Operation.PrimitiveDelta] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val operationPrimitiveDeltaSchema: Schema[Operation.PrimitiveDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.PrimitiveDelta](
         fields = Vector(primitiveOpSchema.reflect.asTerm("op")),
@@ -1957,10 +1898,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val operationSequenceEditSchema: Schema[Operation.SequenceEdit] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val operationSequenceEditSchema: Schema[Operation.SequenceEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.SequenceEdit](
         fields = Vector(Reflect.Deferred(() => Schema[Vector[SeqOp]].reflect).asTerm("ops")),
@@ -1980,10 +1919,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val operationMapEditSchema: Schema[Operation.MapEdit] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val operationMapEditSchema: Schema[Operation.MapEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.MapEdit](
         fields = Vector(Reflect.Deferred(() => Schema[Vector[MapOp]].reflect).asTerm("ops")),
@@ -2003,10 +1940,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val operationPatchSchema: Schema[Operation.Patch] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val operationPatchSchema: Schema[Operation.Patch] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Patch](
         fields = Vector(Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")),
@@ -2026,7 +1961,6 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
   implicit lazy val operationSchema: Schema[Operation] = new Schema(
     reflect = new Reflect.Variant[Binding, Operation](
@@ -2085,8 +2019,7 @@ object DynamicPatch {
     )
   )
 
-  implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatchOp](
         fields = Vector(
@@ -2114,10 +2047,8 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 
-  implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] = {
-    import zio.blocks.schema.binding.RegisterOffset
+  implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatch](
         fields = Vector(Reflect.Deferred(() => Schema[Vector[DynamicPatchOp]].reflect).asTerm("ops")),
@@ -2137,5 +2068,4 @@ object DynamicPatch {
         modifiers = Vector.empty
       )
     )
-  }
 }
