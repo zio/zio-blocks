@@ -102,10 +102,4 @@ private[binding] object StructuralBindingMacros {
     val closure = Closure(Ref(lambdaSym), None)
     Block(List(lambdaDef), closure).asExprOf[Array[Any] => A]
   }
-
-  /**
-   * Returns true if structural type Binding derivation is supported in this
-   * Scala version.
-   */
-  inline def supportsStructuralBinding: Boolean = true
 }
