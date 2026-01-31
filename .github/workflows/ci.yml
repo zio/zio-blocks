@@ -69,9 +69,12 @@ jobs:
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests with test coverage
-        if: ${{ startsWith(matrix.scala, '3.') }}
+      - name: Run Scala 3 tests with test coverage and docs (JDK 11)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 11 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
+      - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
+        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
         if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
