@@ -2,6 +2,7 @@ package zio.blocks.schema.binding
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ListBuffer
+import scala.reflect.ClassTag
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 trait SeqConstructor[C[_]] {
@@ -15,7 +16,7 @@ trait SeqConstructor[C[_]] {
   type DoubleBuilder
   type CharBuilder
 
-  def newObjectBuilder[A](sizeHint: Int = 8): ObjectBuilder[A]
+  def newObjectBuilder[A](sizeHint: Int = 8)(implicit ct: ClassTag[A]): ObjectBuilder[A]
 
   def newBooleanBuilder(sizeHint: Int = 8): BooleanBuilder
 
@@ -69,7 +70,7 @@ trait SeqConstructor[C[_]] {
 
   def resultChar(builder: CharBuilder): C[Char]
 
-  def emptyObject[A]: C[A]
+  def emptyObject[A](implicit ct: ClassTag[A]): C[A]
 
   def emptyBoolean: C[Boolean]
 
@@ -167,37 +168,37 @@ object SeqConstructor {
   given setConstructor: SeqConstructor[Set] = new Boxed[Set] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Set.newBuilder[A]
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): ObjectBuilder[A] = Set.newBuilder[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): Set[A] = builder.result()
 
-    def emptyObject[A]: Set[A] = Set.empty
+    def emptyObject[A](implicit ct: ClassTag[A]): Set[A] = Set.empty
   }
 
   given listConstructor: SeqConstructor[List] = new Boxed[List] {
     type ObjectBuilder[A] = scala.collection.mutable.ListBuffer[A]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): ObjectBuilder[A] = new ListBuffer[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): List[A] = builder.toList
 
-    def emptyObject[A]: List[A] = Nil
+    def emptyObject[A](implicit ct: ClassTag[A]): List[A] = Nil
   }
 
   given vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Vector[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Vector.newBuilder[A]
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): ObjectBuilder[A] = Vector.newBuilder[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): Vector[A] = builder.result()
 
-    def emptyObject[A]: Vector[A] = Vector.empty
+    def emptyObject[A](implicit ct: ClassTag[A]): Vector[A] = Vector.empty
   }
 
   abstract class ArraySeqConstructor extends SeqConstructor[ArraySeq] {
@@ -391,8 +392,8 @@ object SeqConstructor {
   }
 
   given arraySeqConstructor: SeqConstructor[ArraySeq] = new ArraySeqConstructor {
-    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[Any](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+      new Builder(new Array[A](Math.max(sizeHint, 1)), 0)
 
     def addObject[A](builder: Builder[A], a: A): Unit = {
       var buf = builder.buffer
@@ -412,43 +413,44 @@ object SeqConstructor {
       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
-    def emptyObject[A]: ArraySeq[A] = ArraySeq.unsafeWrapArray(Array.empty[AnyRef]).asInstanceOf[ArraySeq[A]]
+    def emptyObject[A](implicit ct: ClassTag[A]): ArraySeq[A] = ArraySeq.empty[A]
   }
 
   given indexedSeqConstructor: SeqConstructor[IndexedSeq] = new Boxed[IndexedSeq] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, IndexedSeq[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = IndexedSeq.newBuilder[A]
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): ObjectBuilder[A] = IndexedSeq.newBuilder[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): IndexedSeq[A] = builder.result()
 
-    def emptyObject[A]: IndexedSeq[A] = Vector.empty
+    def emptyObject[A](implicit ct: ClassTag[A]): IndexedSeq[A] = Vector.empty
   }
 
   given seqConstructor: SeqConstructor[collection.immutable.Seq] = new Boxed[collection.immutable.Seq] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, collection.immutable.Seq[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = collection.immutable.Seq.newBuilder[A]
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): ObjectBuilder[A] =
+      collection.immutable.Seq.newBuilder[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): collection.immutable.Seq[A] = builder.result()
 
-    def emptyObject[A]: Seq[A] = Nil
+    def emptyObject[A](implicit ct: ClassTag[A]): Seq[A] = Nil
   }
 
   given chunkConstructor: SeqConstructor[Chunk] = new Boxed[Chunk] {
     type ObjectBuilder[A] = ChunkBuilder[A]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = ChunkBuilder.make[A]()
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): ObjectBuilder[A] = ChunkBuilder.make[A]()
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
 
-    def emptyObject[A]: Chunk[A] = Chunk.empty
+    def emptyObject[A](implicit ct: ClassTag[A]): Chunk[A] = Chunk.empty
   }
 
   abstract class ArrayConstructor extends SeqConstructor[Array] {
@@ -832,8 +834,8 @@ object SeqConstructor {
   }
 
   implicit val arrayConstructor: SeqConstructor[Array] = new ArrayConstructor {
-    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[AnyRef](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+      new Builder(new Array[A](Math.max(sizeHint, 1)), 0)
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
       var buf = builder.buffer
@@ -853,12 +855,12 @@ object SeqConstructor {
       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
-    def emptyObject[A]: Array[A] = Array.empty[AnyRef].asInstanceOf[Array[A]]
+    def emptyObject[A](implicit ct: ClassTag[A]): Array[A] = Array.empty[A]
   }
 
   implicit val iArrayConstructor: SeqConstructor[IArray] = new IArrayConstructor {
-    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[AnyRef](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+    def newObjectBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+      new Builder(new Array[A](Math.max(sizeHint, 1)), 0)
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
       var buf = builder.buffer
@@ -878,6 +880,6 @@ object SeqConstructor {
       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
-    def emptyObject[A]: IArray[A] = IArray.unsafeFromArray(Array.empty[AnyRef]).asInstanceOf[IArray[A]]
+    def emptyObject[A](implicit ct: ClassTag[A]): IArray[A] = IArray.empty[A]
   }
 }

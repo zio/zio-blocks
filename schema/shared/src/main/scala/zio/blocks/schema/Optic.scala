@@ -4,6 +4,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.util.control.NoStackTrace
 
 /**
@@ -1108,7 +1109,7 @@ object Optional {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](size)
+              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
               var idx     = 0
               while (idx < size) {
                 constructor.addObject(
@@ -1123,7 +1124,7 @@ object Optional {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()
+          val builder = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
           val it      = deconstructor.deconstruct(s)
           var currIdx = -1
           while (it.hasNext)
@@ -2495,7 +2496,7 @@ object Traversal {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](size)
+              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
               var currIdx = 0
               while (currIdx < size) {
                 constructor.addObject(
@@ -2510,7 +2511,7 @@ object Traversal {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()
+          val builder = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
           val it      = deconstructor.deconstruct(x)
           var currIdx = -1
           while (it.hasNext)
@@ -2691,7 +2692,7 @@ object Traversal {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](size)
+              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
               while (currIdx < size) {
                 constructor.addObject(
                   builder, {
@@ -2709,7 +2710,7 @@ object Traversal {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder             = constructor.newObjectBuilder[A]()
+          val builder             = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
           val it                  = deconstructor.deconstruct(x)
           var colIdx              = indices(0)
           var currIdx, indicesIdx = 0
@@ -2821,7 +2822,7 @@ object Traversal {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](size)
+              val builder = constructor.newObjectBuilder[A](size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
               var currIdx = 0
               while (currIdx < size) {
                 constructor.addObject(builder, f(indexed.objectAt(x, currIdx)))
@@ -2830,7 +2831,7 @@ object Traversal {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()
+          val builder = constructor.newObjectBuilder[A]()(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
           val it      = deconstructor.deconstruct(x)
           while (it.hasNext) constructor.addObject(builder, f(it.next()))
           constructor.resultObject(builder)

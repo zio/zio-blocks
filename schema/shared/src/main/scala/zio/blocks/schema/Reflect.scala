@@ -7,6 +7,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
+import scala.reflect.ClassTag
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
@@ -782,7 +783,8 @@ object Reflect {
                   if (error.isDefined) new Left(error.get)
                   else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
                 case _ =>
-                  val builder = constructor.newObjectBuilder[A](elements.size)
+                  val builder =
+                    constructor.newObjectBuilder[A](elements.size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
                   elements.foreach { elem =>
                     idx += 1
                     element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
@@ -794,7 +796,7 @@ object Reflect {
                   else new Right(constructor.resultObject(builder))
               }
             case _ =>
-              val builder = constructor.newObjectBuilder[A](elements.size)
+              val builder = constructor.newObjectBuilder[A](elements.size)(ClassTag.AnyRef.asInstanceOf[ClassTag[A]])
               elements.foreach { elem =>
                 idx += 1
                 element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {

@@ -649,10 +649,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val classTag        = summonClassTag[et]
             val baseArrayTypeId = '{ zio.blocks.typeid.TypeId.of[Array[Any]] }
             '{
-              implicit val ct: ClassTag[et] = $classTag
-              val elementReflect            = $schema.reflect
-              val baseTypeId                = $baseArrayTypeId
-              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[Array[et]](
+              implicit val elemClassTag: ClassTag[et] = $classTag
+              val elementReflect                      = $schema.reflect
+              val baseTypeId                          = $baseArrayTypeId
+              val seqTypeId                           = zio.blocks.typeid.TypeId.applied[Array[et]](
                 baseTypeId,
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
@@ -662,8 +662,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new Builder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                         var buf = builder.buffer
@@ -688,7 +688,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B]: Array[B] = Array.empty[et].asInstanceOf[Array[B]]
+                      def emptyObject[B](implicit ct: ClassTag[B]): Array[B] =
+                        Array.empty[et](elemClassTag).asInstanceOf[Array[B]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -704,10 +705,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val classTag         = summonClassTag[et]
             val baseIArrayTypeId = '{ zio.blocks.typeid.TypeId.of[IArray[Any]] }
             '{
-              implicit val ct: ClassTag[et] = $classTag
-              val elementReflect            = $schema.reflect
-              val baseTypeId                = $baseIArrayTypeId
-              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[IArray[et]](
+              implicit val elemClassTag: ClassTag[et] = $classTag
+              val elementReflect                      = $schema.reflect
+              val baseTypeId                          = $baseIArrayTypeId
+              val seqTypeId                           = zio.blocks.typeid.TypeId.applied[IArray[et]](
                 baseTypeId,
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
@@ -717,8 +718,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new Builder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                         var buf = builder.buffer
@@ -743,7 +744,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B]: IArray[B] = IArray.empty[et].asInstanceOf[IArray[B]]
+                      def emptyObject[B](implicit ct: ClassTag[B]): IArray[B] =
+                        IArray.unsafeFromArray(Array.empty[et](elemClassTag)).asInstanceOf[IArray[B]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
@@ -759,10 +761,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val classTag           = summonClassTag[et]
             val baseArraySeqTypeId = '{ zio.blocks.typeid.TypeId.of[ArraySeq[Any]] }
             '{
-              implicit val ct: ClassTag[et] = $classTag
-              val elementReflect            = $schema.reflect
-              val baseTypeId                = $baseArraySeqTypeId
-              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[ArraySeq[et]](
+              implicit val elemClassTag: ClassTag[et] = $classTag
+              val elementReflect                      = $schema.reflect
+              val baseTypeId                          = $baseArraySeqTypeId
+              val seqTypeId                           = zio.blocks.typeid.TypeId.applied[ArraySeq[et]](
                 baseTypeId,
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
@@ -772,8 +774,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new Builder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                         var buf = builder.buffer
@@ -798,7 +800,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
+                      def emptyObject[B](implicit ct: ClassTag[B]): ArraySeq[B] =
+                        ArraySeq.empty[et](elemClassTag).asInstanceOf[ArraySeq[B]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )

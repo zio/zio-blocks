@@ -115,8 +115,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         constructor.addObject(builder, "b")
         constructor.addObject(builder, "c")
         val result = constructor.resultObject(builder)
-        val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 3 && list(0) == "a" && list(1) == "b" && list(2) == "c")
+        assertTrue(deconstructor.deconstruct(result).toList == List("a", "b", "c"))
       },
       test("IArray deconstruct works") {
         val binding       = Binding.of[IArray]
@@ -133,7 +132,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         (1 to 100).foreach(i => constructor.addObject(builder, i.toString))
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 100 && list(0) == "1" && list(99) == "100")
+        assertTrue(list.length == 100 && list.head == "1" && list.last == "100")
       },
       test("IArray result trim works when oversized") {
         val binding       = Binding.of[IArray]
@@ -143,7 +142,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         constructor.addObject(builder, "42")
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 1 && list(0) == "42")
+        assertTrue(list == List("42"))
       },
       test("IArray with enum elements") {
         val binding       = Binding.of[IArray]
@@ -155,7 +154,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         constructor.addObject(builder, Color.Blue)
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 3 && list(0) == Color.Red && list(1) == Color.Green && list(2) == Color.Blue)
+        assertTrue(list == List(Color.Red, Color.Green, Color.Blue))
       },
       test("IArray of Option") {
         val binding       = Binding.of[IArray]
@@ -167,7 +166,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         constructor.addObject(builder, Some(3))
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 3 && list(0) == Some(1) && list(1) == None && list(2) == Some(3))
+        assertTrue(list == List(Some(1), None, Some(3)))
       },
       test("IArray case class elements") {
         case class Person(name: String, age: Int)
@@ -179,7 +178,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         constructor.addObject(builder, Person("Bob", 25))
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 2 && list(0) == Person("Alice", 30) && list(1) == Person("Bob", 25))
+        assertTrue(list == List(Person("Alice", 30), Person("Bob", 25)))
       }
     ),
     suite("union types")(

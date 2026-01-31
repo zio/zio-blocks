@@ -443,7 +443,7 @@ private object SchemaCompanionVersionSpecific {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
                         new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
@@ -464,7 +464,7 @@ private object SchemaCompanionVersionSpecific {
                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
                       }
 
-                      def emptyObject[B]: Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
+                      def emptyObject[B](implicit ct: scala.reflect.ClassTag[B]): Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -489,7 +489,7 @@ private object SchemaCompanionVersionSpecific {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                      def newObjectBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
                         new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
@@ -510,7 +510,7 @@ private object SchemaCompanionVersionSpecific {
                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
                       }
 
-                      def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
+                      def emptyObject[B](implicit ct: scala.reflect.ClassTag[B]): ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )

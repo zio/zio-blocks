@@ -12,6 +12,7 @@ import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.{Owner, TypeId}
 import scala.annotation.{switch, tailrec}
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 /**
@@ -1488,12 +1489,14 @@ class JsonBinaryCodecDeriver private[json] (
               private[this] val constructor   = binding.constructor
               private[this] val elementCodec  = codec
 
+              private[this] val elemClassTag = ClassTag.AnyRef.asInstanceOf[ClassTag[Elem]]
+
               def decodeValue(in: JsonReader, default: Col[Elem]): Col[Elem] =
                 if (in.isNextToken('[')) {
                   if (in.isNextToken(']')) default
                   else {
                     in.rollbackToken()
-                    val builder = constructor.newObjectBuilder[Elem](8)
+                    val builder = constructor.newObjectBuilder[Elem](8)(elemClassTag)
                     var idx     = -1
                     try {
                       while ({
@@ -1519,7 +1522,7 @@ class JsonBinaryCodecDeriver private[json] (
                 out.writeArrayEnd()
               }
 
-              override def nullValue: Col[Elem] = constructor.emptyObject[Elem]
+              override def nullValue: Col[Elem] = constructor.emptyObject[Elem](elemClassTag)
 
               override def toJsonSchema: JsonSchema = JsonSchema.array(items = Some(elementCodec.toJsonSchema))
             }

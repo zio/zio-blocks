@@ -808,7 +808,7 @@ object BindingOfSpec extends SchemaBaseSpec {
         constructor.addObject(builder, Blue)
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 3 && list(0) == Red && list(1) == Green && list(2) == Blue)
+        assertTrue(list == List(Red, Green, Blue))
       },
       test("Array of case class with sealed trait field") {
         case class Container(color: Color, value: Int)
@@ -820,17 +820,19 @@ object BindingOfSpec extends SchemaBaseSpec {
         constructor.addObject(builder, Container(Blue, 2))
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 2 && list(0) == Container(Red, 1) && list(1) == Container(Blue, 2))
+        assertTrue(list == List(Container(Red, 1), Container(Blue, 2)))
       },
       test("ArraySeq of Option") {
-        val binding     = Binding.of[ArraySeq]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Option[Int]](3)
+        val binding       = Binding.of[ArraySeq]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newObjectBuilder[AnyRef](3)
         constructor.addObject(builder, Some(1))
         constructor.addObject(builder, None)
         constructor.addObject(builder, Some(3))
         val result = constructor.resultObject(builder)
-        assertTrue(result.length == 3 && result(0) == Some(1) && result(1) == None && result(2) == Some(3))
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list == List(Some(1), None, Some(3)))
       }
     ),
     suite("Array resize and trim")(
@@ -842,7 +844,7 @@ object BindingOfSpec extends SchemaBaseSpec {
         (1 to 10).foreach(i => constructor.addObject(builder, i.toString))
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 10 && list(0) == "1" && list(9) == "10")
+        assertTrue(list.length == 10 && list.head == "1" && list.last == "10")
       },
       test("Array result trim works when oversized") {
         val binding       = Binding.of[Array]
@@ -853,7 +855,7 @@ object BindingOfSpec extends SchemaBaseSpec {
         constructor.addObject(builder, "b")
         val result = constructor.resultObject(builder)
         val list   = deconstructor.deconstruct(result).toList
-        assertTrue(list.length == 2 && list(0) == "a" && list(1) == "b")
+        assertTrue(list == List("a", "b"))
       }
     ),
     suite("ArraySeq resize and trim")(
