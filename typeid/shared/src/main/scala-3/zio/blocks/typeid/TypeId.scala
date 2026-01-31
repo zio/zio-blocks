@@ -34,6 +34,11 @@ sealed trait TypeId[A <: AnyKind] {
   /** Returns true if this is an applied type (has type arguments) */
   final def isApplied: Boolean = typeArgs.nonEmpty
 
+  /**
+   * Returns this TypeId with its type parameter erased, for use as a map key.
+   */
+  final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
+
   // Derived properties
   final def arity: Int = typeParams.size
 
@@ -390,4 +395,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   given iarray: TypeId[IArray] =
     nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
+
+  // ========== Erased TypeId for Type-Indexed Maps ==========
+
+  type Unknown <: AnyKind
+
+  type Erased = TypeId[Unknown]
 }

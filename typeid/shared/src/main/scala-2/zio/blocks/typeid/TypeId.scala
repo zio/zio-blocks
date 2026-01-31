@@ -35,6 +35,9 @@ sealed trait TypeId[A] {
 
   final def isApplied: Boolean = typeArgs.nonEmpty
 
+  /** Returns this TypeId with its type parameter erased, for use as a map key. */
+  final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
+
   final def arity: Int = typeParams.size
 
   final def fullName: String =
@@ -290,4 +293,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   def structurallyEqual(a: TypeId[_], b: TypeId[_]): Boolean = TypeIdOps.structurallyEqual(a, b)
 
   def structuralHash(id: TypeId[_]): Int = TypeIdOps.structuralHash(id)
+
+  // ========== Erased TypeId for Type-Indexed Maps ==========
+
+  type Unknown
+
+  type Erased = TypeId[Unknown]
 }
