@@ -383,7 +383,7 @@ object MigrationBuilder {
    * This macro extracts field names from case class types at compile time,
    * enabling full validation that all fields are handled.
    *
-   * The [[build]] method will only compile when:
+   * The `build` method will only compile when:
    *   - All source fields have been consumed (dropped, renamed, or kept)
    *   - All target fields have been provided (added, renamed, or kept)
    *
