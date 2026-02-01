@@ -493,7 +493,22 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
         case Some((3, _)) => Seq(base / "scala-3")
         case _            => Seq.empty
       }
-    }
+    },
+    Test / unmanagedSourceDirectories ++= {
+      val base   = baseDirectory.value / "src" / "test"
+      val shared = Seq(base / "scala")
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => shared ++ Seq(base / "scala-2")
+        case Some((3, _)) => shared ++ Seq(base / "scala-3")
+        case _            => shared
+      }
+    },
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 80
   )
   .dependsOn(schema)
   .jsSettings(jsSettings)
@@ -505,7 +520,9 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   .settings(
     libraryDependencies ++= Seq(
       "org.scalatest" %%% "scalatest" % "3.2.19" % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 80
   )
   .settings(
     // Match zioGolemModel/macros: compile per-Scala-version sources from src/main/scala-2 and src/main/scala-3.
@@ -540,7 +557,9 @@ lazy val zioGolemMacros = project
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _            => Seq.empty
-    })
+    }),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
   .dependsOn(zioGolemModel.jvm)
 
@@ -554,7 +573,9 @@ lazy val zioGolemTools = project
       "org.scalatest" %% "scalatest"             % "3.2.19" % Test,
       "dev.zio"       %% "zio-schema"            % "1.1.1"  % Test,
       "dev.zio"       %% "zio-schema-derivation" % "1.1.1"  % Test
-    )
+    ),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 80
   )
   .dependsOn(zioGolemModel.jvm, zioGolemMacros)
 
