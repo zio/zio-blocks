@@ -75,6 +75,30 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
     case _                                      => false
   }
 
+  /**
+   * Returns a ClassTag for this type, using the correct primitive ClassTag for
+   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char,
+   * Unit) and ClassTag.AnyRef for all reference types.
+   *
+   * This is useful for creating properly-typed arrays at runtime.
+   */
+  lazy val classTag: scala.reflect.ClassTag[?] = {
+    import scala.reflect.ClassTag
+    if (owner == Owner.scala) name match {
+      case "Int"     => ClassTag.Int
+      case "Long"    => ClassTag.Long
+      case "Float"   => ClassTag.Float
+      case "Double"  => ClassTag.Double
+      case "Boolean" => ClassTag.Boolean
+      case "Byte"    => ClassTag.Byte
+      case "Short"   => ClassTag.Short
+      case "Char"    => ClassTag.Char
+      case "Unit"    => ClassTag.Unit
+      case _         => ClassTag.AnyRef
+    }
+    else ClassTag.AnyRef
+  }
+
   /** Get enum cases if this is an enum */
   final def enumCases: List[EnumCaseInfo] = defKind match {
     case TypeDefKind.Enum(cases, _) => cases
@@ -369,6 +393,22 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = TypeIdOps.structurallyEqual(a, b)
 
   def structuralHash(id: TypeId[?]): Int = TypeIdOps.structuralHash(id)
+
+  /**
+   * Returns the type constructor by stripping all type arguments.
+   *
+   * For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns a TypeId
+   * equivalent to `TypeId.of[List]` (the unapplied type constructor).
+   *
+   * This is useful for TypeRegistry lookups where Seq/Map bindings are stored
+   * by their type constructor rather than applied types.
+   *
+   * @param id
+   *   The TypeId to unapply
+   * @return
+   *   A TypeId with empty typeArgs representing the type constructor
+   */
+  def unapplied(id: TypeId[?]): TypeId[?] = TypeIdOps.unapplied(id)
 
   // ========== Predefined TypeIds for Common Types ==========
 
