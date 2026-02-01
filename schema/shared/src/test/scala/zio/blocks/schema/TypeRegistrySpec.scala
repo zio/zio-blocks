@@ -138,8 +138,8 @@ object TypeRegistrySpec extends SchemaBaseSpec {
           )
         },
         test("throws for Seq binding") {
-          val binding = Binding.listSeqBinding.asInstanceOf[Binding.Seq[List, Nothing]]
-          val result  = try {
+          val binding = Binding.Seq.list[Nothing]
+          val result = try {
             TypeRegistry.empty.bind(binding.asInstanceOf[Binding[Nothing, List[Nothing]]])
             false
           } catch {
@@ -148,8 +148,8 @@ object TypeRegistrySpec extends SchemaBaseSpec {
           assertTrue(result)
         },
         test("throws for Map binding") {
-          val binding = Binding.mapBinding.asInstanceOf[Binding.Map[Map, Nothing, Nothing]]
-          val result  = try {
+          val binding = Binding.Map.map[Nothing, Nothing]
+          val result = try {
             TypeRegistry.empty.bind(binding.asInstanceOf[Binding[Nothing, Map[Nothing, Nothing]]])
             false
           } catch {
