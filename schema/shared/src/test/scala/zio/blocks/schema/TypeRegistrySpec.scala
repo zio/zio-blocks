@@ -164,7 +164,9 @@ object TypeRegistrySpec extends SchemaBaseSpec {
           assertTrue(
             reg.lookupRecord[Person].isEmpty,
             reg.lookupVariant[Animal].isEmpty,
-            reg.lookupPrimitive[Int].isEmpty
+            reg.lookupPrimitive[Int].isEmpty,
+            reg.lookupWrapper[UserId].isEmpty,
+            reg.lookupDynamic.isEmpty
           )
         },
         test("lookupSeq works with different element types") {
