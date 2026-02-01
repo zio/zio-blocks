@@ -20,8 +20,9 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Schema** | Type-safe schemas with automatic codec derivation | ✅ Available |
 | **Chunk** | High-performance immutable indexed sequences | ✅ Available |
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
+| **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
+| **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
-| **TypeId** | Type-safe unique identifiers | 📋 Planned |
 
 ## Core Principles
 
@@ -65,11 +66,12 @@ val jsonCodec    = Schema[Person].derive(JsonFormat)        // JSON
 val avroCodec    = Schema[Person].derive(AvroFormat)        // Avro
 val toonCodec    = Schema[Person].derive(ToonFormat)        // TOON (LLM-optimized)
 val msgpackCodec = Schema[Person].derive(MessagePackFormat) // MessagePack
+val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ```
 
 ### Key Features
 
-- **Universal Data Formats**: JSON, Avro, TOON (compact LLM-optimized format), with Protobuf, Thrift, BSON, and MessagePack planned.
+- **Universal Data Formats**: JSON, Avro, TOON (compact LLM-optimized format), MessagePack, Thrift, and BSON, with Protobuf planned.
 - **High Performance**: Register-based design stores primitives directly in byte arrays, enabling zero-allocation serialization.
 - **Reflective Optics**: Type-safe lenses, prisms, and traversals with embedded structural metadata.
 - **Automatic Derivation**: Derive type class instances for any type with a schema.
@@ -84,6 +86,8 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 ```
 
 ### Example: Optics
@@ -285,6 +289,95 @@ val markdown = Renderer.render(manual)
 
 ---
 
+## TypeId
+
+Compile-time type identity with rich metadata. TypeId captures comprehensive information about Scala types including name, owner, type parameters, variance, parent types, and annotations.
+
+### Key Features
+
+- **Rich Metadata**: Captures type name, owner, kind (class/trait/object/enum), parent types, and annotations
+- **Higher-Kinded Support**: Works with proper types and type constructors via `AnyKind`
+- **Subtype Checking**: Runtime subtype/supertype relationship checks using compile-time extracted information
+- **Cross-Platform**: Works identically on JVM, Scala.js, and Scala Native
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "@VERSION@"
+```
+
+### Example
+
+```scala
+import zio.blocks.typeid._
+
+// Get TypeId for any type
+val listId = TypeId.of[List[Int]]
+println(listId.name)       // "List"
+println(listId.fullName)   // "scala.collection.immutable.List"
+println(listId.arity)      // 1 (type constructor)
+
+// Check type relationships
+trait Animal
+case class Dog(name: String) extends Animal
+
+val dogId = TypeId.of[Dog]
+val animalId = TypeId.of[Animal]
+dogId.isSubtypeOf(animalId)  // true
+
+// Access structural information
+dogId.isCaseClass  // true
+dogId.isSealed     // false
+```
+
+---
+
+## Context
+
+A type-indexed heterogeneous collection that stores values by their types with compile-time type safety.
+
+### Key Features
+
+- **Type-Safe Lookup**: Retrieve values by type with compile-time guarantees
+- **Covariant**: `Context[Specific]` is a subtype of `Context[General]`
+- **Subtype Matching**: Lookup by supertype finds matching subtypes
+- **Cached Access**: O(1) subsequent lookups after first retrieval
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
+```
+
+### Example
+
+```scala
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Metrics(count: Int)
+
+// Create a context with multiple values
+val ctx: Context[Config & Metrics] = Context(
+  Config(debug = true),
+  Metrics(count = 42)
+)
+
+// Retrieve values by type
+val config: Config = ctx.get[Config]
+val metrics: Metrics = ctx.get[Metrics]
+
+// Add or update values
+val updated = ctx.update[Metrics](m => m.copy(count = m.count + 1))
+
+// Combine contexts
+val ctx1 = Context(Config(false))
+val ctx2 = Context(Metrics(0))
+val merged: Context[Config & Metrics] = ctx1 ++ ctx2
+```
+
+---
+
 ## Streams (In Development)
 
 A pull-based streaming library for composable, backpressure-aware data processing.
@@ -317,8 +410,43 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Docs | Streams |
-|----------|--------|-------|------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ |
-| Scala Native | ✅ | ✅ | ✅ | ✅ |
+| Platform | Schema | Chunk | Docs | TypeId | Context | Streams |
+|----------|--------|-------|------|--------|---------|---------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala Native | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+## Documentation
+
+### Core Schema Concepts
+
+- [Schema](./reference/schema.md) - Core schema definitions and derivation
+- [Reflect](./reference/reflect.md) - Structural reflection API
+- [Binding](./reference/binding.md) - Runtime constructors and deconstructors
+- [Registers](./reference/registers.md) - Register-based primitive storage
+
+### Optics & Navigation
+
+- [Optics](./reference/optics.md) - Lenses, prisms, and traversals
+- [Path Interpolator](./path-interpolator.md) - Type-safe path construction
+- [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
+
+### Serialization
+
+- [JSON](./reference/json.md) - JSON codec and parsing
+- [JSON Schema](./reference/json-schema.md) - JSON Schema generation and validation
+- [Formats](./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
+- [Extension Syntax](./reference/syntax.md) - `.toJson`, `.fromJson`, and more
+
+### Data Operations
+
+- [Patching](./reference/patch.md) - Serializable data transformations
+- [Validation](./reference/validation.md) - Data validation and error handling
+- [Schema Evolution](./reference/schema-evolution.md) - Migration and compatibility
+
+### Other Blocks
+
+- [Chunk](./reference/chunk.md) - High-performance immutable sequences
+- [TypeId](./reference/typeid.md) - Type identity and metadata
+- [Context](./reference/context.md) - Type-indexed heterogeneous collections
+- [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering

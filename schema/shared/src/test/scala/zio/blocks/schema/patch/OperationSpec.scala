@@ -580,6 +580,256 @@ object OperationSpec extends SchemaBaseSpec {
         )
       }
     ),
+    suite("DynamicPatch error branches")(
+      test("patch fails when field not found in strict mode") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("nonexistent")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch skips operation when field not found in lenient mode") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("nonexistent")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Lenient)
+        assertTrue(result == Right(value))
+      },
+      test("patch fails on index out of bounds") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1), DynamicValue.int(2)))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.at(10)
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on type mismatch - expected Record got Sequence") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1)))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("a")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on type mismatch - expected Sequence got Record") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.at(0)
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on type mismatch - expected Map got Record") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKey(DynamicValue.string("key"))
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on map key not found") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKey(DynamicValue.string("nonexistent"))
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on variant case mismatch") {
+        val value  = DynamicValue.Variant("CaseA", DynamicValue.int(1))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.caseOf("CaseB")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on expected Variant got Record") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.caseOf("SomeCase")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on empty sequence with Elements path in strict mode") {
+        val value  = DynamicValue.Sequence(Chunk.empty)
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.elements
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch succeeds on empty sequence with Elements path in lenient mode") {
+        val value  = DynamicValue.Sequence(Chunk.empty)
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.elements
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Lenient)
+        assertTrue(result == Right(value))
+      },
+      test("patch fails on AtIndices not supported") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1), DynamicValue.int(2)))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atIndices(0, 1)
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on AtMapKeys not supported") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKeys(DynamicValue.string("a"))
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on MapKeys not supported") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.mapKeys
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on MapValues not supported") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.mapValues
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("Wrapped path passes through") {
+        val value  = DynamicValue.int(42)
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = new DynamicOptic(IndexedSeq(DynamicOptic.Node.Wrapped))
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result == Right(DynamicValue.int(99)))
+      }
+    ),
+    suite("applyPrimitiveDelta branches")(
+      test("IntDelta on non-primitive fails") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1)))
+        val op     = Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("IntDelta on wrong primitive type fails") {
+        val value  = DynamicValue.string("hello")
+        val op     = Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("StringEdit Delete out of bounds fails") {
+        val value = DynamicValue.string("hello")
+        val op    = Patch.Operation.PrimitiveDelta(
+          Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Delete(10, 5)))
+        )
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("StringEdit Insert out of bounds fails") {
+        val value = DynamicValue.string("hello")
+        val op    = Patch.Operation.PrimitiveDelta(
+          Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Insert(100, "text")))
+        )
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("StringEdit Modify out of bounds fails") {
+        val value = DynamicValue.string("hello")
+        val op    = Patch.Operation.PrimitiveDelta(
+          Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Modify(10, 5, "new")))
+        )
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("DynamicPatch Clobber mode")(
+      test("clobber mode ignores errors for missing fields") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("nonexistent")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Clobber)
+        assertTrue(result == Right(value))
+      }
+    ),
+    suite("Nested path operations in patches")(
+      test("nested field navigation with isLast=false") {
+        val value = DynamicValue.Record(
+          Chunk(
+            ("outer", DynamicValue.Record(Chunk(("inner", DynamicValue.int(1)))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("outer").field("inner")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested index navigation with isLast=false") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.at(0).field("a")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested map key navigation with isLast=false") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.string("key"), DynamicValue.Record(Chunk(("a", DynamicValue.int(1)))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKey(DynamicValue.string("key")).field("a")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested variant case navigation with isLast=false") {
+        val value  = DynamicValue.Variant("MyCase", DynamicValue.Record(Chunk(("a", DynamicValue.int(1)))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.caseOf("MyCase").field("a")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested Wrapped path with isLast=false") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = new DynamicOptic(IndexedSeq(DynamicOptic.Node.Wrapped, DynamicOptic.Node.Field("a")))
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("Elements path applies to all elements with isLast=false") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk(("a", DynamicValue.int(1)))),
+            DynamicValue.Record(Chunk(("a", DynamicValue.int(2))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.elements.field("a")
+        val patch  = DynamicPatch(Vector(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      }
+    ),
     suite("Edge cases")(
       test("Patch.Operation.Set with empty sequence") {
         roundTrip(
