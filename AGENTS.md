@@ -63,33 +63,30 @@ One project, one Scala version: get `<project>/test` green. Default Scala 3; use
 ### 3. Verify
 Enter only when fast loop is green. Run in order:
 
-1. **Coverage** (Scala version you developed with)
-2. **Cross-Scala** (the other Scala version, same project)
-3. **Cross-platform** (other platform projects, if cross-built and you touched shared/ or platform sources)
-4. **Downstream** (all projects that depend on what you changed—see below)
+1. **Coverage** — Scala version you developed with
+2. **Cross-Scala** — the other Scala version, same project
+3. **Cross-platform** — other platform projects, if cross-built and you touched shared/ or platform sources
+4. **Downstream** — all projects that depend on what you changed:
+    - `chunk*` → `schema*`, `benchmarks`
+    - `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
+
+    If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
 If any step fails: return to phase 1, fix, get green in phase 2, rerun the failing step.
 
 ### 4. Format
+
 Run once after verify passes.
-
-## Downstream
-
-When you change a module, test everything downstream:
-- `chunk*` → `schema*`, `benchmarks`
-- `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
-
-If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
 ## Testing
 
 ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
 
-## Git & CI
+## Git & CI (Prefer `gh` CLI)
 
-Commit at stable points (minimum: when fast loop is green).
+Commit often, whenever fast loop is green.
 
-PR open and think you're done? Run verify + format, commit, push, update PR title/description, then loop: wait if necessary, check CI and review comments (prefer `gh` CLI), fix all CI issues (including conflicts) and all **valid** review comments via workflow. Don't stop until CI is green, PR is approved, and PR is merged.
+PR already open (check!) and think you're done? Push, update PR title/description, then loop: monitor CI and review comments, fix all CI issues (including conflicts) and all **valid** review comments via Workflow. Don't stop until CI is green, & PR is approved & merged.
 
 ## Boundaries
 
