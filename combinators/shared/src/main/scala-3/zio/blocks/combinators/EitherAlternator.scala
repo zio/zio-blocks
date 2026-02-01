@@ -1,16 +1,12 @@
 package zio.blocks.combinators
 
-import scala.compiletime.{erasedValue, error}
-
 /**
- * Alternates between two different types using Either[L, R].
+ * Alternates between two types using Either[L, R].
  *
  * The `EitherAlternator` typeclass provides bidirectional conversion between
- * sum types and Either. It rejects same-type combinations at compile time to
- * maintain type safety.
- *
- * Same-type restriction: `EitherAlternator[Int, Int]` will fail at compile time
- * with an error message suggesting to use the same type directly instead.
+ * sum types and Either. Unlike `UnionAlternator`, same-type combinations are
+ * allowed because `Left` and `Right` wrappers provide positional information to
+ * distinguish the two sides.
  *
  * @tparam L
  *   The left type
@@ -19,9 +15,14 @@ import scala.compiletime.{erasedValue, error}
  *
  * @example
  *   {{{
+ * // Different types
  * val either: Either[Int, String] = EitherAlternator.left(42)
  * val maybeInt: Option[Int] = EitherAlternator.unleft(either)
- * val maybeString: Option[String] = EitherAlternator.unright(either)
+ *
+ * // Same types - valid because Left/Right are distinguishable
+ * val alt = summon[EitherAlternator[Int, Int]]
+ * val left: Either[Int, Int] = alt.left(1)   // Left(1)
+ * val right: Either[Int, Int] = alt.right(2) // Right(2)
  *   }}}
  */
 sealed trait EitherAlternator[L, R] {
@@ -66,11 +67,6 @@ sealed trait EitherAlternator[L, R] {
    *   Some(right value) if the Either is Right, None otherwise
    */
   def unright(out: Out): Option[R]
-
-  /**
-   * Always returns false. This method exists for compatibility.
-   */
-  def isSameType: Boolean = false
 }
 
 object EitherAlternator {
@@ -80,12 +76,6 @@ object EitherAlternator {
    */
   type WithOut[L, R, O] = EitherAlternator[L, R] { type Out = O }
 
-  private[combinators] inline def checkNotSame[L, R]: Unit =
-    inline erasedValue[L] match {
-      case _: R => error("Cannot alternate same types with EitherAlternator. Use the same type directly instead.")
-      case _    => ()
-    }
-
   private[combinators] final class EitherAlternatorImpl[L, R] extends EitherAlternator[L, R] {
     type Out = Either[L, R]
     def left(l: L): Out              = Left(l)
@@ -94,8 +84,6 @@ object EitherAlternator {
     def unright(out: Out): Option[R] = out.toOption
   }
 
-  inline given alternator[L, R]: WithOut[L, R, Either[L, R]] = {
-    checkNotSame[L, R]
+  inline given alternator[L, R]: WithOut[L, R, Either[L, R]] =
     new EitherAlternatorImpl[L, R]
-  }
 }
