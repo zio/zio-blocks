@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{DynamicOptic, Schema}
 
 /**
  * A typed, macro-validated migration from schema A to schema B.
@@ -114,6 +114,9 @@ object Migration {
 
   /**
    * Create a migration from actions.
+   *
+   * Note: This is primarily for internal use. Prefer using the typed builder API
+   * via `Migration.typed[A, B]` for compile-time validated migrations.
    */
   def apply[A, B](actions: MigrationAction*)(implicit
     sourceSchema: Schema[A],
@@ -123,6 +126,9 @@ object Migration {
 
   /**
    * Create a migration from a DynamicMigration.
+   *
+   * This is useful for deserializing migrations or applying migrations
+   * that were stored in a registry.
    */
   def fromDynamic[A, B](
     dynamicMigration: DynamicMigration
@@ -130,36 +136,48 @@ object Migration {
     Migration(dynamicMigration, sourceSchema, targetSchema)
 
   /**
-   * Start building a migration with field tracking. This is the primary entry
-   * point for creating migrations.
+   * Start building a migration using the string-based API.
+   *
+   * Note: This API is provided for backward compatibility. For new code,
+   * prefer using `Migration.typed[A, B]` which provides:
+   *   - Direct selector syntax: `_.field.nested`
+   *   - Compile-time field tracking validation
+   *   - No DynamicOptic exposure
    */
   def builder[A, B](implicit sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] =
     MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
 
+  // ===========================================================================
+  // Internal helpers - Package private, not part of public API
+  // ===========================================================================
+
   /**
    * Create a simple field rename migration.
+   * @note Internal use only. Use the typed builder API for public migrations.
    */
-  def renameField[A, B](from: String, to: String)(implicit
+  private[migration] def renameField[A, B](from: String, to: String)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
-    Migration(DynamicMigration(MigrationAction.RenameField(from, to)), sourceSchema, targetSchema)
+    Migration(DynamicMigration(MigrationAction.Rename(DynamicOptic.root.field(from), to)), sourceSchema, targetSchema)
 
   /**
    * Create a migration that adds a field with a default value.
+   * @note Internal use only. Use the typed builder API for public migrations.
    */
-  def addField[A, B](fieldName: String, default: ResolvedExpr)(implicit
+  private[migration] def addField[A, B](fieldName: String, default: ResolvedExpr)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
-    Migration(DynamicMigration(MigrationAction.AddField(fieldName, default)), sourceSchema, targetSchema)
+    Migration(DynamicMigration(MigrationAction.AddField(DynamicOptic.root, fieldName, default)), sourceSchema, targetSchema)
 
   /**
    * Create a migration that drops a field.
+   * @note Internal use only. Use the typed builder API for public migrations.
    */
-  def dropField[A, B](fieldName: String)(implicit
+  private[migration] def dropField[A, B](fieldName: String)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
-    Migration(DynamicMigration(MigrationAction.DropField(fieldName, None)), sourceSchema, targetSchema)
+    Migration(DynamicMigration(MigrationAction.DropField(DynamicOptic.root, fieldName, None)), sourceSchema, targetSchema)
 }

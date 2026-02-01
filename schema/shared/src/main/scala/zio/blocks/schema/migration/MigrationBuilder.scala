@@ -19,11 +19,10 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 
 /**
- * A builder for constructing migrations with fluent API and field tracking.
+ * A builder for constructing migrations with fluent API.
  *
- * The builder accumulates migration actions and tracks which fields have been
- * explicitly handled, enabling compile-time validation that all fields are
- * addressed.
+ * This builder provides a string-based API for backward compatibility. For the
+ * new selector-based API with compile-time safety, use `TypedMigrationBuilder`.
  *
  * @tparam A
  *   Source type
@@ -37,7 +36,7 @@ final case class MigrationBuilder[A, B](
 ) {
 
   // ===========================================================================
-  // Record Operations
+  // Record Operations (String-based API for backward compatibility)
   // ===========================================================================
 
   /**
@@ -123,7 +122,7 @@ final case class MigrationBuilder[A, B](
     copy(actions = actions :+ MigrationAction.KeepField(fieldName))
 
   // ===========================================================================
-  // Nested Operations - THE KEY FEATURE
+  // Nested Operations
   // ===========================================================================
 
   /**
@@ -141,8 +140,7 @@ final case class MigrationBuilder[A, B](
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
     val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions = nestedBuilder.actions
-    copy(actions = actions :+ MigrationAction.AtField(fieldName, nestedActions))
+    copy(actions = actions :+ MigrationAction.AtField(fieldName, nestedBuilder.actions))
   }
 
   /**
@@ -152,8 +150,7 @@ final case class MigrationBuilder[A, B](
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
     val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions = nestedBuilder.actions
-    copy(actions = actions :+ MigrationAction.AtCase(caseName, nestedActions))
+    copy(actions = actions :+ MigrationAction.AtCase(caseName, nestedBuilder.actions))
   }
 
   /**
@@ -163,8 +160,7 @@ final case class MigrationBuilder[A, B](
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
     val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions = nestedBuilder.actions
-    copy(actions = actions :+ MigrationAction.AtElements(nestedActions))
+    copy(actions = actions :+ MigrationAction.AtElements(nestedBuilder.actions))
   }
 
   /**
@@ -174,8 +170,7 @@ final case class MigrationBuilder[A, B](
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
     val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions = nestedBuilder.actions
-    copy(actions = actions :+ MigrationAction.AtMapKeys(nestedActions))
+    copy(actions = actions :+ MigrationAction.AtMapKeys(nestedBuilder.actions))
   }
 
   /**
@@ -185,8 +180,7 @@ final case class MigrationBuilder[A, B](
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
     val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions = nestedBuilder.actions
-    copy(actions = actions :+ MigrationAction.AtMapValues(nestedActions))
+    copy(actions = actions :+ MigrationAction.AtMapValues(nestedBuilder.actions))
   }
 
   // ===========================================================================
@@ -206,8 +200,7 @@ final case class MigrationBuilder[A, B](
     nested: MigrationBuilder[A, B] => MigrationBuilder[A, B]
   ): MigrationBuilder[A, B] = {
     val nestedBuilder = nested(MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
-    val nestedActions = nestedBuilder.actions
-    copy(actions = actions :+ MigrationAction.TransformCase(caseName, nestedActions))
+    copy(actions = actions :+ MigrationAction.TransformCase(caseName, nestedBuilder.actions))
   }
 
   // ===========================================================================
@@ -243,8 +236,9 @@ final case class MigrationBuilder[A, B](
     sourceFields: Vector[String],
     targetField: String,
     combiner: ResolvedExpr
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B] = {
     copy(actions = actions :+ MigrationAction.JoinFields(sourceFields, targetField, combiner, None))
+  }
 
   /**
    * Split one field into multiple.
@@ -253,8 +247,9 @@ final case class MigrationBuilder[A, B](
     sourceField: String,
     targetFields: Vector[String],
     splitter: ResolvedExpr
-  ): MigrationBuilder[A, B] =
+  ): MigrationBuilder[A, B] = {
     copy(actions = actions :+ MigrationAction.SplitField(sourceField, targetFields, splitter, None))
+  }
 
   // ===========================================================================
   // Build Methods
@@ -262,23 +257,12 @@ final case class MigrationBuilder[A, B](
 
   /**
    * Build the migration with full validation.
-   *
-   * This method validates that:
-   *   - All source fields are addressed (kept, renamed, dropped, or
-   *     transformed)
-   *   - All target fields are provided (from source or added)
-   *
-   * @throws IllegalArgumentException
-   *   if validation fails
    */
   def build: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
 
   /**
    * Build the migration without full validation.
-   *
-   * Use this when you want to create a partial migration or when validation is
-   * not needed.
    */
   def buildPartial: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
@@ -288,6 +272,7 @@ final case class MigrationBuilder[A, B](
    */
   def buildDynamic: DynamicMigration =
     DynamicMigration(actions)
+
 }
 
 object MigrationBuilder {
@@ -300,9 +285,6 @@ object MigrationBuilder {
 
   /**
    * Create a builder with field tracking enabled.
-   *
-   * This is the recommended entry point for creating migrations, as it enables
-   * compile-time validation of field handling.
    */
   def withFieldTracking[A, B](implicit
     sourceSchema: Schema[A],
