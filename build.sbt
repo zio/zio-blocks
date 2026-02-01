@@ -151,7 +151,17 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 80
+    coverageMinimumBranchTotal := 80,
+    // Exclude Scala 3 compile-time macro files from coverage:
+    // - CompileTimeValidator: macro that validates migrations at compile time
+    // - ValidationProof: contains CasePaths/FieldPaths macros for type-level validation
+    // - TypeLevel: contains SubsetEvidence macro for type-level subset proofs
+    // - FieldTracker: contains type-level field tracking and macro utilities
+    // - PathExtractor: contains compile-time path extraction macros
+    // - StructuralAnalyzer: contains compile-time structural analysis macros
+    // - MigrationBuilderMacros: contains path extraction macros for migration builder
+    // These execute only during compilation and generate no runtime code paths to test.
+    coverageExcludedFiles := ".*CompileTimeValidator.*;.*ValidationProof.*;.*TypeLevel.*;.*FieldTracker.*;.*PathExtractor.*;.*StructuralAnalyzer.*;.*MigrationBuilderMacros.*"
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
