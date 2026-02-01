@@ -47,62 +47,70 @@ final class TypedMigrationBuilder[A, B] private[migration] (
   /**
    * Rename a field using selector expressions.
    */
-  def renameField[S, T](from: A => S, to: B => T): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.renameFieldImpl[A, B, S, T]
+  def renameField[S, T](from: A => S, to: B => T): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.renameFieldImpl[A, B, S, T]
 
   /**
    * Add a field with a default value using selector expression.
    */
-  def addField[T](target: B => T, default: T)(implicit ev: Schema[T]): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.addFieldImpl[A, B, T]
+  def addField[T](target: B => T, default: T)(implicit ev: Schema[T]): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.addFieldImpl[A, B, T]
 
   /**
    * Add a field with a SchemaExpr default.
    */
-  def addFieldExpr[T](target: B => T, default: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.addFieldExprImpl[A, B, T]
+  def addFieldExpr[T](target: B => T, default: ResolvedExpr): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.addFieldExprImpl[A, B, T]
 
   /**
    * Drop a field using selector expression.
    */
-  def dropField[S](source: A => S): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.dropFieldImpl[A, B, S]
+  def dropField[S](source: A => S): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.dropFieldImpl[A, B, S]
 
   /**
    * Drop a field with a default for reverse migration.
    */
-  def dropField[S](source: A => S, defaultForReverse: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.dropFieldWithDefaultImpl[A, B, S]
+  def dropField[S](source: A => S, defaultForReverse: ResolvedExpr): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.dropFieldWithDefaultImpl[A, B, S]
 
   /**
    * Keep a field unchanged (explicit tracking for validation).
    */
-  def keepField[S, T](source: A => S, target: B => T): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.keepFieldImpl[A, B, S, T]
+  def keepField[S, T](source: A => S, target: B => T): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.keepFieldImpl[A, B, S, T]
 
   /**
    * Transform a field's value using selector expressions.
    */
-  def transformField[S, T](source: A => S, target: B => T, transform: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.transformFieldImpl[A, B, S, T]
+  def transformField[S, T](source: A => S, target: B => T, transform: ResolvedExpr): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.transformFieldImpl[A, B, S, T]
 
   /**
    * Make an optional field mandatory using selector expressions.
    */
-  def mandateField[S, T](source: A => Option[S], target: B => T, default: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.mandateFieldImpl[A, B, S, T]
+  def mandateField[S, T](
+    source: A => Option[S],
+    target: B => T,
+    default: ResolvedExpr
+  ): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.mandateFieldImpl[A, B, S, T]
 
   /**
    * Make a mandatory field optional using selector expressions.
    */
-  def optionalizeField[S, T](source: A => S, target: B => Option[T]): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.optionalizeFieldImpl[A, B, S, T]
+  def optionalizeField[S, T](source: A => S, target: B => Option[T]): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.optionalizeFieldImpl[A, B, S, T]
 
   /**
    * Change a field's type using selector expressions.
    */
-  def changeFieldType[S, T](source: A => S, target: B => T, converter: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.changeFieldTypeImpl[A, B, S, T]
+  def changeFieldType[S, T](
+    source: A => S,
+    target: B => T,
+    converter: ResolvedExpr
+  ): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.changeFieldTypeImpl[A, B, S, T]
 
   // ===========================================================================
   // Nested Migration Operations
@@ -113,8 +121,8 @@ final class TypedMigrationBuilder[A, B] private[migration] (
    */
   def inField[F1, F2](sourceField: A => F1, targetField: B => F2)(
     nestedMigration: Migration[F1, F2]
-  ): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.inFieldImpl[A, B, F1, F2]
+  ): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.inFieldImpl[A, B, F1, F2]
 
   // ===========================================================================
   // Enum Operations
@@ -138,9 +146,15 @@ final class TypedMigrationBuilder[A, B] private[migration] (
   def transformCase(caseName: String)(
     nested: TypedMigrationBuilder[A, B] => TypedMigrationBuilder[A, B]
   ): TypedMigrationBuilder[A, B] = {
-    val nestedBuilder = nested(new TypedMigrationBuilder(
-      sourceSchema, targetSchema, Vector.empty, Set.empty, Set.empty
-    ))
+    val nestedBuilder = nested(
+      new TypedMigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        Vector.empty,
+        Set.empty,
+        Set.empty
+      )
+    )
     new TypedMigrationBuilder(
       sourceSchema,
       targetSchema,
@@ -157,20 +171,20 @@ final class TypedMigrationBuilder[A, B] private[migration] (
   /**
    * Transform all elements of a sequence at a path.
    */
-  def transformElements[S](at: A => Seq[S], transform: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.transformElementsImpl[A, B, S]
+  def transformElements[S](at: A => Seq[S], transform: ResolvedExpr): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.transformElementsImpl[A, B, S]
 
   /**
    * Transform all keys of a map at a path.
    */
-  def transformKeys[K, V](at: A => Map[K, V], transform: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.transformKeysImpl[A, B, K, V]
+  def transformKeys[K, V](at: A => Map[K, V], transform: ResolvedExpr): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.transformKeysImpl[A, B, K, V]
 
   /**
    * Transform all values of a map at a path.
    */
-  def transformValues[K, V](at: A => Map[K, V], transform: ResolvedExpr): TypedMigrationBuilder[A, B] =
-    macro TypedMigrationBuilderMacros.transformValuesImpl[A, B, K, V]
+  def transformValues[K, V](at: A => Map[K, V], transform: ResolvedExpr): TypedMigrationBuilder[A, B] = macro
+    TypedMigrationBuilderMacros.transformValuesImpl[A, B, K, V]
 
   // ===========================================================================
   // Build Methods
@@ -199,10 +213,14 @@ final class TypedMigrationBuilder[A, B] private[migration] (
     val missingTgt = targetFields -- handledTargetPaths.map(_.split("\\.").head)
 
     if (missingSrc.nonEmpty || missingTgt.nonEmpty) {
-      val srcMsg = if (missingSrc.nonEmpty)
-        s"source fields not handled: ${missingSrc.mkString(", ")}" else ""
-      val tgtMsg = if (missingTgt.nonEmpty)
-        s"target fields not provided: ${missingTgt.mkString(", ")}" else ""
+      val srcMsg =
+        if (missingSrc.nonEmpty)
+          s"source fields not handled: ${missingSrc.mkString(", ")}"
+        else ""
+      val tgtMsg =
+        if (missingTgt.nonEmpty)
+          s"target fields not provided: ${missingTgt.mkString(", ")}"
+        else ""
       throw new IllegalStateException(
         s"Migration incomplete: ${Seq(srcMsg, tgtMsg).filter(_.nonEmpty).mkString("; ")}"
       )
@@ -236,10 +254,14 @@ final class TypedMigrationBuilder[A, B] private[migration] (
     val missingTgt = targetFields -- handledTargetPaths.map(_.split("\\.").head)
 
     if (missingSrc.nonEmpty || missingTgt.nonEmpty) {
-      val srcMsg = if (missingSrc.nonEmpty)
-        s"source fields not handled: ${missingSrc.mkString(", ")}" else ""
-      val tgtMsg = if (missingTgt.nonEmpty)
-        s"target fields not provided: ${missingTgt.mkString(", ")}" else ""
+      val srcMsg =
+        if (missingSrc.nonEmpty)
+          s"source fields not handled: ${missingSrc.mkString(", ")}"
+        else ""
+      val tgtMsg =
+        if (missingTgt.nonEmpty)
+          s"target fields not provided: ${missingTgt.mkString(", ")}"
+        else ""
       Left(s"Migration incomplete: ${Seq(srcMsg, tgtMsg).filter(_.nonEmpty).mkString("; ")}")
     } else {
       Right(Migration(DynamicMigration(actions), sourceSchema, targetSchema))
@@ -262,21 +284,23 @@ object TypedMigrationBuilder {
     new TypedMigrationBuilder(sourceSchema, targetSchema, Vector.empty, Set.empty, Set.empty)
 
   /**
-   * Wrap an action in nested AtField calls based on the path nodes.
-   * This converts a path like [Field("address"), Field("city")] into
+   * Wrap an action in nested AtField calls based on the path nodes. This
+   * converts a path like [Field("address"), Field("city")] into
    * AtField("address", Vector(AtField("city", Vector(action))))
    */
-  private[migration] def wrapInAtField(nodes: IndexedSeq[DynamicOptic.Node], action: MigrationAction): MigrationAction = {
-    def wrapList(nodeList: List[DynamicOptic.Node], action: MigrationAction): MigrationAction = {
+  private[migration] def wrapInAtField(
+    nodes: IndexedSeq[DynamicOptic.Node],
+    action: MigrationAction
+  ): MigrationAction = {
+    def wrapList(nodeList: List[DynamicOptic.Node], action: MigrationAction): MigrationAction =
       nodeList match {
-        case Nil => action
+        case Nil                                   => action
         case DynamicOptic.Node.Field(name) :: tail =>
           MigrationAction.AtField(name, Vector(wrapList(tail, action)))
         case _ :: tail =>
           // Skip non-field nodes (Case, Elements, etc.) - not supported for simple field ops
           wrapList(tail, action)
       }
-    }
     wrapList(nodes.toList, action)
   }
 }
@@ -294,10 +318,10 @@ private object TypedMigrationBuilderMacros {
   )(from: c.Expr[A => S], to: c.Expr[B => T]): c.Tree = {
     import c.universe._
     val fromOptic = extractDynamicOptic(c)(from.tree)
-    val fromName = extractFieldName(c)(from.tree)
-    val toName = extractFieldName(c)(to.tree)
-    val fromPath = extractPath(c)(from.tree)
-    val toPath = extractPath(c)(to.tree)
+    val fromName  = extractFieldName(c)(from.tree)
+    val toName    = extractFieldName(c)(to.tree)
+    val fromPath  = extractPath(c)(from.tree)
+    val toPath    = extractPath(c)(to.tree)
     q"""
       {
         val optic = $fromOptic
@@ -319,8 +343,8 @@ private object TypedMigrationBuilderMacros {
   )(target: c.Expr[B => T], default: c.Expr[T])(ev: c.Expr[Schema[T]]): c.Tree = {
     import c.universe._
     val targetOptic = extractDynamicOptic(c)(target.tree)
-    val fieldName = extractFieldName(c)(target.tree)
-    val targetPath = extractPath(c)(target.tree)
+    val fieldName   = extractFieldName(c)(target.tree)
+    val targetPath  = extractPath(c)(target.tree)
     q"""
       {
         val optic = $targetOptic
@@ -343,8 +367,8 @@ private object TypedMigrationBuilderMacros {
   )(target: c.Expr[B => T], default: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val targetOptic = extractDynamicOptic(c)(target.tree)
-    val fieldName = extractFieldName(c)(target.tree)
-    val targetPath = extractPath(c)(target.tree)
+    val fieldName   = extractFieldName(c)(target.tree)
+    val targetPath  = extractPath(c)(target.tree)
     q"""
       {
         val optic = $targetOptic
@@ -366,8 +390,8 @@ private object TypedMigrationBuilderMacros {
   )(source: c.Expr[A => S]): c.Tree = {
     import c.universe._
     val sourceOptic = extractDynamicOptic(c)(source.tree)
-    val fieldName = extractFieldName(c)(source.tree)
-    val sourcePath = extractPath(c)(source.tree)
+    val fieldName   = extractFieldName(c)(source.tree)
+    val sourcePath  = extractPath(c)(source.tree)
     q"""
       {
         val optic = $sourceOptic
@@ -389,8 +413,8 @@ private object TypedMigrationBuilderMacros {
   )(source: c.Expr[A => S], defaultForReverse: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val sourceOptic = extractDynamicOptic(c)(source.tree)
-    val fieldName = extractFieldName(c)(source.tree)
-    val sourcePath = extractPath(c)(source.tree)
+    val fieldName   = extractFieldName(c)(source.tree)
+    val sourcePath  = extractPath(c)(source.tree)
     q"""
       {
         val optic = $sourceOptic
@@ -429,8 +453,8 @@ private object TypedMigrationBuilderMacros {
   )(source: c.Expr[A => S], target: c.Expr[B => T], transform: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val sourceOptic = extractDynamicOptic(c)(source.tree)
-    val sourcePath = extractPath(c)(source.tree)
-    val targetPath = extractPath(c)(target.tree)
+    val sourcePath  = extractPath(c)(source.tree)
+    val targetPath  = extractPath(c)(target.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -447,8 +471,8 @@ private object TypedMigrationBuilderMacros {
   )(source: c.Expr[A => Option[S]], target: c.Expr[B => T], default: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val sourceOptic = extractDynamicOptic(c)(source.tree)
-    val sourcePath = extractPath(c)(source.tree)
-    val targetPath = extractPath(c)(target.tree)
+    val sourcePath  = extractPath(c)(source.tree)
+    val targetPath  = extractPath(c)(target.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -465,8 +489,8 @@ private object TypedMigrationBuilderMacros {
   )(source: c.Expr[A => S], target: c.Expr[B => Option[T]]): c.Tree = {
     import c.universe._
     val sourceOptic = extractDynamicOptic(c)(source.tree)
-    val sourcePath = extractPath(c)(source.tree)
-    val targetPath = extractPath(c)(target.tree)
+    val sourcePath  = extractPath(c)(source.tree)
+    val targetPath  = extractPath(c)(target.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -483,8 +507,8 @@ private object TypedMigrationBuilderMacros {
   )(source: c.Expr[A => S], target: c.Expr[B => T], converter: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val sourceOptic = extractDynamicOptic(c)(source.tree)
-    val sourcePath = extractPath(c)(source.tree)
-    val targetPath = extractPath(c)(target.tree)
+    val sourcePath  = extractPath(c)(source.tree)
+    val targetPath  = extractPath(c)(target.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -503,10 +527,10 @@ private object TypedMigrationBuilderMacros {
   ): c.Tree = {
     import c.universe._
     val sourceFieldOptic = extractDynamicOptic(c)(sourceField.tree)
-    val targetFieldName = extractFieldName(c)(targetField.tree)
-    val sourceFieldName = extractFieldName(c)(sourceField.tree)
-    val sourcePath = extractPath(c)(sourceField.tree)
-    val targetPath = extractPath(c)(targetField.tree)
+    val targetFieldName  = extractFieldName(c)(targetField.tree)
+    val sourceFieldName  = extractFieldName(c)(sourceField.tree)
+    val sourcePath       = extractPath(c)(sourceField.tree)
+    val targetPath       = extractPath(c)(targetField.tree)
     q"""
       {
         val srcOptic = $sourceFieldOptic
@@ -563,7 +587,7 @@ private object TypedMigrationBuilderMacros {
   )(at: c.Expr[A => Seq[S]], transform: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val atOptic = extractDynamicOptic(c)(at.tree)
-    val atPath = extractPath(c)(at.tree)
+    val atPath  = extractPath(c)(at.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -580,7 +604,7 @@ private object TypedMigrationBuilderMacros {
   )(at: c.Expr[A => Map[K, V]], transform: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val atOptic = extractDynamicOptic(c)(at.tree)
-    val atPath = extractPath(c)(at.tree)
+    val atPath  = extractPath(c)(at.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -597,7 +621,7 @@ private object TypedMigrationBuilderMacros {
   )(at: c.Expr[A => Map[K, V]], transform: c.Expr[ResolvedExpr]): c.Tree = {
     import c.universe._
     val atOptic = extractDynamicOptic(c)(at.tree)
-    val atPath = extractPath(c)(at.tree)
+    val atPath  = extractPath(c)(at.tree)
     q"""
       new _root_.zio.blocks.schema.migration.TypedMigrationBuilder(
         ${c.prefix}.sourceSchema,
@@ -615,7 +639,7 @@ private object TypedMigrationBuilderMacros {
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
-      case _ => CommonMacroOps.fail(c)(s"Expected a lambda expression, got '$tree'")
+      case _                    => CommonMacroOps.fail(c)(s"Expected a lambda expression, got '$tree'")
     }
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
@@ -629,7 +653,7 @@ private object TypedMigrationBuilderMacros {
         val parentOptic = toOptic(parent)
         q"$parentOptic.mapValues"
       case q"$_[..$_]($parent).when[$caseTree]" =>
-        val caseName = caseTree.tpe.dealias.typeSymbol.name.toString
+        val caseName    = caseTree.tpe.dealias.typeSymbol.name.toString
         val parentOptic = toOptic(parent)
         q"$parentOptic.caseOf($caseName)"
       case q"$_[..$_]($parent).wrapped[$_]" =>
@@ -639,7 +663,7 @@ private object TypedMigrationBuilderMacros {
         val parentOptic = toOptic(parent)
         q"$parentOptic.at(${args.head})"
       case q"$parent.$child" =>
-        val fieldName = scala.reflect.NameTransformer.decode(child.toString)
+        val fieldName   = scala.reflect.NameTransformer.decode(child.toString)
         val parentOptic = toOptic(parent)
         q"$parentOptic.field($fieldName)"
       case _: Ident =>
@@ -657,12 +681,12 @@ private object TypedMigrationBuilderMacros {
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
-      case _ => CommonMacroOps.fail(c)(s"Expected a lambda expression, got '$tree'")
+      case _                    => CommonMacroOps.fail(c)(s"Expected a lambda expression, got '$tree'")
     }
 
     def getLastFieldName(tree: c.Tree): String = tree match {
       case q"$_.$child" => scala.reflect.NameTransformer.decode(child.toString)
-      case _ => CommonMacroOps.fail(c)(s"Expected field access, got '$tree'")
+      case _            => CommonMacroOps.fail(c)(s"Expected field access, got '$tree'")
     }
 
     val fieldName = getLastFieldName(toPathBody(tree))
@@ -675,7 +699,7 @@ private object TypedMigrationBuilderMacros {
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
-      case _ => CommonMacroOps.fail(c)(s"Expected a lambda expression, got '$tree'")
+      case _                    => CommonMacroOps.fail(c)(s"Expected a lambda expression, got '$tree'")
     }
 
     def extractPathParts(tree: c.Tree): List[String] = tree match {
@@ -687,7 +711,7 @@ private object TypedMigrationBuilderMacros {
         CommonMacroOps.fail(c)(s"Unsupported selector expression: $tree")
     }
 
-    val parts = extractPathParts(toPathBody(tree))
+    val parts   = extractPathParts(toPathBody(tree))
     val pathStr = parts.mkString(".")
     q"$pathStr"
   }

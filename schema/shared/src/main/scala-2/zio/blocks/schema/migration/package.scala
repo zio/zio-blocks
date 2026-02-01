@@ -16,7 +16,6 @@
 
 package zio.blocks.schema
 
-
 /**
  * Package-level extensions for the migration API.
  */
@@ -44,9 +43,12 @@ package object migration {
      *     .build  // Validates all fields are handled
      * }}}
      *
-     * @tparam A Source type
-     * @tparam B Target type
-     * @return A TypedMigrationBuilder for constructing the migration
+     * @tparam A
+     *   Source type
+     * @tparam B
+     *   Target type
+     * @return
+     *   A TypedMigrationBuilder for constructing the migration
      */
     def typed[A, B](implicit
       sourceSchema: Schema[A],

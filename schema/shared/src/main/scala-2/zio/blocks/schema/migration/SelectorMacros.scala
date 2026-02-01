@@ -151,7 +151,7 @@ object SelectorMacros {
         fail(s"Unsupported selector expression: $tree")
     }
 
-    val parts = extractPathParts(toPathBody(path.tree))
+    val parts   = extractPathParts(toPathBody(path.tree))
     val pathStr = parts.mkString(".")
     q"$pathStr"
   }
