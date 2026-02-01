@@ -1,5 +1,7 @@
 package zio.blocks.typeid
 
+import zio.blocks.chunk.Chunk
+
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -18,7 +20,7 @@ package zio.blocks.typeid
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-sealed trait TypeId[A <: AnyKind] {
+sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
@@ -28,6 +30,10 @@ sealed trait TypeId[A <: AnyKind] {
   def aliasedTo: Option[TypeRepr]      // For type aliases
   def representation: Option[TypeRepr] // For opaque types
   def annotations: List[Annotation]
+
+  final def clazz: Option[Class[?]] = TypeIdPlatformMethods.getClass(this)
+
+  final def construct(args: Chunk[AnyRef]): Either[String, Any] = TypeIdPlatformMethods.construct(this, args)
 
   final def parents: List[TypeRepr] = defKind.baseTypes
 
