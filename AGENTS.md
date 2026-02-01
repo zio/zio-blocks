@@ -88,6 +88,9 @@ Commit often, whenever fast loop is green.
 
 PR already open (check!) and think you're done? Push, update PR title/description, then loop: monitor CI and review comments, fix all CI issues (including conflicts) and all **valid** review comments via Workflow. Don't stop until CI is green, & PR is approved & merged.
 
+When waiting on PR checks, suppress watch output to avoid context bloat:
+`gh pr checks <PR> --watch --fail-fast > /dev/null 2>&1 || true && gh pr checks <PR>`
+
 ## Boundaries
 
 ### Always
