@@ -1388,6 +1388,10 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val result = DynamicValue.fromKVUnsafe(Seq.empty)
         assertTrue(result == DynamicValue.Record.empty)
       },
+      test("fromKV with empty sequence returns empty record") {
+        val result = DynamicValue.fromKV(Seq.empty)
+        assertTrue(result == Right(DynamicValue.Record.empty))
+      },
       test("fromKVUnsafe updates existing field") {
         val path1  = DynamicOptic.root.field("a")
         val path2  = DynamicOptic.root.field("a")

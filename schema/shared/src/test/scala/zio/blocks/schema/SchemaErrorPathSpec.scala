@@ -209,6 +209,82 @@ object SchemaErrorPathSpec extends SchemaBaseSpec {
         assertTrue(combined.errors.head.message.contains("wrapper")) &&
         assertTrue(combined.errors.tail.head.message.contains("wrapper"))
       }
+    ),
+    suite("remapSource for all error types")(
+      test("remapSource for all error types") {
+        val conversionFailed = SchemaError.conversionFailed(Nil, "test")
+        val missingField     = SchemaError.missingField(Nil, "field")
+        val duplicatedField  = SchemaError.duplicatedField(Nil, "field")
+        val expectation      = SchemaError.expectationMismatch(Nil, "expected X")
+        val unknownCase      = SchemaError.unknownCase(Nil, "case")
+        val message          = SchemaError.message("test message")
+
+        val convMapped    = conversionFailed.atField("x")
+        val missingMapped = missingField.atField("x")
+        val dupMapped     = duplicatedField.atField("x")
+        val expectMapped  = expectation.atField("x")
+        val unknownMapped = unknownCase.atField("x")
+        val messageMapped = message.atField("x")
+
+        assertTrue(
+          convMapped.errors.head.source.nodes.nonEmpty,
+          missingMapped.errors.head.source.nodes.nonEmpty,
+          dupMapped.errors.head.source.nodes.nonEmpty,
+          expectMapped.errors.head.source.nodes.nonEmpty,
+          unknownMapped.errors.head.source.nodes.nonEmpty,
+          messageMapped.errors.head.source.nodes.nonEmpty
+        )
+      },
+      test("atIndex adds index to path") {
+        val err     = SchemaError.conversionFailed(Nil, "test")
+        val indexed = err.atIndex(5)
+        assertTrue(indexed.errors.head.source.nodes.contains(DynamicOptic.Node.AtIndex(5)))
+      },
+      test("atCase adds case to path") {
+        val err   = SchemaError.conversionFailed(Nil, "test")
+        val cased = err.atCase("MyCase")
+        assertTrue(cased.errors.head.source.nodes.contains(DynamicOptic.Node.Case("MyCase")))
+      },
+      test("atKey adds key to path") {
+        val err   = SchemaError.conversionFailed(Nil, "test")
+        val key   = DynamicValue.string("myKey")
+        val keyed = err.atKey(key)
+        assertTrue(keyed.errors.head.source.nodes.nonEmpty)
+      },
+      test("ConversionFailed with cause formats correctly") {
+        val inner = SchemaError.conversionFailed(Nil, "inner error")
+        val outer = SchemaError.conversionFailed("outer context", inner)
+        assertTrue(
+          outer.message.contains("outer context"),
+          outer.message.contains("inner error")
+        )
+      },
+      test("SchemaError aggregation with ++") {
+        val err1   = SchemaError.conversionFailed(Nil, "error 1")
+        val err2   = SchemaError.conversionFailed(Nil, "error 2")
+        val merged = err1 ++ err2
+        assertTrue(
+          merged.message.contains("error 1"),
+          merged.message.contains("error 2")
+        )
+      }
+    ),
+    suite("ConversionFailed message formatting")(
+      test("ConversionFailed message with empty cause shows details") {
+        val err = SchemaError.conversionFailed(Nil, "conversion failed")
+        assertTrue(err.message.contains("conversion failed"))
+      },
+      test("ConversionFailed message with multiple errors shows all") {
+        val err1   = SchemaError.conversionFailed(Nil, "error 1")
+        val err2   = SchemaError.conversionFailed(Nil, "error 2")
+        val err3   = SchemaError.conversionFailed(Nil, "error 3")
+        val merged = err1 ++ err2 ++ err3
+        assertTrue(
+          merged.message.contains("error 1"),
+          merged.message.contains("error 2"),
+          merged.message.contains("error 3")
+        )
+      }
     )
   )
 }
