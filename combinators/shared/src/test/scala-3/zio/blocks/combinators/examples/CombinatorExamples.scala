@@ -287,17 +287,23 @@ object CombinatorExamples {
   /**
    * Same-Type Alternator Restriction:
    *
-   * Both UnionAlternator and EitherAlternator reject same-type combinations at
-   * compile time to maintain type safety.
+   * UnionAlternator rejects same-type combinations at compile time to maintain
+   * type safety. EitherAlternator, however, allows same-type combinations
+   * (e.g., Either[Int, Int]) for flexibility.
    *
-   * Examples that would fail:
+   * Examples:
    * {{{
+   * // UnionAlternator rejects same-type:
    * // UnionAlternator.alternator[Int, Int] // Compile error!
-   * // EitherAlternator.alternator[String, String] // Compile error!
+   *
+   * // EitherAlternator allows same-type:
+   * val alt = implicitly[EitherAlternator[Int, Int]]
+   * val e1: Either[Int, Int] = alt.left(42)
+   * val e2: Either[Int, Int] = alt.right(99)
    * }}}
    *
-   * The error messages suggest using Either[A, A] directly or wrapping in
-   * distinct types.
+   * For UnionAlternator same-type cases, the error messages suggest using
+   * Either[A, A] directly or wrapping in distinct types.
    */
   def sameTypeAlternatorRestriction(): Unit = ()
 }
