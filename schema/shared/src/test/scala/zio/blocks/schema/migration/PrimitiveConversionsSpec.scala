@@ -8,6 +8,12 @@ import java.util.{Currency, UUID}
 
 object PrimitiveConversionsSpec extends SchemaBaseSpec {
 
+  // Helper to extract Left value safely (avoiding deprecated .left.get)
+  private def leftValue(either: Either[String, Any]): String = either match {
+    case Left(msg) => msg
+    case Right(_)  => ""
+  }
+
   // Helper constructors
   def dynamicByte(v: Byte): DynamicValue             = DynamicValue.Primitive(PrimitiveValue.Byte(v))
   def dynamicShort(v: Short): DynamicValue           = DynamicValue.Primitive(PrimitiveValue.Short(v))
@@ -81,7 +87,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("Short -> Byte (out of range)") {
         val result = PrimitiveConversions.convert(dynamicShort(200), "Short", "Byte")
-        assertTrue(result.isLeft && result.left.get.contains("out of Byte range"))
+        assertTrue(result.isLeft && leftValue(result).contains("out of Byte range"))
       },
       test("Int -> Short (in range)") {
         val result = PrimitiveConversions.convert(dynamicInt(1000), "Int", "Short")
@@ -89,7 +95,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("Int -> Short (out of range)") {
         val result = PrimitiveConversions.convert(dynamicInt(40000), "Int", "Short")
-        assertTrue(result.isLeft && result.left.get.contains("out of Short range"))
+        assertTrue(result.isLeft && leftValue(result).contains("out of Short range"))
       },
       test("Long -> Int (in range)") {
         val result = PrimitiveConversions.convert(dynamicLong(12345L), "Long", "Int")
@@ -97,7 +103,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("Long -> Int (out of range)") {
         val result = PrimitiveConversions.convert(dynamicLong(Long.MaxValue), "Long", "Int")
-        assertTrue(result.isLeft && result.left.get.contains("out of Int range"))
+        assertTrue(result.isLeft && leftValue(result).contains("out of Int range"))
       },
       test("Double -> Float") {
         val result = PrimitiveConversions.convert(dynamicDouble(3.14), "Double", "Float")
@@ -113,7 +119,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
           "BigInt",
           "Int"
         )
-        assertTrue(result.isLeft && result.left.get.contains("out of Int range"))
+        assertTrue(result.isLeft && leftValue(result).contains("out of Int range"))
       }
     ),
     suite("Any -> String")(
@@ -141,7 +147,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("String -> Int (invalid)") {
         val result = PrimitiveConversions.convert(dynamicString("not-a-number"), "String", "Int")
-        assertTrue(result.isLeft && result.left.get.contains("Cannot parse"))
+        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
       },
       test("String -> Int (with whitespace)") {
         val result = PrimitiveConversions.convert(dynamicString("  42  "), "String", "Int")
@@ -181,18 +187,19 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("String -> Char (multiple characters fails)") {
         val result = PrimitiveConversions.convert(dynamicString("AB"), "String", "Char")
-        assertTrue(result.isLeft && result.left.get.contains("must be exactly 1"))
+        assertTrue(result.isLeft && leftValue(result).contains("must be exactly 1"))
       }
     ),
     suite("String -> UUID")(
       test("valid UUID") {
-        val uuid   = UUID.randomUUID()
+        // Use a static UUID to avoid SecureRandom dependency on Scala.js
+        val uuid   = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val result = PrimitiveConversions.convert(dynamicString(uuid.toString), "String", "UUID")
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.UUID(uuid))))
       },
       test("invalid UUID") {
         val result = PrimitiveConversions.convert(dynamicString("not-a-uuid"), "String", "UUID")
-        assertTrue(result.isLeft && result.left.get.contains("Cannot parse"))
+        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
       }
     ),
     suite("String -> Temporal types")(
@@ -252,7 +259,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("invalid temporal string fails") {
         val result = PrimitiveConversions.convert(dynamicString("not-a-date"), "String", "LocalDate")
-        assertTrue(result.isLeft && result.left.get.contains("Cannot parse"))
+        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
       }
     ),
     suite("String -> Currency")(
@@ -262,7 +269,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("invalid currency code") {
         val result = PrimitiveConversions.convert(dynamicString("INVALID"), "String", "Currency")
-        assertTrue(result.isLeft && result.left.get.contains("Cannot parse"))
+        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
       }
     ),
     suite("Char <-> Int")(
@@ -276,7 +283,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
       },
       test("Int -> Char (out of range)") {
         val result = PrimitiveConversions.convert(dynamicInt(-1), "Int", "Char")
-        assertTrue(result.isLeft && result.left.get.contains("out of Char range"))
+        assertTrue(result.isLeft && leftValue(result).contains("out of Char range"))
       }
     ),
     suite("Boolean <-> Int")(
@@ -304,7 +311,7 @@ object PrimitiveConversionsSpec extends SchemaBaseSpec {
     suite("Unsupported conversions")(
       test("unsupported conversion returns error") {
         val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "UUID")
-        assertTrue(result.isLeft && result.left.get.contains("Unsupported conversion"))
+        assertTrue(result.isLeft && leftValue(result).contains("Unsupported conversion"))
       }
     ),
     suite("Helper methods")(
