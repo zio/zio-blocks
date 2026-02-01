@@ -12,12 +12,10 @@ import zio.test._
  */
 object MigrationUtilitySpec extends ZIOSpecDefault {
 
-  private def str(s: String): DynamicValue    = DynamicValue.Primitive(PrimitiveValue.String(s))
-  private def int(i: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(i))
-  private def long(l: Long): DynamicValue     = DynamicValue.Primitive(PrimitiveValue.Long(l))
-  private def double(d: Double): DynamicValue = DynamicValue.Primitive(PrimitiveValue.Double(d))
-  private def bool(b: Boolean): DynamicValue  = DynamicValue.Primitive(PrimitiveValue.Boolean(b))
-  private def unit: DynamicValue              = DynamicValue.Primitive(PrimitiveValue.Unit)
+  private def str(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def int(i: Int): DynamicValue    = DynamicValue.Primitive(PrimitiveValue.Int(i))
+  private def long(l: Long): DynamicValue  = DynamicValue.Primitive(PrimitiveValue.Long(l))
+  private def unit: DynamicValue           = DynamicValue.Primitive(PrimitiveValue.Unit)
 
   def spec = suite("MigrationUtilitySpec")(
     // =========================================================================

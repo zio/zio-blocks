@@ -1,412 +1,516 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema._
 import zio.test._
 
+/**
+ * Tests for MigrationValidator - validates migration actions against schemas.
+ *
+ * Covers all action types and both valid/invalid path scenarios.
+ */
 object MigrationValidatorSpec extends ZIOSpecDefault {
 
-  case class Person(name: String, age: Int)
-  object Person {
-    implicit val schema: Schema[Person] = Schema.derived
+  // Test schemas - simple records for validation
+  case class PersonV1(name: String, age: Int)
+  case class PersonV2(fullName: String, age: Int, city: String)
+
+  implicit val schemaPersonV1: Schema[PersonV1] = Schema.derived
+  implicit val schemaPersonV2: Schema[PersonV2] = Schema.derived
+
+  // Nested record schemas
+  case class Address(street: String, city: String)
+  case class Employee(name: String, address: Address)
+
+  implicit val schemaAddress: Schema[Address]   = Schema.derived
+  implicit val schemaEmployee: Schema[Employee] = Schema.derived
+
+  // Enum schema for case tests
+  sealed trait Status
+  object Status {
+    case object Active                 extends Status
+    case class Pending(reason: String) extends Status
   }
 
-  case class PersonWithEmail(name: String, age: Int, email: String)
-  object PersonWithEmail {
-    implicit val schema: Schema[PersonWithEmail] = Schema.derived
-  }
+  implicit val schemaStatus: Schema[Status] = Schema.derived
+
+  // Collection schemas
+  case class Team(members: List[String])
+  case class Config(settings: Map[String, Int])
+
+  implicit val schemaTeam: Schema[Team]     = Schema.derived
+  implicit val schemaConfig: Schema[Config] = Schema.derived
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationValidatorSpec")(
-    suite("ValidationResult")(
-      test("Valid is a valid result") {
-        val result: MigrationValidator.ValidationResult = MigrationValidator.ValidationResult.Valid
+    suite("AddField validation")(
+      test("validates AddField with valid target path") {
+        val action    = MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.string("default"))
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
         assertTrue(result == MigrationValidator.ValidationResult.Valid)
       },
-      test("Invalid contains errors") {
+      test("rejects AddField with invalid target path") {
+        val invalidPath = DynamicOptic.root.field("nonexistent").field("nested")
+        val action      = MigrationAction.AddField(invalidPath, "field", Resolved.Literal.int(0))
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.nonEmpty && errors.head.isInstanceOf[MigrationValidator.ValidationError.PathNotInTarget])
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("DropField validation")(
+      test("validates DropField with valid source path") {
+        val action    = MigrationAction.DropField(DynamicOptic.root, "age", Resolved.Literal.int(25))
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects DropField with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("missing")
+        val action      = MigrationAction.DropField(invalidPath, "field", Resolved.Literal.int(0))
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Rename validation")(
+      test("validates Rename with valid source path") {
+        val action    = MigrationAction.Rename(DynamicOptic.root, "name", "fullName")
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects Rename with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("nonexistent")
+        val action      = MigrationAction.Rename(invalidPath, "old", "new")
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("TransformValue validation")(
+      test("validates TransformValue with valid source path") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          "age",
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects TransformValue with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("missing")
+        val action      = MigrationAction.TransformValue(invalidPath, "f", Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Mandate validation")(
+      test("validates Mandate with valid source path") {
+        val action    = MigrationAction.Mandate(DynamicOptic.root, "name", Resolved.Literal.string("default"))
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects Mandate with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("invalid")
+        val action      = MigrationAction.Mandate(invalidPath, "f", Resolved.Literal.string("x"))
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Optionalize validation")(
+      test("validates Optionalize with valid source path") {
+        val action    = MigrationAction.Optionalize(DynamicOptic.root, "age")
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects Optionalize with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("bad")
+        val action      = MigrationAction.Optionalize(invalidPath, "f")
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("ChangeType validation")(
+      test("validates ChangeType with valid source path") {
+        val action = MigrationAction.ChangeType(
+          DynamicOptic.root,
+          "age",
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects ChangeType with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("nope")
+        val action      = MigrationAction.ChangeType(invalidPath, "f", Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("RenameCase validation")(
+      test("validates RenameCase with valid source path") {
+        val action    = MigrationAction.RenameCase(DynamicOptic.root, "Active", "Activated")
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamicForEnums(migration, schemaStatus, schemaStatus)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects RenameCase with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("missing")
+        val action      = MigrationAction.RenameCase(invalidPath, "A", "B")
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamicForEnums(migration, schemaStatus, schemaStatus)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("TransformCase validation")(
+      test("validates TransformCase with valid source path and nested actions") {
+        val nestedAction = MigrationAction.Rename(DynamicOptic.root, "reason", "message")
+        val action       = MigrationAction.TransformCase(DynamicOptic.root, "Pending", Chunk(nestedAction))
+        val migration    = DynamicMigration(Chunk(action))
+        val result       = validateDynamicForEnums(migration, schemaStatus, schemaStatus)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects TransformCase with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("bad")
+        val action      = MigrationAction.TransformCase(invalidPath, "X", Chunk.empty)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamicForEnums(migration, schemaStatus, schemaStatus)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      },
+      test("propagates errors from nested actions") {
+        val badNested = MigrationAction.Rename(DynamicOptic.root.field("invalid"), "a", "b")
+        val action    = MigrationAction.TransformCase(DynamicOptic.root, "Pending", Chunk(badNested))
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamicForEnums(migration, schemaStatus, schemaStatus)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.size >= 1)
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("TransformElements validation")(
+      test("validates TransformElements with valid source path") {
+        val action =
+          MigrationAction.TransformElements(DynamicOptic.root.field("members"), Resolved.Identity, Resolved.Identity)
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaTeam, schemaTeam)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects TransformElements with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("nonexistent")
+        val action      = MigrationAction.TransformElements(invalidPath, Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaTeam, schemaTeam)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("TransformKeys validation")(
+      test("validates TransformKeys with valid source path") {
+        val action =
+          MigrationAction.TransformKeys(DynamicOptic.root.field("settings"), Resolved.Identity, Resolved.Identity)
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaConfig, schemaConfig)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects TransformKeys with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("bad")
+        val action      = MigrationAction.TransformKeys(invalidPath, Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaConfig, schemaConfig)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("TransformValues validation")(
+      test("validates TransformValues with valid source path") {
+        val action =
+          MigrationAction.TransformValues(DynamicOptic.root.field("settings"), Resolved.Identity, Resolved.Identity)
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaConfig, schemaConfig)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects TransformValues with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("invalid")
+        val action      = MigrationAction.TransformValues(invalidPath, Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaConfig, schemaConfig)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Join validation")(
+      test("validates Join with valid source path") {
+        val action = MigrationAction.Join(
+          DynamicOptic.root,
+          "combined",
+          Chunk(DynamicOptic.root.field("name"), DynamicOptic.root.field("age")),
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects Join with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("bad")
+        val action      = MigrationAction.Join(invalidPath, "target", Chunk.empty, Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Split validation")(
+      test("validates Split with valid source path") {
+        val action = MigrationAction.Split(
+          DynamicOptic.root,
+          "name",
+          Chunk(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+          Resolved.Identity,
+          Resolved.Identity
+        )
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        assertTrue(result == MigrationValidator.ValidationResult.Valid)
+      },
+      test("rejects Split with invalid source path") {
+        val invalidPath = DynamicOptic.root.field("nope")
+        val action      = MigrationAction.Split(invalidPath, "f", Chunk.empty, Resolved.Identity, Resolved.Identity)
+        val migration   = DynamicMigration(Chunk(action))
+        val result      = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.exists(_.isInstanceOf[MigrationValidator.ValidationError.PathNotInSource]))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Multiple errors")(
+      test("collects errors from multiple invalid actions") {
+        val action1 = MigrationAction.DropField(DynamicOptic.root.field("bad1"), "f", Resolved.Literal.int(0))
+        val action2 = MigrationAction.Rename(DynamicOptic.root.field("bad2"), "a", "b")
+        val action3 =
+          MigrationAction.ChangeType(DynamicOptic.root.field("bad3"), "x", Resolved.Identity, Resolved.Identity)
+        val migration = DynamicMigration(Chunk(action1, action2, action3))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
+        result match {
+          case MigrationValidator.ValidationResult.Invalid(errors) =>
+            assertTrue(errors.size == 3)
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("ValidationError rendering")(
+      test("PathNotInSource has message") {
+        val error = MigrationValidator.ValidationError.PathNotInSource(DynamicOptic.root.field("test"))
+        assertTrue(error.message.nonEmpty)
+      },
+      test("PathNotInTarget has message") {
+        val error = MigrationValidator.ValidationError.PathNotInTarget(DynamicOptic.root.field("field"))
+        assertTrue(error.message.nonEmpty)
+      },
+      test("FieldAlreadyExists has message with field name") {
+        val error = MigrationValidator.ValidationError.FieldAlreadyExists(DynamicOptic.root, "name")
+        assertTrue(error.message.contains("name"))
+      },
+      test("FieldNotFound has message with field name") {
+        val error = MigrationValidator.ValidationError.FieldNotFound(DynamicOptic.root, "missing")
+        assertTrue(error.message.contains("missing"))
+      },
+      test("CaseNotFound has message with case name") {
+        val error = MigrationValidator.ValidationError.CaseNotFound(DynamicOptic.root, "Unknown")
+        assertTrue(error.message.contains("Unknown"))
+      },
+      test("TypeMismatch has message with types") {
+        val error = MigrationValidator.ValidationError.TypeMismatch(DynamicOptic.root, "String", "Int")
+        assertTrue(error.message.contains("String") && error.message.contains("Int"))
+      },
+      test("IncompatibleTransform has message with reason") {
+        val error = MigrationValidator.ValidationError.IncompatibleTransform(DynamicOptic.root, "no converter")
+        assertTrue(error.message.contains("no converter"))
+      }
+    ),
+    suite("ValidationResult rendering")(
+      test("Invalid result has render method") {
         val errors = Chunk(
-          MigrationValidator.ValidationError.FieldNotFound(DynamicOptic.root, "test")
+          MigrationValidator.ValidationError.PathNotInSource(DynamicOptic.root.field("a")),
+          MigrationValidator.ValidationError.PathNotInTarget(DynamicOptic.root.field("b"))
         )
         val result = MigrationValidator.ValidationResult.Invalid(errors)
-        assertTrue(result.errors.nonEmpty)
-      },
-      test("Invalid render produces error messages") {
-        val errors = Chunk(
-          MigrationValidator.ValidationError.FieldNotFound(DynamicOptic.root, "field1"),
-          MigrationValidator.ValidationError.PathNotInSource(DynamicOptic.root)
-        )
-        val result   = MigrationValidator.ValidationResult.Invalid(errors)
-        val rendered = result.render
-        assertTrue(rendered.contains("field1") && rendered.contains("source"))
+        assertTrue(result.render.nonEmpty)
       }
     ),
-    suite("ValidationError types")(
-      test("PathNotInSource has correct message") {
-        val error = MigrationValidator.ValidationError.PathNotInSource(DynamicOptic.root)
-        assertTrue(error.message.contains("source"))
-      },
-      test("PathNotInTarget has correct message") {
-        val error = MigrationValidator.ValidationError.PathNotInTarget(DynamicOptic.root)
-        assertTrue(error.message.contains("target"))
-      },
-      test("FieldAlreadyExists has correct message") {
-        val error = MigrationValidator.ValidationError.FieldAlreadyExists(DynamicOptic.root, "email")
-        assertTrue(error.message.contains("email") && error.message.contains("exists"))
-      },
-      test("FieldNotFound has correct message") {
-        val error = MigrationValidator.ValidationError.FieldNotFound(DynamicOptic.root, "missing")
-        assertTrue(error.message.contains("missing") && error.message.contains("not found"))
-      },
-      test("CaseNotFound has correct message") {
-        val error = MigrationValidator.ValidationError.CaseNotFound(DynamicOptic.root, "SomeCase")
-        assertTrue(error.message.contains("SomeCase"))
-      },
-      test("TypeMismatch has correct message") {
-        val error = MigrationValidator.ValidationError.TypeMismatch(DynamicOptic.root, "Int", "String")
-        assertTrue(error.message.contains("Int") && error.message.contains("String"))
-      },
-      test("IncompatibleTransform has correct message") {
-        val error = MigrationValidator.ValidationError.IncompatibleTransform(DynamicOptic.root, "cannot convert")
-        assertTrue(error.message.contains("cannot convert"))
-      },
-      test("ValidationError render includes path") {
-        val error    = MigrationValidator.ValidationError.FieldNotFound(DynamicOptic.root.field("test"), "field")
-        val rendered = error.render
-        assertTrue(rendered.contains("test"))
-      }
-    ),
-    suite("validate")(
-      test("valid migration returns Valid") {
-        val migration = MigrationBuilder[Person, Person].buildPartial
-        val result    = MigrationValidator.validate(migration)
+    suite("Empty migration")(
+      test("empty migration is always valid") {
+        val migration = DynamicMigration(Chunk.empty)
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
         assertTrue(result == MigrationValidator.ValidationResult.Valid)
-      },
-      test("validate identity migration") {
-        val migration = Migration[Person, Person](
-          DynamicMigration.identity,
-          Schema[Person],
-          Schema[Person]
-        )
-        val result = MigrationValidator.validate(migration)
+      }
+    ),
+    suite("Root path handling")(
+      test("root path is always navigable") {
+        val action    = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(0))
+        val migration = DynamicMigration(Chunk(action))
+        val result    = validateDynamic(migration, schemaPersonV1, schemaPersonV2)
         assertTrue(result == MigrationValidator.ValidationResult.Valid)
-      },
-      test("validate migration with single action") {
-        val addAction = MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string(""))
-        val migration = Migration[Person, PersonWithEmail](
-          DynamicMigration(Chunk(addAction)),
-          Schema[Person],
-          Schema[PersonWithEmail]
-        )
-        val result = MigrationValidator.validate(migration)
-        // This should be valid if the action is correct
-        assertTrue(
-          result == MigrationValidator.ValidationResult.Valid || result
-            .isInstanceOf[MigrationValidator.ValidationResult.Invalid]
-        )
-      }
-    ),
-    suite("Resolved expressions coverage")(
-      test("Resolved.Literal.unit creates unit literal") {
-        val literal = Resolved.Literal.unit
-        val result  = literal.evalDynamic
-        assertTrue(result.isRight)
-      },
-      test("Resolved.SchemaDefault returns error on eval") {
-        val schemaDefault = Resolved.SchemaDefault
-        val result        = schemaDefault.evalDynamic
-        assertTrue(result.isLeft && result.left.exists(_.contains("SchemaDefault")))
-      },
-      test("Resolved.SchemaDefault returns error on eval with input") {
-        val schemaDefault = Resolved.SchemaDefault
-        val input         = DynamicValue.Primitive(PrimitiveValue.String("test"))
-        val result        = schemaDefault.evalDynamic(input)
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.Identity requires input without value") {
-        val identity = Resolved.Identity
-        val result   = identity.evalDynamic
-        assertTrue(result.isLeft && result.left.exists(_.contains("requires input")))
-      },
-      test("Resolved.FieldAccess requires input") {
-        val fieldAccess = Resolved.FieldAccess("name", Resolved.Identity)
-        val result      = fieldAccess.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.FieldAccess fails on non-record") {
-        val fieldAccess = Resolved.FieldAccess("name", Resolved.Identity)
-        val input       = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
-        val result      = fieldAccess.evalDynamic(input)
-        assertTrue(result.isLeft && result.left.exists(_.contains("Expected record")))
-      },
-      test("Resolved.FieldAccess fails on missing field") {
-        val fieldAccess = Resolved.FieldAccess("missing", Resolved.Identity)
-        val input       = DynamicValue.Record(("name", DynamicValue.Primitive(PrimitiveValue.String("test"))))
-        val result      = fieldAccess.evalDynamic(input)
-        assertTrue(result.isLeft && result.left.exists(_.contains("not found")))
-      },
-      test("Resolved.Convert requires input") {
-        val convert = Resolved.Convert("Int", "Long", Resolved.Identity)
-        val result  = convert.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.Convert performs type conversion") {
-        val convert = Resolved.Convert("Int", "Long", Resolved.Identity)
-        val input   = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val result  = convert.evalDynamic(input)
-        assertTrue(result.isRight)
-      },
-      test("Resolved.Convert inverse swaps types") {
-        val convert = Resolved.Convert("Int", "Long", Resolved.Identity)
-        val inverse = convert.inverse
-        inverse match {
-          case Resolved.Convert(from, to, _) => assertTrue(from == "Long" && to == "Int")
-          case _                             => assertTrue(false)
-        }
-      },
-      test("Resolved.Concat requires input") {
-        val concat = Resolved.Concat(Vector(Resolved.Identity), " ")
-        val result = concat.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.Concat joins strings") {
-        val concat = Resolved.Concat(
-          Vector(
-            Resolved.FieldAccess("first", Resolved.Identity),
-            Resolved.FieldAccess("last", Resolved.Identity)
-          ),
-          " "
-        )
-        val input = DynamicValue.Record(
-          ("first", DynamicValue.Primitive(PrimitiveValue.String("John"))),
-          ("last", DynamicValue.Primitive(PrimitiveValue.String("Doe")))
-        )
-        val result = concat.evalDynamic(input)
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("John Doe"))))
-      },
-      test("Resolved.Concat fails on non-string") {
-        val concat = Resolved.Concat(Vector(Resolved.Identity), " ")
-        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val result = concat.evalDynamic(input)
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.SplitString requires input") {
-        val split  = Resolved.SplitString(Resolved.Identity, " ", 0)
-        val result = split.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.SplitString splits on delimiter") {
-        val split  = Resolved.SplitString(Resolved.Identity, " ", 0)
-        val input  = DynamicValue.Primitive(PrimitiveValue.String("hello world"))
-        val result = split.evalDynamic(input)
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("hello"))))
-      },
-      test("Resolved.SplitString second index") {
-        val split  = Resolved.SplitString(Resolved.Identity, " ", 1)
-        val input  = DynamicValue.Primitive(PrimitiveValue.String("hello world"))
-        val result = split.evalDynamic(input)
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("world"))))
-      },
-      test("Resolved.SplitString fails on out of bounds") {
-        val split  = Resolved.SplitString(Resolved.Identity, " ", 10)
-        val input  = DynamicValue.Primitive(PrimitiveValue.String("hello world"))
-        val result = split.evalDynamic(input)
-        assertTrue(result.isLeft && result.left.exists(_.contains("out of bounds")))
-      },
-      test("Resolved.SplitString fails on non-string") {
-        val split  = Resolved.SplitString(Resolved.Identity, " ", 0)
-        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val result = split.evalDynamic(input)
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.DefaultValue.fromValue creates working default") {
-        val default = Resolved.DefaultValue.fromValue("test", Schema[String])
-        val result  = default.evalDynamic
-        assertTrue(result.isRight)
-      },
-      test("Resolved.DefaultValue.noDefault returns error") {
-        val default = Resolved.DefaultValue.noDefault
-        val result  = default.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.DefaultValue.fail returns specific error") {
-        val default = Resolved.DefaultValue.fail("custom error")
-        val result  = default.evalDynamic
-        assertTrue(result.isLeft && result.left.exists(_.contains("custom error")))
-      },
-      test("Resolved.WrapOption wraps value in Some") {
-        val wrap   = Resolved.WrapOption(Resolved.Identity)
-        val input  = DynamicValue.Primitive(PrimitiveValue.String("value"))
-        val result = wrap.evalDynamic(input)
-        assertTrue(result.exists(_.isInstanceOf[DynamicValue.Variant]))
-      },
-      test("Resolved.WrapOption requires input") {
-        val wrap   = Resolved.WrapOption(Resolved.Identity)
-        val result = wrap.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.UnwrapOption extracts from Some") {
-        val unwrap    = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.string("default"))
-        val someValue = DynamicValue.Variant(
-          "Some",
-          DynamicValue.Record(("value", DynamicValue.Primitive(PrimitiveValue.String("inner"))))
-        )
-        val result = unwrap.evalDynamic(someValue)
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("inner"))))
-      },
-      test("Resolved.UnwrapOption uses fallback for None") {
-        val unwrap    = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.string("default"))
-        val noneValue = DynamicValue.Variant("None", DynamicValue.Record())
-        val result    = unwrap.evalDynamic(noneValue)
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("default"))))
-      },
-      test("Resolved.UnwrapOption uses fallback for Null") {
-        val unwrap    = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.string("default"))
-        val nullValue = DynamicValue.Null
-        val result    = unwrap.evalDynamic(nullValue)
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("default"))))
-      },
-      test("Resolved.UnwrapOption requires input") {
-        val unwrap = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.string("default"))
-        val result = unwrap.evalDynamic
-        assertTrue(result.isLeft)
-      },
-      test("Resolved.UnwrapOption passes through non-option values") {
-        val unwrap       = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.string("default"))
-        val regularValue = DynamicValue.Primitive(PrimitiveValue.String("just a string"))
-        val result       = unwrap.evalDynamic(regularValue)
-        assertTrue(result == Right(regularValue))
-      },
-      test("Resolved.WrapOption inverse returns UnwrapOption") {
-        val wrap    = Resolved.WrapOption(Resolved.Identity)
-        val inverse = wrap.inverse
-        assertTrue(inverse.isInstanceOf[Resolved.UnwrapOption])
-      },
-      test("Resolved.UnwrapOption inverse returns WrapOption") {
-        val unwrap  = Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.string(""))
-        val inverse = unwrap.inverse
-        assertTrue(inverse.isInstanceOf[Resolved.WrapOption])
-      },
-      test("Resolved.OpticAccess requires input") {
-        val opticAccess = Resolved.OpticAccess(DynamicOptic.root.field("name"), Resolved.Identity)
-        val result      = opticAccess.evalDynamic
-        assertTrue(result.isLeft)
-      }
-    ),
-    suite("MigrationAction reverse coverage")(
-      test("AddField reverse is DropField") {
-        val add     = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.string("default"))
-        val reverse = add.reverse
-        assertTrue(reverse.isInstanceOf[MigrationAction.DropField])
-      },
-      test("DropField reverse is AddField") {
-        val drop    = MigrationAction.DropField(DynamicOptic.root, "field", Resolved.Literal.string("restore"))
-        val reverse = drop.reverse
-        assertTrue(reverse.isInstanceOf[MigrationAction.AddField])
-      },
-      test("Rename reverse swaps from and to") {
-        val rename  = MigrationAction.Rename(DynamicOptic.root, "old", "new")
-        val reverse = rename.reverse
-        reverse match {
-          case MigrationAction.Rename(_, from, to) => assertTrue(from == "new" && to == "old")
-          case _                                   => assertTrue(false)
-        }
-      },
-      test("TransformValue reverse swaps transform and reverseTransform") {
-        val transform =
-          MigrationAction.TransformValue(DynamicOptic.root, "field", Resolved.Literal.int(1), Resolved.Literal.int(2))
-        val reverse = transform.reverse
-        reverse match {
-          case MigrationAction.TransformValue(_, _, t, rt) =>
-            assertTrue(t == Resolved.Literal.int(2) && rt == Resolved.Literal.int(1))
-          case _ => assertTrue(false)
-        }
-      },
-      test("Mandate reverse is Optionalize") {
-        val mandate = MigrationAction.Mandate(DynamicOptic.root, "field", Resolved.Literal.string(""))
-        val reverse = mandate.reverse
-        assertTrue(reverse.isInstanceOf[MigrationAction.Optionalize])
-      },
-      test("Optionalize reverse exists") {
-        val optionalize = MigrationAction.Optionalize(DynamicOptic.root, "field")
-        val reverse     = optionalize.reverse
-        assertTrue(reverse != null)
-      },
-      test("RenameCase reverse swaps from and to") {
-        val renameCase = MigrationAction.RenameCase(DynamicOptic.root, "Old", "New")
-        val reverse    = renameCase.reverse
-        reverse match {
-          case MigrationAction.RenameCase(_, from, to) => assertTrue(from == "New" && to == "Old")
-          case _                                       => assertTrue(false)
-        }
-      },
-      test("ChangeType reverse swaps converters") {
-        val changeType =
-          MigrationAction.ChangeType(DynamicOptic.root, "field", Resolved.Literal.int(1), Resolved.Literal.string(""))
-        val reverse = changeType.reverse
-        reverse match {
-          case MigrationAction.ChangeType(_, _, c, rc) =>
-            assertTrue(c == Resolved.Literal.string("") && rc == Resolved.Literal.int(1))
-          case _ => assertTrue(false)
-        }
-      },
-      test("Join reverse is Split") {
-        val join =
-          MigrationAction.Join(
-            DynamicOptic.root,
-            "target",
-            Chunk(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
-            Resolved.Identity,
-            Resolved.Identity
-          )
-        val reverse = join.reverse
-        assertTrue(reverse.isInstanceOf[MigrationAction.Split])
-      },
-      test("Split reverse is Join") {
-        val split =
-          MigrationAction.Split(
-            DynamicOptic.root,
-            "source",
-            Chunk(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
-            Resolved.Identity,
-            Resolved.Identity
-          )
-        val reverse = split.reverse
-        assertTrue(reverse.isInstanceOf[MigrationAction.Join])
-      },
-      test("TransformElements reverse swaps transforms") {
-        val elem =
-          MigrationAction.TransformElements(DynamicOptic.root, Resolved.Literal.int(1), Resolved.Literal.int(2))
-        val reverse = elem.reverse
-        reverse match {
-          case MigrationAction.TransformElements(_, t, rt) =>
-            assertTrue(t == Resolved.Literal.int(2) && rt == Resolved.Literal.int(1))
-          case _ => assertTrue(false)
-        }
-      },
-      test("TransformKeys reverse swaps key transforms") {
-        val keys =
-          MigrationAction.TransformKeys(DynamicOptic.root, Resolved.Literal.string("a"), Resolved.Literal.string("b"))
-        val reverse = keys.reverse
-        reverse match {
-          case MigrationAction.TransformKeys(_, t, rt) =>
-            assertTrue(t == Resolved.Literal.string("b") && rt == Resolved.Literal.string("a"))
-          case _ => assertTrue(false)
-        }
-      },
-      test("TransformValues reverse swaps value transforms") {
-        val vals    = MigrationAction.TransformValues(DynamicOptic.root, Resolved.Literal.int(1), Resolved.Literal.int(2))
-        val reverse = vals.reverse
-        reverse match {
-          case MigrationAction.TransformValues(_, t, rt) =>
-            assertTrue(t == Resolved.Literal.int(2) && rt == Resolved.Literal.int(1))
-          case _ => assertTrue(false)
-        }
-      },
-      test("TransformCase reverse reverses nested actions") {
-        val inner         = MigrationAction.Rename(DynamicOptic.root, "a", "b")
-        val transformCase = MigrationAction.TransformCase(DynamicOptic.root, "Case1", Chunk(inner))
-        val reverse       = transformCase.reverse
-        assertTrue(reverse.isInstanceOf[MigrationAction.TransformCase])
       }
     )
   )
+
+  // Helper to validate dynamic migrations
+  private def validateDynamic[A: Schema, B: Schema](
+    migration: DynamicMigration,
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationValidator.ValidationResult = {
+    val sourceDS = sourceSchema.toDynamicSchema
+    val targetDS = targetSchema.toDynamicSchema
+    validateActionsWithSchemas(migration.actions, sourceDS, targetDS)
+  }
+
+  private def validateDynamicForEnums[A: Schema, B: Schema](
+    migration: DynamicMigration,
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationValidator.ValidationResult = validateDynamic(migration, sourceSchema, targetSchema)
+
+  // Access private method via reflection-free approach - just inline the logic
+  private def validateActionsWithSchemas(
+    actions: Chunk[MigrationAction],
+    sourceSchema: DynamicSchema,
+    targetSchema: DynamicSchema
+  ): MigrationValidator.ValidationResult = {
+    var errors = Chunk.empty[MigrationValidator.ValidationError]
+
+    def pathNavigable(path: DynamicOptic, schema: DynamicSchema): Boolean =
+      if (path.nodes.isEmpty) true else schema.get(path).isDefined
+
+    actions.foreach { action =>
+      action match {
+        case MigrationAction.AddField(at, _, _) =>
+          if (!pathNavigable(at, targetSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInTarget(at)
+          }
+        case MigrationAction.DropField(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.Rename(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.TransformValue(at, _, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.Mandate(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.Optionalize(at, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.ChangeType(at, _, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.RenameCase(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.TransformCase(at, _, nestedActions) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+          validateActionsWithSchemas(nestedActions, sourceSchema, targetSchema) match {
+            case MigrationValidator.ValidationResult.Invalid(nestedErrors) => errors = errors ++ nestedErrors
+            case _                                                         => ()
+          }
+        case MigrationAction.TransformElements(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.TransformKeys(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.TransformValues(at, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.Join(at, _, _, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+        case MigrationAction.Split(at, _, _, _, _) =>
+          if (!pathNavigable(at, sourceSchema)) {
+            errors = errors :+ MigrationValidator.ValidationError.PathNotInSource(at)
+          }
+      }
+    }
+
+    if (errors.isEmpty) MigrationValidator.ValidationResult.Valid
+    else MigrationValidator.ValidationResult.Invalid(errors)
+  }
 }

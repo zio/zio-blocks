@@ -341,10 +341,10 @@ object SchemaShapeValidatorSpec extends SchemaBaseSpec {
         val v2 = SchemaShapeValidator.PathSegment.MapValues
         assertTrue(v1 eq v2)
       },
-      test("Field and Case are different types") {
+      test("Field and Case have different render outputs") {
         val field = SchemaShapeValidator.PathSegment.Field("name")
         val cse   = SchemaShapeValidator.PathSegment.Case("name")
-        assertTrue(field != cse)
+        assertTrue(field.render != cse.render)
       }
     ),
     suite("HierarchicalPath edge cases")(

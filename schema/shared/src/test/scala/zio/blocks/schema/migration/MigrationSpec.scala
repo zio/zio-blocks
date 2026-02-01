@@ -559,6 +559,92 @@ object MigrationSpec extends SchemaBaseSpec {
           case _ => assertTrue(false)
         }
       }
+    ),
+    suite("MigrationOptimizer")(
+      test("removeNoOps filters identity renames") {
+        val migration = DynamicMigration(
+          Chunk(
+            MigrationAction.Rename(DynamicOptic.root, "field", "field"),
+            MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.int(1))
+          )
+        )
+        val optimized = MigrationOptimizer.optimize(migration)
+        assertTrue(optimized.actions.size == 1) &&
+        assertTrue(optimized.actions.head.isInstanceOf[MigrationAction.AddField])
+      },
+      test("collapseRenames chains consecutive renames") {
+        val migration = DynamicMigration(
+          Chunk(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.Rename(DynamicOptic.root, "b", "c")
+          )
+        )
+        val optimized = MigrationOptimizer.optimize(migration)
+        assertTrue(optimized.actions.size == 1)
+      },
+      test("removeAddThenDrop removes add-drop pairs") {
+        val migration = DynamicMigration(
+          Chunk(
+            MigrationAction.AddField(DynamicOptic.root, "temp", Resolved.Literal.int(0)),
+            MigrationAction.DropField(DynamicOptic.root, "temp", Resolved.Literal.int(0))
+          )
+        )
+        val optimized = MigrationOptimizer.optimize(migration)
+        assertTrue(optimized.actions.isEmpty)
+      },
+      test("removeDropThenAdd with different fields preserves non-overlapping") {
+        val migration = DynamicMigration(
+          Chunk(
+            MigrationAction.DropField(DynamicOptic.root, "oldField", Resolved.Fail("no reverse")),
+            MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.string("newValue"))
+          )
+        )
+        val optimized = MigrationOptimizer.optimize(migration)
+        assertTrue(optimized.actions.size == 2)
+      },
+      test("preserves non-redundant actions") {
+        val migration = DynamicMigration(
+          Chunk(
+            MigrationAction.AddField(DynamicOptic.root, "email", Resolved.Literal.string("")),
+            MigrationAction.Rename(DynamicOptic.root, "name", "fullName")
+          )
+        )
+        val optimized = MigrationOptimizer.optimize(migration)
+        assertTrue(optimized.actions.size == 2)
+      },
+      test("report generates optimization stats") {
+        val migration = DynamicMigration(
+          Chunk(
+            MigrationAction.Rename(DynamicOptic.root, "a", "a"),
+            MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(1))
+          )
+        )
+        val report = MigrationOptimizer.report(migration)
+        assertTrue(report.originalCount == 2) &&
+        assertTrue(report.optimizedCount == 1) &&
+        assertTrue(report.actionsRemoved == 1)
+      },
+      test("report render produces formatted output") {
+        val migration = DynamicMigration(
+          Chunk(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(1)))
+        )
+        val report = MigrationOptimizer.report(migration)
+        assertTrue(report.render.contains("Optimization Report"))
+      },
+      test("report handles empty migration") {
+        val migration = DynamicMigration(Chunk.empty)
+        val report    = MigrationOptimizer.report(migration)
+        assertTrue(report.originalCount == 0) &&
+        assertTrue(report.percentReduced == 0.0)
+      },
+      test("optimizer is idempotent") {
+        val migration = DynamicMigration(
+          Chunk(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(1)))
+        )
+        val once  = MigrationOptimizer.optimize(migration)
+        val twice = MigrationOptimizer.optimize(once)
+        assertTrue(once.actions == twice.actions)
+      }
     )
   )
 
