@@ -302,6 +302,60 @@ object JsonSelectionSpec extends SchemaBaseSpec {
         )
       }
     ),
+    suite("Error handling")(
+      test("one fails for empty selection") {
+        val json      = Json.Object("a" -> Json.Number(1))
+        val selection = json.get(DynamicOptic.root.field("nonexistent"))
+        assertTrue(selection.one.isLeft)
+      },
+      test("one fails for multiple values") {
+        val json      = Json.Array(Json.Number(1), Json.Number(2))
+        val selection = json.get(DynamicOptic.root.elements)
+        assertTrue(selection.one.isLeft)
+      },
+      test("any fails for empty selection") {
+        val json      = Json.Object("a" -> Json.Number(1))
+        val selection = json.get(DynamicOptic.root.field("nonexistent"))
+        assertTrue(selection.any.isLeft)
+      },
+      test("flatMap propagates errors") {
+        val json      = Json.Object("a" -> Json.Number(1))
+        val selection = json.get(DynamicOptic.root.field("nonexistent"))
+        val result    = selection.flatMap(j => JsonSelection.succeed(j))
+        assertTrue(result.isFailure)
+      },
+      test("combined failures with ++") {
+        val json       = Json.Object("a" -> Json.Number(1))
+        val selection1 = json.get(DynamicOptic.root.field("x"))
+        val selection2 = json.get(DynamicOptic.root.field("y"))
+        val combined   = selection1 ++ selection2
+        assertTrue(combined.isEmpty)
+      },
+      test("oneUnsafe throws SchemaError") {
+        val json      = Json.Object("a" -> Json.Number(1))
+        val selection = json.get(DynamicOptic.root.field("nonexistent"))
+        val thrown    = try {
+          selection.oneUnsafe
+          false
+        } catch {
+          case _: SchemaError => true
+          case _: Throwable   => false
+        }
+        assertTrue(thrown)
+      },
+      test("anyUnsafe throws SchemaError") {
+        val json      = Json.Object("a" -> Json.Number(1))
+        val selection = json.get(DynamicOptic.root.field("nonexistent"))
+        val thrown    = try {
+          selection.anyUnsafe
+          false
+        } catch {
+          case _: SchemaError => true
+          case _: Throwable   => false
+        }
+        assertTrue(thrown)
+      }
+    ),
     suite("Fallible mutation methods")(
       test("modifyOrFail succeeds when path exists and partial function is defined") {
         val json      = Json.Object("a" -> Json.Number("1"))
