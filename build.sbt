@@ -45,7 +45,6 @@ addCommandAlias(
   "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc"
 )
 
-
 lazy val root = project
   .in(file("."))
   .settings(
