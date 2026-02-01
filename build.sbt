@@ -59,6 +59,10 @@ lazy val root = project
   .aggregate(
     typeid.jvm,
     typeid.js,
+    typeid.native,
+    combinators.jvm,
+    combinators.js,
+    combinators.native,
     context.jvm,
     context.js,
     scope.jvm,
@@ -115,7 +119,25 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 69
   )
 
-lazy val context = crossProject(JSPlatform, JVMPlatform)
+lazy val combinators = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-combinators"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.combinators"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 80
+  )
+
+lazy val context = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-context"))
@@ -124,6 +146,7 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
