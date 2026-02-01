@@ -11,6 +11,7 @@ object SeqConstructorSpec extends SchemaBaseSpec {
     primitiveArraySuite,
     otherConstructorsSuite,
     emptyConstructorsSuite,
+    sizeHintEdgeCasesSuite,
     noResizeSuite
   )
 
@@ -361,6 +362,39 @@ object SeqConstructorSpec extends SchemaBaseSpec {
       val c      = SeqConstructor.chunkConstructor
       val result = c.empty[Byte]
       assertTrue(result.isEmpty)
+    }
+  )
+
+  private def sizeHintEdgeCasesSuite = suite("sizeHint edge cases")(
+    test("Array newBuilder clamps sizeHint 0 to 1") {
+      val c = SeqConstructor.arrayConstructor
+      val b = c.newBuilder[Int](0)
+      c.addInt(b, 1)
+      c.addInt(b, 2)
+      val result = c.result(b)
+      assertTrue(result.toList == List(1, 2))
+    },
+    test("ArraySeq newBuilder clamps sizeHint 0 to 1") {
+      val c = SeqConstructor.arraySeqConstructor
+      val b = c.newBuilder[Int](0)
+      c.addInt(b, 1)
+      c.addInt(b, 2)
+      val result = c.result(b)
+      assertTrue(result.toList == List(1, 2))
+    },
+    test("Array newBuilder clamps negative sizeHint to 1") {
+      val c = SeqConstructor.arrayConstructor
+      val b = c.newBuilder[Int](-5)
+      c.addInt(b, 42)
+      val result = c.result(b)
+      assertTrue(result.toList == List(42))
+    },
+    test("ArraySeq newBuilder clamps negative sizeHint to 1") {
+      val c = SeqConstructor.arraySeqConstructor
+      val b = c.newBuilder[Int](-5)
+      c.addInt(b, 42)
+      val result = c.result(b)
+      assertTrue(result.toList == List(42))
     }
   )
 

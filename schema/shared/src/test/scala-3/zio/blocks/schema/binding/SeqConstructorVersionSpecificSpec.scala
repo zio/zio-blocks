@@ -158,6 +158,21 @@ object SeqConstructorVersionSpecificSpec extends SchemaBaseSpec {
       for (i <- 1 to 10) constructor.add(builder, s"item$i")
       val result = constructor.result(builder)
       assertTrue(result.toList == (1 to 10).map(i => s"item$i").toList)
+    },
+    test("IArray newBuilder clamps sizeHint 0 to 1") {
+      val c = SeqConstructor.iArrayConstructor
+      val b = c.newBuilder[Int](0)
+      c.addInt(b, 1)
+      c.addInt(b, 2)
+      val result = c.result(b)
+      assertTrue(result.toList == List(1, 2))
+    },
+    test("IArray newBuilder clamps negative sizeHint to 1") {
+      val c = SeqConstructor.iArrayConstructor
+      val b = c.newBuilder[Int](-5)
+      c.addInt(b, 42)
+      val result = c.result(b)
+      assertTrue(result.toList == List(42))
     }
   )
 }
