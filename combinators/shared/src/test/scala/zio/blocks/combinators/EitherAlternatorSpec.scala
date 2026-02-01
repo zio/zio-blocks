@@ -95,10 +95,40 @@ object EitherAlternatorSpec extends ZIOSpecDefault {
         assertTrue(alt1 != null && alt2 != null && alt3 != null)
       }
     ),
-    suite("isSameType flag")(
-      test("isSameType is false for different types") {
-        val alt = implicitly[EitherAlternator.WithOut[Int, String, Either[Int, String]]]
-        assertTrue(!alt.isSameType)
+    suite("same types - Either[A, A]")(
+      test("EitherAlternator[Int, Int] instance resolves") {
+        val alt = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        assertTrue(alt != null)
+      },
+      test("left(1) produces Left(1)") {
+        val alt    = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        val result = alt.left(1)
+        assertTrue(result == Left(1))
+      },
+      test("right(2) produces Right(2)") {
+        val alt    = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        val result = alt.right(2)
+        assertTrue(result == Right(2))
+      },
+      test("unleft extracts from Left") {
+        val alt  = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        val left = alt.left(42)
+        assertTrue(alt.unleft(left) == Some(42))
+      },
+      test("unright extracts from Right") {
+        val alt   = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        val right = alt.right(99)
+        assertTrue(alt.unright(right) == Some(99))
+      },
+      test("unleft returns None for Right") {
+        val alt   = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        val right = alt.right(1)
+        assertTrue(alt.unleft(right) == None)
+      },
+      test("unright returns None for Left") {
+        val alt  = implicitly[EitherAlternator.WithOut[Int, Int, Either[Int, Int]]]
+        val left = alt.left(1)
+        assertTrue(alt.unright(left) == None)
       }
     )
   )
