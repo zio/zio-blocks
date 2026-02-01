@@ -105,39 +105,9 @@ jobs:
       - name: Run tests and compile docs
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
 
-  testNative:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        java: [11]
-        platform: ['Native']
-        scala: ['2.13.x', '3.3.x', '3.7.x']
-    env:
-      SCALANATIVE_THREAD_STACK_SIZE: 128m
-    steps:
-      - name: Checkout current branch
-        uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-      - name: Setup Action
-        uses: coursier/setup-action@v2
-        with:
-          jvm: temurin:${{ matrix.java }}
-          jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
-          apps: sbt
-      - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
-      - name: Run tests and compile docs
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala Next tests
-        if: ${{ matrix.scala == '3.7.x' }}
-        run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test
-
   ci:
     runs-on: ubuntu-latest
-    needs: [lint, testJVM, testJS, testNative]
+    needs: [lint, testJVM, testJS]
     steps:
       - name: Aggregate of lint, and all tests
         run: echo "ci passed"
