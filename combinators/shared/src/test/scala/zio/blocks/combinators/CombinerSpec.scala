@@ -113,6 +113,92 @@ object CombinerSpec extends ZIOSpecDefault {
         assertTrue(a9 == (1, 2, 3, 4, 5, 6, 7, 8, 9) && a10val == 10)
       }
     ),
+    suite("Tuple flattening for arity 11")(
+      test("combine((a1,...,a10), a11) == (a1,...,a11)") {
+        val a10      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        val a11      = 11
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = combiner.combine(a10, a11)
+        assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
+      },
+      test("separate((a1,...,a11)) == ((a1,...,a10), a11)") {
+        val a11      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val (a10, a11val) = combiner.separate(a11.asInstanceOf[combiner.Out])
+        assertTrue(a10 == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) && a11val == 11)
+      }
+    ),
+    suite("Tuple flattening for arity 15")(
+      test("combine((a1,...,a14), a15) == (a1,...,a15)") {
+        val a14      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+        val a15      = 15
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = combiner.combine(a14, a15)
+        assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+      },
+      test("separate((a1,...,a15)) == ((a1,...,a14), a15)") {
+        val a15      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val (a14, a15val) = combiner.separate(a15.asInstanceOf[combiner.Out])
+        assertTrue(a14 == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) && a15val == 15)
+      }
+    ),
+    suite("Tuple flattening for arity 20")(
+      test("combine((a1,...,a19), a20) == (a1,...,a20)") {
+        val a19      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+        val a20      = 20
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = combiner.combine(a19, a20)
+        assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20))
+      },
+      test("separate((a1,...,a20)) == ((a1,...,a19), a20)") {
+        val a20      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val (a19, a20val) = combiner.separate(a20.asInstanceOf[combiner.Out])
+        assertTrue(a19 == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19) && a20val == 20)
+      }
+    ),
+    suite("Tuple flattening for arity 22 (max Scala 2 arity)")(
+      test("combine((a1,...,a21), a22) == (a1,...,a22)") {
+        val a21      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)
+        val a22      = 22
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = combiner.combine(a21, a22)
+        assertTrue(
+          result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+        )
+      },
+      test("separate((a1,...,a22)) == ((a1,...,a21), a22)") {
+        val a22      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+        val combiner = implicitly[Combiner[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val (a21, a22val) = combiner.separate(a22.asInstanceOf[combiner.Out])
+        assertTrue(a21 == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21) && a22val == 22)
+      }
+    ),
     suite("Type inference")(
       test("combiner instance exists for Int and String") {
         val combiner = implicitly[Combiner[Int, String]]
