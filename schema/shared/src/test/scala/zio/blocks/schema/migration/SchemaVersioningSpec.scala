@@ -1,7 +1,6 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, Schema}
-import zio.blocks.schema.binding.Binding
 import zio.test._
 
 object SchemaVersioningSpec extends ZIOSpecDefault {

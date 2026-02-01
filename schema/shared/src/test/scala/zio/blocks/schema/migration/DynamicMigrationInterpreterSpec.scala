@@ -56,7 +56,7 @@ object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
               fields.size == 3,
               fields.exists(_._1 == "email")
             )
-          case other => assertTrue(false)
+          case _ => assertTrue(false)
         }
       },
       test("migration with DropField") {
@@ -78,7 +78,7 @@ object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
               fields.size == 2,
               !fields.exists(_._1 == "email")
             )
-          case other => assertTrue(false)
+          case _ => assertTrue(false)
         }
       },
       test("migration with Rename") {
@@ -99,7 +99,7 @@ object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
               fields.exists(_._1 == "fullName"),
               !fields.exists(_._1 == "name")
             )
-          case other => assertTrue(false)
+          case _ => assertTrue(false)
         }
       }
     ),
