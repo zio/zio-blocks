@@ -6,6 +6,10 @@ sidebar_label: "Schema Evolution"
 
 Schema evolution is a common challenge in distributed systems where data structures change over time. ZIO Blocks provides two type classes—`Into` and `As`—that enable type-safe, compile-time verified transformations between different versions of your data types.
 
+:::tip[Looking for data migrations?]
+For runtime, serializable migrations that can be stored and applied dynamically, see the [Schema Migration](migration.md) documentation.
+:::
+
 ## Overview
 
 When your application evolves, you often need to:

@@ -66,6 +66,31 @@ object SchemaExpr {
     private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
   }
 
+  /**
+   * A marker expression indicating the schema's default value should be used.
+   *
+   * This is used in migrations when the default value comes from the target
+   * schema's field definition rather than being explicitly provided.
+   *
+   * @tparam S
+   *   the source type (input type for the expression)
+   * @tparam A
+   *   the value type (will be resolved from schema.defaultValue at runtime)
+   */
+  final case class DefaultValue[S, A](schema: Schema[A]) extends SchemaExpr[S, A] {
+    def eval(input: S): Either[OpticCheck, Seq[A]] =
+      // DefaultValue should be resolved at build time - if this is called,
+      // the expression wasn't properly resolved before execution.
+      // Return an empty sequence as a fallback.
+      Right(Seq.empty)
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
+      // DefaultValue should be resolved at build time - if this is called,
+      // the expression wasn't properly resolved before execution.
+      // Return an empty sequence as a fallback.
+      Right(Seq.empty)
+  }
+
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
       case l: Lens[?, ?] =>
