@@ -2,12 +2,13 @@ package golem.data
 
 import golem.data.DataType._
 import golem.data.DataValue._
-import zio.blocks.schema.{DynamicValue => DV, Namespace, PrimitiveType, PrimitiveValue, Schema, TypeName}
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.{DynamicValue => DV, PrimitiveType, PrimitiveValue, Schema}
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.Reflect
 
 import scala.collection.immutable.ListMap
 object DataInterop {
-  private val NsScalaCollectionImmutable = Namespace(Seq("scala", "collection", "immutable"))
 
   def schemaToDataType[A](schema: Schema[A]): DataType =
     reflectToDataType(schema.reflect)
@@ -61,7 +62,7 @@ object DataInterop {
             reflect.asSequenceUnknown match {
               case Some(seqUnknown) =>
                 // Treat Set specially; everything else is a list.
-                if (isSetTypeName(reflect.typeName))
+                if (isSetTypeId(reflect.typeId))
                   SetType(reflectToDataType(seqUnknown.sequence.element.asInstanceOf[Reflect.Bound[Any]]))
                 else ListType(reflectToDataType(seqUnknown.sequence.element.asInstanceOf[Reflect.Bound[Any]]))
 
@@ -105,8 +106,8 @@ object DataInterop {
     }
   }
 
-  private def isSetTypeName(typeName: TypeName[?]): Boolean =
-    typeName.namespace == NsScalaCollectionImmutable && typeName.name == "Set"
+  private def isSetTypeId(typeId: TypeId[?]): Boolean =
+    TypeId.normalize(typeId).fullName == TypeId.set.fullName
 
   private def isTupleRecord(rec: Reflect.Record[_root_.zio.blocks.schema.binding.Binding, _]): Boolean = {
     val names = rec.fields.map(_.name).toSet
@@ -262,7 +263,7 @@ object DataInterop {
                   case DV.Sequence(values) =>
                     val elemRef   = seqUnknown.sequence.element.asInstanceOf[Reflect.Bound[Any]]
                     val converted = values.map(v => dynamicToDataValue(elemRef, v)).toList
-                    if (isSetTypeName(reflect.typeName)) SetValue(converted.toSet)
+                    if (isSetTypeId(reflect.typeId)) SetValue(converted.toSet)
                     else ListValue(converted)
                   case other =>
                     throw new IllegalArgumentException(s"Expected sequence dynamic value, found: $other")
@@ -362,11 +363,11 @@ object DataInterop {
       case Some((innerRef, usesRecordWrapper)) =>
         value match {
           case OptionalValue(None) =>
-            return DV.Variant("None", DV.Record(Vector.empty))
+            return DV.Variant("None", DV.Record(Chunk.empty))
           case OptionalValue(Some(v)) =>
             val dynInner = dataValueToDynamic(innerRef, v)
             val payload  =
-              if (usesRecordWrapper) DV.Record(Vector("value" -> dynInner))
+              if (usesRecordWrapper) DV.Record(Chunk("value" -> dynInner))
               else dynInner
             return DV.Variant("Some", payload)
           case other =>
@@ -390,7 +391,7 @@ object DataInterop {
               f.name -> dataValueToDynamic(f.value.asInstanceOf[Reflect.Bound[Any]], dv)
             }
             .toVector
-          DV.Record(dynFields)
+          DV.Record(Chunk.fromIterable(dynFields))
         case other =>
           throw new IllegalArgumentException(s"Expected TupleValue for tuple, got $other")
       }
@@ -431,7 +432,7 @@ object DataInterop {
                   val dv = map.getOrElse(f.name, throw new IllegalArgumentException(s"Missing field '${f.name}'"))
                   f.name -> dataValueToDynamic(f.value.asInstanceOf[Reflect.Bound[Any]], dv)
                 }.toVector
-                DV.Record(dynFields)
+                DV.Record(Chunk.fromIterable(dynFields))
               case TupleValue(values) if isTupleRecord(rec) =>
                 val orderedFields = rec.fields.sortBy(_.name)
                 if (values.length != orderedFields.length)
@@ -444,7 +445,7 @@ object DataInterop {
                     f.name -> dataValueToDynamic(f.value.asInstanceOf[Reflect.Bound[Any]], dv)
                   }
                   .toVector
-                DV.Record(dynFields)
+                DV.Record(Chunk.fromIterable(dynFields))
               case other =>
                 throw new IllegalArgumentException(s"Expected StructValue for record, got $other")
             }
@@ -455,9 +456,9 @@ object DataInterop {
                 val elemRef = seqUnknown.sequence.element.asInstanceOf[Reflect.Bound[Any]]
                 value match {
                   case ListValue(values) =>
-                    DV.Sequence(values.map(v => dataValueToDynamic(elemRef, v)).toVector)
+                    DV.Sequence(Chunk.fromIterable(values.map(v => dataValueToDynamic(elemRef, v))))
                   case SetValue(values) =>
-                    DV.Sequence(values.toVector.map(v => dataValueToDynamic(elemRef, v)))
+                    DV.Sequence(Chunk.fromIterable(values.map(v => dataValueToDynamic(elemRef, v))))
                   case other =>
                     throw new IllegalArgumentException(s"Expected ListValue/SetValue for sequence, got $other")
                 }
@@ -474,7 +475,7 @@ object DataInterop {
                           val dv = dataValueToDynamic(valueRef, v)
                           (dk, dv)
                         }
-                        DV.Map(dynEntries)
+                        DV.Map(Chunk.fromIterable(dynEntries))
                       case other =>
                         throw new IllegalArgumentException(s"Expected MapValue for map, got $other")
                     }
@@ -485,7 +486,7 @@ object DataInterop {
                         value match {
                           case EnumValue(caseName, maybePayload) =>
                             val payloadDyn = maybePayload match {
-                              case None     => DV.Record(Vector.empty)
+                              case None     => DV.Record(Chunk.empty)
                               case Some(pv) =>
                                 val payloadRef =
                                   reflect.asVariant.get.caseByName(caseName).get.value.asInstanceOf[Reflect.Bound[Any]]
@@ -493,7 +494,7 @@ object DataInterop {
                                   case Some(rec) if rec.fields.length == 1 && rec.fields.head.name == "value" =>
                                     // Some schemas model variant payload as a wrapper record(value = ...).
                                     DV.Record(
-                                      Vector(
+                                      Chunk(
                                         "value" -> dataValueToDynamic(
                                           rec.fields.head.value.asInstanceOf[Reflect.Bound[Any]],
                                           pv

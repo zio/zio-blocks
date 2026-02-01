@@ -1,6 +1,8 @@
 package golem.runtime.autowire
 
-import zio.blocks.schema.{DynamicValue, PrimitiveValue, Reflect, Schema, TypeName}
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.{DynamicValue, PrimitiveValue, Reflect, Schema}
+import zio.blocks.typeid.TypeId
 
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
@@ -36,11 +38,11 @@ private[golem] object JsPlainSchemaCodec {
       case Some((innerRef, usesRecordWrapper)) =>
         if (js.isUndefined(value0) || value0 == null) {
           // Option(None): payload is ignored by our detection; use empty record.
-          return DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
+          return DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))
         } else {
           val inner   = fromJs(innerRef, value0)
           val payload =
-            if (usesRecordWrapper) DynamicValue.Record(Vector("value" -> inner))
+            if (usesRecordWrapper) DynamicValue.Record(Chunk("value" -> inner))
             else inner
           return DynamicValue.Variant("Some", payload)
         }
@@ -49,18 +51,20 @@ private[golem] object JsPlainSchemaCodec {
 
     reflect0.asPrimitive match {
       case Some(p) =>
-        val tn                 = p.primitiveType.typeName
+        val tid                = p.primitiveType.typeId
         val pv: PrimitiveValue =
-          if (tn == TypeName.unit) PrimitiveValue.Unit
-          else if (tn == TypeName.string) PrimitiveValue.String(value0.asInstanceOf[String])
-          else if (tn == TypeName.boolean) PrimitiveValue.Boolean(value0.asInstanceOf[Boolean])
-          else if (tn == TypeName.byte) PrimitiveValue.Byte(value0.asInstanceOf[Double].toByte)
-          else if (tn == TypeName.short) PrimitiveValue.Short(value0.asInstanceOf[Double].toShort)
-          else if (tn == TypeName.int) PrimitiveValue.Int(value0.asInstanceOf[Double].toInt)
-          else if (tn == TypeName.long) PrimitiveValue.Long(value0.asInstanceOf[Double].toLong)
-          else if (tn == TypeName.float) PrimitiveValue.Float(value0.asInstanceOf[Double].toFloat)
-          else if (tn == TypeName.double) PrimitiveValue.Double(value0.asInstanceOf[Double])
-          else throw new IllegalArgumentException(s"Unsupported primitive for JS codec: $tn")
+          if (TypeId.structurallyEqual(tid, TypeId.unit)) PrimitiveValue.Unit
+          else if (TypeId.structurallyEqual(tid, TypeId.string)) PrimitiveValue.String(value0.asInstanceOf[String])
+          else if (TypeId.structurallyEqual(tid, TypeId.boolean)) PrimitiveValue.Boolean(value0.asInstanceOf[Boolean])
+          else if (TypeId.structurallyEqual(tid, TypeId.byte)) PrimitiveValue.Byte(value0.asInstanceOf[Double].toByte)
+          else if (TypeId.structurallyEqual(tid, TypeId.short))
+            PrimitiveValue.Short(value0.asInstanceOf[Double].toShort)
+          else if (TypeId.structurallyEqual(tid, TypeId.int)) PrimitiveValue.Int(value0.asInstanceOf[Double].toInt)
+          else if (TypeId.structurallyEqual(tid, TypeId.long)) PrimitiveValue.Long(value0.asInstanceOf[Double].toLong)
+          else if (TypeId.structurallyEqual(tid, TypeId.float))
+            PrimitiveValue.Float(value0.asInstanceOf[Double].toFloat)
+          else if (TypeId.structurallyEqual(tid, TypeId.double)) PrimitiveValue.Double(value0.asInstanceOf[Double])
+          else throw new IllegalArgumentException(s"Unsupported primitive for JS codec: $tid")
         DynamicValue.Primitive(pv)
 
       case None =>
@@ -72,7 +76,7 @@ private[golem] object JsPlainSchemaCodec {
                 val fv = dyn.selectDynamic(f.name).asInstanceOf[js.Any]
                 f.name -> fromJs(f.value.asInstanceOf[Reflect.Bound[Any]], fv)
               }.toVector
-            DynamicValue.Record(fields)
+            DynamicValue.Record(Chunk.fromIterable(fields))
 
           case None =>
             reflect0.asSequenceUnknown match {
@@ -80,7 +84,7 @@ private[golem] object JsPlainSchemaCodec {
                 val arr   = value0.asInstanceOf[js.Array[js.Any]]
                 val elems =
                   arr.toVector.map(v => fromJs(seq.sequence.element.asInstanceOf[Reflect.Bound[Any]], v)).toVector
-                DynamicValue.Sequence(elems)
+                DynamicValue.Sequence(Chunk.fromIterable(elems))
 
               case None =>
                 reflect0.asMapUnknown match {
@@ -94,7 +98,7 @@ private[golem] object JsPlainSchemaCodec {
                         val vd = fromJs(valueRef, v)
                         (kd, vd)
                       }.toVector
-                    DynamicValue.Map(entries)
+                    DynamicValue.Map(Chunk.fromIterable(entries))
 
                   case None =>
                     throw new IllegalArgumentException(s"Unsupported schema reflect for JS codec: ${reflect0.nodeType}")
@@ -122,7 +126,7 @@ private[golem] object JsPlainSchemaCodec {
               if (usesRecordWrapper)
                 payload match {
                   case DynamicValue.Record(fields) =>
-                    fields.find(_._1 == "value").map(_._2).getOrElse(DynamicValue.Record(Vector.empty))
+                    fields.find(_._1 == "value").map(_._2).getOrElse(DynamicValue.Record(Chunk.empty))
                   case other => other
                 }
               else payload
