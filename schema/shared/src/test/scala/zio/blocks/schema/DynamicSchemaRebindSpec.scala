@@ -224,6 +224,78 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
         val binding  = Binding.of[Person]
         val registry = TypeRegistry.default.bind(binding)
         assertTrue(registry.lookupRecord[Person].isDefined)
+      },
+      test("throws RebindException when variant binding is missing") {
+        val dynamicSchema = Schema[Animal].toDynamicSchema
+        val registry      = TypeRegistry.default
+          .bind(Binding.of[Dog])
+          .bind(Binding.of[Cat])
+
+        val exception = try {
+          dynamicSchema.rebind[Animal](registry)
+          null
+        } catch {
+          case e: RebindException => e
+          case _: Throwable       => null
+        }
+
+        assertTrue(
+          exception != null,
+          exception.expectedKind == "Variant",
+          exception.typeId.fullName.contains("Animal")
+        )
+      },
+
+      test("throws RebindException when primitive binding is missing") {
+        val dynamicSchema = Schema[Int].toDynamicSchema
+        val registry      = TypeRegistry.empty
+
+        val exception = try {
+          dynamicSchema.rebind[Int](registry)
+          null
+        } catch {
+          case e: RebindException => e
+          case _: Throwable       => null
+        }
+
+        assertTrue(
+          exception != null,
+          exception.expectedKind == "Primitive"
+        )
+      },
+      test("throws RebindException when wrapper binding is missing") {
+        val dynamicSchema = Schema[UserId].toDynamicSchema
+        val registry      = TypeRegistry.default
+
+        val exception = try {
+          dynamicSchema.rebind[UserId](registry)
+          null
+        } catch {
+          case e: RebindException => e
+          case _: Throwable       => null
+        }
+
+        assertTrue(
+          exception != null,
+          exception.expectedKind == "Wrapper"
+        )
+      },
+      test("throws RebindException when dynamic binding is missing") {
+        val dynamicSchema = Schema[DynamicValue].toDynamicSchema
+        val registry      = TypeRegistry.empty
+
+        val exception = try {
+          dynamicSchema.rebind[DynamicValue](registry)
+          null
+        } catch {
+          case e: RebindException => e
+          case _: Throwable       => null
+        }
+
+        assertTrue(
+          exception != null,
+          exception.expectedKind == "Dynamic"
+        )
       }
     )
   )
