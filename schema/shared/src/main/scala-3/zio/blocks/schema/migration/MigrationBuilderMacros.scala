@@ -218,9 +218,12 @@ object MigrationBuilderMacros {
         handledFields += pathToString(at, oldName)
         providedFields += pathToString(at, newName)
 
-      case MigrationAction.RenameCase(_, oldCase, newCase) =>
-        handledCases += oldCase
-        providedCases += newCase
+      case MigrationAction.RenameCase(at, oldCase, newCase) =>
+        val prefix          = at.nodes.collect { case zio.blocks.schema.DynamicOptic.Node.Field(name) => name }.mkString(".")
+        val prefixedOldCase = if (prefix.isEmpty) oldCase else s"$prefix.$oldCase"
+        val prefixedNewCase = if (prefix.isEmpty) newCase else s"$prefix.$newCase"
+        handledCases += prefixedOldCase
+        providedCases += prefixedNewCase
 
       case MigrationAction.TransformValue(at, fieldName, _, _) =>
         val path = pathToString(at, fieldName)
@@ -345,11 +348,35 @@ object MigrationBuilderMacros {
 
   private def extractCaseNames(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
     import q.reflect.*
-    if (tpe.typeSymbol.flags.is(Flags.Sealed)) {
-      tpe.typeSymbol.children.map(_.name)
-    } else {
-      Nil
+
+    def extract(t: TypeRepr, prefix: String, seen: Set[String]): List[String] = {
+      val typeName = t.typeSymbol.fullName
+      if (seen.contains(typeName)) return Nil
+      val newSeen = seen + typeName
+
+      t.dealias match {
+        // If this type is a sealed trait, extract its case names with prefix
+        case t if t.typeSymbol.flags.is(Flags.Sealed) =>
+          t.typeSymbol.children.map { child =>
+            val caseName = child.name
+            if (prefix.isEmpty) caseName else s"$prefix.$caseName"
+          }
+
+        // If this is a case class, recurse into its fields to find nested sealed traits
+        case t if t.typeSymbol.flags.is(Flags.Case) =>
+          val fields = t.typeSymbol.caseFields
+          fields.flatMap { field =>
+            val fieldName = field.name
+            val fieldPath = if (prefix.isEmpty) fieldName else s"$prefix.$fieldName"
+            val fieldType = t.memberType(field)
+            extract(fieldType, fieldPath, newSeen)
+          }.toList
+
+        case _ => Nil
+      }
     }
+
+    extract(tpe, "", Set.empty).sorted
   }
 
   private def isPrimitive(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {

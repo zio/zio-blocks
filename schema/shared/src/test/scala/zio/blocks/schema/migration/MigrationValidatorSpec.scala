@@ -418,7 +418,7 @@ object MigrationValidatorSpec extends ZIOSpecDefault {
   )
 
   // Helper to validate dynamic migrations
-  private def validateDynamic[A: Schema, B: Schema](
+  private def validateDynamic[A, B](
     migration: DynamicMigration,
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
@@ -428,7 +428,7 @@ object MigrationValidatorSpec extends ZIOSpecDefault {
     validateActionsWithSchemas(migration.actions, sourceDS, targetDS)
   }
 
-  private def validateDynamicForEnums[A: Schema, B: Schema](
+  private def validateDynamicForEnums[A, B](
     migration: DynamicMigration,
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
