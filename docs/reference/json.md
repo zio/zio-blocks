@@ -975,6 +975,5 @@ The `Json` type works across all platforms:
 
 - **JVM** - Full functionality
 - **Scala.js** - Browser and Node.js
-- **Scala Native** - Native compilation
 
 String interpolators use compile-time validation that works on all platforms.

@@ -42,7 +42,7 @@ TypeId is included in the `zio-blocks-typeid` module. Add it to your build:
 libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "<version>"
 ```
 
-Cross-platform support: TypeId works on JVM, Scala.js, and Scala Native.
+Cross-platform support: TypeId works on JVM and Scala.js.
 
 ## Creating TypeIds
 

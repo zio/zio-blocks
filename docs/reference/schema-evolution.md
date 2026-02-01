@@ -347,19 +347,19 @@ ZIO Blocks supports conversions involving structural types on JVM only, as they 
 
 ### Platform Compatibility Matrix
 
-| Conversion | JVM | JS | Native | Notes |
-|------------|-----|-----|--------|-------|
-| Product → Structural | ✅ | ❌ | ❌ | JVM only (reflection) |
-| Structural → Product | ✅ | ❌ | ❌ | JVM only (reflection) |
+| Conversion | JVM | JS | Notes |
+|------------|-----|-----|-------|
+| Product → Structural | ✅ | ❌ | JVM only (reflection) |
+| Structural → Product | ✅ | ❌ | JVM only (reflection) |
 
-**Key insight**: Structural types require runtime reflection to access their members, which is only available on JVM. On JS and Native platforms, structural type conversions will fail at compile time with a helpful error message.
+**Key insight**: Structural types require runtime reflection to access their members, which is only available on JVM. On JS, structural type conversions will fail at compile time with a helpful error message.
 
 ### Structural Types (JVM Only)
 
 Structural types are types defined by their members rather than their name:
 
 ```scala
-// JVM ONLY - will fail at compile time on JS/Native
+// JVM ONLY - will fail at compile time on JS
 case class Person(name: String, age: Int)
 
 // Structural type to case class
