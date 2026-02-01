@@ -416,11 +416,12 @@ lazy val docs = project
     moduleName := "zio-blocks-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
+    scalacOptions += "-experimental",
     projectName                                := (ThisBuild / name).value,
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true
   )
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
   .enablePlugins(WebsitePlugin)
