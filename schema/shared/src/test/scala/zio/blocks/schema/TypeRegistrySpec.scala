@@ -123,6 +123,11 @@ object TypeRegistrySpec extends SchemaBaseSpec {
             .bind(Schema[Animal].reflect.binding.asInstanceOf[Binding.Variant[Animal]])
           assertTrue(reg.lookupVariant[Animal].isDefined)
         },
+        test("binds wrapper types") {
+          val reg = TypeRegistry.default
+            .bind(Schema[UserId].reflect.binding.asInstanceOf[Binding.Wrapper[UserId, Long]])
+          assertTrue(reg.lookupWrapper[UserId].isDefined)
+        },
         test("overwrites existing bindings") {
           val binding1 = Schema[Person].reflect.binding.asInstanceOf[Binding.Record[Person]]
           val reg1     = TypeRegistry.default.bind(binding1)
@@ -131,6 +136,26 @@ object TypeRegistrySpec extends SchemaBaseSpec {
             reg1.lookupRecord[Person].isDefined,
             reg2.lookupRecord[Person].isDefined
           )
+        },
+        test("throws for Seq binding") {
+          val binding = Binding.listSeqBinding.asInstanceOf[Binding.Seq[List, Nothing]]
+          val result = try {
+            TypeRegistry.empty.bind(binding.asInstanceOf[Binding[Nothing, List[Nothing]]])
+            false
+          } catch {
+            case _: IllegalArgumentException => true
+          }
+          assertTrue(result)
+        },
+        test("throws for Map binding") {
+          val binding = Binding.mapBinding.asInstanceOf[Binding.Map[Map, Nothing, Nothing]]
+          val result = try {
+            TypeRegistry.empty.bind(binding.asInstanceOf[Binding[Nothing, Map[Nothing, Nothing]]])
+            false
+          } catch {
+            case _: IllegalArgumentException => true
+          }
+          assertTrue(result)
         }
       ),
       suite("lookup")(
