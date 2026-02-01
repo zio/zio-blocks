@@ -1,0 +1,150 @@
+package golem.runtime.rpc.jvm
+
+import golem.runtime.agenttype.AgentType
+import golem.runtime.rpc.jvm.internal.{GolemCliProcess, WaveTextCodec}
+
+import java.lang.reflect.{InvocationHandler, Method, Proxy}
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+ * Repo-local JVM testing client backed by `golem-cli`.
+ */
+object JvmAgentClient {
+  @volatile private var cfg: Option[JvmAgentClientConfig] = None
+
+  def configure(config: JvmAgentClientConfig): Unit =
+    cfg = Some(config)
+
+  def configure(
+    component: String,
+    golemCli: String = "golem-cli",
+    golemCliFlags: Vector[String] = Vector("--local")
+  ): Unit =
+    configure(JvmAgentClientConfig(component = component, golemCli = golemCli, golemCliFlags = golemCliFlags))
+
+  private def configOrThrow: JvmAgentClientConfig =
+    cfg.getOrElse(
+      throw new IllegalStateException(
+        "JvmAgentClient is not configured. Call golem.runtime.rpc.jvm.JvmAgentClient.configure(...) first."
+      )
+    )
+
+  def connect[Trait](
+    agentType: AgentType[Trait, ?],
+    ctorArgs: Any
+  )(implicit ev: Trait <:< AnyRef): Trait = {
+    val cfg0          = configOrThrow
+    val agentTypeName = agentType.typeName
+    val ctorRendered  =
+      ctorArgs match {
+        case ()    => ""
+        case other =>
+          WaveTextCodec.encodeArg(other) match {
+            case Left(err)  => throw new IllegalArgumentException(err)
+            case Right(txt) => txt
+          }
+      }
+    val ctorPart = s"($ctorRendered)"
+    val agentId  = s"${cfg0.component}/$agentTypeName$ctorPart"
+    val handler  = new CliInvocationHandler(cfg0, agentId, agentType)
+    val iface    = java.lang.Class.forName(agentType.traitClassName)
+    Proxy
+      .newProxyInstance(
+        iface.getClassLoader,
+        Array(iface),
+        handler
+      )
+      .asInstanceOf[Trait]
+  }
+
+  private final class CliInvocationHandler[Trait](
+    cfg: JvmAgentClientConfig,
+    agentId: String,
+    agentType: AgentType[Trait, ?]
+  ) extends InvocationHandler {
+    private implicit val ec: ExecutionContext = ExecutionContext.global
+
+    override def invoke(proxy: Any, method: Method, args: Array[AnyRef]): AnyRef = {
+      val name = method.getName
+
+      // Object methods
+      if (name == "toString" && method.getParameterCount == 0) return s"JvmAgentClientProxy($agentId)"
+      if (name == "hashCode" && method.getParameterCount == 0) return Integer.valueOf(agentId.hashCode)
+      if (name == "equals" && method.getParameterCount == 1)
+        return java.lang.Boolean.valueOf {
+          val other = if (args == null || args.length == 0) null else args(0)
+          proxy.asInstanceOf[AnyRef].eq(other)
+        }
+
+      // Convert scala method name to WIT function id:
+      // full id: "<component>/<agent-type>.{<kebab-method>}"
+      val methodPlanFn =
+        agentType.methods.collectFirst { case p if p.metadata.name == name => p.functionName }
+          .getOrElse(s"${agentType.typeName}.{${kebab(name)}}")
+      val fn = s"${cfg.component}/$methodPlanFn"
+
+      // Render args as wave literals for golem-cli
+      val payloads =
+        Option(args).toVector.flatMap(_.toVector).map { v =>
+          WaveTextCodec.encodeArg(v) match {
+            case Left(err)  => throw new IllegalArgumentException(err)
+            case Right(txt) => txt
+          }
+        }
+
+      // Only Future[...] methods are supported here (sufficient for quickstart).
+      val returnType = method.getGenericReturnType
+      val rtName     = returnType.getTypeName
+      if (!rtName.startsWith("scala.concurrent.Future")) {
+        throw new UnsupportedOperationException(
+          s"JVM client only supports Future[...] methods (found: $rtName on $name)"
+        )
+      }
+
+      val fut: Future[Any] =
+        Future {
+          val cliBase = Vector("env", "-u", "ARGV0", cfg.golemCli) ++ cfg.golemCliFlags
+
+          def runInvoke(targetAgentId: String, targetFn: String): Either[String, String] = {
+            val cmd = cliBase ++ Vector("--yes", "agent", "invoke", targetAgentId, targetFn) ++ payloads
+            GolemCliProcess.run(new java.io.File("."), cmd)
+          }
+
+          def isTypeNotFound(err: String): Boolean =
+            err.contains("Agent type not found") || err.contains("Failed to parse agent name")
+
+          val primary = runInvoke(agentId, fn)
+          val out     =
+            primary match {
+              case Right(ok) => ok
+              case Left(err) =>
+                val typeName  = agentType.typeName
+                val kebabType = kebab(typeName)
+                if (kebabType != typeName && isTypeNotFound(err)) {
+                  val ctorPart   = agentId.stripPrefix(s"${cfg.component}/$typeName")
+                  val fallbackId = s"${cfg.component}/$kebabType$ctorPart"
+                  val fallbackFn = s"${cfg.component}/$kebabType.{${kebab(name)}}"
+                  runInvoke(fallbackId, fallbackFn) match {
+                    case Right(ok) => ok
+                    case Left(_)   => throw new RuntimeException(err)
+                  }
+                } else {
+                  throw new RuntimeException(err)
+                }
+            }
+
+          val wave = WaveTextCodec.parseLastWaveResult(out).getOrElse {
+            throw new RuntimeException(s"Could not find WAVE result in golem-cli output:\n$out")
+          }
+
+          WaveTextCodec.decodeWaveAny(wave).fold(err => throw new RuntimeException(err), identity)
+        }
+
+      fut.asInstanceOf[AnyRef]
+    }
+
+    private def kebab(s: String): String =
+      s.replaceAll("([a-z0-9])([A-Z])", "$1-$2").toLowerCase
+  }
+}

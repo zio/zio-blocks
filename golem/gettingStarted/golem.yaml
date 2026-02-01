@@ -1,0 +1,11 @@
+app: scala-demo
+
+environments:
+  local:
+    server: local
+    componentPresets: debug
+
+includes:
+- .golem/common-scala-js/golem.yaml
+- .golem/components-js/scala-demo/golem.yaml
+
