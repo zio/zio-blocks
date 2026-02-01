@@ -1,6 +1,7 @@
 package zio.blocks.schema.thrift
 
 import org.apache.thrift.protocol._
+import scala.reflect.ClassTag
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema.codec.BinaryFormat
@@ -307,20 +308,22 @@ object ThriftFormat
               val binding      = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
               val elementCodec = deriveCodec(sequence.element).asInstanceOf[ThriftBinaryCodec[Elem]]
               val elementTType = getThriftType(sequence.element)
+              val elemClassTag = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
               new ThriftBinaryCodec[Col[Elem]]() {
                 private[this] val constructor   = binding.constructor
                 private[this] val deconstructor = binding.deconstructor
+                private[this] val classTag      = elemClassTag
 
                 def decodeUnsafe(protocol: TProtocol): Col[Elem] = {
                   val size    = protocol.readListBegin().size
-                  val builder = constructor.newObjectBuilder[Elem](size)
+                  val builder = constructor.newBuilder[Elem](size)(classTag)
                   var idx     = 0
                   try {
                     while (idx < size) {
-                      constructor.addObject(builder, elementCodec.decodeUnsafe(protocol))
+                      constructor.add(builder, elementCodec.decodeUnsafe(protocol))
                       idx += 1
                     }
-                    constructor.resultObject(builder)
+                    constructor.result(builder)
                   } catch {
                     case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx), error)
                   }

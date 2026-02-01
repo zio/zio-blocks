@@ -6,6 +6,7 @@ import zio.blocks.schema.toon._
 import zio.blocks.schema.toon.ToonBinaryCodec.stringCodec
 import zio.blocks.schema.toon.ToonCodecUtils.{createReaderForValue, unescapeQuoted}
 
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 private[toon] final class SequenceCodecBuilder(
@@ -38,6 +39,7 @@ private[toon] final class SequenceCodecBuilder(
       private[this] val deconstructor    = binding.deconstructor
       private[this] val constructor      = binding.constructor
       private[this] val elementCodec     = elemCodec
+      private[this] val elemClassTag     = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
       private[this] val useInlineFormat  = useInline
       private[this] val useTabularFormat = useTabular
       private[this] val inlineDelimiter  = configuredDelimiter
@@ -53,7 +55,7 @@ private[toon] final class SequenceCodecBuilder(
         val length = header.length
         if (useInlineFormat) decodeInlineArray(in, in.readInlineArray(), length)
         else {
-          val builder     = constructor.newObjectBuilder[Elem](8)
+          val builder     = constructor.newBuilder[Elem](8)(elemClassTag)
           var actualCount = 0
           if (header.fields != null && header.fields.nonEmpty) {
             var idx = 0
@@ -64,7 +66,7 @@ private[toon] final class SequenceCodecBuilder(
                 val firstValue = if (values(0).startsWith("\"")) unescapeQuoted(values(0)) else values(0)
                 try {
                   val elem = elementCodec.decodeValue(createReaderForValue(firstValue), elementCodec.nullValue)
-                  constructor.addObject(builder, elem)
+                  constructor.add(builder, elem)
                   actualCount += 1
                 } catch {
                   case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
@@ -79,7 +81,7 @@ private[toon] final class SequenceCodecBuilder(
               if (in.isListItem) {
                 in.consumeListItemMarker()
                 try {
-                  constructor.addObject(builder, elementCodec.decodeValue(in, elementCodec.nullValue))
+                  constructor.add(builder, elementCodec.decodeValue(in, elementCodec.nullValue))
                   actualCount += 1
                 } catch {
                   case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
@@ -90,7 +92,7 @@ private[toon] final class SequenceCodecBuilder(
                   val wasQuoted = v.startsWith("\"") && v.endsWith("\"")
                   val value     = if (wasQuoted) unescapeQuoted(v) else v
                   try {
-                    constructor.addObject(
+                    constructor.add(
                       builder,
                       if (wasQuoted && (elementCodec eq stringCodec)) value.asInstanceOf[Elem]
                       else elementCodec.decodeValue(createReaderForValue(value), elementCodec.nullValue)
@@ -109,7 +111,7 @@ private[toon] final class SequenceCodecBuilder(
           if (actualCount != length) {
             in.decodeError(s"Array count mismatch: expected $length items but got $actualCount")
           }
-          constructor.resultObject[Elem](builder)
+          constructor.result[Elem](builder)
         }
       }
 
@@ -160,7 +162,7 @@ private[toon] final class SequenceCodecBuilder(
         out.decrementDepth()
       }
 
-      override def nullValue: Col[Elem] = constructor.emptyObject[Elem]
+      override def nullValue: Col[Elem] = constructor.empty[Elem](elemClassTag)
 
       override def encodeAsField(fieldName: String, x: Col[Elem], out: ToonWriter): Unit = {
         val size = deconstructor.size(x)
@@ -209,14 +211,14 @@ private[toon] final class SequenceCodecBuilder(
             s"Array count mismatch: expected $expectedLength items but got ${values.length}"
           )
         }
-        val builder = constructor.newObjectBuilder[Elem](expectedLength)
+        val builder = constructor.newBuilder[Elem](expectedLength)(elemClassTag)
         var idx     = 0
         while (idx < values.length) {
           val v         = values(idx)
           val wasQuoted = v.startsWith("\"") && v.endsWith("\"")
           val value     = if (wasQuoted) unescapeQuoted(v) else v
           try {
-            constructor.addObject(
+            constructor.add(
               builder,
               if (wasQuoted && (elementCodec eq stringCodec)) value.asInstanceOf[Elem]
               else elementCodec.decodeValue(createReaderForValue(value), elementCodec.nullValue)
@@ -226,18 +228,18 @@ private[toon] final class SequenceCodecBuilder(
           }
           idx += 1
         }
-        constructor.resultObject[Elem](builder)
+        constructor.result[Elem](builder)
       }
 
       override def decodeListArray(in: ToonReader, expectedLength: Int): Col[Elem] = {
-        val builder     = constructor.newObjectBuilder[Elem](expectedLength)
+        val builder     = constructor.newBuilder[Elem](expectedLength)(elemClassTag)
         var actualCount = 0
         var idx         = 0
         while (idx < expectedLength && in.hasMoreLines) {
           in.skipBlankLinesInArray(idx == 0)
           if (in.isListItem) {
             in.consumeListItemMarker()
-            try constructor.addObject(builder, elementCodec.decodeValue(in, elementCodec.nullValue))
+            try constructor.add(builder, elementCodec.decodeValue(in, elementCodec.nullValue))
             catch {
               case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
             }
@@ -248,7 +250,7 @@ private[toon] final class SequenceCodecBuilder(
               val wasQuoted = v.startsWith("\"") && v.endsWith("\"")
               val value     = if (wasQuoted) unescapeQuoted(v) else v
               try {
-                constructor.addObject(
+                constructor.add(
                   builder,
                   if (wasQuoted && (elementCodec eq stringCodec)) value.asInstanceOf[Elem]
                   else elementCodec.decodeValue(createReaderForValue(value), elementCodec.nullValue)
@@ -266,7 +268,7 @@ private[toon] final class SequenceCodecBuilder(
         if (actualCount != expectedLength) {
           in.decodeError(s"Array count mismatch: expected $expectedLength items but got $actualCount")
         }
-        constructor.resultObject[Elem](builder)
+        constructor.result[Elem](builder)
       }
 
       override def decodeTabularArray(
@@ -275,7 +277,7 @@ private[toon] final class SequenceCodecBuilder(
         expectedLength: Int,
         delimiter: Delimiter
       ): Col[Elem] = {
-        val builder = constructor.newObjectBuilder[Elem](expectedLength)
+        val builder = constructor.newBuilder[Elem](expectedLength)(elemClassTag)
         in.setActiveDelimiter(delimiter)
         val startDepth = in.getDepth
         var idx        = 0
@@ -283,7 +285,7 @@ private[toon] final class SequenceCodecBuilder(
           in.skipBlankLinesInArray(idx == 0)
           if (in.hasMoreLines && in.getDepth >= startDepth) {
             val values = in.readInlineArray()
-            try constructor.addObject(builder, elementCodec.decodeTabularRow(in, values, fieldNames))
+            try constructor.add(builder, elementCodec.decodeTabularRow(in, values, fieldNames))
             catch {
               case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.AtIndex(idx), err)
             }
@@ -293,7 +295,7 @@ private[toon] final class SequenceCodecBuilder(
         if (idx != expectedLength) {
           in.decodeError(s"Array count mismatch: expected $expectedLength rows but got $idx")
         }
-        constructor.resultObject[Elem](builder)
+        constructor.result[Elem](builder)
       }
     }
   }
