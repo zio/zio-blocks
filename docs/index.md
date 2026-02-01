@@ -11,7 +11,7 @@ title: "ZIO Blocks"
 
 ZIO Blocks is a **family of type-safe, modular building blocks** for Scala applications. Each block is a standalone library with zero or minimal dependencies, designed to work with *any* Scala stack—ZIO, Cats Effect, Kyo, Ox, Akka, or plain Scala.
 
-The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, JS, Native), and designed to compose with other blocks or your existing code.
+The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, JS), and designed to compose with other blocks or your existing code.
 
 ## The Blocks
 
@@ -28,7 +28,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
 - **Modular**: Each block is a separate artifact. Import only what you need.
-- **Cross-Platform**: Full support for JVM, Scala.js, and Scala Native.
+- **Cross-Platform**: Full support for JVM and Scala.js.
 - **Cross-Version**: Full support for Scala 2.13 and Scala 3.x with source compatibility—adopt Scala 3 on your timeline, not ours.
 - **High Performance**: Optimized implementations that avoid boxing, minimize allocations, and leverage platform-specific features.
 - **Type Safety**: Leverage Scala's type system for correctness without runtime overhead.
@@ -187,7 +187,7 @@ Generating documentation, README files, or any Markdown content programmatically
 
 - **GFM Compliant**: Tables, strikethrough, autolinks, task lists, fenced code blocks
 - **Zero Dependencies**: Only depends on zio-blocks-chunk
-- **Cross-Platform**: Full support for JVM, Scala.js, and Scala Native
+- **Cross-Platform**: Full support for JVM and Scala.js
 - **Type-Safe Interpolator**: `md"# Hello $name"` with compile-time validation
 - **Multiple Renderers**: Markdown, HTML (full document or fragment), ANSI terminal
 
@@ -273,7 +273,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 - **Rich Metadata**: Captures type name, owner, kind (class/trait/object/enum), parent types, and annotations
 - **Higher-Kinded Support**: Works with proper types and type constructors via `AnyKind`
 - **Subtype Checking**: Runtime subtype/supertype relationship checks using compile-time extracted information
-- **Cross-Platform**: Works identically on JVM, Scala.js, and Scala Native
+- **Cross-Platform**: Works identically on JVM and Scala.js
 
 ### Installation
 
@@ -389,7 +389,6 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 |----------|--------|-------|------|--------|---------|---------|
 | JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala Native | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Documentation
 

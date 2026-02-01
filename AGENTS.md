@@ -1,6 +1,6 @@
 # ZIO Blocks Agent Guidelines
 
-Zero-dependency Scala building blocks (2.13 + 3.x; JVM/JS/Native).
+Zero-dependency Scala building blocks (2.13 + 3.x; JVM/JS).
 
 ## Setup
 

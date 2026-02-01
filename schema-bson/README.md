@@ -2,7 +2,7 @@
 
 BSON (Binary JSON) codec support for ZIO Blocks Schema.
 
-> **Note:** This module is JVM-only. It does not support Scala.js or Scala Native.
+> **Note:** This module is JVM-only. It does not support Scala.js.
 
 ## Overview
 
