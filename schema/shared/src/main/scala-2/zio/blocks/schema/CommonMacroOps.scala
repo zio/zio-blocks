@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.{TypeName => SchemaTypeName}
 import scala.collection.mutable
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
@@ -104,59 +103,5 @@ private[schema] object CommonMacroOps {
         subTypes.addOne(classType)
       }
     subTypes.toList
-  }
-
-  def typeName(
-    c: blackbox.Context
-  )(typeNameCache: mutable.HashMap[c.Type, SchemaTypeName[?]], tpe: c.Type): SchemaTypeName[?] = {
-    import c.universe._
-
-    def calculateTypeName(tpe: Type): SchemaTypeName[?] =
-      if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
-      else {
-        var packages  = List.empty[String]
-        var values    = List.empty[String]
-        val tpeSymbol = tpe.typeSymbol
-        var name      = NameTransformer.decode(tpeSymbol.name.toString)
-        val comp      = companion(c)(tpe)
-        var owner     =
-          if (comp == null) tpeSymbol
-          else if (comp == NoSymbol) {
-            name += ".type"
-            tpeSymbol.asClass.module
-          } else comp
-        while ({
-          owner = owner.owner
-          owner.owner != NoSymbol
-        }) {
-          val ownerName = NameTransformer.decode(owner.name.toString)
-          if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
-          else values = ownerName :: values
-        }
-        val tpeArgs = typeArgs(c)(tpe).map(ta => typeName(c)(typeNameCache, ta))
-        new SchemaTypeName(new Namespace(packages, values), name, tpeArgs)
-      }
-
-    typeNameCache.getOrElseUpdate(
-      tpe,
-      tpe match {
-        case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-          var tpeName = calculateTypeName(compTpe)
-          if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
-          tpeName
-        case _ =>
-          calculateTypeName(tpe)
-      }
-    )
-  }
-
-  def toTree(c: blackbox.Context)(tpeName: SchemaTypeName[?]): c.Tree = {
-    import c.universe._
-
-    val packages = tpeName.namespace.packages.toList
-    val values   = tpeName.namespace.values.toList
-    val name     = tpeName.name
-    val params   = tpeName.params.map(toTree(c)).toList
-    q"new TypeName(new Namespace($packages, $values), $name, $params)"
   }
 }

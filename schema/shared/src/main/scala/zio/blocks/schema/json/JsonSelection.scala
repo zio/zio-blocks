@@ -1,9 +1,10 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.SchemaError
 
 /**
- * A wrapper around `Either[JsonError, Vector[Json]]` that provides fluent
+ * A wrapper around `Either[SchemaError, Vector[Json]]` that provides fluent
  * chaining for JSON navigation and querying operations.
  *
  * JsonSelection enables a fluent API style for navigating through JSON
@@ -15,7 +16,7 @@ import zio.blocks.schema.DynamicOptic
  * The selection can contain zero, one, or multiple JSON values, supporting both
  * single-value navigation and multi-value queries.
  */
-final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends AnyVal {
+final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extends AnyVal {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Basic operations
@@ -28,7 +29,7 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   def isFailure: Boolean = either.isLeft
 
   /** Returns the error if this is a failure, otherwise None. */
-  def error: Option[JsonError] = either.left.toOption
+  def error: Option[SchemaError] = either.left.toOption
 
   /** Returns the selected values if successful, otherwise None. */
   def values: Option[Vector[Json]] = either.toOption
@@ -40,10 +41,18 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
    * Returns the single selected value, or fails if there are 0 or more than 1
    * values.
    */
-  def one: Either[JsonError, Json] = either.flatMap { v =>
-    if (v.length == 1) Right(v.head)
-    else if (v.isEmpty) Left(JsonError("Expected single value but got none"))
-    else Left(JsonError(s"Expected single value but got ${v.length}"))
+  def one: Either[SchemaError, Json] = either match {
+    case Right(v) =>
+      val len = v.length
+      if (len == 1) new Right(v.head)
+      else
+        new Left(
+          SchemaError(
+            if (len == 0) "Expected single value but got none"
+            else s"Expected single value but got $len"
+          )
+        )
+    case l => l.asInstanceOf[Either[SchemaError, Json]]
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -51,13 +60,19 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Returns true if this selection is empty (no values or error). */
-  def isEmpty: Boolean = either.fold(_ => true, _.isEmpty)
+  def isEmpty: Boolean = either match {
+    case Right(v) => v.isEmpty
+    case _        => true
+  }
 
   /** Returns true if this selection contains at least one value. */
-  def nonEmpty: Boolean = either.fold(_ => false, _.nonEmpty)
+  def nonEmpty: Boolean = !isEmpty
 
   /** Returns the number of selected values (0 on error). */
-  def size: Int = either.fold(_ => 0, _.size)
+  def size: Int = either match {
+    case Right(v) => v.length
+    case _        => 0
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Terminal Operations
@@ -67,11 +82,11 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
    * Returns any single value from the selection. Fails if the selection is
    * empty or an error.
    */
-  def any: Either[JsonError, Json] = either.flatMap { v =>
-    v.headOption match {
-      case Some(j) => Right(j)
-      case None    => Left(JsonError("Expected at least one value but got none"))
-    }
+  def any: Either[SchemaError, Json] = either match {
+    case Right(j) =>
+      if (j.isEmpty) new Left(SchemaError("Expected at least one value but got none"))
+      else new Right(j.head)
+    case l => l.asInstanceOf[Either[SchemaError, Json]]
   }
 
   /**
@@ -79,19 +94,27 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
    * multiple values, wraps them in an array. Fails if the selection is empty or
    * an error.
    */
-  def all: Either[JsonError, Json] = either.flatMap { v =>
-    if (v.isEmpty) Left(JsonError("Expected at least one value but got none"))
-    else if (v.length == 1) Right(v.head)
-    else Right(Json.Array(zio.blocks.chunk.Chunk.from(v)))
+  def all: Either[SchemaError, Json] = either match {
+    case Right(v) =>
+      if (v.isEmpty) new Left(SchemaError("Expected at least one value but got none"))
+      else
+        new Right({
+          if (v.length == 1) v.head
+          else new Json.Array(zio.blocks.chunk.Chunk.from(v))
+        })
+    case l => l.asInstanceOf[Either[SchemaError, Json]]
   }
 
   /**
    * Returns all selected values as a JSON array.
    */
-  def toArray: Either[JsonError, Json] = either.map(v => Json.Array(zio.blocks.chunk.Chunk.from(v)))
+  def toArray: Either[SchemaError, Json] = either match {
+    case Right(v) => new Right(new Json.Array(zio.blocks.chunk.Chunk.from(v)))
+    case l        => l.asInstanceOf[Either[SchemaError, Json]]
+  }
 
   /**
-   * Unsafe version of `one` - throws JsonError on error.
+   * Unsafe version of `one` - throws SchemaError on error.
    */
   def oneUnsafe: Json = one match {
     case Right(j) => j
@@ -99,7 +122,7 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   }
 
   /**
-   * Unsafe version of `any` - throws JsonError on error.
+   * Unsafe version of `any` - throws SchemaError on error.
    */
   def anyUnsafe: Json = any match {
     case Right(j) => j
@@ -152,43 +175,71 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Maps a function over all selected values. */
-  def map(f: Json => Json): JsonSelection =
-    JsonSelection(either.map(_.map(f)))
+  def map(f: Json => Json): JsonSelection = new JsonSelection({
+    either match {
+      case Right(v) => new Right(v.map(f))
+      case l        => l
+    }
+  })
 
   /** FlatMaps a function over all selected values, combining results. */
-  def flatMap(f: Json => JsonSelection): JsonSelection =
-    JsonSelection(either.flatMap { jsons =>
-      val results    = jsons.map(j => f(j).either)
-      val firstError = results.collectFirst { case Left(e) => e }
-      firstError match {
-        case Some(error) => Left(error)
-        case None        => Right(results.collect { case Right(v) => v }.flatten)
-      }
-    })
+  def flatMap(f: Json => JsonSelection): JsonSelection = new JsonSelection({
+    either match {
+      case Right(v) =>
+        new Right({
+          val len = v.length
+          if (len == 0) Vector.empty
+          else {
+            val builder = Vector.newBuilder[Json]
+            var idx     = 0
+            while (idx < len) {
+              f(v(idx)).either match {
+                case Right(v1) => builder.addAll(v1)
+                case l         => return new JsonSelection(l)
+              }
+              idx += 1
+            }
+            builder.result()
+          }
+        })
+      case l => l
+    }
+  })
 
   /** Filters selected values based on a predicate. */
-  def filter(p: Json => Boolean): JsonSelection =
-    JsonSelection(either.map(_.filter(p)))
+  def filter(p: Json => Boolean): JsonSelection = new JsonSelection({
+    either match {
+      case Right(v) => new Right(v.filter(p))
+      case l        => l
+    }
+  })
 
   /** Collects values for which the partial function is defined. */
-  def collect[A](pf: PartialFunction[Json, A]): Either[JsonError, Vector[A]] =
-    either.map(_.collect(pf))
+  def collect[A](pf: PartialFunction[Json, A]): Either[SchemaError, Vector[A]] = either match {
+    case Right(v) => new Right(v.collect(pf))
+    case l        => l.asInstanceOf[Either[SchemaError, Vector[A]]]
+  }
 
   /** Returns this selection if successful, otherwise the alternative. */
   def orElse(alternative: => JsonSelection): JsonSelection =
-    if (isSuccess) this else alternative
+    if (either.isRight) this
+    else alternative
 
   /** Returns this selection's values, or the default on failure. */
-  def getOrElse(default: => Vector[Json]): Vector[Json] =
-    either.getOrElse(default)
+  def getOrElse(default: => Vector[Json]): Vector[Json] = either match {
+    case Right(v) => v
+    case _        => default
+  }
 
   /** Combines two selections, concatenating their values. */
-  def ++(other: JsonSelection): JsonSelection =
+  def ++(other: JsonSelection): JsonSelection = new JsonSelection({
     (either, other.either) match {
-      case (Right(v1), Right(v2)) => JsonSelection(Right(v1 ++ v2))
-      case (Left(e), _)           => JsonSelection(Left(e))
-      case (_, Left(e))           => JsonSelection(Left(e))
+      case (Right(v1), Right(v2)) => new Right(v1 ++ v2)
+      case (Left(e1), Left(e2))   => new Left(e1 ++ e2)
+      case (l @ Left(_), _)       => l
+      case (_, l @ Left(_))       => l
     }
+  })
 
   // ─────────────────────────────────────────────────────────────────────────
   // Query Methods (recursive search within selection)
@@ -223,21 +274,41 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Decodes the single selected value to type A. */
-  def as[A](implicit decoder: JsonDecoder[A]): Either[JsonError, A] =
-    one.flatMap(decoder.decode)
+  def as[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, A] = either match {
+    case Right(v) =>
+      val len = v.length
+      if (len == 1) decoder.decode(v.head)
+      else
+        new Left(
+          SchemaError(
+            if (len == 0) "Expected single value but got none"
+            else s"Expected single value but got $len"
+          )
+        )
+    case l => l.asInstanceOf[Either[SchemaError, A]]
+  }
 
   /** Decodes all selected values to type A. */
-  def asAll[A](implicit decoder: JsonDecoder[A]): Either[JsonError, Vector[A]] =
-    either.flatMap { jsons =>
-      jsons.foldLeft[Either[JsonError, Vector[A]]](Right(Vector.empty)) {
-        case (Right(acc), json) =>
-          decoder.decode(json) match {
-            case Right(a)    => Right(acc :+ a)
-            case Left(error) => Left(error)
+  def asAll[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, Vector[A]] = either match {
+    case Right(v) =>
+      new Right({
+        val len = v.length
+        if (len == 0) Vector.empty
+        else {
+          val builder = Vector.newBuilder[A]
+          var idx     = 0
+          while (idx < len) {
+            decoder.decode(v(idx)) match {
+              case Right(va) => builder.addOne(va)
+              case l         => return l.asInstanceOf[Either[SchemaError, Vector[A]]]
+            }
+            idx += 1
           }
-        case (left, _) => left
-      }
-    }
+          builder.result()
+        }
+      })
+    case l => l.asInstanceOf[Either[SchemaError, Vector[A]]]
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Normalization
@@ -342,17 +413,21 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
    * Uses cartesian product semantics: if this has N values and that has M
    * values, the result has N × M values.
    */
-  def merge(that: JsonSelection, strategy: MergeStrategy = MergeStrategy.Auto): JsonSelection =
-    JsonSelection(
-      for {
-        lefts  <- this.either
-        rights <- that.either
-      } yield
-        for {
-          left  <- lefts
-          right <- rights
-        } yield left.merge(right, strategy)
-    )
+  def merge(that: JsonSelection, strategy: MergeStrategy = MergeStrategy.Auto): JsonSelection = new JsonSelection({
+    either match {
+      case Right(v1) =>
+        that.either match {
+          case Right(v2) =>
+            new Right({
+              val builder = Vector.newBuilder[Json]
+              v1.foreach(j1 => v2.foreach(j2 => builder.addOne(j1.merge(j2, strategy))))
+              builder.result()
+            })
+          case l => l
+        }
+      case l => l
+    }
+  })
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fallible Mutation Methods
@@ -412,17 +487,30 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
    * Narrows the single selected value to the specified JSON type. Fails if
    * there are 0 or more than 1 values, or if the value doesn't match.
    */
-  def as(jsonType: JsonType): Either[JsonError, jsonType.Type] =
-    one.flatMap { j =>
-      j.as(jsonType).toRight(JsonError(s"Expected ${jsonType} but got ${j.jsonType}"))
-    }
+  def as(jsonType: JsonType): Either[SchemaError, jsonType.Type] = either match {
+    case Right(v) =>
+      new Left(SchemaError {
+        val len = v.length
+        if (len == 1) {
+          val j = v.head
+          if (j.jsonType eq jsonType) return new Right(j.asInstanceOf[jsonType.Type])
+          else s"Expected $jsonType but got ${j.jsonType}"
+        } else {
+          if (len == 0) "Expected single value but got none"
+          else s"Expected single value but got $len"
+        }
+      })
+    case l => l.asInstanceOf[Either[SchemaError, jsonType.Type]]
+  }
 
   /**
    * Narrows all selected values to the specified JSON type. Values not matching
    * the type are silently dropped.
    */
-  def asAll(jsonType: JsonType): Either[JsonError, Vector[jsonType.Type]] =
-    either.map(_.flatMap(_.as(jsonType).toVector))
+  def asAll(jsonType: JsonType): Either[SchemaError, Vector[jsonType.Type]] = either match {
+    case Right(v) => new Right(v.collect { case j if j.jsonType eq jsonType => j.asInstanceOf[jsonType.Type] })
+    case l        => l.asInstanceOf[Either[SchemaError, Vector[jsonType.Type]]]
+  }
 
   /**
    * Extracts the underlying Scala value from the single selected JSON value.
@@ -431,30 +519,61 @@ final case class JsonSelection(either: Either[JsonError, Vector[Json]]) extends 
    * Note: For JsonType.Number, this parses to BigDecimal and may fail if not
    * parseable.
    */
-  def unwrap(jsonType: JsonType): Either[JsonError, jsonType.Unwrap] =
-    one.flatMap { j =>
-      j.unwrap(jsonType).toRight(JsonError(s"Cannot unwrap ${j.jsonType} as ${jsonType}"))
-    }
+  def unwrap(jsonType: JsonType): Either[SchemaError, jsonType.Unwrap] = either match {
+    case Right(v) =>
+      new Left(SchemaError {
+        val len = v.length
+        if (len == 1) {
+          val j = v.head
+          j.unwrap(jsonType) match {
+            case Some(x) => return new Right(x)
+            case _       => s"Cannot unwrap ${j.jsonType} as $jsonType"
+          }
+        } else {
+          if (len == 0) "Expected single value but got none"
+          else s"Expected single value but got $len"
+        }
+      })
+    case l => l.asInstanceOf[Either[SchemaError, jsonType.Unwrap]]
+  }
 
   /**
    * Extracts the underlying Scala values from all selected JSON values. Values
    * not matching the type (or unparseable for Number) are silently dropped.
    */
-  def unwrapAll(jsonType: JsonType): Either[JsonError, Vector[jsonType.Unwrap]] =
-    either.map(_.flatMap(_.unwrap(jsonType).toVector))
+  def unwrapAll(jsonType: JsonType): Either[SchemaError, Vector[jsonType.Unwrap]] = either match {
+    case Right(v) =>
+      new Right({
+        val len = v.length
+        if (len == 0) Vector.empty
+        else {
+          val builder = Vector.newBuilder[jsonType.Unwrap]
+          var idx     = 0
+          while (idx < len) {
+            v(idx).unwrap(jsonType) match {
+              case Some(x) => builder.addOne(x)
+              case _       =>
+            }
+            idx += 1
+          }
+          builder.result()
+        }
+      })
+    case l => l.asInstanceOf[Either[SchemaError, Vector[jsonType.Unwrap]]]
+  }
 }
 
 object JsonSelection {
 
   /** Creates a successful selection with a single value. */
-  def succeed(json: Json): JsonSelection = JsonSelection(Right(Vector(json)))
+  def succeed(json: Json): JsonSelection = new JsonSelection(new Right(Vector(json)))
 
   /** Creates a successful selection with multiple values. */
-  def succeedMany(jsons: Vector[Json]): JsonSelection = JsonSelection(Right(jsons))
+  def succeedMany(jsons: Vector[Json]): JsonSelection = new JsonSelection(new Right(jsons))
 
   /** Creates a failed selection with an error. */
-  def fail(error: JsonError): JsonSelection = JsonSelection(Left(error))
+  def fail(error: SchemaError): JsonSelection = new JsonSelection(new Left(error))
 
   /** An empty successful selection. */
-  val empty: JsonSelection = JsonSelection(Right(Vector.empty))
+  val empty: JsonSelection = new JsonSelection(new Right(Vector.empty))
 }

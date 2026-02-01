@@ -338,12 +338,12 @@ private[toon] final class ToonFieldInfo(
       val c = s.charAt(i)
       if (c == '"') inQuote = !inQuote
       else if (!inQuote && c == delim.char) {
-        result += s.substring(start, i).trim
+        result.addOne(s.substring(start, i).trim)
         start = i + 1
       }
       i += 1
     }
-    if (start <= s.length) result += s.substring(start).trim
+    if (start <= s.length) result.addOne(s.substring(start).trim)
     result.toArray
   }
 }

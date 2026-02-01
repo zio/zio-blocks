@@ -442,12 +442,12 @@ final class ToonReader private[toon] (
       val c = s.charAt(i)
       if (c == '"' && !isEscaped(s, i)) inQuote = !inQuote
       else if (!inQuote && c == delim.char) {
-        result += trimUnquoted(s.substring(start, i))
+        result.addOne(trimUnquoted(s.substring(start, i)))
         start = i + 1
       }
       i += 1
     }
-    if (start <= s.length) result += trimUnquoted(s.substring(start))
+    if (start <= s.length) result.addOne(trimUnquoted(s.substring(start)))
     result.toArray
   }
 

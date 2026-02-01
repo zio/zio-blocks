@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
@@ -98,7 +99,7 @@ object SerializationSpec extends SchemaBaseSpec {
         val op = DynamicPatch.DynamicPatchOp(
           DynamicOptic(Vector(DynamicOptic.Node.Field("tags"))),
           DynamicPatch.Operation.SequenceEdit(
-            Vector(DynamicPatch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("new")))))
+            Vector(DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("new")))))
           )
         )
         roundTrip(
@@ -183,8 +184,8 @@ object SerializationSpec extends SchemaBaseSpec {
               DynamicOptic(Vector(DynamicOptic.Node.Field("items"))),
               DynamicPatch.Operation.SequenceEdit(
                 Vector(
-                  DynamicPatch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1)))),
-                  DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+                  DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+                  DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.Int(0))))
                 )
               )
             )
@@ -245,7 +246,7 @@ object SerializationSpec extends SchemaBaseSpec {
               DynamicPatch.Operation.SequenceEdit(
                 Vector(
                   DynamicPatch.SeqOp.Append(
-                    Vector(
+                    Chunk(
                       DynamicValue.Primitive(PrimitiveValue.String("important"))
                     )
                   )
@@ -334,7 +335,7 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("AtMapKey with complex DynamicValue") {
         val complexKey = DynamicValue.Record(
-          Vector(
+          Chunk(
             "field1" -> DynamicValue.Primitive(PrimitiveValue.String("value1")),
             "field2" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
           )

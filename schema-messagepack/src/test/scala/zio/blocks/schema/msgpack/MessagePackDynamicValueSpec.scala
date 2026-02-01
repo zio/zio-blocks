@@ -1,5 +1,6 @@
 package zio.blocks.schema.msgpack
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.schema.DynamicValue.{Primitive, Record, Sequence, Variant}
 import zio.blocks.schema.DynamicValueGen.genDynamicValue
@@ -7,8 +8,7 @@ import zio.test._
 
 object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
-  private val codec: MessagePackBinaryCodec[DynamicValue] =
-    Schema[DynamicValue].derive(MessagePackFormat.deriver)
+  private val codec = Schema[DynamicValue].derive(MessagePackFormat)
 
   def spec: Spec[Any, Nothing] = suite("MessagePackDynamicValueSpec")(
     suite("DynamicValue roundtrip")(
@@ -84,7 +84,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
       },
       test("Record") {
         val value = Record(
-          Vector(
+          Chunk(
             ("name", Primitive(PrimitiveValue.String("test"))),
             ("age", Primitive(PrimitiveValue.Int(42)))
           )
@@ -95,7 +95,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
       },
       test("Sequence") {
         val value = Sequence(
-          Vector(
+          Chunk(
             Primitive(PrimitiveValue.Int(1)),
             Primitive(PrimitiveValue.String("two")),
             Primitive(PrimitiveValue.Boolean(true))
@@ -113,7 +113,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
       },
       test("Map with string keys") {
         val value = DynamicValue.Map(
-          Vector(
+          Chunk(
             (Primitive(PrimitiveValue.String("key1")), Primitive(PrimitiveValue.Int(1))),
             (Primitive(PrimitiveValue.String("key2")), Primitive(PrimitiveValue.Int(2)))
           )
@@ -124,7 +124,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
       },
       test("Map with int keys") {
         val value = DynamicValue.Map(
-          Vector(
+          Chunk(
             (Primitive(PrimitiveValue.Int(1)), Primitive(PrimitiveValue.String("one"))),
             (Primitive(PrimitiveValue.Int(2)), Primitive(PrimitiveValue.String("two")))
           )
@@ -135,11 +135,11 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
       },
       test("nested Record") {
         val value = Record(
-          Vector(
+          Chunk(
             (
               "outer",
               Record(
-                Vector(
+                Chunk(
                   ("inner", Primitive(PrimitiveValue.String("value")))
                 )
               )
@@ -152,9 +152,9 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
       },
       test("nested Sequence") {
         val value = Sequence(
-          Vector(
-            Sequence(Vector(Primitive(PrimitiveValue.Int(1)))),
-            Sequence(Vector(Primitive(PrimitiveValue.Int(2))))
+          Chunk(
+            Sequence(Chunk(Primitive(PrimitiveValue.Int(1)))),
+            Sequence(Chunk(Primitive(PrimitiveValue.Int(2))))
           )
         )
         val encoded = codec.encode(value)
@@ -165,7 +165,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
   )
 
   def normalize(value: DynamicValue): DynamicValue = value match {
-    case Primitive(PrimitiveValue.Unit)     => Record(Vector.empty)
+    case Primitive(PrimitiveValue.Unit)     => Record(Chunk.empty)
     case Primitive(PrimitiveValue.Byte(b))  => Primitive(PrimitiveValue.Long(b.toLong))
     case Primitive(PrimitiveValue.Short(s)) => Primitive(PrimitiveValue.Long(s.toLong))
     case Primitive(PrimitiveValue.Int(i))   => Primitive(PrimitiveValue.Long(i.toLong))
@@ -174,7 +174,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
     case Primitive(PrimitiveValue.BigDecimal(bd)) =>
       Record(
-        Vector(
+        Chunk(
           ("unscaled", Primitive(PrimitiveValue.BigInt(bd.underlying().unscaledValue()))),
           ("precision", Primitive(PrimitiveValue.Long(bd.precision.toLong))),
           ("scale", Primitive(PrimitiveValue.Long(bd.scale.toLong)))
@@ -187,7 +187,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
     case Primitive(PrimitiveValue.Duration(d)) =>
       Record(
-        Vector(
+        Chunk(
           ("seconds", Primitive(PrimitiveValue.Long(d.getSeconds))),
           ("nanos", Primitive(PrimitiveValue.Long(d.getNano.toLong)))
         )
@@ -195,7 +195,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
     case Primitive(PrimitiveValue.Period(p)) =>
       Record(
-        Vector(
+        Chunk(
           ("years", Primitive(PrimitiveValue.Long(p.getYears.toLong))),
           ("months", Primitive(PrimitiveValue.Long(p.getMonths.toLong))),
           ("days", Primitive(PrimitiveValue.Long(p.getDays.toLong)))
@@ -204,7 +204,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
     case Primitive(PrimitiveValue.MonthDay(m)) =>
       Record(
-        Vector(
+        Chunk(
           ("month", Primitive(PrimitiveValue.Long(m.getMonthValue.toLong))),
           ("day", Primitive(PrimitiveValue.Long(m.getDayOfMonth.toLong)))
         )
@@ -212,7 +212,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
     case Primitive(PrimitiveValue.YearMonth(y)) =>
       Record(
-        Vector(
+        Chunk(
           ("year", Primitive(PrimitiveValue.Long(y.getYear.toLong))),
           ("month", Primitive(PrimitiveValue.Long(y.getMonthValue.toLong)))
         )
@@ -232,7 +232,7 @@ object MessagePackDynamicValueSpec extends ZIOSpecDefault {
 
     case Variant(caseName, inner) =>
       Record(
-        Vector(
+        Chunk(
           ("_case", Primitive(PrimitiveValue.String(caseName))),
           ("_value", normalize(inner))
         )

@@ -2,6 +2,7 @@ package zio.blocks.schema.bson
 
 import org.bson.types.ObjectId
 import zio.blocks.schema._
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.test._
 
 /**
@@ -27,11 +28,13 @@ object BsonCodecObjectIdSpec extends SchemaBaseSpec {
     implicit val schema: Schema[CustomerId] = new Schema(
       new Reflect.Wrapper[zio.blocks.schema.binding.Binding, CustomerId, ObjectId](
         wrapped = objectIdSchema.reflect,
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema", "bson", "BsonCodecObjectIdSpec")), "CustomerId"),
-        wrapperPrimitiveType = None,
+        typeId = TypeId.nominal[CustomerId](
+          "CustomerId",
+          Owner.fromPackagePath("zio.blocks.schema.bson").term("BsonCodecObjectIdSpec")
+        ),
         wrapperBinding = new zio.blocks.schema.binding.Binding.Wrapper[CustomerId, ObjectId](
           wrap = oid => Right(CustomerId(oid)),
-          unwrap = _.value
+          unwrap = cid => Right(cid.value)
         )
       )
     )

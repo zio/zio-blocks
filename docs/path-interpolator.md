@@ -38,7 +38,7 @@ val path = p".users[0].name"
 ## Key Features
 
 - **✅ Zero Runtime Overhead**: All parsing happens at compile time
-- **✅ Cross-Platform**: Works on Scala 2.13.x and Scala 3.3.x
+- **✅ Cross-Platform**: Works on Scala 2.13.x and Scala 3.x
 - **✅ Compile-Time Safety**: Invalid paths are rejected during compilation
 - **✅ No Runtime Interpolation**: Prevents accidental use of runtime values
 - **✅ Rich Syntax**: Supports all `DynamicOptic` operations

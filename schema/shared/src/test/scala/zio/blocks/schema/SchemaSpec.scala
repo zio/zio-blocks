@@ -1,13 +1,13 @@
 package zio.blocks.schema
 
-import zio.Chunk
-import zio.blocks.chunk.{Chunk => BlocksChunk}
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.{TextCodec, TextFormat}
 import zio.blocks.schema.derive.Deriver
+import zio.blocks.typeid.TypeId
 import zio.test._
 import zio.test.Assertion._
 import java.nio.CharBuffer
@@ -55,6 +55,10 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString(out => Schema[Byte].encode(ToStringFormat)(out)(1: Byte)))(equalTo("1"))
+      },
+      test("derives codec from format directly") {
+        val codec = Schema[Int].derive(ToStringFormat)
+        assert(encodeToString(out => codec.encode(42, out)))(equalTo("42"))
       }
     ),
     suite("Reflect.Record")(
@@ -114,7 +118,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Record.schema.fromDynamicValue(
             DynamicValue.Record(
-              Vector(
+              Chunk(
                 ("i", DynamicValue.Primitive(PrimitiveValue.Long(1000))),
                 ("i", DynamicValue.Primitive(PrimitiveValue.Int(2000)))
               )
@@ -162,11 +166,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
+                typeId = zio.blocks.typeid.TypeId.of[(Byte, Short, Int, Long)],
                 recordBinding = null
               )
             )
@@ -219,10 +219,7 @@ object SchemaSpec extends SchemaBaseSpec {
                     ),
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-1"
-                ),
+                typeId = zio.blocks.typeid.TypeId.of[Record1],
                 recordBinding = null,
                 modifiers = Seq(
                   Modifier.config("record-key", "record-value-1"),
@@ -268,11 +265,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Byte].reflect.asTerm("b"),
                   Schema[Int].reflect.asTerm("i")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-2",
-                  params = Seq(TypeName.byte, TypeName.int)
-                ),
+                typeId = TypeId.of[`Record-2`[Byte, Int]],
                 recordBinding = null
               )
             )
@@ -308,10 +301,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Short].reflect.asTerm("s"),
                   Schema[Long].reflect.asTerm("l")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record3"
-                ),
+                typeId = zio.blocks.typeid.TypeId.of[Record3],
                 recordBinding = null
               )
             )
@@ -357,10 +347,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record4"
-                ),
+                typeId = zio.blocks.typeid.TypeId.of[Record4],
                 recordBinding = null
               )
             )
@@ -421,10 +408,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record5"
-                ),
+                typeId = zio.blocks.typeid.TypeId.of[Record5],
                 recordBinding = null
               )
             )
@@ -560,10 +544,7 @@ object SchemaSpec extends SchemaBaseSpec {
                   Schema[Option[DynamicValue]].reflect.asTerm("od"),
                   Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record7"
-                ),
+                typeId = zio.blocks.typeid.TypeId.of[Record7],
                 recordBinding = null
               )
             )
@@ -578,15 +559,9 @@ object SchemaSpec extends SchemaBaseSpec {
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(record.map(_.typeName))(
+        assert(record.map(_.typeId))(
           isSome(
-            equalTo(
-              TypeName[Record8[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Record8",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
-            )
+            equalTo(zio.blocks.typeid.TypeId.of[Record8[Option]])
           )
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
@@ -692,9 +667,8 @@ object SchemaSpec extends SchemaBaseSpec {
           new Schema(
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
-              TypeName(Namespace(Seq("zio")), "Chunk"),
-              None,
-              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
+              zio.blocks.typeid.TypeId.of[Chunk[V]],
+              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), x => Right(x.toList))
             )
           )
 
@@ -769,7 +743,8 @@ object SchemaSpec extends SchemaBaseSpec {
               ) || // Scala 2
                 containsString(
                   "Type Mismatch"
-                ) // Scala 3
+                ) ||                                                    // Scala 3.3
+                (containsString("Found") && containsString("Required")) // Scala 3.5+
             )
           )
         )
@@ -843,7 +818,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Variant.schema.fromDynamicValue(
             DynamicValue
-              .Variant("Case2", DynamicValue.Record(Vector(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
+              .Variant("Case2", DynamicValue.Record(Chunk(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
           )
         )(
           isLeft(hasError("Expected String at: .when[Case2].s"))
@@ -939,15 +914,8 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-3`))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2", "Case-3")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[`Variant-1`](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-1"
-              )
-            )
-          )
+        assert(variant.map(_.typeId))(
+          isSome(equalTo(zio.blocks.typeid.TypeId.of[`Variant-1`]))
         ) &&
         assert(variant.map(_.modifiers))(
           isSome(
@@ -995,16 +963,8 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[`Variant-2`[String]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-2",
-                params = Seq(TypeName.string)
-              )
-            )
-          )
+        assert(variant.map(_.typeId))(
+          isSome(equalTo(zio.blocks.typeid.TypeId.of[`Variant-2`[String]]))
         )
       },
       test("derives schema for options") {
@@ -1049,23 +1009,16 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A1)))(isRight(equalTo(B.A1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
-        assert(variant1.map(_.typeName))(
-          isSome(equalTo(TypeName[A](Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "A")))
+        assert(variant1.map(_.typeId))(
+          isSome(equalTo(zio.blocks.typeid.TypeId.of[A]))
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
         assert(variant2.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Level1.Case", "Case")))) &&
-        assert(variant2.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[Level1.MultiLevel](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "Level1")),
-                name = "MultiLevel"
-              )
-            )
-          )
+        assert(variant2.map(_.typeId))(
+          isSome(equalTo(zio.blocks.typeid.TypeId.of[Level1.MultiLevel]))
         )
       },
       test("derives schema for higher-kinded variant using a macro call") {
@@ -1095,16 +1048,8 @@ object SchemaSpec extends SchemaBaseSpec {
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[`Variant-3`[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-3",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
-            )
-          )
+        assert(variant.map(_.typeId))(
+          isSome(equalTo(zio.blocks.typeid.TypeId.of[`Variant-3`[Option]]))
         )
       },
       test("derives schema for genetic variant with 'Nothing' type parameter using a macro call") {
@@ -1121,16 +1066,8 @@ object SchemaSpec extends SchemaBaseSpec {
         val schema  = Schema.derived[Variant4[String, Int]]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[Variant4[String, Int]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant4",
-                params = Seq(TypeName.string, TypeName.int)
-              )
-            )
-          )
+        assert(variant.map(_.typeId))(
+          isSome(equalTo(zio.blocks.typeid.TypeId.of[Variant4[String, Int]]))
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Error[String]("error"))))(
           isRight(equalTo(Error[String]("error")))
@@ -1291,7 +1228,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[List[Boolean]].fromDynamicValue(
             DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 DynamicValue.Primitive(PrimitiveValue.Int(1)),
                 DynamicValue.Primitive(PrimitiveValue.Int(1))
               )
@@ -1300,46 +1237,46 @@ object SchemaSpec extends SchemaBaseSpec {
         )(isLeft(hasError("Expected Boolean at: .each.at(0)\nExpected Boolean at: .each.at(1)"))) &&
         assert(
           Schema[List[Byte]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Byte at: .each.at(0)"))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Char at: .each.at(0)"))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Short at: .each.at(0)"))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Long(1))))
           )
         )(isLeft(hasError("Expected Int at: .each.at(0)"))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Float at: .each.at(0)"))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Long at: .each.at(0)"))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected Double at: .each.at(0)"))) &&
         assert(
           Schema[List[String]].fromDynamicValue(
-            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
         assert(
-          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
+          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Chunk(DynamicValue.Record(Chunk.empty))))
         )(
           isLeft(
             equalTo(
@@ -1374,28 +1311,28 @@ object SchemaSpec extends SchemaBaseSpec {
         })(equalTo("List(1, 2, 3)"))
       },
       test("Chunk roundtrips through DynamicValue") {
-        val intChunk    = BlocksChunk(1, 2, 3)
-        val stringChunk = BlocksChunk("a", "b", "c")
-        val boolChunk   = BlocksChunk(true, false, true)
-        val doubleChunk = BlocksChunk(1.0, 2.0, 3.0)
-        val longChunk   = BlocksChunk(1L, 2L, 3L)
-        val emptyChunk  = BlocksChunk.empty[Int]
-        assert(Schema[BlocksChunk[Int]].fromDynamicValue(Schema[BlocksChunk[Int]].toDynamicValue(intChunk)))(
+        val intChunk    = Chunk(1, 2, 3)
+        val stringChunk = Chunk("a", "b", "c")
+        val boolChunk   = Chunk(true, false, true)
+        val doubleChunk = Chunk(1.0, 2.0, 3.0)
+        val longChunk   = Chunk(1L, 2L, 3L)
+        val emptyChunk  = Chunk.empty[Int]
+        assert(Schema[Chunk[Int]].fromDynamicValue(Schema[Chunk[Int]].toDynamicValue(intChunk)))(
           isRight(equalTo(intChunk))
         ) &&
-        assert(Schema[BlocksChunk[String]].fromDynamicValue(Schema[BlocksChunk[String]].toDynamicValue(stringChunk)))(
+        assert(Schema[Chunk[String]].fromDynamicValue(Schema[Chunk[String]].toDynamicValue(stringChunk)))(
           isRight(equalTo(stringChunk))
         ) &&
-        assert(Schema[BlocksChunk[Boolean]].fromDynamicValue(Schema[BlocksChunk[Boolean]].toDynamicValue(boolChunk)))(
+        assert(Schema[Chunk[Boolean]].fromDynamicValue(Schema[Chunk[Boolean]].toDynamicValue(boolChunk)))(
           isRight(equalTo(boolChunk))
         ) &&
-        assert(Schema[BlocksChunk[Double]].fromDynamicValue(Schema[BlocksChunk[Double]].toDynamicValue(doubleChunk)))(
+        assert(Schema[Chunk[Double]].fromDynamicValue(Schema[Chunk[Double]].toDynamicValue(doubleChunk)))(
           isRight(equalTo(doubleChunk))
         ) &&
-        assert(Schema[BlocksChunk[Long]].fromDynamicValue(Schema[BlocksChunk[Long]].toDynamicValue(longChunk)))(
+        assert(Schema[Chunk[Long]].fromDynamicValue(Schema[Chunk[Long]].toDynamicValue(longChunk)))(
           isRight(equalTo(longChunk))
         ) &&
-        assert(Schema[BlocksChunk[Int]].fromDynamicValue(Schema[BlocksChunk[Int]].toDynamicValue(emptyChunk)))(
+        assert(Schema[Chunk[Int]].fromDynamicValue(Schema[Chunk[Int]].toDynamicValue(emptyChunk)))(
           isRight(equalTo(emptyChunk))
         )
       }
@@ -1428,11 +1365,19 @@ object SchemaSpec extends SchemaBaseSpec {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map(TypeName.int, TypeName.long),
+          typeId = zio.blocks.typeid.TypeId.of[Map[Int, Long]],
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
-            deconstructor = MapDeconstructor.map,
-            examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
+            deconstructor = MapDeconstructor.map
+          ),
+          storedExamples = Seq(
+            DynamicValue.Map(
+              zio.blocks.chunk.Chunk(
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Long(1L))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(2)), DynamicValue.Primitive(PrimitiveValue.Long(2L))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(3)), DynamicValue.Primitive(PrimitiveValue.Long(3L)))
+              )
+            )
           )
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&
@@ -1476,7 +1421,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
-              Vector(
+              Chunk(
                 (DynamicValue.Primitive(PrimitiveValue.Long(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
               )
             )
@@ -1485,7 +1430,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
-              Vector(
+              Chunk(
                 (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
                 (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
               )
@@ -1569,7 +1514,7 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeId.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1594,8 +1539,9 @@ object SchemaSpec extends SchemaBaseSpec {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            TypeName.int,
-            Binding.Primitive(examples = Seq(1, 2, 3))
+            TypeId.int,
+            Binding.Primitive(),
+            storedExamples = Seq(1, 2, 3).map(i => DynamicValue.Primitive(PrimitiveValue.Int(i)))
           )
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3))) &&
@@ -1848,20 +1794,20 @@ object SchemaSpec extends SchemaBaseSpec {
     suite("transform")(
       test("transforms schema with total functions") {
         case class UserId(value: Long)
-        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
         val dv                           = Schema[Long].toDynamicValue(42L)
         assert(userIdSchema.fromDynamicValue(dv))(isRight(equalTo(UserId(42L))))
       },
       test("round-trips correctly") {
         case class UserId(value: Long)
-        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
         val value                        = UserId(123L)
         val dv                           = userIdSchema.toDynamicValue(value)
         assert(userIdSchema.fromDynamicValue(dv))(isRight(equalTo(value)))
       },
       test("creates Wrapper reflect") {
         case class UserId(value: Long)
-        val userIdSchema: Schema[UserId] = Schema[Long].transform(UserId(_), _.value)
+        val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
         assertTrue(userIdSchema.reflect.isWrapper)
       },
       test("works with String-based wrappers") {
@@ -1869,6 +1815,66 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Email.schema.fromDynamicValue(Schema[String].toDynamicValue("test@example.com")))(
           isRight(equalTo(Email("test@example.com")))
         )
+      }
+    ),
+    suite("transform (failable in both directions)")(
+      test("succeeds when both wrap and unwrap succeed") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) =>
+            if (n > 0) Right(ValidatedInt(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          unwrap = (v: ValidatedInt) =>
+            if (v.value < 100) Right(v.value)
+            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+        )
+        val dv = Schema[Int].toDynamicValue(42)
+        assert(schema.fromDynamicValue(dv))(isRight(equalTo(ValidatedInt(42))))
+      },
+      test("fails when wrap fails") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) =>
+            if (n > 0) Right(ValidatedInt(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          unwrap = (v: ValidatedInt) => Right(v.value)
+        )
+        val dv = Schema[Int].toDynamicValue(-1)
+        assert(schema.fromDynamicValue(dv))(isLeft(hasError("Expected positive, got -1")))
+      },
+      test("fails when unwrap fails during toDynamicValue") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) => Right(ValidatedInt(n)),
+          unwrap = (v: ValidatedInt) =>
+            if (v.value < 100) Right(v.value)
+            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+        )
+        val result = scala.util.Try(schema.toDynamicValue(ValidatedInt(200)))
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.getMessage.contains("Value too large: 200"))
+      },
+      test("round-trips correctly when both directions succeed") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) =>
+            if (n > 0) Right(ValidatedInt(n))
+            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+          unwrap = (v: ValidatedInt) =>
+            if (v.value < 100) Right(v.value)
+            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+        )
+        val value = ValidatedInt(42)
+        val dv    = schema.toDynamicValue(value)
+        assert(schema.fromDynamicValue(dv))(isRight(equalTo(value)))
+      },
+      test("creates Wrapper reflect") {
+        case class ValidatedInt(value: Int)
+        val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
+          wrap = (n: Int) => Right(ValidatedInt(n)),
+          unwrap = (v: ValidatedInt) => Right(v.value)
+        )
+        assertTrue(schema.reflect.isWrapper)
       }
     ),
     test("doesn't generate schema for unsupported classes") {
@@ -1922,7 +1928,8 @@ object SchemaSpec extends SchemaBaseSpec {
           )
         )
       )
-    }
+    },
+    typeIdConsistencySuite
   )
 
   private[this] def hasError(message: String): Assertion[SchemaError] =
@@ -1997,18 +2004,18 @@ object SchemaSpec extends SchemaBaseSpec {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    // Note: AnyVal classes are NOT true opaque types - they get boxed in generic contexts.
-    // Use withTypeName instead of asOpaqueType for AnyVal wrappers.
-    implicit val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value).withTypeName[PosInt]
+    implicit lazy val typeId: TypeId[PosInt] = TypeId.of[PosInt]
+    implicit lazy val schema: Schema[PosInt] =
+      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value)
     val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email] =
-      Schema[String].transform[Email](x => new Email(x), _.value).withTypeName[Email]
+    implicit lazy val typeId: TypeId[Email] = TypeId.of[Email]
+    implicit lazy val schema: Schema[Email] =
+      Schema[String].transform[Email](x => new Email(x), _.value)
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 
@@ -2024,10 +2031,12 @@ object SchemaSpec extends SchemaBaseSpec {
         new Deriver[TextCodec] {
           override def derivePrimitive[A](
             primitiveType: PrimitiveType[A],
-            typeName: TypeName[A],
+            typeId: zio.blocks.typeid.TypeId[A],
             binding: Binding[BindingType.Primitive, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           ): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2037,10 +2046,12 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveRecord[F[_, _], A](
             fields: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
+            typeId: zio.blocks.typeid.TypeId[A],
             binding: Binding[BindingType.Record, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2050,10 +2061,12 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveVariant[F[_, _], A](
             cases: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
+            typeId: zio.blocks.typeid.TypeId[A],
             binding: Binding[BindingType.Variant, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2063,10 +2076,12 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveSequence[F[_, _], C[_], A](
             element: Reflect[F, A],
-            typeName: TypeName[C[A]],
+            typeId: zio.blocks.typeid.TypeId[C[A]],
             binding: Binding[BindingType.Seq[C], C[A]],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[C[A]],
+            examples: Seq[C[A]]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
             Lazy(new TextCodec[C[A]] {
               override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
@@ -2077,10 +2092,12 @@ object SchemaSpec extends SchemaBaseSpec {
           override def deriveMap[F[_, _], M[_, _], K, V](
             key: Reflect[F, K],
             value: Reflect[F, V],
-            typeName: TypeName[M[K, V]],
+            typeId: zio.blocks.typeid.TypeId[M[K, V]],
             binding: Binding[BindingType.Map[M], M[K, V]],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[M[K, V]],
+            examples: Seq[M[K, V]]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
             Lazy(new TextCodec[M[K, V]] {
               override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
@@ -2091,7 +2108,9 @@ object SchemaSpec extends SchemaBaseSpec {
           override def deriveDynamic[F[_, _]](
             binding: Binding[BindingType.Dynamic, DynamicValue],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[DynamicValue],
+            examples: Seq[DynamicValue]
           )(implicit
             F: HasBinding[F],
             D: HasInstance[F]
@@ -2104,11 +2123,12 @@ object SchemaSpec extends SchemaBaseSpec {
 
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
-            typeName: TypeName[A],
-            wrapperPrimitiveType: Option[PrimitiveType[A]],
+            typeId: zio.blocks.typeid.TypeId[A],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
-            modifiers: Seq[Modifier.Reflect]
+            modifiers: Seq[Modifier.Reflect],
+            defaultValue: Option[A],
+            examples: Seq[A]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -2117,4 +2137,190 @@ object SchemaSpec extends SchemaBaseSpec {
             })
         }
       )
+
+  case class ProductId(value: Long)
+
+  object ProductId {
+    implicit val customTypeId: TypeId[ProductId] =
+      TypeId.nominal[ProductId]("ProductId", zio.blocks.typeid.Owner.fromPackagePath("com.acme.catalog"))
+
+    implicit val schema: Schema[ProductId] =
+      Schema[Long].transform[ProductId](ProductId.apply, _.value)
+  }
+
+  case class CategoryId(value: String)
+
+  object CategoryId {
+    implicit val customTypeId: TypeId[CategoryId] =
+      TypeId.nominal[CategoryId]("CategoryId", zio.blocks.typeid.Owner.fromPackagePath("com.acme.catalog"))
+
+    implicit val schema: Schema[CategoryId] =
+      Schema[String].transform[CategoryId](CategoryId.apply, _.value)
+  }
+
+  case class ListContainer(items: List[ProductId])
+  object ListContainer extends CompanionOptics[ListContainer] {
+    implicit val schema: Schema[ListContainer] = Schema.derived
+  }
+
+  case class SetContainer(items: Set[ProductId])
+  object SetContainer extends CompanionOptics[SetContainer] {
+    implicit val schema: Schema[SetContainer] = Schema.derived
+  }
+
+  case class VectorContainer(items: Vector[ProductId])
+  object VectorContainer extends CompanionOptics[VectorContainer] {
+    implicit val schema: Schema[VectorContainer] = Schema.derived
+  }
+
+  case class MapContainer(items: scala.collection.immutable.Map[CategoryId, ProductId])
+  object MapContainer extends CompanionOptics[MapContainer] {
+    implicit val schema: Schema[MapContainer] = Schema.derived
+  }
+
+  case class OptionContainer(item: Option[ProductId])
+  object OptionContainer extends CompanionOptics[OptionContainer] {
+    implicit val schema: Schema[OptionContainer] = Schema.derived
+  }
+
+  case class EitherContainer(item: Either[CategoryId, ProductId])
+  object EitherContainer extends CompanionOptics[EitherContainer] {
+    implicit val schema: Schema[EitherContainer] = Schema.derived
+  }
+
+  case class ArrayContainer(items: Array[ProductId])
+  object ArrayContainer extends CompanionOptics[ArrayContainer] {
+    implicit val schema: Schema[ArrayContainer] = Schema.derived
+  }
+
+  case class ArraySeqContainer(items: ArraySeq[ProductId])
+  object ArraySeqContainer extends CompanionOptics[ArraySeqContainer] {
+    implicit val schema: Schema[ArraySeqContainer] = Schema.derived
+  }
+
+  def typeIdConsistencySuite: Spec[Any, Nothing] = suite("TypeId consistency between Schema and container typeArgs")(
+    test("List element uses custom TypeId") {
+      val schema       = Schema[ListContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Set element uses custom TypeId") {
+      val schema       = Schema[SetContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Vector element uses custom TypeId") {
+      val schema       = Schema[VectorContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Map key and value use custom TypeIds") {
+      val schema       = Schema[MapContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val mapReflect   = field.value.asMapUnknown.get.map
+      val keyTid       = mapReflect.key.typeId
+      val valueTid     = mapReflect.value.typeId
+      val containerTid = mapReflect.typeId
+
+      assertTrue(
+        keyTid.asInstanceOf[TypeId[Any]] == CategoryId.customTypeId.asInstanceOf[TypeId[Any]],
+        valueTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]
+      ) &&
+      assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
+    },
+    test("Option element uses custom TypeId") {
+      val schema       = Schema[OptionContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "item").get
+      val optReflect   = field.value.asVariant.get
+      val someCase     = optReflect.cases.find(_.name == "Some").get
+      val someRecord   = someCase.value.asRecord.get
+      val valueField   = someRecord.fields.find(_.name == "value").get
+      val elementTid   = valueField.value.typeId
+      val containerTid = optReflect.typeId
+
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("Either left and right use custom TypeIds") {
+      val schema        = Schema[EitherContainer]
+      val record        = schema.reflect.asRecord.get
+      val field         = record.fields.find(_.name == "item").get
+      val eitherReflect = field.value.asVariant.get
+      val leftCase      = eitherReflect.cases.find(_.name == "Left").get
+      val rightCase     = eitherReflect.cases.find(_.name == "Right").get
+      val leftRecord    = leftCase.value.asRecord.get
+      val rightRecord   = rightCase.value.asRecord.get
+      val leftTid       = leftRecord.fields.find(_.name == "value").get.value.typeId
+      val rightTid      = rightRecord.fields.find(_.name == "value").get.value.typeId
+      val containerTid  = eitherReflect.typeId
+
+      assertTrue(
+        leftTid.asInstanceOf[TypeId[Any]] == CategoryId.customTypeId.asInstanceOf[TypeId[Any]],
+        rightTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]
+      ) &&
+      assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
+      assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
+    },
+    test("Array element uses custom TypeId") {
+      val schema       = Schema[ArrayContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    },
+    test("ArraySeq element uses custom TypeId") {
+      val schema       = Schema[ArraySeqContainer]
+      val record       = schema.reflect.asRecord.get
+      val field        = record.fields.find(_.name == "items").get
+      val seqReflect   = field.value.asSequenceUnknown.get.sequence
+      val elementTid   = seqReflect.element.typeId
+      val containerTid = seqReflect.typeId
+
+      assertTrue(elementTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]) &&
+      assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
+    }
+  )
+
+  private def assertTypeArgMatches(
+    containerTypeId: TypeId[_],
+    index: Int,
+    expectedTypeId: TypeId[_]
+  ): TestResult = {
+    val typeArgs = containerTypeId.typeArgs
+    if (typeArgs.size <= index) {
+      assertTrue(false)
+    } else {
+      typeArgs(index) match {
+        case zio.blocks.typeid.TypeRepr.Ref(argTypeId) =>
+          assertTrue(argTypeId == expectedTypeId.asInstanceOf[TypeId[Any]])
+        case _ =>
+          assertTrue(false)
+      }
+    }
+  }
 }

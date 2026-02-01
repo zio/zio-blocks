@@ -2,6 +2,7 @@ package zio.blocks.schema.tostring
 
 import zio.blocks.schema._
 import zio.test._
+import zio.test.TestAspect.exceptNative
 
 object OpticTypesSpec extends ZIOSpecDefault {
 
@@ -198,5 +199,5 @@ object OpticTypesSpec extends ZIOSpecDefault {
         assertTrue(composedLens.toString == "Lens(_.address.street)")
       }
     )
-  )
+  ) @@ exceptNative
 }

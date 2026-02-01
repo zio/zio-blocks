@@ -47,7 +47,7 @@ class ToonListOfRecordsBenchmark extends BaseBenchmark {
 object ToonListOfRecordsDomain {
   case class Person(id: Long, name: String, age: Int, address: String, childrenAges: List[Int]) derives Encoder, Decoder
 
-  val zioBlocksCodec: ToonBinaryCodec[List[Person]] = Schema.derived.derive(ToonFormat.deriver)
+  val zioBlocksCodec = Schema.derived[List[Person]].derive(ToonFormat)
 
   implicit val zioJsonCodec: zio.json.JsonCodec[Person] = zio.json.DeriveJsonCodec.gen
 }

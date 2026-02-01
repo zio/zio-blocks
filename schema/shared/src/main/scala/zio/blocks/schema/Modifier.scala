@@ -4,6 +4,7 @@ import scala.annotation.meta.field
 import scala.annotation.StaticAnnotation
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.typeid.TypeId
 
 /**
  * A sealed trait that represents a modifier used to annotate terms or reflect
@@ -13,8 +14,6 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 sealed trait Modifier extends StaticAnnotation
 
 object Modifier {
-
-  private val ns = Namespace(List("zio", "blocks", "schema", "Modifier"))
 
   /**
    * `Term` represents a sealed trait for modifiers that annotate terms: record
@@ -68,7 +67,7 @@ object Modifier {
   implicit lazy val transientSchema: Schema[transient] = new Schema(
     reflect = new Reflect.Record[Binding, transient](
       fields = Vector.empty,
-      typeName = TypeName(ns, "transient"),
+      typeId = TypeId.of[transient],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[transient](transient()),
         deconstructor = new ConstantDeconstructor[transient]
@@ -82,7 +81,7 @@ object Modifier {
       fields = Vector(
         Schema[String].reflect.asTerm("name")
       ),
-      typeName = TypeName(ns, "rename"),
+      typeId = TypeId.of[rename],
       recordBinding = new Binding.Record(
         constructor = new Constructor[rename] {
           def usedRegisters: RegisterOffset                            = 1
@@ -104,7 +103,7 @@ object Modifier {
       fields = Vector(
         Schema[String].reflect.asTerm("name")
       ),
-      typeName = TypeName(ns, "alias"),
+      typeId = TypeId.of[alias],
       recordBinding = new Binding.Record(
         constructor = new Constructor[alias] {
           def usedRegisters: RegisterOffset                           = 1
@@ -127,7 +126,7 @@ object Modifier {
         Schema[String].reflect.asTerm("key"),
         Schema[String].reflect.asTerm("value")
       ),
-      typeName = TypeName(ns, "config"),
+      typeId = TypeId.of[config],
       recordBinding = new Binding.Record(
         constructor = new Constructor[config] {
           def usedRegisters: RegisterOffset                            = 2
@@ -157,7 +156,7 @@ object Modifier {
         aliasSchema.reflect.asTerm("alias"),
         configSchema.reflect.asTerm("config")
       ),
-      typeName = TypeName(ns, "Term"),
+      typeId = TypeId.of[Term],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Term] {
           def discriminate(a: Term): Int = a match {
@@ -203,7 +202,7 @@ object Modifier {
       cases = Vector(
         configSchema.reflect.asTerm("config")
       ),
-      typeName = TypeName(ns, "Reflect"),
+      typeId = TypeId.of[Reflect],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Reflect] {
           def discriminate(a: Reflect): Int = a match {
@@ -231,7 +230,7 @@ object Modifier {
         aliasSchema.reflect.asTerm("alias"),
         configSchema.reflect.asTerm("config")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema")), "Modifier"),
+      typeId = TypeId.of[Modifier],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Modifier] {
           def discriminate(a: Modifier): Int = a match {

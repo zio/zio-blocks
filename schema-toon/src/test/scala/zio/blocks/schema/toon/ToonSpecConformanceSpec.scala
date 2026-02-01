@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.toon.ToonTestUtils._
 import zio.test._
@@ -178,28 +179,28 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       },
       test("encodes root-level array with tab delimiter") {
         encodeDynamic(
-          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          DynamicValue.Sequence(Chunk(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
           "[3\t]: x\ty\tz",
           WriterConfig.withDelimiter(Delimiter.Tab)
         )
       },
       test("encodes root-level array with pipe delimiter") {
         encodeDynamic(
-          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          DynamicValue.Sequence(Chunk(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
           "[3|]: x|y|z",
           WriterConfig.withDelimiter(Delimiter.Pipe)
         )
       },
       test("encodes root-level array of objects with tab delimiter") {
         encodeDynamic(
-          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           "[2\t]{id}:\n  1\n  2",
           WriterConfig.withDelimiter(Delimiter.Tab)
         )
       },
       test("encodes root-level array of objects with pipe delimiter") {
         encodeDynamic(
-          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           "[2|]{id}:\n  1\n  2",
           WriterConfig.withDelimiter(Delimiter.Pipe)
         )
@@ -335,9 +336,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "pairs[2\t]:\n  - [2\t]: a\tb\n  - [2\t]: c\td",
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-                DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Chunk(dynamicStr("c"), dynamicStr("d")))
               )
             )
           ),
@@ -349,9 +350,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "pairs[2|]:\n  - [2|]: a|b\n  - [2|]: c|d",
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-                DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Chunk(dynamicStr("c"), dynamicStr("d")))
               )
             )
           ),
@@ -375,28 +376,28 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("parses root-level array with tab delimiter") {
         decodeDynamic(
           "[3\t]: x\ty\tz",
-          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          DynamicValue.Sequence(Chunk(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
           ReaderConfig.withDelimiter(Delimiter.Tab)
         )
       },
       test("parses root-level array with pipe delimiter") {
         decodeDynamic(
           "[3|]: x|y|z",
-          DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
+          DynamicValue.Sequence(Chunk(dynamicStr("x"), dynamicStr("y"), dynamicStr("z"))),
           ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
       },
       test("parses root-level array of objects with tab delimiter") {
         decodeDynamic(
           "[2\t]{id}:\n  1\n  2",
-          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           ReaderConfig.withDelimiter(Delimiter.Tab)
         )
       },
       test("parses root-level array of objects with pipe delimiter") {
         decodeDynamic(
           "[2|]{id}:\n  1\n  2",
-          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
       },
@@ -418,7 +419,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "pairs[1|]:\n  - [2|]: a|\"b|c\"",
           record(
-            "pairs" -> DynamicValue.Sequence(Vector(DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b|c")))))
+            "pairs" -> DynamicValue.Sequence(Chunk(DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b|c")))))
           ),
           ReaderConfig.withDelimiter(Delimiter.Pipe)
         )
@@ -427,7 +428,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "pairs[1\t]:\n  - [2\t]: a\t\"b\\tc\"",
           record(
-            "pairs" -> DynamicValue.Sequence(Vector(DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b\tc")))))
+            "pairs" -> DynamicValue.Sequence(Chunk(DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b\tc")))))
           ),
           ReaderConfig.withDelimiter(Delimiter.Tab)
         )
@@ -1056,7 +1057,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             "a" -> record(
               "b" -> record(
                 "items" -> DynamicValue.Sequence(
-                  Vector(
+                  Chunk(
                     record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
                     record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
                   )
@@ -1073,7 +1074,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           record(
             "a" -> record(
               "b" -> DynamicValue.Sequence(
-                Vector(dynamicInt(1), dynamicInt(2))
+                Chunk(dynamicInt(1), dynamicInt(2))
               )
             )
           ),
@@ -1153,7 +1154,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             "data" -> record(
               "meta" -> record(
                 "items" -> DynamicValue.Sequence(
-                  Vector(dynamicStr("a"), dynamicStr("b"))
+                  Chunk(dynamicStr("a"), dynamicStr("b"))
                 )
               )
             )
@@ -1168,7 +1169,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             "a" -> record(
               "b" -> record(
                 "items" -> DynamicValue.Sequence(
-                  Vector(
+                  Chunk(
                     record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
                     record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
                   )
@@ -1414,21 +1415,21 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("encodes root-level primitive array") {
         encodeDynamic(
           DynamicValue.Sequence(
-            Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("true"), dynamicBoolean(true), dynamicInt(10))
+            Chunk(dynamicStr("x"), dynamicStr("y"), dynamicStr("true"), dynamicBoolean(true), dynamicInt(10))
           ),
           "[5]: x,y,\"true\",true,10"
         )
       },
       test("encodes root-level array of uniform objects in tabular format") {
         encodeDynamic(
-          DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
+          DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))),
           "[2]{id}:\n  1\n  2"
         )
       },
       test("encodes root-level array of non-uniform objects in list format") {
         encodeDynamic(
           DynamicValue.Sequence(
-            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada")))
+            Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada")))
           ),
           "[2]:\n  - id: 1\n  - id: 2\n    name: Ada"
         )
@@ -1436,10 +1437,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("encodes root-level array mixing primitive, object, and array of objects in list format") {
         encodeDynamic(
           DynamicValue.Sequence(
-            Vector(
+            Chunk(
               dynamicStr("summary"),
               record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-              DynamicValue.Sequence(Vector(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft"))))
+              DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft"))))
             )
           ),
           "[3]:\n  - summary\n  - id: 1\n    name: Ada\n  - [2]:\n    - id: 2\n    - status: draft"
@@ -1448,21 +1449,21 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("encodes root-level arrays of arrays") {
         encodeDynamic(
           DynamicValue.Sequence(
-            Vector(DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))), DynamicValue.Sequence(Vector()))
+            Chunk(DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2))), DynamicValue.Sequence(Chunk()))
           ),
           "[2]:\n  - [2]: 1,2\n  - [0]:"
         )
       },
       test("encodes empty root-level array") {
-        encodeDynamic(DynamicValue.Sequence(Vector()), "[0]:")
+        encodeDynamic(DynamicValue.Sequence(Chunk()), "[0]:")
       },
       test("quotes strings containing delimiters in nested arrays") {
         encodeDynamic(
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-                DynamicValue.Sequence(Vector(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Chunk(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
               )
             )
           ),
@@ -1473,9 +1474,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicInt(1))),
-                DynamicValue.Sequence(Vector(dynamicInt(2), dynamicInt(3)))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicInt(1))),
+                DynamicValue.Sequence(Chunk(dynamicInt(2), dynamicInt(3)))
               )
             )
           ),
@@ -1486,7 +1487,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text"))
+              Chunk(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text"))
             )
           ),
           "items[3]:\n  - 1\n  - a: 1\n  - text"
@@ -1496,9 +1497,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record("a" -> dynamicInt(1)),
-                DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2)))
+                DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2)))
               )
             )
           ),
@@ -1616,10 +1617,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record(
                   "users" -> DynamicValue.Sequence(
-                    Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+                    Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
                   ),
                   "note" -> dynamicStr("x")
                 )
@@ -1633,10 +1634,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record(
                   "users" -> DynamicValue.Sequence(
-                    Vector(
+                    Chunk(
                       record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
                       record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
                     )
@@ -1659,7 +1660,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(dynamicStr("first"), dynamicStr("second"), record())
+              Chunk(dynamicStr("first"), dynamicStr("second"), record())
             )
           ),
           "items[3]:\n  - first\n  - second\n  -"
@@ -1669,7 +1670,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record("id" -> dynamicInt(1), "data" -> dynamicStr("string")),
                 record(
                   "id"   -> dynamicInt(2),
@@ -1721,7 +1722,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "data.meta.items[2]: a,b",
           record(
             "data" -> record(
-              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))))
+              "meta" -> record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b"))))
             )
           ),
           ReaderConfig.withExpandPaths(PathExpansion.Safe)
@@ -1734,7 +1735,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
             "a" -> record(
               "b" -> record(
                 "items" -> DynamicValue.Sequence(
-                  Vector(
+                  Chunk(
                     record("id" -> dynamicInt(1), "name" -> dynamicStr("A")),
                     record("id" -> dynamicInt(2), "name" -> dynamicStr("B"))
                   )
@@ -1820,7 +1821,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "tags[3]: reading,gaming,coding",
           record(
-            "tags" -> DynamicValue.Sequence(Vector(dynamicStr("reading"), dynamicStr("gaming"), dynamicStr("coding")))
+            "tags" -> DynamicValue.Sequence(Chunk(dynamicStr("reading"), dynamicStr("gaming"), dynamicStr("coding")))
           )
         )
       },
@@ -1832,7 +1833,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "data[4]: x,y,true,10",
           record(
             "data" -> DynamicValue.Sequence(
-              Vector(dynamicStr("x"), dynamicStr("y"), dynamicBoolean(true), dynamicInt(10))
+              Chunk(dynamicStr("x"), dynamicStr("y"), dynamicBoolean(true), dynamicInt(10))
             )
           )
         )
@@ -1841,24 +1842,24 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("items[0]:", Items(List.empty), deriveCodec[Items](_.withTransientEmptyCollection(false)))
       },
       test("parses single-item array with empty string") {
-        decodeDynamic("items[1]: \"\"", record("items" -> DynamicValue.Sequence(Vector(dynamicStr("")))))
+        decodeDynamic("items[1]: \"\"", record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("")))))
       },
       test("parses multi-item array with empty string") {
         decodeDynamic(
           "items[3]: a,\"\",b",
-          record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr(""), dynamicStr("b"))))
+          record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr(""), dynamicStr("b"))))
         )
       },
       test("parses whitespace-only strings in arrays") {
         decodeDynamic(
           "items[2]: \" \",\"  \"",
-          record("items" -> DynamicValue.Sequence(Vector(dynamicStr(" "), dynamicStr("  "))))
+          record("items" -> DynamicValue.Sequence(Chunk(dynamicStr(" "), dynamicStr("  "))))
         )
       },
       test("parses strings with delimiters in arrays") {
         decodeDynamic(
           "items[3]: a,\"b,c\",\"d:e\"",
-          record("items" -> DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b,c"), dynamicStr("d:e"))))
+          record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b,c"), dynamicStr("d:e"))))
         )
       },
       test("parses strings that look like primitives when quoted") {
@@ -1866,7 +1867,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[4]: x,\"true\",\"42\",\"-3.14\"",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(dynamicStr("x"), dynamicStr("true"), dynamicStr("42"), dynamicStr("-3.14"))
+              Chunk(dynamicStr("x"), dynamicStr("true"), dynamicStr("42"), dynamicStr("-3.14"))
             )
           )
         )
@@ -1874,7 +1875,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("parses strings with structural tokens in arrays") {
         decodeDynamic(
           "items[3]: \"[5]\",\"- item\",\"{key}\"",
-          record("items" -> DynamicValue.Sequence(Vector(dynamicStr("[5]"), dynamicStr("- item"), dynamicStr("{key}"))))
+          record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("[5]"), dynamicStr("- item"), dynamicStr("{key}"))))
         )
       },
       test("parses quoted key with inline array") {
@@ -1884,7 +1885,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decode("\"key[test]\"[3]: 1,2,3", KeyTestWrapper(List(1, 2, 3)))
       },
       test("parses quoted key with empty array") {
-        decodeDynamic("\"x-custom\"[0]:", record("x-custom" -> DynamicValue.Sequence(Vector.empty)))
+        decodeDynamic("\"x-custom\"[0]:", record("x-custom" -> DynamicValue.Sequence(Chunk.empty)))
       }
     ),
     suite("decode arrays nested")(
@@ -1893,7 +1894,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[2]:\n  - id: 1\n    name: First\n  - id: 2\n    name: Second\n    extra: true",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record("id" -> dynamicInt(1), "name" -> dynamicStr("First")),
                 record("id" -> dynamicInt(2), "name" -> dynamicStr("Second"), "extra" -> dynamicBoolean(true))
               )
@@ -1904,7 +1905,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       test("parses list arrays with empty items") {
         decodeDynamic(
           "items[3]:\n  - first\n  - second\n  -",
-          record("items" -> DynamicValue.Sequence(Vector(dynamicStr("first"), dynamicStr("second"), record())))
+          record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("first"), dynamicStr("second"), record())))
         )
       },
       test("parses list arrays with deeply nested objects") {
@@ -1912,7 +1913,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[2]:\n  - properties:\n      state:\n        type: string\n  - id: 2",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record("properties" -> record("state" -> record("type" -> dynamicStr("string")))),
                 record("id"         -> dynamicInt(2))
               )
@@ -1932,10 +1933,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob\n    status: active",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record(
                   "users" -> DynamicValue.Sequence(
-                    Vector(
+                    Chunk(
                       record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
                       record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
                     )
@@ -1952,10 +1953,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[1]:\n  - users[2]{id,name}:\n      1,Ada\n      2,Bob",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record(
                   "users" -> DynamicValue.Sequence(
-                    Vector(
+                    Chunk(
                       record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
                       record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
                     )
@@ -1978,12 +1979,12 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[1]:\n  - matrix[2]:\n      - [2]: 1,2\n      - [2]: 3,4\n    name: grid",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record(
                   "matrix" -> DynamicValue.Sequence(
-                    Vector(
-                      DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))),
-                      DynamicValue.Sequence(Vector(dynamicInt(3), dynamicInt(4)))
+                    Chunk(
+                      DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2))),
+                      DynamicValue.Sequence(Chunk(dynamicInt(3), dynamicInt(4)))
                     )
                   ),
                   "name" -> dynamicStr("grid")
@@ -1998,9 +1999,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "pairs[2]:\n  - [2]: a,b\n  - [2]: c,d",
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-                DynamicValue.Sequence(Vector(dynamicStr("c"), dynamicStr("d")))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Chunk(dynamicStr("c"), dynamicStr("d")))
               )
             )
           )
@@ -2011,9 +2012,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "pairs[2]:\n  - [2]: a,b\n  - [3]: \"c,d\",\"e:f\",\"true\"",
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicStr("a"), dynamicStr("b"))),
-                DynamicValue.Sequence(Vector(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicStr("a"), dynamicStr("b"))),
+                DynamicValue.Sequence(Chunk(dynamicStr("c,d"), dynamicStr("e:f"), dynamicStr("true")))
               )
             )
           )
@@ -2024,7 +2025,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "pairs[2]:\n  - [0]:\n  - [0]:",
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(DynamicValue.Sequence(Vector.empty), DynamicValue.Sequence(Vector.empty))
+              Chunk(DynamicValue.Sequence(Chunk.empty), DynamicValue.Sequence(Chunk.empty))
             )
           )
         )
@@ -2034,9 +2035,9 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "pairs[2]:\n  - [1]: 1\n  - [2]: 2,3",
           record(
             "pairs" -> DynamicValue.Sequence(
-              Vector(
-                DynamicValue.Sequence(Vector(dynamicInt(1))),
-                DynamicValue.Sequence(Vector(dynamicInt(2), dynamicInt(3)))
+              Chunk(
+                DynamicValue.Sequence(Chunk(dynamicInt(1))),
+                DynamicValue.Sequence(Chunk(dynamicInt(2), dynamicInt(3)))
               )
             )
           )
@@ -2046,7 +2047,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "[5]: x,y,\"true\",true,10",
           DynamicValue.Sequence(
-            Vector(dynamicStr("x"), dynamicStr("y"), dynamicStr("true"), dynamicBoolean(true), dynamicInt(10))
+            Chunk(dynamicStr("x"), dynamicStr("y"), dynamicStr("true"), dynamicBoolean(true), dynamicInt(10))
           )
         )
       },
@@ -2054,7 +2055,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "[2]{id}:\n  1\n  2",
           DynamicValue.Sequence(
-            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
+            Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2)))
           )
         )
       },
@@ -2062,7 +2063,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "[2]:\n  - id: 1\n  - id: 2\n    name: Ada",
           DynamicValue.Sequence(
-            Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada")))
+            Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2), "name" -> dynamicStr("Ada")))
           )
         )
       },
@@ -2070,10 +2071,10 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "[3]:\n  - summary\n  - id: 1\n    name: Ada\n  - [2]:\n    - id: 2\n    - status: draft",
           DynamicValue.Sequence(
-            Vector(
+            Chunk(
               dynamicStr("summary"),
               record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
-              DynamicValue.Sequence(Vector(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft"))))
+              DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(2)), record("status" -> dynamicStr("draft"))))
             )
           )
         )
@@ -2082,12 +2083,12 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "[2]:\n  - [2]: 1,2\n  - [0]:",
           DynamicValue.Sequence(
-            Vector(DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))), DynamicValue.Sequence(Vector.empty))
+            Chunk(DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2))), DynamicValue.Sequence(Chunk.empty))
           )
         )
       },
       test("parses empty root-level array") {
-        decodeDynamic("[0]:", DynamicValue.Sequence(Vector.empty))
+        decodeDynamic("[0]:", DynamicValue.Sequence(Chunk.empty))
       },
       test("parses complex mixed object with arrays and nested objects") {
         decode(
@@ -2103,7 +2104,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "items[3]:\n  - 1\n  - a: 1\n  - text",
           record(
-            "items" -> DynamicValue.Sequence(Vector(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text")))
+            "items" -> DynamicValue.Sequence(Chunk(dynamicInt(1), record("a" -> dynamicInt(1)), dynamicStr("text")))
           )
         )
       },
@@ -2112,7 +2113,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[2]:\n  - a: 1\n  - [2]: 1,2",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(record("a" -> dynamicInt(1)), DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))
+              Chunk(record("a" -> dynamicInt(1)), DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2))))
             )
           )
         )
@@ -2121,7 +2122,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "\"x-items\"[2]:\n  - id: 1\n  - id: 2",
           record(
-            "x-items" -> DynamicValue.Sequence(Vector(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2))))
+            "x-items" -> DynamicValue.Sequence(Chunk(record("id" -> dynamicInt(1)), record("id" -> dynamicInt(2))))
           )
         )
       }
@@ -2139,7 +2140,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[2]{id,value}:\n  1,null\n  2,\"test\"",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record("id" -> dynamicInt(1), "value" -> dynamicUnit),
                 record("id" -> dynamicInt(2), "value" -> dynamicStr("test"))
               )
@@ -2166,7 +2167,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "\"x-items\"[2]{id,name}:\n  1,Ada\n  2,Bob",
           record(
             "x-items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 record("id" -> dynamicInt(1), "name" -> dynamicStr("Ada")),
                 record("id" -> dynamicInt(2), "name" -> dynamicStr("Bob"))
               )
@@ -2280,7 +2281,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeDynamic(
           "items[1]:\n  - a\n\nb: 2",
           record(
-            "items" -> DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.String("a")))),
+            "items" -> DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("a")))),
             "b"     -> dynamicInt(2)
           )
         )
@@ -2293,7 +2294,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
           "items[3]:\n  - a\n\n  - b\n  - c",
           record(
             "items" -> DynamicValue.Sequence(
-              Vector(
+              Chunk(
                 DynamicValue.Primitive(PrimitiveValue.String("a")),
                 DynamicValue.Primitive(PrimitiveValue.String("b")),
                 DynamicValue.Primitive(PrimitiveValue.String("c"))
@@ -2343,7 +2344,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "data" -> record(
-              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicStr("x"), dynamicStr("y"))))
+              "meta" -> record("items" -> DynamicValue.Sequence(Chunk(dynamicStr("x"), dynamicStr("y"))))
             )
           ),
           "data.meta.items[2]: x,y",
@@ -2354,7 +2355,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         encodeDynamic(
           record(
             "data" -> record(
-              "meta" -> record("items" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))
+              "meta" -> record("items" -> DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2))))
             ),
             "data.meta.items" -> dynamicStr("literal")
           ),
@@ -2406,7 +2407,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
       },
       test("stops folding at array boundary (not single-key object)") {
         encodeDynamic(
-          record("a" -> record("b" -> DynamicValue.Sequence(Vector(dynamicInt(1), dynamicInt(2))))),
+          record("a" -> record("b" -> DynamicValue.Sequence(Chunk(dynamicInt(1), dynamicInt(2))))),
           "a.b[2]: 1,2",
           WriterConfig.withKeyFolding(KeyFolding.Safe)
         )

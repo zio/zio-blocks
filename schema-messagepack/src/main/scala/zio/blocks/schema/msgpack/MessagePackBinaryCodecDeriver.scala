@@ -2,6 +2,7 @@ package zio.blocks.schema.msgpack
 
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import scala.util.control.NonFatal
 
@@ -10,24 +11,28 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
-    typeName: TypeName[A],
+    typeId: zio.blocks.typeid.TypeId[A],
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   ): Lazy[MessagePackBinaryCodec[A]] =
-    Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
+    typeId: zio.blocks.typeid.TypeId[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Record(
         fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-        typeName,
+        typeId,
         binding,
         doc,
         modifiers
@@ -37,15 +42,17 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
+    typeId: zio.blocks.typeid.TypeId[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Variant(
         cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-        typeName,
+        typeId,
         binding,
         doc,
         modifiers
@@ -55,29 +62,33 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
-    typeName: TypeName[C[A]],
+    typeId: zio.blocks.typeid.TypeId[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[C[A]],
+    examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[C[A]]] = Lazy {
     deriveCodec(
-      new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeName, binding, doc, modifiers)
+      new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
     )
   }
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    typeName: TypeName[M[K, V]],
+    typeId: zio.blocks.typeid.TypeId[M[K, V]],
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[M[K, V]],
+    examples: Seq[M[K, V]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[M[K, V]]] = Lazy {
     deriveCodec(
       new Reflect.Map(
         key.asInstanceOf[Reflect[Binding, K]],
         value.asInstanceOf[Reflect[Binding, V]],
-        typeName,
+        typeId,
         binding,
         doc,
         modifiers
@@ -88,23 +99,25 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[DynamicValue],
+    examples: Seq[DynamicValue]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[DynamicValue]] =
-    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
+    Lazy(deriveCodec(new Reflect.Dynamic(binding, zio.blocks.typeid.TypeId.of[DynamicValue], doc, modifiers)))
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
-    typeName: TypeName[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
+    typeId: zio.blocks.typeid.TypeId[A],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
-    modifiers: Seq[Modifier.Reflect]
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
-        typeName,
-        wrapperPrimitiveType,
+        typeId,
         binding,
         doc,
         modifiers
@@ -124,8 +137,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   type Map[_, _]
 
   private[this] val recursiveRecordCache =
-    new ThreadLocal[java.util.HashMap[TypeName[?], Array[MessagePackFieldInfo]]] {
-      override def initialValue: java.util.HashMap[TypeName[?], Array[MessagePackFieldInfo]] =
+    new ThreadLocal[java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[MessagePackFieldInfo]]] {
+      override def initialValue: java.util.HashMap[zio.blocks.typeid.TypeId[?], Array[MessagePackFieldInfo]] =
         new java.util.HashMap
     }
 
@@ -190,9 +203,9 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     variant: Reflect.Variant[F, A]
   ): MessagePackBinaryCodec[A] =
     if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
-      val typeName = variant.typeName
-      val cases    = variant.cases
-      if (typeName.namespace == Namespace.scalaUtil && typeName.name == "Either" && cases.length == 2) {
+      val typeId = variant.typeId
+      val cases  = variant.cases
+      if (typeId.isEither && cases.length == 2) {
         val leftInner  = cases(0).value.asRecord.flatMap(r => r.fields.headOption.map(_.value))
         val rightInner = cases(1).value.asRecord.flatMap(r => r.fields.headOption.map(_.value))
         if (leftInner.isDefined && rightInner.isDefined) {
@@ -463,9 +476,9 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
       val binding      = record.recordBinding.asInstanceOf[Binding.Record[A]]
       val fields       = record.fields
       val len          = fields.length
-      val typeName     = record.typeName
+      val typeId       = record.typeId
       val isRecursive  = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-      var infos        = if (isRecursive) recursiveRecordCache.get.get(typeName) else null
+      var infos        = if (isRecursive) recursiveRecordCache.get.get(typeId) else null
       val deriveCodecs = infos eq null
 
       if (deriveCodecs) {
@@ -480,7 +493,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           infos(idx).setName(field.name)
           idx += 1
         }
-        if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
+        if (isRecursive) recursiveRecordCache.get.put(typeId, infos)
       }
 
       var offset: RegisterOffset.RegisterOffset = 0L
@@ -576,7 +589,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
       val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, B]]
       val codec   = deriveCodec(wrapper.wrapped)
-      new MessagePackBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(objectType) {
+      new MessagePackBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(objectType) {
         case _: PrimitiveType.Boolean   => booleanType
         case _: PrimitiveType.Byte      => byteType
         case _: PrimitiveType.Char      => charType
@@ -588,8 +601,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         case _: PrimitiveType.Unit.type => unitType
         case _                          => objectType
       }) {
-        private[this] val unwrap       = binding.unwrap
         private[this] val wrap         = binding.wrap
+        private[this] val unwrap       = binding.unwrap
         private[this] val wrappedCodec = codec
 
         def decodeValue(in: MessagePackReader): A =
@@ -605,7 +618,10 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           }
 
         def encodeValue(value: A, out: MessagePackWriter): Unit =
-          wrappedCodec.encodeValue(unwrap(value), out)
+          unwrap(value) match {
+            case Right(wrapped) => wrappedCodec.encodeValue(wrapped, out)
+            case Left(error)    => throw error
+          }
       }
     } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance.force
 
@@ -630,10 +646,10 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         } else if ((b & 0xf0) == 0x90 || b == 0xdc || b == 0xdd) {
           val len = in.readArrayHeader()
           if (len < 0) in.decodeError("Array length exceeds maximum (2GB)")
-          val builder = Vector.newBuilder[DynamicValue]
+          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue]()
           var idx     = 0
           while (idx < len) {
-            builder += decodeDynamic(in)
+            builder.addOne(decodeDynamic(in))
             idx += 1
           }
           DynamicValue.Sequence(builder.result())
@@ -663,9 +679,9 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
               fields(idx) = (k.asInstanceOf[DynamicValue.Primitive].value.asInstanceOf[PrimitiveValue.String].value, v)
               idx += 1
             }
-            DynamicValue.Record(fields.toVector)
+            DynamicValue.Record(Chunk.from(fields))
           } else {
-            DynamicValue.Map(entries.toVector)
+            DynamicValue.Map(Chunk.from(entries))
           }
         } else
           b match {

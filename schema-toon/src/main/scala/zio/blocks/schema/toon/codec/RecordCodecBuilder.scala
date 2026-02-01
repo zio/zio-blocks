@@ -2,9 +2,9 @@ package zio.blocks.schema.toon.codec
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, Registers, RegisterOffset}
-import zio.blocks.schema.derive.BindingInstance
 import zio.blocks.schema.toon._
 import zio.blocks.schema.toon.ToonCodecUtils.unescapeQuoted
+import zio.blocks.typeid.TypeId
 
 import scala.util.control.NonFatal
 
@@ -17,7 +17,7 @@ private[toon] final class RecordCodecBuilder(
   requireOptionFields: Boolean,
   requireCollectionFields: Boolean,
   requireDefaultValueFields: Boolean,
-  recursiveRecordCache: ThreadLocal[java.util.HashMap[TypeName[_], Array[ToonFieldInfo]]],
+  recursiveRecordCache: ThreadLocal[java.util.HashMap[TypeId[_], Array[ToonFieldInfo]]],
   discriminatorFields: ThreadLocal[List[ToonDiscriminatorFieldInfo]],
   codecDeriver: CodecDeriver
 ) {
@@ -33,16 +33,7 @@ private[toon] final class RecordCodecBuilder(
 
   private def defaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[() => Any] =
     if (requireDefaultValueFields) None
-    else
-      {
-        if (fieldReflect.isPrimitive) fieldReflect.asPrimitive.get.primitiveBinding
-        else if (fieldReflect.isRecord) fieldReflect.asRecord.get.recordBinding
-        else if (fieldReflect.isVariant) fieldReflect.asVariant.get.variantBinding
-        else if (fieldReflect.isSequence) fieldReflect.asSequenceUnknown.get.sequence.seqBinding
-        else if (fieldReflect.isMap) fieldReflect.asMapUnknown.get.map.mapBinding
-        else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
-        else fieldReflect.asDynamic.get.dynamicBinding
-      }.asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]].binding.defaultValue
+    else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue.map(v => () => v)
 
   private def stripQuotes(s: String, from: Int, to: Int): String =
     if (to - from >= 2 && s.charAt(from) == '"' && s.charAt(to - 1) == '"') s.substring(from + 1, to - 1)
@@ -114,8 +105,8 @@ private[toon] final class RecordCodecBuilder(
     val fields       = record.fields
     val len          = fields.length
     val isRecursive  = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-    val typeName     = record.typeName
-    var infos        = if (isRecursive) recursiveRecordCache.get.get(typeName) else null
+    val typeId       = record.typeId
+    var infos        = if (isRecursive) recursiveRecordCache.get.get(typeId) else null
     val deriveCodecs = infos eq null
     if (deriveCodecs) {
       infos = new Array[ToonFieldInfo](len)
@@ -132,7 +123,7 @@ private[toon] final class RecordCodecBuilder(
         )
         idx += 1
       }
-      if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
+      if (isRecursive) recursiveRecordCache.get.put(typeId, infos)
       discriminatorFields.set(null :: discriminatorFields.get)
     }
     var offset   = 0L

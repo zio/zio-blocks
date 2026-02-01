@@ -3,6 +3,7 @@ package zio.blocks.schema.tostring
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.typeid.{Owner, TypeId}
 import zio.test._
 
 object TermToString extends ZIOSpecDefault {
@@ -26,7 +27,7 @@ object TermToString extends ZIOSpecDefault {
             Term("x", Reflect.int[Binding]),
             Term("y", Reflect.int[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "Point"),
+          typeId = TypeId.nominal[Point]("Point", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 2)
@@ -68,7 +69,7 @@ object TermToString extends ZIOSpecDefault {
           fields = Vector(
             Term("x", Reflect.int[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "Point"),
+          typeId = TypeId.nominal[Point]("Point", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -122,7 +123,7 @@ object TermToString extends ZIOSpecDefault {
             Term("x", Reflect.int[Binding]),
             Term("y", Reflect.int[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "Point"),
+          typeId = TypeId.nominal[Point]("Point", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 2)
@@ -159,9 +160,8 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with simple wrapper") {
         val userIdReflect = Reflect.Wrapper[Binding, String, String](
           wrapped = Reflect.string[Binding],
-          typeName = TypeName(Namespace(Nil), "UserId"),
-          wrapperPrimitiveType = None,
-          wrapperBinding = Binding.Wrapper[String, String](s => Right(s), identity)
+          typeId = TypeId.nominal[String]("UserId", Owner.Root),
+          wrapperBinding = Binding.Wrapper[String, String](s => Right(s), s => Right(s))
         )
         val term = Term("userId", userIdReflect)
         assertTrue(term.toString == "userId: wrapper UserId(String)")
@@ -172,7 +172,7 @@ object TermToString extends ZIOSpecDefault {
             Term("local", Reflect.string[Binding]),
             Term("domain", Reflect.string[Binding])
           ),
-          typeName = TypeName(Namespace(Nil), "EmailParts"),
+          typeId = TypeId.nominal[EmailParts]("EmailParts", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[EmailParts] {
               def usedRegisters                                    = RegisterOffset(objects = 2)
@@ -194,9 +194,8 @@ object TermToString extends ZIOSpecDefault {
 
         val validatedEmailReflect = Reflect.Wrapper[Binding, EmailParts, EmailParts](
           wrapped = emailPartsReflect,
-          typeName = TypeName(Namespace(Nil), "ValidatedEmail"),
-          wrapperPrimitiveType = None,
-          wrapperBinding = Binding.Wrapper[EmailParts, EmailParts](e => Right(e), identity)
+          typeId = TypeId.nominal[EmailParts]("ValidatedEmail", Owner.Root),
+          wrapperBinding = Binding.Wrapper[EmailParts, EmailParts](e => Right(e), e => Right(e))
         )
 
         val term = Term("email", validatedEmailReflect)
@@ -280,7 +279,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders 5-level deep nested records") {
         val level5 = Reflect.Record[Binding, Point](
           fields = Vector(Term("value", Reflect.int[Binding])),
-          typeName = TypeName(Namespace(Nil), "Level5"),
+          typeId = TypeId.nominal[Point]("Level5", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -295,7 +294,7 @@ object TermToString extends ZIOSpecDefault {
 
         val level4 = Reflect.Record[Binding, Point](
           fields = Vector(Term("nested", level5)),
-          typeName = TypeName(Namespace(Nil), "Level4"),
+          typeId = TypeId.nominal[Point]("Level4", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -310,7 +309,7 @@ object TermToString extends ZIOSpecDefault {
 
         val level3 = Reflect.Record[Binding, Point](
           fields = Vector(Term("nested", level4)),
-          typeName = TypeName(Namespace(Nil), "Level3"),
+          typeId = TypeId.nominal[Point]("Level3", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -325,7 +324,7 @@ object TermToString extends ZIOSpecDefault {
 
         val level2 = Reflect.Record[Binding, Point](
           fields = Vector(Term("nested", level3)),
-          typeName = TypeName(Namespace(Nil), "Level2"),
+          typeId = TypeId.nominal[Point]("Level2", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -356,7 +355,7 @@ object TermToString extends ZIOSpecDefault {
       test("renders term with deeply nested sequence in map in record") {
         val innerRecord = Reflect.Record[Binding, Point](
           fields = Vector(Term("x", Reflect.int[Binding])),
-          typeName = TypeName(Namespace(Nil), "InnerRecord"),
+          typeId = TypeId.nominal[Point]("InnerRecord", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -374,7 +373,7 @@ object TermToString extends ZIOSpecDefault {
 
         val outerRecord = Reflect.Record[Binding, Point](
           fields = Vector(Term("data", mapReflect)),
-          typeName = TypeName(Namespace(Nil), "OuterRecord"),
+          typeId = TypeId.nominal[Point]("OuterRecord", Owner.Root),
           recordBinding = Binding.Record(
             constructor = new Constructor[Point] {
               def usedRegisters                                    = RegisterOffset(objects = 1)
@@ -402,6 +401,178 @@ object TermToString extends ZIOSpecDefault {
       }
     ),
 
+    suite("Primitive Term with validations")(
+      test("renders String term with Length validation") {
+        val primitiveReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Length(Some(5), Some(10))),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val term = Term("name", primitiveReflect)
+        assertTrue(term.toString == "name: String @Length(min=5, max=10)")
+      },
+      test("renders String term with NonEmpty validation") {
+        val primitiveReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonEmpty),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val term = Term("title", primitiveReflect)
+        assertTrue(term.toString == "title: String @NonEmpty")
+      },
+      test("renders String term with Pattern validation") {
+        val primitiveReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Pattern("^[a-zA-Z]+$")),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val term = Term("code", primitiveReflect)
+        assertTrue(term.toString == "code: String @Pattern(\"^[a-zA-Z]+$\")")
+      },
+      test("renders Int term with Positive validation") {
+        val primitiveReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Positive),
+          TypeId.int,
+          Binding.Primitive()
+        )
+        val term = Term("age", primitiveReflect)
+        assertTrue(term.toString == "age: Int @Positive")
+      },
+      test("renders Int term with Range validation") {
+        val primitiveReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(100))),
+          TypeId.int,
+          Binding.Primitive()
+        )
+        val term = Term("percentage", primitiveReflect)
+        assertTrue(term.toString == "percentage: Int @Range(min=1, max=100)")
+      },
+      test("renders Long term with NonNegative validation") {
+        val primitiveReflect = Reflect.Primitive[Binding, Long](
+          new PrimitiveType.Long(Validation.Numeric.NonNegative),
+          TypeId.long,
+          Binding.Primitive()
+        )
+        val term = Term("count", primitiveReflect)
+        assertTrue(term.toString == "count: Long @NonNegative")
+      },
+      test("renders term with record containing validated fields") {
+        // Derive schema to get proper binding, then replace fields with validated versions
+        lazy implicit val schema: Schema[ValidatedPerson] = Schema.derived[ValidatedPerson]
+        val derivedRecord                                 = schema.reflect.asRecord.get
+
+        // Create validated primitives
+        val nameReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonEmpty),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val ageReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(120))),
+          TypeId.int,
+          Binding.Primitive()
+        )
+
+        // Create new record with validated fields, reusing derived binding
+        val validatedRecord = derivedRecord.copy(
+          fields = Vector(
+            Term[Binding, ValidatedPerson, String]("name", nameReflect),
+            Term[Binding, ValidatedPerson, Int]("age", ageReflect)
+          )
+        )
+
+        val term = Term("person", validatedRecord)
+
+        val expected =
+          """person: record ValidatedPerson {
+            |  name: String @NonEmpty
+            |  age: Int @Range(min=0, max=120)
+            |}""".stripMargin
+
+        assertTrue(term.toString == expected)
+      },
+      test("renders term with sequence of validated elements") {
+        val intReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Positive),
+          TypeId.int,
+          Binding.Primitive()
+        )
+
+        val listReflect = Reflect.Sequence[Binding, Int, List](
+          element = intReflect,
+          typeId = TypeId.of[List[Int]],
+          seqBinding = Binding.Seq.list
+        )
+
+        val term = Term("positiveNumbers", listReflect)
+        assertTrue(term.toString == "positiveNumbers: sequence List[Int @Positive]")
+      },
+      test("renders term with map having validated keys and values") {
+        val keyReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonBlank),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val valueReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.NonNegative),
+          TypeId.int,
+          Binding.Primitive()
+        )
+
+        val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
+          key = keyReflect,
+          value = valueReflect,
+          typeId = TypeId.of[Map[String, Int]],
+          mapBinding = Binding.Map.map
+        )
+
+        val term = Term("scores", mapReflect)
+        assertTrue(term.toString == "scores: map Map[String @NonBlank, Int @NonNegative]")
+      },
+      test("renders term with nested record containing validated fields inside sequence") {
+        // Derive schema to get proper binding
+        lazy implicit val transactionSchema: Schema[Transaction] = Schema.derived[Transaction]
+        val derivedRecord                                        = transactionSchema.reflect.asRecord.get
+
+        // Create validated primitives
+        val codeReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Pattern("^[A-Z]{3}$")),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val amountReflect = Reflect.Primitive[Binding, BigDecimal](
+          new PrimitiveType.BigDecimal(Validation.Numeric.Positive),
+          TypeId.bigDecimal,
+          Binding.Primitive()
+        )
+
+        // Create new record with validated fields
+        val validatedRecord = derivedRecord.copy(
+          fields = Vector(
+            Term[Binding, Transaction, String]("currencyCode", codeReflect),
+            Term[Binding, Transaction, BigDecimal]("amount", amountReflect)
+          )
+        )
+
+        // Create sequence of validated records
+        lazy implicit val listSchema: Schema[List[Transaction]] = Schema.list[Transaction]
+        val derivedList                                         = listSchema.reflect.asSequence.get
+        val validatedList                                       = derivedList.copy(element = validatedRecord)
+
+        val term = Term("transactions", validatedList)
+
+        val expected =
+          """transactions: sequence List[
+            |  record Transaction {
+            |    currencyCode: String @Pattern("^[A-Z]{3}$")
+            |    amount: BigDecimal @Positive
+            |  }
+            |]""".stripMargin
+
+        assertTrue(term.toString == expected)
+      }
+    ),
+
     suite("Deferred Term")(
       test("renders deferred term (recursive type)") {
         lazy val treeReflect: Reflect.Deferred[Binding, Tree] = Reflect.Deferred(() => treeVariant)
@@ -411,7 +582,7 @@ object TermToString extends ZIOSpecDefault {
               "Leaf",
               Reflect.Record[Binding, Tree](
                 fields = Vector(Term("value", Reflect.int[Binding])),
-                typeName = TypeName(Namespace(Nil), "Leaf"),
+                typeId = TypeId.nominal[Tree]("Leaf", Owner.Root),
                 recordBinding = Binding.Record(
                   constructor = new Constructor[Tree] {
                     def usedRegisters                                    = RegisterOffset(ints = 1)
@@ -434,7 +605,7 @@ object TermToString extends ZIOSpecDefault {
                   Term("left", treeReflect),
                   Term("right", treeReflect)
                 ),
-                typeName = TypeName(Namespace(Nil), "Branch"),
+                typeId = TypeId.nominal[Tree]("Branch", Owner.Root),
                 recordBinding = Binding.Record(
                   constructor = new Constructor[Tree] {
                     def usedRegisters                                    = RegisterOffset(ints = 1, objects = 2)
@@ -458,7 +629,7 @@ object TermToString extends ZIOSpecDefault {
               )
             )
           ),
-          typeName = TypeName(Namespace(Nil), "Tree"),
+          typeId = TypeId.nominal[Tree]("Tree", Owner.Root),
           variantBinding = Binding.Variant(
             discriminator = new Discriminator[Tree] {
               def discriminate(in: Tree): Int = in match {
@@ -504,6 +675,10 @@ object TermToString extends ZIOSpecDefault {
 
   case class Point(x: Int, y: Int)
   case class EmailParts(local: String, domain: String)
+
+  // For validation tests
+  case class ValidatedPerson(name: String, age: Int)
+  case class Transaction(currencyCode: String, amount: BigDecimal)
 
   sealed trait Tree
   case class Leaf(value: Int)                            extends Tree

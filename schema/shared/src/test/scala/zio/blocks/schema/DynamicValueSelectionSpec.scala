@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object DynamicValueSelectionSpec extends SchemaBaseSpec {
@@ -26,11 +27,11 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.isSuccess)
       },
       test("isSuccess returns false for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(!sel.isSuccess)
       },
       test("isFailure returns true for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.isFailure)
       },
       test("isFailure returns false for success") {
@@ -38,7 +39,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(!sel.isFailure)
       },
       test("error returns Some for failure") {
-        val err = DynamicValueError("test error")
+        val err = SchemaError("test error")
         val sel = DynamicValueSelection.fail(err)
         assertTrue(sel.error == Some(err))
       },
@@ -48,19 +49,19 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
       },
       test("values returns Some for success") {
         val sel = DynamicValueSelection.succeed(stringVal)
-        assertTrue(sel.values == Some(Vector(stringVal)))
+        assertTrue(sel.values == Some(Chunk(stringVal)))
       },
       test("values returns None for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.values.isEmpty)
       },
-      test("toVector returns values for success") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
-        assertTrue(sel.toVector == Vector(stringVal, intVal))
+      test("toChunk returns values for success") {
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
+        assertTrue(sel.toChunk == Chunk(stringVal, intVal))
       },
-      test("toVector returns empty for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
-        assertTrue(sel.toVector.isEmpty)
+      test("toChunk returns empty for failure") {
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
+        assertTrue(sel.toChunk.isEmpty)
       },
       test("one succeeds with single value") {
         val sel = DynamicValueSelection.succeed(stringVal)
@@ -71,7 +72,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.one.isLeft)
       },
       test("one fails with multiple values") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
         assertTrue(sel.one.isLeft)
       },
       test("isEmpty returns true for empty selection") {
@@ -79,7 +80,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.isEmpty)
       },
       test("isEmpty returns true for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.isEmpty)
       },
       test("isEmpty returns false for non-empty selection") {
@@ -95,15 +96,15 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(!sel.nonEmpty)
       },
       test("size returns count for success") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal, boolVal))
         assertTrue(sel.size == 3)
       },
       test("size returns 0 for failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue(sel.size == 0)
       },
       test("any succeeds with at least one value") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
         assertTrue(sel.any == Right(stringVal))
       },
       test("any fails with empty selection") {
@@ -115,7 +116,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.all == Right(stringVal))
       },
       test("all wraps multiple values in Sequence") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
         assertTrue(sel.all == Right(DynamicValue.Sequence(stringVal, intVal)))
       },
       test("all fails with empty selection") {
@@ -123,7 +124,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel.all.isLeft)
       },
       test("toSequence wraps values") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
         assertTrue(sel.toSequence == Right(DynamicValue.Sequence(stringVal, intVal)))
       },
       test("oneUnsafe returns value for single selection") {
@@ -136,12 +137,12 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
           sel.oneUnsafe
           false
         } catch {
-          case _: DynamicValueError => true
+          case _: SchemaError => true
         }
         assertTrue(result)
       },
       test("anyUnsafe returns first value") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
         assertTrue(sel.anyUnsafe == stringVal)
       },
       test("anyUnsafe throws for empty selection") {
@@ -150,39 +151,39 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
           sel.anyUnsafe
           false
         } catch {
-          case _: DynamicValueError => true
+          case _: SchemaError => true
         }
         assertTrue(result)
       }
     ),
     suite("Type filtering")(
       test("primitives keeps only primitives") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, intVal, nullVal))
-        assertTrue(sel.primitives.toVector == Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, recordVal, intVal, nullVal))
+        assertTrue(sel.primitives.toChunk == Chunk(stringVal, intVal))
       },
       test("records keeps only records") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, DynamicValue.Record.empty))
-        assertTrue(sel.records.toVector == Vector(recordVal, DynamicValue.Record.empty))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, recordVal, DynamicValue.Record.empty))
+        assertTrue(sel.records.toChunk == Chunk(recordVal, DynamicValue.Record.empty))
       },
       test("variants keeps only variants") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, variantVal))
-        assertTrue(sel.variants.toVector == Vector(variantVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, variantVal))
+        assertTrue(sel.variants.toChunk == Chunk(variantVal))
       },
       test("sequences keeps only sequences") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, seqVal))
-        assertTrue(sel.sequences.toVector == Vector(seqVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, seqVal))
+        assertTrue(sel.sequences.toChunk == Chunk(seqVal))
       },
       test("maps keeps only maps") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, mapVal))
-        assertTrue(sel.maps.toVector == Vector(mapVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, mapVal))
+        assertTrue(sel.maps.toChunk == Chunk(mapVal))
       },
       test("nulls keeps only nulls") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, nullVal, intVal))
-        assertTrue(sel.nulls.toVector == Vector(nullVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, nullVal, intVal))
+        assertTrue(sel.nulls.toChunk == Chunk(nullVal))
       },
       test("filter by type works") {
-        val sel = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, intVal))
-        assertTrue(sel.filter(DynamicValueType.Primitive).toVector == Vector(stringVal, intVal))
+        val sel = DynamicValueSelection.succeedMany(Chunk(stringVal, recordVal, intVal))
+        assertTrue(sel.filter(DynamicValueType.Primitive).toChunk == Chunk(stringVal, intVal))
       }
     ),
     suite("Navigation")(
@@ -251,7 +252,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(result.one == Right(stringVal))
       },
       test("filter keeps matching values") {
-        val sel      = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
+        val sel      = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal, boolVal))
         val filtered = sel.filter {
           case _: DynamicValue.Primitive => true
           case _                         => false
@@ -259,7 +260,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(filtered.size == 3)
       },
       test("filter removes non-matching values") {
-        val sel      = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, intVal))
+        val sel      = DynamicValueSelection.succeedMany(Chunk(stringVal, recordVal, intVal))
         val filtered = sel.filter {
           case _: DynamicValue.Record => true
           case _                      => false
@@ -267,11 +268,11 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(filtered.size == 1)
       },
       test("collect gathers matching values") {
-        val sel       = DynamicValueSelection.succeedMany(Vector(stringVal, intVal, boolVal))
+        val sel       = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal, boolVal))
         val collected = sel.collect { case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
           n
         }
-        assertTrue(collected == Right(Vector(42)))
+        assertTrue(collected == Right(Chunk(42)))
       },
       test("orElse returns first on success") {
         val sel1 = DynamicValueSelection.succeed(stringVal)
@@ -279,37 +280,43 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(sel1.orElse(sel2).one == Right(stringVal))
       },
       test("orElse returns alternative on failure") {
-        val sel1 = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel1 = DynamicValueSelection.fail(SchemaError("error"))
         val sel2 = DynamicValueSelection.succeed(intVal)
         assertTrue(sel1.orElse(sel2).one == Right(intVal))
       },
       test("getOrElse returns values on success") {
         val sel = DynamicValueSelection.succeed(stringVal)
-        assertTrue(sel.getOrElse(Vector(intVal)) == Vector(stringVal))
+        assertTrue(sel.getOrElse(Chunk(intVal)) == Chunk(stringVal))
       },
       test("getOrElse returns default on failure") {
-        val sel = DynamicValueSelection.fail(DynamicValueError("error"))
-        assertTrue(sel.getOrElse(Vector(intVal)) == Vector(intVal))
+        val sel = DynamicValueSelection.fail(SchemaError("error"))
+        assertTrue(sel.getOrElse(Chunk(intVal)) == Chunk(intVal))
       },
       test("++ combines two selections") {
         val sel1 = DynamicValueSelection.succeed(stringVal)
         val sel2 = DynamicValueSelection.succeed(intVal)
-        assertTrue((sel1 ++ sel2).toVector == Vector(stringVal, intVal))
+        assertTrue((sel1 ++ sel2).toChunk == Chunk(stringVal, intVal))
       },
       test("++ with failure propagates error") {
-        val sel1 = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel1 = DynamicValueSelection.fail(SchemaError("error"))
         val sel2 = DynamicValueSelection.succeed(intVal)
         assertTrue((sel1 ++ sel2).isFailure)
       },
       test("++ with second failure propagates error") {
         val sel1 = DynamicValueSelection.succeed(intVal)
-        val sel2 = DynamicValueSelection.fail(DynamicValueError("error"))
+        val sel2 = DynamicValueSelection.fail(SchemaError("error"))
         assertTrue((sel1 ++ sel2).isFailure)
       },
-      test("++ with both failure propagates first error") {
-        val sel1 = DynamicValueSelection.fail(DynamicValueError("first"))
-        val sel2 = DynamicValueSelection.fail(DynamicValueError("second"))
-        assertTrue((sel1 ++ sel2).error.map(_.message) == Some("first"))
+      test("++ with both failures aggregates errors") {
+        val sel1     = DynamicValueSelection.fail(SchemaError("first"))
+        val sel2     = DynamicValueSelection.fail(SchemaError("second"))
+        val combined = sel1 ++ sel2
+        assertTrue(
+          combined.isFailure,
+          combined.error.exists(_.errors.length == 2),
+          combined.error.exists(_.message.contains("first")),
+          combined.error.exists(_.message.contains("second"))
+        )
       }
     ),
     suite("Query methods")(
@@ -337,13 +344,13 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         val unsorted = DynamicValue.Record("z" -> intVal, "a" -> stringVal)
         val sel      = unsorted.select.sortFields
         val result   = sel.one.map(_.fields.map(_._1))
-        assertTrue(result == Right(Vector("a", "z")))
+        assertTrue(result == Right(Chunk("a", "z")))
       },
       test("sortMapKeys sorts map keys") {
         val unsorted = DynamicValue.Map(DynamicValue.string("z") -> intVal, DynamicValue.string("a") -> stringVal)
         val sel      = unsorted.select.sortMapKeys
         val result   = sel.one.map(_.entries.map(_._1))
-        assertTrue(result == Right(Vector(DynamicValue.string("a"), DynamicValue.string("z"))))
+        assertTrue(result == Right(Chunk(DynamicValue.string("a"), DynamicValue.string("z"))))
       },
       test("dropNulls removes null values") {
         val withNulls = DynamicValue.Record("a" -> stringVal, "b" -> nullVal)
@@ -368,7 +375,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
           DynamicValue.Record("z" -> intVal, "a" -> nullVal, "m" -> DynamicValue.Record.empty, "b" -> stringVal)
         val sel    = messy.select.normalize
         val result = sel.one.map(_.fields.map(_._1))
-        assertTrue(result == Right(Vector("b", "z")))
+        assertTrue(result == Right(Chunk("b", "z")))
       }
     ),
     suite("Path operations")(
@@ -421,7 +428,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
       test("transformFields renames fields") {
         val sel    = recordVal.select.transformFields((_, name) => name.toUpperCase)
         val result = sel.one.map(_.fields.map(_._1))
-        assertTrue(result == Right(Vector("NAME", "AGE", "ACTIVE")))
+        assertTrue(result == Right(Chunk("NAME", "AGE", "ACTIVE")))
       },
       test("transformMapKeys transforms keys") {
         val sel = mapVal.select.transformMapKeys { (_, key) =>
@@ -553,7 +560,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("asAll extracts all matching types") {
-        val sel    = DynamicValueSelection.succeedMany(Vector(stringVal, recordVal, intVal))
+        val sel    = DynamicValueSelection.succeedMany(Chunk(stringVal, recordVal, intVal))
         val result = sel.asAll(DynamicValueType.Primitive)
         assertTrue(result.map(_.length) == Right(2))
       },
@@ -568,7 +575,7 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("unwrapAll extracts all underlying values") {
-        val sel    = DynamicValueSelection.succeedMany(Vector(stringVal, intVal))
+        val sel    = DynamicValueSelection.succeedMany(Chunk(stringVal, intVal))
         val result = sel.unwrapAll(DynamicValueType.Primitive)
         assertTrue(result.map(_.length) == Right(2))
       },
@@ -583,9 +590,9 @@ object DynamicValueSelectionSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("asPrimitiveAll extracts all primitive values") {
-        val sel    = DynamicValueSelection.succeedMany(Vector(intVal, DynamicValue.int(100)))
+        val sel    = DynamicValueSelection.succeedMany(Chunk(intVal, DynamicValue.int(100)))
         val result = sel.asPrimitiveAll(PrimitiveType.Int(Validation.None))
-        assertTrue(result == Right(Vector(42, 100)))
+        assertTrue(result == Right(Chunk(42, 100)))
       }
     )
   )

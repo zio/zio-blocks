@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 import DynamicValueGen._
 import zio.test.Assertion.{equalTo, not}
@@ -55,7 +56,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val nestedGen = for {
           innerValue <- genRecord
           outerValue <- genRecord
-        } yield DynamicValue.Record(Vector("inner" -> innerValue, "outer" -> outerValue))
+        } yield DynamicValue.Record(Chunk("inner" -> innerValue, "outer" -> outerValue))
 
         check(nestedGen, nestedGen) { (nested1, nested2) =>
           assertTrue((nested1 == nested2) == (nested1.hashCode == nested2.hashCode))
@@ -70,8 +71,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("structure equality and hashCode consistency for maps with the same keys") {
         check(genDynamicValue, genDynamicValue, genDynamicValue) { (key, value1, value2) =>
-          val map1 = DynamicValue.Map(Vector((key, value1), (key, value2)))
-          val map2 = DynamicValue.Map(Vector((key, value1), (key, value2)))
+          val map1 = DynamicValue.Map(Chunk((key, value1), (key, value2)))
+          val map2 = DynamicValue.Map(Chunk((key, value1), (key, value2)))
           assertTrue(!(map1 == map2) || (map1.hashCode == map2.hashCode))
         }
       }
@@ -101,7 +102,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val nestedGen = for {
           innerValue <- genRecord
           outerValue <- genRecord
-        } yield DynamicValue.Record(Vector("inner" -> innerValue, "outer" -> outerValue))
+        } yield DynamicValue.Record(Chunk("inner" -> innerValue, "outer" -> outerValue))
 
         check(nestedGen, nestedGen) { (nested1, nested2) =>
           assertTrue((nested1 == nested2) == (nested1.compare(nested2) == 0))
@@ -116,8 +117,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("structure equality and compare consistency for maps with the same keys") {
         check(genDynamicValue, genDynamicValue, genDynamicValue) { (key, value1, value2) =>
-          val map1 = DynamicValue.Map(Vector((key, value1), (key, value2)))
-          val map2 = DynamicValue.Map(Vector((key, value2), (key, value1)))
+          val map1 = DynamicValue.Map(Chunk((key, value1), (key, value2)))
+          val map2 = DynamicValue.Map(Chunk((key, value2), (key, value1)))
           assertTrue((map1 == map2) == (map1.compare(map2) == 0))
         }
       }
@@ -449,7 +450,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("sortFields sorts record fields alphabetically") {
         val unsorted = DynamicValue.Record("z" -> intVal, "a" -> stringVal, "m" -> boolVal)
         val sorted   = unsorted.sortFields
-        assertTrue(sorted.fields.map(_._1) == Vector("a", "m", "z"))
+        assertTrue(sorted.fields.map(_._1) == Chunk("a", "m", "z"))
       },
       test("sortMapKeys sorts map keys") {
         val unsorted = DynamicValue.Map(
@@ -457,7 +458,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
           DynamicValue.string("a") -> stringVal
         )
         val sorted = unsorted.sortMapKeys
-        assertTrue(sorted.entries.map(_._1) == Vector(DynamicValue.string("a"), DynamicValue.string("z")))
+        assertTrue(sorted.entries.map(_._1) == Chunk(DynamicValue.string("a"), DynamicValue.string("z")))
       },
       test("dropNulls removes null values from Record") {
         val withNulls = DynamicValue.Record("a" -> stringVal, "b" -> nullVal, "c" -> intVal)
@@ -498,7 +499,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
           "c" -> stringVal
         )
         val normalized = messy.normalize
-        assertTrue(normalized.fields.map(_._1) == Vector("c", "z"))
+        assertTrue(normalized.fields.map(_._1) == Chunk("c", "z"))
       }
     ),
     suite("Transformation")(
@@ -522,7 +523,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("transformFields renames record fields") {
         val result = recordVal.transformFields((_, name) => name.toUpperCase)
-        assertTrue(result.fields.map(_._1) == Vector("NAME", "AGE", "ACTIVE"))
+        assertTrue(result.fields.map(_._1) == Chunk("NAME", "AGE", "ACTIVE"))
       },
       test("transformMapKeys transforms map keys") {
         val result = mapVal.transformMapKeys { (_, key) =>
@@ -648,7 +649,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("foldUpOrFail fails when function fails") {
         val result = recordVal.foldUpOrFail(0) { (_, _, _) =>
-          Left(DynamicValueError("error"))
+          Left(SchemaError("error"))
         }
         assertTrue(result.isLeft)
       },
@@ -663,7 +664,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("foldDownOrFail fails when function fails") {
         val result = recordVal.foldDownOrFail(0) { (_, _, _) =>
-          Left(DynamicValueError("error"))
+          Left(SchemaError("error"))
         }
         assertTrue(result.isLeft)
       },
@@ -683,37 +684,37 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val seq    = DynamicValue.Sequence(stringVal, intVal, boolVal)
         val path   = DynamicOptic.root.atIndices(0, 2)
         val result = seq.get(path)
-        assertTrue(result.toVector.length == 2)
+        assertTrue(result.toChunk.length == 2)
       },
       test("get with AtMapKeys navigates multiple keys") {
         val map    = DynamicValue.Map(stringVal -> intVal, intVal -> boolVal)
         val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(stringVal, intVal))))
         val result = map.get(path)
-        assertTrue(result.toVector.length == 2)
+        assertTrue(result.toChunk.length == 2)
       },
       test("get with Elements navigates all elements") {
         val seq    = DynamicValue.Sequence(stringVal, intVal, boolVal)
         val path   = DynamicOptic.root.elements
         val result = seq.get(path)
-        assertTrue(result.toVector.length == 3)
+        assertTrue(result.toChunk.length == 3)
       },
       test("get with MapKeys gets all keys") {
         val map    = DynamicValue.Map(stringVal -> intVal, intVal -> boolVal)
         val path   = DynamicOptic.root.mapKeys
         val result = map.get(path)
-        assertTrue(result.toVector.length == 2)
+        assertTrue(result.toChunk.length == 2)
       },
       test("get with MapValues gets all values") {
         val map    = DynamicValue.Map(stringVal -> intVal, intVal -> boolVal)
         val path   = DynamicOptic.root.mapValues
         val result = map.get(path)
-        assertTrue(result.toVector.length == 2)
+        assertTrue(result.toChunk.length == 2)
       },
       test("modify with AtIndices updates multiple indices") {
         val seq    = DynamicValue.Sequence(intVal, intVal, intVal)
         val path   = DynamicOptic.root.atIndices(0, 2)
         val result = seq.modify(path)(_ => DynamicValue.int(100))
-        assertTrue(result.elements == Vector(DynamicValue.int(100), intVal, DynamicValue.int(100)))
+        assertTrue(result.elements == Chunk(DynamicValue.int(100), intVal, DynamicValue.int(100)))
       },
       test("modify with AtMapKeys updates multiple keys") {
         val k1     = DynamicValue.string("a")
@@ -781,13 +782,13 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val seq    = DynamicValue.Sequence(stringVal, boolVal)
         val path   = DynamicOptic.root.at(1)
         val result = seq.insert(path, intVal)
-        assertTrue(result.elements == Vector(stringVal, intVal, boolVal))
+        assertTrue(result.elements == Chunk(stringVal, intVal, boolVal))
       },
       test("insert at end of sequence") {
         val seq    = DynamicValue.Sequence(stringVal)
         val path   = DynamicOptic.root.at(1)
         val result = seq.insert(path, intVal)
-        assertTrue(result.elements == Vector(stringVal, intVal))
+        assertTrue(result.elements == Chunk(stringVal, intVal))
       },
       test("insert into map with new key") {
         val k1     = DynamicValue.string("a")
@@ -866,7 +867,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val path     = DynamicOptic.root.field("items").atIndices(0, 2)
         val result   = outerRec.modify(path)(_ => DynamicValue.int(0))
         assertTrue(
-          result.get("items").one.map(_.elements) == Right(Vector(DynamicValue.int(0), intVal, DynamicValue.int(0)))
+          result.get("items").one.map(_.elements) == Right(Chunk(DynamicValue.int(0), intVal, DynamicValue.int(0)))
         )
       },
       test("nested modify with Elements") {
@@ -890,7 +891,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val outer       = DynamicValue.Record("inner" -> inner)
         val sorted      = outer.sortFields
         val innerSorted = sorted.get("inner").one.map(_.fields.map(_._1))
-        assertTrue(innerSorted == Right(Vector("a", "z")))
+        assertTrue(innerSorted == Right(Chunk("a", "z")))
       },
       test("sortMapKeys on nested maps") {
         val k1          = DynamicValue.string("z")
@@ -899,7 +900,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val outerRec    = DynamicValue.Record("map" -> innerMap)
         val sorted      = outerRec.sortMapKeys
         val innerSorted = sorted.get("map").one.map(_.entries.map(_._1))
-        assertTrue(innerSorted == Right(Vector(k2, k1)))
+        assertTrue(innerSorted == Right(Chunk(k2, k1)))
       },
       test("dropNulls in variant") {
         val inner   = DynamicValue.Record("a" -> nullVal, "b" -> stringVal)
@@ -1250,20 +1251,20 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val rec    = DynamicValue.Record("z" -> intVal, "a" -> stringVal)
         val seq    = DynamicValue.Sequence(rec)
         val result = seq.sortFields
-        assertTrue(result.elements.head.fields.map(_._1) == Vector("a", "z"))
+        assertTrue(result.elements.head.fields.map(_._1) == Chunk("a", "z"))
       },
       test("sortFields on map values") {
         val k1     = DynamicValue.string("key")
         val rec    = DynamicValue.Record("z" -> intVal, "a" -> stringVal)
         val map    = DynamicValue.Map(k1 -> rec)
         val result = map.sortFields
-        assertTrue(result.get(k1).one.map(_.fields.map(_._1)) == Right(Vector("a", "z")))
+        assertTrue(result.get(k1).one.map(_.fields.map(_._1)) == Right(Chunk("a", "z")))
       },
       test("sortFields on variant") {
         val rec     = DynamicValue.Record("z" -> intVal, "a" -> stringVal)
         val variant = DynamicValue.Variant("Some", rec)
         val result  = variant.sortFields
-        assertTrue(result.caseValue.map(_.fields.map(_._1)) == Some(Vector("a", "z")))
+        assertTrue(result.caseValue.map(_.fields.map(_._1)) == Some(Chunk("a", "z")))
       },
       test("sortMapKeys on sequence of maps") {
         val k1     = DynamicValue.string("z")
@@ -1271,7 +1272,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val map    = DynamicValue.Map(k1 -> intVal, k2 -> stringVal)
         val seq    = DynamicValue.Sequence(map)
         val result = seq.sortMapKeys
-        assertTrue(result.elements.head.entries.map(_._1) == Vector(k2, k1))
+        assertTrue(result.elements.head.entries.map(_._1) == Chunk(k2, k1))
       },
       test("sortMapKeys on variant") {
         val k1      = DynamicValue.string("z")
@@ -1279,7 +1280,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val map     = DynamicValue.Map(k1 -> intVal, k2 -> stringVal)
         val variant = DynamicValue.Variant("Some", map)
         val result  = variant.sortMapKeys
-        assertTrue(result.caseValue.map(_.entries.map(_._1)) == Some(Vector(k2, k1)))
+        assertTrue(result.caseValue.map(_.entries.map(_._1)) == Some(Chunk(k2, k1)))
       },
       test("dropNulls on sequence") {
         val seq    = DynamicValue.Sequence(stringVal, nullVal, intVal)
@@ -1505,7 +1506,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val path2  = DynamicOptic.root.at(1)
         val kvs    = Seq((path1, intVal), (path2, stringVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
-        assertTrue(result.elements == Vector(intVal, stringVal))
+        assertTrue(result.elements == Chunk(intVal, stringVal))
       },
       test("fromKVUnsafe with sequence extending existing") {
         val path1  = DynamicOptic.root.at(0)
@@ -2703,6 +2704,153 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val path    = DynamicOptic.root.caseOf("Some")
         val result  = variant.delete(path)
         assertTrue(result == DynamicValue.Record.empty)
+      }
+    ),
+    suite("Additional coverage tests")(
+      test("DynamicValue.Record varargs constructor") {
+        val rec = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        assertTrue(rec.fields.length == 2)
+      },
+      test("DynamicValue.Sequence varargs constructor") {
+        val seq = DynamicValue.Sequence(intVal, stringVal, boolVal)
+        assertTrue(seq.elements.length == 3)
+      },
+      test("DynamicValue.Map varargs constructor") {
+        val map = DynamicValue.Map(intVal -> stringVal, stringVal -> boolVal)
+        assertTrue(map.entries.length == 2)
+      },
+      test("DynamicValueSelection collect success") {
+        val sel    = DynamicValueSelection.succeed(intVal)
+        val result = sel.collect { case DynamicValue.Primitive(PrimitiveValue.Int(n)) => n }
+        assertTrue(result == Right(Chunk(42)))
+      },
+      test("DynamicValueSelection collect returns empty when no match") {
+        val sel    = DynamicValueSelection.succeed(stringVal)
+        val result = sel.collect { case DynamicValue.Primitive(PrimitiveValue.Int(n)) => n }
+        assertTrue(result.isRight && result.exists(_.isEmpty))
+      },
+      test("DynamicValue.Null compare with self") {
+        assertTrue(DynamicValue.Null.compare(DynamicValue.Null) == 0)
+      },
+      test("DynamicValue compare Record with different lengths") {
+        val r1 = DynamicValue.Record("a" -> intVal)
+        val r2 = DynamicValue.Record("a" -> intVal, "b" -> stringVal)
+        assertTrue(r1.compare(r2) < 0)
+      },
+      test("DynamicValue compare Sequence with different lengths") {
+        val s1 = DynamicValue.Sequence(intVal)
+        val s2 = DynamicValue.Sequence(intVal, stringVal)
+        assertTrue(s1.compare(s2) < 0)
+      },
+      test("DynamicValue compare Map with different lengths") {
+        val m1 = DynamicValue.Map(intVal -> stringVal)
+        val m2 = DynamicValue.Map(intVal -> stringVal, stringVal -> boolVal)
+        assertTrue(m1.compare(m2) < 0)
+      },
+      test("DynamicValue compare across types") {
+        assertTrue(intVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(recordVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(variantVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(seqVal.compare(DynamicValue.Null) < 0) &&
+        assertTrue(mapVal.compare(DynamicValue.Null) < 0)
+      },
+      test("DynamicValue compare with ordering implicit") {
+        val values = Vector(DynamicValue.Null, intVal, recordVal)
+        val sorted = values.sorted
+        assertTrue(sorted.head == intVal)
+      },
+      test("DynamicValue.Primitive unwrap returns value") {
+        val result = intVal.unwrap(DynamicValueType.Primitive)
+        assertTrue(result.isDefined)
+      },
+      test("DynamicValue compare Record fields lexicographically") {
+        val r1 = DynamicValue.Record("a" -> intVal)
+        val r2 = DynamicValue.Record("b" -> intVal)
+        assertTrue(r1.compare(r2) < 0)
+      },
+      test("DynamicValue.Primitive get field returns failure") {
+        val result = intVal.get("field")
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Primitive get index returns failure") {
+        val result = intVal.get(0)
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Primitive get key returns failure") {
+        val result = intVal.get(stringVal)
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Primitive getCase returns failure") {
+        val result = intVal.getCase("Test")
+        assertTrue(result.isFailure)
+      },
+      test("DynamicValue.Sequence get valid index") {
+        val result = seqVal.get(0)
+        assertTrue(result.isSuccess)
+      },
+      test("DynamicValue.Record get valid field") {
+        val result = recordVal.get("name")
+        assertTrue(result.isSuccess)
+      },
+      test("DynamicValue.Variant getCase matching") {
+        val result = variantVal.getCase("Some")
+        assertTrue(result.isSuccess)
+      },
+      test("DynamicValue.Variant getCase non-matching") {
+        val result = variantVal.getCase("None")
+        assertTrue(result.isFailure)
+      }
+    ),
+    suite("toEjson special characters")(
+      test("escapes double quotes") {
+        val value  = DynamicValue.string("hello\"world")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\\""))
+      },
+      test("escapes backslash") {
+        val value  = DynamicValue.string("path\\to\\file")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\\\"))
+      },
+      test("escapes newline") {
+        val value  = DynamicValue.string("line1\nline2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\n"))
+      },
+      test("escapes tab") {
+        val value  = DynamicValue.string("col1\tcol2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\t"))
+      },
+      test("escapes carriage return") {
+        val value  = DynamicValue.string("line1\rline2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\r"))
+      },
+      test("escapes backspace") {
+        val value  = DynamicValue.string("hello\bworld")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\b"))
+      },
+      test("escapes form feed") {
+        val value  = DynamicValue.string("page1\fpage2")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\f"))
+      },
+      test("escapes control characters") {
+        val value  = DynamicValue.string("control\u0001char")
+        val result = value.toEjson()
+        assertTrue(result.contains("\\u0001"))
+      },
+      test("toEjson with indent") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.string("Alice"),
+            "age"  -> DynamicValue.int(30)
+          )
+        )
+        val result = value.toEjson(indent = 2)
+        assertTrue(result.contains("\n") && result.contains("  "))
       }
     )
   )

@@ -1,6 +1,7 @@
 package zio.blocks.schema.tostring
 
 import zio.test._
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.patch._
 import java.time._
@@ -88,7 +89,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("items"),
             DynamicPatch.Operation.SequenceEdit(
               Vector(
-                DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.String("inserted")))),
+                DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.String("inserted")))),
                 DynamicPatch.SeqOp.Delete(2, 1)
               )
             )
@@ -115,7 +116,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("tags"),
             DynamicPatch.Operation.SequenceEdit(
               Vector(
-                DynamicPatch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.String("new"))))
+                DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("new"))))
               )
             )
           )
@@ -446,10 +447,10 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("tags"),
             DynamicPatch.Operation.SequenceEdit(
               Vector(
-                DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.String("first")))),
-                DynamicPatch.SeqOp.Insert(3, Vector(DynamicValue.Primitive(PrimitiveValue.String("middle")))),
+                DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.String("first")))),
+                DynamicPatch.SeqOp.Insert(3, Chunk(DynamicValue.Primitive(PrimitiveValue.String("middle")))),
                 DynamicPatch.SeqOp.Append(
-                  Vector(
+                  Chunk(
                     DynamicValue.Primitive(PrimitiveValue.String("last1")),
                     DynamicValue.Primitive(PrimitiveValue.String("last2"))
                   )
@@ -478,7 +479,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("items"),
               DynamicPatch.Operation.SequenceEdit(
                 Vector(
-                  DynamicPatch.SeqOp.Insert(0, Vector(DynamicValue.Primitive(PrimitiveValue.String("new-item")))),
+                  DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.String("new-item")))),
                   DynamicPatch.SeqOp.Delete(5, 2),
                   DynamicPatch.SeqOp.Modify(
                     3,
@@ -494,7 +495,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
                     )
                   ),
                   DynamicPatch.SeqOp.Append(
-                    Vector(
+                    Chunk(
                       DynamicValue.Primitive(PrimitiveValue.String("appended-1")),
                       DynamicValue.Primitive(PrimitiveValue.String("appended-2"))
                     )

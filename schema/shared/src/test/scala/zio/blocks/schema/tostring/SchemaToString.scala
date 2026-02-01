@@ -1,6 +1,8 @@
 package zio.blocks.schema.tostring
 
 import zio.blocks.schema._
+import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.TypeId
 import zio.test._
 
 object SchemaToStringSpec extends ZIOSpecDefault {
@@ -356,6 +358,170 @@ object SchemaToStringSpec extends ZIOSpecDefault {
             |}""".stripMargin
         assertTrue(level1Schema.toString == expected)
       }
+    ),
+
+    suite("Primitive types with validations")(
+      test("renders String with NonEmpty validation") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, String](
+            new PrimitiveType.String(Validation.String.NonEmpty),
+            TypeId.string,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  String @NonEmpty\n}")
+      },
+      test("renders String with Length validation (both bounds)") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, String](
+            new PrimitiveType.String(Validation.String.Length(Some(3), Some(50))),
+            TypeId.string,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  String @Length(min=3, max=50)\n}")
+      },
+      test("renders String with Length validation (min only)") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, String](
+            new PrimitiveType.String(Validation.String.Length(Some(3), None)),
+            TypeId.string,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  String @Length(min=3)\n}")
+      },
+      test("renders String with Pattern validation") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, String](
+            new PrimitiveType.String(Validation.String.Pattern("^[a-z]+$")),
+            TypeId.string,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  String @Pattern(\"^[a-z]+$\")\n}")
+      },
+      test("renders Int with Positive validation") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, Int](
+            new PrimitiveType.Int(Validation.Numeric.Positive),
+            TypeId.int,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  Int @Positive\n}")
+      },
+      test("renders Int with NonNegative validation") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, Int](
+            new PrimitiveType.Int(Validation.Numeric.NonNegative),
+            TypeId.int,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  Int @NonNegative\n}")
+      },
+      test("renders Int with Range validation") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, Int](
+            new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(100))),
+            TypeId.int,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  Int @Range(min=0, max=100)\n}")
+      },
+      test("renders Long with Negative validation") {
+        val schema = new Schema(
+          Reflect.Primitive[Binding, Long](
+            new PrimitiveType.Long(Validation.Numeric.Negative),
+            TypeId.long,
+            Binding.Primitive()
+          )
+        )
+        assertTrue(schema.toString == "Schema {\n  Long @Negative\n}")
+      },
+      test("renders record schema with validated primitive fields") {
+        // Derive schema to get proper binding, then replace fields with validated versions
+        lazy implicit val baseSchema: Schema[ValidatedUserWithEmail] = Schema.derived[ValidatedUserWithEmail]
+        val derivedRecord                                            = baseSchema.reflect.asRecord.get
+
+        // Create validated primitives
+        val nameReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Length(Some(1), Some(100))),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val ageReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Range(Some(0), Some(150))),
+          TypeId.int,
+          Binding.Primitive()
+        )
+        val emailReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.Pattern("^[^@]+@[^@]+$")),
+          TypeId.string,
+          Binding.Primitive()
+        )
+
+        // Create new record with validated fields, reusing derived binding
+        val validatedRecord = derivedRecord.copy(
+          fields = Vector(
+            Term[Binding, ValidatedUserWithEmail, String]("name", nameReflect),
+            Term[Binding, ValidatedUserWithEmail, Int]("age", ageReflect),
+            Term[Binding, ValidatedUserWithEmail, String]("email", emailReflect)
+          )
+        )
+
+        val schema   = new Schema(validatedRecord)
+        val expected =
+          """Schema {
+            |  record ValidatedUserWithEmail {
+            |    name: String @Length(min=1, max=100)
+            |    age: Int @Range(min=0, max=150)
+            |    email: String @Pattern("^[^@]+@[^@]+$")
+            |  }
+            |}""".stripMargin
+
+        assertTrue(schema.toString == expected)
+      },
+      test("renders sequence schema with validated element type") {
+        val intReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.Positive),
+          TypeId.int,
+          Binding.Primitive()
+        )
+
+        val listReflect = Reflect.Sequence[Binding, Int, List](
+          element = intReflect,
+          typeId = TypeId.of[List[Int]],
+          seqBinding = Binding.Seq.list
+        )
+
+        val schema = new Schema(listReflect)
+        assertTrue(schema.toString == "Schema {\n  sequence List[Int @Positive]\n}")
+      },
+      test("renders map schema with validated key and value types") {
+        val keyReflect = Reflect.Primitive[Binding, String](
+          new PrimitiveType.String(Validation.String.NonBlank),
+          TypeId.string,
+          Binding.Primitive()
+        )
+        val valueReflect = Reflect.Primitive[Binding, Int](
+          new PrimitiveType.Int(Validation.Numeric.NonNegative),
+          TypeId.int,
+          Binding.Primitive()
+        )
+
+        val mapReflect = Reflect.Map[Binding, String, Int, scala.collection.immutable.Map](
+          key = keyReflect,
+          value = valueReflect,
+          typeId = TypeId.of[Map[String, Int]],
+          mapBinding = Binding.Map.map
+        )
+
+        val schema = new Schema(mapReflect)
+        assertTrue(schema.toString == "Schema {\n  map Map[String @NonBlank, Int @NonNegative]\n}")
+      }
     )
   )
 
@@ -399,4 +565,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
   case class CreditCardTest(number: String, expiry: String, cvv: String) extends PaymentMethodTest
   case class BankTransferTest(account: BankAccountTest)                  extends PaymentMethodTest
   case class BankAccountTest(routing: String, number: String)
+
+  // For validation tests
+  case class ValidatedUserWithEmail(name: String, age: Int, email: String)
 }

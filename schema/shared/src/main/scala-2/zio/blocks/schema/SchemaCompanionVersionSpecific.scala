@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
-import zio.blocks.schema.{TypeName => SchemaTypeName}
 import zio.blocks.schema.CommonMacroOps
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -55,28 +54,90 @@ private object SchemaCompanionVersionSpecific {
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
-    def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
-      case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-        compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-      case _ => false
+    def isZioPreludeNewtype(tpe: Type): Boolean = {
+      def check(t: Type): Boolean = t match {
+        case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+          compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+        case _ => false
+      }
+      check(tpe) || check(tpe.dealias)
     }
 
-    def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
-      case TypeRef(compTpe, _, _) =>
-        compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
-          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
-          case _         => cannotDealiasZioPreludeNewtype(tpe)
-        }
-      case _ => cannotDealiasZioPreludeNewtype(tpe)
+    def zioPreludeNewtypeDealias(tpe: Type): Type = {
+      val effectiveTpe = tpe.dealias
+      effectiveTpe match {
+        case TypeRef(compTpe, _, _) =>
+          compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
+            case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+            case _         => cannotDealiasZioPreludeNewtype(tpe)
+          }
+        case _ => cannotDealiasZioPreludeNewtype(tpe)
+      }
     }
 
     def cannotDealiasZioPreludeNewtype(tpe: Type): Nothing = fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
 
+    def buildTypeIdForZioPreludeNewtype(tpe: Type): Tree = {
+      val effectiveTpe = tpe.dealias
+      effectiveTpe match {
+        case TypeRef(compTpe, _, Nil) =>
+          val companionSym = compTpe.typeSymbol
+          val newtypeName  = companionSym.name.decodedName.toString.stripSuffix("$")
+          val ownerTree    = buildOwner(companionSym.owner)
+          q"_root_.zio.blocks.typeid.TypeId.nominal[$tpe]($newtypeName, $ownerTree)"
+        case _ =>
+          fail(s"Cannot build TypeId for zio-prelude newtype '$tpe'. Expected TypeRef(compTpe, \"Type\", Nil).")
+      }
+    }
+
+    def buildOwner(sym: Symbol): Tree = {
+      def loop(s: Symbol, acc: List[Tree]): List[Tree] =
+        if (s == NoSymbol || s.isPackageClass && s.fullName == "<root>" || s.fullName == "<empty>") {
+          acc
+        } else if (s.isPackage || s.isPackageClass) {
+          val pkgName = s.name.decodedName.toString
+          if (pkgName != "<root>" && pkgName != "<empty>") {
+            loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Package($pkgName)" :: acc)
+          } else {
+            acc
+          }
+        } else if (s.isModule || s.isModuleClass) {
+          val termName = s.name.decodedName.toString.stripSuffix("$")
+          loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Term($termName)" :: acc)
+        } else if (s.isClass || s.isType) {
+          loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Type(${s.name.decodedName.toString})" :: acc)
+        } else {
+          loop(s.owner, acc)
+        }
+
+      val segments = loop(sym, Nil)
+      q"_root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments))"
+    }
+
     def dealiasOnDemand(tpe: Type): Type =
       if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
+      else if (isTypeAlias(tpe)) tpe.dealias
       else tpe
 
-    def companion(tpe: Type): Symbol = CommonMacroOps.companion(c)(tpe)
+    def isTypeAlias(tpe: Type): Boolean = {
+      val dealiased = tpe.dealias
+      tpe.toString != dealiased.toString && !isZioPreludeNewtype(tpe)
+    }
+
+    def companion(tpe: Type): Symbol = {
+      val comp = tpe.typeSymbol.companion
+      if (comp.isModule) comp
+      else {
+        val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
+        val path         = ownerChainOf(tpe.typeSymbol)
+          .zipAll(ownerChainOf(c.internal.enclosingOwner), NoSymbol, NoSymbol)
+          .dropWhile(x => x._1 == x._2)
+          .takeWhile(x => x._1 != NoSymbol)
+          .map(x => x._1.name.toTermName)
+        if (path.isEmpty) NoSymbol
+        else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
+      }
+    }
 
     def primaryConstructor(tpe: Type): MethodSymbol = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
@@ -113,11 +174,58 @@ private object SchemaCompanionVersionSpecific {
         }
     )
 
-    val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[?]]
+    val fullTermNameCache = new mutable.HashMap[Type, Array[String]]
 
-    def typeName(tpe: Type): SchemaTypeName[?] = CommonMacroOps.typeName(c)(typeNameCache, tpe)
+    def toFullTermName(tpe: Type): Array[String] = {
+      def calculate(tpe: Type): Array[String] =
+        if (tpe =:= typeOf[java.lang.String]) Array("java", "lang", "String")
+        else {
+          var packages  = List.empty[String]
+          var values    = List.empty[String]
+          val tpeSymbol = tpe.typeSymbol
+          var name      = NameTransformer.decode(tpeSymbol.name.toString)
+          val comp      = companion(tpe)
+          var owner     =
+            if (comp == null) tpeSymbol
+            else if (comp == NoSymbol) {
+              name += ".type"
+              tpeSymbol.asClass.module
+            } else comp
+          while ({
+            owner = owner.owner
+            owner.owner != NoSymbol
+          }) {
+            val ownerName = NameTransformer.decode(owner.name.toString)
+            if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+            else values = ownerName :: values
+          }
+          val result = new Array[String](packages.size + values.size + 1)
+          var idx    = 0
+          packages.foreach { p =>
+            result(idx) = p
+            idx += 1
+          }
+          values.foreach { v =>
+            result(idx) = v
+            idx += 1
+          }
+          result(idx) = name
+          result
+        }
 
-    def toTree(tpeName: SchemaTypeName[?]): Tree = CommonMacroOps.toTree(c)(tpeName)
+      fullTermNameCache.getOrElseUpdate(
+        tpe,
+        tpe match {
+          case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+            val result   = calculate(compTpe)
+            val lastName = result(result.length - 1)
+            if (lastName.endsWith(".type")) result(result.length - 1) = lastName.stripSuffix(".type")
+            result
+          case _ =>
+            calculate(tpe)
+        }
+      )
+    }
 
     def modifiers(tpe: Type): List[Tree] = {
       val modifiers = new mutable.ListBuffer[Tree]
@@ -232,11 +340,9 @@ private object SchemaCompanionVersionSpecific {
         fieldInfo.defaultValue match {
           case Some(dv) =>
             if (ms eq Nil) {
-              if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name)"
-              else q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name)"
-            } else if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name).copy(modifiers = $ms)"
-            else {
-              q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              q"new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[$sTpe]($name)"
+            } else {
+              q"new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[$sTpe]($name).copy(modifiers = $ms)"
             }
           case _ =>
             if (ms eq Nil) {
@@ -324,81 +430,93 @@ private object SchemaCompanionVersionSpecific {
           val copyOfTpe  =
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
             else elementTpe
-          val schema  = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName = toTree(typeName(tpe))
-          q"""new Schema(
-              reflect = new Reflect.Sequence(
-                element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                seqBinding = new Binding.Seq(
-                  constructor = new SeqConstructor.ArrayConstructor {
-                    def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+          val schema = findImplicitOrDeriveSchema(elementTpe)
+          q"""{
+              val elementReflect = $schema.reflect
+              val seqTypeId = zio.blocks.typeid.TypeId.applied[$tpe](
+                zio.blocks.typeid.TypeId.of[Array[Any]],
+                zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
+              )
+              new Schema(
+                reflect = new Reflect.Sequence(
+                  element = elementReflect,
+                  typeId = seqTypeId,
+                  seqBinding = new Binding.Seq(
+                    constructor = new SeqConstructor.ArrayConstructor {
+                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                        new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
-                    def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                      var buf = builder.buffer
-                      val idx = builder.size
-                      if (buf.length == idx) {
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
-                        builder.buffer = buf
+                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                        var buf = builder.buffer
+                        val idx = builder.size
+                        if (buf.length == idx) {
+                          buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                          builder.buffer = buf
+                        }
+                        buf(idx) = a
+                        builder.size = idx + 1
                       }
-                      buf(idx) = a
-                      builder.size = idx + 1
-                    }
 
-                    def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
-                      val buf  = builder.buffer
-                      val size = builder.size
-                      if (buf.length == size) buf
-                      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
-                    }
+                      def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
+                        val buf  = builder.buffer
+                        val size = builder.size
+                        if (buf.length == size) buf
+                        else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                      }
 
-                    def emptyObject[B]: Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
-                  },
-                  deconstructor = SeqDeconstructor.arrayDeconstructor
+                      def emptyObject[B]: Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
+                    },
+                    deconstructor = SeqDeconstructor.arrayDeconstructor
+                  )
                 )
               )
-            )"""
+            }"""
         } else if (tpe <:< typeOf[ArraySeq[?]]) {
           val elementTpe = typeArgs(tpe).head
           val copyOfTpe  =
             if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
             else elementTpe
-          val schema  = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName = toTree(typeName(tpe))
-          q"""new Schema(
-              reflect = new Reflect.Sequence(
-                element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
-                seqBinding = new Binding.Seq(
-                  constructor = new SeqConstructor.ArraySeqConstructor {
-                    def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+          val schema = findImplicitOrDeriveSchema(elementTpe)
+          q"""{
+              val elementReflect = $schema.reflect
+              val seqTypeId = zio.blocks.typeid.TypeId.applied[$tpe](
+                zio.blocks.typeid.TypeId.of[ArraySeq[Any]],
+                zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
+              )
+              new Schema(
+                reflect = new Reflect.Sequence(
+                  element = elementReflect,
+                  typeId = seqTypeId,
+                  seqBinding = new Binding.Seq(
+                    constructor = new SeqConstructor.ArraySeqConstructor {
+                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                        new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
-                    def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
-                      var buf = builder.buffer
-                      val idx = builder.size
-                      if (buf.length == idx) {
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
-                        builder.buffer = buf
+                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                        var buf = builder.buffer
+                        val idx = builder.size
+                        if (buf.length == idx) {
+                          buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                          builder.buffer = buf
+                        }
+                        buf(idx) = a
+                        builder.size = idx + 1
                       }
-                      buf(idx) = a
-                      builder.size = idx + 1
-                    }
 
-                    def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
-                      val buf  = builder.buffer
-                      val size = builder.size
-                      if (buf.length == size) buf
-                      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
-                    }
+                      def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                        val buf  = builder.buffer
+                        val size = builder.size
+                        if (buf.length == size) buf
+                        else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                      }
 
-                    def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
-                  },
-                  deconstructor = SeqDeconstructor.arraySeqDeconstructor
+                      def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
+                    },
+                    deconstructor = SeqDeconstructor.arraySeqDeconstructor
+                  )
                 )
               )
-            )"""
+            }"""
         } else if (tpe <:< typeOf[List[?]]) {
           val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
           q"Schema.list($schema)"
@@ -441,20 +559,34 @@ private object SchemaCompanionVersionSpecific {
         }
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         deriveSchemaForSealedTraitOrAbstractClass(tpe)
+      } else if (isZioPreludeNewtype(tpe)) {
+        val sTpe      = zioPreludeNewtypeDealias(tpe)
+        val schema    = findImplicitOrDeriveSchema(sTpe)
+        val newtypeId = buildTypeIdForZioPreludeNewtype(tpe)
+        q"new Schema($schema.reflect.typeId($newtypeId.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
+      } else if (isTypeAlias(tpe)) {
+        val sTpe = tpe.dealias
+        // Register the original type first to prevent circular implicit lookup
+        val name = TermName("s" + schemaRefs.size)
+        val ref  = Ident(name)
+        schemaRefs.update(tpe, ref)
+        // Also register the dealiased type to prevent finding the schema we're defining
+        schemaRefs.update(sTpe, ref)
+        val underlyingSchema = deriveSchema(sTpe)
+        val schemaTpe        = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+        schemaDefs.addOne {
+          q"implicit val $name: $schemaTpe = new Schema($underlyingSchema.reflect.typeId(_root_.zio.blocks.typeid.TypeId.of[$tpe].asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
+        }
+        ref
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
-      } else if (isZioPreludeNewtype(tpe)) {
-        val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
-        val tpeName = toTree(typeName(tpe))
-        q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
 
-    def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
-      val tpeName = toTree(typeName(tpe))
+    def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree =
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
-              typeName = $tpeName,
+              typeId = zio.blocks.typeid.TypeId.of[$tpe],
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                 deconstructor = new ConstantDeconstructor[$tpe]
@@ -462,15 +594,13 @@ private object SchemaCompanionVersionSpecific {
               modifiers = ${modifiers(tpe)}
             )
           )"""
-    }
 
     def deriveSchemaForNonAbstractScalaClass(tpe: Type): Tree = {
       val classInfo = new ClassInfo(tpe)
-      val tpeName   = toTree(typeName(tpe))
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
-              typeName = $tpeName,
+              typeId = zio.blocks.typeid.TypeId.of[$tpe],
               recordBinding = new Binding.Record(
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
@@ -493,7 +623,7 @@ private object SchemaCompanionVersionSpecific {
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
       val subtypes = directSubTypes(tpe)
       if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-      val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+      val fullTermNames         = subtypes.map(toFullTermName)
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min
         val maxFullTermName = fullTermNames.max
@@ -526,11 +656,10 @@ private object SchemaCompanionVersionSpecific {
               }
             }"""
       }
-      val tpeName = toTree(typeName(tpe))
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
               cases = _root_.scala.Vector(..$cases),
-              typeName = $tpeName,
+              typeId = zio.blocks.typeid.TypeId.of[$tpe],
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[$tpe] {
                   def discriminate(a: $tpe): Int = a match {
@@ -544,23 +673,6 @@ private object SchemaCompanionVersionSpecific {
           )"""
     }
 
-    def toFullTermName(tpeName: SchemaTypeName[?]): Array[String] = {
-      val packages     = tpeName.namespace.packages
-      val values       = tpeName.namespace.values
-      val fullTermName = new Array[String](packages.size + values.size + 1)
-      var idx          = 0
-      packages.foreach { p =>
-        fullTermName(idx) = p
-        idx += 1
-      }
-      values.foreach { p =>
-        fullTermName(idx) = p
-        idx += 1
-      }
-      fullTermName(idx) = tpeName.name
-      fullTermName
-    }
-
     def toShortTermName(fullName: Array[String], from: Int): String = {
       val str = new java.lang.StringBuilder
       var idx = from
@@ -572,9 +684,12 @@ private object SchemaCompanionVersionSpecific {
       str.toString
     }
 
-    def cannotDeriveSchema(tpe: Type): Nothing = fail(s"Cannot derive schema for '$tpe'.")
+    def cannotDeriveSchema(tpe: Type): Nothing = fail(
+      s"Cannot derive schema for '$tpe'. Symbol: ${tpe.typeSymbol}, isTypeAlias: ${isTypeAlias(tpe)}, isZioPreludeNewtype: ${isZioPreludeNewtype(tpe)}"
+    )
 
-    val schema      = deriveSchema(weakTypeOf[A].dealias)
+    val tpeA        = weakTypeOf[A]
+    val schema      = deriveSchema(tpeA)
     val schemaBlock =
       q"""{
             import _root_.zio.blocks.schema._
