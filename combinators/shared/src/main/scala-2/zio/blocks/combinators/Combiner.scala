@@ -5,42 +5,50 @@ package zio.blocks.combinators
  *
  * The `Combiner` typeclass enables combining values `L` and `R` into an output
  * type `Out`, with the ability to separate them back. It handles:
- * - Unit identity: `combine((), a)` returns `a`
- * - Tuple flattening: `combine((a, b), c)` returns `(a, b, c)`
+ *   - Unit identity: `combine((), a)` returns `a`
+ *   - Tuple flattening: `combine((a, b), c)` returns `(a, b, c)`
  *
  * Scala 2 limitation: Maximum tuple arity is 22. Scala 3 has no arity limits.
  *
- * @tparam L The left input type
- * @tparam R The right input type
+ * @tparam L
+ *   The left input type
+ * @tparam R
+ *   The right input type
  *
  * @example
- * {{{
+ *   {{{
  * val combined: (Int, String, Boolean) = Combiner.combine((1, "a"), true)
  * val (tuple, bool) = Combiner.separate(combined)
- * }}}
+ *   }}}
  */
 sealed trait Combiner[L, R] {
   type Out
-  
+
   /**
    * Combines two values into a single output value.
    *
-   * @param l The left value
-   * @param r The right value
-   * @return The combined output
+   * @param l
+   *   The left value
+   * @param r
+   *   The right value
+   * @return
+   *   The combined output
    */
   def combine(l: L, r: R): Out
-  
+
   /**
    * Separates a combined value back into its constituent parts.
    *
-   * @param out The combined value
-   * @return A tuple of the original left and right values
+   * @param out
+   *   The combined value
+   * @return
+   *   A tuple of the original left and right values
    */
   def separate(out: Out): (L, R)
 }
 
 object Combiner extends CombinerLowPriority1 {
+
   /**
    * Type alias for a Combiner with a specific output type.
    */

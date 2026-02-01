@@ -3,39 +3,44 @@ package zio.blocks.combinators
 /**
  * Zips two values into a flattened tuple, potentially discarding Unit values.
  *
- * The `Zippable` typeclass is similar to `Combiner` but is unidirectional (no separation).
- * It provides flags to indicate when values are discarded:
- * - Unit identity: `zip((), a)` returns `a` with `discardsLeft = true`
- * - Tuple flattening: `zip((a, b), c)` returns `(a, b, c)`
+ * The `Zippable` typeclass is similar to `Combiner` but is unidirectional (no
+ * separation). It provides flags to indicate when values are discarded:
+ *   - Unit identity: `zip((), a)` returns `a` with `discardsLeft = true`
+ *   - Tuple flattening: `zip((a, b), c)` returns `(a, b, c)`
  *
  * Scala 2 limitation: Maximum tuple arity is 22. Scala 3 has no arity limits.
  *
- * @tparam L The left input type
- * @tparam R The right input type
+ * @tparam L
+ *   The left input type
+ * @tparam R
+ *   The right input type
  *
  * @example
- * {{{
+ *   {{{
  * val result: (Int, String) = Zippable.zip(1, "hello")
  * val discarded: String = Zippable.zip((), "hello") // discardsLeft = true
- * }}}
+ *   }}}
  */
 sealed trait Zippable[L, R] {
   type Out
-  
+
   /**
    * Zips two values into a single output value.
    *
-   * @param left The left value
-   * @param right The right value
-   * @return The zipped output
+   * @param left
+   *   The left value
+   * @param right
+   *   The right value
+   * @return
+   *   The zipped output
    */
   def zip(left: L, right: R): Out
-  
+
   /**
    * Indicates whether the left value is discarded (e.g., Unit).
    */
   def discardsLeft: Boolean = false
-  
+
   /**
    * Indicates whether the right value is discarded (e.g., Unit).
    */
@@ -43,6 +48,7 @@ sealed trait Zippable[L, R] {
 }
 
 object Zippable extends ZippableLowPriority1 {
+
   /**
    * Type alias for a Zippable with a specific output type.
    */
@@ -52,14 +58,14 @@ object Zippable extends ZippableLowPriority1 {
     new Zippable[Unit, A] {
       type Out = A
       override val discardsLeft: Boolean = true
-      def zip(left: Unit, right: A): A = right
+      def zip(left: Unit, right: A): A   = right
     }
 
   implicit def rightUnit[A]: WithOut[A, Unit, A] =
     new Zippable[A, Unit] {
       type Out = A
       override val discardsRight: Boolean = true
-      def zip(left: A, right: Unit): A = left
+      def zip(left: A, right: Unit): A    = left
     }
 }
 
@@ -85,7 +91,8 @@ trait ZippableLowPriority1 extends ZippableLowPriority2 {
   implicit def zip6[A, B, C, D, E, F]: Zippable.WithOut[(A, B, C, D, E), F, (A, B, C, D, E, F)] =
     new Zippable[(A, B, C, D, E), F] {
       type Out = (A, B, C, D, E, F)
-      def zip(left: (A, B, C, D, E), right: F): (A, B, C, D, E, F) = (left._1, left._2, left._3, left._4, left._5, right)
+      def zip(left: (A, B, C, D, E), right: F): (A, B, C, D, E, F) =
+        (left._1, left._2, left._3, left._4, left._5, right)
     }
 
   implicit def zip7[A, B, C, D, E, F, G]: Zippable.WithOut[(A, B, C, D, E, F), G, (A, B, C, D, E, F, G)] =
@@ -139,7 +146,21 @@ trait ZippableLowPriority1 extends ZippableLowPriority2 {
     new Zippable[(A, B, C, D, E, F, G, H, I, J, K, L), M] {
       type Out = (A, B, C, D, E, F, G, H, I, J, K, L, M)
       def zip(left: (A, B, C, D, E, F, G, H, I, J, K, L), right: M): (A, B, C, D, E, F, G, H, I, J, K, L, M) =
-        (left._1, left._2, left._3, left._4, left._5, left._6, left._7, left._8, left._9, left._10, left._11, left._12, right)
+        (
+          left._1,
+          left._2,
+          left._3,
+          left._4,
+          left._5,
+          left._6,
+          left._7,
+          left._8,
+          left._9,
+          left._10,
+          left._11,
+          left._12,
+          right
+        )
     }
 
   implicit def zip14[A, B, C, D, E, F, G, H, I, J, K, L, M, N]
@@ -147,15 +168,49 @@ trait ZippableLowPriority1 extends ZippableLowPriority2 {
     new Zippable[(A, B, C, D, E, F, G, H, I, J, K, L, M), N] {
       type Out = (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
       def zip(left: (A, B, C, D, E, F, G, H, I, J, K, L, M), right: N): (A, B, C, D, E, F, G, H, I, J, K, L, M, N) =
-        (left._1, left._2, left._3, left._4, left._5, left._6, left._7, left._8, left._9, left._10, left._11, left._12, left._13, right)
+        (
+          left._1,
+          left._2,
+          left._3,
+          left._4,
+          left._5,
+          left._6,
+          left._7,
+          left._8,
+          left._9,
+          left._10,
+          left._11,
+          left._12,
+          left._13,
+          right
+        )
     }
 
   implicit def zip15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O]
     : Zippable.WithOut[(A, B, C, D, E, F, G, H, I, J, K, L, M, N), O, (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)] =
     new Zippable[(A, B, C, D, E, F, G, H, I, J, K, L, M, N), O] {
       type Out = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
-      def zip(left: (A, B, C, D, E, F, G, H, I, J, K, L, M, N), right: O): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O) =
-        (left._1, left._2, left._3, left._4, left._5, left._6, left._7, left._8, left._9, left._10, left._11, left._12, left._13, left._14, right)
+      def zip(
+        left: (A, B, C, D, E, F, G, H, I, J, K, L, M, N),
+        right: O
+      ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O) =
+        (
+          left._1,
+          left._2,
+          left._3,
+          left._4,
+          left._5,
+          left._6,
+          left._7,
+          left._8,
+          left._9,
+          left._10,
+          left._11,
+          left._12,
+          left._13,
+          left._14,
+          right
+        )
     }
 
   implicit def zip16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P]: Zippable.WithOut[
@@ -169,7 +224,24 @@ trait ZippableLowPriority1 extends ZippableLowPriority2 {
         left: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O),
         right: P
       ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P) =
-        (left._1, left._2, left._3, left._4, left._5, left._6, left._7, left._8, left._9, left._10, left._11, left._12, left._13, left._14, left._15, right)
+        (
+          left._1,
+          left._2,
+          left._3,
+          left._4,
+          left._5,
+          left._6,
+          left._7,
+          left._8,
+          left._9,
+          left._10,
+          left._11,
+          left._12,
+          left._13,
+          left._14,
+          left._15,
+          right
+        )
     }
 
   implicit def zip17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q]: Zippable.WithOut[
@@ -183,7 +255,25 @@ trait ZippableLowPriority1 extends ZippableLowPriority2 {
         left: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P),
         right: Q
       ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q) =
-        (left._1, left._2, left._3, left._4, left._5, left._6, left._7, left._8, left._9, left._10, left._11, left._12, left._13, left._14, left._15, left._16, right)
+        (
+          left._1,
+          left._2,
+          left._3,
+          left._4,
+          left._5,
+          left._6,
+          left._7,
+          left._8,
+          left._9,
+          left._10,
+          left._11,
+          left._12,
+          left._13,
+          left._14,
+          left._15,
+          left._16,
+          right
+        )
     }
 
   implicit def zip18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R]: Zippable.WithOut[

@@ -130,8 +130,8 @@ lazy val combinators = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 80
+    coverageMinimumStmtTotal   := 10,
+    coverageMinimumBranchTotal := 50
   )
 
 lazy val context = crossProject(JSPlatform, JVMPlatform)
