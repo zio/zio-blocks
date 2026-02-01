@@ -38,8 +38,6 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
    * Primitive, Wrapper, or Dynamic) and stores it appropriately. It works with
    * `Binding.of[A]` which returns `Any` in Scala 2.
    *
-   * For sequence and map types, use [[bindSeq]] and [[bindMap]] instead.
-   *
    * @tparam A
    *   The type to bind
    * @param binding
@@ -49,7 +47,8 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
    * @return
    *   A new TypeRegistry with the binding added
    * @throws java.lang.IllegalArgumentException
-   *   if the binding is a Seq or Map binding (use bindSeq/bindMap instead)
+   *   if the binding is a Seq or Map binding (use the appropriate overload
+   *   instead)
    *
    * @example
    *   {{{
@@ -66,9 +65,9 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
     case b: Binding.Dynamic =>
       updated(keyForProper(typeId), Entry.Dynamic(b))
     case _: Binding.Seq[_, _] =>
-      throw new IllegalArgumentException("Use bindSeq for sequence bindings")
+      throw new IllegalArgumentException("Use bind[C[_]](Binding.Seq[C, Nothing]) for sequence bindings")
     case _: Binding.Map[_, _, _] =>
-      throw new IllegalArgumentException("Use bindMap for map bindings")
+      throw new IllegalArgumentException("Use bind[M[_, _]](Binding.Map[M, Nothing, Nothing]) for map bindings")
   }
 
   /**
@@ -87,7 +86,7 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
    * @return
    *   A new TypeRegistry with the binding added
    */
-  def bindSeq[C[_]](binding: Binding.Seq[C, Nothing])(implicit typeId: TypeId[C[Nothing]]): TypeRegistry =
+  def bind[C[_]](binding: Binding.Seq[C, Nothing])(implicit typeId: TypeId[C[Nothing]]): TypeRegistry =
     updated(keyForConstructor(typeId), new Entry.Seq(binding))
 
   /**
@@ -106,7 +105,7 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
    * @return
    *   A new TypeRegistry with the binding added
    */
-  def bindMap[M[_, _]](binding: Binding.Map[M, Nothing, Nothing])(implicit
+  def bind[M[_, _]](binding: Binding.Map[M, Nothing, Nothing])(implicit
     typeId: TypeId[M[Nothing, Nothing]]
   ): TypeRegistry =
     updated(keyForConstructor(typeId), new Entry.Map(binding))
@@ -432,13 +431,13 @@ object TypeRegistry {
       // Dynamic
       .bind(Binding.Dynamic())
       // Sequences
-      .bindSeq[Set](Binding.Seq.set[Nothing])
-      .bindSeq[List](Binding.Seq.list[Nothing])
-      .bindSeq[Vector](Binding.Seq.vector[Nothing])
-      .bindSeq[IndexedSeq](Binding.Seq.indexedSeq[Nothing])
-      .bindSeq[scala.collection.immutable.Seq](Binding.Seq.seq[Nothing])
-      .bindSeq[Chunk](Binding.Seq.chunk[Nothing])
+      .bind[Set](Binding.Seq.set[Nothing])
+      .bind[List](Binding.Seq.list[Nothing])
+      .bind[Vector](Binding.Seq.vector[Nothing])
+      .bind[IndexedSeq](Binding.Seq.indexedSeq[Nothing])
+      .bind[scala.collection.immutable.Seq](Binding.Seq.seq[Nothing])
+      .bind[Chunk](Binding.Seq.chunk[Nothing])
       // Maps
-      .bindMap[Predef.Map](Binding.Map.map[Nothing, Nothing])
+      .bind[Predef.Map](Binding.Map.map[Nothing, Nothing])
   }
 }

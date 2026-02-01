@@ -301,14 +301,14 @@ object TypeRegistrySpec extends SchemaBaseSpec {
         val binding = Binding.of[Map]
         assertTrue(binding.isInstanceOf[Binding.Map[Map, Nothing, Nothing]])
       },
-      test("bindSeq works with Binding.of[List]") {
+      test("bind[C[_]] works with Binding.of[List]") {
         val binding  = Binding.of[List]
-        val registry = TypeRegistry.empty.bindSeq[List](binding)
+        val registry = TypeRegistry.empty.bind[List](binding)
         assertTrue(registry.lookupSeq[List[Int]].isDefined)
       },
-      test("bindMap works with Binding.of[Map]") {
+      test("bind[M[_, _]] works with Binding.of[Map]") {
         val binding  = Binding.of[Map]
-        val registry = TypeRegistry.empty.bindMap[Map](binding)
+        val registry = TypeRegistry.empty.bind[Map](binding)
         assertTrue(registry.lookupMap[Map[String, Int]].isDefined)
       }
     ),
