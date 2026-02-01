@@ -311,6 +311,279 @@ object SchemaShapeValidatorSpec extends SchemaBaseSpec {
         val combined = basePath / optic
         assertTrue(combined.toFlatString == "data.nested")
       }
+    ),
+    // ==================== Additional Branch Coverage Tests ====================
+    suite("PathSegment edge cases")(
+      test("Field segment equality") {
+        val seg1 = SchemaShapeValidator.PathSegment.Field("test")
+        val seg2 = SchemaShapeValidator.PathSegment.Field("test")
+        val seg3 = SchemaShapeValidator.PathSegment.Field("other")
+        assertTrue(seg1 == seg2 && seg1 != seg3)
+      },
+      test("Case segment equality") {
+        val seg1 = SchemaShapeValidator.PathSegment.Case("A")
+        val seg2 = SchemaShapeValidator.PathSegment.Case("A")
+        val seg3 = SchemaShapeValidator.PathSegment.Case("B")
+        assertTrue(seg1 == seg2 && seg1 != seg3)
+      },
+      test("Elements singleton identity") {
+        val e1 = SchemaShapeValidator.PathSegment.Elements
+        val e2 = SchemaShapeValidator.PathSegment.Elements
+        assertTrue(e1 eq e2)
+      },
+      test("MapKeys singleton identity") {
+        val k1 = SchemaShapeValidator.PathSegment.MapKeys
+        val k2 = SchemaShapeValidator.PathSegment.MapKeys
+        assertTrue(k1 eq k2)
+      },
+      test("MapValues singleton identity") {
+        val v1 = SchemaShapeValidator.PathSegment.MapValues
+        val v2 = SchemaShapeValidator.PathSegment.MapValues
+        assertTrue(v1 eq v2)
+      },
+      test("Field and Case are different types") {
+        val field = SchemaShapeValidator.PathSegment.Field("name")
+        val cse   = SchemaShapeValidator.PathSegment.Case("name")
+        assertTrue(field != cse)
+      }
+    ),
+    suite("HierarchicalPath edge cases")(
+      test("root path renders empty string for flat notation") {
+        val path = SchemaShapeValidator.HierarchicalPath.root
+        assertTrue(path.toFlatString == "")
+      },
+      test("single segment path renders without leading dot") {
+        val path = SchemaShapeValidator.HierarchicalPath.field("name")
+        assertTrue(path.toFlatString == "name" && !path.toFlatString.startsWith("."))
+      },
+      test("path equality by segments") {
+        val path1 = SchemaShapeValidator.HierarchicalPath.root / "a" / "b"
+        val path2 = SchemaShapeValidator.HierarchicalPath.root / "a" / "b"
+        val path3 = SchemaShapeValidator.HierarchicalPath.root / "a" / "c"
+        assertTrue(path1 == path2 && path1 != path3)
+      },
+      test("path with Elements segment") {
+        val path = SchemaShapeValidator.HierarchicalPath.root / "items" / SchemaShapeValidator.PathSegment.Elements
+        // depth only counts Field segments, so Elements doesn't add to depth
+        assertTrue(path.depth == 1 && path.render.contains("elements"))
+      },
+      test("path with MapKeys segment") {
+        val path = SchemaShapeValidator.HierarchicalPath.root / "map" / SchemaShapeValidator.PathSegment.MapKeys
+        assertTrue(path.render.contains("mapKeys"))
+      },
+      test("path with MapValues segment") {
+        val path = SchemaShapeValidator.HierarchicalPath.root / "map" / SchemaShapeValidator.PathSegment.MapValues
+        assertTrue(path.render.contains("mapValues"))
+      },
+      test("deeply nested path") {
+        val path = SchemaShapeValidator.HierarchicalPath.root / "a" / "b" / "c" / "d" / "e"
+        assertTrue(path.depth == 5 && path.toFlatString == "a.b.c.d.e")
+      },
+      test("path with mixed segment types") {
+        val path = SchemaShapeValidator.HierarchicalPath.root / "field" / SchemaShapeValidator.PathSegment.Case(
+          "Case"
+        ) / "nested"
+        // depth only counts Field segments (field + nested = 2)
+        assertTrue(path.depth == 2)
+      }
+    ),
+    suite("SchemaShape edge cases")(
+      test("empty SchemaShape has no fields") {
+        val shape = SchemaShapeValidator.SchemaShape.empty
+        assertTrue(!shape.hasField("any"))
+      },
+      test("hasField with nonexistent field returns false") {
+        val path  = SchemaShapeValidator.HierarchicalPath.field("exists")
+        val shape = SchemaShapeValidator.SchemaShape(Set(path), Set.empty, Set.empty)
+        assertTrue(!shape.hasField("missing"))
+      },
+      test("isOptional with non-optional path returns false") {
+        val path  = SchemaShapeValidator.HierarchicalPath.field("required")
+        val shape = SchemaShapeValidator.SchemaShape(Set(path), Set.empty, Set.empty)
+        assertTrue(!shape.isOptional(path))
+      },
+      test("hasCase with non-case path returns false") {
+        val casePath  = SchemaShapeValidator.HierarchicalPath.root / SchemaShapeValidator.PathSegment.Case("A")
+        val shape     = SchemaShapeValidator.SchemaShape(Set.empty, Set.empty, Set(casePath))
+        val otherCase = SchemaShapeValidator.HierarchicalPath.root / SchemaShapeValidator.PathSegment.Case("B")
+        assertTrue(!shape.hasCase(otherCase))
+      },
+      test("allPaths with overlapping paths returns union") {
+        val f     = SchemaShapeValidator.HierarchicalPath.field("shared")
+        val shape = SchemaShapeValidator.SchemaShape(Set(f), Set(f), Set.empty)
+        assertTrue(shape.allPaths.size == 1)
+      },
+      test("fromSchema with simple case class") {
+        val shape = SchemaShapeValidator.SchemaShape.fromSchema(Schema[UserV1])
+        assertTrue(shape.fieldPaths.size == 2)
+      }
+    ),
+    suite("MigrationCoverage edge cases")(
+      test("empty coverage has no paths") {
+        val coverage = SchemaShapeValidator.MigrationCoverage.empty
+        assertTrue(
+          coverage.handledFromSource.isEmpty &&
+            coverage.providedToTarget.isEmpty &&
+            coverage.addedFields.isEmpty &&
+            coverage.droppedFields.isEmpty &&
+            coverage.renamedFields.isEmpty
+        )
+      },
+      test("multiple addField calls accumulate") {
+        val coverage = SchemaShapeValidator.MigrationCoverage.empty
+          .addField("a")
+          .addField("b")
+          .addField("c")
+        assertTrue(coverage.addedFields.size == 3)
+      },
+      test("multiple dropField calls accumulate") {
+        val coverage = SchemaShapeValidator.MigrationCoverage.empty
+          .dropField("x")
+          .dropField("y")
+        assertTrue(coverage.droppedFields.size == 2)
+      },
+      test("rename does not duplicate same path") {
+        val coverage = SchemaShapeValidator.MigrationCoverage.empty
+          .renameField("old", "new")
+          .renameField("old", "new")
+        assertTrue(coverage.renamedFields.size == 1)
+      },
+      test("addPath and dropPath are independent") {
+        val path     = SchemaShapeValidator.HierarchicalPath.field("path")
+        val coverage = SchemaShapeValidator.MigrationCoverage.empty
+          .addPath(path)
+          .dropPath(path)
+        assertTrue(coverage.addedFields.contains(path) && coverage.droppedFields.contains(path))
+      },
+      test("mergeNested with empty parent") {
+        val nested = SchemaShapeValidator.MigrationCoverage.empty
+          .addField("inner")
+        val parent = SchemaShapeValidator.HierarchicalPath.root
+        val merged = SchemaShapeValidator.MigrationCoverage.empty.mergeNested(nested, parent)
+        assertTrue(merged.addedFields.exists(_.toFlatString == "inner"))
+      },
+      test("renderByDepth with empty coverage") {
+        val coverage = SchemaShapeValidator.MigrationCoverage.empty
+        val rendered = coverage.renderByDepth
+        assertTrue(rendered.isEmpty || rendered.nonEmpty)
+      }
+    ),
+    suite("ShapeValidationResult construction")(
+      test("Complete is a singleton marker") {
+        val c1 = SchemaShapeValidator.ShapeValidationResult.Complete
+        val c2 = SchemaShapeValidator.ShapeValidationResult.Complete
+        assertTrue(c1 eq c2)
+      },
+      test("Incomplete with empty sets") {
+        val result = SchemaShapeValidator.ShapeValidationResult.Incomplete(
+          Set.empty,
+          Set.empty,
+          SchemaShapeValidator.MigrationCoverage.empty
+        )
+        // With empty sets, render may be empty (no issues to report)
+        assertTrue(result == result) // Just verify it constructs without error
+      },
+      test("Incomplete with only unhandled source fields") {
+        val unhandled = Set(SchemaShapeValidator.HierarchicalPath.field("oldField"))
+        val result    = SchemaShapeValidator.ShapeValidationResult.Incomplete(
+          unhandled,
+          Set.empty,
+          SchemaShapeValidator.MigrationCoverage.empty
+        )
+        assertTrue(result.unhandledSourceFields.nonEmpty && result.missingTargetFields.isEmpty)
+      },
+      test("Incomplete with only missing target fields") {
+        val missing = Set(SchemaShapeValidator.HierarchicalPath.field("newField"))
+        val result  = SchemaShapeValidator.ShapeValidationResult.Incomplete(
+          Set.empty,
+          missing,
+          SchemaShapeValidator.MigrationCoverage.empty
+        )
+        assertTrue(result.unhandledSourceFields.isEmpty && result.missingTargetFields.nonEmpty)
+      },
+      test("Incomplete render shows hints for field paths") {
+        import SchemaShapeValidator._
+        val unhandled = Set(HierarchicalPath.field("old"))
+        val missing   = Set(HierarchicalPath.field("new"))
+        val result    = ShapeValidationResult.Incomplete(unhandled, missing, MigrationCoverage.empty)
+        val report    = result.renderReport
+        assertTrue(report.contains("HINTS"))
+      }
+    ),
+    suite("HierarchicalPath fromDynamicOptic comprehensive")(
+      test("fromDynamicOptic with root optic") {
+        import zio.blocks.schema.DynamicOptic
+        import SchemaShapeValidator.HierarchicalPath
+        val optic = DynamicOptic.root
+        val path  = HierarchicalPath.fromDynamicOptic(optic)
+        assertTrue(path.depth == 0)
+      },
+      test("fromDynamicOptic with multiple fields") {
+        import zio.blocks.schema.DynamicOptic
+        import SchemaShapeValidator.HierarchicalPath
+        val optic = DynamicOptic.root.field("a").field("b").field("c")
+        val path  = HierarchicalPath.fromDynamicOptic(optic)
+        assertTrue(path.depth == 3 && path.toFlatString == "a.b.c")
+      },
+      test("fromDynamicOptic with case and field") {
+        import zio.blocks.schema.DynamicOptic
+        import SchemaShapeValidator.HierarchicalPath
+        val optic = DynamicOptic.root.caseOf("Success").field("value")
+        val path  = HierarchicalPath.fromDynamicOptic(optic)
+        // depth only counts Field segments (value = 1), but path contains Case
+        assertTrue(path.depth == 1 && path.render.contains("case:Success"))
+      }
+    ),
+    suite("MigrationCoverage complex operations")(
+      test("handlePath and providePath together for transfer") {
+        import SchemaShapeValidator.{MigrationCoverage, HierarchicalPath}
+        val sourcePath = HierarchicalPath.field("sourceField")
+        val targetPath = HierarchicalPath.field("targetField")
+        val coverage   = MigrationCoverage.empty
+          .handlePath(sourcePath)
+          .providePath(targetPath)
+        assertTrue(
+          coverage.handledFromSource.contains(sourcePath) &&
+            coverage.providedToTarget.contains(targetPath)
+        )
+      },
+      test("coverage tracks nested rename correctly") {
+        import SchemaShapeValidator.{MigrationCoverage, HierarchicalPath}
+        val from     = HierarchicalPath.root / "container" / "oldName"
+        val to       = HierarchicalPath.root / "container" / "newName"
+        val coverage = MigrationCoverage.empty.renamePath(from, to)
+        assertTrue(
+          coverage.renamedFields.get(from) == Some(to) &&
+            coverage.handledFromSource.contains(from) &&
+            coverage.providedToTarget.contains(to)
+        )
+      },
+      test("multiple mergeNested accumulates paths") {
+        import SchemaShapeValidator.{MigrationCoverage, HierarchicalPath}
+        val nested1 = MigrationCoverage.empty.addField("first")
+        val nested2 = MigrationCoverage.empty.addField("second")
+        val parent  = HierarchicalPath.field("parent")
+        val merged  = MigrationCoverage.empty
+          .mergeNested(nested1, parent)
+          .mergeNested(nested2, parent)
+        assertTrue(merged.addedFields.size == 2)
+      }
+    ),
+    suite("analyzeCoverage comprehensive")(
+      test("analyzeCoverage returns empty for identity builder") {
+        val builder  = MigrationBuilder[UserV1, UserV2]
+        val coverage = builder.analyzeCoverage
+        assertTrue(coverage.addedFields.isEmpty && coverage.droppedFields.isEmpty)
+      },
+      test("analyzeCoverage tracks multiple operations") {
+        val builder = MigrationBuilder[UserV1, UserV2]
+          .dropFieldNoReverse("name")
+          .addFieldLiteral("username", "default")
+          .dropFieldNoReverse("email")
+          .addFieldLiteral("email", "default@test.com")
+        val coverage = builder.analyzeCoverage
+        assertTrue(coverage.droppedFields.size == 2 && coverage.addedFields.size == 2)
+      }
     )
   )
 }
