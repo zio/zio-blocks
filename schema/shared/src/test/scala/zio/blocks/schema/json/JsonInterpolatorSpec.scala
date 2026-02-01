@@ -5,7 +5,6 @@ import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion.{containsString, isLeft}
-import zio.test.TestAspect.exceptNative
 import java.time._
 import java.util.{Currency, UUID}
 
@@ -526,7 +525,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       typeCheck {
         """json"[1,02]""""
       }.map(assert(_)(isLeft(containsString("Invalid JSON literal: illegal number with leading zero at: .at(1)"))))
-    } @@ exceptNative,
+    },
     suite("key position type checking")(
       test("String key works") {
         val s: String = "myKey"
@@ -647,7 +646,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$xs: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Map as key") {
         typeCheck {
           """
@@ -655,7 +654,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$m: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for case class as key") {
         typeCheck {
           """
@@ -664,7 +663,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$p: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Option as key") {
         typeCheck {
           """
@@ -672,7 +671,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$opt: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Vector as key") {
         typeCheck {
           """
@@ -680,7 +679,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$v: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Set as key") {
         typeCheck {
           """
@@ -688,7 +687,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$s: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Array as key") {
         typeCheck {
           """
@@ -696,7 +695,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$arr: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Either as key") {
         typeCheck {
           """
@@ -704,7 +703,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$e: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("compile fails for tuple as key") {
         typeCheck {
           """
@@ -712,7 +711,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"{$t: 1}"
           """
         }.map(assert(_)(isLeft(containsString("key"))))
-      } @@ exceptNative,
+      },
       test("error message mentions JSON key and keyable types") {
         typeCheck {
           """
@@ -724,7 +723,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("key"))) &&
             assert(result)(isLeft(containsString("keyable")))
         )
-      } @@ exceptNative,
+      },
       test("multiple keys with different keyable types") {
         val intKey  = 1
         val uuidKey = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
@@ -959,7 +958,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"[$v]"
           """
         }.map(assert(_)(isLeft(containsString("JsonEncoder"))))
-      } @@ exceptNative,
+      },
       test("compile fails for class without any encoder in value position") {
         typeCheck {
           """
@@ -968,7 +967,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           json"[$v]"
           """
         }.map(assert(_)(isLeft(containsString("JsonEncoder"))))
-      } @@ exceptNative,
+      },
       test("error message mentions JsonEncoder and Schema") {
         typeCheck {
           """
@@ -980,7 +979,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("JsonEncoder"))) &&
             assert(result)(isLeft(containsString("Schema")))
         )
-      } @@ exceptNative,
+      },
       test("property-based: collections with encoders work") {
         check(Gen.listOf(Gen.int)) { ints =>
           assertTrue(json"""{"v": $ints}""".get("v").one.map(_.elements.size) == Right(ints.size))
@@ -1222,26 +1221,26 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           "val xs: List[Int] = List(1, 2, 3); " +
             "json\"\"\"{\"msg\": \"list is $xs\"}\"\"\""
         ).map(assert(_)(isLeft(containsString("string literal"))))
-      } @@ exceptNative,
+      },
       test("compile fails for case class in string literal") {
         typeCheck(
           "case class Point(x: Int, y: Int); " +
             "val p = Point(1, 2); " +
             "json\"\"\"{\"msg\": \"point is $p\"}\"\"\""
         ).map(assert(_)(isLeft(containsString("string literal"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Map in string literal") {
         typeCheck(
           "val m: Map[String, Int] = Map(\"a\" -> 1); " +
             "json\"\"\"{\"msg\": \"map is $m\"}\"\"\""
         ).map(assert(_)(isLeft(containsString("string literal"))))
-      } @@ exceptNative,
+      },
       test("compile fails for Option in string literal") {
         typeCheck(
           "val opt: Option[Int] = Some(42); " +
             "json\"\"\"{\"msg\": \"opt is $opt\"}\"\"\""
         ).map(assert(_)(isLeft(containsString("string literal"))))
-      } @@ exceptNative,
+      },
       test("error message mentions string literal and keyable types") {
         typeCheck(
           "case class Custom(value: Int); " +
@@ -1251,7 +1250,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("string literal"))) &&
             assert(result)(isLeft(containsString("keyable")))
         )
-      } @@ exceptNative
+      }
     ),
     suite("mixed interpolation contexts")(
       test("combines key, value, and string interpolation") {
@@ -1434,7 +1433,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("NotKeyable"))) &&
           assert(result)(isLeft(containsString("keyable")))
         }
-      } @@ exceptNative,
+      },
       test("value position error includes type and guidance") {
         typeCheck {
           """
@@ -1447,7 +1446,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("NoEncoder"))) &&
           assert(result)(isLeft(containsString("Schema")))
         }
-      } @@ exceptNative,
+      },
       test("string literal error includes type and context") {
         typeCheck(
           "case class NotKeyable(x: Int); " +
@@ -1458,7 +1457,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("NotKeyable"))) &&
           assert(result)(isLeft(containsString("keyable")))
         }
-      } @@ exceptNative,
+      },
       test("invalid JSON syntax error is clear") {
         typeCheck {
           """json"[1,02]""""
@@ -1466,7 +1465,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           assert(result)(isLeft(containsString("Invalid JSON"))) &&
           assert(result)(isLeft(containsString("leading zero")))
         }
-      } @@ exceptNative
+      }
     ),
     suite("special character escaping in strings")(
       test("escapes backslash in string interpolation") {

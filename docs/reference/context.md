@@ -151,4 +151,4 @@ Not supported (compile error):
 
 - **Caching**: Retrieved values are cached for O(1) subsequent lookups
 - **Subtype matching**: Supertype lookups find matching subtypes and cache results
-- **Platform-optimized**: JVM uses `ConcurrentHashMap`; JS/Native use efficient mutable maps
+- **Platform-optimized**: JVM uses `ConcurrentHashMap`; JS uses efficient mutable maps

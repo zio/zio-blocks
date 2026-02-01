@@ -34,7 +34,7 @@ Add the following to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "<version>"
 ```
 
-For cross-platform projects (Scala.js or Scala Native):
+For cross-platform projects (Scala.js):
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "<version>"

@@ -33,9 +33,9 @@ Each format provides a `BinaryFormat` object that can be passed to `derive`:
 
 | Format | Object | MIME Type | Platform Support |
 |--------|--------|-----------|------------------|
-| JSON | `JsonFormat` | `application/json` | JVM, JS, Native |
-| TOON | `ToonFormat` | `text/toon` | JVM, JS, Native |
-| MessagePack | `MessagePackFormat` | `application/msgpack` | JVM, JS, Native |
+| JSON | `JsonFormat` | `application/json` | JVM, JS |
+| TOON | `ToonFormat` | `text/toon` | JVM, JS |
+| MessagePack | `MessagePackFormat` | `application/msgpack` | JVM, JS |
 | Avro | `AvroFormat` | `application/avro` | JVM only |
 | Thrift | `ThriftFormat` | `application/thrift` | JVM only |
 | BSON | `BsonSchemaCodec` | Binary | JVM only |
@@ -192,7 +192,7 @@ TOON (Token-Oriented Object Notation) is a line-oriented, indentation-based text
 - **Human readable**: Clean, YAML-like syntax without YAML's complexity
 - **LLM optimized**: Designed for AI/ML use cases where token count matters
 - **Explicit lengths**: Arrays declare their size upfront for reliable parsing
-- **Cross-platform**: Works on JVM, Scala.js, and Scala Native
+- **Cross-platform**: Works on JVM and Scala.js
 
 ### Installation
 
@@ -603,14 +603,14 @@ All formats support the full set of ZIO Blocks Schema primitive types:
 
 ## Cross-Platform Support
 
-| Format | JVM | Scala.js | Scala Native |
-|--------|-----|----------|--------------|
-| JSON | ✓ | ✓ | ✓ |
-| TOON | ✓ | ✓ | ✓ |
-| MessagePack | ✓ | ✓ | ✓ |
-| Avro | ✓ | ✗ | ✗ |
-| Thrift | ✓ | ✗ | ✗ |
-| BSON | ✓ | ✗ | ✗ |
+| Format | JVM | Scala.js |
+|--------|-----|----------|
+| JSON | ✓ | ✓ |
+| TOON | ✓ | ✓ |
+| MessagePack | ✓ | ✓ |
+| Avro | ✓ | ✗ |
+| Thrift | ✓ | ✗ |
+| BSON | ✓ | ✗ |
 
 ## Error Handling
 

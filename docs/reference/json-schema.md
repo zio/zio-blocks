@@ -622,6 +622,5 @@ val schemaJson = userSchema.toJson.print
 
 - **JVM** - Full functionality
 - **Scala.js** - Browser and Node.js
-- **Scala Native** - Native compilation
 
 All features work identically across platforms.
