@@ -31,7 +31,7 @@ object TypeRegistrySpec extends SchemaBaseSpec {
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("TypeRegistrySpec")(
-    suite("TypeRegistry")(
+    suite("TypeRegistry (via BindingResolver.Registry)")(
       suite("empty")(
         test("creates an empty registry") {
           assertTrue(
@@ -44,68 +44,68 @@ object TypeRegistrySpec extends SchemaBaseSpec {
         test("contains primitive bindings") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupPrimitive[Int].isDefined,
-            reg.lookupPrimitive[String].isDefined,
-            reg.lookupPrimitive[Boolean].isDefined,
-            reg.lookupPrimitive[Long].isDefined,
-            reg.lookupPrimitive[Double].isDefined,
-            reg.lookupPrimitive[Float].isDefined,
-            reg.lookupPrimitive[Short].isDefined,
-            reg.lookupPrimitive[Byte].isDefined,
-            reg.lookupPrimitive[Char].isDefined,
-            reg.lookupPrimitive[Unit].isDefined,
-            reg.lookupPrimitive[BigInt].isDefined,
-            reg.lookupPrimitive[BigDecimal].isDefined
+            reg.resolvePrimitive[Int].isDefined,
+            reg.resolvePrimitive[String].isDefined,
+            reg.resolvePrimitive[Boolean].isDefined,
+            reg.resolvePrimitive[Long].isDefined,
+            reg.resolvePrimitive[Double].isDefined,
+            reg.resolvePrimitive[Float].isDefined,
+            reg.resolvePrimitive[Short].isDefined,
+            reg.resolvePrimitive[Byte].isDefined,
+            reg.resolvePrimitive[Char].isDefined,
+            reg.resolvePrimitive[Unit].isDefined,
+            reg.resolvePrimitive[BigInt].isDefined,
+            reg.resolvePrimitive[BigDecimal].isDefined
           )
         },
         test("contains java.time primitive bindings") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupPrimitive[java.time.DayOfWeek].isDefined,
-            reg.lookupPrimitive[java.time.Duration].isDefined,
-            reg.lookupPrimitive[java.time.Instant].isDefined,
-            reg.lookupPrimitive[java.time.LocalDate].isDefined,
-            reg.lookupPrimitive[java.time.LocalDateTime].isDefined,
-            reg.lookupPrimitive[java.time.LocalTime].isDefined,
-            reg.lookupPrimitive[java.time.Month].isDefined,
-            reg.lookupPrimitive[java.time.MonthDay].isDefined,
-            reg.lookupPrimitive[java.time.OffsetDateTime].isDefined,
-            reg.lookupPrimitive[java.time.OffsetTime].isDefined,
-            reg.lookupPrimitive[java.time.Period].isDefined,
-            reg.lookupPrimitive[java.time.Year].isDefined,
-            reg.lookupPrimitive[java.time.YearMonth].isDefined,
-            reg.lookupPrimitive[java.time.ZoneId].isDefined,
-            reg.lookupPrimitive[java.time.ZoneOffset].isDefined,
-            reg.lookupPrimitive[java.time.ZonedDateTime].isDefined
+            reg.resolvePrimitive[java.time.DayOfWeek].isDefined,
+            reg.resolvePrimitive[java.time.Duration].isDefined,
+            reg.resolvePrimitive[java.time.Instant].isDefined,
+            reg.resolvePrimitive[java.time.LocalDate].isDefined,
+            reg.resolvePrimitive[java.time.LocalDateTime].isDefined,
+            reg.resolvePrimitive[java.time.LocalTime].isDefined,
+            reg.resolvePrimitive[java.time.Month].isDefined,
+            reg.resolvePrimitive[java.time.MonthDay].isDefined,
+            reg.resolvePrimitive[java.time.OffsetDateTime].isDefined,
+            reg.resolvePrimitive[java.time.OffsetTime].isDefined,
+            reg.resolvePrimitive[java.time.Period].isDefined,
+            reg.resolvePrimitive[java.time.Year].isDefined,
+            reg.resolvePrimitive[java.time.YearMonth].isDefined,
+            reg.resolvePrimitive[java.time.ZoneId].isDefined,
+            reg.resolvePrimitive[java.time.ZoneOffset].isDefined,
+            reg.resolvePrimitive[java.time.ZonedDateTime].isDefined
           )
         },
         test("contains java.util primitive bindings") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupPrimitive[java.util.Currency].isDefined,
-            reg.lookupPrimitive[java.util.UUID].isDefined
+            reg.resolvePrimitive[java.util.Currency].isDefined,
+            reg.resolvePrimitive[java.util.UUID].isDefined
           )
         },
         test("contains dynamic binding") {
           val reg = TypeRegistry.default
-          assertTrue(reg.lookupDynamic.isDefined)
+          assertTrue(reg.resolveDynamic.isDefined)
         },
         test("contains sequence bindings") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupSeq[List[Int]].isDefined,
-            reg.lookupSeq[Vector[String]].isDefined,
-            reg.lookupSeq[Set[Long]].isDefined,
-            reg.lookupSeq[IndexedSeq[Double]].isDefined,
-            reg.lookupSeq[Seq[Boolean]].isDefined,
-            reg.lookupSeq[Chunk[Int]].isDefined
+            reg.resolveSeq[List[Int]].isDefined,
+            reg.resolveSeq[Vector[String]].isDefined,
+            reg.resolveSeq[Set[Long]].isDefined,
+            reg.resolveSeq[IndexedSeq[Double]].isDefined,
+            reg.resolveSeq[Seq[Boolean]].isDefined,
+            reg.resolveSeq[Chunk[Int]].isDefined
           )
         },
         test("contains map bindings") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupMap[Map[String, Int]].isDefined,
-            reg.lookupMap[Map[Int, String]].isDefined
+            reg.resolveMap[Map[String, Int]].isDefined,
+            reg.resolveMap[Map[Int, String]].isDefined
           )
         },
         test("is non-empty") {
@@ -116,25 +116,25 @@ object TypeRegistrySpec extends SchemaBaseSpec {
         test("binds record types") {
           val reg = TypeRegistry.default
             .bind(Schema[Person].reflect.binding.asInstanceOf[Binding.Record[Person]])
-          assertTrue(reg.lookupRecord[Person].isDefined)
+          assertTrue(reg.resolveRecord[Person].isDefined)
         },
         test("binds variant types") {
           val reg = TypeRegistry.default
             .bind(Schema[Animal].reflect.binding.asInstanceOf[Binding.Variant[Animal]])
-          assertTrue(reg.lookupVariant[Animal].isDefined)
+          assertTrue(reg.resolveVariant[Animal].isDefined)
         },
         test("binds wrapper types") {
           val reg = TypeRegistry.default
             .bind(Schema[UserId].reflect.binding.asInstanceOf[Binding.Wrapper[UserId, Long]])
-          assertTrue(reg.lookupWrapper[UserId].isDefined)
+          assertTrue(reg.resolveWrapper[UserId].isDefined)
         },
         test("overwrites existing bindings") {
           val binding1 = Schema[Person].reflect.binding.asInstanceOf[Binding.Record[Person]]
           val reg1     = TypeRegistry.default.bind(binding1)
           val reg2     = reg1.bind(binding1)
           assertTrue(
-            reg1.lookupRecord[Person].isDefined,
-            reg2.lookupRecord[Person].isDefined
+            reg1.resolveRecord[Person].isDefined,
+            reg2.resolveRecord[Person].isDefined
           )
         },
         test("throws for Seq binding") {
@@ -158,30 +158,30 @@ object TypeRegistrySpec extends SchemaBaseSpec {
           assertTrue(result)
         }
       ),
-      suite("lookup")(
+      suite("resolve")(
         test("returns None for unbound types") {
           val reg = TypeRegistry.empty
           assertTrue(
-            reg.lookupRecord[Person].isEmpty,
-            reg.lookupVariant[Animal].isEmpty,
-            reg.lookupPrimitive[Int].isEmpty,
-            reg.lookupWrapper[UserId].isEmpty,
-            reg.lookupDynamic.isEmpty
+            reg.resolveRecord[Person].isEmpty,
+            reg.resolveVariant[Animal].isEmpty,
+            reg.resolvePrimitive[Int].isEmpty,
+            reg.resolveWrapper[UserId].isEmpty,
+            reg.resolveDynamic.isEmpty
           )
         },
-        test("lookupSeq works with different element types") {
+        test("resolveSeq works with different element types") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupSeq[List[Int]].isDefined,
-            reg.lookupSeq[List[String]].isDefined,
-            reg.lookupSeq[List[Person]].isDefined
+            reg.resolveSeq[List[Int]].isDefined,
+            reg.resolveSeq[List[String]].isDefined,
+            reg.resolveSeq[List[Person]].isDefined
           )
         },
-        test("lookupMap works with different key/value types") {
+        test("resolveMap works with different key/value types") {
           val reg = TypeRegistry.default
           assertTrue(
-            reg.lookupMap[Map[String, Int]].isDefined,
-            reg.lookupMap[Map[Int, Person]].isDefined
+            reg.resolveMap[Map[String, Int]].isDefined,
+            reg.resolveMap[Map[Int, Person]].isDefined
           )
         }
       ),
@@ -281,17 +281,17 @@ object TypeRegistrySpec extends SchemaBaseSpec {
       test("accepts Binding.of result for Record") {
         val binding  = Binding.of[Person]
         val registry = TypeRegistry.default.bind(binding)
-        assertTrue(registry.lookupRecord[Person].isDefined)
+        assertTrue(registry.resolveRecord[Person].isDefined)
       },
       test("accepts Binding.of result for Variant") {
         val binding  = Binding.of[Animal]
         val registry = TypeRegistry.default.bind(binding)
-        assertTrue(registry.lookupVariant[Animal].isDefined)
+        assertTrue(registry.resolveVariant[Animal].isDefined)
       },
       test("accepts Binding.of result for Primitive") {
         val binding  = Binding.of[Int]
         val registry = TypeRegistry.empty.bind(binding)
-        assertTrue(registry.lookupPrimitive[Int].isDefined)
+        assertTrue(registry.resolvePrimitive[Int].isDefined)
       },
       test("Binding.of[List] returns Seq binding") {
         val binding = Binding.of[List]
@@ -304,12 +304,12 @@ object TypeRegistrySpec extends SchemaBaseSpec {
       test("bind[C[_]] works with Binding.of[List]") {
         val binding  = Binding.of[List]
         val registry = TypeRegistry.empty.bind[List](binding)
-        assertTrue(registry.lookupSeq[List[Int]].isDefined)
+        assertTrue(registry.resolveSeq[List[Int]].isDefined)
       },
       test("bind[M[_, _]] works with Binding.of[Map]") {
         val binding  = Binding.of[Map]
         val registry = TypeRegistry.empty.bind[Map](binding)
-        assertTrue(registry.lookupMap[Map[String, Int]].isDefined)
+        assertTrue(registry.resolveMap[Map[String, Int]].isDefined)
       }
     ),
     suite("UnapplySeq")(

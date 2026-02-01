@@ -223,7 +223,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       test("unified bind method accepts Binding.of result") {
         val binding  = Binding.of[Person]
         val registry = TypeRegistry.default.bind(binding)
-        assertTrue(registry.lookupRecord[Person].isDefined)
+        assertTrue(registry.resolveRecord[Person].isDefined)
       },
       test("throws RebindException when variant binding is missing") {
         val dynamicSchema = Schema[Animal].toDynamicSchema
