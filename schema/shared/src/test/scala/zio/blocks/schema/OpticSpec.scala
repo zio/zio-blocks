@@ -3270,12 +3270,12 @@ object OpticSpec extends SchemaBaseSpec {
     ),
     suite("Primitive Array ClassTag issues")(
       test("modifySeqAt with Array[Int] preserves primitive array type") {
-        val record        = RecordWithPrimitiveArray(Array(1, 2, 3))
-        val result        = RecordWithPrimitiveArray.intAt1.modify(record, _ + 10)
-        val componentType = result.ints.getClass.getComponentType
-        val isPrimitive   = componentType.isPrimitive
+        val record                            = RecordWithPrimitiveArray(Array(1, 2, 3))
+        val result                            = RecordWithPrimitiveArray.intAt1.modify(record, _ + 10)
+        val componentType                     = result.ints.getClass.getComponentType
+        val isPrimitive                       = componentType.isPrimitive
         def sumIntArray(arr: Array[Int]): Int = arr.sum
-        val sum = sumIntArray(result.ints)
+        val sum                               = sumIntArray(result.ints)
         assertTrue(isPrimitive, componentType == classOf[Int], sum == 16) &&
         assert(result.ints.toList)(equalTo(List(1, 12, 3)))
       },
