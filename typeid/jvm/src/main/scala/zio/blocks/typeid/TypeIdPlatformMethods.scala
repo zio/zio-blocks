@@ -23,11 +23,10 @@ private[typeid] object TypeIdPlatformMethods {
   )
 
   private val scalaToJavaMapping: Map[String, String] = Map(
-    "scala.collection.immutable.List" -> "scala.collection.immutable.List",
-    "scala.collection.immutable.Nil"  -> "scala.collection.immutable.Nil$",
-    "scala.None"                      -> "scala.None$",
-    "scala.BigInt"                    -> "scala.math.BigInt",
-    "scala.BigDecimal"                -> "scala.math.BigDecimal"
+    "scala.collection.immutable.Nil" -> "scala.collection.immutable.Nil$",
+    "scala.None"                     -> "scala.None$",
+    "scala.BigInt"                   -> "scala.math.BigInt",
+    "scala.BigDecimal"               -> "scala.math.BigDecimal"
   )
 
   def getClass(id: TypeId[_]): Option[Class[_]] =
