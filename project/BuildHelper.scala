@@ -156,7 +156,14 @@ object BuildHelper {
 
   def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala33, Scala213)): Seq[Def.Setting[?]] =
     Seq(
-      name                     := prjName,
+      name := prjName,
+      // Rename project to "zio-blocks-next-*" for Scala 3.7+
+      moduleName := {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, minor)) if minor >= 7 => prjName.replace("zio-blocks-", "zio-blocks-next-")
+          case _                              => prjName
+        }
+      },
       crossScalaVersions       := scalaVersions,
       scalaVersion             := scalaVersions.head,
       ThisBuild / scalaVersion := scalaVersions.head,
