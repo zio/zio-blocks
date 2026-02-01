@@ -35,10 +35,7 @@ addCommandAlias(
   "testJS",
   "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test"
 )
-addCommandAlias(
-  "testNative",
-  "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test; contextNative/test"
-)
+
 addCommandAlias(
   "docJVM",
   "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; contextJVM/doc"
@@ -47,10 +44,7 @@ addCommandAlias(
   "docJS",
   "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc"
 )
-addCommandAlias(
-  "docNative",
-  "typeidNative/doc; chunkNative/doc; schemaNative/doc; streamsNative/doc; schema-toonNative/doc; schema-messagepackNative/doc; contextNative/doc"
-)
+
 
 lazy val root = project
   .in(file("."))
@@ -60,39 +54,30 @@ lazy val root = project
   .aggregate(
     typeid.jvm,
     typeid.js,
-    typeid.native,
     context.jvm,
     context.js,
-    context.native,
     schema.jvm,
     schema.js,
-    schema.native,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
-    `schema-messagepack`.native,
     `schema-thrift`,
     `schema-bson`,
     `schema-toon`.jvm,
     `schema-toon`.js,
-    `schema-toon`.native,
     streams.jvm,
     streams.js,
-    streams.native,
     chunk.jvm,
     chunk.js,
-    chunk.native,
     markdown.jvm,
     markdown.js,
-    markdown.native,
     scalaNextTests.jvm,
     scalaNextTests.js,
-    scalaNextTests.native,
     benchmarks,
     docs
   )
 
-lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val typeid = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(chunk)
   .settings(stdSettings("zio-blocks-typeid"))
@@ -101,7 +86,6 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -118,7 +102,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 65
   )
 
-lazy val context = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val context = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-context"))
@@ -127,7 +111,6 @@ lazy val context = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -144,7 +127,7 @@ lazy val context = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 45
   )
 
-lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
@@ -153,7 +136,6 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(chunk)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
@@ -195,14 +177,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
     })
   )
-  .nativeSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
 
-lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-streams"))
   .settings(crossProjectSettings)
@@ -210,7 +186,6 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -220,7 +195,7 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 0
   )
 
-lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val chunk = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-chunk"))
   .settings(crossProjectSettings)
@@ -228,7 +203,6 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -238,7 +212,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 80  // Lowered from 83 for Scala 3.5 compatibility
   )
 
-lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-docs"))
   .settings(crossProjectSettings)
@@ -246,7 +220,6 @@ lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(chunk)
   .settings(
     libraryDependencies ++= Seq(
@@ -321,7 +294,7 @@ lazy val `schema-bson` = project
     coverageMinimumBranchTotal := 55  // Lowered from 58 for Scala 3.5 compatibility
   )
 
-lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-messagepack"))
   .settings(crossProjectSettings)
@@ -329,7 +302,6 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlat
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
@@ -345,14 +317,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlat
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     )
   )
-  .nativeSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
 
-lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-toon"))
   .settings(crossProjectSettings)
@@ -360,7 +326,6 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
@@ -393,14 +358,8 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
     })
   )
-  .nativeSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
 
-lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
   .dependsOn(schema % "compile->compile;test->test")
@@ -416,7 +375,6 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 0
   )
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
