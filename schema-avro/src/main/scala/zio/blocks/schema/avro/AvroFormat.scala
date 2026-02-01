@@ -266,7 +266,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addBoolean(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -312,7 +312,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addByte(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -358,7 +358,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addChar(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -404,7 +404,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addShort(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -450,7 +450,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addFloat(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -496,7 +496,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addInt(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -542,7 +542,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addDouble(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -588,7 +588,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addLong(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
