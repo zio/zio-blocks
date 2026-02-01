@@ -754,7 +754,7 @@ object OperationSpec extends SchemaBaseSpec {
       }
     ),
     suite("DynamicPatch Clobber mode")(
-      test("clobber mode propagates errors for missing fields") {
+      test("clobber mode ignores errors for missing fields") {
         val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
         val op     = Patch.Operation.Set(DynamicValue.int(99))
         val path   = DynamicOptic.root.field("nonexistent")
