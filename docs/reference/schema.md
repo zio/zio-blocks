@@ -356,10 +356,9 @@ To derive type class instances for a type `A` based on its schema, you can use t
 
 In the following example, we derive a JSON codec for the `Person` case class using the `JsonFormat` deriver:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.JsonFormat
-import zio.blocks.schema.json.JsonBinaryCodec
+import zio.blocks.schema.json.{JsonFormat, JsonBinaryCodec}
 
 case class Person(name: String, age: Int)
 
@@ -609,7 +608,6 @@ object Email {
       },
       _.value
     )
-    .withTypeName[Email]
 }
 
 // For total transformations (never fail)
@@ -618,6 +616,5 @@ case class UserId(value: Long)
 object UserId {
   implicit val schema: Schema[UserId] = Schema[Long]
     .transform(UserId(_), _.value)
-    .withTypeName[UserId]
 }
 ```

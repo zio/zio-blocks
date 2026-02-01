@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.patch.{Patch, PatchMode}
+import zio.blocks.schema.patch.{DynamicPatch, Patch, PatchMode}
 import zio.test._
 import zio.test.Assertion._
 import java.time.YearMonth
@@ -86,7 +86,60 @@ object PatchSpec extends SchemaBaseSpec {
       assert(patch(person1))(equalTo(parson2)) &&
       assert(patch.applyOption(person1))(isSome(equalTo(parson2))) &&
       assert(patch.apply(person1, PatchMode.Strict))(isRight(equalTo(parson2)))
-    }
+    },
+    suite("Patch[S] failure branches")(
+      test("apply returns original on internal failure") {
+        case class TestPerson(name: String, age: Int)
+        implicit val testPersonSchema: Schema[TestPerson] = Schema.derived
+
+        val person = TestPerson("John", 30)
+        val dp     = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("nonexistent"),
+              Patch.Operation.Set(DynamicValue.int(99))
+            )
+          )
+        )
+        val patch  = new Patch[TestPerson](dp, testPersonSchema)
+        val result = patch(person)
+        assertTrue(result == person)
+      },
+      test("applyOption returns None on failure") {
+        case class TestPerson(name: String, age: Int)
+        implicit val testPersonSchema: Schema[TestPerson] = Schema.derived
+
+        val person = TestPerson("John", 30)
+        val dp     = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("nonexistent"),
+              Patch.Operation.Set(DynamicValue.int(99))
+            )
+          )
+        )
+        val patch  = new Patch[TestPerson](dp, testPersonSchema)
+        val result = patch.applyOption(person)
+        assertTrue(result.isEmpty)
+      },
+      test("apply with mode returns Left on failure") {
+        case class TestPerson(name: String, age: Int)
+        implicit val testPersonSchema: Schema[TestPerson] = Schema.derived
+
+        val person = TestPerson("John", 30)
+        val dp     = DynamicPatch(
+          Vector(
+            DynamicPatch.DynamicPatchOp(
+              DynamicOptic.root.field("nonexistent"),
+              Patch.Operation.Set(DynamicValue.int(99))
+            )
+          )
+        )
+        val patch  = new Patch[TestPerson](dp, testPersonSchema)
+        val result = patch(person, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      }
+    )
   )
 
   private[this] def hasError(message: String): Assertion[SchemaError] =

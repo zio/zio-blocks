@@ -88,6 +88,7 @@ The following example shows a `Person` case class represented as a `Reflect.Reco
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 
 case class Person(
   name: String,
@@ -108,7 +109,7 @@ object Person {
           Term("height", Schema.double.reflect),
           Term("weight", Schema.double.reflect)
         ),
-        typeName = TypeName(namespace = Namespace(Seq.empty), "Person"),
+        typeId = TypeId.of[Person],
         recordBinding = Binding.Record[Person](
           constructor = new Constructor[Person] {
             override def usedRegisters: RegisterOffset =
@@ -132,8 +133,7 @@ object Person {
               out.setDouble(offset + RegisterOffset(ints = 1), in.height)
               out.setDouble(offset + RegisterOffset(ints = 1, doubles = 1), in.weight)
             }
-          },
-          examples = Seq(Person("Jane", "jane@examle.com", 32, 180, 76.0))
+          }
         )
       )
     }
@@ -404,6 +404,7 @@ We can define its schema using `Reflect.Deferred` as follows:
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 
 // Recursive data type
 case class Tree(value: Int, children: List[Tree])
@@ -415,7 +416,7 @@ object Tree {
         Schema[Int].reflect.asTerm("value"),
         Reflect.Deferred(() => Schema.list(new Schema(treeReflect)).reflect).asTerm("children")
       ),
-      typeName = TypeName(Namespace(Nil), "Tree"),
+      typeId = TypeId.of[Tree],
       recordBinding = Binding.Record(
         constructor = new Constructor[Tree] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
