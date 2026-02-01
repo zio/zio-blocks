@@ -2,642 +2,243 @@ package zio.blocks.schema.binding
 
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ListBuffer
+import scala.reflect.ClassTag
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 trait SeqConstructor[C[_]] {
-  type ObjectBuilder[_]
-  type BooleanBuilder
-  type ByteBuilder
-  type ShortBuilder
-  type IntBuilder
-  type LongBuilder
-  type FloatBuilder
-  type DoubleBuilder
-  type CharBuilder
+  type Builder[_]
 
-  def newObjectBuilder[A](sizeHint: Int = 8): ObjectBuilder[A]
+  def newBuilder[A](sizeHint: Int = 8)(implicit ct: ClassTag[A]): Builder[A]
 
-  def newBooleanBuilder(sizeHint: Int = 8): BooleanBuilder
+  def add[A](builder: Builder[A], a: A): Unit
 
-  def newByteBuilder(sizeHint: Int = 8): ByteBuilder
+  def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
+  def addByte(builder: Builder[Byte], a: Byte): Unit          = add(builder, a)
+  def addShort(builder: Builder[Short], a: Short): Unit       = add(builder, a)
+  def addInt(builder: Builder[Int], a: Int): Unit             = add(builder, a)
+  def addLong(builder: Builder[Long], a: Long): Unit          = add(builder, a)
+  def addFloat(builder: Builder[Float], a: Float): Unit       = add(builder, a)
+  def addDouble(builder: Builder[Double], a: Double): Unit    = add(builder, a)
+  def addChar(builder: Builder[Char], a: Char): Unit          = add(builder, a)
 
-  def newShortBuilder(sizeHint: Int = 8): ShortBuilder
+  def result[A](builder: Builder[A]): C[A]
 
-  def newIntBuilder(sizeHint: Int = 8): IntBuilder
-
-  def newLongBuilder(sizeHint: Int = 8): LongBuilder
-
-  def newFloatBuilder(sizeHint: Int = 8): FloatBuilder
-
-  def newDoubleBuilder(sizeHint: Int = 8): DoubleBuilder
-
-  def newCharBuilder(sizeHint: Int = 8): CharBuilder
-
-  def addObject[A](builder: ObjectBuilder[A], a: A): Unit
-
-  def addBoolean(builder: BooleanBuilder, a: Boolean): Unit
-
-  def addByte(builder: ByteBuilder, a: Byte): Unit
-
-  def addShort(builder: ShortBuilder, a: Short): Unit
-
-  def addInt(builder: IntBuilder, a: Int): Unit
-
-  def addLong(builder: LongBuilder, a: Long): Unit
-
-  def addFloat(builder: FloatBuilder, a: Float): Unit
-
-  def addDouble(builder: DoubleBuilder, a: Double): Unit
-
-  def addChar(builder: CharBuilder, a: Char): Unit
-
-  def resultObject[A](builder: ObjectBuilder[A]): C[A]
-
-  def resultBoolean(builder: BooleanBuilder): C[Boolean]
-
-  def resultByte(builder: ByteBuilder): C[Byte]
-
-  def resultShort(builder: ShortBuilder): C[Short]
-
-  def resultInt(builder: IntBuilder): C[Int]
-
-  def resultLong(builder: LongBuilder): C[Long]
-
-  def resultFloat(builder: FloatBuilder): C[Float]
-
-  def resultDouble(builder: DoubleBuilder): C[Double]
-
-  def resultChar(builder: CharBuilder): C[Char]
-
-  def emptyObject[A]: C[A]
-
-  def emptyBoolean: C[Boolean]
-
-  def emptyByte: C[Byte]
-
-  def emptyShort: C[Short]
-
-  def emptyInt: C[Int]
-
-  def emptyLong: C[Long]
-
-  def emptyFloat: C[Float]
-
-  def emptyDouble: C[Double]
-
-  def emptyChar: C[Char]
+  def empty[A](implicit ct: ClassTag[A]): C[A]
 }
 
 object SeqConstructor {
-  abstract class Boxed[C[_]] extends SeqConstructor[C] {
-    override type BooleanBuilder = ObjectBuilder[Boolean]
-    override type ByteBuilder    = ObjectBuilder[Byte]
-    override type ShortBuilder   = ObjectBuilder[Short]
-    override type IntBuilder     = ObjectBuilder[Int]
-    override type LongBuilder    = ObjectBuilder[Long]
-    override type FloatBuilder   = ObjectBuilder[Float]
-    override type DoubleBuilder  = ObjectBuilder[Double]
-    override type CharBuilder    = ObjectBuilder[Char]
+  implicit val setConstructor: SeqConstructor[Set] = new SeqConstructor[Set] {
+    type Builder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = newObjectBuilder(sizeHint)
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = Set.newBuilder[A]
 
-    def newByteBuilder(sizeHint: Int): ByteBuilder = newObjectBuilder(sizeHint)
+    def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-    def newShortBuilder(sizeHint: Int): ShortBuilder = newObjectBuilder(sizeHint)
+    def result[A](builder: Builder[A]): Set[A] = builder.result()
 
-    def newIntBuilder(sizeHint: Int): IntBuilder = newObjectBuilder(sizeHint)
-
-    def newLongBuilder(sizeHint: Int): LongBuilder = newObjectBuilder(sizeHint)
-
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = newObjectBuilder(sizeHint)
-
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = newObjectBuilder(sizeHint)
-
-    def newCharBuilder(sizeHint: Int): CharBuilder = newObjectBuilder(sizeHint)
-
-    def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = addObject(builder, a)
-
-    def addByte(builder: ByteBuilder, a: Byte): Unit = addObject(builder, a)
-
-    def addShort(builder: ShortBuilder, a: Short): Unit = addObject(builder, a)
-
-    def addInt(builder: IntBuilder, a: Int): Unit = addObject(builder, a)
-
-    def addLong(builder: LongBuilder, a: Long): Unit = addObject(builder, a)
-
-    def addFloat(builder: FloatBuilder, a: Float): Unit = addObject(builder, a)
-
-    def addDouble(builder: DoubleBuilder, a: Double): Unit = addObject(builder, a)
-
-    def addChar(builder: CharBuilder, a: Char): Unit = addObject(builder, a)
-
-    def resultBoolean(builder: BooleanBuilder): C[Boolean] = resultObject(builder)
-
-    def resultByte(builder: ByteBuilder): C[Byte] = resultObject(builder)
-
-    def resultShort(builder: ShortBuilder): C[Short] = resultObject(builder)
-
-    def resultInt(builder: IntBuilder): C[Int] = resultObject(builder)
-
-    def resultLong(builder: LongBuilder): C[Long] = resultObject(builder)
-
-    def resultFloat(builder: FloatBuilder): C[Float] = resultObject(builder)
-
-    def resultDouble(builder: DoubleBuilder): C[Double] = resultObject(builder)
-
-    def resultChar(builder: CharBuilder): C[Char] = resultObject(builder)
-
-    def emptyBoolean: C[Boolean] = emptyObject
-
-    def emptyByte: C[Byte] = emptyObject
-
-    def emptyShort: C[Short] = emptyObject
-
-    def emptyInt: C[Int] = emptyObject
-
-    def emptyLong: C[Long] = emptyObject
-
-    def emptyFloat: C[Float] = emptyObject
-
-    def emptyDouble: C[Double] = emptyObject
-
-    def emptyChar: C[Char] = emptyObject
+    def empty[A](implicit ct: ClassTag[A]): Set[A] = Set.empty
   }
 
-  implicit val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
-    type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Set[A]]
+  implicit val listConstructor: SeqConstructor[List] = new SeqConstructor[List] {
+    type Builder[A] = scala.collection.mutable.ListBuffer[A]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Set.newBuilder[A]
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = new ListBuffer[A]
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+    def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-    def resultObject[A](builder: ObjectBuilder[A]): Set[A] = builder.result()
+    def result[A](builder: Builder[A]): List[A] = builder.toList
 
-    def emptyObject[A]: Set[A] = Set.empty
+    def empty[A](implicit ct: ClassTag[A]): List[A] = Nil
   }
 
-  implicit val listConstructor: SeqConstructor[List] = new Boxed[List] {
-    type ObjectBuilder[A] = scala.collection.mutable.ListBuffer[A]
+  implicit val vectorConstructor: SeqConstructor[Vector] = new SeqConstructor[Vector] {
+    type Builder[A] = scala.collection.mutable.Builder[A, Vector[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = Vector.newBuilder[A]
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+    def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-    def resultObject[A](builder: ObjectBuilder[A]): List[A] = builder.toList
+    def result[A](builder: Builder[A]): Vector[A] = builder.result()
 
-    def emptyObject[A]: List[A] = Nil
+    def empty[A](implicit ct: ClassTag[A]): Vector[A] = Vector.empty
   }
 
-  implicit val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
-    type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Vector[A]]
+  private[binding] abstract class PrimitiveArraySeqConstructor[C[_]] extends SeqConstructor[C] {
+    case class ArrayBuilder[A](var buffer: Array[A], var size: Int, ct: ClassTag[A])
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Vector.newBuilder[A]
+    type Builder[A] = ArrayBuilder[A]
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+      new ArrayBuilder(ct.newArray(Math.max(sizeHint, 1)), 0, ct)
 
-    def resultObject[A](builder: ObjectBuilder[A]): Vector[A] = builder.result()
+    def add[A](builder: Builder[A], a: A): Unit = {
+      val buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        val newBuf = builder.ct.newArray(idx << 1)
+        System.arraycopy(buf, 0, newBuf, 0, idx)
+        builder.buffer = newBuf
+        newBuf(idx) = a
+      } else {
+        buf(idx) = a
+      }
+      builder.size = idx + 1
+    }
 
-    def emptyObject[A]: Vector[A] = Vector.empty
+    override def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addByte(builder: Builder[Byte], a: Byte): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addShort(builder: Builder[Short], a: Short): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addInt(builder: Builder[Int], a: Int): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addLong(builder: Builder[Long], a: Long): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addFloat(builder: Builder[Float], a: Float): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addDouble(builder: Builder[Double], a: Double): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addChar(builder: Builder[Char], a: Char): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    protected def trimArray[A](builder: Builder[A]): Array[A] = {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else {
+        val newBuf = builder.ct.newArray(size)
+        System.arraycopy(buf, 0, newBuf, 0, size)
+        newBuf
+      }
+    }
   }
 
-  abstract class ArraySeqConstructor extends SeqConstructor[ArraySeq] {
-    case class Builder[A](var buffer: Array[A], var size: Int)
+  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new PrimitiveArraySeqConstructor[ArraySeq] {
+    def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray(trimArray(builder))
 
-    type ObjectBuilder[A] = Builder[A]
-    type BooleanBuilder   = Builder[Boolean]
-    type ByteBuilder      = Builder[Byte]
-    type ShortBuilder     = Builder[Short]
-    type IntBuilder       = Builder[Int]
-    type LongBuilder      = Builder[Long]
-    type FloatBuilder     = Builder[Float]
-    type DoubleBuilder    = Builder[Double]
-    type CharBuilder      = Builder[Char]
-
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](Math.max(sizeHint, 1)), 0)
-
-    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](Math.max(sizeHint, 1)), 0)
-
-    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](Math.max(sizeHint, 1)), 0)
-
-    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](Math.max(sizeHint, 1)), 0)
-
-    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](Math.max(sizeHint, 1)), 0)
-
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](Math.max(sizeHint, 1)), 0)
-
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
-
-    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
-
-    def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addByte(builder: ByteBuilder, a: Byte): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addShort(builder: ShortBuilder, a: Short): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addInt(builder: IntBuilder, a: Int): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addLong(builder: LongBuilder, a: Long): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addFloat(builder: FloatBuilder, a: Float): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addDouble(builder: DoubleBuilder, a: Double): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addChar(builder: CharBuilder, a: Char): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def resultBoolean(builder: BooleanBuilder): ArraySeq[Boolean] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultByte(builder: ByteBuilder): ArraySeq[Byte] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultShort(builder: ShortBuilder): ArraySeq[Short] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultInt(builder: IntBuilder): ArraySeq[Int] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultLong(builder: LongBuilder): ArraySeq[Long] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultFloat(builder: FloatBuilder): ArraySeq[Float] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultDouble(builder: DoubleBuilder): ArraySeq[Double] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultChar(builder: CharBuilder): ArraySeq[Char] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    val emptyBoolean: ArraySeq[Boolean] = ArraySeq.empty
-
-    val emptyByte: ArraySeq[Byte] = ArraySeq.empty
-
-    val emptyShort: ArraySeq[Short] = ArraySeq.empty
-
-    val emptyInt: ArraySeq[Int] = ArraySeq.empty
-
-    val emptyLong: ArraySeq[Long] = ArraySeq.empty
-
-    val emptyFloat: ArraySeq[Float] = ArraySeq.empty
-
-    val emptyDouble: ArraySeq[Double] = ArraySeq.empty
-
-    val emptyChar: ArraySeq[Char] = ArraySeq.empty
+    def empty[A](implicit ct: ClassTag[A]): ArraySeq[A] = ArraySeq.empty[A]
   }
 
-  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new ArraySeqConstructor {
-    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[Any](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
+  implicit val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new SeqConstructor[IndexedSeq] {
+    type Builder[A] = scala.collection.mutable.Builder[A, IndexedSeq[A]]
 
-    def addObject[A](builder: Builder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = IndexedSeq.newBuilder[A]
 
-    def resultObject[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
-    }
+    def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-    def emptyObject[A]: ArraySeq[A] = ArraySeq.unsafeWrapArray(Array.empty[AnyRef]).asInstanceOf[ArraySeq[A]]
+    def result[A](builder: Builder[A]): IndexedSeq[A] = builder.result()
+
+    def empty[A](implicit ct: ClassTag[A]): IndexedSeq[A] = Vector.empty
   }
 
-  implicit val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new Boxed[IndexedSeq] {
-    type ObjectBuilder[A] = scala.collection.mutable.Builder[A, IndexedSeq[A]]
+  implicit val seqConstructor: SeqConstructor[collection.immutable.Seq] = new SeqConstructor[collection.immutable.Seq] {
+    type Builder[A] = scala.collection.mutable.Builder[A, collection.immutable.Seq[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = IndexedSeq.newBuilder[A]
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = collection.immutable.Seq.newBuilder[A]
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+    def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-    def resultObject[A](builder: ObjectBuilder[A]): IndexedSeq[A] = builder.result()
+    def result[A](builder: Builder[A]): collection.immutable.Seq[A] = builder.result()
 
-    def emptyObject[A]: IndexedSeq[A] = Vector.empty
+    def empty[A](implicit ct: ClassTag[A]): Seq[A] = Nil
   }
 
-  implicit val seqConstructor: SeqConstructor[collection.immutable.Seq] = new Boxed[collection.immutable.Seq] {
-    type ObjectBuilder[A] = scala.collection.mutable.Builder[A, collection.immutable.Seq[A]]
+  implicit val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor[Chunk] {
+    type Builder[A] = ChunkBuilder[A]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = collection.immutable.Seq.newBuilder[A]
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = ChunkBuilder.make[A]()
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+    def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-    def resultObject[A](builder: ObjectBuilder[A]): collection.immutable.Seq[A] = builder.result()
+    override def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = builder.addOne(a)
+    override def addByte(builder: Builder[Byte], a: Byte): Unit          = builder.addOne(a)
+    override def addShort(builder: Builder[Short], a: Short): Unit       = builder.addOne(a)
+    override def addInt(builder: Builder[Int], a: Int): Unit             = builder.addOne(a)
+    override def addLong(builder: Builder[Long], a: Long): Unit          = builder.addOne(a)
+    override def addFloat(builder: Builder[Float], a: Float): Unit       = builder.addOne(a)
+    override def addDouble(builder: Builder[Double], a: Double): Unit    = builder.addOne(a)
+    override def addChar(builder: Builder[Char], a: Char): Unit          = builder.addOne(a)
 
-    def emptyObject[A]: Seq[A] = Nil
+    def result[A](builder: Builder[A]): Chunk[A] = builder.result()
+
+    def empty[A](implicit ct: ClassTag[A]): Chunk[A] = Chunk.empty
   }
 
-  implicit val chunkConstructor: SeqConstructor[Chunk] = new Boxed[Chunk] {
-    type ObjectBuilder[A] = ChunkBuilder[A]
+  implicit val arrayConstructor: SeqConstructor[Array] = new PrimitiveArraySeqConstructor[Array] {
+    def result[A](builder: Builder[A]): Array[A] = trimArray(builder)
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = ChunkBuilder.make[A]()
-
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
-
-    def resultObject[A](builder: ObjectBuilder[A]): Chunk[A] = builder.result()
-
-    def emptyObject[A]: Chunk[A] = Chunk.empty
-  }
-
-  abstract class ArrayConstructor extends SeqConstructor[Array] {
-    case class Builder[A](var buffer: Array[A], var size: Int)
-
-    type ObjectBuilder[A] = Builder[A]
-    type BooleanBuilder   = Builder[Boolean]
-    type ByteBuilder      = Builder[Byte]
-    type ShortBuilder     = Builder[Short]
-    type IntBuilder       = Builder[Int]
-    type LongBuilder      = Builder[Long]
-    type FloatBuilder     = Builder[Float]
-    type DoubleBuilder    = Builder[Double]
-    type CharBuilder      = Builder[Char]
-
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](Math.max(sizeHint, 1)), 0)
-
-    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](Math.max(sizeHint, 1)), 0)
-
-    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](Math.max(sizeHint, 1)), 0)
-
-    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](Math.max(sizeHint, 1)), 0)
-
-    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](Math.max(sizeHint, 1)), 0)
-
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](Math.max(sizeHint, 1)), 0)
-
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
-
-    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
-
-    def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addByte(builder: ByteBuilder, a: Byte): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addShort(builder: ShortBuilder, a: Short): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addInt(builder: IntBuilder, a: Int): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addLong(builder: LongBuilder, a: Long): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addFloat(builder: FloatBuilder, a: Float): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addDouble(builder: DoubleBuilder, a: Double): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def addChar(builder: CharBuilder, a: Char): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf, idx << 1)
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def resultBoolean(builder: BooleanBuilder): Array[Boolean] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultByte(builder: ByteBuilder): Array[Byte] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultShort(builder: ShortBuilder): Array[Short] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultInt(builder: IntBuilder): Array[Int] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultLong(builder: LongBuilder): Array[Long] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultFloat(builder: FloatBuilder): Array[Float] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultDouble(builder: DoubleBuilder): Array[Double] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    def resultChar(builder: CharBuilder): Array[Char] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf, size)
-    }
-
-    val emptyBoolean: Array[Boolean] = Array.emptyBooleanArray
-
-    val emptyByte: Array[Byte] = Array.emptyByteArray
-
-    val emptyShort: Array[Short] = Array.emptyShortArray
-
-    val emptyInt: Array[Int] = Array.emptyIntArray
-
-    val emptyLong: Array[Long] = Array.emptyLongArray
-
-    val emptyFloat: Array[Float] = Array.emptyFloatArray
-
-    val emptyDouble: Array[Double] = Array.emptyDoubleArray
-
-    val emptyChar: Array[Char] = Array.emptyCharArray
+    def empty[A](implicit ct: ClassTag[A]): Array[A] = Array.empty[A]
   }
 }

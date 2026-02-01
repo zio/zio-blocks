@@ -4,6 +4,7 @@ import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, R
 import zio.blocks.schema._
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
@@ -384,26 +385,28 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     sequence: Reflect.Sequence[F, A, C]
   ): MessagePackBinaryCodec[C[A]] = {
     if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
-      val binding = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
-      val codec   = deriveCodec(sequence.element).asInstanceOf[MessagePackBinaryCodec[Elem]]
+      val binding      = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
+      val codec        = deriveCodec(sequence.element).asInstanceOf[MessagePackBinaryCodec[Elem]]
+      val elemClassTag = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
       new MessagePackBinaryCodec[Col[Elem]]() {
-        private[this] val deconstructor = binding.deconstructor
-        private[this] val constructor   = binding.constructor
-        private[this] val elementCodec  = codec
+        private[this] val deconstructor                     = binding.deconstructor
+        private[this] val constructor                       = binding.constructor
+        private[this] val elementCodec                      = codec
+        private[this] implicit val classTag: ClassTag[Elem] = elemClassTag
 
         def decodeValue(in: MessagePackReader): Col[Elem] = {
           val size    = in.readArrayHeader()
-          val builder = constructor.newObjectBuilder[Elem](Math.min(size, 16))
+          val builder = constructor.newBuilder[Elem](Math.min(size, 16))
           var idx     = 0
           while (idx < size) {
-            try constructor.addObject(builder, elementCodec.decodeValue(in))
+            try constructor.add(builder, elementCodec.decodeValue(in))
             catch {
               case error if NonFatal(error) =>
                 decodeError(new DynamicOptic.Node.AtIndex(idx), error)
             }
             idx += 1
           }
-          constructor.resultObject[Elem](builder)
+          constructor.result[Elem](builder)
         }
 
         def encodeValue(value: Col[Elem], out: MessagePackWriter): Unit = {
