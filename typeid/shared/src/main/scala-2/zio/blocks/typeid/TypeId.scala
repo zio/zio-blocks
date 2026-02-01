@@ -2,6 +2,8 @@ package zio.blocks.typeid
 
 import scala.language.experimental.macros
 
+import zio.blocks.chunk.Chunk
+
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -20,7 +22,7 @@ import scala.language.experimental.macros
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-sealed trait TypeId[A] {
+sealed trait TypeId[A] extends TypeIdPlatformSpecific {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
@@ -30,6 +32,10 @@ sealed trait TypeId[A] {
   def aliasedTo: Option[TypeRepr]
   def representation: Option[TypeRepr]
   def annotations: List[Annotation]
+
+  final def clazz: Option[Class[_]] = TypeIdPlatformMethods.getClass(this)
+
+  final def construct(args: Chunk[AnyRef]): Either[String, Any] = TypeIdPlatformMethods.construct(this, args)
 
   final def parents: List[TypeRepr] = defKind.baseTypes
 
