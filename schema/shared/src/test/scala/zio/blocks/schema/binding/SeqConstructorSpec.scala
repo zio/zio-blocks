@@ -8,7 +8,9 @@ object SeqConstructorSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("SeqConstructor")(
     specializedAddMethodsSuite,
     arrayResizingSuite,
-    primitiveArraySuite
+    primitiveArraySuite,
+    emptyConstructorsSuite,
+    noResizeSuite
   )
 
   private def specializedAddMethodsSuite = suite("specialized add methods")(
@@ -286,6 +288,134 @@ object SeqConstructorSpec extends SchemaBaseSpec {
       for (i <- 1 to 10) constructor.add(builder, s"item$i")
       val result = constructor.result(builder)
       assertTrue(result.toList == (1 to 10).map(i => s"item$i").toList)
+    }
+  )
+
+  private def emptyConstructorsSuite = suite("empty constructors")(
+    test("empty Set") {
+      val c      = SeqConstructor.setConstructor
+      val result = c.empty[String]
+      assertTrue(result.isEmpty)
+    },
+    test("empty List") {
+      val c      = SeqConstructor.listConstructor
+      val result = c.empty[Int]
+      assertTrue(result.isEmpty)
+    },
+    test("empty Vector") {
+      val c      = SeqConstructor.vectorConstructor
+      val result = c.empty[Double]
+      assertTrue(result.isEmpty)
+    },
+    test("empty IndexedSeq") {
+      val c      = SeqConstructor.indexedSeqConstructor
+      val result = c.empty[Long]
+      assertTrue(result.isEmpty)
+    },
+    test("empty Seq") {
+      val c      = SeqConstructor.seqConstructor
+      val result = c.empty[Short]
+      assertTrue(result.isEmpty)
+    },
+    test("empty Chunk") {
+      val c      = SeqConstructor.chunkConstructor
+      val result = c.empty[Byte]
+      assertTrue(result.isEmpty)
+    }
+  )
+
+  private def noResizeSuite = suite("no resize needed")(
+    test("Array add within capacity does not resize") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Int](8)
+      constructor.addInt(builder, 1)
+      constructor.addInt(builder, 2)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1, 2))
+    },
+    test("ArraySeq add within capacity does not resize") {
+      val constructor = SeqConstructor.arraySeqConstructor
+      val builder     = constructor.newBuilder[Int](8)
+      constructor.addInt(builder, 1)
+      constructor.addInt(builder, 2)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1, 2))
+    },
+    test("Array exactly fills capacity - no trim needed on result") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Int](4)
+      constructor.addInt(builder, 1)
+      constructor.addInt(builder, 2)
+      constructor.addInt(builder, 3)
+      constructor.addInt(builder, 4)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1, 2, 3, 4))
+    },
+    test("ArraySeq exactly fills capacity - no trim needed on result") {
+      val constructor = SeqConstructor.arraySeqConstructor
+      val builder     = constructor.newBuilder[Int](4)
+      constructor.addInt(builder, 1)
+      constructor.addInt(builder, 2)
+      constructor.addInt(builder, 3)
+      constructor.addInt(builder, 4)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1, 2, 3, 4))
+    },
+    test("Array Boolean within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Boolean](4)
+      constructor.addBoolean(builder, true)
+      constructor.addBoolean(builder, false)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(true, false))
+    },
+    test("Array Byte within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Byte](4)
+      constructor.addByte(builder, 1.toByte)
+      constructor.addByte(builder, 2.toByte)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1.toByte, 2.toByte))
+    },
+    test("Array Short within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Short](4)
+      constructor.addShort(builder, 1.toShort)
+      constructor.addShort(builder, 2.toShort)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1.toShort, 2.toShort))
+    },
+    test("Array Long within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Long](4)
+      constructor.addLong(builder, 1L)
+      constructor.addLong(builder, 2L)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1L, 2L))
+    },
+    test("Array Float within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Float](4)
+      constructor.addFloat(builder, 1.0f)
+      constructor.addFloat(builder, 2.0f)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1.0f, 2.0f))
+    },
+    test("Array Double within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Double](4)
+      constructor.addDouble(builder, 1.0)
+      constructor.addDouble(builder, 2.0)
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List(1.0, 2.0))
+    },
+    test("Array Char within capacity") {
+      val constructor = SeqConstructor.arrayConstructor
+      val builder     = constructor.newBuilder[Char](4)
+      constructor.addChar(builder, 'a')
+      constructor.addChar(builder, 'b')
+      val result = constructor.result(builder)
+      assertTrue(result.toList == List('a', 'b'))
     }
   )
 
