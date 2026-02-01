@@ -157,7 +157,7 @@ object BuildHelper {
   def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala33, Scala213)): Seq[Def.Setting[?]] =
     Seq(
       name := prjName,
-      // Rename project to "zio-blocks-next-*" for Scala 3.7+
+      // For Scala 3.7+, publish this module/artifact as "zio-blocks-next-*" (project name remains prjName)
       moduleName := {
         CrossVersion.partialVersion(scalaVersion.value) match {
           case Some((3, minor)) if minor >= 7 => prjName.replace("zio-blocks-", "zio-blocks-next-")
@@ -220,7 +220,7 @@ object BuildHelper {
       // without Automatic-Module-Name, the module name is derived from the jar file which is invalid because of the scalaVersion suffix.
       Compile / packageBin / packageOptions +=
         Package.ManifestAttributes(
-          "Automatic-Module-Name" -> s"${organization.value}.$prjName".replaceAll("-", ".")
+          "Automatic-Module-Name" -> s"${organization.value}.${moduleName.value}".replaceAll("-", ".")
         ),
       coverageFailOnMinimum      := true,
       coverageMinimumStmtTotal   := 95,
