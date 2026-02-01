@@ -604,6 +604,39 @@ val json = JsonEncoder[Person].encode(person)
 val decoded = JsonDecoder[Person].decode(json)
 ```
 
+### Extension Syntax
+
+When a `Schema` is in scope, you can use convenient extension methods directly on values:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.syntax._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+val person = Person("Alice", 30)
+
+// Convert to Json AST
+val json = person.toJson  // Json.Object(...)
+
+// Convert directly to JSON string
+val jsonString = person.toJsonString  // {"name":"Alice","age":30}
+
+// Convert to UTF-8 bytes
+val jsonBytes = person.toJsonBytes  // Array[Byte]
+
+// Parse JSON string back to a typed value
+val parsed = """{"name":"Bob","age":25}""".fromJson[Person]  // Right(Person("Bob", 25))
+
+// Parse from bytes
+val fromBytes = jsonBytes.fromJson[Person]  // Right(Person("Alice", 30))
+```
+
+These extension methods provide a more ergonomic API compared to explicitly creating encoders/decoders.
+
 ### Using the `as` Method
 
 ```scala mdoc:compile-only
@@ -646,11 +679,70 @@ import zio.blocks.schema.json.WriterConfig
 
 val json = Json.obj("name" -> Json.str("Alice"))
 
-// Pretty-printed output
-val pretty = json.print(WriterConfig.pretty)
+// Pretty-printed output (2-space indentation)
+val pretty = json.print(WriterConfig.withIndentionStep2)
 // {
 //   "name": "Alice"
 // }
+
+// Custom indentation
+val indented4 = json.print(WriterConfig.withIndentionStep(4))
+```
+
+### WriterConfig Options
+
+`WriterConfig` controls JSON output formatting:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `indentionStep` | `0` | Spaces per indentation level (0 = compact) |
+| `escapeUnicode` | `false` | Escape non-ASCII characters as `\uXXXX` |
+| `preferredBufSize` | `32768` | Internal buffer size in bytes |
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.WriterConfig
+
+// Compact output (default)
+val compact = WriterConfig
+
+// Pretty-printed with 2-space indentation
+val pretty = WriterConfig.withIndentionStep(2)
+
+// Escape Unicode for ASCII-only output
+val ascii = WriterConfig.withEscapeUnicode(true)
+
+// Combine options
+val custom = WriterConfig
+  .withIndentionStep(2)
+  .withEscapeUnicode(true)
+  .withPreferredBufSize(65536)
+```
+
+### ReaderConfig Options
+
+`ReaderConfig` controls JSON parsing behavior:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `preferredBufSize` | `32768` | Preferred byte buffer size |
+| `preferredCharBufSize` | `4096` | Preferred char buffer size for strings |
+| `maxBufSize` | `33554432` | Maximum byte buffer size (32MB) |
+| `maxCharBufSize` | `4194304` | Maximum char buffer size (4MB) |
+| `checkForEndOfInput` | `true` | Error on trailing non-whitespace |
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.ReaderConfig
+
+// Default configuration
+val default = ReaderConfig
+
+// Allow trailing content (useful for streaming)
+val lenient = ReaderConfig.withCheckForEndOfInput(false)
+
+// Increase buffer sizes for large documents
+val largeDoc = ReaderConfig
+  .withPreferredBufSize(65536)
+  .withPreferredCharBufSize(8192)
 ```
 
 ### To Bytes
@@ -739,6 +831,104 @@ val sorted = values.sortWith((a, b) => a.compare(b) < 0)
 ```
 
 Type ordering: Null < Boolean < Number < String < Array < Object
+
+## JSON Diffing
+
+`JsonDiffer` computes the difference between two JSON values, producing a `JsonPatch` that transforms the source into the target:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonPatch}
+
+val source = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")
+val target = Json.parseUnsafe("""{"name": "Alice", "age": 31, "active": true}""")
+
+// Compute the diff
+val patch: JsonPatch = JsonPatch.diff(source, target)
+
+// The patch describes the minimal changes:
+// - NumberDelta for age: 30 -> 31
+// - Add field "active": true
+```
+
+The differ uses optimal operations:
+- **NumberDelta** for numeric changes (stores the delta, not the new value)
+- **StringEdit** for string changes when edits are more compact than replacement
+- **ArrayEdit** with LCS-based Insert/Delete operations for arrays
+- **ObjectEdit** with Add/Remove/Modify operations for objects
+
+## JSON Patching
+
+`JsonPatch` represents a sequence of operations that transform a JSON value. Patches are composable and can be applied with different failure modes:
+
+### Computing and Applying Patches
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonPatch}
+import zio.blocks.schema.patch.PatchMode
+
+val original = Json.parseUnsafe("""{"count": 10, "items": ["a", "b"]}""")
+val modified = Json.parseUnsafe("""{"count": 15, "items": ["a", "b", "c"]}""")
+
+// Compute the patch
+val patch = JsonPatch.diff(original, modified)
+
+// Apply with default (Strict) mode - fails on any precondition violation
+val result1: Either[_, Json] = patch(original)
+
+// Apply with Lenient mode - skips failing operations
+val result2 = patch(original, PatchMode.Lenient)
+
+// Apply with Clobber mode - forces changes on conflicts
+val result3 = patch(original, PatchMode.Clobber)
+```
+
+### Patch Modes
+
+| Mode | Behavior |
+|------|----------|
+| `Strict` | Fail immediately on any precondition violation |
+| `Lenient` | Skip operations that fail preconditions |
+| `Clobber` | Force changes, overwriting on conflicts |
+
+### Composing Patches
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.{Json, JsonPatch}
+
+val patch1 = JsonPatch.diff(
+  Json.parseUnsafe("""{"x": 1}"""),
+  Json.parseUnsafe("""{"x": 2}""")
+)
+
+val patch2 = JsonPatch.diff(
+  Json.parseUnsafe("""{"x": 2}"""),
+  Json.parseUnsafe("""{"x": 2, "y": 3}""")
+)
+
+// Compose patches - applies patch1, then patch2
+val combined = patch1 ++ patch2
+
+// Apply the combined patch
+val result = combined(Json.parseUnsafe("""{"x": 1}"""))
+// Right({"x": 2, "y": 3})
+```
+
+### Converting to DynamicPatch
+
+`JsonPatch` can be converted to and from `DynamicPatch` for interoperability with the typed patching system:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.json.JsonPatch
+import zio.blocks.schema.patch.DynamicPatch
+
+val jsonPatch: JsonPatch = ???
+
+// Convert to DynamicPatch
+val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
+
+// Convert from DynamicPatch (may fail for unsupported operations)
+val restored: Either[_, JsonPatch] = JsonPatch.fromDynamicPatch(dynamicPatch)
+```
 
 ## Conversion to DynamicValue
 
