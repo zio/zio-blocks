@@ -71,8 +71,8 @@ sealed trait TypeId[A] {
 
   /**
    * Returns a ClassTag for this type, using the correct primitive ClassTag for
-   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char, Unit)
-   * and ClassTag.AnyRef for all reference types.
+   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char,
+   * Unit) and ClassTag.AnyRef for all reference types.
    *
    * This is useful for creating properly-typed arrays at runtime.
    */
