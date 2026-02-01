@@ -9,6 +9,7 @@ object SeqConstructorSpec extends SchemaBaseSpec {
     specializedAddMethodsSuite,
     arrayResizingSuite,
     primitiveArraySuite,
+    otherConstructorsSuite,
     emptyConstructorsSuite,
     noResizeSuite
   )
@@ -288,6 +289,45 @@ object SeqConstructorSpec extends SchemaBaseSpec {
       for (i <- 1 to 10) constructor.add(builder, s"item$i")
       val result = constructor.result(builder)
       assertTrue(result.toList == (1 to 10).map(i => s"item$i").toList)
+    }
+  )
+
+  private def otherConstructorsSuite = suite("other constructors full workflow")(
+    test("Set newBuilder + add + result") {
+      val c       = SeqConstructor.setConstructor
+      val builder = c.newBuilder[Int](4)
+      c.add(builder, 1)
+      c.add(builder, 2)
+      c.add(builder, 3)
+      val result = c.result(builder)
+      assertTrue(result == Set(1, 2, 3))
+    },
+    test("Vector newBuilder + add + result") {
+      val c       = SeqConstructor.vectorConstructor
+      val builder = c.newBuilder[Int](4)
+      c.add(builder, 1)
+      c.add(builder, 2)
+      c.add(builder, 3)
+      val result = c.result(builder)
+      assertTrue(result == Vector(1, 2, 3))
+    },
+    test("IndexedSeq newBuilder + add + result") {
+      val c       = SeqConstructor.indexedSeqConstructor
+      val builder = c.newBuilder[Int](4)
+      c.add(builder, 1)
+      c.add(builder, 2)
+      c.add(builder, 3)
+      val result = c.result(builder)
+      assertTrue(result == IndexedSeq(1, 2, 3))
+    },
+    test("Seq newBuilder + add + result") {
+      val c       = SeqConstructor.seqConstructor
+      val builder = c.newBuilder[Int](4)
+      c.add(builder, 1)
+      c.add(builder, 2)
+      c.add(builder, 3)
+      val result = c.result(builder)
+      assertTrue(result == Seq(1, 2, 3))
     }
   )
 
