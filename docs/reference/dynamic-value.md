@@ -270,15 +270,15 @@ val fields: Option[Chunk[(String, DynamicValue)]] =
 ### Extracting Primitive Values
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.{DynamicValue, PrimitiveType}
+import zio.blocks.schema.{DynamicValue, PrimitiveType, Validation}
 
 val dv = DynamicValue.int(42)
 
 // Extract with specific primitive type
-val intValue: Option[Int] = dv.asPrimitive(PrimitiveType.Int())
+val intValue: Option[Int] = dv.asPrimitive(PrimitiveType.Int(Validation.None))
 // Some(42)
 
-val stringValue: Option[String] = dv.asPrimitive(PrimitiveType.String())
+val stringValue: Option[String] = dv.asPrimitive(PrimitiveType.String(Validation.None))
 // None (type mismatch)
 ```
 

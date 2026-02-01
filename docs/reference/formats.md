@@ -72,7 +72,7 @@ val person = Person("Alice", 30)
 val json: Json = jsonEncoder.encode(person)
 // {"name":"Alice","age":30}
 
-val decoded: Either[JsonError, Person] = jsonDecoder.decode(json)
+val decoded: Either[SchemaError, Person] = jsonDecoder.decode(json)
 ```
 
 ## Avro Format

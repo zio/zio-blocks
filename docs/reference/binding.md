@@ -116,6 +116,8 @@ final case class Variant[A](
 - `Matchers`: Given a value and a case index, safely downcast the value to the specific case type, or return null if it doesn't match.
 
 ```scala mdoc:compile-only
+import zio.blocks.schema.binding._
+
 sealed trait Shape extends Product with Serializable
 
 case class Circle(radius: Double) extends Shape
@@ -293,21 +295,22 @@ The Wrapper binding handles the bidirectional transformation between the wrapper
 
 ```scala
 final case class Wrapper[A, B](
-  wrap: B => Either[String, A],
-  unwrap: A => B,
-  defaultValue: Option[() => A] = None,
-  examples: collection.immutable.Seq[A] = Nil
+  wrap: B => Either[SchemaError, A],
+  unwrap: A => Either[SchemaError, B]
 ) extends Binding[BindingType.Wrapper[A, B], A]
 ```
 
 **Components:**
 
-- `wrap`: Converts from the underlying type `B` to the wrapper type `A`, potentially with validation
-- `unwrap`: Extracts the underlying `B` from an `A`
+- `wrap`: Converts from the underlying type `B` to the wrapper type `A`, returning `Right(a)` on success or `Left(SchemaError)` on failure
+- `unwrap`: Extracts the underlying `B` from an `A`, returning `Right(b)` on success or `Left(SchemaError)` on failure
 
 Here is an example of a `Binding.Wrapper` for an `Email` newtype with validation:
 
 ```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
 case class Email(value: String)
 
 object Email {
@@ -315,9 +318,9 @@ object Email {
   new Binding.Wrapper[Email, String](
     wrap = {
       case x@EmailRegex(_*) => Right(new Email(x))
-      case _ => Left("Expected Email")
+      case _ => Left(SchemaError.validationFailed("Expected valid email format"))
     },
-    _.value
+    email => Right(email.value)
   )
 }
 ```
