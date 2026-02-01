@@ -24,11 +24,11 @@ object QuickstartClient {
     val tableBase     = sys.env.getOrElse("GOLEM_QUICKSTART_SHARD_TABLE", "table")
 
     def runOnce(counterId: String, tableName: String): Unit = {
-      val counter = Await.result(CounterAgent.get(counterId), 30.seconds)
+      val counter = CounterAgent.get(counterId)
       val n1      = Await.result(counter.increment(), 30.seconds)
       println(s"[quickstart-jvm] CounterAgent.increment($counterId) => $n1")
 
-      val shard = Await.result(ShardAgent.get(tableName, 1), 30.seconds)
+      val shard = ShardAgent.get(tableName, 1)
       val id    = Await.result(shard.id(), 30.seconds)
       println(s"[quickstart-jvm] ShardAgent.id($tableName,1) => $id")
 

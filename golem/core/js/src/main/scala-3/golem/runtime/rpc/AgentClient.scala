@@ -26,14 +26,14 @@ object AgentClient {
   transparent inline def connect[Trait, Constructor](
     agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor
-  ): Future[Trait] =
+  ): Trait =
     AgentClientInlineMacros.connect[Trait, Constructor](agentType, constructorArgs)
 
   transparent inline def connectPhantom[Trait, Constructor](
     agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor,
     phantom: Uuid
-  ): Future[Trait] =
+  ): Trait =
     AgentClientInlineMacros.connectPhantom[Trait, Constructor](agentType, constructorArgs, phantom)
 
   transparent inline def bind[Trait](
@@ -83,14 +83,14 @@ private object AgentClientInlineMacros {
   transparent inline def connect[Trait, Constructor](
     agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor
-  ): Future[Trait] =
+  ): Trait =
     ${ connectImpl[Trait, Constructor]('agentType, 'constructorArgs) }
 
   transparent inline def connectPhantom[Trait, Constructor](
     agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor,
     phantom: Uuid
-  ): Future[Trait] =
+  ): Trait =
     ${ connectPhantomImpl[Trait, Constructor]('agentType, 'constructorArgs, 'phantom) }
 
   transparent inline def bind[Trait](
@@ -101,13 +101,13 @@ private object AgentClientInlineMacros {
   private def connectImpl[Trait: Type, Constructor: Type](
     agentTypeExpr: Expr[AgentType[Trait, Constructor]],
     constructorExpr: Expr[Constructor]
-  )(using Quotes): Expr[Future[Trait]] =
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolve[Trait, Constructor]($agentTypeExpr, $constructorExpr) match {
         case Left(err) =>
-          Future.failed(js.JavaScriptException(err))
+          throw js.JavaScriptException(err)
         case Right(resolved) =>
-          Future.successful(${ stubImpl[Trait]('resolved) })
+          ${ stubImpl[Trait]('resolved) }
       }
     }
 
@@ -115,7 +115,7 @@ private object AgentClientInlineMacros {
     agentTypeExpr: Expr[AgentType[Trait, Constructor]],
     constructorExpr: Expr[Constructor],
     phantomExpr: Expr[Uuid]
-  )(using Quotes): Expr[Future[Trait]] =
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Constructor](
         $agentTypeExpr,
@@ -123,9 +123,9 @@ private object AgentClientInlineMacros {
         phantom = Some($phantomExpr)
       ) match {
         case Left(err) =>
-          Future.failed(js.JavaScriptException(err))
+          throw js.JavaScriptException(err)
         case Right(resolved) =>
-          Future.successful(${ stubImpl[Trait]('resolved) })
+          ${ stubImpl[Trait]('resolved) }
       }
     }
 

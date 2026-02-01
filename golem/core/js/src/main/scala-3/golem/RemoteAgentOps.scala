@@ -19,7 +19,7 @@ import scala.scalajs.js
  * Usage:
  * {{{
  * import golem.RemoteAgentOps.*
- * val remote = await(MyAgent.getRemote(...))
+ * val remote = MyAgent.getRemote(...)
  * remote.rpc.trigger_foo(...)
  * remote.rpc.schedule_foo(ts, ...)
  * }}}

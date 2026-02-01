@@ -137,7 +137,7 @@ final class HumanAgentImpl(private val username: String) extends HumanAgent {
   override def decide(workflowId: String, decision: String): Future[String] =
     ApprovalWorkflow
       .get(workflowId)
-      .flatMap(_.complete(decision))
+      .complete(decision)
       .map { ok =>
         if (ok) s"$username decided $decision for $workflowId"
         else s"$username failed to decide for $workflowId"

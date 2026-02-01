@@ -5,7 +5,6 @@ import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.jvm.JvmAgentClient
 
 import scala.annotation.unused
-import scala.concurrent.Future
 
 /**
  * JVM version of `AgentCompanion`.
@@ -25,35 +24,35 @@ trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
     AgentClientMacro.agentType[Trait].asInstanceOf[AgentType[Trait, Input]]
 
   /** Connect to (or create) an agent instance from constructor input. */
-  transparent inline def get(input: Input): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](agentType, input))
+  transparent inline def get(input: Input): Trait =
+    JvmAgentClient.connect[Trait](agentType, input)
 
   /** Unit-constructor convenience. */
-  transparent inline def get(): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](agentType, ()))
+  transparent inline def get(): Trait =
+    JvmAgentClient.connect[Trait](agentType, ())
 
   /** Tuple2 constructor convenience. */
-  transparent inline def get[A1, A2](a1: A1, a2: A2): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](agentType, (a1, a2)))
+  transparent inline def get[A1, A2](a1: A1, a2: A2): Trait =
+    JvmAgentClient.connect[Trait](agentType, (a1, a2))
 
   /** Tuple3 constructor convenience. */
-  transparent inline def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Future[Trait] =
-    Future.successful(JvmAgentClient.connect[Trait](agentType, (a1, a2, a3)))
+  transparent inline def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Trait =
+    JvmAgentClient.connect[Trait](agentType, (a1, a2, a3))
 
   // Phantom instances are not currently supported by the CLI-backed JVM test client.
-  final def getPhantom(@unused input: Any, @unused phantom: Uuid): Future[Trait] =
-    Future.failed(new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet"))
-  final def getPhantom(@unused phantom: Uuid): Future[Trait] =
-    Future.failed(new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet"))
-  final def getPhantom[A1, A2](@unused a1: A1, @unused a2: A2, @unused phantom: Uuid): Future[Trait] =
-    Future.failed(new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet"))
+  final def getPhantom(@unused input: Any, @unused phantom: Uuid): Trait =
+    throw new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet")
+  final def getPhantom(@unused phantom: Uuid): Trait =
+    throw new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet")
+  final def getPhantom[A1, A2](@unused a1: A1, @unused a2: A2, @unused phantom: Uuid): Trait =
+    throw new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet")
   final def getPhantom[A1, A2, A3](
     @unused a1: A1,
     @unused a2: A2,
     @unused a3: A3,
     @unused phantom: Uuid
-  ): Future[Trait] =
-    Future.failed(new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet"))
+  ): Trait =
+    throw new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet")
 }
 
 object AgentCompanion {

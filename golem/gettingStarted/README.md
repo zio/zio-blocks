@@ -138,13 +138,13 @@ import golem.RemoteAgentOps.*
 val remote = CounterAgent.getRemote("shard-id")
 
 // Await (always invoke-and-await)
-remote.flatMap(_.rpc.call_increment())
+remote.rpc.call_increment()
 
 // Fire-and-forget trigger
-remote.flatMap(_.rpc.trigger_increment())
+remote.rpc.trigger_increment()
 
 // Schedule (run 5 seconds later)
-remote.flatMap(_.rpc.schedule_increment(Datetime.afterSeconds(5)))
+remote.rpc.schedule_increment(Datetime.afterSeconds(5))
 ```
 
 Notes:

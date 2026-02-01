@@ -78,11 +78,9 @@ object AgentCompanionMacro {
            $input.asInstanceOf[$inTpe]
          ) match {
            case _root_.scala.util.Left(err) =>
-             _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
+             throw _root_.scala.scalajs.js.JavaScriptException(err)
            case _root_.scala.util.Right(resolved) =>
-             _root_.scala.concurrent.Future.successful(
-               _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved)
-             )
+             _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved)
          }
      """
   }
@@ -98,11 +96,9 @@ object AgentCompanionMacro {
            $input.asInstanceOf[$inTpe]
          ) match {
            case _root_.scala.util.Left(err) =>
-             _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
+             throw _root_.scala.scalajs.js.JavaScriptException(err)
            case _root_.scala.util.Right(resolved) =>
-             _root_.scala.concurrent.Future.successful(
-               _root_.golem.RemoteAgent(resolved)
-             )
+             _root_.golem.RemoteAgent(resolved)
          }
      """
   }
@@ -118,11 +114,9 @@ object AgentCompanionMacro {
          phantom = _root_.scala.Some($phantom.asInstanceOf[_root_.golem.Uuid])
        ) match {
          case _root_.scala.util.Left(err) =>
-           _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
+           throw _root_.scala.scalajs.js.JavaScriptException(err)
          case _root_.scala.util.Right(resolved) =>
-           _root_.scala.concurrent.Future.successful(
-             _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved)
-           )
+           _root_.golem.runtime.rpc.AgentClient.bind[$traitTpe](resolved)
        }
      """
   }
@@ -138,11 +132,9 @@ object AgentCompanionMacro {
          phantom = _root_.scala.Some($phantom.asInstanceOf[_root_.golem.Uuid])
        ) match {
          case _root_.scala.util.Left(err) =>
-           _root_.scala.concurrent.Future.failed(_root_.scala.scalajs.js.JavaScriptException(err))
+           throw _root_.scala.scalajs.js.JavaScriptException(err)
          case _root_.scala.util.Right(resolved) =>
-           _root_.scala.concurrent.Future.successful(
-             _root_.golem.RemoteAgent(resolved)
-           )
+           _root_.golem.RemoteAgent(resolved)
        }
      """
   }
