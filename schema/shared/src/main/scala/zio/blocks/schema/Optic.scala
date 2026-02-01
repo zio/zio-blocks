@@ -2119,9 +2119,10 @@ object Traversal {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newBuilder[Any](sizeHint)
-            val it      = deconstructor.deconstruct(col)
-            var currIdx = 0
+            implicit val classTag: ClassTag[Any] = atBinding.elemClassTag.asInstanceOf[ClassTag[Any]]
+            val builder                          = constructor.newBuilder[Any](sizeHint)
+            val it                               = deconstructor.deconstruct(col)
+            var currIdx                          = 0
             while (it.hasNext) {
               constructor.add(
                 builder, {
@@ -2213,8 +2214,9 @@ object Traversal {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newBuilder[Any](sizeHint)
-            val it      = deconstructor.deconstruct(col)
+            implicit val classTag: ClassTag[Any] = seqBinding.elemClassTag.asInstanceOf[ClassTag[Any]]
+            val builder                          = constructor.newBuilder[Any](sizeHint)
+            val it                               = deconstructor.deconstruct(col)
             while (it.hasNext) constructor.add(builder, modifyRecursive(registers, idx + 1, it.next(), f))
             constructor.result(builder)
           }
