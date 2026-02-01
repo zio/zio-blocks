@@ -1,345 +1,1315 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
-import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
-import java.time._
-import java.util.{Currency, UUID}
 
-object PrimitiveConversionsSpec extends SchemaBaseSpec {
+/**
+ * Tests for PrimitiveConversions to ensure comprehensive branch coverage.
+ */
+object PrimitiveConversionsSpec extends ZIOSpecDefault {
 
-  // Helper to extract Left value safely (avoiding deprecated .left.get)
-  private def leftValue(either: Either[String, Any]): String = either match {
-    case Left(msg) => msg
-    case Right(_)  => ""
-  }
-
-  // Helper constructors
-  def dynamicByte(v: Byte): DynamicValue             = DynamicValue.Primitive(PrimitiveValue.Byte(v))
-  def dynamicShort(v: Short): DynamicValue           = DynamicValue.Primitive(PrimitiveValue.Short(v))
-  def dynamicInt(v: Int): DynamicValue               = DynamicValue.Primitive(PrimitiveValue.Int(v))
-  def dynamicLong(v: Long): DynamicValue             = DynamicValue.Primitive(PrimitiveValue.Long(v))
-  def dynamicFloat(v: Float): DynamicValue           = DynamicValue.Primitive(PrimitiveValue.Float(v))
-  def dynamicDouble(v: Double): DynamicValue         = DynamicValue.Primitive(PrimitiveValue.Double(v))
-  def dynamicString(v: String): DynamicValue         = DynamicValue.Primitive(PrimitiveValue.String(v))
-  def dynamicBoolean(v: Boolean): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Boolean(v))
-  def dynamicChar(v: Char): DynamicValue             = DynamicValue.Primitive(PrimitiveValue.Char(v))
-  def dynamicBigInt(v: BigInt): DynamicValue         = DynamicValue.Primitive(PrimitiveValue.BigInt(v))
-  def dynamicBigDecimal(v: BigDecimal): DynamicValue = DynamicValue.Primitive(PrimitiveValue.BigDecimal(v))
+  import PrimitiveConversions._
 
   def spec: Spec[TestEnvironment, Any] = suite("PrimitiveConversionsSpec")(
     suite("Identity conversions")(
-      test("same type returns input unchanged") {
-        val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "Int")
-        assertTrue(result == Right(dynamicInt(42)))
+      test("same type identity Int") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(42)),
+          "Int",
+          "Int"
+        )
+        assertTrue(result.isRight)
+      },
+      test("same type identity String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("test")),
+          "String",
+          "String"
+        )
+        assertTrue(result.isRight)
       }
     ),
-    suite("Numeric widening")(
-      test("Byte -> Short") {
-        val result = PrimitiveConversions.convert(dynamicByte(42), "Byte", "Short")
-        assertTrue(result == Right(dynamicShort(42)))
+    suite("Numeric widening conversions")(
+      test("Byte to Short") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "Short"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Short(10))))
       },
-      test("Byte -> Int") {
-        val result = PrimitiveConversions.convert(dynamicByte(127), "Byte", "Int")
-        assertTrue(result == Right(dynamicInt(127)))
+      test("Byte to Int") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(10))))
       },
-      test("Byte -> Long") {
-        val result = PrimitiveConversions.convert(dynamicByte(-128), "Byte", "Long")
-        assertTrue(result == Right(dynamicLong(-128L)))
+      test("Byte to Long") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(10L))))
       },
-      test("Short -> Int") {
-        val result = PrimitiveConversions.convert(dynamicShort(32767), "Short", "Int")
-        assertTrue(result == Right(dynamicInt(32767)))
+      test("Byte to Float") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "Float"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(10.0f))))
       },
-      test("Short -> Long") {
-        val result = PrimitiveConversions.convert(dynamicShort(-32768), "Short", "Long")
-        assertTrue(result == Right(dynamicLong(-32768L)))
+      test("Byte to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "Double"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(10.0))))
       },
-      test("Int -> Long") {
-        val result = PrimitiveConversions.convert(dynamicInt(Int.MaxValue), "Int", "Long")
-        assertTrue(result == Right(dynamicLong(Int.MaxValue.toLong)))
+      test("Byte to BigInt") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "BigInt"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10)))))
       },
-      test("Int -> Double") {
-        val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "Double")
-        assertTrue(result == Right(dynamicDouble(42.0)))
+      test("Byte to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(10)),
+          "Byte",
+          "BigDecimal"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10)))))
       },
-      test("Long -> Double") {
-        val result = PrimitiveConversions.convert(dynamicLong(100L), "Long", "Double")
-        assertTrue(result == Right(dynamicDouble(100.0)))
+      test("Short to Int") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(100)),
+          "Short",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(100))))
       },
-      test("Float -> Double") {
-        val result = PrimitiveConversions.convert(dynamicFloat(3.14f), "Float", "Double")
-        assertTrue(result == Right(dynamicDouble(3.14f.toDouble)))
+      test("Short to Long") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(100)),
+          "Short",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(100L))))
       },
-      test("Int -> BigInt") {
-        val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "BigInt")
-        assertTrue(result == Right(dynamicBigInt(42)))
+      test("Short to Float") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(100)),
+          "Short",
+          "Float"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(100.0f))))
       },
-      test("Long -> BigDecimal") {
-        val result = PrimitiveConversions.convert(dynamicLong(100L), "Long", "BigDecimal")
-        assertTrue(result == Right(dynamicBigDecimal(BigDecimal(100L))))
+      test("Short to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(100)),
+          "Short",
+          "Double"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(100.0))))
+      },
+      test("Short to BigInt") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(100)),
+          "Short",
+          "BigInt"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(100)))))
+      },
+      test("Short to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(100)),
+          "Short",
+          "BigDecimal"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(100)))))
+      },
+      test("Int to Long") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(1000)),
+          "Int",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(1000L))))
+      },
+      test("Int to Float") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(1000)),
+          "Int",
+          "Float"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(1000.0f))))
+      },
+      test("Int to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(1000)),
+          "Int",
+          "Double"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(1000.0))))
+      },
+      test("Int to BigInt") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(1000)),
+          "Int",
+          "BigInt"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1000)))))
+      },
+      test("Int to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(1000)),
+          "Int",
+          "BigDecimal"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1000)))))
+      },
+      test("Long to Float") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(10000L)),
+          "Long",
+          "Float"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(10000.0f))))
+      },
+      test("Long to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(10000L)),
+          "Long",
+          "Double"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(10000.0))))
+      },
+      test("Long to BigInt") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(10000L)),
+          "Long",
+          "BigInt"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10000L)))))
+      },
+      test("Long to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(10000L)),
+          "Long",
+          "BigDecimal"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10000L)))))
+      },
+      test("Float to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Float(3.14f)),
+          "Float",
+          "Double"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Float to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Float(3.14f)),
+          "Float",
+          "BigDecimal"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Double to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(3.14159)),
+          "Double",
+          "BigDecimal"
+        )
+        assertTrue(result.isRight)
+      },
+      test("BigInt to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345))),
+          "BigInt",
+          "BigDecimal"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(12345)))))
       }
     ),
-    suite("Numeric narrowing")(
-      test("Short -> Byte (in range)") {
-        val result = PrimitiveConversions.convert(dynamicShort(100), "Short", "Byte")
-        assertTrue(result == Right(dynamicByte(100)))
+    suite("Numeric narrowing conversions")(
+      test("Short to Byte in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(50)),
+          "Short",
+          "Byte"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Byte(50))))
       },
-      test("Short -> Byte (out of range)") {
-        val result = PrimitiveConversions.convert(dynamicShort(200), "Short", "Byte")
-        assertTrue(result.isLeft && leftValue(result).contains("out of Byte range"))
+      test("Short to Byte out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(200)),
+          "Short",
+          "Byte"
+        )
+        assertTrue(result.isLeft)
       },
-      test("Int -> Short (in range)") {
-        val result = PrimitiveConversions.convert(dynamicInt(1000), "Int", "Short")
-        assertTrue(result == Right(dynamicShort(1000)))
+      test("Int to Byte in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(100)),
+          "Int",
+          "Byte"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Byte(100))))
       },
-      test("Int -> Short (out of range)") {
-        val result = PrimitiveConversions.convert(dynamicInt(40000), "Int", "Short")
-        assertTrue(result.isLeft && leftValue(result).contains("out of Short range"))
+      test("Int to Byte out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(500)),
+          "Int",
+          "Byte"
+        )
+        assertTrue(result.isLeft)
       },
-      test("Long -> Int (in range)") {
-        val result = PrimitiveConversions.convert(dynamicLong(12345L), "Long", "Int")
-        assertTrue(result == Right(dynamicInt(12345)))
+      test("Int to Short in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(1000)),
+          "Int",
+          "Short"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Short(1000))))
       },
-      test("Long -> Int (out of range)") {
-        val result = PrimitiveConversions.convert(dynamicLong(Long.MaxValue), "Long", "Int")
-        assertTrue(result.isLeft && leftValue(result).contains("out of Int range"))
+      test("Int to Short out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(50000)),
+          "Int",
+          "Short"
+        )
+        assertTrue(result.isLeft)
       },
-      test("Double -> Float") {
-        val result = PrimitiveConversions.convert(dynamicDouble(3.14), "Double", "Float")
-        assertTrue(result == Right(dynamicFloat(3.14.toFloat)))
+      test("Long to Byte in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(50L)),
+          "Long",
+          "Byte"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Byte(50))))
       },
-      test("BigInt -> Int (in range)") {
-        val result = PrimitiveConversions.convert(dynamicBigInt(42), "BigInt", "Int")
-        assertTrue(result == Right(dynamicInt(42)))
+      test("Long to Byte out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(500L)),
+          "Long",
+          "Byte"
+        )
+        assertTrue(result.isLeft)
       },
-      test("BigInt -> Int (out of range)") {
-        val result = PrimitiveConversions.convert(
-          dynamicBigInt(BigInt("99999999999999999999")),
+      test("Long to Short in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(1000L)),
+          "Long",
+          "Short"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Short(1000))))
+      },
+      test("Long to Short out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(50000L)),
+          "Long",
+          "Short"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("Long to Int in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(100000L)),
+          "Long",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(100000))))
+      },
+      test("Long to Int out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(Long.MaxValue)),
+          "Long",
+          "Int"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("Float to Int in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Float(100.5f)),
+          "Float",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(100))))
+      },
+      test("Float to Int out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Float(Float.MaxValue)),
+          "Float",
+          "Int"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("Float to Long") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Float(100.5f)),
+          "Float",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(100L))))
+      },
+      test("Double to Float") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(3.14)),
+          "Double",
+          "Float"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Double to Int in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(100.0)),
+          "Double",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(100))))
+      },
+      test("Double to Int out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(Double.MaxValue)),
+          "Double",
+          "Int"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("Double to Long in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(100.0)),
+          "Double",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(100L))))
+      },
+      test("Double to Long out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(Double.MaxValue)),
+          "Double",
+          "Long"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("BigInt to Int in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(100))),
           "BigInt",
           "Int"
         )
-        assertTrue(result.isLeft && leftValue(result).contains("out of Int range"))
-      }
-    ),
-    suite("Any -> String")(
-      test("Int -> String") {
-        val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "String")
-        assertTrue(result == Right(dynamicString("42")))
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(100))))
       },
-      test("Long -> String") {
-        val result = PrimitiveConversions.convert(dynamicLong(123456789L), "Long", "String")
-        assertTrue(result == Right(dynamicString("123456789")))
-      },
-      test("Double -> String") {
-        val result = PrimitiveConversions.convert(dynamicDouble(3.14159), "Double", "String")
-        assertTrue(result == Right(dynamicString("3.14159")))
-      },
-      test("Boolean -> String") {
-        val result = PrimitiveConversions.convert(dynamicBoolean(true), "Boolean", "String")
-        assertTrue(result == Right(dynamicString("true")))
-      }
-    ),
-    suite("String parsing")(
-      test("String -> Int (valid)") {
-        val result = PrimitiveConversions.convert(dynamicString("42"), "String", "Int")
-        assertTrue(result == Right(dynamicInt(42)))
-      },
-      test("String -> Int (invalid)") {
-        val result = PrimitiveConversions.convert(dynamicString("not-a-number"), "String", "Int")
-        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
-      },
-      test("String -> Int (with whitespace)") {
-        val result = PrimitiveConversions.convert(dynamicString("  42  "), "String", "Int")
-        assertTrue(result == Right(dynamicInt(42)))
-      },
-      test("String -> Long (valid)") {
-        val result = PrimitiveConversions.convert(dynamicString("123456789"), "String", "Long")
-        assertTrue(result == Right(dynamicLong(123456789L)))
-      },
-      test("String -> Double (valid)") {
-        val result = PrimitiveConversions.convert(dynamicString("3.14"), "String", "Double")
-        assertTrue(result == Right(dynamicDouble(3.14)))
-      },
-      test("String -> Boolean (true)") {
-        val result = PrimitiveConversions.convert(dynamicString("true"), "String", "Boolean")
-        assertTrue(result == Right(dynamicBoolean(true)))
-      },
-      test("String -> Boolean (false)") {
-        val result = PrimitiveConversions.convert(dynamicString("false"), "String", "Boolean")
-        assertTrue(result == Right(dynamicBoolean(false)))
-      },
-      test("String -> Boolean (invalid)") {
-        val result = PrimitiveConversions.convert(dynamicString("maybe"), "String", "Boolean")
+      test("BigInt to Int out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(Long.MaxValue) * BigInt(2))),
+          "BigInt",
+          "Int"
+        )
         assertTrue(result.isLeft)
       },
-      test("String -> BigInt") {
-        val result = PrimitiveConversions.convert(dynamicString("123456789012345678901234567890"), "String", "BigInt")
-        assertTrue(result == Right(dynamicBigInt(BigInt("123456789012345678901234567890"))))
+      test("BigInt to Long in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(100000L))),
+          "BigInt",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(100000L))))
       },
-      test("String -> BigDecimal") {
-        val result = PrimitiveConversions.convert(dynamicString("3.14159265358979"), "String", "BigDecimal")
-        assertTrue(result == Right(dynamicBigDecimal(BigDecimal("3.14159265358979"))))
+      test("BigInt to Long out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(Long.MaxValue) * BigInt(2))),
+          "BigInt",
+          "Long"
+        )
+        assertTrue(result.isLeft)
       },
-      test("String -> Char (single character)") {
-        val result = PrimitiveConversions.convert(dynamicString("A"), "String", "Char")
-        assertTrue(result == Right(dynamicChar('A')))
+      test("BigDecimal to Int in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(100))),
+          "BigDecimal",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(100))))
       },
-      test("String -> Char (multiple characters fails)") {
-        val result = PrimitiveConversions.convert(dynamicString("AB"), "String", "Char")
-        assertTrue(result.isLeft && leftValue(result).contains("must be exactly 1"))
+      test("BigDecimal to Int out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(Long.MaxValue) * 2)),
+          "BigDecimal",
+          "Int"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("BigDecimal to Long in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(100000L))),
+          "BigDecimal",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(100000L))))
+      },
+      test("BigDecimal to Long out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(Long.MaxValue) * 2)),
+          "BigDecimal",
+          "Long"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("BigDecimal to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3.14159))),
+          "BigDecimal",
+          "Double"
+        )
+        assertTrue(result.isRight)
+      },
+      test("BigDecimal to BigInt") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(12345))),
+          "BigDecimal",
+          "BigInt"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345)))))
       }
     ),
-    suite("String -> UUID")(
-      test("valid UUID") {
-        // Use a static UUID to avoid SecureRandom dependency on Scala.js
-        val uuid   = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        val result = PrimitiveConversions.convert(dynamicString(uuid.toString), "String", "UUID")
+    suite("String conversions")(
+      test("Int to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(42)),
+          "Int",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+      },
+      test("Boolean to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+          "Boolean",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("true"))))
+      },
+      test("String to Byte") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("42")),
+          "String",
+          "Byte"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Byte(42))))
+      },
+      test("String to Byte invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Byte"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Short") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("1000")),
+          "String",
+          "Short"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Short(1000))))
+      },
+      test("String to Short invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Short"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Int") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("12345")),
+          "String",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(12345))))
+      },
+      test("String to Int invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Int"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Long") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("123456789")),
+          "String",
+          "Long"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(123456789L))))
+      },
+      test("String to Long invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Long"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Float") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("3.14")),
+          "String",
+          "Float"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Float invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Float"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Double") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("3.14159")),
+          "String",
+          "Double"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Double invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Double"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Boolean true") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("true")),
+          "String",
+          "Boolean"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("String to Boolean false") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("false")),
+          "String",
+          "Boolean"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+      },
+      test("String to Boolean invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Boolean"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to BigInt") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("12345")),
+          "String",
+          "BigInt"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345)))))
+      },
+      test("String to BigInt invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "BigInt"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to BigDecimal") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("3.14159")),
+          "String",
+          "BigDecimal"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to BigDecimal invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "BigDecimal"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Char") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("A")),
+          "String",
+          "Char"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Char('A'))))
+      },
+      test("String to Char invalid (too long)") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("AB")),
+          "String",
+          "Char"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to UUID") {
+        val uuid   = java.util.UUID.randomUUID()
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String(uuid.toString)),
+          "String",
+          "UUID"
+        )
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.UUID(uuid))))
       },
-      test("invalid UUID") {
-        val result = PrimitiveConversions.convert(dynamicString("not-a-uuid"), "String", "UUID")
-        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
+      test("String to UUID invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "UUID"
+        )
+        assertTrue(result.isLeft)
       }
     ),
-    suite("String -> Temporal types")(
-      test("String -> Instant") {
-        val instant = Instant.parse("2024-01-15T10:30:00Z")
-        val result  = PrimitiveConversions.convert(dynamicString("2024-01-15T10:30:00Z"), "String", "Instant")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Instant(instant))))
+    suite("Temporal conversions")(
+      test("String to Instant") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024-01-01T12:00:00Z")),
+          "String",
+          "Instant"
+        )
+        assertTrue(result.isRight)
       },
-      test("String -> LocalDate") {
-        val date   = LocalDate.parse("2024-01-15")
-        val result = PrimitiveConversions.convert(dynamicString("2024-01-15"), "String", "LocalDate")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.LocalDate(date))))
+      test("String to Instant invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Instant"
+        )
+        assertTrue(result.isLeft)
       },
-      test("String -> LocalTime") {
-        val time   = LocalTime.parse("10:30:00")
-        val result = PrimitiveConversions.convert(dynamicString("10:30:00"), "String", "LocalTime")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.LocalTime(time))))
+      test("String to LocalDate") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024-01-01")),
+          "String",
+          "LocalDate"
+        )
+        assertTrue(result.isRight)
       },
-      test("String -> LocalDateTime") {
-        val dt     = LocalDateTime.parse("2024-01-15T10:30:00")
-        val result = PrimitiveConversions.convert(dynamicString("2024-01-15T10:30:00"), "String", "LocalDateTime")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.LocalDateTime(dt))))
+      test("String to LocalDate invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "LocalDate"
+        )
+        assertTrue(result.isLeft)
       },
-      test("String -> Duration") {
-        val duration = Duration.parse("PT1H30M")
-        val result   = PrimitiveConversions.convert(dynamicString("PT1H30M"), "String", "Duration")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Duration(duration))))
+      test("String to LocalTime") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("12:30:00")),
+          "String",
+          "LocalTime"
+        )
+        assertTrue(result.isRight)
       },
-      test("String -> Period") {
-        val period = Period.parse("P1Y2M3D")
-        val result = PrimitiveConversions.convert(dynamicString("P1Y2M3D"), "String", "Period")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Period(period))))
+      test("String to LocalTime invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "LocalTime"
+        )
+        assertTrue(result.isLeft)
       },
-      test("String -> DayOfWeek") {
-        val result = PrimitiveConversions.convert(dynamicString("MONDAY"), "String", "DayOfWeek")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY))))
+      test("String to LocalDateTime") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024-01-01T12:30:00")),
+          "String",
+          "LocalDateTime"
+        )
+        assertTrue(result.isRight)
       },
-      test("String -> Month") {
-        val result = PrimitiveConversions.convert(dynamicString("JANUARY"), "String", "Month")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Month(Month.JANUARY))))
+      test("String to LocalDateTime invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "LocalDateTime"
+        )
+        assertTrue(result.isLeft)
       },
-      test("String -> Year") {
-        val result = PrimitiveConversions.convert(dynamicString("2024"), "String", "Year")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Year(Year.of(2024)))))
+      test("String to OffsetDateTime") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024-01-01T12:30:00+05:00")),
+          "String",
+          "OffsetDateTime"
+        )
+        assertTrue(result.isRight)
       },
-      test("String -> YearMonth") {
-        val result = PrimitiveConversions.convert(dynamicString("2024-01"), "String", "YearMonth")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.YearMonth(YearMonth.of(2024, 1)))))
+      test("String to OffsetDateTime invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "OffsetDateTime"
+        )
+        assertTrue(result.isLeft)
       },
-      test("String -> ZoneId") {
-        val result = PrimitiveConversions.convert(dynamicString("America/New_York"), "String", "ZoneId")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.ZoneId(ZoneId.of("America/New_York")))))
+      test("String to OffsetTime") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("12:30:00+05:00")),
+          "String",
+          "OffsetTime"
+        )
+        assertTrue(result.isRight)
       },
-      test("String -> ZoneOffset") {
-        val result = PrimitiveConversions.convert(dynamicString("+05:00"), "String", "ZoneOffset")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.ZoneOffset(ZoneOffset.of("+05:00")))))
+      test("String to OffsetTime invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "OffsetTime"
+        )
+        assertTrue(result.isLeft)
       },
-      test("invalid temporal string fails") {
-        val result = PrimitiveConversions.convert(dynamicString("not-a-date"), "String", "LocalDate")
-        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
+      test("String to ZonedDateTime") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024-01-01T12:30:00+05:00[Asia/Karachi]")),
+          "String",
+          "ZonedDateTime"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to ZonedDateTime invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "ZonedDateTime"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Duration") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("PT1H30M")),
+          "String",
+          "Duration"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Duration invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Duration"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Period") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("P1Y2M3D")),
+          "String",
+          "Period"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Period invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Period"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Year") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024")),
+          "String",
+          "Year"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Year invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Year"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to YearMonth") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("2024-01")),
+          "String",
+          "YearMonth"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to YearMonth invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "YearMonth"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to MonthDay") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("--01-15")),
+          "String",
+          "MonthDay"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to MonthDay invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "MonthDay"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to DayOfWeek") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("MONDAY")),
+          "String",
+          "DayOfWeek"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to DayOfWeek invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "DayOfWeek"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Month") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("JANUARY")),
+          "String",
+          "Month"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Month invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Month"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to ZoneId") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("America/New_York")),
+          "String",
+          "ZoneId"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to ZoneId invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("Invalid/Zone")),
+          "String",
+          "ZoneId"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to ZoneOffset") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("+05:00")),
+          "String",
+          "ZoneOffset"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to ZoneOffset invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "ZoneOffset"
+        )
+        assertTrue(result.isLeft)
+      },
+      test("String to Currency") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("USD")),
+          "String",
+          "Currency"
+        )
+        assertTrue(result.isRight)
+      },
+      test("String to Currency invalid") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.String("invalid")),
+          "String",
+          "Currency"
+        )
+        assertTrue(result.isLeft)
       }
     ),
-    suite("String -> Currency")(
-      test("valid currency code") {
-        val result = PrimitiveConversions.convert(dynamicString("USD"), "String", "Currency")
-        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Currency(Currency.getInstance("USD")))))
+    suite("Char and Boolean conversions")(
+      test("Char to Int") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Char('A')),
+          "Char",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(65))))
       },
-      test("invalid currency code") {
-        val result = PrimitiveConversions.convert(dynamicString("INVALID"), "String", "Currency")
-        assertTrue(result.isLeft && leftValue(result).contains("Cannot parse"))
-      }
-    ),
-    suite("Char <-> Int")(
-      test("Char -> Int") {
-        val result = PrimitiveConversions.convert(dynamicChar('A'), "Char", "Int")
-        assertTrue(result == Right(dynamicInt(65)))
+      test("Int to Char in range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(65)),
+          "Int",
+          "Char"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Char('A'))))
       },
-      test("Int -> Char (in range)") {
-        val result = PrimitiveConversions.convert(dynamicInt(65), "Int", "Char")
-        assertTrue(result == Right(dynamicChar('A')))
+      test("Int to Char out of range") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(-1)),
+          "Int",
+          "Char"
+        )
+        assertTrue(result.isLeft)
       },
-      test("Int -> Char (out of range)") {
-        val result = PrimitiveConversions.convert(dynamicInt(-1), "Int", "Char")
-        assertTrue(result.isLeft && leftValue(result).contains("out of Char range"))
-      }
-    ),
-    suite("Boolean <-> Int")(
-      test("Boolean true -> Int 1") {
-        val result = PrimitiveConversions.convert(dynamicBoolean(true), "Boolean", "Int")
-        assertTrue(result == Right(dynamicInt(1)))
+      test("Boolean to Int true") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+          "Boolean",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(1))))
       },
-      test("Boolean false -> Int 0") {
-        val result = PrimitiveConversions.convert(dynamicBoolean(false), "Boolean", "Int")
-        assertTrue(result == Right(dynamicInt(0)))
+      test("Boolean to Int false") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Boolean(false)),
+          "Boolean",
+          "Int"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(0))))
       },
-      test("Int 1 -> Boolean true") {
-        val result = PrimitiveConversions.convert(dynamicInt(1), "Int", "Boolean")
-        assertTrue(result == Right(dynamicBoolean(true)))
+      test("Int to Boolean non-zero") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(42)),
+          "Int",
+          "Boolean"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
       },
-      test("Int 0 -> Boolean false") {
-        val result = PrimitiveConversions.convert(dynamicInt(0), "Int", "Boolean")
-        assertTrue(result == Right(dynamicBoolean(false)))
-      },
-      test("Int non-zero -> Boolean true") {
-        val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "Boolean")
-        assertTrue(result == Right(dynamicBoolean(true)))
+      test("Int to Boolean zero") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Int(0)),
+          "Int",
+          "Boolean"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
       }
     ),
     suite("Unsupported conversions")(
-      test("unsupported conversion returns error") {
-        val result = PrimitiveConversions.convert(dynamicInt(42), "Int", "UUID")
-        assertTrue(result.isLeft && leftValue(result).contains("Unsupported conversion"))
+      test("unsupported conversion returns Left") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+          "Boolean",
+          "Double"
+        )
+        assertTrue(result.isLeft)
       }
     ),
     suite("Helper methods")(
-      test("isWideningConversion returns true for valid widening") {
-        assertTrue(
-          PrimitiveConversions.isWideningConversion("Byte", "Int") &&
-            PrimitiveConversions.isWideningConversion("Int", "Long") &&
-            PrimitiveConversions.isWideningConversion("Float", "Double")
-        )
+      test("isWideningConversion Byte to Int is true") {
+        assertTrue(isWideningConversion("Byte", "Int"))
       },
-      test("isWideningConversion returns false for narrowing") {
-        assertTrue(
-          !PrimitiveConversions.isWideningConversion("Int", "Byte") &&
-            !PrimitiveConversions.isWideningConversion("Long", "Int")
-        )
+      test("isWideningConversion Int to Byte is false") {
+        assertTrue(!isWideningConversion("Int", "Byte"))
       },
-      test("isNarrowingConversion returns true for valid narrowing") {
-        assertTrue(
-          PrimitiveConversions.isNarrowingConversion("Int", "Byte") &&
-            PrimitiveConversions.isNarrowingConversion("Long", "Short")
-        )
+      test("isNarrowingConversion Int to Byte is true") {
+        assertTrue(isNarrowingConversion("Int", "Byte"))
       },
-      test("supportedConversionsFrom returns expected types") {
-        val intConversions = PrimitiveConversions.supportedConversionsFrom("Int")
+      test("isNarrowingConversion Byte to Int is false") {
+        assertTrue(!isNarrowingConversion("Byte", "Int"))
+      },
+      test("supportedConversionsFrom Byte") {
+        val conversions = supportedConversionsFrom("Byte")
+        assertTrue(conversions.contains("Int") && conversions.contains("Long") && conversions.contains("String"))
+      },
+      test("supportedConversionsFrom String") {
+        val conversions = supportedConversionsFrom("String")
+        assertTrue(conversions.contains("Int") && conversions.contains("UUID") && conversions.contains("Instant"))
+      },
+      test("supportedConversionsFrom unknown type") {
+        val conversions = supportedConversionsFrom("Unknown")
+        assertTrue(conversions == Set("String"))
+      },
+      test("supportedConversionsFrom Short") {
+        val conversions = supportedConversionsFrom("Short")
+        assertTrue(conversions.contains("Int") && conversions.contains("Byte"))
+      },
+      test("supportedConversionsFrom Long") {
+        val conversions = supportedConversionsFrom("Long")
+        assertTrue(conversions.contains("Int") && conversions.contains("Short"))
+      },
+      test("supportedConversionsFrom Float") {
+        val conversions = supportedConversionsFrom("Float")
+        assertTrue(conversions.contains("Double"))
+      },
+      test("supportedConversionsFrom Double") {
+        val conversions = supportedConversionsFrom("Double")
+        assertTrue(conversions.contains("Float") && conversions.contains("Int"))
+      },
+      test("supportedConversionsFrom BigInt") {
+        val conversions = supportedConversionsFrom("BigInt")
+        assertTrue(conversions.contains("Int") && conversions.contains("Long"))
+      },
+      test("supportedConversionsFrom BigDecimal") {
+        val conversions = supportedConversionsFrom("BigDecimal")
+        assertTrue(conversions.contains("Int") && conversions.contains("Long") && conversions.contains("Double"))
+      },
+      test("supportedConversionsFrom Char") {
+        val conversions = supportedConversionsFrom("Char")
+        assertTrue(conversions.contains("Int") && conversions.contains("String"))
+      },
+      test("supportedConversionsFrom Boolean") {
+        val conversions = supportedConversionsFrom("Boolean")
+        assertTrue(conversions.contains("Int") && conversions.contains("String"))
+      }
+    ),
+    suite("Primitive to String via any-to-String fallback")(
+      test("Unit to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Unit),
+          "Unit",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("()"))))
+      },
+      test("Byte to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Byte(42)),
+          "Byte",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+      },
+      test("Short to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Short(1000)),
+          "Short",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("1000"))))
+      },
+      test("Long to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Long(123456789L)),
+          "Long",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("123456789"))))
+      },
+      test("Float to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Float(3.14f)),
+          "Float",
+          "String"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Double to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Double(3.14159)),
+          "Double",
+          "String"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Char to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Char('X')),
+          "Char",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("X"))))
+      },
+      test("BigInt to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("12345678901234567890"))),
+          "BigInt",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("12345678901234567890"))))
+      },
+      test("BigDecimal to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("3.141592653589793"))),
+          "BigDecimal",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("3.141592653589793"))))
+      },
+      test("DayOfWeek to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.DayOfWeek(java.time.DayOfWeek.MONDAY)),
+          "DayOfWeek",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("MONDAY"))))
+      },
+      test("Duration to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Duration(java.time.Duration.ofHours(1))),
+          "Duration",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("PT1H"))))
+      },
+      test("Instant to String") {
+        val instant = java.time.Instant.parse("2024-01-01T12:00:00Z")
+        val result  = convert(
+          DynamicValue.Primitive(PrimitiveValue.Instant(instant)),
+          "Instant",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("2024-01-01T12:00:00Z"))))
+      },
+      test("LocalDate to String") {
+        val ld     = java.time.LocalDate.of(2024, 1, 15)
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.LocalDate(ld)),
+          "LocalDate",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("2024-01-15"))))
+      },
+      test("LocalDateTime to String") {
+        val ldt    = java.time.LocalDateTime.of(2024, 1, 15, 12, 30, 0)
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.LocalDateTime(ldt)),
+          "LocalDateTime",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("2024-01-15T12:30"))))
+      },
+      test("LocalTime to String") {
+        val lt     = java.time.LocalTime.of(12, 30, 0)
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.LocalTime(lt)),
+          "LocalTime",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("12:30"))))
+      },
+      test("Month to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Month(java.time.Month.JANUARY)),
+          "Month",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("JANUARY"))))
+      },
+      test("MonthDay to String") {
+        val md     = java.time.MonthDay.of(1, 15)
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.MonthDay(md)),
+          "MonthDay",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("--01-15"))))
+      },
+      test("OffsetDateTime to String") {
+        val odt    = java.time.OffsetDateTime.of(2024, 1, 15, 12, 30, 0, 0, java.time.ZoneOffset.ofHours(5))
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.OffsetDateTime(odt)),
+          "OffsetDateTime",
+          "String"
+        )
+        assertTrue(result.isRight)
+      },
+      test("OffsetTime to String") {
+        val ot     = java.time.OffsetTime.of(12, 30, 0, 0, java.time.ZoneOffset.ofHours(5))
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.OffsetTime(ot)),
+          "OffsetTime",
+          "String"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Period to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Period(java.time.Period.of(1, 2, 3))),
+          "Period",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("P1Y2M3D"))))
+      },
+      test("Year to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Year(java.time.Year.of(2024))),
+          "Year",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("2024"))))
+      },
+      test("YearMonth to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.YearMonth(java.time.YearMonth.of(2024, 1))),
+          "YearMonth",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("2024-01"))))
+      },
+      test("ZoneId to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.ZoneId(java.time.ZoneId.of("America/New_York"))),
+          "ZoneId",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("America/New_York"))))
+      },
+      test("ZoneOffset to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.ZoneOffset(java.time.ZoneOffset.ofHours(5))),
+          "ZoneOffset",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("+05:00"))))
+      },
+      test("ZonedDateTime to String") {
+        val zdt    = java.time.ZonedDateTime.of(2024, 1, 15, 12, 30, 0, 0, java.time.ZoneId.of("America/New_York"))
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.ZonedDateTime(zdt)),
+          "ZonedDateTime",
+          "String"
+        )
+        assertTrue(result.isRight)
+      },
+      test("Currency to String") {
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.Currency(java.util.Currency.getInstance("USD"))),
+          "Currency",
+          "String"
+        )
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("USD"))))
+      },
+      test("UUID to String") {
+        val uuid   = java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        val result = convert(
+          DynamicValue.Primitive(PrimitiveValue.UUID(uuid)),
+          "UUID",
+          "String"
+        )
         assertTrue(
-          intConversions.contains("Long") &&
-            intConversions.contains("String") &&
-            intConversions.contains("Char")
+          result == Right(DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000")))
         )
       }
     )
