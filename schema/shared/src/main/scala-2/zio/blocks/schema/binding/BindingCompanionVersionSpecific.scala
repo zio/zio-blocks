@@ -13,15 +13,17 @@ trait BindingCompanionVersionSpecific {
    *   - Case classes (derives [[Binding.Record]])
    *   - Sealed traits/enums (derives [[Binding.Variant]])
    *   - Option, Either, and their subtypes
-   *   - Standard collections (List, Vector, Set, Map, etc.)
    *   - [[zio.blocks.schema.DynamicValue]]
+   *
+   * For sequence types (List, Vector, etc.) and map types, use the overloads
+   * that take type constructors: `Binding.of[List]`, `Binding.of[Map]`.
    *
    * @tparam A
    *   the type to derive a binding for
    * @return
-   *   the derived binding with precise type
+   *   the derived binding
    */
-  def of[A]: Any = macro BindingCompanionVersionSpecificMacros.ofImpl[A]
+  def of[A]: Binding[_, A] = macro BindingCompanionVersionSpecificMacros.ofImpl[A]
 
   /**
    * Creates a [[Binding.Seq]] for a sequence type constructor. Uses implicit
@@ -46,7 +48,7 @@ trait BindingCompanionVersionSpecific {
 }
 
 object BindingCompanionVersionSpecificMacros {
-  def ofImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Any] =
+  def ofImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Binding[_, A]] =
     new BindingMacroImpl[c.type](c).of[A]
 }
 
@@ -289,9 +291,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     }
   }
 
-  def of[A: c.WeakTypeTag]: c.Expr[Any] = {
+  def of[A: c.WeakTypeTag]: c.Expr[Binding[_, A]] = {
     val tpe = weakTypeOf[A].dealias
-    deriveBinding(tpe)
+    deriveBinding(tpe).asInstanceOf[c.Expr[Binding[_, A]]]
   }
 
   private def deriveBinding(tpe: Type): c.Expr[Any] =
@@ -330,9 +332,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     else if (tpe <:< typeOf[java.time.Year]) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Primitive.year")
     else if (tpe <:< typeOf[java.time.YearMonth])
       c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Primitive.yearMonth")
-    else if (tpe <:< typeOf[java.time.ZoneId]) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Primitive.zoneId")
     else if (tpe <:< typeOf[java.time.ZoneOffset])
       c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Primitive.zoneOffset")
+    else if (tpe <:< typeOf[java.time.ZoneId]) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Primitive.zoneId")
     else if (tpe <:< typeOf[java.time.ZonedDateTime])
       c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Primitive.zonedDateTime")
     else if (tpe <:< typeOf[java.util.Currency])
@@ -345,50 +347,24 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     else if (tpe.typeConstructor =:= leftTpe) deriveLeftBinding(tpe)
     else if (tpe.typeConstructor =:= rightTpe) deriveRightBinding(tpe)
     else if (tpe.typeConstructor =:= eitherTpe) deriveEitherBinding(tpe)
-    else if (tpe.typeConstructor =:= mapTpe) deriveMapBinding(tpe)
+    else if (tpe.typeConstructor =:= mapTpe)
+      fail(s"Use Binding.of[Map] for map types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= chunkTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.chunkConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.chunkDeconstructor"
-      )
+      fail(s"Use Binding.of[Chunk] for Chunk types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= arraySeqTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.arraySeqConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.arraySeqDeconstructor"
-      )
+      fail(s"Use Binding.of[ArraySeq] for ArraySeq types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= listTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.listConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.listDeconstructor"
-      )
+      fail(s"Use Binding.of[List] for List types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= vectorTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.vectorConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.vectorDeconstructor"
-      )
+      fail(s"Use Binding.of[Vector] for Vector types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= setTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.setConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.setDeconstructor"
-      )
+      fail(s"Use Binding.of[Set] for Set types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= indexedSeqTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.indexedSeqConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.indexedSeqDeconstructor"
-      )
+      fail(s"Use Binding.of[IndexedSeq] for IndexedSeq types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= seqTpe)
-      deriveSeqBinding(
-        tpe,
-        q"_root_.zio.blocks.schema.binding.SeqConstructor.seqConstructor",
-        q"_root_.zio.blocks.schema.binding.SeqDeconstructor.seqDeconstructor"
-      )
-    else if (tpe.typeConstructor =:= arrayTpe) deriveArrayBinding(tpe)
+      fail(s"Use Binding.of[Seq] for Seq types, not Binding.of[$tpe]")
+    else if (tpe.typeConstructor =:= arrayTpe)
+      fail(s"Use Binding.of[Array] for Array types, not Binding.of[$tpe]")
     else if (isIterator(tpe))
       fail(s"Cannot derive Binding for Iterator types: $tpe. Iterators are not round-trip serializable.")
     else if (isEnumOrModuleValue(tpe)) deriveEnumOrModuleValueBinding(tpe)
@@ -463,112 +439,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   private def deriveEitherBinding(tpe: Type): c.Expr[Any] = {
     val args = typeArgs(tpe)
     c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Variant.either[${args(0)}, ${args(1)}]")
-  }
-
-  private def deriveMapBinding(tpe: Type): c.Expr[Any] = {
-    val args = typeArgs(tpe)
-    c.Expr[Any](
-      q"""new _root_.zio.blocks.schema.binding.Binding.Map[Map, ${args(0)}, ${args(1)}](
-        _root_.zio.blocks.schema.binding.MapConstructor.map,
-        _root_.zio.blocks.schema.binding.MapDeconstructor.map
-      )"""
-    )
-  }
-
-  private def deriveSeqBinding(tpe: Type, constructor: Tree, deconstructor: Tree): c.Expr[Any] = {
-    val elemTpe = typeArgs(tpe).headOption.getOrElse(typeOf[Nothing])
-    val collTpe = tpe.typeConstructor
-    c.Expr[Any](q"new _root_.zio.blocks.schema.binding.Binding.Seq[$collTpe, $elemTpe]($constructor, $deconstructor)")
-  }
-
-  private def deriveArrayBinding(tpe: Type): c.Expr[Any] = {
-    val elemTpe       = typeArgs(tpe).head
-    val dealiasedElem = dealiasOnDemand(elemTpe)
-
-    def primitiveArrayBinding(primTpe: Type, emptyExpr: Tree): c.Expr[Any] =
-      c.Expr[Any](
-        q"""
-        new _root_.zio.blocks.schema.binding.Binding.Seq[Array, $elemTpe](
-          new _root_.zio.blocks.schema.binding.SeqConstructor.ArrayConstructor {
-            def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-              new Builder(new Array[$primTpe](_root_.java.lang.Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-            def addObject[B](builder: Builder[B], a: B): Unit = {
-              var buf = builder.buffer
-              val idx = builder.size
-              if (buf.length == idx) {
-                buf = _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[$primTpe]], idx << 1).asInstanceOf[Array[B]]
-                builder.buffer = buf
-              }
-              buf(idx) = a
-              builder.size = idx + 1
-            }
-
-            def resultObject[B](builder: Builder[B]): Array[B] = {
-              val buf  = builder.buffer
-              val size = builder.size
-              if (buf.length == size) buf
-              else _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[$primTpe]], size).asInstanceOf[Array[B]]
-            }
-
-            def emptyObject[B]: Array[B] = $emptyExpr.asInstanceOf[Array[B]]
-          },
-          _root_.zio.blocks.schema.binding.SeqDeconstructor.arrayDeconstructor
-        )
-        """
-      )
-
-    if (dealiasedElem =:= intTpe)
-      primitiveArrayBinding(intTpe, q"Array.empty[Int]")
-    else if (dealiasedElem =:= longTpe)
-      primitiveArrayBinding(longTpe, q"Array.empty[Long]")
-    else if (dealiasedElem =:= doubleTpe)
-      primitiveArrayBinding(doubleTpe, q"Array.empty[Double]")
-    else if (dealiasedElem =:= floatTpe)
-      primitiveArrayBinding(floatTpe, q"Array.empty[Float]")
-    else if (dealiasedElem =:= booleanTpe)
-      primitiveArrayBinding(booleanTpe, q"Array.empty[Boolean]")
-    else if (dealiasedElem =:= byteTpe)
-      primitiveArrayBinding(byteTpe, q"Array.empty[Byte]")
-    else if (dealiasedElem =:= shortTpe)
-      primitiveArrayBinding(shortTpe, q"Array.empty[Short]")
-    else if (dealiasedElem =:= charTpe)
-      primitiveArrayBinding(charTpe, q"Array.empty[Char]")
-    else
-      c.Expr[Any](
-        q"""
-        {
-          val ct = implicitly[_root_.scala.reflect.ClassTag[$elemTpe]]
-          new _root_.zio.blocks.schema.binding.Binding.Seq[Array, $elemTpe](
-            new _root_.zio.blocks.schema.binding.SeqConstructor.ArrayConstructor {
-              def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                new Builder(ct.newArray(_root_.java.lang.Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-              def addObject[B](builder: Builder[B], a: B): Unit = {
-                var buf = builder.buffer
-                val idx = builder.size
-                if (buf.length == idx) {
-                  buf = _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[B]]
-                  builder.buffer = buf
-                }
-                buf(idx) = a
-                builder.size = idx + 1
-              }
-
-              def resultObject[B](builder: Builder[B]): Array[B] = {
-                val buf  = builder.buffer
-                val size = builder.size
-                if (buf.length == size) buf
-                else _root_.java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[B]]
-              }
-
-              def emptyObject[B]: Array[B] = ct.newArray(0).asInstanceOf[Array[B]]
-            },
-            _root_.zio.blocks.schema.binding.SeqDeconstructor.arrayDeconstructor
-          )
-        }
-        """
-      )
   }
 
   private def deriveEnumOrModuleValueBinding(tpe: Type): c.Expr[Any] = {

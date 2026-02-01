@@ -104,7 +104,7 @@ object SeqDeconstructor {
     def size[A](c: Chunk[A]): Int = c.length
   }
 
-  val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {
+  implicit val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {
     def deconstruct[A](c: Array[A]): Iterator[A] = c.iterator
 
     def elementType[A](c: Array[A]): RegisterType[A] = c match {
@@ -140,7 +140,7 @@ object SeqDeconstructor {
     def charAt(c: Array[Char], index: Int): Char = c(index)
   }
 
-  val iArrayDeconstructor: SpecializedIndexed[IArray] = new SpecializedIndexed[IArray] {
+  implicit val iArrayDeconstructor: SpecializedIndexed[IArray] = new SpecializedIndexed[IArray] {
     def deconstruct[A](c: IArray[A]): Iterator[A] = c.iterator
 
     def elementType[A](c: IArray[A]): RegisterType[A] = (c match {

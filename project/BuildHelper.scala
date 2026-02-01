@@ -4,8 +4,6 @@ import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys._
-import scala.scalanative.build.Mode
-import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
@@ -227,22 +225,6 @@ object BuildHelper {
       coverageMinimumBranchTotal := 90,
       coverageExcludedFiles      := ".*BuildInfo.*"
     )
-
-  def nativeSettings: Seq[Def.Setting[?]] = Seq(
-    nativeConfig ~= {
-      _.withMode(Mode.debug)
-        .withOptimize(false)
-        .withCompileOptions(
-          _ ++ Seq(
-            "-DGC_INITIAL_HEAP_SIZE=1g",
-            "-DGC_MAXIMUM_HEAP_SIZE=4g"
-          )
-        )
-    },
-    coverageEnabled          := false,
-    Test / parallelExecution := false,
-    Test / fork              := false
-  )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
     coverageEnabled          := false,
