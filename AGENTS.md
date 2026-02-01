@@ -89,7 +89,7 @@ ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
 
 Commit at stable points (minimum: when fast loop is green).
 
-PR open and think you're done? Run verify + format, commit, push, update PR title/description, then loop: wait if necessary, check CI and review PR comments (prefer `gh` CLI), fix all CI issues (including conflicts) and all **valid** PR comments via workflow. Don't stop until CI is green, PR is approved, and PR is merged.
+PR open and think you're done? Run verify + format, commit, push, update PR title/description, then loop: wait if necessary, check CI and review comments (prefer `gh` CLI), fix all CI issues (including conflicts) and all **valid** review comments via workflow. Don't stop until CI is green, PR is approved, and PR is merged.
 
 ## Boundaries
 
