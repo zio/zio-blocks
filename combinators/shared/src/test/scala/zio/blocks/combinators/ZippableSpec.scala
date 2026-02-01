@@ -94,6 +94,56 @@ object ZippableSpec extends ZIOSpecDefault {
         assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
       }
     ),
+    suite("Tuple flattening for arity 11")(
+      test("zip((a1,...,a10), a11) == (a1,...,a11)") {
+        val a10      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        val a11      = 11
+        val zippable = implicitly[Zippable[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = zippable.zip(a10, a11)
+        assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11))
+      }
+    ),
+    suite("Tuple flattening for arity 15")(
+      test("zip((a1,...,a14), a15) == (a1,...,a15)") {
+        val a14      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+        val a15      = 15
+        val zippable = implicitly[Zippable[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = zippable.zip(a14, a15)
+        assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+      }
+    ),
+    suite("Tuple flattening for arity 20")(
+      test("zip((a1,...,a19), a20) == (a1,...,a20)") {
+        val a19      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+        val a20      = 20
+        val zippable = implicitly[Zippable[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = zippable.zip(a19, a20)
+        assertTrue(result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20))
+      }
+    ),
+    suite("Tuple flattening for arity 22 (max Scala 2 arity)")(
+      test("zip((a1,...,a21), a22) == (a1,...,a22)") {
+        val a21      = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)
+        val a22      = 22
+        val zippable = implicitly[Zippable[
+          (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
+          Int
+        ]]
+        val result = zippable.zip(a21, a22)
+        assertTrue(
+          result.asInstanceOf[Any] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+        )
+      }
+    ),
     suite("Type inference")(
       test("zippable instance exists for Int and String") {
         val zippable = implicitly[Zippable[Int, String]]
