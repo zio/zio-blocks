@@ -188,7 +188,10 @@ object MigrationAction {
             case DynamicValue.Variant("Some", DynamicValue.Record(innerFields)) =>
               innerFields.find(_._1 == "value").map(_._2) match {
                 case scala.Some(inner) => Right(inner)
-                case scala.None        => Right(fieldValue) // Malformed, pass through
+                case scala.None        =>
+                  Left(
+                    MigrationError.General(at.field(fieldName), "Malformed Option: Some variant missing 'value' field")
+                  )
               }
             case DynamicValue.Variant("Some", inner) =>
               // Fallback for simple representation
@@ -440,6 +443,12 @@ object MigrationAction {
 
   /**
    * Modify a value at the given path, returning an error if modification fails.
+   *
+   * Note: Uses a mutable variable to capture errors because
+   * DynamicValue.modifyOrFail expects a PartialFunction that returns the
+   * modified value directly, not an Either. We work around this by returning
+   * the original value on error while capturing the error in a mutable
+   * variable, then checking it after modification completes.
    */
   private def modifyAtPath(
     value: DynamicValue,

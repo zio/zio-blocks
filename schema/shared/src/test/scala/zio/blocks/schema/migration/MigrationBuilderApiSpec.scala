@@ -28,6 +28,14 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
   case class SimpleRecord(value: Int)
   case class SimpleRecordV2(value: Int, extra: String)
 
+  // Schema instances for MigrationBuilder tests
+  implicit val schemaPersonV1: Schema[PersonV1]             = Schema.derived
+  implicit val schemaPersonV2: Schema[PersonV2]             = Schema.derived
+  implicit val schemaAddressV1: Schema[AddressV1]           = Schema.derived
+  implicit val schemaAddressV2: Schema[AddressV2]           = Schema.derived
+  implicit val schemaSimpleRecord: Schema[SimpleRecord]     = Schema.derived
+  implicit val schemaSimpleRecordV2: Schema[SimpleRecordV2] = Schema.derived
+
   // ─────────────────────────────────────────────────────────────────────────
   // Test Helpers
   // ─────────────────────────────────────────────────────────────────────────
@@ -327,6 +335,129 @@ object MigrationBuilderApiSpec extends SchemaBaseSpec {
         val _               = original.reverse
         assertTrue(original.actions == originalActions)
       }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // MigrationBuilder.withFieldTracking - buildPartial tests
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("MigrationBuilder.withFieldTracking - buildPartial")(
+      test("buildPartial works even with incomplete field coverage") {
+        // buildPartial compiles even if not all fields are handled
+        // (unlike build which requires all fields to be accounted for)
+        val migration = MigrationBuilder
+          .withFieldTracking[PersonV1, PersonV2]
+          .addField(select[PersonV2](_.email), "test@test.com")
+          .buildPartial // Only added email, but name->fullName not handled
+
+        assertTrue(migration.dynamicMigration.actions.nonEmpty)
+      },
+      test("buildPartial with partial field coverage") {
+        val migration = MigrationBuilder
+          .withFieldTracking[PersonV1, PersonV2]
+          .renameField(select[PersonV1](_.name), select[PersonV2](_.fullName))
+          .addField(select[PersonV2](_.email), "unknown@example.com")
+          // Note: age field not explicitly handled
+          .buildPartial
+
+        assertTrue(migration.dynamicMigration.actions.size == 2)
+      },
+      test("buildPartial builder stored in val maintains state") {
+        val builder1  = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+        val builder2  = builder1.addField(select[PersonV2](_.email), "test@test.com")
+        val builder3  = builder2.renameField(select[PersonV1](_.name), select[PersonV2](_.fullName))
+        val migration = builder3.buildPartial
+
+        assertTrue(migration.dynamicMigration.actions.size == 2)
+      },
+      test("buildPartial applies migration correctly") {
+        val migration = MigrationBuilder
+          .withFieldTracking[SimpleRecord, SimpleRecordV2]
+          .keepField(select[SimpleRecord](_.value))
+          .addField(select[SimpleRecordV2](_.extra), "added")
+          .buildPartial
+
+        val input  = SimpleRecord(42)
+        val result = migration.migrate(input)
+
+        assertTrue(result == Right(SimpleRecordV2(42, "added")))
+      },
+      test("build vs buildPartial - build requires complete coverage") {
+        // This compiles because ALL fields are handled
+        val complete = MigrationBuilder
+          .withFieldTracking[SimpleRecord, SimpleRecordV2]
+          .keepField(select[SimpleRecord](_.value))
+          .addField(select[SimpleRecordV2](_.extra), "added")
+          .build // Requires complete coverage
+
+        // This also compiles even with partial coverage
+        val partial = MigrationBuilder
+          .withFieldTracking[SimpleRecord, SimpleRecordV2]
+          .addField(select[SimpleRecordV2](_.extra), "added")
+          .buildPartial // Allows partial coverage
+
+        assertTrue(complete.dynamicMigration.actions.size == 1) // Only AddField (keepField is no-op)
+        assertTrue(partial.dynamicMigration.actions.size == 1)
+      }
     )
+    // ─────────────────────────────────────────────────────────────────────────
+    // Compile-Time Safety Documentation
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // The following examples demonstrate what should NOT compile when using
+    // MigrationBuilder.withFieldTracking. These serve as documentation for
+    // the compile-time field tracking system.
+    //
+    // Example 1: Missing target field
+    // ─────────────────────────────────────────────────────────────────────────
+    // This should NOT compile because 'email' field in PersonV2 is not handled:
+    //
+    // val willNotCompile = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+    //   .renameField(select[PersonV1](_.name), select[PersonV2](_.fullName))
+    //   .keepField(select[PersonV1](_.age))
+    //   // Missing: .addField(select[PersonV2](_.email), "default")
+    //   .build  // ERROR: TgtRemaining != EmptyTuple
+    //
+    // Example 2: Missing source field
+    // ─────────────────────────────────────────────────────────────────────────
+    // This should NOT compile because 'age' field from PersonV1 is not consumed:
+    //
+    // val willNotCompile = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+    //   .renameField(select[PersonV1](_.name), select[PersonV2](_.fullName))
+    //   // Missing: .keepField(select[PersonV1](_.age)) or .dropField(...)
+    //   .addField(select[PersonV2](_.email), "default")
+    //   .build  // ERROR: SrcRemaining != EmptyTuple
+    //
+    // Example 3: Double-handling a field
+    // ─────────────────────────────────────────────────────────────────────────
+    // This should NOT compile because 'name' is handled twice:
+    //
+    // val willNotCompile = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+    //   .renameField(select[PersonV1](_.name), select[PersonV2](_.fullName))
+    //   .dropField(select[PersonV1](_.name))  // ERROR: 'name' already removed from SrcRemaining
+    //   .keepField(select[PersonV1](_.age))
+    //   .addField(select[PersonV2](_.email), "default")
+    //   .build
+    //
+    // Example 4: Nested migrations require complete coverage too
+    // ─────────────────────────────────────────────────────────────────────────
+    // When using inField, the nested migration must also have complete coverage:
+    //
+    // val willNotCompile = MigrationBuilder.withFieldTracking[PersonWithAddress, PersonWithAddressV2]
+    //   .keepField(select(_.name))
+    //   .inField(select(_.address), select(_.address))(
+    //     MigrationBuilder.withFieldTracking[AddressV1, AddressV2]
+    //       .keepField(select(_.street))
+    //       // Missing: .keepField(select(_.city))
+    //       // Missing: .addField(select(_.zipCode), "00000")
+    //       .build  // ERROR: Nested migration incomplete
+    //   )
+    //   .build
+    //
+    // In contrast, buildPartial (available on withFieldTracking builders) allows
+    // partial migrations and will compile regardless of field coverage.
+    //
+    // Note: MigrationBuilder.create exists but returns EmptyTuple for both
+    // field tracking parameters, making it unsuitable for field operations.
+    // Use withFieldTracking with buildPartial for partial migrations instead.
+    // ─────────────────────────────────────────────────────────────────────────
   )
 }

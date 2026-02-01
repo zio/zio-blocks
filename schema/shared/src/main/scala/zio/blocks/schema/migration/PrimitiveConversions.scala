@@ -155,7 +155,9 @@ object PrimitiveConversions {
           Right(DynamicValue.Primitive(PrimitiveValue.Int(f.toInt)))
         else Left(s"Value $f out of Int range")
       case ("Float", "Long", DynamicValue.Primitive(PrimitiveValue.Float(f))) =>
-        Right(DynamicValue.Primitive(PrimitiveValue.Long(f.toLong)))
+        if (f >= Long.MinValue && f <= Long.MaxValue)
+          Right(DynamicValue.Primitive(PrimitiveValue.Long(f.toLong)))
+        else Left(s"Value $f out of Long range")
 
       // Double -> smaller numeric types
       case ("Double", "Float", DynamicValue.Primitive(PrimitiveValue.Double(d))) =>
