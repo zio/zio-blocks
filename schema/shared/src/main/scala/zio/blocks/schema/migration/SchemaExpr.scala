@@ -17,7 +17,8 @@
 package zio.blocks.schema.migration
 
 /**
- * SchemaExpr is a pure, serializable expression for value-level transformations.
+ * SchemaExpr is a pure, serializable expression for value-level
+ * transformations.
  *
  * This is an alias for ResolvedExpr, matching the naming convention from the
  * migration system specification.
@@ -30,17 +31,17 @@ object SchemaExpr {
   type Expr = ResolvedExpr
 
   // Re-export all ResolvedExpr constructors and values
-  val Literal: ResolvedExpr.Literal.type         = ResolvedExpr.Literal
-  val Identity: ResolvedExpr.Identity.type       = ResolvedExpr.Identity
-  val FieldAccess: ResolvedExpr.FieldAccess.type = ResolvedExpr.FieldAccess
-  val PathAccess: ResolvedExpr.PathAccess.type   = ResolvedExpr.PathAccess
-  val Convert: ResolvedExpr.Convert.type         = ResolvedExpr.Convert
-  val Concat: ResolvedExpr.Concat.type           = ResolvedExpr.Concat
-  val DefaultValue: ResolvedExpr.DefaultValue.type   = ResolvedExpr.DefaultValue
-  val IfThenElse: ResolvedExpr.IfThenElse.type   = ResolvedExpr.IfThenElse
-  val WrapSome: ResolvedExpr.WrapSome.type       = ResolvedExpr.WrapSome
-  val UnwrapSome: ResolvedExpr.UnwrapSome.type   = ResolvedExpr.UnwrapSome
-  val GetNone: ResolvedExpr.GetNone.type         = ResolvedExpr.GetNone
+  val Literal: ResolvedExpr.Literal.type           = ResolvedExpr.Literal
+  val Identity: ResolvedExpr.Identity.type         = ResolvedExpr.Identity
+  val FieldAccess: ResolvedExpr.FieldAccess.type   = ResolvedExpr.FieldAccess
+  val PathAccess: ResolvedExpr.PathAccess.type     = ResolvedExpr.PathAccess
+  val Convert: ResolvedExpr.Convert.type           = ResolvedExpr.Convert
+  val Concat: ResolvedExpr.Concat.type             = ResolvedExpr.Concat
+  val DefaultValue: ResolvedExpr.DefaultValue.type = ResolvedExpr.DefaultValue
+  val IfThenElse: ResolvedExpr.IfThenElse.type     = ResolvedExpr.IfThenElse
+  val WrapSome: ResolvedExpr.WrapSome.type         = ResolvedExpr.WrapSome
+  val UnwrapSome: ResolvedExpr.UnwrapSome.type     = ResolvedExpr.UnwrapSome
+  val GetNone: ResolvedExpr.GetNone.type           = ResolvedExpr.GetNone
 
   // Smart constructors
   def literal[A](value: A)(implicit toDV: A => zio.blocks.schema.DynamicValue): Expr =

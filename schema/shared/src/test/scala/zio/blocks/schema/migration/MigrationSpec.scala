@@ -67,9 +67,9 @@ object MigrationSpec extends SchemaBaseSpec {
   // Sum types for testing .when[T] selector
   sealed trait Country
   object Country {
-    case class UK(postcode: String)    extends Country
-    case class US(zipCode: String)     extends Country
-    case class DE(plz: String)         extends Country
+    case class UK(postcode: String) extends Country
+    case class US(zipCode: String)  extends Country
+    case class DE(plz: String)      extends Country
     implicit val schema: Schema[Country] = Schema.derived
   }
 
@@ -1947,7 +1947,8 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("TypedMigrationBuilder")(
       test("rename field with selectors") {
-        val migration = Migration.typed[AddressV1, AddressV2]
+        val migration = Migration
+          .typed[AddressV1, AddressV2]
           .renameField(_.street, _.streetName)
           .addField(_.zipCode, "00000")
           .keepField(_.city, _.city)
@@ -1958,7 +1959,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(AddressV2("123 Main St", "Boston", "00000")))
       },
       test("keep field tracks source and target") {
-        val migration = Migration.typed[PersonV1, PersonV1]
+        val migration = Migration
+          .typed[PersonV1, PersonV1]
           .keepField(_.firstName, _.firstName)
           .keepField(_.lastName, _.lastName)
           .keepField(_.age, _.age)
@@ -1969,7 +1971,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(v1))
       },
       test("drop field with selector") {
-        val migration = Migration.typed[PersonV3, PersonV1]
+        val migration = Migration
+          .typed[PersonV3, PersonV1]
           .dropField(_.email)
           .keepField(_.firstName, _.firstName)
           .keepField(_.lastName, _.lastName)
@@ -1981,7 +1984,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV1("John", "Doe", 30)))
       },
       test("add field with typed default") {
-        val migration = Migration.typed[PersonV1, PersonV3]
+        val migration = Migration
+          .typed[PersonV1, PersonV3]
           .addFieldExpr(_.email, ResolvedExpr.none)
           .keepField(_.firstName, _.firstName)
           .keepField(_.lastName, _.lastName)
@@ -1994,7 +1998,8 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("nested field migration with direct selector") {
         // Direct nested selector support: _.address.street instead of inField wrapper
-        val migration = Migration.typed[WithNestedV1, WithNestedV2]
+        val migration = Migration
+          .typed[WithNestedV1, WithNestedV2]
           .renameField(_.address.street, _.address.streetName)
           .addFieldExpr(_.address.zipCode, ResolvedExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
           .keepField(_.name, _.name)
@@ -2006,7 +2011,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(WithNestedV2("Person", AddressV2("123 Main St", "Boston", "00000"))))
       },
       test("buildPartial skips validation") {
-        val migration = Migration.typed[AddressV1, AddressV2]
+        val migration = Migration
+          .typed[AddressV1, AddressV2]
           .renameField(_.street, _.streetName)
           // Missing: addField for zipCode and keepField for city
           .buildPartial
@@ -2015,14 +2021,16 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(migration.actions.nonEmpty)
       },
       test("buildValidated returns error for incomplete migration") {
-        val result = Migration.typed[AddressV1, AddressV2]
+        val result = Migration
+          .typed[AddressV1, AddressV2]
           .renameField(_.street, _.streetName)
           .buildValidated
 
         assertTrue(result.isLeft)
       },
       test("buildValidated returns success for complete migration") {
-        val result = Migration.typed[AddressV1, AddressV2]
+        val result = Migration
+          .typed[AddressV1, AddressV2]
           .renameField(_.street, _.streetName)
           .addField(_.zipCode, "00000")
           .keepField(_.city, _.city)
@@ -2032,7 +2040,8 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("transformElements with selector on collection field") {
         // Test that transformElements works with collection field selectors
-        val builder = Migration.typed[WithTags, WithTags]
+        val builder = Migration
+          .typed[WithTags, WithTags]
           .keepField(_.name, _.name)
           .transformElements(_.tags, ResolvedExpr.Convert("string", "string"))
           .buildPartial
@@ -2041,7 +2050,8 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("transformCase for variant types") {
         // Test renameCase on sum type
-        val builder = Migration.typed[WithCountry, WithCountry]
+        val builder = Migration
+          .typed[WithCountry, WithCountry]
           .keepField(_.name, _.name)
           .keepField(_.country, _.country)
           .renameCase("UK", "UnitedKingdom")
@@ -2049,7 +2059,7 @@ object MigrationSpec extends SchemaBaseSpec {
 
         val hasCaseAction = builder.actions.exists {
           case MigrationAction.RenameCase(_, from, to) => from == "UK" && to == "UnitedKingdom"
-          case _ => false
+          case _                                       => false
         }
         assertTrue(hasCaseAction)
       }

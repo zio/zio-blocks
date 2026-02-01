@@ -65,7 +65,7 @@ object MigrationBuilderMacros {
       case Refinement(_, name, _) if name != "Tag" =>
         List(name) ++ extractFromRefinement(tpe.dealias match {
           case Refinement(parent, _, _) => parent
-          case _ => tpe
+          case _                        => tpe
         })
       case Refinement(parent, "Tag", _) =>
         extractFromRefinement(parent)
@@ -112,7 +112,7 @@ object MigrationBuilderMacros {
     if (sourceFields.isEmpty && targetFields.isEmpty) {
       report.info(
         "Could not extract field names at compile time. " +
-        "Use buildValidated for runtime validation."
+          "Use buildValidated for runtime validation."
       )
     }
 
@@ -129,7 +129,8 @@ object MigrationBuilderMacros {
    * Validate migration completeness at compile time.
    *
    * This is called by the `build` method and will fail compilation if:
-   *   - Source fields are not all consumed (dropped, renamed, kept, or transformed)
+   *   - Source fields are not all consumed (dropped, renamed, kept, or
+   *     transformed)
    *   - Target fields are not all provided (added, renamed, or kept)
    */
   def validateCompleteness[A: Type, B: Type](
@@ -153,14 +154,14 @@ object MigrationBuilderMacros {
         if (missingSrc.nonEmpty) {
           report.errorAndAbort(
             s"Migration incomplete: source fields not handled: ${missingSrc.mkString(", ")}. " +
-            s"Use keepField, dropField, renameField, or transformField for each."
+              s"Use keepField, dropField, renameField, or transformField for each."
           )
         }
 
         if (missingTgt.nonEmpty) {
           report.errorAndAbort(
             s"Migration incomplete: target fields not provided: ${missingTgt.mkString(", ")}. " +
-            s"Use addField, renameField, or keepField for each."
+              s"Use addField, renameField, or keepField for each."
           )
         }
 
@@ -169,8 +170,8 @@ object MigrationBuilderMacros {
       case _ =>
         // Can't evaluate at compile time, defer to runtime
         '{
-          val srcFields = ${ Expr(sourceFields) }
-          val tgtFields = ${ Expr(targetFields) }
+          val srcFields  = ${ Expr(sourceFields) }
+          val tgtFields  = ${ Expr(targetFields) }
           val srcHandled = $handledSourcePaths
           val tgtHandled = $handledTargetPaths
 
@@ -178,10 +179,14 @@ object MigrationBuilderMacros {
           val missingTgt = tgtFields -- tgtHandled
 
           if (missingSrc.nonEmpty || missingTgt.nonEmpty) {
-            val srcMsg = if (missingSrc.nonEmpty)
-              s"source fields not handled: ${missingSrc.mkString(", ")}" else ""
-            val tgtMsg = if (missingTgt.nonEmpty)
-              s"target fields not provided: ${missingTgt.mkString(", ")}" else ""
+            val srcMsg =
+              if (missingSrc.nonEmpty)
+                s"source fields not handled: ${missingSrc.mkString(", ")}"
+              else ""
+            val tgtMsg =
+              if (missingTgt.nonEmpty)
+                s"target fields not provided: ${missingTgt.mkString(", ")}"
+              else ""
             val msg = Seq(srcMsg, tgtMsg).filter(_.nonEmpty).mkString("; ")
             throw new IllegalStateException(s"Migration incomplete: $msg")
           }
@@ -209,7 +214,7 @@ object MigrationBuilderMacros {
     import quotes.reflect.*
     term match {
       case Literal(StringConstant(_)) => true
-      case _ => false
+      case _                          => false
     }
   }
 
@@ -217,7 +222,7 @@ object MigrationBuilderMacros {
     import quotes.reflect.*
     term match {
       case Literal(StringConstant(s)) => s
-      case _ => ""
+      case _                          => ""
     }
   }
 

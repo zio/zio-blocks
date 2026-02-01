@@ -60,9 +60,12 @@ package object migration {
      *     .build
      * }}}
      *
-     * @tparam A Source type
-     * @tparam B Target type
-     * @return A TypedMigrationBuilder for constructing the migration
+     * @tparam A
+     *   Source type
+     * @tparam B
+     *   Target type
+     * @return
+     *   A TypedMigrationBuilder for constructing the migration
      */
     def typed[A, B](using
       sourceSchema: Schema[A],

@@ -236,9 +236,8 @@ final case class MigrationBuilder[A, B](
     sourceFields: Vector[String],
     targetField: String,
     combiner: ResolvedExpr
-  ): MigrationBuilder[A, B] = {
+  ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.JoinFields(sourceFields, targetField, combiner, None))
-  }
 
   /**
    * Split one field into multiple.
@@ -247,9 +246,8 @@ final case class MigrationBuilder[A, B](
     sourceField: String,
     targetFields: Vector[String],
     splitter: ResolvedExpr
-  ): MigrationBuilder[A, B] = {
+  ): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.SplitField(sourceField, targetFields, splitter, None))
-  }
 
   // ===========================================================================
   // Build Methods

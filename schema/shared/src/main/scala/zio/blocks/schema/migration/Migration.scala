@@ -115,8 +115,8 @@ object Migration {
   /**
    * Create a migration from actions.
    *
-   * Note: This is primarily for internal use. Prefer using the typed builder API
-   * via `Migration.typed[A, B]` for compile-time validated migrations.
+   * Note: This is primarily for internal use. Prefer using the typed builder
+   * API via `Migration.typed[A, B]` for compile-time validated migrations.
    */
   def apply[A, B](actions: MigrationAction*)(implicit
     sourceSchema: Schema[A],
@@ -127,8 +127,8 @@ object Migration {
   /**
    * Create a migration from a DynamicMigration.
    *
-   * This is useful for deserializing migrations or applying migrations
-   * that were stored in a registry.
+   * This is useful for deserializing migrations or applying migrations that
+   * were stored in a registry.
    */
   def fromDynamic[A, B](
     dynamicMigration: DynamicMigration
@@ -138,8 +138,8 @@ object Migration {
   /**
    * Start building a migration using the string-based API.
    *
-   * Note: This API is provided for backward compatibility. For new code,
-   * prefer using `Migration.typed[A, B]` which provides:
+   * Note: This API is provided for backward compatibility. For new code, prefer
+   * using `Migration.typed[A, B]` which provides:
    *   - Direct selector syntax: `_.field.nested`
    *   - Compile-time field tracking validation
    *   - No DynamicOptic exposure
@@ -153,7 +153,8 @@ object Migration {
 
   /**
    * Create a simple field rename migration.
-   * @note Internal use only. Use the typed builder API for public migrations.
+   * @note
+   *   Internal use only. Use the typed builder API for public migrations.
    */
   private[migration] def renameField[A, B](from: String, to: String)(implicit
     sourceSchema: Schema[A],
@@ -163,21 +164,31 @@ object Migration {
 
   /**
    * Create a migration that adds a field with a default value.
-   * @note Internal use only. Use the typed builder API for public migrations.
+   * @note
+   *   Internal use only. Use the typed builder API for public migrations.
    */
   private[migration] def addField[A, B](fieldName: String, default: ResolvedExpr)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
-    Migration(DynamicMigration(MigrationAction.AddField(DynamicOptic.root, fieldName, default)), sourceSchema, targetSchema)
+    Migration(
+      DynamicMigration(MigrationAction.AddField(DynamicOptic.root, fieldName, default)),
+      sourceSchema,
+      targetSchema
+    )
 
   /**
    * Create a migration that drops a field.
-   * @note Internal use only. Use the typed builder API for public migrations.
+   * @note
+   *   Internal use only. Use the typed builder API for public migrations.
    */
   private[migration] def dropField[A, B](fieldName: String)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
-    Migration(DynamicMigration(MigrationAction.DropField(DynamicOptic.root, fieldName, None)), sourceSchema, targetSchema)
+    Migration(
+      DynamicMigration(MigrationAction.DropField(DynamicOptic.root, fieldName, None)),
+      sourceSchema,
+      targetSchema
+    )
 }

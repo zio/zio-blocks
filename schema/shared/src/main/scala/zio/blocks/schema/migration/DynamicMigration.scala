@@ -808,9 +808,9 @@ object DynamicMigration {
   private def withRootPath(action: MigrationAction): MigrationAction = {
     val root = DynamicOptic.root
     action match {
-      case MigrationAction.AddField(_, fn, d)          => MigrationAction.AddField(root, fn, d)
-      case MigrationAction.DropField(_, fn, d)         => MigrationAction.DropField(root, fn, d)
-      case MigrationAction.Rename(at, to)              =>
+      case MigrationAction.AddField(_, fn, d)  => MigrationAction.AddField(root, fn, d)
+      case MigrationAction.DropField(_, fn, d) => MigrationAction.DropField(root, fn, d)
+      case MigrationAction.Rename(at, to)      =>
         // For rename, keep the last field node
         at.nodes.lastOption match {
           case Some(node @ DynamicOptic.Node.Field(_)) => MigrationAction.Rename(DynamicOptic(Vector(node)), to)
@@ -818,8 +818,9 @@ object DynamicMigration {
         }
       case MigrationAction.TransformValue(at, t, r) =>
         at.nodes.lastOption match {
-          case Some(node @ DynamicOptic.Node.Field(_)) => MigrationAction.TransformValue(DynamicOptic(Vector(node)), t, r)
-          case _                                       => MigrationAction.TransformValue(root, t, r)
+          case Some(node @ DynamicOptic.Node.Field(_)) =>
+            MigrationAction.TransformValue(DynamicOptic(Vector(node)), t, r)
+          case _ => MigrationAction.TransformValue(root, t, r)
         }
       case MigrationAction.Mandate(at, d) =>
         at.nodes.lastOption match {
@@ -836,31 +837,31 @@ object DynamicMigration {
           case Some(node @ DynamicOptic.Node.Field(_)) => MigrationAction.ChangeType(DynamicOptic(Vector(node)), c)
           case _                                       => MigrationAction.ChangeType(root, c)
         }
-      case MigrationAction.Keep(_)                     => MigrationAction.Keep(root)
-      case MigrationAction.RenameCase(_, f, t)         => MigrationAction.RenameCase(root, f, t)
-      case MigrationAction.TransformCase(_, cn, a)     => MigrationAction.TransformCase(root, cn, a)
-      case MigrationAction.TransformElements(_, t, r)  => MigrationAction.TransformElements(root, t, r)
-      case MigrationAction.TransformKeys(_, t, r)      => MigrationAction.TransformKeys(root, t, r)
-      case MigrationAction.TransformValues(_, t, r)    => MigrationAction.TransformValues(root, t, r)
-      case MigrationAction.Join(_, sp, tf, c, s)       => MigrationAction.Join(root, sp, tf, c, s)
-      case MigrationAction.Split(_, sour, tp, s, c)    => MigrationAction.Split(root, sour, tp, s, c)
-      case MigrationAction.Sequence(_, a)              => MigrationAction.Sequence(root, a)
+      case MigrationAction.Keep(_)                                => MigrationAction.Keep(root)
+      case MigrationAction.RenameCase(_, f, t)                    => MigrationAction.RenameCase(root, f, t)
+      case MigrationAction.TransformCase(_, cn, a)                => MigrationAction.TransformCase(root, cn, a)
+      case MigrationAction.TransformElements(_, t, r)             => MigrationAction.TransformElements(root, t, r)
+      case MigrationAction.TransformKeys(_, t, r)                 => MigrationAction.TransformKeys(root, t, r)
+      case MigrationAction.TransformValues(_, t, r)               => MigrationAction.TransformValues(root, t, r)
+      case MigrationAction.Join(_, sp, tf, c, s)                  => MigrationAction.Join(root, sp, tf, c, s)
+      case MigrationAction.Split(_, sour, tp, s, c)               => MigrationAction.Split(root, sour, tp, s, c)
+      case MigrationAction.Sequence(_, a)                         => MigrationAction.Sequence(root, a)
       case MigrationAction.Identity(_) | MigrationAction.Identity => MigrationAction.Identity(root)
 
       // Legacy types - these are already at root level by design
-      case legacy: MigrationAction.RenameField       => legacy
-      case legacy: MigrationAction.TransformField    => legacy
-      case legacy: MigrationAction.MandateField      => legacy
-      case legacy: MigrationAction.OptionalizeField  => legacy
-      case legacy: MigrationAction.ChangeFieldType   => legacy
-      case legacy: MigrationAction.KeepField         => legacy
-      case legacy: MigrationAction.AtField           => legacy
-      case legacy: MigrationAction.AtCase            => legacy
-      case legacy: MigrationAction.AtElements        => legacy
-      case legacy: MigrationAction.AtMapKeys         => legacy
-      case legacy: MigrationAction.AtMapValues       => legacy
-      case legacy: MigrationAction.JoinFields        => legacy
-      case legacy: MigrationAction.SplitField        => legacy
+      case legacy: MigrationAction.RenameField      => legacy
+      case legacy: MigrationAction.TransformField   => legacy
+      case legacy: MigrationAction.MandateField     => legacy
+      case legacy: MigrationAction.OptionalizeField => legacy
+      case legacy: MigrationAction.ChangeFieldType  => legacy
+      case legacy: MigrationAction.KeepField        => legacy
+      case legacy: MigrationAction.AtField          => legacy
+      case legacy: MigrationAction.AtCase           => legacy
+      case legacy: MigrationAction.AtElements       => legacy
+      case legacy: MigrationAction.AtMapKeys        => legacy
+      case legacy: MigrationAction.AtMapValues      => legacy
+      case legacy: MigrationAction.JoinFields       => legacy
+      case legacy: MigrationAction.SplitField       => legacy
     }
   }
 }

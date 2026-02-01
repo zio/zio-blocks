@@ -70,6 +70,7 @@ object MigrationAction {
   }
 
   object AddField {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -92,6 +93,7 @@ object MigrationAction {
   }
 
   object DropField {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -193,6 +195,7 @@ object MigrationAction {
   }
 
   object RenameCase {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -212,6 +215,7 @@ object MigrationAction {
   }
 
   object TransformCase {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -239,6 +243,7 @@ object MigrationAction {
   }
 
   object TransformElements {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -262,6 +267,7 @@ object MigrationAction {
   }
 
   object TransformKeys {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -285,6 +291,7 @@ object MigrationAction {
   }
 
   object TransformValues {
+
     /**
      * Legacy 2-argument constructor for backward compatibility.
      */
@@ -308,9 +315,21 @@ object MigrationAction {
   ) extends MigrationAction {
     def reverse: MigrationAction = splitterForReverse match {
       case Some(splitter) =>
-        Split(at, DynamicOptic(at.nodes :+ DynamicOptic.Node.Field(targetFieldName)), sourcePaths, splitter, Some(combiner))
+        Split(
+          at,
+          DynamicOptic(at.nodes :+ DynamicOptic.Node.Field(targetFieldName)),
+          sourcePaths,
+          splitter,
+          Some(combiner)
+        )
       case None =>
-        Split(at, DynamicOptic(at.nodes :+ DynamicOptic.Node.Field(targetFieldName)), sourcePaths, ResolvedExpr.Identity, Some(combiner))
+        Split(
+          at,
+          DynamicOptic(at.nodes :+ DynamicOptic.Node.Field(targetFieldName)),
+          sourcePaths,
+          ResolvedExpr.Identity,
+          Some(combiner)
+        )
     }
   }
 
@@ -351,6 +370,7 @@ object MigrationAction {
   }
 
   object Sequence {
+
     /**
      * Legacy 1-argument constructor for backward compatibility.
      */
@@ -369,9 +389,9 @@ object MigrationAction {
    * Companion providing legacy singleton access.
    */
   object Identity extends MigrationAction {
-    val at: DynamicOptic           = DynamicOptic.root
-    def reverse: MigrationAction   = this
-    def apply(): Identity          = new Identity(DynamicOptic.root)
+    val at: DynamicOptic         = DynamicOptic.root
+    def reverse: MigrationAction = this
+    def apply(): Identity        = new Identity(DynamicOptic.root)
   }
 
   // ===========================================================================
@@ -381,20 +401,22 @@ object MigrationAction {
 
   /**
    * Backward compatible RenameField (old API).
-   * @deprecated Use Rename with DynamicOptic instead
+   * @deprecated
+   *   Use Rename with DynamicOptic instead
    */
   final case class RenameField(
     from: String,
     to: String
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = RenameField(to, from)
   }
 
   /**
    * Backward compatible TransformField (old API).
-   * @deprecated Use TransformValue with DynamicOptic instead
+   * @deprecated
+   *   Use TransformValue with DynamicOptic instead
    */
   final case class TransformField(
     fieldName: String,
@@ -402,7 +424,7 @@ object MigrationAction {
     reverseTransform: Option[ResolvedExpr]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = TransformField(
       fieldName,
       reverseTransform.getOrElse(ResolvedExpr.Identity),
@@ -412,39 +434,42 @@ object MigrationAction {
 
   /**
    * Backward compatible MandateField (old API).
-   * @deprecated Use Mandate with DynamicOptic instead
+   * @deprecated
+   *   Use Mandate with DynamicOptic instead
    */
   final case class MandateField(
     fieldName: String,
     default: ResolvedExpr
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = OptionalizeField(fieldName)
   }
 
   /**
    * Backward compatible OptionalizeField (old API).
-   * @deprecated Use Optionalize with DynamicOptic instead
+   * @deprecated
+   *   Use Optionalize with DynamicOptic instead
    */
   final case class OptionalizeField(
     fieldName: String
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = MandateField(fieldName, ResolvedExpr.DefaultValue)
   }
 
   /**
    * Backward compatible ChangeFieldType (old API).
-   * @deprecated Use ChangeType with DynamicOptic instead
+   * @deprecated
+   *   Use ChangeType with DynamicOptic instead
    */
   final case class ChangeFieldType(
     fieldName: String,
     converter: ResolvedExpr
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = ChangeFieldType(
       fieldName,
       converter.reverse.getOrElse(ResolvedExpr.Identity)
@@ -453,81 +478,88 @@ object MigrationAction {
 
   /**
    * Backward compatible KeepField (old API).
-   * @deprecated Use Keep with DynamicOptic instead
+   * @deprecated
+   *   Use Keep with DynamicOptic instead
    */
   final case class KeepField(
     fieldName: String
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = KeepField(fieldName)
   }
 
   /**
    * Backward compatible AtField (old API).
-   * @deprecated Use path-based actions instead
+   * @deprecated
+   *   Use path-based actions instead
    */
   final case class AtField(
     fieldName: String,
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = AtField(fieldName, actions.reverse.map(_.reverse))
   }
 
   /**
    * Backward compatible AtCase (old API).
-   * @deprecated Use path-based actions instead
+   * @deprecated
+   *   Use path-based actions instead
    */
   final case class AtCase(
     caseName: String,
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = AtCase(caseName, actions.reverse.map(_.reverse))
   }
 
   /**
    * Backward compatible AtElements (old API).
-   * @deprecated Use path-based actions instead
+   * @deprecated
+   *   Use path-based actions instead
    */
   final case class AtElements(
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = AtElements(actions.reverse.map(_.reverse))
   }
 
   /**
    * Backward compatible AtMapKeys (old API).
-   * @deprecated Use path-based actions instead
+   * @deprecated
+   *   Use path-based actions instead
    */
   final case class AtMapKeys(
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = AtMapKeys(actions.reverse.map(_.reverse))
   }
 
   /**
    * Backward compatible AtMapValues (old API).
-   * @deprecated Use path-based actions instead
+   * @deprecated
+   *   Use path-based actions instead
    */
   final case class AtMapValues(
     actions: Vector[MigrationAction]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = AtMapValues(actions.reverse.map(_.reverse))
   }
 
   /**
    * Backward compatible JoinFields (old API).
-   * @deprecated Use Join with DynamicOptic instead
+   * @deprecated
+   *   Use Join with DynamicOptic instead
    */
   final case class JoinFields(
     sourceFields: Vector[String],
@@ -535,7 +567,7 @@ object MigrationAction {
     combiner: ResolvedExpr,
     splitterForReverse: Option[ResolvedExpr]
   ) extends MigrationAction {
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = splitterForReverse match {
       case Some(splitter) => SplitField(targetField, sourceFields, splitter, Some(combiner))
       case None           => SplitField(targetField, sourceFields, ResolvedExpr.Identity, Some(combiner))
@@ -544,7 +576,8 @@ object MigrationAction {
 
   /**
    * Backward compatible SplitField (old API).
-   * @deprecated Use Split with DynamicOptic instead
+   * @deprecated
+   *   Use Split with DynamicOptic instead
    */
   final case class SplitField(
     sourceField: String,
@@ -553,7 +586,7 @@ object MigrationAction {
     combinerForReverse: Option[ResolvedExpr]
   ) extends MigrationAction {
     // Use root path so this is handled in applyActionAtRoot
-    def at: DynamicOptic = DynamicOptic.root
+    def at: DynamicOptic         = DynamicOptic.root
     def reverse: MigrationAction = combinerForReverse match {
       case Some(combiner) => JoinFields(targetFields, sourceField, combiner, Some(splitter))
       case None           => JoinFields(targetFields, sourceField, ResolvedExpr.Identity, Some(splitter))
