@@ -667,7 +667,8 @@ object PrimitiveConversionsSpec extends ZIOSpecDefault {
         assertTrue(result.isLeft)
       },
       test("String to UUID") {
-        val uuid   = java.util.UUID.randomUUID()
+        // Use fixed UUID to avoid SecureRandom dependency on Scala.js
+        val uuid   = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val result = convert(
           DynamicValue.Primitive(PrimitiveValue.String(uuid.toString)),
           "String",
