@@ -1,5 +1,7 @@
 package zio.blocks.typeid
 
+import zio.blocks.chunk.Chunk
+
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -18,7 +20,7 @@ package zio.blocks.typeid
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-sealed trait TypeId[A <: AnyKind] {
+sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
@@ -29,10 +31,16 @@ sealed trait TypeId[A <: AnyKind] {
   def representation: Option[TypeRepr] // For opaque types
   def annotations: List[Annotation]
 
+  final def clazz: Option[Class[?]] = TypeIdPlatformMethods.getClass(this)
+
+  final def construct(args: Chunk[AnyRef]): Either[String, Any] = TypeIdPlatformMethods.construct(this, args)
+
   final def parents: List[TypeRepr] = defKind.baseTypes
 
   /** Returns true if this is an applied type (has type arguments) */
   final def isApplied: Boolean = typeArgs.nonEmpty
+
+  final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
 
   // Derived properties
   final def arity: Int = typeParams.size
@@ -390,4 +398,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   given iarray: TypeId[IArray] =
     nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
+
+  // ========== Erased TypeId for Type-Indexed Maps ==========
+
+  type Unknown <: AnyKind
+
+  type Erased = TypeId[Unknown]
 }

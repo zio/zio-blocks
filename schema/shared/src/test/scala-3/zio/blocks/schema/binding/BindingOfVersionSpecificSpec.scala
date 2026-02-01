@@ -1,6 +1,5 @@
 package zio.blocks.schema.binding
 
-import scala.annotation.experimental
 import zio.blocks.schema.{SchemaBaseSpec, SchemaError}
 import zio.prelude.Newtype
 import zio.test._
