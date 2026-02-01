@@ -35,13 +35,8 @@ object BuildHelper {
       buildInfoPackage := packageName
     )
 
-  def platformSpecificSources(platform: String, conf: String, baseDirectory: File)(versions: String*): Seq[File] =
-    platformSpecificSourcesWithPlatforms(Seq("shared", platform), conf, baseDirectory)(versions*)
-
-  def platformSpecificSourcesWithPlatforms(platforms: Seq[String], conf: String, baseDirectory: File)(
-    versions: String*
-  ): Seq[File] = for {
-    platform <- platforms
+  def platformSpecificSources(platform: String, conf: String, baseDirectory: File)(versions: String*): Seq[File] = for {
+    platform <- Seq("shared", platform)
     version  <- "scala" :: versions.toList.map("scala-" + _)
     result    = baseDirectory.getParentFile / platform.toLowerCase / "src" / conf / version
     if result.exists
@@ -127,13 +122,7 @@ object BuildHelper {
   }
 
   def crossPlatformSources(scalaVer: String, platform: String, conf: String, baseDir: File): Seq[File] = {
-    val mixedPlatforms = platform match {
-      case "js"     => Seq("js-jvm", "js-native")
-      case "jvm"    => Seq("js-jvm", "jvm-native")
-      case "native" => Seq("js-native", "jvm-native")
-      case _        => Seq.empty
-    }
-    val platforms = Seq("shared", platform) ++ mixedPlatforms
+    val platforms = Seq("shared", platform)
     val versions  = CrossVersion.partialVersion(scalaVer) match {
       case Some((2, 12))    => Seq("2.12-2.13")
       case Some((2, 13))    => Seq("2.13+", "2.12-2.13")
@@ -143,7 +132,7 @@ object BuildHelper {
         base ++ minorSpecific
       case _ => Seq()
     }
-    platformSpecificSourcesWithPlatforms(platforms, conf, baseDir)(versions*)
+    platformSpecificSources(platform, conf, baseDir)(versions*)
   }
 
   def crossProjectSettings: Seq[Def.Setting[?]] = Seq(
