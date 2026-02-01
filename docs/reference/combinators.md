@@ -32,8 +32,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "<version>"
 ```
 
 Supported platforms:
-- **Combiner, Zippable, EitherAlternator**: JVM, Scala.js, Scala Native
-- **UnionAlternator**: JVM, Scala.js, Scala Native (Scala 3 only)
+- **Combiner, Zippable, EitherAlternator**: JVM, Scala.js
+- **UnionAlternator**: JVM, Scala.js (Scala 3 only)
 - **StructuralCombiner**: JVM only (Scala 3 only)
 
 Supported Scala versions: 2.13.x and 3.x
