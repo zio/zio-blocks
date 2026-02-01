@@ -954,7 +954,7 @@ object Optional {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
                 case _                                                 => 8
               }
-            implicit val classTag: ClassTag[Any] = ClassTag.Any
+            implicit val classTag: ClassTag[Any] = atBinding.elemClassTag.asInstanceOf[ClassTag[Any]]
             val builder                          = constructor.newBuilder[Any](sizeHint)
             val it                               = deconstructor.deconstruct(col)
             var currIdx                          = 0

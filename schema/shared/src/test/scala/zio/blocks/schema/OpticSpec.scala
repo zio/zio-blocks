@@ -4280,4 +4280,5 @@ object OpticSpecTypes {
     val intAt1: Optional[RecordWithPrimitiveArray, Int]         = optic(_.ints.at(1))
     val intsAtIndices: Traversal[RecordWithPrimitiveArray, Int] = optic(_.ints.atIndices(0, 2))
   }
+
 }

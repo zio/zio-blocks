@@ -205,7 +205,8 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   def toJsonSchema: JsonSchema = Schema[DynamicValue].toJsonSchema
 
   /**
-   * Rebinds this unbound schema using bindings from a [[TypeRegistry]].
+   * Rebinds this unbound schema using bindings from a
+   * [[zio.blocks.schema.binding.TypeRegistry TypeRegistry]].
    *
    * This converts the structural schema information (types, fields, cases,
    * validations) into a fully operational `Schema[A]` by attaching runtime

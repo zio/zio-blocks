@@ -48,7 +48,7 @@ final class TypeRegistry private (private val entries: Map[TypeId[_], TypeRegist
    *   The TypeId for type A (usually derived implicitly)
    * @return
    *   A new TypeRegistry with the binding added
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the binding is a Seq or Map binding (use bindSeq/bindMap instead)
    *
    * @example

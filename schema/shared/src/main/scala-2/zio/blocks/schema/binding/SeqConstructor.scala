@@ -12,6 +12,15 @@ trait SeqConstructor[C[_]] {
 
   def add[A](builder: Builder[A], a: A): Unit
 
+  def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
+  def addByte(builder: Builder[Byte], a: Byte): Unit          = add(builder, a)
+  def addShort(builder: Builder[Short], a: Short): Unit       = add(builder, a)
+  def addInt(builder: Builder[Int], a: Int): Unit             = add(builder, a)
+  def addLong(builder: Builder[Long], a: Long): Unit          = add(builder, a)
+  def addFloat(builder: Builder[Float], a: Float): Unit       = add(builder, a)
+  def addDouble(builder: Builder[Double], a: Double): Unit    = add(builder, a)
+  def addChar(builder: Builder[Char], a: Char): Unit          = add(builder, a)
+
   def result[A](builder: Builder[A]): C[A]
 
   def empty[A](implicit ct: ClassTag[A]): C[A]
@@ -54,31 +63,130 @@ object SeqConstructor {
     def empty[A](implicit ct: ClassTag[A]): Vector[A] = Vector.empty
   }
 
-  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new SeqConstructor[ArraySeq] {
-    case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+  private[binding] abstract class PrimitiveArraySeqConstructor[C[_]] extends SeqConstructor[C] {
+    case class ArrayBuilder[A](var buffer: Array[A], var size: Int, ct: ClassTag[A])
 
     type Builder[A] = ArrayBuilder[A]
 
     def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
-      new ArrayBuilder(new Array[A](Math.max(sizeHint, 1)), 0)
+      new ArrayBuilder(ct.newArray(Math.max(sizeHint, 1)), 0, ct)
 
     def add[A](builder: Builder[A], a: A): Unit = {
+      val buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        val newBuf = builder.ct.newArray(idx << 1)
+        System.arraycopy(buf, 0, newBuf, 0, idx)
+        builder.buffer = newBuf
+        newBuf(idx) = a
+      } else {
+        buf(idx) = a
+      }
+      builder.size = idx + 1
+    }
+
+    override def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = {
       var buf = builder.buffer
       val idx = builder.size
       if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
         builder.buffer = buf
       }
       buf(idx) = a
       builder.size = idx + 1
     }
 
-    def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
+    override def addByte(builder: Builder[Byte], a: Byte): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addShort(builder: Builder[Short], a: Short): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addInt(builder: Builder[Int], a: Int): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addLong(builder: Builder[Long], a: Long): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addFloat(builder: Builder[Float], a: Float): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addDouble(builder: Builder[Double], a: Double): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    override def addChar(builder: Builder[Char], a: Char): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    protected def trimArray[A](builder: Builder[A]): Array[A] = {
       val buf  = builder.buffer
       val size = builder.size
       if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
+      else {
+        val newBuf = builder.ct.newArray(size)
+        System.arraycopy(buf, 0, newBuf, 0, size)
+        newBuf
+      }
     }
+  }
+
+  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new PrimitiveArraySeqConstructor[ArraySeq] {
+    def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray(trimArray(builder))
 
     def empty[A](implicit ct: ClassTag[A]): ArraySeq[A] = ArraySeq.empty[A]
   }
@@ -114,36 +222,22 @@ object SeqConstructor {
 
     def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
+    override def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = builder.addOne(a)
+    override def addByte(builder: Builder[Byte], a: Byte): Unit          = builder.addOne(a)
+    override def addShort(builder: Builder[Short], a: Short): Unit       = builder.addOne(a)
+    override def addInt(builder: Builder[Int], a: Int): Unit             = builder.addOne(a)
+    override def addLong(builder: Builder[Long], a: Long): Unit          = builder.addOne(a)
+    override def addFloat(builder: Builder[Float], a: Float): Unit       = builder.addOne(a)
+    override def addDouble(builder: Builder[Double], a: Double): Unit    = builder.addOne(a)
+    override def addChar(builder: Builder[Char], a: Char): Unit          = builder.addOne(a)
+
     def result[A](builder: Builder[A]): Chunk[A] = builder.result()
 
     def empty[A](implicit ct: ClassTag[A]): Chunk[A] = Chunk.empty
   }
 
-  implicit val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] {
-    case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
-
-    type Builder[A] = ArrayBuilder[A]
-
-    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
-      new ArrayBuilder(new Array[A](Math.max(sizeHint, 1)), 0)
-
-    def add[A](builder: Builder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
-    def result[A](builder: Builder[A]): Array[A] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
-    }
+  implicit val arrayConstructor: SeqConstructor[Array] = new PrimitiveArraySeqConstructor[Array] {
+    def result[A](builder: Builder[A]): Array[A] = trimArray(builder)
 
     def empty[A](implicit ct: ClassTag[A]): Array[A] = Array.empty[A]
   }

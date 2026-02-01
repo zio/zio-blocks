@@ -803,7 +803,7 @@ class JsonBinaryCodecDeriver private[json] (
                       try {
                         while ({
                           idx += 1
-                          constructor.add(builder, in.readInt())
+                          constructor.addInt(builder, in.readInt())
                           in.isNextToken(',')
                         }) ()
                       } catch {
@@ -890,7 +890,7 @@ class JsonBinaryCodecDeriver private[json] (
                       try {
                         while ({
                           idx += 1
-                          constructor.add(builder, in.readLong())
+                          constructor.addLong(builder, in.readLong())
                           in.isNextToken(',')
                         }) ()
                       } catch {
@@ -977,7 +977,7 @@ class JsonBinaryCodecDeriver private[json] (
                       try {
                         while ({
                           idx += 1
-                          constructor.add(builder, in.readFloat())
+                          constructor.addFloat(builder, in.readFloat())
                           in.isNextToken(',')
                         }) ()
                       } catch {
@@ -1064,7 +1064,7 @@ class JsonBinaryCodecDeriver private[json] (
                       try {
                         while ({
                           idx += 1
-                          constructor.add(builder, in.readDouble())
+                          constructor.addDouble(builder, in.readDouble())
                           in.isNextToken(',')
                         }) ()
                       } catch {
@@ -1151,7 +1151,7 @@ class JsonBinaryCodecDeriver private[json] (
                       try {
                         while ({
                           idx += 1
-                          constructor.add(builder, in.readBoolean())
+                          constructor.addBoolean(builder, in.readBoolean())
                           in.isNextToken(',')
                         }) ()
                       } catch {
