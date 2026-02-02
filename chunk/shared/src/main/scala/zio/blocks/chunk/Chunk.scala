@@ -1217,12 +1217,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Materializes a chunk into a chunk backed by an array. This method can
    * improve the performance of bulk operations.
    */
-  def materialize[A1 >: A]: Chunk[A1] =
-    if (isEmpty) Chunk.empty
-    else {
-      implicit val ct: ClassTag[A] = Chunk.classTagOf(self)
-      Chunk.fromArray(toArray)
-    }
+  def materialize[A1 >: A]: Chunk[A1] = {
+    implicit val ct: ClassTag[A] = Chunk.classTagOf(self)
+    Chunk.fromArray(toArray)
+  }
 
   /**
    * Runs `fn` if a `chunk` is not empty or returns default value
@@ -1906,11 +1904,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    * Returns a singleton chunk, eagerly evaluated.
    */
   def single[A](a: A): Chunk[A] = new Singleton(a)
-
-  /**
-   * Alias for [[Chunk.single]].
-   */
-  def succeed[A](a: A): Chunk[A] = new Singleton(a)
 
   /**
    * Constructs a `Chunk` by repeatedly applying the function `f` as long as it
