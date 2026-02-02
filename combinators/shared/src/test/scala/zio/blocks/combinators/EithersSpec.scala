@@ -49,6 +49,32 @@ object EithersSpec extends ZIOSpecDefault {
           val result: Any                                                 = combiner.combine(input)
           assertTrue(result == Left(Left(Left(1))))
         }
+      ),
+      suite("Idempotence")(
+        test("combine on already-canonical Left preserves structure") {
+          val combiner                                    = implicitly[Eithers.Combiner[Either[Int, String], Boolean]]
+          val input: Either[Either[Int, String], Boolean] = Left(Left(42))
+          val result: Any                                 = combiner.combine(input)
+          assertTrue(result == Left(Left(42)))
+        },
+        test("combine on already-canonical Right preserves structure") {
+          val combiner                                    = implicitly[Eithers.Combiner[Either[Int, String], Boolean]]
+          val input: Either[Either[Int, String], Boolean] = Right(true)
+          val result: Any                                 = combiner.combine(input)
+          assertTrue(result == Right(true))
+        },
+        test("combine on already-canonical deeply nested Left preserves structure") {
+          val combiner                                                    = implicitly[Eithers.Combiner[Either[Either[Int, String], Boolean], Double]]
+          val input: Either[Either[Either[Int, String], Boolean], Double] = Left(Left(Left(42)))
+          val result: Any                                                 = combiner.combine(input)
+          assertTrue(result == Left(Left(Left(42))))
+        },
+        test("combine on already-canonical deeply nested Right preserves structure") {
+          val combiner                                                    = implicitly[Eithers.Combiner[Either[Either[Int, String], Boolean], Double]]
+          val input: Either[Either[Either[Int, String], Boolean], Double] = Right(3.14)
+          val result: Any                                                 = combiner.combine(input)
+          assertTrue(result == Right(3.14))
+        }
       )
     ),
     suite("Separator")(
