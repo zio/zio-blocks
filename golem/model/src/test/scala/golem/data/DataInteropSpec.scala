@@ -18,19 +18,19 @@ object DataInteropSpec extends ZIOSpecDefault {
   implicit val tuple3LikeSchema: Schema[Tuple3Like] = Schema.derived
 
   sealed trait Choice
-  case object Yes extends Choice
+  case object Yes                     extends Choice
   final case class No(reason: String) extends Choice
   implicit val choiceSchema: Schema[Choice] = Schema.derived
 
   object Maybe {
     sealed trait Value
-    case object None extends Value
+    case object None                                   extends Value
     final case class Some(payload: Int, label: String) extends Value
     implicit val schema: Schema[Value] = Schema.derived
   }
 
   sealed trait ValueChoice
-  case object Empty extends ValueChoice
+  case object Empty                  extends ValueChoice
   final case class Value(value: Int) extends ValueChoice
   implicit val valueChoiceSchema: Schema[ValueChoice] = Schema.derived
 
@@ -181,8 +181,8 @@ object DataInteropSpec extends ZIOSpecDefault {
       },
       test("maps variant payload shapes to enum cases") {
         sealed trait Payload
-        case object EmptyPayload extends Payload
-        final case class ValuePayload(value: Int) extends Payload
+        case object EmptyPayload                          extends Payload
+        final case class ValuePayload(value: Int)         extends Payload
         final case class RecordPayload(a: Int, b: String) extends Payload
 
         implicit val payloadSchema: Schema[Payload] = Schema.derived
@@ -208,7 +208,7 @@ object DataInteropSpec extends ZIOSpecDefault {
       },
       test("rejects invalid data values for option and tuple schemas") {
         val optionAttempt = scala.util.Try(DataInterop.fromData[Option[Int]](DataValue.StringValue("oops")))
-        val tupleAttempt =
+        val tupleAttempt  =
           scala.util.Try(DataInterop.fromData[Tuple2Like](DataValue.TupleValue(List(DataValue.IntValue(1)))))
 
         assertTrue(optionAttempt.isFailure) &&
@@ -270,9 +270,9 @@ object DataInteropSpec extends ZIOSpecDefault {
         assert(DataInterop.fromData[Unit](DataValue.NullValue))(isRight(equalTo(())))
       },
       test("decodes optional and enum data values") {
-        val none = DataInterop.fromData[Option[Int]](DataValue.OptionalValue(None))
-        val some = DataInterop.fromData[Option[Int]](DataValue.OptionalValue(Some(DataValue.IntValue(1))))
-        val yes  = DataInterop.fromData[Choice](DataValue.EnumValue("Yes", None))
+        val none  = DataInterop.fromData[Option[Int]](DataValue.OptionalValue(None))
+        val some  = DataInterop.fromData[Option[Int]](DataValue.OptionalValue(Some(DataValue.IntValue(1))))
+        val yes   = DataInterop.fromData[Choice](DataValue.EnumValue("Yes", None))
         val value = DataInterop.fromData[ValueChoice](DataValue.EnumValue("Value", Some(DataValue.IntValue(2))))
 
         assert(none)(isRight(equalTo(None))) &&
@@ -282,14 +282,16 @@ object DataInteropSpec extends ZIOSpecDefault {
       },
       test("rejects unknown enum cases and record/tuple mismatches") {
         val unknownVariant = DataInterop.fromData[Choice](DataValue.EnumValue("Unknown", None))
-        val tupleAsRecord  = scala.util.Try(DataInterop.fromData[Person](DataValue.TupleValue(List(DataValue.IntValue(1)))))
+        val tupleAsRecord  =
+          scala.util.Try(DataInterop.fromData[Person](DataValue.TupleValue(List(DataValue.IntValue(1)))))
 
         assert(unknownVariant)(isLeft) &&
         assertTrue(tupleAsRecord.isFailure)
       },
       test("decodes list and set data values") {
-        val list = DataInterop.fromData[List[Int]](DataValue.ListValue(List(DataValue.IntValue(1), DataValue.IntValue(2))))
-        val set  = DataInterop.fromData[Set[String]](DataValue.SetValue(Set(DataValue.StringValue("a"))))
+        val list =
+          DataInterop.fromData[List[Int]](DataValue.ListValue(List(DataValue.IntValue(1), DataValue.IntValue(2))))
+        val set = DataInterop.fromData[Set[String]](DataValue.SetValue(Set(DataValue.StringValue("a"))))
 
         assert(list)(isRight(equalTo(List(1, 2)))) &&
         assert(set)(isRight(equalTo(Set("a"))))
