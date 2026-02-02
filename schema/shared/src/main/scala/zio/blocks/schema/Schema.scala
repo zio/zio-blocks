@@ -118,9 +118,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * or any type that can be derived from another type with validation.
    *
    * The `to` function is called during decoding (e.g., `fromDynamicValue`) to
-   * convert the underlying `A` value to `B`. It can throw `SchemaError` (or any
-   * exception, which will be converted to `SchemaError`) to indicate validation
-   * failure.
+   * convert the underlying `A` value to `B`. It can throw an exception to
+   * indicate validation failure.
    *
    * The `from` function is called during encoding (e.g., `toDynamicValue`) to
    * convert `B` back to `A` for serialization. It can also throw exceptions if
@@ -159,11 +158,11 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *   }}}
    *
    * @param to
-   *   Function to transform `A` to `B` (used during decoding). Throws
-   *   `SchemaError` on validation failure.
+   *   Function to transform `A` to `B` (used during decoding). Can throw an
+   *   exception on validation failure.
    * @param from
    *   Function to transform `B` back to `A` (used during encoding). Can throw
-   *   `SchemaError` on validation failure.
+   *   an exception on validation failure.
    * @tparam B
    *   The target type
    * @return
