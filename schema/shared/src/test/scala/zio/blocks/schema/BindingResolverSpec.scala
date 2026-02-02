@@ -125,8 +125,8 @@ object BindingResolverSpec extends SchemaBaseSpec {
       },
       test("combines wrapper bindings") {
         val wrapperBinding = Binding.Wrapper[UserId, Long](
-          wrap = l => scala.Right(UserId(l)),
-          unwrap = u => scala.Right(u.value)
+          wrap = l => UserId(l),
+          unwrap = u => u.value
         )
         val left  = BindingResolver.empty.bind(wrapperBinding)
         val right = BindingResolver.defaults
