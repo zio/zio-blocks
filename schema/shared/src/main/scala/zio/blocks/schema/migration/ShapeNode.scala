@@ -35,6 +35,9 @@ object ShapeNode {
   /** Map container with key and value shapes. */
   case class MapNode(key: ShapeNode, value: ShapeNode) extends ShapeNode
 
+  /** Wrapped/newtype container with inner shape. */
+  case class WrappedNode(inner: ShapeNode) extends ShapeNode
+
   /** Leaf node for primitive types. */
   case object PrimitiveNode extends ShapeNode
 }
@@ -146,6 +149,10 @@ object TreeDiff {
         val (keyRemoved, keyAdded) = diffImpl(sourceKey, targetKey, prefix :+ Segment.Key)
         val (valRemoved, valAdded) = diffImpl(sourceVal, targetVal, prefix :+ Segment.Value)
         (keyRemoved ++ valRemoved, keyAdded ++ valAdded)
+
+      // Both wrapped - compare inner types
+      case (ShapeNode.WrappedNode(sourceInner), ShapeNode.WrappedNode(targetInner)) =>
+        diffImpl(sourceInner, targetInner, prefix :+ Segment.Wrapped)
 
       // Different node types - type changed, path is in both removed and added
       case _ =>

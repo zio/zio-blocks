@@ -906,24 +906,24 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
     val treeA = extractShapeTree(aType, Set.empty, "Migration validation")
     val treeB = extractShapeTree(bType, Set.empty, "Migration validation")
 
-    // Compute diff using TreeDiff
-    val (removedPaths, addedPaths) = TreeDiff.diff(treeA, treeB)
+    // Compute diff using TreeDiff - returns List[List[Segment]]
+    val (removed, added) = TreeDiff.diff(treeA, treeB)
 
-    // Convert paths to flat strings for validation
-    val removed = removedPaths.map(ShapeExtraction.MigrationPaths.pathToFlatString).sorted
-    val added   = addedPaths.map(ShapeExtraction.MigrationPaths.pathToFlatString).sorted
+    // Extract handled/provided as List[List[Segment]] (structural comparison)
+    val handled: List[List[Segment]]  = extractTListPaths(handledType)
+    val provided: List[List[Segment]] = extractTListPaths(providedType)
 
-    // Extract field names from TList types
-    val handled  = extractTListElements(handledType)
-    val provided = extractTListElements(providedType)
-
-    // Check what's missing
-    val missingHandled  = removed.diff(handled)
-    val missingProvided = added.diff(provided)
+    // Compare as List[List[Segment]] - full structural comparison
+    val missingHandled  = removed.filterNot(path => handled.contains(path))
+    val missingProvided = added.filterNot(path => provided.contains(path))
 
     if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
-      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
+      // Convert to strings ONLY for error messages
+      val unhandledStrs  = missingHandled.map(pathToFlatString).sorted
+      val unprovidedStrs = missingProvided.map(pathToFlatString).sorted
+
+      val (unhandledPaths, unhandledCases)   = unhandledStrs.partition(!_.startsWith("case:"))
+      val (unprovidedPaths, unprovidedCases) = unprovidedStrs.partition(!_.startsWith("case:"))
 
       val sb = new StringBuilder
       sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
@@ -984,24 +984,24 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
     val treeA = extractShapeTree(aType, Set.empty, "Migration validation")
     val treeB = extractShapeTree(bType, Set.empty, "Migration validation")
 
-    // Compute diff using TreeDiff
-    val (removedPaths, addedPaths) = TreeDiff.diff(treeA, treeB)
+    // Compute diff using TreeDiff - returns List[List[Segment]]
+    val (removed, added) = TreeDiff.diff(treeA, treeB)
 
-    // Convert paths to flat strings for validation
-    val removed = removedPaths.map(ShapeExtraction.MigrationPaths.pathToFlatString).sorted
-    val added   = addedPaths.map(ShapeExtraction.MigrationPaths.pathToFlatString).sorted
+    // Extract handled/provided as List[List[Segment]] (structural comparison)
+    val handled: List[List[Segment]]  = extractTListPaths(handledType)
+    val provided: List[List[Segment]] = extractTListPaths(providedType)
 
-    // Extract field names from TList types
-    val handled  = extractTListElements(handledType)
-    val provided = extractTListElements(providedType)
-
-    // Check what's missing
-    val missingHandled  = removed.diff(handled)
-    val missingProvided = added.diff(provided)
+    // Compare as List[List[Segment]] - full structural comparison
+    val missingHandled  = removed.filterNot(path => handled.contains(path))
+    val missingProvided = added.filterNot(path => provided.contains(path))
 
     if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      val (unhandledPaths, unhandledCases)   = missingHandled.partition(!_.startsWith("case:"))
-      val (unprovidedPaths, unprovidedCases) = missingProvided.partition(!_.startsWith("case:"))
+      // Convert to strings ONLY for error messages
+      val unhandledStrs  = missingHandled.map(pathToFlatString).sorted
+      val unprovidedStrs = missingProvided.map(pathToFlatString).sorted
+
+      val (unhandledPaths, unhandledCases)   = unhandledStrs.partition(!_.startsWith("case:"))
+      val (unprovidedPaths, unprovidedCases) = unprovidedStrs.partition(!_.startsWith("case:"))
 
       val sb = new StringBuilder
       sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
@@ -1052,26 +1052,24 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
   }
 
   /**
-   * Extracts field name strings from a TList type.
-   *
-   * Handles both old flat string format ("a.b") and new structured tuple format
-   * ((("field", "a"), ("field", "b"))).
+   * Extracts paths from a TList type as List[List[Segment]]. Preserves full
+   * structural information for comparison.
    *
    * Given a type like (("field", "a"), ("field", "b")) :: TNil, returns
-   * List("a.b").
+   * List(List(Segment.Field("a"), Segment.Field("b"))).
    */
-  private def extractTListElements(tpe: c.Type): List[String] = {
-    val tlistSym  = typeOf[TList].typeSymbol
+  private def extractTListPaths(tpe: c.Type): List[List[Segment]] = {
     val tnilSym   = typeOf[TNil].typeSymbol
     val tconsSym  = typeOf[TCons[_, _]].typeSymbol
     val tuple2Sym = typeOf[(_, _)].typeSymbol
     val tuple1Sym = typeOf[Tuple1[_]].typeSymbol
 
     /**
-     * Extract a segment string from a segment type. ("field", "name") -> "name"
-     * ("case", "name") -> "case:name"
+     * Convert a segment type to a Segment. ("field", "name") ->
+     * Segment.Field("name") ("case", "name") -> Segment.Case("name") "element"
+     * literal -> Segment.Element
      */
-    def segmentToString(segType: c.Type): Option[String] = {
+    def segmentFromType(segType: c.Type): Option[Segment] = {
       val dealiased = segType.dealias
       dealiased match {
         // Tuple2 segment: ("field", "name") or ("case", "name")
@@ -1080,90 +1078,71 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
           if (args.size == 2) {
             (args(0).dealias, args(1).dealias) match {
               case (ConstantType(Constant("field")), ConstantType(Constant(name: String))) =>
-                Some(name)
+                Some(Segment.Field(name))
               case (ConstantType(Constant("case")), ConstantType(Constant(name: String))) =>
-                Some(s"case:$name")
+                Some(Segment.Case(name))
               case _ => None
             }
           } else None
         // Single string segment: "element", "key", "value", "wrapped"
-        case ConstantType(Constant(s: String)) =>
-          Some(s)
-        case _ => None
+        case ConstantType(Constant("element")) => Some(Segment.Element)
+        case ConstantType(Constant("key"))     => Some(Segment.Key)
+        case ConstantType(Constant("value"))   => Some(Segment.Value)
+        case ConstantType(Constant("wrapped")) => Some(Segment.Wrapped)
+        case _                                 => None
       }
     }
 
     /**
-     * Extract all segments from a path tuple type and join them. (("field",
-     * "a"), ("field", "b")) -> "a.b" Tuple1(("case", "X")) -> "case:X"
+     * Extract all segments from a path tuple type as List[Segment]. (("field",
+     * "a"), ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
+     * Tuple1(("case", "X")) -> List(Segment.Case("X"))
      */
-    def pathTupleToString(pathType: c.Type): Option[String] = {
+    def pathTupleToSegments(pathType: c.Type): Option[List[Segment]] = {
+      val segments = extractPathSegments(pathType)
+      if (segments.isEmpty) None
+      else Some(segments)
+    }
+
+    /**
+     * Recursively extract segments from a nested tuple path. (("field", "a"),
+     * ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
+     * (("field", "a"), (("field", "b"), ("field", "c"))) ->
+     * List(Segment.Field("a"), Segment.Field("b"), Segment.Field("c"))
+     */
+    def extractPathSegments(pathType: c.Type): List[Segment] = {
       val dealiased = pathType.dealias
 
       // Check for Tuple1 (single-element case path)
       if (dealiased.typeSymbol == tuple1Sym) {
         val args = dealiased.typeArgs
         if (args.size == 1) {
-          return segmentToString(args.head)
+          return segmentFromType(args.head).toList
         }
       }
 
-      // Check for Tuple2 (nested path segments)
-      if (dealiased.typeSymbol == tuple2Sym) {
-        val args = dealiased.typeArgs
-        if (args.size == 2) {
-          // Check if this is a segment tuple ("field"/"case", name)
-          val firstArg = args(0).dealias
-          firstArg match {
-            case ConstantType(Constant("field" | "case")) =>
-              // This is a single segment, not nested
-              return segmentToString(dealiased)
-            case _ =>
-              // This is a nested tuple: (segment1, segment2) or (segment1, (segment2, ...))
-              val segments = extractPathSegments(dealiased)
-              if (segments.nonEmpty) {
-                return Some(segments.mkString("."))
-              }
-          }
-        }
-      }
-
-      // Fall back to string literal (for backward compat or simple paths)
-      dealiased match {
-        case ConstantType(Constant(s: String)) => Some(s)
-        case _                                 => None
-      }
-    }
-
-    /**
-     * Recursively extract segments from a nested tuple path. (("field", "a"),
-     * ("field", "b")) -> List("a", "b") (("field", "a"), (("field", "b"),
-     * ("field", "c"))) -> List("a", "b", "c")
-     */
-    def extractPathSegments(pathType: c.Type): List[String] = {
-      val dealiased = pathType.dealias
-
+      // Check for Tuple2 (nested path segments or single segment)
       if (dealiased.typeSymbol == tuple2Sym) {
         val args = dealiased.typeArgs
         if (args.size == 2) {
           val first  = args(0).dealias
           val second = args(1).dealias
 
-          // Check if first is a segment or a nested tuple
+          // Check if this is a segment tuple ("field"/"case", name)
           first match {
             case ConstantType(Constant("field" | "case")) =>
-              // This is a segment tuple, extract it
-              segmentToString(dealiased).toList
+              // This is a single segment, not nested
+              return segmentFromType(dealiased).toList
             case _ if first.typeSymbol == tuple2Sym =>
               // First is a segment tuple, second might be another segment or nested tuple
-              val firstSeg               = segmentToString(first)
-              val restSegs: List[String] = second.typeSymbol match {
+              val firstSeg                = segmentFromType(first)
+              val restSegs: List[Segment] = second.typeSymbol match {
                 case sym if sym == tuple2Sym =>
                   // Check if second is a segment or nested
                   second.typeArgs.headOption.map(_.dealias).flatMap {
                     case ConstantType(Constant("field" | "case")) =>
                       // Second is a single segment
-                      segmentToString(second)
+                      segmentFromType(second)
                     case _ =>
                       // Second is nested
                       None
@@ -1172,19 +1151,20 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
                     case None      => extractPathSegments(second)
                   }
                 case _ =>
-                  segmentToString(second).toList
+                  segmentFromType(second).toList
               }
-              firstSeg.toList ++ restSegs
+              return firstSeg.toList ++ restSegs
             case _ =>
-              Nil
+              // Other case - try direct extraction
+              return Nil
           }
-        } else Nil
-      } else {
-        Nil
+        }
       }
+
+      Nil
     }
 
-    def loop(t: c.Type): List[String] = {
+    def loop(t: c.Type): List[List[Segment]] = {
       val dealiased = t.dealias
       val sym       = dealiased.typeSymbol
 
@@ -1199,20 +1179,40 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
         val head = args(0)
         val tail = args(1)
 
-        // Try to extract as structured path tuple first, fall back to string literal
-        val headStr = pathTupleToString(head).getOrElse {
-          c.abort(c.enclosingPosition, s"Could not extract path from TList element: ${head.dealias}")
+        // Extract as structured path tuple
+        pathTupleToSegments(head) match {
+          case Some(segments) => segments :: loop(tail)
+          case None           =>
+            c.abort(c.enclosingPosition, s"Could not extract path from TList element: ${head.dealias}")
         }
-
-        headStr :: loop(tail)
-      } else if (sym == tlistSym) {
-        // Generic TList - cannot extract elements
-        Nil
       } else {
-        c.abort(c.enclosingPosition, s"Unexpected type in TList position: $dealiased (symbol: $sym)")
+        // Generic TList or unexpected type
+        Nil
       }
     }
 
     loop(tpe)
+  }
+
+  /**
+   * Convert a path (List[Segment]) to a flat string representation for error
+   * messages.
+   *
+   * Examples:
+   *   - List(Segment.Field("address"), Segment.Field("city")) -> "address.city"
+   *   - List(Segment.Case("Success")) -> "case:Success"
+   *   - List(Segment.Field("items"), Segment.Element, Segment.Field("name")) ->
+   *     "items.element.name"
+   */
+  private def pathToFlatString(path: List[Segment]): String = {
+    if (path.isEmpty) return "<root>"
+    path.map {
+      case Segment.Field(name) => name
+      case Segment.Case(name)  => s"case:$name"
+      case Segment.Element     => "element"
+      case Segment.Key         => "key"
+      case Segment.Value       => "value"
+      case Segment.Wrapped     => "wrapped"
+    }.mkString(".")
   }
 }

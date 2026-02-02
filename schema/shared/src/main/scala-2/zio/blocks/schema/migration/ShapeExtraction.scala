@@ -297,5 +297,9 @@ private[migration] class ShapeExtractionHelper[C <: blackbox.Context](val c: C) 
         val keyExpr   = shapeNodeToExpr(key)
         val valueExpr = shapeNodeToExpr(value)
         c.Expr[ShapeNode](q"_root_.zio.blocks.schema.migration.ShapeNode.MapNode($keyExpr, $valueExpr)")
+
+      case ShapeNode.WrappedNode(inner) =>
+        val innerExpr = shapeNodeToExpr(inner)
+        c.Expr[ShapeNode](q"_root_.zio.blocks.schema.migration.ShapeNode.WrappedNode($innerExpr)")
     }
 }

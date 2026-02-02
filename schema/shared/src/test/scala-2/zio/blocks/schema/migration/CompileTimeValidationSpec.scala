@@ -1360,14 +1360,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       assertTrue(true)
     },
     test("requireValidation succeeds with handled fields") {
-      // Create a type alias for the handled TList
-      type HandledList = TCons["extra", TNil]
+      // Create a type alias for the handled TList using structured path tuple
+      // ("field", "extra") represents a single field path segment
+      type HandledList = TCons[("field", "extra"), TNil]
       MigrationBuilderSyntax.requireValidation[DropSource, DropTarget, HandledList, TNil]
       assertTrue(true)
     },
     test("requireValidation succeeds with provided fields") {
-      // Create a type alias for the provided TList
-      type ProvidedList = TCons["extra", TNil]
+      // Create a type alias for the provided TList using structured path tuple
+      // ("field", "extra") represents a single field path segment
+      type ProvidedList = TCons[("field", "extra"), TNil]
       MigrationBuilderSyntax.requireValidation[AddSource, AddTarget, TNil, ProvidedList]
       assertTrue(true)
     },

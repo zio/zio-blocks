@@ -7,13 +7,14 @@ import scala.reflect.macros.blackbox
  */
 sealed trait TypeCategory
 object TypeCategory {
-  case object Primitive  extends TypeCategory
-  case object Record     extends TypeCategory
-  case object Sealed     extends TypeCategory
-  case object OptionType extends TypeCategory
-  case object SeqType    extends TypeCategory
-  case object MapType    extends TypeCategory
-  case object EitherType extends TypeCategory
+  case object Primitive   extends TypeCategory
+  case object Record      extends TypeCategory
+  case object Sealed      extends TypeCategory
+  case object OptionType  extends TypeCategory
+  case object SeqType     extends TypeCategory
+  case object MapType     extends TypeCategory
+  case object EitherType  extends TypeCategory
+  case object WrappedType extends TypeCategory
 }
 
 /**
@@ -90,6 +91,29 @@ private[migration] trait MacroHelpers {
    */
   protected def isProductType(symbol: c.Symbol): Boolean =
     symbol.isClass && symbol.asClass.isCaseClass && !symbol.asClass.isAbstract
+
+  /**
+   * Check if a type is a value class (extends AnyVal with single field).
+   */
+  protected def isValueClass(tpe: c.Type): Boolean = {
+    val symbol = tpe.typeSymbol
+    symbol.isClass &&
+    symbol.asClass.isCaseClass &&
+    tpe <:< c.typeOf[AnyVal] &&
+    symbol.asClass.primaryConstructor.asMethod.paramLists.flatten.filter(_.isTerm).length == 1
+  }
+
+  /**
+   * Get the inner type of a value class. Returns Some(innerType) if this is a
+   * value class, None otherwise.
+   */
+  protected def getWrappedInnerType(tpe: c.Type): Option[c.Type] =
+    if (isValueClass(tpe)) {
+      val fields = getProductFields(tpe)
+      fields.headOption.map(_._2)
+    } else {
+      None
+    }
 
   /**
    * Get the fields of a product type as (name, type) pairs.
@@ -201,6 +225,11 @@ private[migration] trait MacroHelpers {
     // Check for sealed traits (but not the containers we already handled)
     else if (isSealedTrait(dealiased)) {
       TypeCategory.Sealed
+    }
+    // Check for wrapped types (value classes) BEFORE product types
+    // because value classes are also case classes
+    else if (isValueClass(dealiased)) {
+      TypeCategory.WrappedType
     }
     // Check for product types (case classes)
     else if (isProductType(dealiased.typeSymbol)) {
@@ -339,6 +368,16 @@ private[migration] trait MacroHelpers {
           ShapeNode.MapNode(keyShape, valueShape)
         } else {
           ShapeNode.PrimitiveNode
+        }
+
+      case TypeCategory.WrappedType =>
+        getWrappedInnerType(dealiased) match {
+          case Some(innerType) =>
+            val innerShape = extractShapeTree(innerType, newVisiting, errorContext)
+            ShapeNode.WrappedNode(innerShape)
+          case None =>
+            // Fallback if inner type extraction fails
+            ShapeNode.PrimitiveNode
         }
     }
   }
