@@ -1,7 +1,6 @@
 package golem.runtime.annotations
 
 import zio.test._
-import zio.test.Assertion._
 
 object AnnotationsSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment, Any] =
@@ -27,6 +26,7 @@ object AnnotationsSpec extends ZIOSpecDefault {
         assertTrue(
           a1.value == "desc",
           a2.value == "prompt",
+          a3 != null,
           a4.value == "en",
           a5.value == "image/png",
           a6.typeName == "MyAgent",
