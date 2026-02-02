@@ -474,12 +474,19 @@ private[migration] object MigrationBuilderMacrosImpl {
   // ===========================================================================
 
   /**
-   * Shared implementation for field operations that add the same field path
-   * to both Handled and Provided type lists.
+   * Shared implementation for field operations that add the same field path to
+   * both Handled and Provided type lists.
    *
-   * @param buildCall Function that takes (builder, optic) and returns the builder method call tree
+   * @param buildCall
+   *   Function that takes (builder, optic) and returns the builder method call
+   *   tree
    */
-  private def dualTrackingFieldOpImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
+  private def dualTrackingFieldOpImpl[
+    A: c.WeakTypeTag,
+    B: c.WeakTypeTag,
+    Handled: c.WeakTypeTag,
+    Provided: c.WeakTypeTag
+  ](
     c: whitebox.Context
   )(
     at: c.Expr[A => Any]
@@ -667,8 +674,9 @@ private[migration] object MigrationBuilderMacrosImpl {
   // ===========================================================================
 
   /**
-   * Shared implementation for operations that don't modify the Handled or Provided
-   * type lists (like transformElements, transformKeys, transformValues).
+   * Shared implementation for operations that don't modify the Handled or
+   * Provided type lists (like transformElements, transformKeys,
+   * transformValues).
    */
   private def passthroughOpImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
     c: whitebox.Context
@@ -933,14 +941,14 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
     tlistToTypes(tpe).flatMap { elemType =>
       pathTupleToSegments(elemType) match {
         case Some(segments) => Some(segments)
-        case None =>
+        case None           =>
           c.abort(c.enclosingPosition, s"Could not extract path from TList element: ${elemType.dealias}")
       }
     }
 
   /**
-   * Converts a TList type to a List of its element types.
-   * TCons[A, TCons[B, TNil]] -> List(A, B)
+   * Converts a TList type to a List of its element types. TCons[A, TCons[B,
+   * TNil]] -> List(A, B)
    */
   private def tlistToTypes(tpe: c.Type): List[c.Type] = {
     val dealiased = tpe.dealias
@@ -957,10 +965,9 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
   }
 
   /**
-   * Convert a segment type to a Segment.
-   * ("field", "name") -> Segment.Field("name")
-   * ("case", "name") -> Segment.Case("name")
-   * "element" literal -> Segment.Element
+   * Convert a segment type to a Segment. ("field", "name") ->
+   * Segment.Field("name") ("case", "name") -> Segment.Case("name") "element"
+   * literal -> Segment.Element
    */
   private def segmentFromType(segType: c.Type): Option[Segment] = {
     val dealiased = segType.dealias
@@ -996,8 +1003,8 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
   }
 
   /**
-   * Extract all segments from a path tuple type as List[Segment].
-   * (("field", "a"), ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
+   * Extract all segments from a path tuple type as List[Segment]. (("field",
+   * "a"), ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
    * Tuple1(("case", "X")) -> List(Segment.Case("X"))
    */
   private def pathTupleToSegments(pathType: c.Type): Option[List[Segment]] = {
@@ -1030,8 +1037,8 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
   }
 
   /**
-   * Extract remaining segments from the "rest" part of a nested tuple.
-   * Handles both single segments and nested tuples.
+   * Extract remaining segments from the "rest" part of a nested tuple. Handles
+   * both single segments and nested tuples.
    */
   private def extractRestSegments(tpe: c.Type): Option[List[Segment]] =
     if (isSegmentTuple(tpe)) {

@@ -19,7 +19,6 @@ object TypeCategory {
 
 /**
  * Shared macro helper functions for compile-time type introspection.
- *
  */
 private[migration] trait MacroHelpers {
   val c: blackbox.Context

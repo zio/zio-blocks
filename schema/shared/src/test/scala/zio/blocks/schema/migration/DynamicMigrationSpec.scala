@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, DynamicOptic, PrimitiveValue, Schema, SchemaExpr}
+import zio.blocks.schema.{DynamicValue, DynamicOptic, IsNumeric, PrimitiveValue, Schema, SchemaExpr}
 import zio.test._
 
 object DynamicMigrationSpec extends ZIOSpecDefault {
@@ -87,7 +87,117 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
         val result = migration.apply(record)
 
-        assertTrue(result.isLeft)
+        assertTrue(result.isLeft) &&
+        assertTrue(result.swap.exists(_.isInstanceOf[MigrationError.FieldNotFound]))
+      },
+      test("should execute TransformElements action") {
+        val record = DynamicValue.Record(
+          Chunk(
+            "items" -> DynamicValue.Sequence(
+              Chunk(
+                DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                DynamicValue.Primitive(PrimitiveValue.Int(2))
+              )
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.TransformElements(
+              at = DynamicOptic.root.field("items"),
+              transform = SchemaExpr.Arithmetic(
+                SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
+                SchemaExpr.Literal(10, Schema.int),
+                SchemaExpr.ArithmeticOperator.Add,
+                IsNumeric.IsInt
+              )
+            )
+          )
+        )
+
+        val result = migration.apply(record)
+
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == DynamicValue.Record(
+            Chunk(
+              "items" -> DynamicValue.Sequence(
+                Chunk(
+                  DynamicValue.Primitive(PrimitiveValue.Int(11)),
+                  DynamicValue.Primitive(PrimitiveValue.Int(12))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("should execute Join action") {
+        val record = DynamicValue.Record(
+          Chunk(
+            "first"  -> DynamicValue.Primitive(PrimitiveValue.String("Hello")),
+            "second" -> DynamicValue.Primitive(PrimitiveValue.String("World"))
+          )
+        )
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Join(
+              at = DynamicOptic.root.field("combined"),
+              sourcePaths = Vector(
+                DynamicOptic.root.field("first"),
+                DynamicOptic.root.field("second")
+              ),
+              combiner = SchemaExpr.StringConcat(
+                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+                SchemaExpr.StringConcat(
+                  SchemaExpr.Literal(" ", Schema.string),
+                  SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+                )
+              )
+            )
+          )
+        )
+
+        val result = migration.apply(record)
+
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == DynamicValue.Record(
+            Chunk("combined" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")))
+          )
+        )
+      },
+      test("should execute RenameCase action") {
+        val record = DynamicValue.Record(
+          Chunk(
+            "status" -> DynamicValue.Variant(
+              "Active",
+              DynamicValue.Record(Chunk.empty)
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.RenameCase(
+              at = DynamicOptic.root.field("status"),
+              from = "Active",
+              to = "Enabled"
+            )
+          )
+        )
+
+        val result = migration.apply(record)
+
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == DynamicValue.Record(
+            Chunk(
+              "status" -> DynamicValue.Variant(
+                "Enabled",
+                DynamicValue.Record(Chunk.empty)
+              )
+            )
+          )
+        )
       }
     ),
     suite("identity")(
