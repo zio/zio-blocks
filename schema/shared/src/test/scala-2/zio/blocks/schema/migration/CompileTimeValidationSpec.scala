@@ -1199,7 +1199,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       assertTrue(
         st.tree == ShapeNode.RecordNode(
           Map(
-            "name" -> ShapeNode.PrimitiveNode,
+            "name"    -> ShapeNode.PrimitiveNode,
             "address" -> ShapeNode.RecordNode(
               Map(
                 "street" -> ShapeNode.PrimitiveNode,
@@ -1781,7 +1781,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
             ),
             "list" -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode),
             "set"  -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode),
-            "map" -> ShapeNode.MapNode(
+            "map"  -> ShapeNode.MapNode(
               ShapeNode.PrimitiveNode,
               ShapeNode.RecordNode(
                 Map(
@@ -1815,8 +1815,13 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("migration with container fields works") {
       // Containers with different element types should still migrate if container field names match
       val migration = syntax(MigrationBuilder.newBuilder[WithContainers, WithContainers]).build
-      val source    = WithContainers(Some(AddressV1("Main St", "NYC")), List("a", "b"), Set(1, 2), Map("k" -> AddressV1("Oak Ave", "LA")))
-      val result    = migration(source)
+      val source    = WithContainers(
+        Some(AddressV1("Main St", "NYC")),
+        List("a", "b"),
+        Set(1, 2),
+        Map("k" -> AddressV1("Oak Ave", "LA"))
+      )
+      val result = migration(source)
       assertTrue(result == Right(source))
     },
     test("sealed trait with case objects extracts all cases") {
@@ -1850,7 +1855,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     },
     test("identical sealed traits with case objects require no handling") {
       // Same case object structure should compile without handling
-      val migration          = syntax(MigrationBuilder.newBuilder[WithCaseObject, WithCaseObject]).build
+      val migration                  = syntax(MigrationBuilder.newBuilder[WithCaseObject, WithCaseObject]).build
       val someSource: WithCaseObject = SomeValue(42)
       val noneSource: WithCaseObject = NoneValue
 

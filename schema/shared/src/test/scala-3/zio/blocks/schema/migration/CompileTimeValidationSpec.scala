@@ -1004,7 +1004,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         @scala.annotation.nowarn("msg=unused local definition")
         case class ActiveSame(since: String) extends StatusSame
         @scala.annotation.nowarn("msg=unused local definition")
-        case class InactiveSame()            extends StatusSame
+        case class InactiveSame() extends StatusSame
 
         given Schema[StatusSame] = Schema.derived
 
@@ -1017,7 +1017,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         @scala.annotation.nowarn("msg=unused local definition")
         case class SomeValue(x: Int) extends WithCaseObject
         @scala.annotation.nowarn("msg=unused local definition")
-        case object NoneValue        extends WithCaseObject
+        case object NoneValue extends WithCaseObject
 
         given Schema[WithCaseObject] = Schema.derived
 
@@ -1036,11 +1036,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("enum-like sealed trait with only case objects") {
         sealed trait Color
         @scala.annotation.nowarn("msg=unused local definition")
-        case object Red   extends Color
+        case object Red extends Color
         @scala.annotation.nowarn("msg=unused local definition")
         case object Green extends Color
         @scala.annotation.nowarn("msg=unused local definition")
-        case object Blue  extends Color
+        case object Blue extends Color
 
         given Schema[Color] = Schema.derived
 
@@ -1062,7 +1062,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         @scala.annotation.nowarn("msg=unused local definition")
         case class SomeValue(x: Int) extends WithCaseObject
         @scala.annotation.nowarn("msg=unused local definition")
-        case object NoneValue        extends WithCaseObject
+        case object NoneValue extends WithCaseObject
 
         given Schema[WithCaseObject] = Schema.derived
 
@@ -1073,11 +1073,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       test("identical enum-like sealed traits require no handling") {
         sealed trait Color
         @scala.annotation.nowarn("msg=unused local definition")
-        case object Red   extends Color
+        case object Red extends Color
         @scala.annotation.nowarn("msg=unused local definition")
         case object Green extends Color
         @scala.annotation.nowarn("msg=unused local definition")
-        case object Blue  extends Color
+        case object Blue extends Color
 
         given Schema[Color] = Schema.derived
 
@@ -1590,7 +1590,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
               ),
               "list" -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode),
               "set"  -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode),
-              "map" -> ShapeNode.MapNode(
+              "map"  -> ShapeNode.MapNode(
                 ShapeNode.PrimitiveNode,
                 ShapeNode.RecordNode(Map("street" -> ShapeNode.PrimitiveNode, "city" -> ShapeNode.PrimitiveNode))
               )
