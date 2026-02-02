@@ -784,7 +784,7 @@ object TypeIdMacros {
 
           existentialType.asType match {
             case '[t] =>
-              val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
+              val typeIdType = TypeRepr.of[TypeId[t]]
               Implicits.search(typeIdType) match {
                 case iss: ImplicitSearchSuccess =>
                   val foundTree = iss.tree

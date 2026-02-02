@@ -717,16 +717,25 @@ private object SchemaCompanionVersionSpecific {
       } else {
         case class StructuralFieldInfo(name: String, tpe: Type, kind: String, fieldOffset: Long)
 
+        // Register offset encoding: low 32 bits = object register index,
+        // high 32 bits = primitive register byte offset.
+        // Each primitive type occupies a specific number of bytes in the primitive register space.
+        val ByteOrBooleanDelta = 0x100000000L // 1 byte  (1L << 32)
+        val ShortOrCharDelta   = 0x200000000L // 2 bytes (2L << 32)
+        val IntOrFloatDelta    = 0x400000000L // 4 bytes (4L << 32)
+        val LongOrDoubleDelta  = 0x800000000L // 8 bytes (8L << 32)
+        val ObjectDelta        = 1L           // 1 object reference
+
         def offsetDelta(registerType: String): Long = registerType match {
-          case "boolean" => 0x100000000L
-          case "byte"    => 0x100000000L
-          case "short"   => 0x200000000L
-          case "int"     => 0x400000000L
-          case "long"    => 0x800000000L
-          case "float"   => 0x400000000L
-          case "double"  => 0x800000000L
-          case "char"    => 0x200000000L
-          case "object"  => 1L
+          case "boolean" => ByteOrBooleanDelta
+          case "byte"    => ByteOrBooleanDelta
+          case "short"   => ShortOrCharDelta
+          case "int"     => IntOrFloatDelta
+          case "long"    => LongOrDoubleDelta
+          case "float"   => IntOrFloatDelta
+          case "double"  => LongOrDoubleDelta
+          case "char"    => ShortOrCharDelta
+          case "object"  => ObjectDelta
         }
 
         var currentOffset: Long = 0L

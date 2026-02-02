@@ -1162,17 +1162,27 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       }
     })
 
+    val TypeInt     = 1
+    val TypeLong    = 2
+    val TypeFloat   = 3
+    val TypeDouble  = 4
+    val TypeBoolean = 5
+    val TypeByte    = 6
+    val TypeChar    = 7
+    val TypeShort   = 8
+    val TypeObject  = 0
+
     val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
       val typeIndicator =
-        if (fi.tpe.dealias <:< intTpe) 1
-        else if (fi.tpe.dealias <:< longTpe) 2
-        else if (fi.tpe.dealias <:< floatTpe) 3
-        else if (fi.tpe.dealias <:< doubleTpe) 4
-        else if (fi.tpe.dealias <:< booleanTpe) 5
-        else if (fi.tpe.dealias <:< byteTpe) 6
-        else if (fi.tpe.dealias <:< charTpe) 7
-        else if (fi.tpe.dealias <:< shortTpe) 8
-        else 0
+        if (fi.tpe.dealias <:< intTpe) TypeInt
+        else if (fi.tpe.dealias <:< longTpe) TypeLong
+        else if (fi.tpe.dealias <:< floatTpe) TypeFloat
+        else if (fi.tpe.dealias <:< doubleTpe) TypeDouble
+        else if (fi.tpe.dealias <:< booleanTpe) TypeBoolean
+        else if (fi.tpe.dealias <:< byteTpe) TypeByte
+        else if (fi.tpe.dealias <:< charTpe) TypeChar
+        else if (fi.tpe.dealias <:< shortTpe) TypeShort
+        else TypeObject
       (fi.name, typeIndicator, RegisterOffset.getBytes(baseOffset), RegisterOffset.getObjects(baseOffset))
     }
 
