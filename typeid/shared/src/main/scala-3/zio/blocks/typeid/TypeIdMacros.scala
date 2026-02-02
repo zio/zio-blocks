@@ -672,6 +672,21 @@ object TypeIdMacros {
     annotationsCache.computeIfAbsent(key, _ => analyzeAnnotations(sym))
   }
 
+  private def getEnumCaseDefKindValue(using Quotes)(termSym: quotes.reflect.Symbol): TypeDefKind = {
+    import quotes.reflect.*
+
+    val parentSym = termSym.owner
+    val siblings  = parentSym.children.filter(_.flags.is(Flags.Case))
+    val ordinal   = siblings.indexOf(termSym)
+
+    val isObjectCase = termSym.flags.is(Flags.Module) ||
+      termSym.primaryConstructor.paramSymss.flatten.isEmpty
+
+    val parentTypeRepr = analyzeTypeReprMinimal(parentSym.typeRef)
+
+    TypeDefKind.EnumCase(parentTypeRepr, ordinal, isObjectCase)
+  }
+
   // --- Cached Build Functions ---
 
   private def buildOwnerCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[Owner] =
@@ -1096,17 +1111,24 @@ object TypeIdMacros {
         )
       }
     } else if (isEnumValue) {
-      '{
-        TypeId.nominal[A](
-          ${ Expr(name) },
-          ${ ownerExpr },
-          ${ typeParamsExpr },
-          Nil,
-          ${ defKindExpr },
-          $selfTypeExpr,
-          $annotationsExpr
-        )
-      }
+      val ownerValue       = getOwnerValue(termSymbol.owner)
+      val typeParamsValue  = getTypeParamsValue(typeSymbol)
+      val defKindValue     = getEnumCaseDefKindValue(termSymbol)
+      val annotationsValue = getAnnotationsValue(termSymbol)
+
+      val typeIdValue = TypeId.nominal[Any](
+        name,
+        ownerValue,
+        typeParamsValue,
+        Nil,
+        defKindValue,
+        None,
+        annotationsValue
+      )
+
+      typeIdCache.put(cacheKey, typeIdValue)
+
+      '{ ${ typeIdToExpr(typeIdValue) }.asInstanceOf[TypeId[A]] }
     } else if (hasSelfType(typeSymbol)) {
       '{
         TypeId.nominal[A](
