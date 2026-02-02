@@ -331,6 +331,9 @@ object BindingResolver {
      * The binding is stored by the unapplied type constructor, so binding
      * `List` allows lookup for `List[Int]`, `List[String]`, etc.
      *
+     * The element type `A` is phantom (not used by the binding's constructor or
+     * deconstructor), so any element type can be passed.
+     *
      * @tparam C
      *   The sequence type constructor (e.g., `List`, `Vector`)
      * @param binding
@@ -341,14 +344,17 @@ object BindingResolver {
      * @return
      *   A new Registry with the binding added
      */
-    def bind[C[_]](binding: Binding.Seq[C, Nothing])(implicit typeId: TypeId[C[Nothing]]): Registry =
-      updated(keyForConstructor(typeId), new Entry.Seq(binding))
+    def bind[C[_]](binding: Binding.Seq[C, _])(implicit typeId: TypeId[C[Nothing]]): Registry =
+      updated(keyForConstructor(typeId), new Entry.Seq(binding.asInstanceOf[Binding.Seq[C, Nothing]]))
 
     /**
      * Binds a map type constructor to its binding.
      *
      * The binding is stored by the unapplied type constructor, so binding `Map`
      * allows lookup for `Map[String, Int]`, `Map[Int, String]`, etc.
+     *
+     * The key and value types `K` and `V` are phantom (not used by the
+     * binding's constructor or deconstructor), so any types can be passed.
      *
      * @tparam M
      *   The map type constructor (e.g., `Map`)
@@ -360,10 +366,10 @@ object BindingResolver {
      * @return
      *   A new Registry with the binding added
      */
-    def bind[M[_, _]](binding: Binding.Map[M, Nothing, Nothing])(implicit
+    def bind[M[_, _]](binding: Binding.Map[M, _, _])(implicit
       typeId: TypeId[M[Nothing, Nothing]]
     ): Registry =
-      updated(keyForConstructor(typeId), new Entry.Map(binding))
+      updated(keyForConstructor(typeId), new Entry.Map(binding.asInstanceOf[Binding.Map[M, Nothing, Nothing]]))
 
     def resolveRecord[A](implicit typeId: TypeId[A]): Option[Binding.Record[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Record(b) =>
@@ -541,11 +547,60 @@ object BindingResolver {
    * This resolver creates bindings for case classes by using runtime reflection
    * to discover constructor parameters and field accessors. It caches derived
    * bindings to avoid repeated reflection overhead.
+   *
+   * The derived bindings use the correct register types for each field:
+   *   - Boolean/Byte → booleansAndBytes register
+   *   - Char/Short → charsAndShorts register
+   *   - Int/Float → floatsAndInts register
+   *   - Long/Double → doublesAndLongs register
+   *   - Reference types → objects register
    */
   private object Reflection extends BindingResolver {
     import scala.util.Try
 
     private val recordCache = new java.util.concurrent.ConcurrentHashMap[TypeId[_], Option[Binding.Record[Any]]]()
+
+    private val BooleanType: Class[_] = java.lang.Boolean.TYPE
+    private val ByteType: Class[_]    = java.lang.Byte.TYPE
+    private val CharType: Class[_]    = java.lang.Character.TYPE
+    private val ShortType: Class[_]   = java.lang.Short.TYPE
+    private val IntType: Class[_]     = java.lang.Integer.TYPE
+    private val LongType: Class[_]    = java.lang.Long.TYPE
+    private val FloatType: Class[_]   = java.lang.Float.TYPE
+    private val DoubleType: Class[_]  = java.lang.Double.TYPE
+
+    private def registerIncrement(clazz: Class[_]): RegisterOffset.RegisterOffset =
+      if (clazz == BooleanType) RegisterOffset(booleans = 1)
+      else if (clazz == ByteType) RegisterOffset(bytes = 1)
+      else if (clazz == CharType) RegisterOffset(chars = 1)
+      else if (clazz == ShortType) RegisterOffset(shorts = 1)
+      else if (clazz == IntType) RegisterOffset(ints = 1)
+      else if (clazz == LongType) RegisterOffset(longs = 1)
+      else if (clazz == FloatType) RegisterOffset(floats = 1)
+      else if (clazz == DoubleType) RegisterOffset(doubles = 1)
+      else RegisterOffset(objects = 1)
+
+    private def computeTotalRegisters(paramTypes: Array[Class[_]]): RegisterOffset.RegisterOffset = {
+      var total: RegisterOffset.RegisterOffset = RegisterOffset.Zero
+      var i                                    = 0
+      while (i < paramTypes.length) {
+        total = RegisterOffset.add(total, registerIncrement(paramTypes(i)))
+        i += 1
+      }
+      total
+    }
+
+    private def computeFieldOffsets(paramTypes: Array[Class[_]]): Array[RegisterOffset.RegisterOffset] = {
+      val offsets                                      = new Array[RegisterOffset.RegisterOffset](paramTypes.length)
+      var currentOffset: RegisterOffset.RegisterOffset = RegisterOffset.Zero
+      var i                                            = 0
+      while (i < paramTypes.length) {
+        offsets(i) = currentOffset
+        currentOffset = RegisterOffset.add(currentOffset, registerIncrement(paramTypes(i)))
+        i += 1
+      }
+      offsets
+    }
 
     def resolveRecord[A](implicit typeId: TypeId[A]): Option[Binding.Record[A]] = {
       val normalizedId = TypeId.normalize(typeId)
@@ -579,21 +634,43 @@ object BindingResolver {
             if (constructors.isEmpty) None
             else {
               val primaryCtor = constructors.head
-              val paramCount  = primaryCtor.getParameterCount
+              val paramTypes  = primaryCtor.getParameterTypes
+              val paramCount  = paramTypes.length
 
               val fields = clazz.getDeclaredFields.take(paramCount)
               fields.foreach(_.setAccessible(true))
 
+              val totalRegs    = computeTotalRegisters(paramTypes)
+              val fieldOffsets = computeFieldOffsets(paramTypes)
+
               val constructor = new Constructor[Any] {
-                def usedRegisters: RegisterOffset.RegisterOffset = RegisterOffset(objects = paramCount)
+                def usedRegisters: RegisterOffset.RegisterOffset = totalRegs
 
                 def construct(in: Registers, baseOffset: RegisterOffset.RegisterOffset): Any = {
-                  val args   = new Array[AnyRef](paramCount)
-                  var i      = 0
-                  var offset = baseOffset
+                  val args = new Array[AnyRef](paramCount)
+                  var i    = 0
                   while (i < paramCount) {
-                    args(i) = in.getObject(offset)
-                    offset = RegisterOffset.incrementObjects(offset)
+                    val paramType = paramTypes(i)
+                    val offset    = RegisterOffset.add(baseOffset, fieldOffsets(i))
+                    if (paramType == BooleanType) {
+                      args(i) = java.lang.Boolean.valueOf(in.getBoolean(offset))
+                    } else if (paramType == ByteType) {
+                      args(i) = java.lang.Byte.valueOf(in.getByte(offset))
+                    } else if (paramType == CharType) {
+                      args(i) = java.lang.Character.valueOf(in.getChar(offset))
+                    } else if (paramType == ShortType) {
+                      args(i) = java.lang.Short.valueOf(in.getShort(offset))
+                    } else if (paramType == IntType) {
+                      args(i) = java.lang.Integer.valueOf(in.getInt(offset))
+                    } else if (paramType == LongType) {
+                      args(i) = java.lang.Long.valueOf(in.getLong(offset))
+                    } else if (paramType == FloatType) {
+                      args(i) = java.lang.Float.valueOf(in.getFloat(offset))
+                    } else if (paramType == DoubleType) {
+                      args(i) = java.lang.Double.valueOf(in.getDouble(offset))
+                    } else {
+                      args(i) = in.getObject(offset)
+                    }
                     i += 1
                   }
                   primaryCtor.newInstance(args: _*)
@@ -601,14 +678,33 @@ object BindingResolver {
               }
 
               val deconstructor = new Deconstructor[Any] {
-                def usedRegisters: RegisterOffset.RegisterOffset = RegisterOffset(objects = paramCount)
+                def usedRegisters: RegisterOffset.RegisterOffset = totalRegs
 
                 def deconstruct(out: Registers, baseOffset: RegisterOffset.RegisterOffset, in: Any): Unit = {
-                  var i      = 0
-                  var offset = baseOffset
+                  var i = 0
                   while (i < paramCount) {
-                    out.setObject(offset, fields(i).get(in).asInstanceOf[AnyRef])
-                    offset = RegisterOffset.incrementObjects(offset)
+                    val field     = fields(i)
+                    val paramType = paramTypes(i)
+                    val offset    = RegisterOffset.add(baseOffset, fieldOffsets(i))
+                    if (paramType == BooleanType) {
+                      out.setBoolean(offset, field.getBoolean(in))
+                    } else if (paramType == ByteType) {
+                      out.setByte(offset, field.getByte(in))
+                    } else if (paramType == CharType) {
+                      out.setChar(offset, field.getChar(in))
+                    } else if (paramType == ShortType) {
+                      out.setShort(offset, field.getShort(in))
+                    } else if (paramType == IntType) {
+                      out.setInt(offset, field.getInt(in))
+                    } else if (paramType == LongType) {
+                      out.setLong(offset, field.getLong(in))
+                    } else if (paramType == FloatType) {
+                      out.setFloat(offset, field.getFloat(in))
+                    } else if (paramType == DoubleType) {
+                      out.setDouble(offset, field.getDouble(in))
+                    } else {
+                      out.setObject(offset, field.get(in).asInstanceOf[AnyRef])
+                    }
                     i += 1
                   }
                 }

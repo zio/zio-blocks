@@ -43,7 +43,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       test("rebinds a simple record schema") {
         val originalSchema = Schema[Person]
         val dynamicSchema  = originalSchema.toDynamicSchema
-        val registry       = TypeRegistry.default.bind(Binding.of[Person])
+        val registry       = BindingResolver.defaults.bind(Binding.of[Person])
 
         val rebound = dynamicSchema.rebind[Person](registry)
         val person  = Person("Alice", 30)
@@ -54,7 +54,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds a schema with sequence fields") {
         val dynamicSchema = Schema[Team].toDynamicSchema
-        val registry      = TypeRegistry.default.bind(Binding.of[Team])
+        val registry      = BindingResolver.defaults.bind(Binding.of[Team])
 
         val rebound = dynamicSchema.rebind[Team](registry)
         val team    = Team("Alpha", List("Alice", "Bob"))
@@ -65,7 +65,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds a schema with map fields") {
         val dynamicSchema = Schema[Config].toDynamicSchema
-        val registry      = TypeRegistry.default.bind(Binding.of[Config])
+        val registry      = BindingResolver.defaults.bind(Binding.of[Config])
 
         val rebound = dynamicSchema.rebind[Config](registry)
         val config  = Config(Map("a" -> 1, "b" -> 2))
@@ -77,7 +77,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       test("rebinds a variant schema") {
         val dynamicSchema = Schema[Animal].toDynamicSchema
 
-        val registry = TypeRegistry.default
+        val registry = BindingResolver.defaults
           .bind(Binding.of[Animal])
           .bind(Binding.of[Dog])
           .bind(Binding.of[Cat])
@@ -91,7 +91,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("throws RebindException when binding is missing") {
         val dynamicSchema = Schema[Person].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val thrown = try {
           dynamicSchema.rebind[Person](registry)
@@ -105,7 +105,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("RebindException contains useful information") {
         val dynamicSchema = Schema[Person].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val exception = try {
           dynamicSchema.rebind[Person](registry)
@@ -125,7 +125,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds primitive schema") {
         val dynamicSchema = Schema[Int].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val rebound = dynamicSchema.rebind[Int](registry)
         val dynamic = rebound.toDynamicValue(42)
@@ -135,7 +135,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds dynamic schema") {
         val dynamicSchema = Schema[DynamicValue].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val rebound   = dynamicSchema.rebind[DynamicValue](registry)
         val testValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
@@ -150,7 +150,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
           wrap = l => scala.Right(UserId(l)),
           unwrap = u => scala.Right(u.value)
         )
-        val registry = TypeRegistry.default.bind(wrapperBinding)
+        val registry = BindingResolver.defaults.bind(wrapperBinding)
 
         val rebound = dynamicSchema.rebind[UserId](registry)
         val userId  = UserId(123L)
@@ -161,7 +161,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds sequence schema") {
         val dynamicSchema = Schema[List[Int]].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val rebound = dynamicSchema.rebind[List[Int]](registry)
         val list    = List(1, 2, 3)
@@ -172,7 +172,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds map schema") {
         val dynamicSchema = Schema[Map[String, Int]].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val rebound = dynamicSchema.rebind[Map[String, Int]](registry)
         val map     = Map("a" -> 1, "b" -> 2)
@@ -188,7 +188,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
         implicit val outerSchema: Schema[Outer] = Schema.derived[Outer]
 
         val dynamicSchema = outerSchema.toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
           .bind(Binding.of[Inner])
           .bind(Binding.of[Outer])
 
@@ -201,7 +201,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("rebinds option schema") {
         val dynamicSchema = Schema[Option[Int]].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
           .bind(Binding.of[Option[Int]])
           .bind(Binding.Record.someInt)
           .bind(Binding.Record.none)
@@ -222,12 +222,12 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
 
       test("unified bind method accepts Binding.of result") {
         val binding  = Binding.of[Person]
-        val registry = TypeRegistry.default.bind(binding)
+        val registry = BindingResolver.defaults.bind(binding)
         assertTrue(registry.resolveRecord[Person].isDefined)
       },
       test("throws RebindException when variant binding is missing") {
         val dynamicSchema = Schema[Animal].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
           .bind(Binding.of[Dog])
           .bind(Binding.of[Cat])
 
@@ -248,7 +248,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
 
       test("throws RebindException when primitive binding is missing") {
         val dynamicSchema = Schema[Int].toDynamicSchema
-        val registry      = TypeRegistry.empty
+        val registry      = BindingResolver.empty
 
         val exception = try {
           dynamicSchema.rebind[Int](registry)
@@ -265,7 +265,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("throws RebindException when wrapper binding is missing") {
         val dynamicSchema = Schema[UserId].toDynamicSchema
-        val registry      = TypeRegistry.default
+        val registry      = BindingResolver.defaults
 
         val exception = try {
           dynamicSchema.rebind[UserId](registry)
@@ -282,7 +282,7 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       },
       test("throws RebindException when dynamic binding is missing") {
         val dynamicSchema = Schema[DynamicValue].toDynamicSchema
-        val registry      = TypeRegistry.empty
+        val registry      = BindingResolver.empty
 
         val exception = try {
           dynamicSchema.rebind[DynamicValue](registry)
