@@ -62,7 +62,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     implicit val schema: Schema[MultiField2] = Schema.derived
   }
 
-  // Helper to get syntax explicitly (avoids conflict with private[migration] methods)
+  // Helper to get syntax explicitly
   def syntax[A, B, H <: TList, P <: TList](
     b: MigrationBuilder[A, B, H, P]
   ): MigrationBuilderSyntax[A, B, H, P] = new MigrationBuilderSyntax(b)

@@ -275,7 +275,7 @@ object MigrationAction {
   /**
    * Adds a field to a record with a default value. Reverse: DropField
    */
-  final case class AddField(
+  private[migration] final case class AddField(
     at: DynamicOptic,
     default: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -304,7 +304,7 @@ object MigrationAction {
    * Removes a field from a record. Stores a default value for reverse
    * migration. Reverse: AddField
    */
-  final case class DropField(
+  private[migration] final case class DropField(
     at: DynamicOptic,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -325,7 +325,7 @@ object MigrationAction {
   /**
    * Renames a field in a record. Reverse: Rename with flipped to/from
    */
-  final case class Rename(
+  private[migration] final case class Rename(
     at: DynamicOptic,
     to: String
   ) extends MigrationAction {
@@ -361,7 +361,7 @@ object MigrationAction {
    * SchemaExpr (Arithmetic, StringConcat, etc.) Reverse: TransformValue with
    * reverse SchemaExpr (best-effort)
    */
-  final case class TransformValue(
+  private[migration] final case class TransformValue(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -390,7 +390,7 @@ object MigrationAction {
    * Changes the type of a field using a PrimitiveConverter. Reverse: ChangeType
    * with reverse converter
    */
-  final case class ChangeType(
+  private[migration] final case class ChangeType(
     at: DynamicOptic,
     converter: zio.blocks.schema.PrimitiveConverter
   ) extends MigrationAction {
@@ -417,7 +417,7 @@ object MigrationAction {
    * Unwraps an Option field, extracting the value from Some or using a default
    * for None. Transforms Option[T] → T Reverse: Optionalize
    */
-  final case class Mandate(
+  private[migration] final case class Mandate(
     at: DynamicOptic,
     default: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -461,7 +461,7 @@ object MigrationAction {
    * Wraps a field value in Some, making it optional. Transforms T → Option[T]
    * Reverse: Mandate
    */
-  final case class Optionalize(
+  private[migration] final case class Optionalize(
     at: DynamicOptic,
     defaultForReverse: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -489,7 +489,7 @@ object MigrationAction {
    *
    * Reverse: Split
    */
-  final case class Join(
+  private[migration] final case class Join(
     at: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
     combiner: SchemaExpr[DynamicValue, ?]
@@ -583,7 +583,7 @@ object MigrationAction {
    *
    * Reverse: Join
    */
-  final case class Split(
+  private[migration] final case class Split(
     at: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
     splitter: SchemaExpr[DynamicValue, ?]
@@ -679,7 +679,7 @@ object MigrationAction {
    *
    * Reverse: TransformElements (best-effort, needs inverse expression)
    */
-  final case class TransformElements(
+  private[migration] final case class TransformElements(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -716,7 +716,7 @@ object MigrationAction {
    *
    * Reverse: TransformKeys (best-effort, needs inverse expression)
    */
-  final case class TransformKeys(
+  private[migration] final case class TransformKeys(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -752,7 +752,7 @@ object MigrationAction {
    *
    * Reverse: TransformValues (best-effort, needs inverse expression)
    */
-  final case class TransformValues(
+  private[migration] final case class TransformValues(
     at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, ?]
   ) extends MigrationAction {
@@ -789,7 +789,7 @@ object MigrationAction {
    *
    * Reverse: RenameCase with flipped from/to
    */
-  final case class RenameCase(
+  private[migration] final case class RenameCase(
     at: DynamicOptic,
     from: String,
     to: String
@@ -816,7 +816,7 @@ object MigrationAction {
    *
    * Reverse: TransformCase with reversed nested actions
    */
-  final case class TransformCase(
+  private[migration] final case class TransformCase(
     at: DynamicOptic,
     caseName: String,
     actions: Vector[MigrationAction]

@@ -234,7 +234,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[DeepOuterV2] = Schema.derived
   }
 
-  // Container types - should not recurse into element types
+  // Container types
   case class WithContainers(
     opt: Option[AddressV1],
     list: List[String],
@@ -272,7 +272,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[SomeValue] = Schema.derived
   }
 
-  // Sealed trait with only case objects (enum-like)
+  // Sealed trait with only case objects (enum)
   sealed trait Color
   case object Red   extends Color
   case object Green extends Color
@@ -604,7 +604,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       assertTrue(result == Right(ComplexTarget("hello", 42, true, 0L)))
     },
     test("using implicit conversion for build") {
-      // With the implicit conversion imported, build is available on MigrationBuilder
+
       val builder = syntax(MigrationBuilder.newBuilder[DropSource, DropTarget])
         .dropField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
 
@@ -616,13 +616,12 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       assertTrue(result == Right(DropTarget("test", 42)))
     },
-    // Tests for variable-based syntax usage
-    // The key improvement: storing syntax wrapper in variable and calling .build without re-wrapping
+
     test("syntax stored in variable - dropField then build without re-wrap") {
       // Store syntax wrapper in a variable and call methods directly on it
       val ops      = syntax(MigrationBuilder.newBuilder[DropSource, DropTarget])
       val withDrop = ops.dropField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
-      // Key: calling .build directly on the result without wrapping in syntax()
+
       val migration = withDrop.build
 
       val source = DropSource("test", 42, true)
@@ -635,6 +634,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("syntax stored in variable - addField then build without re-wrap") {
       val ops     = syntax(MigrationBuilder.newBuilder[AddSource, AddTarget])
       val withAdd = ops.addField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+
       // Key: calling .build directly without re-wrapping
       val migration = withAdd.build
 
@@ -680,7 +680,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     },
     test("chained operations with syntax wrappers - build without final re-wrap") {
       // For chained operations, we need syntax() due to Scala 2 lambda type inference
-      // But the key improvement is we can call .build without wrapping at the end
       val step1 = syntax(MigrationBuilder.newBuilder[ComplexSource, ComplexTarget])
         .renameField(_.a, _.x)
       val step2 = syntax(step1).renameField(_.c, _.y)
@@ -878,8 +877,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       assertZIO(result)(isLeft(containsString("Unhandled paths from source")))
     },
     test("build fails when only some fields are handled") {
-      // Note: In Scala 2 typeCheck, the chained selector syntax has type inference issues
-      // So we test the simpler case where build is called directly
       val result = typeCheck("""
         import zio.blocks.schema._
         import zio.blocks.schema.migration._
@@ -900,8 +897,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       assertZIO(result)(isLeft(containsString("Unhandled paths from source")))
     },
     test("build fails when only some fields are provided") {
-      // Note: In Scala 2 typeCheck, the chained selector syntax has type inference issues
-      // So we test the simpler case where build is called directly
       val result = typeCheck("""
         import zio.blocks.schema._
         import zio.blocks.schema.migration._
@@ -962,9 +957,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   // Nested Path Validation Suite
   val nestedPathValidationSuite = suite("nested path validation")(
     test("unchanged nested structure requires no handling") {
-      // When nested structure is identical in both types, no handling needed
-      // The "shared", "shared.a", "shared.b" paths exist in both, so only
-      // "remove" needs to be handled and "add" needs to be provided
+
       val migration = syntax(
         syntax(MigrationBuilder.newBuilder[TypeWithNestedSrc, TypeWithNestedTgt])
           .dropField(_.remove, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
@@ -1327,8 +1320,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       // This should compile since both paths share parent "name"
       // name.full is split into name.first and name.last
-      // Note: This test verifies compile-time validation (that splitField tracks paths correctly)
-      // The literal splitter doesn't actually split, so runtime test would fail
       val migration = syntax(MigrationBuilder.newBuilder[PersonSrc, PersonTgt])
         .splitField(
           (_: PersonSrc).name.full,
@@ -1343,9 +1334,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         migration.targetSchema == Schema[PersonTgt]
       )
     },
-    test("joinFields with single source path should compile (no parent check needed)") {
-      // Single source path - no parent validation needed
-      // Uses existing FullNameSource/FullNameTarget, drops lastName to complete migration
+    test("joinFields with single source path should compile") {
       val migration = syntax(
         syntax(MigrationBuilder.newBuilder[FullNameSource, FullNameTarget])
           .joinFields(
@@ -1363,9 +1352,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       assertTrue(result == Right(FullNameTarget("value", 30)))
     },
-    test("splitField with single target path should compile (no parent check needed)") {
-      // Single target path - no parent validation needed
-      // Uses existing FullNameTarget/FullNameSource, adds lastName to complete migration
+    test("splitField with single target path should compile") {
       val migration = syntax(
         syntax(MigrationBuilder.newBuilder[FullNameTarget, FullNameSource])
           .splitField(
@@ -1389,9 +1376,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   val joinSplitTrackingSuite = suite("joinFields and splitField tracking")(
     test("joinFields tracks all source fields in Handled") {
       // joinFields should handle firstName and lastName, and provide fullName
-      // Using top-level case classes FullNameSource and FullNameTarget
-      // Note: explicit function types required due to type inference limitations with Seq
-      // Macro requires inlined builder expression
       val migration = syntax(MigrationBuilder.newBuilder[FullNameSource, FullNameTarget])
         .joinFields(
           (t: FullNameTarget) => t.fullName,
@@ -1408,10 +1392,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     },
     test("splitField tracks all target fields in Provided") {
       // splitField should handle fullName and provide firstName and lastName
-      // Using top-level case classes FullNameTarget (as source) and FullNameSource (as target)
-      // Macro requires inlined builder expression
-      // Note: This test verifies compile-time validation (that splitField tracks target paths)
-      // The literal splitter doesn't actually split, so we verify migration creation not runtime
       val migration = syntax(MigrationBuilder.newBuilder[FullNameTarget, FullNameSource])
         .splitField(
           (s: FullNameTarget) => s.fullName,
@@ -1421,7 +1401,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .build
 
       // If splitField didn't track firstName and lastName as Provided, .build wouldn't compile
-      // Verify migration was created successfully (compile-time validation passed)
       assertTrue(
         migration.sourceSchema == Schema[FullNameTarget],
         migration.targetSchema == Schema[FullNameSource]
@@ -1446,7 +1425,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .build
       """)
 
-      // Just check that it fails to compile (error message varies)
       assertZIO(result)(isLeft)
     },
     test("splitField without tracking all targets fails to compile") {
@@ -1468,12 +1446,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .build
       """)
 
-      // Just check that it fails to compile (error message varies)
       assertZIO(result)(isLeft)
     }
   )
 
-  // Container Types Suite (parity with Scala 3)
+  // Container Types Suite=
   val containerTypesSuite = suite("container type migrations")(
     test("Option field migration works") {
       case class WithOptionSrc(name: String, data: Option[String])
@@ -1631,7 +1608,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // Additional Case Tracking Suite (parity with Scala 3)
+  // Additional Case Tracking Suite
   val additionalCaseTrackingSuite = suite("additional sealed trait case tracking")(
     test("ShapeTree returns RecordNode for non-sealed types") {
       // Verify ShapeTree extracts RecordNode for regular case classes
@@ -1725,7 +1702,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
-  // ShapeTree Edge Cases Suite (parity with Scala 3)
+  // ShapeTree Edge Cases Suite
   val shapeTreeEdgeCasesSuite = suite("ShapeTree edge cases")(
     test("empty case class ShapeTree extracts correctly") {
       // Verify ShapeTree extracts empty RecordNode for empty case classes

@@ -8,7 +8,7 @@ import zio.blocks.schema._
  * Returns MigrationBuilder with EmptyTuple for Handled and Provided type
  * parameters, enabling compile-time tracking of field handling.
  */
-trait MigrationBuilderCompanionVersionSpecific {
+private[migration] trait MigrationBuilderCompanionVersionSpecific {
 
   /**
    * Creates a new migration builder for transforming from type A to type B.

@@ -9,7 +9,7 @@ import TypeLevel._
  * Returns MigrationBuilder with TNil for Handled and Provided type parameters.
  * Compile-time field tracking uses TList types (like Scala 3 uses Tuple).
  */
-trait MigrationBuilderCompanionVersionSpecific {
+private[migration] trait MigrationBuilderCompanionVersionSpecific {
 
   /**
    * Creates a new migration builder for transforming from type A to type B.
