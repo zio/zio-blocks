@@ -10,7 +10,6 @@ import zio.blocks.chunk.Chunk // [FIX] Added Chunk Import
 object MigrationOfflineSpec extends ZIOSpecDefault {
 
   def spec = suite("Requirement: Offline Migration & Introspection")(
-    
     test("Capability: Generate SQL DDL from Migration Actions (Offline Mode)") {
       // 1. Define Migration
       val migration = MigrationBuilder
@@ -51,13 +50,15 @@ object MigrationOfflineSpec extends ZIOSpecDefault {
 
     test("Capability: Schema-less Data Migration (Data Lake Support)") {
       // Scenario: We have JSON/DynamicValue but NO Case Class (e.g., reading from Kafka/S3)
-      
+
       // [FIX] Converted Vector to Chunk using Chunk.fromIterable
       val rawData = DynamicValue.Record(
-        Chunk.fromIterable(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Karim")),
-          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
-        ))
+        Chunk.fromIterable(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Karim")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+          )
+        )
       )
 
       // We manually construct the DynamicMigration (simulating loading from a registry/file)
@@ -71,10 +72,12 @@ object MigrationOfflineSpec extends ZIOSpecDefault {
 
       // [FIX] Converted Vector to Chunk using Chunk.fromIterable
       val expected = DynamicValue.Record(
-        Chunk.fromIterable(Vector(
-          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Karim")),
-          "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(25))
-        ))
+        Chunk.fromIterable(
+          Vector(
+            "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Karim")),
+            "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+          )
+        )
       )
 
       assertTrue(result == Right(expected))

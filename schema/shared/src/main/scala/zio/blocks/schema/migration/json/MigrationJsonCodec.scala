@@ -326,7 +326,8 @@ object MigrationJsonCodec {
   implicit val migrationDecoder: JsonDecoder[DynamicMigration] =
     JsonDecoder[Vector[MigrationAction]].map(actions => DynamicMigration(actions))
 
-  implicit class MigrationJsonOps(val migration: DynamicMigration) extends AnyVal {
+  // [FIX] Removed 'extends AnyVal' to prevent Scaladoc crash in Scala 3.7.4
+  implicit class MigrationJsonOps(val migration: DynamicMigration) {
     def toJson: String = migrationEncoder.encode(migration).toString
   }
 }

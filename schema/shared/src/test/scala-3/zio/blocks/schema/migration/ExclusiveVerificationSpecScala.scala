@@ -32,8 +32,9 @@ object ExclusiveVerificationSpecScala3 extends ZIOSpecDefault {
           import zio.blocks.schema.migration._
           import zio.blocks.schema.migration.Source_S3
           
-          // Scala 3 Identity Check
-          val migration = MigrationBuilder.make[Source_S3, Source_S3].build
+          // [FIX] Explicit Type Annotation added to prevent Recursive Value Error in Scala 3
+          val migration: Migration[Source_S3, Source_S3] = 
+            MigrationBuilder.make[Source_S3, Source_S3].build
         """
         )
       )(isRight(anything))
@@ -63,7 +64,7 @@ object ExclusiveVerificationSpecScala3 extends ZIOSpecDefault {
     },
 
     // ---------------------------------------------------------------------------
-    // TEST 3: Valid Migration with Scala 3 Syntax
+    // TEST 3: Valid Migration with Actions PASSES compilation
     // ---------------------------------------------------------------------------
     test("3. [Scala 3] Valid Migration with Actions PASSES compilation") {
       assertZIO(
@@ -78,9 +79,9 @@ object ExclusiveVerificationSpecScala3 extends ZIOSpecDefault {
           given Schema[A3] = null.asInstanceOf[Schema[A3]]
           given Schema[B3] = null.asInstanceOf[Schema[B3]]
           
-          // [FIXED] Using Fully Qualified Name to avoid ambiguous import error
-          // The error happened because SchemaExpr was imported by both schema._ and migration._
-          val mockExpr: zio.blocks.schema.migration.SchemaExpr[_] = null.asInstanceOf[zio.blocks.schema.migration.SchemaExpr[_]]
+          // Using Fully Qualified Name to avoid ambiguous import error
+          val mockExpr: zio.blocks.schema.migration.SchemaExpr[_] = 
+            null.asInstanceOf[zio.blocks.schema.migration.SchemaExpr[_]]
           
           // Valid migration should compile
           MigrationBuilder.make[A3, B3]

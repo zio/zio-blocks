@@ -42,10 +42,12 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
     test("Zero Runtime Overhead: Structural access does not crash or use reflection at runtime") {
       // [FIX] Converted Vector to Chunk using Chunk.fromIterable
       val oldData = DynamicValue.Record(
-        Chunk.fromIterable(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Rahim")),
-          "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        ))
+        Chunk.fromIterable(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Rahim")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
       )
 
       val dynamicMigration = zio.blocks.schema.migration.DynamicMigration(
@@ -57,14 +59,16 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         )
       )
 
-      val result   = MigrationInterpreter.run(oldData, dynamicMigration.actions.head)
-      
+      val result = MigrationInterpreter.run(oldData, dynamicMigration.actions.head)
+
       // [FIX] Converted Vector to Chunk using Chunk.fromIterable
       val expected = DynamicValue.Record(
-        Chunk.fromIterable(Vector(
-          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Rahim")),
-          "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        ))
+        Chunk.fromIterable(
+          Vector(
+            "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Rahim")),
+            "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
       )
 
       assertTrue(result == Right(expected))
