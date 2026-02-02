@@ -93,28 +93,6 @@ object MigrationError {
   }
 
   /**
-   * Migration validation failed during build. Captures unhandled source fields
-   * and unprovided target fields.
-   */
-  final case class ValidationError(
-    path: DynamicOptic,
-    unhandledSourceFields: Set[String],
-    unprovidedTargetFields: Set[String]
-  ) extends MigrationError {
-    def message: String = {
-      val parts = Vector.newBuilder[String]
-      if (unhandledSourceFields.nonEmpty) {
-        parts += s"Unhandled source fields: ${unhandledSourceFields.mkString(", ")}"
-      }
-      if (unprovidedTargetFields.nonEmpty) {
-        parts += s"Unprovided target fields: ${unprovidedTargetFields.mkString(", ")}"
-      }
-      val details = parts.result().mkString("; ")
-      s"Migration validation failed at: $path. $details"
-    }
-  }
-
-  /**
    * Join operation requires all source paths and the target path to share the
    * same parent record. This error indicates that paths span different branches
    * of the tree.

@@ -46,6 +46,25 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
   case class ErrorInfo(code: Int, message: String)
   case class SuccessData(value: String, count: Int)
 
+  // Value class test types for wrapped type extraction
+  case class UserId(value: String)     extends AnyVal
+  case class Amount(value: BigDecimal) extends AnyVal
+  case class PersonWithUserId(name: String, id: UserId)
+
+  // For testing nested wrapping, use a wrapper case class instead of nested value class
+  // (Value classes can't wrap other value classes)
+  case class WrappedUserId(inner: UserId)
+  case class OrderWithIds(wrappedId: WrappedUserId, amount: Amount)
+
+  // Wrapped types in containers
+  case class WithListOfUserIds(ids: List[UserId])
+  case class WithOptionAmount(amount: Option[Amount])
+  case class WithMapUserIdAmount(data: Map[UserId, Amount])
+
+  // Wrapped type containing record
+  case class PersonRecord(name: String, age: Int)
+  case class BoxedPerson(person: PersonRecord) extends AnyVal
+
   def spec = suite("ShapeExtractionSpec")(
     suite("extractFieldName")(
       test("simple field access") {
@@ -580,113 +599,155 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         assertTrue(Path.render(List(Segment.Field("data"), Segment.Value)) == ".data[value]")
       }
     ),
-    suite("MigrationPaths")(
-      test("identical types have empty Removed and Added") {
-        val mp = summon[MigrationPaths[PersonForTree, PersonForTree]]
-        summon[mp.Removed =:= EmptyTuple]
-        summon[mp.Added =:= EmptyTuple]
-        assertCompletes
+    suite("extractShapeTree with wrapped types")(
+      test("value class returns WrappedNode with PrimitiveNode inner") {
+        val tree = extractShapeTree[UserId]
+        assertTrue(tree == WrappedNode(PrimitiveNode))
       },
-      test("added field appears in Added tuple") {
-        case class Source(name: String)
-        case class Target(name: String, age: Int)
-        val mp = summon[MigrationPaths[Source, Target]]
-        summon[mp.Removed =:= EmptyTuple]
-        // Added should contain the path for "age" field
-        type ExpectedAdded = (("field", "age") *: EmptyTuple) *: EmptyTuple
-        summon[mp.Added =:= ExpectedAdded]
-        assertCompletes
+      test("value class with BigDecimal returns WrappedNode with PrimitiveNode inner") {
+        val tree = extractShapeTree[Amount]
+        assertTrue(tree == WrappedNode(PrimitiveNode))
       },
-      test("removed field appears in Removed tuple") {
-        case class Source(name: String, age: Int)
-        case class Target(name: String)
-        val mp = summon[MigrationPaths[Source, Target]]
-        // Removed should contain the path for "age" field
-        type ExpectedRemoved = (("field", "age") *: EmptyTuple) *: EmptyTuple
-        summon[mp.Removed =:= ExpectedRemoved]
-        summon[mp.Added =:= EmptyTuple]
-        assertCompletes
+      test("case class with value class field has WrappedNode") {
+        val tree = extractShapeTree[PersonWithUserId]
+        assertTrue(
+          tree == RecordNode(
+            Map(
+              "name" -> PrimitiveNode,
+              "id"   -> WrappedNode(PrimitiveNode)
+            )
+          )
+        )
       },
-      test("nested field changes appear with full path") {
-        case class AddressV1(street: String, city: String)
-        case class AddressV2(street: String, zip: String)
-        case class SourcePerson(name: String, address: AddressV1)
-        case class TargetPerson(name: String, address: AddressV2)
-        val mp = summon[MigrationPaths[SourcePerson, TargetPerson]]
-        // address.city removed, address.zip added
-        type RemovedPath = ("field", "address") *: ("field", "city") *: EmptyTuple
-        type AddedPath   = ("field", "address") *: ("field", "zip") *: EmptyTuple
-        summon[mp.Removed =:= (RemovedPath *: EmptyTuple)]
-        summon[mp.Added =:= (AddedPath *: EmptyTuple)]
-        assertCompletes
+      test("case class wrapping value class (nested wrapping)") {
+        // WrappedUserId is a regular case class wrapping UserId value class
+        val tree = extractShapeTree[WrappedUserId]
+        assertTrue(
+          tree == RecordNode(
+            Map(
+              "inner" -> WrappedNode(PrimitiveNode)
+            )
+          )
+        )
       },
-      test("container element changes have element segment") {
-        case class ItemV1(name: String)
-        case class ItemV2(title: String)
-        case class Source(items: List[ItemV1])
-        case class Target(items: List[ItemV2])
-        val mp = summon[MigrationPaths[Source, Target]]
-        // items.element.name removed, items.element.title added
-        type RemovedPath = ("field", "items") *: "element" *: ("field", "name") *: EmptyTuple
-        type AddedPath   = ("field", "items") *: "element" *: ("field", "title") *: EmptyTuple
-        summon[mp.Removed =:= (RemovedPath *: EmptyTuple)]
-        summon[mp.Added =:= (AddedPath *: EmptyTuple)]
-        assertCompletes
+      test("record with wrapped and value class fields") {
+        val tree = extractShapeTree[OrderWithIds]
+        assertTrue(
+          tree == RecordNode(
+            Map(
+              "wrappedId" -> RecordNode(Map("inner" -> WrappedNode(PrimitiveNode))),
+              "amount"    -> WrappedNode(PrimitiveNode)
+            )
+          )
+        )
       },
-      test("type change at same path appears in both Removed and Added") {
-        // When a field changes type (not just structure), it appears in both lists
-        case class Source(value: String)
-        case class Target(value: Int)
-        val mp = summon[MigrationPaths[Source, Target]]
-        // String -> Int type change means "value" path in both removed AND added
-        // Actually, String and Int are both primitives, so ShapeNode would be PrimitiveNode for both
-        // This doesn't trigger a type change at the shape level
-        // Let's use a case where the structure actually changes
-        assertCompletes
+      test("List of value classes has SeqNode with WrappedNode element") {
+        val tree = extractShapeTree[WithListOfUserIds]
+        assertTrue(
+          tree == RecordNode(
+            Map(
+              "ids" -> SeqNode(WrappedNode(PrimitiveNode))
+            )
+          )
+        )
       },
-      test("field type change from primitive to record appears in both") {
-        case class Source(data: String)
-        case class DetailedData(x: Int, y: Int)
-        case class Target(data: DetailedData)
-        val mp = summon[MigrationPaths[Source, Target]]
-        // data changed from Primitive to Record, so path is in both
-        type DataPath = ("field", "data") *: EmptyTuple
-        summon[mp.Removed =:= (DataPath *: EmptyTuple)]
-        summon[mp.Added =:= (DataPath *: EmptyTuple)]
-        assertCompletes
+      test("Option of value class has OptionNode with WrappedNode element") {
+        val tree = extractShapeTree[WithOptionAmount]
+        assertTrue(
+          tree == RecordNode(
+            Map(
+              "amount" -> OptionNode(WrappedNode(PrimitiveNode))
+            )
+          )
+        )
       },
-      test("sealed trait case changes") {
-        sealed trait StatusV1
-        case class Active(since: String) extends StatusV1
-        case class Inactive()            extends StatusV1
-
-        sealed trait StatusV2
-        case class Running(since: String) extends StatusV2
-        case class Stopped()              extends StatusV2
-
-        val mp = summon[MigrationPaths[StatusV1, StatusV2]]
-        // Active removed, Inactive removed, Running added, Stopped added
-        assertCompletes
+      test("Map with value class key and value has MapNode with WrappedNode") {
+        val tree = extractShapeTree[WithMapUserIdAmount]
+        assertTrue(
+          tree == RecordNode(
+            Map(
+              "data" -> MapNode(WrappedNode(PrimitiveNode), WrappedNode(PrimitiveNode))
+            )
+          )
+        )
       },
-      test("deeply nested containers have correct path segments") {
-        case class Inner(value: String)
-        case class Source(data: Option[List[Inner]])
-        case class Target(data: Option[List[Inner]])
-        val mp = summon[MigrationPaths[Source, Target]]
-        // Same structure, no diff
-        summon[mp.Removed =:= EmptyTuple]
-        summon[mp.Added =:= EmptyTuple]
-        assertCompletes
+      test("value class containing record has WrappedNode with RecordNode inner") {
+        val tree = extractShapeTree[BoxedPerson]
+        assertTrue(
+          tree == WrappedNode(
+            RecordNode(
+              Map(
+                "name" -> PrimitiveNode,
+                "age"  -> PrimitiveNode
+              )
+            )
+          )
+        )
+      }
+    ),
+    suite("TreeDiff with wrapped types")(
+      test("identical wrapped types have empty diff") {
+        val tree             = WrappedNode(PrimitiveNode)
+        val (removed, added) = TreeDiff.diff(tree, tree)
+        assertTrue(removed.isEmpty, added.isEmpty)
       },
-      test("multiple changes at different levels") {
-        case class AddressV1(city: String)
-        case class AddressV2(zip: String)
-        case class SourcePerson(name: String, address: AddressV1)
-        case class TargetPerson(age: Int, address: AddressV2)
-        val mp = summon[MigrationPaths[SourcePerson, TargetPerson]]
-        // Removed: name, address.city
-        // Added: age, address.zip
-        assertCompletes
+      test("wrapped inner type change appears in both lists") {
+        val source           = WrappedNode(PrimitiveNode)
+        val target           = WrappedNode(RecordNode(Map("x" -> PrimitiveNode)))
+        val (removed, added) = TreeDiff.diff(source, target)
+        val expectedPath     = List(Segment.Wrapped)
+        assertTrue(
+          removed == List(expectedPath),
+          added == List(expectedPath)
+        )
+      },
+      test("field change inside wrapped type has correct path") {
+        val source           = RecordNode(Map("id" -> WrappedNode(RecordNode(Map("x" -> PrimitiveNode)))))
+        val target           = RecordNode(Map("id" -> WrappedNode(RecordNode(Map("y" -> PrimitiveNode)))))
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed == List(List(Segment.Field("id"), Segment.Wrapped, Segment.Field("x"))),
+          added == List(List(Segment.Field("id"), Segment.Wrapped, Segment.Field("y")))
+        )
+      },
+      test("wrapped containing record diff correctly") {
+        val source           = WrappedNode(RecordNode(Map("x" -> PrimitiveNode)))
+        val target           = WrappedNode(RecordNode(Map("y" -> PrimitiveNode)))
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed == List(List(Segment.Wrapped, Segment.Field("x"))),
+          added == List(List(Segment.Wrapped, Segment.Field("y")))
+        )
+      },
+      test("wrapped to non-wrapped type change") {
+        val source           = WrappedNode(PrimitiveNode)
+        val target           = PrimitiveNode
+        val (removed, added) = TreeDiff.diff(source, target)
+        // Type mismatch at root
+        assertTrue(
+          removed == List(Nil),
+          added == List(Nil)
+        )
+      }
+    ),
+    suite("extractShapeTree recursion through wrapped types")(
+      test("direct recursion through value class produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class RecursiveWrapper(self: RecursiveWrapper) extends AnyVal
+          extractShapeTree[RecursiveWrapper]
+        """))(Assertion.isLeft)
+      }
+    ),
+    suite("Path rendering with wrapped segment")(
+      test("wrapped segment renders correctly") {
+        assertTrue(Path.render(List(Segment.Wrapped)) == "[wrapped]")
+      },
+      test("field then wrapped renders correctly") {
+        assertTrue(Path.render(List(Segment.Field("id"), Segment.Wrapped)) == ".id[wrapped]")
+      },
+      test("wrapped then field renders correctly") {
+        assertTrue(Path.render(List(Segment.Wrapped, Segment.Field("x"))) == "[wrapped].x")
       }
     )
   )

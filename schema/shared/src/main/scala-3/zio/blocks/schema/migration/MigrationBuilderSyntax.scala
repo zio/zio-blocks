@@ -26,10 +26,8 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    * @return
    *   A complete, validated Migration[A, B]
    */
-  inline def build(using
-    proof: ValidationProof[A, B, Handled, Provided]
-  ): Migration[A, B] =
-    builder.buildPartial
+  inline def build: Migration[A, B] =
+    ${ MigrationBuilderMacrosImpl.buildImpl[A, B, Handled, Provided]('builder) }
 
   /**
    * Adds a field to a record with a default value using selector syntax. Adds
@@ -217,6 +215,95 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 // Macro implementations for Scala 3 selector syntax with type tracking.
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.quoted.*
+
+  /**
+   * Macro implementation for the build method that validates migration
+   * completeness at compile time and produces helpful error messages.
+   */
+  def buildImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
+    builder: Expr[MigrationBuilder[A, B, Handled, Provided]]
+  )(using q: Quotes): Expr[Migration[A, B]] = {
+    import q.reflect.*
+
+    // 1. Extract shape trees for both types
+    val tpeA  = TypeRepr.of[A].dealias
+    val tpeB  = TypeRepr.of[B].dealias
+    val treeA = MacroHelpers.extractShapeTree(tpeA, Set.empty, "Migration validation")
+    val treeB = MacroHelpers.extractShapeTree(tpeB, Set.empty, "Migration validation")
+
+    // 2. Compute diff - returns List[List[Segment]] (full structure)
+    val (removed, added) = TreeDiff.diff(treeA, treeB)
+
+    // 3. Extract handled/provided as List[List[Segment]] (NOT strings!)
+    val handled: List[List[Segment]]  = MacroHelpers.extractTuplePaths(TypeRepr.of[Handled])
+    val provided: List[List[Segment]] = MacroHelpers.extractTuplePaths(TypeRepr.of[Provided])
+
+    // 4. Compare as List[List[Segment]] - full structural comparison
+    val unhandled  = removed.filterNot(path => handled.contains(path))
+    val unprovided = added.filterNot(path => provided.contains(path))
+
+    if (unhandled.nonEmpty || unprovided.nonEmpty) {
+      // Flatten to strings ONLY for error display
+      val unhandledStrs  = unhandled.map(MacroHelpers.pathToFlatString).sorted
+      val unprovidedStrs = unprovided.map(MacroHelpers.pathToFlatString).sorted
+
+      // Categorize unhandled/unprovided into fields and cases
+      val unhandledFields  = unhandledStrs.filterNot(_.startsWith("case:"))
+      val unhandledCases   = unhandledStrs.filter(_.startsWith("case:"))
+      val unprovidedFields = unprovidedStrs.filterNot(_.startsWith("case:"))
+      val unprovidedCases  = unprovidedStrs.filter(_.startsWith("case:"))
+
+      val sourceTypeName = TypeRepr.of[A].typeSymbol.name
+      val targetTypeName = TypeRepr.of[B].typeSymbol.name
+
+      val sb = new StringBuilder
+      sb.append(s"Migration validation failed for $sourceTypeName => $targetTypeName:\n")
+
+      if (unhandledFields.nonEmpty) {
+        sb.append("\nUnhandled paths from source (need dropField, renameField, or transformField):\n")
+        unhandledFields.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unprovidedFields.nonEmpty) {
+        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
+        unprovidedFields.foreach(p => sb.append(s"  - $p\n"))
+      }
+
+      if (unhandledCases.nonEmpty) {
+        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
+        unhandledCases.foreach(c => sb.append(s"  - ${c.stripPrefix("case:")}\n"))
+      }
+
+      if (unprovidedCases.nonEmpty) {
+        sb.append("\nUnprovided cases for target (need renameCase):\n")
+        unprovidedCases.foreach(c => sb.append(s"  - ${c.stripPrefix("case:")}\n"))
+      }
+
+      // Add hints
+      sb.append("\n")
+      if (unhandledFields.nonEmpty) {
+        val example      = unhandledFields.head
+        val selectorPath = example.split("\\.").mkString("_.")
+        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
+      }
+      if (unprovidedFields.nonEmpty) {
+        val example      = unprovidedFields.head
+        val selectorPath = example.split("\\.").mkString("_.")
+        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
+      }
+      if (unhandledFields.nonEmpty && unprovidedFields.nonEmpty) {
+        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
+      }
+      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
+        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
+      }
+
+      report.errorAndAbort(sb.toString)
+    }
+
+    // 5. Return migration
+    '{ $builder.buildPartial }
+  }
 
   /**
    * Convert a list of field names to a structured path tuple type.

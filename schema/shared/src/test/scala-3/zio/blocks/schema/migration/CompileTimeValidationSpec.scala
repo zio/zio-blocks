@@ -4,14 +4,13 @@ import zio.test._
 import zio.test.Assertion
 import zio.blocks.schema._
 import zio.blocks.schema.migration.ShapeExtraction._
-import zio.blocks.schema.migration.TypeLevel._
 import zio.blocks.schema.CompanionOptics
 
 /**
  * Tests for compile-time migration validation.
  *
- * These tests verify that the ValidationProof typeclass correctly enforces
- * migration completeness at compile time.
+ * These tests verify that the build macro correctly enforces migration
+ * completeness at compile time.
  */
 object CompileTimeValidationSpec extends ZIOSpecDefault {
 
@@ -60,116 +59,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
   implicit val fullNameTargetSchema: Schema[FullNameTarget]     = Schema.derived
 
   def spec = suite("CompileTimeValidationSpec")(
-    suite("ValidationProof typeclass")(
-      test("proof exists for empty migration with identical schemas") {
-        // PersonA and PersonB have the same fields, so no handling/providing needed
-        // Verify using MigrationPaths that there are no differences
-        val mp = summon[MigrationPaths[PersonA, PersonB]]
-        summon[mp.Removed =:= EmptyTuple]
-        summon[mp.Added =:= EmptyTuple]
-
-        // Empty tuples should be sufficient since there are no removed/added fields
-        summon[ValidationProof[PersonA, PersonB, EmptyTuple, EmptyTuple]]
-        assertTrue(true)
-      },
-      test("proof exists when all removed fields are handled") {
-        // DropSource -> DropTarget requires handling "extra"
-        // With structured paths: (("field", "extra"),) is the path tuple for "extra"
-        type ExtraPath        = ("field", "extra") *: EmptyTuple
-        type HandledWithExtra = ExtraPath *: EmptyTuple
-
-        // Proof should exist when "extra" is handled
-        summon[ValidationProof[DropSource, DropTarget, HandledWithExtra, EmptyTuple]]
-        assertTrue(true)
-      },
-      test("proof exists when all added fields are provided") {
-        // AddSource -> AddTarget requires providing "extra"
-        // With structured paths: (("field", "extra"),) is the path tuple for "extra"
-        type ExtraPath         = ("field", "extra") *: EmptyTuple
-        type ProvidedWithExtra = ExtraPath *: EmptyTuple
-
-        // Proof should exist when "extra" is provided
-        summon[ValidationProof[AddSource, AddTarget, EmptyTuple, ProvidedWithExtra]]
-        assertTrue(true)
-      },
-      test("proof exists for complete rename migration") {
-        // RenameSource -> RenameTarget requires handling "oldName" and providing "newName"
-        type OldNamePath = ("field", "oldName") *: EmptyTuple
-        type NewNamePath = ("field", "newName") *: EmptyTuple
-        summon[ValidationProof[RenameSource, RenameTarget, OldNamePath *: EmptyTuple, NewNamePath *: EmptyTuple]]
-        assertTrue(true)
-      },
-      test("proof exists with superset of required fields") {
-        // Having extra fields handled/provided beyond what's required is OK
-        // With structured paths, we need path tuples for each field
-        type ExtraPath = ("field", "extra") *: EmptyTuple
-        type NamePath  = ("field", "name") *: EmptyTuple
-        type AgePath   = ("field", "age") *: EmptyTuple
-        summon[ValidationProof[DropSource, DropTarget, ExtraPath *: NamePath *: EmptyTuple, AgePath *: EmptyTuple]]
-        assertTrue(true)
-      }
-    ),
-    suite("ValidationProof compile failures")(
-      test("no proof when required handled field is missing") {
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.ShapeExtraction._
-          import zio.blocks.schema._
-
-          case class Src(a: String, removed: Int)
-          case class Tgt(a: String)
-          implicit val srcSchema: Schema[Src] = Schema.derived
-          implicit val tgtSchema: Schema[Tgt] = Schema.derived
-
-          // "removed" needs to be handled but EmptyTuple doesn't contain it
-          summon[ValidationProof[Src, Tgt, EmptyTuple, EmptyTuple]]
-        """))(Assertion.isLeft)
-      },
-      test("no proof when required provided field is missing") {
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.ShapeExtraction._
-          import zio.blocks.schema._
-
-          case class Src(a: String)
-          case class Tgt(a: String, added: Int)
-          implicit val srcSchema: Schema[Src] = Schema.derived
-          implicit val tgtSchema: Schema[Tgt] = Schema.derived
-
-          // "added" needs to be provided but EmptyTuple doesn't contain it
-          summon[ValidationProof[Src, Tgt, EmptyTuple, EmptyTuple]]
-        """))(Assertion.isLeft)
-      },
-      test("no proof when both handled and provided are missing") {
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.ShapeExtraction._
-          import zio.blocks.schema._
-
-          case class Src(shared: String, removed: Int)
-          case class Tgt(shared: String, added: Boolean)
-          implicit val srcSchema: Schema[Src] = Schema.derived
-          implicit val tgtSchema: Schema[Tgt] = Schema.derived
-
-          summon[ValidationProof[Src, Tgt, EmptyTuple, EmptyTuple]]
-        """))(Assertion.isLeft)
-      },
-      test("no proof when handled exists but provided is missing") {
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema.migration.ShapeExtraction._
-          import zio.blocks.schema._
-
-          case class Src(shared: String, removed: Int)
-          case class Tgt(shared: String, added: Boolean)
-          implicit val srcSchema: Schema[Src] = Schema.derived
-          implicit val tgtSchema: Schema[Tgt] = Schema.derived
-
-          // "removed" is handled, but "added" is not provided
-          summon[ValidationProof[Src, Tgt, Tuple1["removed"], EmptyTuple]]
-        """))(Assertion.isLeft)
-      }
-    ),
     suite("build method")(
       test("build compiles for identical schemas") {
         val migration = MigrationBuilder
@@ -314,39 +203,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(migration != null)
       }
     ),
-    suite("type-level validation logic")(
-      test("required handled is in MigrationPaths.Removed") {
-        // DropSource has "extra" that DropTarget doesn't - so "extra" is removed
-        val mp = summon[MigrationPaths[DropSource, DropTarget]]
-        // Removed should contain the path for "extra" field
-        type ExtraPath = ("field", "extra") *: EmptyTuple
-        summon[mp.Removed =:= (ExtraPath *: EmptyTuple)]
-        summon[mp.Added =:= EmptyTuple]
-        assertTrue(true)
-      },
-      test("required provided is in MigrationPaths.Added") {
-        // AddTarget has "extra" that AddSource doesn't - so "extra" is added
-        val mp = summon[MigrationPaths[AddSource, AddTarget]]
-        // Added should contain the path for "extra" field
-        type ExtraPath = ("field", "extra") *: EmptyTuple
-        summon[mp.Removed =:= EmptyTuple]
-        summon[mp.Added =:= (ExtraPath *: EmptyTuple)]
-        assertTrue(true)
-      },
-      test("IsSubset validates handled fields correctly") {
-        val mp = summon[MigrationPaths[DropSource, DropTarget]]
-        // mp.Removed contains the structured path for "extra"
-        type ExtraPath = ("field", "extra") *: EmptyTuple
-
-        // Path for "extra" is subset of (ExtraPath)
-        summon[IsSubset[mp.Removed, ExtraPath *: EmptyTuple] =:= true]
-
-        // Empty is not enough
-        summon[IsSubset[mp.Removed, EmptyTuple] =:= false]
-
-        assertTrue(true)
-      }
-    ),
     suite("chaining styles")(
       test("inline chaining works") {
         val migration = MigrationBuilder
@@ -439,10 +295,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         implicit val nonEmptyTgtSchema: Schema[NonEmptyTgt] = Schema.derived
 
         // Only need to provide "field", nothing to handle
-        // With structured paths: (("field", "field"),) is the path tuple
-        type FieldPath = ("field", "field") *: EmptyTuple
-        summon[ValidationProof[EmptySrc, NonEmptyTgt, EmptyTuple, FieldPath *: EmptyTuple]]
-
         val migration = MigrationBuilder
           .newBuilder[EmptySrc, NonEmptyTgt]
           .addField(_.field, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
@@ -461,9 +313,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         implicit val emptyTgtSchema: Schema[EmptyTgt]       = Schema.derived
 
         // Only need to handle "field", nothing to provide
-        type FieldPath = ("field", "field") *: EmptyTuple
-        summon[ValidationProof[NonEmptySrc, EmptyTgt, FieldPath *: EmptyTuple, EmptyTuple]]
-
         val migration = MigrationBuilder
           .newBuilder[NonEmptySrc, EmptyTgt]
           .dropField(_.field, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
@@ -482,15 +331,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         implicit val allChangedTgtSchema: Schema[AllChangedTgt] = Schema.derived
 
         // Need to handle a, b and provide x, y
-        // With structured paths
-        type PathA = ("field", "a") *: EmptyTuple
-        type PathB = ("field", "b") *: EmptyTuple
-        type PathX = ("field", "x") *: EmptyTuple
-        type PathY = ("field", "y") *: EmptyTuple
-        summon[
-          ValidationProof[AllChangedSrc, AllChangedTgt, PathA *: PathB *: EmptyTuple, PathX *: PathY *: EmptyTuple]
-        ]
-
         val migration = MigrationBuilder
           .newBuilder[AllChangedSrc, AllChangedTgt]
           .dropField(_.a, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
@@ -511,8 +351,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         implicit val singleASchema: Schema[SingleA] = Schema.derived
         implicit val singleBSchema: Schema[SingleB] = Schema.derived
 
-        summon[ValidationProof[SingleA, SingleB, EmptyTuple, EmptyTuple]]
-
+        // Identical schemas - build should compile with no operations
         val migration = MigrationBuilder.newBuilder[SingleA, SingleB].build
         val result    = migration(SingleA("test"))
         assertTrue(result.isRight) &&
@@ -700,80 +539,47 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       },
       test("different case names require handling") {
         // When sealed traits have different case names, handling is required
-        sealed trait StatusV1
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class Active(since: String) extends StatusV1
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class Inactive() extends StatusV1
+        // Verify that build fails without handling case renames
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
 
-        sealed trait StatusV2
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class Active2(since: String) extends StatusV2
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class Inactive2() extends StatusV2
+          sealed trait StatusV1
+          case class Active(since: String) extends StatusV1
+          case class Inactive() extends StatusV1
 
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[StatusV1] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[StatusV2] = Schema.derived
+          sealed trait StatusV2
+          case class Active2(since: String) extends StatusV2
+          case class Inactive2() extends StatusV2
 
-        // Verify using MigrationPaths that case names differ
-        val mp = summon[MigrationPaths[StatusV1, StatusV2]]
-        // MigrationPaths.Removed should contain Active and Inactive cases
-        // MigrationPaths.Added should contain Active2 and Inactive2 cases
+          given Schema[StatusV1] = Schema.derived
+          given Schema[StatusV2] = Schema.derived
 
-        // Verify that we need to handle the case changes
-        // With structured paths: (("case", "Active"),) is the path tuple for a case
-        type ActivePath    = ("case", "Active") *: EmptyTuple
-        type InactivePath  = ("case", "Inactive") *: EmptyTuple
-        type Active2Path   = ("case", "Active2") *: EmptyTuple
-        type Inactive2Path = ("case", "Inactive2") *: EmptyTuple
-        summon[
-          ValidationProof[
-            StatusV1,
-            StatusV2,
-            ActivePath *: InactivePath *: EmptyTuple,
-            Active2Path *: Inactive2Path *: EmptyTuple
-          ]
-        ]
-
-        assertTrue(true)
+          // This should fail - case names changed but not handled
+          MigrationBuilder.newBuilder[StatusV1, StatusV2].build
+        """))(Assertion.isLeft)
       },
       test("case rename requires handling") {
         // When a case is renamed, it must be explicitly handled
-        sealed trait PaymentV1
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class CardPayment(number: String) extends PaymentV1
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class CashPayment(amount: Int) extends PaymentV1
+        // Verify that build fails without handling case renames
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
 
-        sealed trait PaymentV2
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class CreditCard(number: String) extends PaymentV2
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class CashPayment2(amount: Int) extends PaymentV2
+          sealed trait PaymentV1
+          case class CardPayment(number: String) extends PaymentV1
+          case class CashPayment(amount: Int) extends PaymentV1
 
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[PaymentV1] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[PaymentV2] = Schema.derived
+          sealed trait PaymentV2
+          case class CreditCard(number: String) extends PaymentV2
+          case class CashPayment2(amount: Int) extends PaymentV2
 
-        // Need to handle "case:CardPayment" and provide "case:CreditCard"
-        // Also need to handle "case:CashPayment" and provide "case:CashPayment2"
-        type CardPaymentPath  = ("case", "CardPayment") *: EmptyTuple
-        type CashPaymentPath  = ("case", "CashPayment") *: EmptyTuple
-        type CreditCardPath   = ("case", "CreditCard") *: EmptyTuple
-        type CashPayment2Path = ("case", "CashPayment2") *: EmptyTuple
-        summon[
-          ValidationProof[
-            PaymentV1,
-            PaymentV2,
-            CardPaymentPath *: CashPaymentPath *: EmptyTuple,
-            CreditCardPath *: CashPayment2Path *: EmptyTuple
-          ]
-        ]
+          given Schema[PaymentV1] = Schema.derived
+          given Schema[PaymentV2] = Schema.derived
 
-        assertTrue(true)
+          // This should fail - case renames not handled
+          MigrationBuilder.newBuilder[PaymentV1, PaymentV2].build
+        """))(Assertion.isLeft)
       },
       test("renameCase tracks case in Handled and Provided") {
         sealed trait ResultV1
@@ -920,38 +726,23 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       },
       test("mixed field and case changes") {
         // When both fields and cases change, both must be handled
-        sealed trait ContainerV1
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class BoxV1(value: Int, label: String) extends ContainerV1
+        // Verify that build fails without handling
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration._
+          import zio.blocks.schema._
 
-        sealed trait ContainerV2
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class BoxV2(value: Int) extends ContainerV2 // Renamed case, removed field
+          sealed trait ContainerV1
+          case class BoxV1(value: Int, label: String) extends ContainerV1
 
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[ContainerV1] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[ContainerV2] = Schema.derived
+          sealed trait ContainerV2
+          case class BoxV2(value: Int) extends ContainerV2 // Renamed case, removed field
 
-        // Need to handle case rename AND field drop
-        // But the validation currently tracks them separately
+          given Schema[ContainerV1] = Schema.derived
+          given Schema[ContainerV2] = Schema.derived
 
-        // For now, just verify the validation proof requirements
-        // Need to handle: "case:BoxV1" (case removed from source view)
-        // Need to provide: "case:BoxV2" (case added in target view)
-        // The field changes are within the cases, which is more complex
-        type BoxV1Path = ("case", "BoxV1") *: EmptyTuple
-        type BoxV2Path = ("case", "BoxV2") *: EmptyTuple
-        summon[
-          ValidationProof[
-            ContainerV1,
-            ContainerV2,
-            BoxV1Path *: EmptyTuple,
-            BoxV2Path *: EmptyTuple
-          ]
-        ]
-
-        assertTrue(true)
+          // This should fail - case rename and field changes not handled
+          MigrationBuilder.newBuilder[ContainerV1, ContainerV2].build
+        """))(Assertion.isLeft)
       }
     ),
     suite("joinFields and splitField tracking")(
@@ -1168,139 +959,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         val result = migration(DeepContainerSrc(Some(List(Map("a" -> 1)))))
         assertTrue(result.isRight)
-      }
-    ),
-    suite("requireValidation macro")(
-      test("requireValidation succeeds for valid migration") {
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class ValidSrc(name: String, age: Int)
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class ValidTgt(name: String, age: Int)
-
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[ValidSrc] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[ValidTgt] = Schema.derived
-
-        // This should compile and succeed
-        val proof = ValidationProof.requireValidation[ValidSrc, ValidTgt, EmptyTuple, EmptyTuple]
-        assertTrue(proof != null)
-      },
-      test("requireValidation succeeds with handled and provided fields") {
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class SrcWithExtra(name: String, removed: Int)
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class TgtWithExtra(name: String, added: Boolean)
-
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[SrcWithExtra] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[TgtWithExtra] = Schema.derived
-
-        // Needs "removed" handled and "added" provided
-        // With structured paths
-        type RemovedPath = ("field", "removed") *: EmptyTuple
-        type AddedPath   = ("field", "added") *: EmptyTuple
-        val proof = ValidationProof
-          .requireValidation[SrcWithExtra, TgtWithExtra, RemovedPath *: EmptyTuple, AddedPath *: EmptyTuple]
-        assertTrue(proof != null)
-      },
-      test("requireValidation produces error for incomplete migration") {
-        // Test that the error message is produced correctly
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema._
-
-          case class IncSrc(name: String, old: Int)
-          case class IncTgt(name: String, newField: Boolean)
-
-          given Schema[IncSrc] = Schema.derived
-          given Schema[IncTgt] = Schema.derived
-
-          // Missing handling for "old" and providing for "newField"
-          ValidationProof.requireValidation[IncSrc, IncTgt, EmptyTuple, EmptyTuple]
-        """))(Assertion.isLeft)
-      },
-      test("requireValidation error mentions unhandled fields") {
-        // Test that error message content includes field names
-        val result = typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema._
-
-          case class ErrSrc(keep: String, dropMe: Int)
-          case class ErrTgt(keep: String)
-
-          given Schema[ErrSrc] = Schema.derived
-          given Schema[ErrTgt] = Schema.derived
-
-          ValidationProof.requireValidation[ErrSrc, ErrTgt, EmptyTuple, EmptyTuple]
-        """)
-
-        // The error should contain "dropMe" field name
-        assertZIO(result)(Assertion.isLeft)
-      },
-      test("requireValidation error mentions unprovided fields") {
-        val result = typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema._
-
-          case class AddSrc(keep: String)
-          case class AddTgt(keep: String, addMe: Int)
-
-          given Schema[AddSrc] = Schema.derived
-          given Schema[AddTgt] = Schema.derived
-
-          ValidationProof.requireValidation[AddSrc, AddTgt, EmptyTuple, EmptyTuple]
-        """)
-
-        // The error should contain "addMe" field name
-        assertZIO(result)(Assertion.isLeft)
-      },
-      test("requireValidation error mentions unhandled cases") {
-        val result = typeCheck("""
-          import zio.blocks.schema.migration._
-          import zio.blocks.schema._
-
-          sealed trait OldEnum
-          case class OldCase(x: Int) extends OldEnum
-
-          sealed trait NewEnum
-          case class NewCase(x: Int) extends NewEnum
-
-          given Schema[OldEnum] = Schema.derived
-          given Schema[NewEnum] = Schema.derived
-
-          ValidationProof.requireValidation[OldEnum, NewEnum, EmptyTuple, EmptyTuple]
-        """)
-
-        // The error should mention case names
-        assertZIO(result)(Assertion.isLeft)
-      },
-      test("requireValidation works with nested field changes") {
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class InnerV1(a: Int, b: String)
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class OuterV1(inner: InnerV1)
-
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class InnerV2(a: Int, c: Boolean) // b -> c
-        @scala.annotation.nowarn("msg=unused local definition")
-        case class OuterV2(inner: InnerV2)
-
-        given Schema[InnerV1] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[OuterV1] = Schema.derived
-        given Schema[InnerV2] = Schema.derived
-        @scala.annotation.nowarn("msg=unused local definition")
-        given Schema[OuterV2] = Schema.derived
-
-        // Need to handle "inner.b" and provide "inner.c"
-        // With structured paths: (("field", "inner"), ("field", "b")) for "inner.b"
-        type InnerBPath = ("field", "inner") *: ("field", "b") *: EmptyTuple
-        type InnerCPath = ("field", "inner") *: ("field", "c") *: EmptyTuple
-        val proof =
-          ValidationProof.requireValidation[OuterV1, OuterV2, InnerBPath *: EmptyTuple, InnerCPath *: EmptyTuple]
-        assertTrue(proof != null)
       }
     )
   )
