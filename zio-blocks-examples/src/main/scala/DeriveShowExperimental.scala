@@ -41,10 +41,10 @@ object DeriveShowExperimental extends App {
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
-      // Get Show instances for all fields eagerly (force Lazy evaluation)
-      val fieldShowInstances: IndexedSeq[(String, Show[Any])] = fields.map { field =>
+      // Get Show instances for all fields LAZILY
+      val fieldShowInstances: IndexedSeq[(String, Lazy[Show[Any]])] = fields.map { field =>
         val fieldName         = field.name
-        val fieldShowInstance = D.instance(field.value.metadata).force.asInstanceOf[Show[Any]]
+        val fieldShowInstance = D.instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]]
         (fieldName, fieldShowInstance)
       }
 
@@ -69,10 +69,11 @@ object DeriveShowExperimental extends App {
 
           // Build string representations for all fields
           val fieldStrings = fields.indices.map { i =>
-            val (fieldName, showInstance) = fieldShowInstances(i)
+            val (fieldName, showInstanceLazy) = fieldShowInstances(i)
             // Get field value from its computed register position
             val fieldValue = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
-            s"$fieldName = ${showInstance.show(fieldValue)}"
+            // Force the field Show instance only when actually showing
+            s"$fieldName = ${showInstanceLazy.force.show(fieldValue)}"
           }
 
           // Combine field strings into final record representation
@@ -91,7 +92,7 @@ object DeriveShowExperimental extends App {
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
-      // Get Show instances for all cases LAZILY (don't force yet!)
+      // Get Show instances for all cases LAZILY
       val caseShowInstances: IndexedSeq[Lazy[Show[Any]]] = cases.map { case_ =>
         D.instance(case_.value.metadata).asInstanceOf[Lazy[Show[Any]]]
       }
@@ -126,8 +127,8 @@ object DeriveShowExperimental extends App {
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
-      // Get Show instance for element type (force it eagerly)
-      val elementShow: Show[A] = D.instance(element.metadata).force
+      // Get Show instance for element type LAZILY
+      val elementShowLazy: Lazy[Show[A]] = D.instance(element.metadata)
 
       // Cast binding to Binding.Seq to access the deconstructor
       val seqBinding    = binding.asInstanceOf[Binding.Seq[C, A]]
@@ -137,7 +138,8 @@ object DeriveShowExperimental extends App {
         def show(value: C[A]): String = {
           // Use deconstructor to iterate over elements
           val iterator = deconstructor.deconstruct(value)
-          val elements = iterator.map(elem => elementShow.show(elem)).mkString(", ")
+          // Force the element Show instance only when actually showing
+          val elements = iterator.map(elem => elementShowLazy.force.show(elem)).mkString(", ")
           s"[$elements]"
         }
       }
@@ -153,9 +155,9 @@ object DeriveShowExperimental extends App {
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
-      // Get Show instances for key and value types (force them eagerly)
-      val keyShow: Show[K]   = D.instance(key.metadata).force
-      val valueShow: Show[V] = D.instance(value.metadata).force
+      // Get Show instances for key and value types LAZILY
+      val keyShowLazy: Lazy[Show[K]]   = D.instance(key.metadata)
+      val valueShowLazy: Lazy[Show[V]] = D.instance(value.metadata)
 
       // Cast binding to Binding.Map to access the deconstructor
       val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
@@ -165,10 +167,11 @@ object DeriveShowExperimental extends App {
         def show(m: M[K, V]): String = {
           // Use deconstructor to iterate over key-value pairs
           val iterator = deconstructor.deconstruct(m)
-          val entries  = iterator.map { kv =>
+          // Force the Show instances only when actually showing
+          val entries = iterator.map { kv =>
             val k = deconstructor.getKey(kv)
             val v = deconstructor.getValue(kv)
-            s"${keyShow.show(k)} -> ${valueShow.show(v)}"
+            s"${keyShowLazy.force.show(k)} -> ${valueShowLazy.force.show(v)}"
           }.mkString(", ")
           s"Map($entries)"
         }
@@ -221,8 +224,8 @@ object DeriveShowExperimental extends App {
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
-      // Get Show instance for the wrapped (underlying) type B
-      val wrappedShow: Show[B] = D.instance(wrapped.metadata).force
+      // Get Show instance for the wrapped (underlying) type B LAZILY
+      val wrappedShowLazy: Lazy[Show[B]] = D.instance(wrapped.metadata)
 
       // Cast binding to Binding.Wrapper to access unwrap function
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
@@ -233,7 +236,8 @@ object DeriveShowExperimental extends App {
           wrapperBinding.unwrap(value) match {
             case Right(unwrapped) =>
               // Show the underlying value with the wrapper type name
-              s"${typeId.name}(${wrappedShow.show(unwrapped)})"
+              // Force the wrapped Show instance only when actually showing
+              s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
             case Left(error) =>
               // Handle unwrap failure - show error information
               s"${typeId.name}(<unwrap failed: ${error.message}>)"
