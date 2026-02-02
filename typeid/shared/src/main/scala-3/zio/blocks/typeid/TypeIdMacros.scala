@@ -1085,7 +1085,6 @@ object TypeIdMacros {
 
     val typeParamsExpr  = buildTypeParamsCached(typeSymbol)
     val annotationsExpr = buildAnnotationsCached(if (isEnumValue) termSymbol else typeSymbol)
-    val selfTypeExpr    = extractSelfType(typeSymbol)
 
     val flags = typeSymbol.flags
 
@@ -1130,6 +1129,7 @@ object TypeIdMacros {
 
       '{ ${ typeIdToExpr(typeIdValue) }.asInstanceOf[TypeId[A]] }
     } else if (hasSelfType(typeSymbol)) {
+      val selfTypeExpr = extractSelfType(typeSymbol)
       '{
         TypeId.nominal[A](
           ${ Expr(name) },
