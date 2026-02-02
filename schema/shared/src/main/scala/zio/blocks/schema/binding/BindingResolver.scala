@@ -13,8 +13,8 @@ import zio.blocks.typeid.TypeId
  *
  * The library provides several resolver implementations:
  *   - [[BindingResolver.Registry]]: A map-backed resolver for explicit bindings
- *   - [[BindingResolver.Reflection]]: A resolver that derives record bindings
- *     using runtime reflection
+ *   - [[BindingResolver.reflection]]: A resolver that derives record bindings
+ *     using runtime reflection (JVM only)
  *   - [[BindingResolver.defaults]]: Pre-configured bindings for primitives,
  *     java.time, and common collections
  *
