@@ -10,15 +10,9 @@ sbt +test:compile
 
 
 sbt "++2.13; check; ++3.7; check"
-
 sbt ++2.13.x testJVM docJVM
-
-
-
 sbt ++3.3.x coverage testJVM coverageReport docJVM
-
 sbt ++3.7.x coverage testJVM coverageReport docJVM
-sbt ++2.13.x testJVM docJVM
 sbt ++3.3.x coverage testJVM coverageReport
 sbt ++3.7.x coverage testJVM coverageReport
 sbt ++2.13.x testJS docJS
