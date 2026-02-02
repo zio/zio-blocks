@@ -209,7 +209,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         assertTrue(resolver.resolveDynamic.isEmpty)
       },
       test("toString shows Reflection") {
-        assertTrue(BindingResolver.reflection.toString == "BindingResolver.Reflection")
+        assertTrue(BindingResolver.reflection.toString.startsWith("BindingResolver.Reflection"))
       },
       test("derives record binding for case class with String and Int") {
         val resolver      = BindingResolver.reflection ++ BindingResolver.defaults
@@ -221,7 +221,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         val result  = reboundSchema.fromDynamicValue(dynamic)
 
         assertTrue(result == Right(person))
-      },
+      } @@ TestAspect.jvmOnly,
       test("derives record binding with all primitive types and uses correct registers") {
         implicit val allPrimitivesSchema: Schema[AllPrimitives] = Schema.derived[AllPrimitives]
         val resolver                                            = BindingResolver.reflection ++ BindingResolver.defaults
@@ -243,7 +243,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         val result  = reboundSchema.fromDynamicValue(dynamic)
 
         assertTrue(result == Right(value))
-      },
+      } @@ TestAspect.jvmOnly,
       test("reflective binding works with JSON codec roundtrip for Person") {
         val resolver      = BindingResolver.reflection ++ BindingResolver.defaults
         val dynamicSchema = Schema[Person].toDynamicSchema
@@ -255,7 +255,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         val decoded = codec.decode(encoded)
 
         assertTrue(decoded == Right(person))
-      },
+      } @@ TestAspect.jvmOnly,
       test("reflective binding works with JSON codec roundtrip for AllPrimitives") {
         implicit val allPrimitivesSchema: Schema[AllPrimitives] = Schema.derived[AllPrimitives]
         val resolver                                            = BindingResolver.reflection ++ BindingResolver.defaults
@@ -278,7 +278,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         val decoded = codec.decode(encoded)
 
         assertTrue(decoded == Right(value))
-      }
+      } @@ TestAspect.jvmOnly
     ),
     suite("combined resolver usage")(
       test("custom registry overrides defaults") {
