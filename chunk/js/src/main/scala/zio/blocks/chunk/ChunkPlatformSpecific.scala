@@ -16,14 +16,22 @@
 
 package zio.blocks.chunk
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.ClassTag
 
 private[chunk] trait ChunkPlatformSpecific {
 
   private[chunk] object Tags {
-    def fromValue[A](a: A): ClassTag[A] = {
-      val _ = a
-      classTag[AnyRef].asInstanceOf[ClassTag[A]]
-    }
+    def fromValue[A](a: A): ClassTag[A] =
+      (a match {
+        case _: AnyRef  => ClassTag.AnyRef
+        case _: Boolean => ClassTag.Boolean
+        case _: Byte    => ClassTag.Byte
+        case _: Short   => ClassTag.Short
+        case _: Int     => ClassTag.Int
+        case _: Long    => ClassTag.Long
+        case _: Float   => ClassTag.Float
+        case _: Double  => ClassTag.Double
+        case _          => ClassTag.AnyRef
+      }).asInstanceOf[ClassTag[A]]
   }
 }
