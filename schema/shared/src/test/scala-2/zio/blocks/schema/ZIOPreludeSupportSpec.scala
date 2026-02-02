@@ -85,8 +85,8 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Name] = Schema[String]
       .transform[Name](
         s =>
-          if (s.length > 0) Right(s.asInstanceOf[Name])
-          else Left(SchemaError.validationFailed("String must not be empty")),
+          if (s.length > 0) s.asInstanceOf[Name]
+          else throw SchemaError.validationFailed("String must not be empty"),
         (n: Name) => n.asInstanceOf[String]
       )
   }

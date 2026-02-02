@@ -360,12 +360,12 @@ import zio.blocks.schema.Schema
 case class PosInt private (value: Int) extends AnyVal
 
 object PosInt {
-  def apply(value: Int): Either[SchemaError, PosInt] =
+  def unsafeApply(value: Int): PosInt =
     if (value >= 0) new PosInt(value)
     else throw SchemaError.validationFailed("Expected positive value")
 
   implicit val schema: Schema[PosInt] = 
-    Schema[Int].transform(PosInt.apply, _.value)
+    Schema[Int].transform(PosInt.unsafeApply, _.value)
 }
 ```
 
