@@ -7,410 +7,356 @@ object TypeIdMacros {
   // ============================================================================
   // Caching Infrastructure
   // ============================================================================
-  // Cache intermediate DATA (plain case classes), not Expr values.
+  // Cache actual runtime values, not Expr values.
   // This allows us to avoid re-analyzing symbols while still running
   // Implicits.search() on every invocation.
+  // ToExpr instances convert cached values to Expr when needed.
 
   import java.util.concurrent.ConcurrentHashMap
 
-  // --- Intermediate Data Classes ---
-
-  private sealed trait OwnerSegmentData
-  private object OwnerSegmentData {
-    case class Package(name: String) extends OwnerSegmentData
-    case class Term(name: String)    extends OwnerSegmentData
-    case class Type(name: String)    extends OwnerSegmentData
-  }
-
-  private case class OwnerData(segments: List[OwnerSegmentData])
-
-  private case class TypeParamData(
-    name: String,
-    index: Int,
-    variance: Int // -1 = contravariant, 0 = invariant, 1 = covariant
-  )
-
-  private sealed trait TypeDefKindData
-  private object TypeDefKindData {
-    case class ClassData(
-      isFinal: Boolean,
-      isAbstract: Boolean,
-      isCase: Boolean,
-      isValue: Boolean,
-      bases: List[TypeReprData]
-    ) extends TypeDefKindData
-    case class TraitData(isSealed: Boolean, knownSubtypes: List[TypeReprData], bases: List[TypeReprData])
-        extends TypeDefKindData
-    case class ObjectData(bases: List[TypeReprData])                                       extends TypeDefKindData
-    case class EnumData(cases: List[EnumCaseInfoData], bases: List[TypeReprData])          extends TypeDefKindData
-    case class EnumCaseData(parentEnum: TypeReprData, ordinal: Int, isObjectCase: Boolean) extends TypeDefKindData
-    case object TypeAliasData                                                              extends TypeDefKindData
-    case class OpaqueTypeData(publicBounds: TypeBoundsData)                                extends TypeDefKindData
-    case object AbstractTypeData                                                           extends TypeDefKindData
-    case object UnknownData                                                                extends TypeDefKindData
-  }
-
-  private case class EnumCaseInfoData(
-    name: String,
-    ordinal: Int,
-    params: List[EnumCaseParamData],
-    isObjectCase: Boolean
-  )
-
-  private case class EnumCaseParamData(name: String, tpe: TypeReprData)
-
-  private case class TypeBoundsData(lower: Option[TypeReprData], upper: Option[TypeReprData])
-
-  private sealed trait TypeReprData
-  private object TypeReprData {
-    case class RefData(name: String, owner: OwnerData, typeParams: List[TypeParamData], defKind: TypeDefKindData)
-        extends TypeReprData
-    case class ParamRefData(param: TypeParamData, binderDepth: Int)                   extends TypeReprData
-    case class AppliedData(tycon: TypeReprData, args: List[TypeReprData])             extends TypeReprData
-    case class StructuralData(parents: List[TypeReprData], members: List[MemberData]) extends TypeReprData
-    case class IntersectionData(types: List[TypeReprData])                            extends TypeReprData
-    case class UnionData(types: List[TypeReprData])                                   extends TypeReprData
-    case class TupleData(elems: List[TupleElementData])                               extends TypeReprData
-    case class FunctionData(params: List[TypeReprData], result: TypeReprData)         extends TypeReprData
-    case class ContextFunctionData(params: List[TypeReprData], result: TypeReprData)  extends TypeReprData
-    case class TypeLambdaData(params: List[TypeParamData], body: TypeReprData)        extends TypeReprData
-    case class ByNameData(underlying: TypeReprData)                                   extends TypeReprData
-    case class WildcardData(bounds: TypeBoundsData)                                   extends TypeReprData
-    case class SingletonData(path: TermPathData)                                      extends TypeReprData
-    case class ThisTypeData(owner: OwnerData)                                         extends TypeReprData
-    case class IntConstData(value: Int)                                               extends TypeReprData
-    case class LongConstData(value: Long)                                             extends TypeReprData
-    case class FloatConstData(value: Float)                                           extends TypeReprData
-    case class DoubleConstData(value: Double)                                         extends TypeReprData
-    case class BooleanConstData(value: Boolean)                                       extends TypeReprData
-    case class CharConstData(value: Char)                                             extends TypeReprData
-    case class StringConstData(value: String)                                         extends TypeReprData
-    case object NullConstData                                                         extends TypeReprData
-    case object UnitConstData                                                         extends TypeReprData
-    case object AnyTypeData                                                           extends TypeReprData
-    case object NothingTypeData                                                       extends TypeReprData
-    case object NullTypeData                                                          extends TypeReprData
-    // Predefined type references (for primitives and common types)
-    case class PredefinedData(name: String) extends TypeReprData
-    // Alias type reference
-    case class AliasRefData(name: String, owner: OwnerData, aliased: TypeReprData) extends TypeReprData
-  }
-
-  private case class TupleElementData(label: Option[String], tpe: TypeReprData)
-
-  private sealed trait MemberData
-  private object MemberData {
-    case class ValData(name: String, tpe: TypeReprData, isVar: Boolean) extends MemberData
-    case class DefData(name: String, result: TypeReprData)              extends MemberData
-  }
-
-  private sealed trait TermPathSegmentData
-  private object TermPathSegmentData {
-    case class Package(name: String) extends TermPathSegmentData
-    case class Term(name: String)    extends TermPathSegmentData
-  }
-
-  private case class TermPathData(segments: List[TermPathSegmentData])
-
-  private sealed trait AnnotationArgData
-  private object AnnotationArgData {
-    case class ConstData(value: Any)                                                   extends AnnotationArgData
-    case class ArrayArgData(values: List[AnnotationArgData])                           extends AnnotationArgData
-    case class NamedData(name: String, value: AnnotationArgData)                       extends AnnotationArgData
-    case class NestedData(typeId: AnnotationTypeIdData, args: List[AnnotationArgData]) extends AnnotationArgData
-    case class ClassOfData(tpe: TypeReprData)                                          extends AnnotationArgData
-    case class EnumValueData(enumType: AnnotationTypeIdData, valueName: String)        extends AnnotationArgData
-  }
-
-  private case class AnnotationTypeIdData(name: String, owner: OwnerData)
-
-  private case class AnnotationData(typeId: AnnotationTypeIdData, args: List[AnnotationArgData])
-
   // --- Caches ---
 
-  private val ownerCache       = new ConcurrentHashMap[String, OwnerData]()
-  private val typeParamsCache  = new ConcurrentHashMap[String, List[TypeParamData]]()
-  private val defKindCache     = new ConcurrentHashMap[String, TypeDefKindData]()
-  private val annotationsCache = new ConcurrentHashMap[String, List[AnnotationData]]()
+  private val ownerCache       = new ConcurrentHashMap[String, Owner]()
+  private val typeParamsCache  = new ConcurrentHashMap[String, List[TypeParam]]()
+  private val defKindCache     = new ConcurrentHashMap[String, TypeDefKind]()
+  private val annotationsCache = new ConcurrentHashMap[String, List[Annotation]]()
 
-  // --- Data to Expr Conversion Functions ---
+  // ============================================================================
+  // ToExpr Instances
+  // ============================================================================
 
-  private def ownerSegmentDataToExpr(data: OwnerSegmentData)(using Quotes): Expr[Owner.Segment] = data match {
-    case OwnerSegmentData.Package(name) => '{ Owner.Package(${ Expr(name) }) }
-    case OwnerSegmentData.Term(name)    => '{ Owner.Term(${ Expr(name) }) }
-    case OwnerSegmentData.Type(name)    => '{ Owner.Type(${ Expr(name) }) }
-  }
-
-  private def ownerDataToExpr(data: OwnerData)(using Quotes): Expr[Owner] = {
-    val segmentsExpr = Expr.ofList(data.segments.map(s => ownerSegmentDataToExpr(s)))
-    '{ Owner($segmentsExpr) }
-  }
-
-  private def typeParamDataToExpr(data: TypeParamData)(using Quotes): Expr[TypeParam] = {
-    val varianceExpr = data.variance match {
-      case -1 => '{ Variance.Contravariant }
-      case 1  => '{ Variance.Covariant }
-      case _  => '{ Variance.Invariant }
+  given ownerSegmentToExpr: ToExpr[Owner.Segment] with {
+    def apply(seg: Owner.Segment)(using Quotes): Expr[Owner.Segment] = seg match {
+      case Owner.Package(name) => '{ Owner.Package(${ Expr(name) }) }
+      case Owner.Term(name)    => '{ Owner.Term(${ Expr(name) }) }
+      case Owner.Type(name)    => '{ Owner.Type(${ Expr(name) }) }
     }
-    '{ TypeParam(${ Expr(data.name) }, ${ Expr(data.index) }, $varianceExpr) }
   }
 
-  private def typeBoundsDataToExpr(data: TypeBoundsData)(using Quotes): Expr[TypeBounds] = {
-    val lowerExpr: Expr[Option[TypeRepr]] = data.lower match {
-      case Some(l) => '{ Some(${ typeReprDataToExpr(l) }) }
-      case None    => '{ None }
+  given ToExpr[Owner] with {
+    def apply(owner: Owner)(using Quotes): Expr[Owner] = {
+      val segmentsExpr = Expr.ofList(owner.segments.map(s => Expr(s)))
+      '{ Owner($segmentsExpr) }
     }
-    val upperExpr: Expr[Option[TypeRepr]] = data.upper match {
-      case Some(u) => '{ Some(${ typeReprDataToExpr(u) }) }
-      case None    => '{ None }
+  }
+
+  given ToExpr[Variance] with {
+    def apply(v: Variance)(using Quotes): Expr[Variance] = v match {
+      case Variance.Covariant     => '{ Variance.Covariant }
+      case Variance.Contravariant => '{ Variance.Contravariant }
+      case Variance.Invariant     => '{ Variance.Invariant }
     }
-    '{ TypeBounds($lowerExpr, $upperExpr) }
   }
 
-  private def typeReprDataToExpr(data: TypeReprData)(using Quotes): Expr[TypeRepr] = data match {
-    case TypeReprData.PredefinedData(name) =>
-      name match {
-        case "Int"     => '{ TypeRepr.Ref(TypeId.int) }
-        case "String"  => '{ TypeRepr.Ref(TypeId.string) }
-        case "Long"    => '{ TypeRepr.Ref(TypeId.long) }
-        case "Boolean" => '{ TypeRepr.Ref(TypeId.boolean) }
-        case "Double"  => '{ TypeRepr.Ref(TypeId.double) }
-        case "Float"   => '{ TypeRepr.Ref(TypeId.float) }
-        case "Byte"    => '{ TypeRepr.Ref(TypeId.byte) }
-        case "Short"   => '{ TypeRepr.Ref(TypeId.short) }
-        case "Char"    => '{ TypeRepr.Ref(TypeId.char) }
-        case "Unit"    => '{ TypeRepr.Ref(TypeId.unit) }
-        case "List"    => '{ TypeRepr.Ref(TypeId.list) }
-        case "Option"  => '{ TypeRepr.Ref(TypeId.option) }
-        case "Map"     => '{ TypeRepr.Ref(TypeId.map) }
-        case "Either"  => '{ TypeRepr.Ref(TypeId.either) }
-        case "Set"     => '{ TypeRepr.Ref(TypeId.set) }
-        case "Vector"  => '{ TypeRepr.Ref(TypeId.vector) }
-        case _         => '{ TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, Nil)) }
-      }
-    case TypeReprData.RefData(name, owner, typeParams, defKind) =>
-      val ownerExpr      = ownerDataToExpr(owner)
-      val typeParamsExpr = Expr.ofList(typeParams.map(p => typeParamDataToExpr(p)))
-      val defKindExpr    = typeDefKindDataToExpr(defKind)
-      '{ TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, $typeParamsExpr, Nil, $defKindExpr)) }
-    case TypeReprData.AliasRefData(name, owner, aliased) =>
-      val ownerExpr   = ownerDataToExpr(owner)
-      val aliasedExpr = typeReprDataToExpr(aliased)
-      '{ TypeRepr.Ref(TypeId.alias[Nothing](${ Expr(name) }, $ownerExpr, Nil, $aliasedExpr, Nil, Nil)) }
-    case TypeReprData.ParamRefData(param, binderDepth) =>
-      '{ TypeRepr.ParamRef(${ typeParamDataToExpr(param) }, ${ Expr(binderDepth) }) }
-    case TypeReprData.AppliedData(tycon, args) =>
-      val tyconExpr = typeReprDataToExpr(tycon)
-      val argsExpr  = Expr.ofList(args.map(a => typeReprDataToExpr(a)))
-      '{ TypeRepr.Applied($tyconExpr, $argsExpr) }
-    case TypeReprData.StructuralData(parents, members) =>
-      val parentsExpr = Expr.ofList(parents.map(p => typeReprDataToExpr(p)))
-      val membersExpr = Expr.ofList(members.map(m => memberDataToExpr(m)))
-      '{ TypeRepr.Structural($parentsExpr, $membersExpr) }
-    case TypeReprData.IntersectionData(types) =>
-      val typesExpr = Expr.ofList(types.map(t => typeReprDataToExpr(t)))
-      '{ TypeRepr.Intersection($typesExpr) }
-    case TypeReprData.UnionData(types) =>
-      val typesExpr = Expr.ofList(types.map(t => typeReprDataToExpr(t)))
-      '{ TypeRepr.Union($typesExpr) }
-    case TypeReprData.TupleData(elems) =>
-      val elemsExpr = Expr.ofList(elems.map(e => tupleElementDataToExpr(e)))
-      '{ TypeRepr.Tuple($elemsExpr) }
-    case TypeReprData.FunctionData(params, result) =>
-      val paramsExpr = Expr.ofList(params.map(p => typeReprDataToExpr(p)))
-      val resultExpr = typeReprDataToExpr(result)
-      '{ TypeRepr.Function($paramsExpr, $resultExpr) }
-    case TypeReprData.ContextFunctionData(params, result) =>
-      val paramsExpr = Expr.ofList(params.map(p => typeReprDataToExpr(p)))
-      val resultExpr = typeReprDataToExpr(result)
-      '{ TypeRepr.ContextFunction($paramsExpr, $resultExpr) }
-    case TypeReprData.TypeLambdaData(params, body) =>
-      val paramsExpr = Expr.ofList(params.map(p => typeParamDataToExpr(p)))
-      val bodyExpr   = typeReprDataToExpr(body)
-      '{ TypeRepr.TypeLambda($paramsExpr, $bodyExpr) }
-    case TypeReprData.ByNameData(underlying) =>
-      '{ TypeRepr.ByName(${ typeReprDataToExpr(underlying) }) }
-    case TypeReprData.WildcardData(bounds) =>
-      '{ TypeRepr.Wildcard(${ typeBoundsDataToExpr(bounds) }) }
-    case TypeReprData.SingletonData(path) =>
-      '{ TypeRepr.Singleton(${ termPathDataToExpr(path) }) }
-    case TypeReprData.ThisTypeData(owner) =>
-      '{ TypeRepr.ThisType(${ ownerDataToExpr(owner) }) }
-    case TypeReprData.IntConstData(v)     => '{ TypeRepr.Constant.IntConst(${ Expr(v) }) }
-    case TypeReprData.LongConstData(v)    => '{ TypeRepr.Constant.LongConst(${ Expr(v) }) }
-    case TypeReprData.FloatConstData(v)   => '{ TypeRepr.Constant.FloatConst(${ Expr(v) }) }
-    case TypeReprData.DoubleConstData(v)  => '{ TypeRepr.Constant.DoubleConst(${ Expr(v) }) }
-    case TypeReprData.BooleanConstData(v) => '{ TypeRepr.Constant.BooleanConst(${ Expr(v) }) }
-    case TypeReprData.CharConstData(v)    => '{ TypeRepr.Constant.CharConst(${ Expr(v) }) }
-    case TypeReprData.StringConstData(v)  => '{ TypeRepr.Constant.StringConst(${ Expr(v) }) }
-    case TypeReprData.NullConstData       => '{ TypeRepr.Constant.NullConst }
-    case TypeReprData.UnitConstData       => '{ TypeRepr.Constant.UnitConst }
-    case TypeReprData.AnyTypeData         => '{ TypeRepr.AnyType }
-    case TypeReprData.NothingTypeData     => '{ TypeRepr.NothingType }
-    case TypeReprData.NullTypeData        => '{ TypeRepr.NullType }
-  }
-
-  private def tupleElementDataToExpr(data: TupleElementData)(using Quotes): Expr[TupleElement] = {
-    val labelExpr = data.label match {
-      case Some(l) => '{ Some(${ Expr(l) }) }
-      case None    => '{ None }
+  given ToExpr[Kind] with {
+    def apply(k: Kind)(using Quotes): Expr[Kind] = k match {
+      case Kind.Type           => '{ Kind.Type }
+      case Kind.Arrow(ps, res) =>
+        val paramsExpr = Expr.ofList(ps.map(p => Expr(p)))
+        val resExpr    = Expr(res)
+        '{ Kind.Arrow($paramsExpr, $resExpr) }
     }
-    '{ TupleElement($labelExpr, ${ typeReprDataToExpr(data.tpe) }) }
   }
 
-  private def memberDataToExpr(data: MemberData)(using Quotes): Expr[Member] = data match {
-    case MemberData.ValData(name, tpe, isVar) =>
-      '{ Member.Val(${ Expr(name) }, ${ typeReprDataToExpr(tpe) }, ${ Expr(isVar) }) }
-    case MemberData.DefData(name, result) =>
-      '{ Member.Def(${ Expr(name) }, Nil, Nil, ${ typeReprDataToExpr(result) }) }
+  given typeReprToExpr: ToExpr[TypeRepr] with {
+    def apply(tr: TypeRepr)(using Quotes): Expr[TypeRepr] = tr match {
+      case TypeRepr.Ref(id) =>
+        val idExpr = typeIdToExpr(id)
+        '{ TypeRepr.Ref($idExpr) }
+      case TypeRepr.ParamRef(param, binderDepth) =>
+        '{ TypeRepr.ParamRef(${ Expr(param) }, ${ Expr(binderDepth) }) }
+      case TypeRepr.Applied(tycon, args) =>
+        val tyconExpr = Expr(tycon)
+        val argsExpr  = Expr.ofList(args.map(a => Expr(a)))
+        '{ TypeRepr.Applied($tyconExpr, $argsExpr) }
+      case TypeRepr.Structural(parents, members) =>
+        val parentsExpr = Expr.ofList(parents.map(p => Expr(p)))
+        val membersExpr = Expr.ofList(members.map(m => Expr(m)))
+        '{ TypeRepr.Structural($parentsExpr, $membersExpr) }
+      case TypeRepr.Intersection(types) =>
+        val typesExpr = Expr.ofList(types.map(t => Expr(t)))
+        '{ TypeRepr.Intersection($typesExpr) }
+      case TypeRepr.Union(types) =>
+        val typesExpr = Expr.ofList(types.map(t => Expr(t)))
+        '{ TypeRepr.Union($typesExpr) }
+      case TypeRepr.Tuple(elems) =>
+        val elemsExpr = Expr.ofList(elems.map(e => Expr(e)))
+        '{ TypeRepr.Tuple($elemsExpr) }
+      case TypeRepr.Function(params, result) =>
+        val paramsExpr = Expr.ofList(params.map(p => Expr(p)))
+        val resultExpr = Expr(result)
+        '{ TypeRepr.Function($paramsExpr, $resultExpr) }
+      case TypeRepr.ContextFunction(params, result) =>
+        val paramsExpr = Expr.ofList(params.map(p => Expr(p)))
+        val resultExpr = Expr(result)
+        '{ TypeRepr.ContextFunction($paramsExpr, $resultExpr) }
+      case TypeRepr.TypeLambda(params, body) =>
+        val paramsExpr = Expr.ofList(params.map(p => Expr(p)))
+        val bodyExpr   = Expr(body)
+        '{ TypeRepr.TypeLambda($paramsExpr, $bodyExpr) }
+      case TypeRepr.ByName(underlying) =>
+        '{ TypeRepr.ByName(${ Expr(underlying) }) }
+      case TypeRepr.Repeated(element) =>
+        '{ TypeRepr.Repeated(${ Expr(element) }) }
+      case TypeRepr.Wildcard(bounds) =>
+        '{ TypeRepr.Wildcard(${ Expr(bounds) }) }
+      case TypeRepr.Singleton(path) =>
+        '{ TypeRepr.Singleton(${ Expr(path) }) }
+      case TypeRepr.ThisType(owner) =>
+        '{ TypeRepr.ThisType(${ Expr(owner) }) }
+      case TypeRepr.TypeProjection(qualifier, name) =>
+        '{ TypeRepr.TypeProjection(${ Expr(qualifier) }, ${ Expr(name) }) }
+      case TypeRepr.TypeSelect(qualifier, name) =>
+        '{ TypeRepr.TypeSelect(${ Expr(qualifier) }, ${ Expr(name) }) }
+      case TypeRepr.Annotated(underlying, annotations) =>
+        val annotationsExpr = Expr.ofList(annotations.map(a => Expr(a)))
+        '{ TypeRepr.Annotated(${ Expr(underlying) }, $annotationsExpr) }
+      case TypeRepr.Constant.IntConst(v)       => '{ TypeRepr.Constant.IntConst(${ Expr(v) }) }
+      case TypeRepr.Constant.LongConst(v)      => '{ TypeRepr.Constant.LongConst(${ Expr(v) }) }
+      case TypeRepr.Constant.FloatConst(v)     => '{ TypeRepr.Constant.FloatConst(${ Expr(v) }) }
+      case TypeRepr.Constant.DoubleConst(v)    => '{ TypeRepr.Constant.DoubleConst(${ Expr(v) }) }
+      case TypeRepr.Constant.BooleanConst(v)   => '{ TypeRepr.Constant.BooleanConst(${ Expr(v) }) }
+      case TypeRepr.Constant.CharConst(v)      => '{ TypeRepr.Constant.CharConst(${ Expr(v) }) }
+      case TypeRepr.Constant.StringConst(v)    => '{ TypeRepr.Constant.StringConst(${ Expr(v) }) }
+      case TypeRepr.Constant.NullConst         => '{ TypeRepr.Constant.NullConst }
+      case TypeRepr.Constant.UnitConst         => '{ TypeRepr.Constant.UnitConst }
+      case TypeRepr.Constant.ClassOfConst(tpe) =>
+        '{ TypeRepr.Constant.ClassOfConst(${ Expr(tpe) }) }
+      case TypeRepr.AnyType     => '{ TypeRepr.AnyType }
+      case TypeRepr.NothingType => '{ TypeRepr.NothingType }
+      case TypeRepr.NullType    => '{ TypeRepr.NullType }
+      case TypeRepr.UnitType    => '{ TypeRepr.UnitType }
+      case TypeRepr.AnyKindType => '{ TypeRepr.AnyKindType }
+    }
   }
 
-  private def termPathSegmentDataToExpr(data: TermPathSegmentData)(using Quotes): Expr[TermPath.Segment] = data match {
-    case TermPathSegmentData.Package(name) => '{ TermPath.Package(${ Expr(name) }) }
-    case TermPathSegmentData.Term(name)    => '{ TermPath.Term(${ Expr(name) }) }
-  }
-
-  private def termPathDataToExpr(data: TermPathData)(using Quotes): Expr[TermPath] = {
-    val segmentsExpr = Expr.ofList(data.segments.map(s => termPathSegmentDataToExpr(s)))
-    '{ TermPath($segmentsExpr) }
-  }
-
-  private def enumCaseParamDataToExpr(data: EnumCaseParamData)(using Quotes): Expr[EnumCaseParam] =
-    '{ EnumCaseParam(${ Expr(data.name) }, ${ typeReprDataToExpr(data.tpe) }) }
-
-  private def enumCaseInfoDataToExpr(data: EnumCaseInfoData)(using Quotes): Expr[EnumCaseInfo] = {
-    val paramsExpr = Expr.ofList(data.params.map(p => enumCaseParamDataToExpr(p)))
-    '{ EnumCaseInfo(${ Expr(data.name) }, ${ Expr(data.ordinal) }, $paramsExpr, ${ Expr(data.isObjectCase) }) }
-  }
-
-  private def typeDefKindDataToExpr(data: TypeDefKindData)(using Quotes): Expr[TypeDefKind] = data match {
-    case TypeDefKindData.ClassData(isFinal, isAbstract, isCase, isValue, bases) =>
-      val basesExpr = Expr.ofList(bases.map(b => typeReprDataToExpr(b)))
-      '{
-        TypeDefKind.Class(
-          isFinal = ${ Expr(isFinal) },
-          isAbstract = ${ Expr(isAbstract) },
-          isCase = ${ Expr(isCase) },
-          isValue = ${ Expr(isValue) },
-          bases = $basesExpr
-        )
-      }
-    case TypeDefKindData.TraitData(isSealed, knownSubtypes, bases) =>
-      val subtypesExpr = Expr.ofList(knownSubtypes.map(s => typeReprDataToExpr(s)))
-      val basesExpr    = Expr.ofList(bases.map(b => typeReprDataToExpr(b)))
-      '{ TypeDefKind.Trait(isSealed = ${ Expr(isSealed) }, knownSubtypes = $subtypesExpr, bases = $basesExpr) }
-    case TypeDefKindData.ObjectData(bases) =>
-      val basesExpr = Expr.ofList(bases.map(b => typeReprDataToExpr(b)))
-      '{ TypeDefKind.Object(bases = $basesExpr) }
-    case TypeDefKindData.EnumData(cases, bases) =>
-      val casesExpr = Expr.ofList(cases.map(c => enumCaseInfoDataToExpr(c)))
-      val basesExpr = Expr.ofList(bases.map(b => typeReprDataToExpr(b)))
-      '{ TypeDefKind.Enum(cases = $casesExpr, bases = $basesExpr) }
-    case TypeDefKindData.EnumCaseData(parentEnum, ordinal, isObjectCase) =>
-      '{ TypeDefKind.EnumCase(${ typeReprDataToExpr(parentEnum) }, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
-    case TypeDefKindData.TypeAliasData          => '{ TypeDefKind.TypeAlias }
-    case TypeDefKindData.OpaqueTypeData(bounds) =>
-      '{ TypeDefKind.OpaqueType(${ typeBoundsDataToExpr(bounds) }) }
-    case TypeDefKindData.AbstractTypeData => '{ TypeDefKind.AbstractType }
-    case TypeDefKindData.UnknownData      => '{ TypeDefKind.Unknown }
-  }
-
-  private def annotationTypeIdDataToExpr(data: AnnotationTypeIdData)(using Quotes): Expr[TypeId[?]] = {
-    val ownerExpr = ownerDataToExpr(data.owner)
+  private def typeIdToExpr(id: TypeId[?])(using Quotes): Expr[TypeId[?]] = {
+    val nameExpr        = Expr(id.name)
+    val ownerExpr       = Expr(id.owner)
+    val typeParamsExpr  = Expr.ofList(id.typeParams.map(p => Expr(p)))
+    val typeArgsExpr    = Expr.ofList(id.typeArgs.map(a => Expr(a)))
+    val defKindExpr     = Expr(id.defKind)
+    val annotationsExpr = Expr.ofList(id.annotations.map(a => Expr(a)))
     '{
       TypeId.nominal[Any](
-        ${ Expr(data.name) },
+        $nameExpr,
         $ownerExpr,
-        Nil,
-        Nil,
-        TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+        $typeParamsExpr,
+        $typeArgsExpr,
+        $defKindExpr,
+        None,
+        $annotationsExpr
       )
     }
   }
 
-  private def annotationArgDataToExpr(data: AnnotationArgData)(using Quotes): Expr[AnnotationArg] = data match {
-    case AnnotationArgData.ConstData(value) =>
-      value match {
-        case s: String  => '{ AnnotationArg.Const(${ Expr(s) }) }
-        case i: Int     => '{ AnnotationArg.Const(${ Expr(i) }) }
-        case l: Long    => '{ AnnotationArg.Const(${ Expr(l) }) }
-        case f: Float   => '{ AnnotationArg.Const(${ Expr(f) }) }
-        case d: Double  => '{ AnnotationArg.Const(${ Expr(d) }) }
-        case b: Boolean => '{ AnnotationArg.Const(${ Expr(b) }) }
-        case c: Char    => '{ AnnotationArg.Const(${ Expr(c) }) }
-        case b: Byte    => '{ AnnotationArg.Const(${ Expr(b) }) }
-        case s: Short   => '{ AnnotationArg.Const(${ Expr(s) }) }
-        case null       => '{ AnnotationArg.Const(null) }
-        case ()         => '{ AnnotationArg.Const(()) }
-        case _          => '{ AnnotationArg.Const(null) }
+  given ToExpr[TypeBounds] with {
+    def apply(tb: TypeBounds)(using Quotes): Expr[TypeBounds] = {
+      val lowerExpr: Expr[Option[TypeRepr]] = tb.lower match {
+        case Some(l) => '{ Some(${ Expr(l) }) }
+        case None    => '{ None }
       }
-    case AnnotationArgData.ArrayArgData(values) =>
-      val valuesExpr = Expr.ofList(values.map(v => annotationArgDataToExpr(v)))
-      '{ AnnotationArg.ArrayArg($valuesExpr) }
-    case AnnotationArgData.NamedData(name, value) =>
-      '{ AnnotationArg.Named(${ Expr(name) }, ${ annotationArgDataToExpr(value) }) }
-    case AnnotationArgData.NestedData(typeId, args) =>
-      val argsExpr = Expr.ofList(args.map(a => annotationArgDataToExpr(a)))
-      '{ AnnotationArg.Nested(Annotation(${ annotationTypeIdDataToExpr(typeId) }, $argsExpr)) }
-    case AnnotationArgData.ClassOfData(tpe) =>
-      '{ AnnotationArg.ClassOf(${ typeReprDataToExpr(tpe) }) }
-    case AnnotationArgData.EnumValueData(enumType, valueName) =>
-      '{ AnnotationArg.EnumValue(${ annotationTypeIdDataToExpr(enumType) }, ${ Expr(valueName) }) }
+      val upperExpr: Expr[Option[TypeRepr]] = tb.upper match {
+        case Some(u) => '{ Some(${ Expr(u) }) }
+        case None    => '{ None }
+      }
+      '{ TypeBounds($lowerExpr, $upperExpr) }
+    }
   }
 
-  private def annotationDataToExpr(data: AnnotationData)(using Quotes): Expr[Annotation] = {
-    val argsExpr = Expr.ofList(data.args.map(a => annotationArgDataToExpr(a)))
-    '{ Annotation(${ annotationTypeIdDataToExpr(data.typeId) }, $argsExpr) }
+  given ToExpr[TypeParam] with {
+    def apply(tp: TypeParam)(using Quotes): Expr[TypeParam] =
+      '{
+        TypeParam(
+          ${ Expr(tp.name) },
+          ${ Expr(tp.index) },
+          ${ Expr(tp.variance) },
+          ${ Expr(tp.bounds) },
+          ${ Expr(tp.kind) }
+        )
+      }
   }
 
-  // --- Analysis Functions (return Data, not Expr) ---
+  given ToExpr[TupleElement] with {
+    def apply(te: TupleElement)(using Quotes): Expr[TupleElement] = {
+      val labelExpr = te.label match {
+        case Some(l) => '{ Some(${ Expr(l) }) }
+        case None    => '{ None }
+      }
+      '{ TupleElement($labelExpr, ${ Expr(te.tpe) }) }
+    }
+  }
 
-  private def analyzeOwner(using Quotes)(sym: quotes.reflect.Symbol): OwnerData = {
+  given ToExpr[Member] with {
+    def apply(m: Member)(using Quotes): Expr[Member] = m match {
+      case Member.Val(name, tpe, isVar) =>
+        '{ Member.Val(${ Expr(name) }, ${ Expr(tpe) }, ${ Expr(isVar) }) }
+      case Member.Def(name, typeParams, paramLists, result) =>
+        val typeParamsExpr = Expr.ofList(typeParams.map(p => Expr(p)))
+        val paramListsExpr = Expr.ofList(paramLists.map(pl => Expr.ofList(pl.map(p => Expr(p)))))
+        '{ Member.Def(${ Expr(name) }, $typeParamsExpr, $paramListsExpr, ${ Expr(result) }) }
+      case Member.TypeMember(name, typeParams, lowerBound, upperBound) =>
+        val typeParamsExpr = Expr.ofList(typeParams.map(p => Expr(p)))
+        val lowerExpr      = lowerBound match {
+          case Some(l) => '{ Some(${ Expr(l) }) }
+          case None    => '{ None }
+        }
+        val upperExpr = upperBound match {
+          case Some(u) => '{ Some(${ Expr(u) }) }
+          case None    => '{ None }
+        }
+        '{ Member.TypeMember(${ Expr(name) }, $typeParamsExpr, $lowerExpr, $upperExpr) }
+    }
+  }
+
+  given ToExpr[Param] with {
+    def apply(p: Param)(using Quotes): Expr[Param] =
+      '{ Param(${ Expr(p.name) }, ${ Expr(p.tpe) }, ${ Expr(p.isImplicit) }, ${ Expr(p.hasDefault) }) }
+  }
+
+  given termPathSegmentToExpr: ToExpr[TermPath.Segment] with {
+    def apply(seg: TermPath.Segment)(using Quotes): Expr[TermPath.Segment] = seg match {
+      case TermPath.Package(name) => '{ TermPath.Package(${ Expr(name) }) }
+      case TermPath.Term(name)    => '{ TermPath.Term(${ Expr(name) }) }
+    }
+  }
+
+  given ToExpr[TermPath] with {
+    def apply(tp: TermPath)(using Quotes): Expr[TermPath] = {
+      val segmentsExpr = Expr.ofList(tp.segments.map(s => Expr(s)))
+      '{ TermPath($segmentsExpr) }
+    }
+  }
+
+  given ToExpr[EnumCaseParam] with {
+    def apply(ecp: EnumCaseParam)(using Quotes): Expr[EnumCaseParam] =
+      '{ EnumCaseParam(${ Expr(ecp.name) }, ${ Expr(ecp.tpe) }) }
+  }
+
+  given ToExpr[EnumCaseInfo] with {
+    def apply(eci: EnumCaseInfo)(using Quotes): Expr[EnumCaseInfo] = {
+      val paramsExpr = Expr.ofList(eci.params.map(p => Expr(p)))
+      '{ EnumCaseInfo(${ Expr(eci.name) }, ${ Expr(eci.ordinal) }, $paramsExpr, ${ Expr(eci.isObjectCase) }) }
+    }
+  }
+
+  given ToExpr[TypeDefKind] with {
+    def apply(tdk: TypeDefKind)(using Quotes): Expr[TypeDefKind] = tdk match {
+      case TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, bases) =>
+        val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
+        '{
+          TypeDefKind.Class(
+            isFinal = ${ Expr(isFinal) },
+            isAbstract = ${ Expr(isAbstract) },
+            isCase = ${ Expr(isCase) },
+            isValue = ${ Expr(isValue) },
+            bases = $basesExpr
+          )
+        }
+      case TypeDefKind.Trait(isSealed, knownSubtypes, bases) =>
+        val subtypesExpr = Expr.ofList(knownSubtypes.map(s => Expr(s)))
+        val basesExpr    = Expr.ofList(bases.map(b => Expr(b)))
+        '{ TypeDefKind.Trait(isSealed = ${ Expr(isSealed) }, knownSubtypes = $subtypesExpr, bases = $basesExpr) }
+      case TypeDefKind.Object(bases) =>
+        val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
+        '{ TypeDefKind.Object(bases = $basesExpr) }
+      case TypeDefKind.Enum(cases, bases) =>
+        val casesExpr = Expr.ofList(cases.map(c => Expr(c)))
+        val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
+        '{ TypeDefKind.Enum(cases = $casesExpr, bases = $basesExpr) }
+      case TypeDefKind.EnumCase(parentEnum, ordinal, isObjectCase) =>
+        '{ TypeDefKind.EnumCase(${ Expr(parentEnum) }, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
+      case TypeDefKind.TypeAlias          => '{ TypeDefKind.TypeAlias }
+      case TypeDefKind.OpaqueType(bounds) =>
+        '{ TypeDefKind.OpaqueType(${ Expr(bounds) }) }
+      case TypeDefKind.AbstractType => '{ TypeDefKind.AbstractType }
+      case TypeDefKind.Unknown      => '{ TypeDefKind.Unknown }
+    }
+  }
+
+  given ToExpr[AnnotationArg] with {
+    def apply(arg: AnnotationArg)(using Quotes): Expr[AnnotationArg] = arg match {
+      case AnnotationArg.Const(value) =>
+        value match {
+          case s: String  => '{ AnnotationArg.Const(${ Expr(s) }) }
+          case i: Int     => '{ AnnotationArg.Const(${ Expr(i) }) }
+          case l: Long    => '{ AnnotationArg.Const(${ Expr(l) }) }
+          case f: Float   => '{ AnnotationArg.Const(${ Expr(f) }) }
+          case d: Double  => '{ AnnotationArg.Const(${ Expr(d) }) }
+          case b: Boolean => '{ AnnotationArg.Const(${ Expr(b) }) }
+          case c: Char    => '{ AnnotationArg.Const(${ Expr(c) }) }
+          case b: Byte    => '{ AnnotationArg.Const(${ Expr(b) }) }
+          case s: Short   => '{ AnnotationArg.Const(${ Expr(s) }) }
+          case null       => '{ AnnotationArg.Const(null) }
+          case ()         => '{ AnnotationArg.Const(()) }
+          case _          => '{ AnnotationArg.Const(null) }
+        }
+      case AnnotationArg.ArrayArg(values) =>
+        val valuesExpr = Expr.ofList(values.map(v => Expr(v)))
+        '{ AnnotationArg.ArrayArg($valuesExpr) }
+      case AnnotationArg.Named(name, value) =>
+        '{ AnnotationArg.Named(${ Expr(name) }, ${ Expr(value) }) }
+      case AnnotationArg.Nested(annotation) =>
+        '{ AnnotationArg.Nested(${ Expr(annotation) }) }
+      case AnnotationArg.ClassOf(tpe) =>
+        '{ AnnotationArg.ClassOf(${ Expr(tpe) }) }
+      case AnnotationArg.EnumValue(enumType, valueName) =>
+        '{ AnnotationArg.EnumValue(${ typeIdToExpr(enumType) }, ${ Expr(valueName) }) }
+    }
+  }
+
+  given ToExpr[Annotation] with {
+    def apply(ann: Annotation)(using Quotes): Expr[Annotation] = {
+      val argsExpr = Expr.ofList(ann.args.map(a => Expr(a)))
+      '{ Annotation(${ typeIdToExpr(ann.typeId) }, $argsExpr) }
+    }
+  }
+
+  // ============================================================================
+  // Analysis Functions (return actual types, not Data classes)
+  // ============================================================================
+
+  private def analyzeOwner(using Quotes)(sym: quotes.reflect.Symbol): Owner = {
     import quotes.reflect.*
 
-    def loop(s: Symbol, acc: List[OwnerSegmentData]): List[OwnerSegmentData] =
+    def loop(s: Symbol, acc: List[Owner.Segment]): List[Owner.Segment] =
       if (s.isNoSymbol || s == defn.RootPackage || s == defn.RootClass || s == defn.EmptyPackageClass) {
         acc
       } else if (s.isPackageDef) {
-        loop(s.owner, OwnerSegmentData.Package(s.name) :: acc)
+        loop(s.owner, Owner.Package(s.name) :: acc)
       } else if (s.isClassDef && s.flags.is(Flags.Module)) {
-        loop(s.owner, OwnerSegmentData.Term(s.name.stripSuffix("$")) :: acc)
+        loop(s.owner, Owner.Term(s.name.stripSuffix("$")) :: acc)
       } else if (s.isClassDef) {
-        loop(s.owner, OwnerSegmentData.Type(s.name) :: acc)
+        loop(s.owner, Owner.Type(s.name) :: acc)
       } else {
         loop(s.owner, acc)
       }
 
-    OwnerData(loop(sym, Nil))
+    Owner(loop(sym, Nil))
   }
 
-  private def analyzeTypeParams(using Quotes)(sym: quotes.reflect.Symbol): List[TypeParamData] = {
+  private def analyzeTypeParams(using Quotes)(sym: quotes.reflect.Symbol): List[TypeParam] = {
     import quotes.reflect.*
 
     val typeParams = sym.declaredTypes.filter(_.isTypeParam)
     typeParams.zipWithIndex.map { case (p, idx) =>
-      val variance: Flags = scala.util.Try(p.tree).toOption match {
+      val variance: Variance = scala.util.Try(p.tree).toOption match {
         case Some(td: TypeDef) =>
           val defFlags = td.symbol.flags
-          if (defFlags.is(Flags.Covariant)) Flags.Covariant
-          else if (defFlags.is(Flags.Contravariant)) Flags.Contravariant
-          else Flags.EmptyFlags
+          if (defFlags.is(Flags.Covariant)) Variance.Covariant
+          else if (defFlags.is(Flags.Contravariant)) Variance.Contravariant
+          else Variance.Invariant
         case _ =>
-          if (p.flags.is(Flags.Covariant)) Flags.Covariant
-          else if (p.flags.is(Flags.Contravariant)) Flags.Contravariant
-          else Flags.EmptyFlags
+          if (p.flags.is(Flags.Covariant)) Variance.Covariant
+          else if (p.flags.is(Flags.Contravariant)) Variance.Contravariant
+          else Variance.Invariant
       }
 
-      val varianceInt =
-        if (variance == Flags.Covariant) 1
-        else if (variance == Flags.Contravariant) -1
-        else 0
-
-      TypeParamData(p.name, idx, varianceInt)
+      TypeParam(p.name, idx, variance)
     }
   }
 
-  private def analyzeTypeReprMinimal(using Quotes)(tpe: quotes.reflect.TypeRepr): TypeReprData = {
+  private def analyzeTypeReprMinimal(using Quotes)(tpe: quotes.reflect.TypeRepr): zio.blocks.typeid.TypeRepr = {
     import quotes.reflect.*
 
     tpe match {
@@ -420,24 +366,37 @@ object TypeIdMacros {
         val name    = if (sym.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
 
         name match {
-          case "Int" | "String" | "Long" | "Boolean" | "Double" | "Float" | "Byte" | "Short" | "Char" | "Unit" |
-              "List" | "Option" | "Map" | "Either" | "Set" | "Vector" =>
-            TypeReprData.PredefinedData(name)
-          case "Any"     => TypeReprData.AnyTypeData
-          case "Nothing" => TypeReprData.NothingTypeData
-          case "Null"    => TypeReprData.NullTypeData
+          case "Int"     => zio.blocks.typeid.TypeRepr.Ref(TypeId.int)
+          case "String"  => zio.blocks.typeid.TypeRepr.Ref(TypeId.string)
+          case "Long"    => zio.blocks.typeid.TypeRepr.Ref(TypeId.long)
+          case "Boolean" => zio.blocks.typeid.TypeRepr.Ref(TypeId.boolean)
+          case "Double"  => zio.blocks.typeid.TypeRepr.Ref(TypeId.double)
+          case "Float"   => zio.blocks.typeid.TypeRepr.Ref(TypeId.float)
+          case "Byte"    => zio.blocks.typeid.TypeRepr.Ref(TypeId.byte)
+          case "Short"   => zio.blocks.typeid.TypeRepr.Ref(TypeId.short)
+          case "Char"    => zio.blocks.typeid.TypeRepr.Ref(TypeId.char)
+          case "Unit"    => zio.blocks.typeid.TypeRepr.Ref(TypeId.unit)
+          case "List"    => zio.blocks.typeid.TypeRepr.Ref(TypeId.list)
+          case "Option"  => zio.blocks.typeid.TypeRepr.Ref(TypeId.option)
+          case "Map"     => zio.blocks.typeid.TypeRepr.Ref(TypeId.map)
+          case "Either"  => zio.blocks.typeid.TypeRepr.Ref(TypeId.either)
+          case "Set"     => zio.blocks.typeid.TypeRepr.Ref(TypeId.set)
+          case "Vector"  => zio.blocks.typeid.TypeRepr.Ref(TypeId.vector)
+          case "Any"     => zio.blocks.typeid.TypeRepr.AnyType
+          case "Nothing" => zio.blocks.typeid.TypeRepr.NothingType
+          case "Null"    => zio.blocks.typeid.TypeRepr.NullType
           case _         =>
-            val ownerData = analyzeOwner(sym.owner)
-            TypeReprData.RefData(name, ownerData, Nil, TypeDefKindData.UnknownData)
+            val owner = analyzeOwner(sym.owner)
+            zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, owner, Nil, Nil, TypeDefKind.Unknown))
         }
       case _ =>
         val sym  = tpe.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        TypeReprData.RefData(name, OwnerData(Nil), Nil, TypeDefKindData.UnknownData)
+        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, Owner.Root, Nil, Nil, TypeDefKind.Unknown))
     }
   }
 
-  private def analyzeBaseTypes(using Quotes)(sym: quotes.reflect.Symbol): List[TypeReprData] = {
+  private def analyzeBaseTypes(using Quotes)(sym: quotes.reflect.Symbol): List[zio.blocks.typeid.TypeRepr] = {
     val baseClasses = sym.typeRef.baseClasses.filterNot { base =>
       base == sym ||
       base.fullName == "scala.Any" ||
@@ -449,7 +408,7 @@ object TypeIdMacros {
     baseClasses.map(base => analyzeTypeReprMinimal(base.typeRef))
   }
 
-  private def analyzeDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKindData = {
+  private def analyzeDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKind = {
     import quotes.reflect.*
 
     val flags = sym.flags
@@ -459,25 +418,25 @@ object TypeIdMacros {
     } else if (flags.is(Flags.Enum) && flags.is(Flags.Case)) {
       analyzeEnumCaseDefKind(sym)
     } else if (flags.is(Flags.Module)) {
-      TypeDefKindData.ObjectData(analyzeBaseTypes(sym))
+      TypeDefKind.Object(analyzeBaseTypes(sym))
     } else if (flags.is(Flags.Trait)) {
       analyzeTraitDefKind(sym)
     } else if (sym.isClassDef) {
       analyzeClassDefKind(sym, flags)
     } else if (flags.is(Flags.Opaque)) {
-      TypeDefKindData.OpaqueTypeData(TypeBoundsData(None, None))
+      TypeDefKind.OpaqueType(zio.blocks.typeid.TypeBounds.Unbounded)
     } else if (sym.isAliasType) {
-      TypeDefKindData.TypeAliasData
+      TypeDefKind.TypeAlias
     } else if (sym.isAbstractType) {
-      TypeDefKindData.AbstractTypeData
+      TypeDefKind.AbstractType
     } else {
-      TypeDefKindData.UnknownData
+      TypeDefKind.Unknown
     }
   }
 
   private def analyzeClassDefKind(using
     Quotes
-  )(sym: quotes.reflect.Symbol, flags: quotes.reflect.Flags): TypeDefKindData = {
+  )(sym: quotes.reflect.Symbol, flags: quotes.reflect.Flags): TypeDefKind = {
     import quotes.reflect.*
 
     val isFinal    = flags.is(Flags.Final)
@@ -485,37 +444,37 @@ object TypeIdMacros {
     val isCase     = flags.is(Flags.Case)
     val isValue    = sym.typeRef.baseClasses.exists(_.fullName == "scala.AnyVal")
 
-    TypeDefKindData.ClassData(isFinal, isAbstract, isCase, isValue, analyzeBaseTypes(sym))
+    TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, analyzeBaseTypes(sym))
   }
 
-  private def analyzeTraitDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKindData = {
+  private def analyzeTraitDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKind = {
     import quotes.reflect.*
 
     val flags    = sym.flags
     val isSealed = flags.is(Flags.Sealed)
 
     if (isSealed) {
-      val children    = sym.children
-      val subtypeData = children.map(child => analyzeTypeReprMinimal(child.typeRef))
-      TypeDefKindData.TraitData(isSealed = true, subtypeData, analyzeBaseTypes(sym))
+      val children = sym.children
+      val subtypes = children.map(child => analyzeTypeReprMinimal(child.typeRef))
+      TypeDefKind.Trait(isSealed = true, subtypes, analyzeBaseTypes(sym))
     } else {
-      TypeDefKindData.TraitData(isSealed = false, Nil, analyzeBaseTypes(sym))
+      TypeDefKind.Trait(isSealed = false, Nil, analyzeBaseTypes(sym))
     }
   }
 
-  private def analyzeEnumDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKindData = {
+  private def analyzeEnumDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKind = {
     import quotes.reflect.*
 
     val children = sym.children
-    val caseData = children.zipWithIndex.collect {
+    val cases    = children.zipWithIndex.collect {
       case (child, idx) if child.flags.is(Flags.Case) =>
         analyzeEnumCaseInfo(child, idx)
     }
 
-    TypeDefKindData.EnumData(caseData, analyzeBaseTypes(sym))
+    TypeDefKind.Enum(cases, analyzeBaseTypes(sym))
   }
 
-  private def analyzeEnumCaseInfo(using Quotes)(caseSym: quotes.reflect.Symbol, ordinal: Int): EnumCaseInfoData = {
+  private def analyzeEnumCaseInfo(using Quotes)(caseSym: quotes.reflect.Symbol, ordinal: Int): EnumCaseInfo = {
     import quotes.reflect.*
 
     val name         = caseSym.name
@@ -523,19 +482,19 @@ object TypeIdMacros {
       caseSym.primaryConstructor.paramSymss.flatten.isEmpty
 
     if (isObjectCase) {
-      EnumCaseInfoData(name, ordinal, Nil, isObjectCase = true)
+      EnumCaseInfo(name, ordinal, Nil, isObjectCase = true)
     } else {
       val params = caseSym.primaryConstructor.paramSymss.flatten.filter(_.isTerm).map { param =>
         val paramName     = param.name
         val paramType     = param.termRef.widenTermRefByName
-        val paramTypeData = analyzeTypeReprMinimal(paramType)
-        EnumCaseParamData(paramName, paramTypeData)
+        val paramTypeRepr = analyzeTypeReprMinimal(paramType)
+        EnumCaseParam(paramName, paramTypeRepr)
       }
-      EnumCaseInfoData(name, ordinal, params, isObjectCase = false)
+      EnumCaseInfo(name, ordinal, params, isObjectCase = false)
     }
   }
 
-  private def analyzeEnumCaseDefKind(using Quotes)(caseSym: quotes.reflect.Symbol): TypeDefKindData = {
+  private def analyzeEnumCaseDefKind(using Quotes)(caseSym: quotes.reflect.Symbol): TypeDefKind = {
     import quotes.reflect.*
 
     val parentSym = caseSym.owner
@@ -545,12 +504,12 @@ object TypeIdMacros {
     val isObjectCase = caseSym.flags.is(Flags.Module) ||
       caseSym.primaryConstructor.paramSymss.flatten.isEmpty
 
-    val parentTypeData = analyzeTypeReprMinimal(parentSym.typeRef)
+    val parentTypeRepr = analyzeTypeReprMinimal(parentSym.typeRef)
 
-    TypeDefKindData.EnumCaseData(parentTypeData, ordinal, isObjectCase)
+    TypeDefKind.EnumCase(parentTypeRepr, ordinal, isObjectCase)
   }
 
-  private def analyzeAnnotations(using Quotes)(sym: quotes.reflect.Symbol): List[AnnotationData] = {
+  private def analyzeAnnotations(using Quotes)(sym: quotes.reflect.Symbol): List[Annotation] = {
     val annotations = sym.annotations.filterNot { annot =>
       val annotSym = annot.tpe.typeSymbol
       val fullName = annotSym.fullName
@@ -563,7 +522,7 @@ object TypeIdMacros {
     annotations.flatMap(annot => analyzeAnnotation(annot))
   }
 
-  private def analyzeAnnotation(using Quotes)(annot: quotes.reflect.Term): Option[AnnotationData] = {
+  private def analyzeAnnotation(using Quotes)(annot: quotes.reflect.Term): Option[Annotation] = {
     import quotes.reflect.*
 
     val annotTpe = annot.tpe
@@ -571,60 +530,78 @@ object TypeIdMacros {
 
     if (annotSym.isNoSymbol) return None
 
-    val annotName      = annotSym.name
-    val annotOwnerData = analyzeOwner(annotSym.owner)
-    val annotTypeId    = AnnotationTypeIdData(annotName, annotOwnerData)
+    val annotName   = annotSym.name
+    val annotOwner  = analyzeOwner(annotSym.owner)
+    val annotTypeId = TypeId.nominal[Any](
+      annotName,
+      annotOwner,
+      Nil,
+      Nil,
+      TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+    )
 
-    val argsData = annot match {
+    val args = annot match {
       case Apply(_, args) => args.flatMap(arg => analyzeAnnotationArg(arg))
       case _              => Nil
     }
 
-    Some(AnnotationData(annotTypeId, argsData))
+    Some(Annotation(annotTypeId, args))
   }
 
-  private def analyzeAnnotationArg(using Quotes)(arg: quotes.reflect.Term): Option[AnnotationArgData] = {
+  private def analyzeAnnotationArg(using Quotes)(arg: quotes.reflect.Term): Option[AnnotationArg] = {
     import quotes.reflect.*
 
     arg match {
       case Literal(const) =>
-        Some(AnnotationArgData.ConstData(const.value))
+        Some(AnnotationArg.Const(const.value))
 
       case NamedArg(name, value) =>
-        analyzeAnnotationArg(value).map(v => AnnotationArgData.NamedData(name, v))
+        analyzeAnnotationArg(value).map(v => AnnotationArg.Named(name, v))
 
       case Typed(expr, _) =>
         analyzeAnnotationArg(expr)
 
       case Apply(TypeApply(Select(Ident("Array"), "apply"), _), List(Typed(Repeated(elems, _), _))) =>
-        val elemData = elems.flatMap(e => analyzeAnnotationArg(e))
-        Some(AnnotationArgData.ArrayArgData(elemData))
+        val elemArgs = elems.flatMap(e => analyzeAnnotationArg(e))
+        Some(AnnotationArg.ArrayArg(elemArgs))
 
       case Repeated(elems, _) =>
-        val elemData = elems.flatMap(e => analyzeAnnotationArg(e))
-        Some(AnnotationArgData.ArrayArgData(elemData))
+        val elemArgs = elems.flatMap(e => analyzeAnnotationArg(e))
+        Some(AnnotationArg.ArrayArg(elemArgs))
 
       case TypeApply(Select(Ident("Predef"), "classOf"), List(tpt)) =>
-        val typeData = analyzeTypeReprMinimal(tpt.tpe)
-        Some(AnnotationArgData.ClassOfData(typeData))
+        val typeRepr = analyzeTypeReprMinimal(tpt.tpe)
+        Some(AnnotationArg.ClassOf(typeRepr))
 
       case Select(qualifier, name) if arg.tpe.typeSymbol.flags.is(Flags.Enum) =>
-        val enumTypeSym   = qualifier.tpe.typeSymbol
-        val enumOwnerData = analyzeOwner(enumTypeSym.owner)
-        val enumTypeId    = AnnotationTypeIdData(enumTypeSym.name, enumOwnerData)
-        Some(AnnotationArgData.EnumValueData(enumTypeId, name))
+        val enumTypeSym = qualifier.tpe.typeSymbol
+        val enumOwner   = analyzeOwner(enumTypeSym.owner)
+        val enumTypeId  = TypeId.nominal[Any](
+          enumTypeSym.name,
+          enumOwner,
+          Nil,
+          Nil,
+          TypeDefKind.Enum(Nil)
+        )
+        Some(AnnotationArg.EnumValue(enumTypeId, name))
 
       case Apply(Select(New(tpt), _), nestedArgs) =>
-        val nestedAnnotSym  = tpt.tpe.typeSymbol
-        val nestedOwnerData = analyzeOwner(nestedAnnotSym.owner)
-        val nestedTypeId    = AnnotationTypeIdData(nestedAnnotSym.name, nestedOwnerData)
-        val nestedArgsData  = nestedArgs.flatMap(a => analyzeAnnotationArg(a))
-        Some(AnnotationArgData.NestedData(nestedTypeId, nestedArgsData))
+        val nestedAnnotSym = tpt.tpe.typeSymbol
+        val nestedOwner    = analyzeOwner(nestedAnnotSym.owner)
+        val nestedTypeId   = TypeId.nominal[Any](
+          nestedAnnotSym.name,
+          nestedOwner,
+          Nil,
+          Nil,
+          TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+        )
+        val nestedArgsData = nestedArgs.flatMap(a => analyzeAnnotationArg(a))
+        Some(AnnotationArg.Nested(Annotation(nestedTypeId, nestedArgsData)))
 
       case _ =>
         arg.tpe.widenTermRefByName match {
           case ConstantType(const) =>
-            Some(AnnotationArgData.ConstData(const.value))
+            Some(AnnotationArg.Const(const.value))
           case _ =>
             None
         }
@@ -634,27 +611,27 @@ object TypeIdMacros {
   // --- Cached Build Functions ---
 
   private def buildOwnerCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[Owner] = {
-    val key  = if (sym.isNoSymbol) "" else sym.fullName
-    val data = ownerCache.computeIfAbsent(key, _ => analyzeOwner(sym))
-    ownerDataToExpr(data)
+    val key   = if (sym.isNoSymbol) "" else sym.fullName
+    val owner = ownerCache.computeIfAbsent(key, _ => analyzeOwner(sym))
+    Expr(owner)
   }
 
   private def buildTypeParamsCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[TypeParam]] = {
-    val key  = if (sym.isNoSymbol) "" else sym.fullName
-    val data = typeParamsCache.computeIfAbsent(key, _ => analyzeTypeParams(sym))
-    Expr.ofList(data.map(p => typeParamDataToExpr(p)))
+    val key        = if (sym.isNoSymbol) "" else sym.fullName
+    val typeParams = typeParamsCache.computeIfAbsent(key, _ => analyzeTypeParams(sym))
+    Expr.ofList(typeParams.map(p => Expr(p)))
   }
 
   private def buildDefKindCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[TypeDefKind] = {
-    val key  = if (sym.isNoSymbol) "" else sym.fullName
-    val data = defKindCache.computeIfAbsent(key, _ => analyzeDefKind(sym))
-    typeDefKindDataToExpr(data)
+    val key     = if (sym.isNoSymbol) "" else sym.fullName
+    val defKind = defKindCache.computeIfAbsent(key, _ => analyzeDefKind(sym))
+    Expr(defKind)
   }
 
   private def buildAnnotationsCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[Annotation]] = {
-    val key  = if (sym.isNoSymbol) "" else sym.fullName
-    val data = annotationsCache.computeIfAbsent(key, _ => analyzeAnnotations(sym))
-    Expr.ofList(data.map(a => annotationDataToExpr(a)))
+    val key         = if (sym.isNoSymbol) "" else sym.fullName
+    val annotations = annotationsCache.computeIfAbsent(key, _ => analyzeAnnotations(sym))
+    Expr.ofList(annotations.map(a => Expr(a)))
   }
 
   /**
@@ -807,7 +784,7 @@ object TypeIdMacros {
 
           existentialType.asType match {
             case '[t] =>
-              val typeIdType = TypeRepr.of[TypeId[t]]
+              val typeIdType = quotes.reflect.TypeRepr.of[TypeId[t]]
               Implicits.search(typeIdType) match {
                 case iss: ImplicitSearchSuccess =>
                   val foundTree = iss.tree
@@ -1353,7 +1330,9 @@ object TypeIdMacros {
     }
   }
 
-  private def buildBaseTypesMinimal(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[TypeRepr]] = {
+  private def buildBaseTypesMinimal(using
+    Quotes
+  )(sym: quotes.reflect.Symbol): Expr[List[zio.blocks.typeid.TypeRepr]] = {
     val baseClasses = sym.typeRef.baseClasses.filterNot { base =>
       base == sym ||
       base.fullName == "scala.Any" ||
@@ -1412,7 +1391,7 @@ object TypeIdMacros {
   private def buildTermPath(using Quotes)(tref: quotes.reflect.TermRef): Expr[TermPath] = {
     import quotes.reflect.*
 
-    def loop(t: TypeRepr, acc: List[Expr[TermPath.Segment]]): List[Expr[TermPath.Segment]] = t match {
+    def loop(t: quotes.reflect.TypeRepr, acc: List[Expr[TermPath.Segment]]): List[Expr[TermPath.Segment]] = t match {
       case tr: TermRef =>
         val segment = '{ TermPath.Term(${ Expr(tr.termSymbol.name) }) }
         tr.qualifier match {
@@ -1515,9 +1494,9 @@ object TypeIdMacros {
 
     // Collect all refinement members
     def collectRefinements(
-      t: TypeRepr,
-      members: List[(String, TypeRepr, Boolean)]
-    ): (TypeRepr, List[(String, TypeRepr, Boolean)]) =
+      t: quotes.reflect.TypeRepr,
+      members: List[(String, quotes.reflect.TypeRepr, Boolean)]
+    ): (quotes.reflect.TypeRepr, List[(String, quotes.reflect.TypeRepr, Boolean)]) =
       t match {
         case Refinement(parent, name, info) =>
           val isMethod = info match {
