@@ -465,39 +465,78 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
     ),
     suite("MigrationPaths typeclass")(
       test("derives for identical types - empty removed and added") {
-        val _ = implicitly[MigrationPaths[Simple, Simple]]
-        assertCompletes
+        val mp = implicitly[MigrationPaths[Simple, Simple]]
+        // Verify at runtime using TreeDiff
+        val sourceTree       = extractShapeTree[Simple]
+        val targetTree       = extractShapeTree[Simple]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.isEmpty,
+          added.isEmpty
+        )
       },
       test("derives for types with added field") {
-        val _ = implicitly[MigrationPaths[SingleField, Simple]]
-        assertCompletes
+        val mp = implicitly[MigrationPaths[SingleField, Simple]]
+        // SingleField has only 'x', Simple has 'name' and 'age' - so 'x' is removed, 'name' and 'age' are added
+        val sourceTree       = extractShapeTree[SingleField]
+        val targetTree       = extractShapeTree[Simple]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed == List(List(Segment.Field("x"))),
+          added.map(Path.render).toSet == Set("name", "age")
+        )
       },
       test("derives for types with removed field") {
-        val _ = implicitly[MigrationPaths[Simple, SingleField]]
-        assertCompletes
+        val mp = implicitly[MigrationPaths[Simple, SingleField]]
+        // Simple has 'name' and 'age', SingleField has only 'x' - so 'name' and 'age' are removed, 'x' is added
+        val sourceTree       = extractShapeTree[Simple]
+        val targetTree       = extractShapeTree[SingleField]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.map(Path.render).toSet == Set("name", "age"),
+          added == List(List(Segment.Field("x")))
+        )
       },
       test("derives for nested case classes") {
-        val _ = implicitly[MigrationPaths[Person, Contact]]
-        assertCompletes
+        val mp = implicitly[MigrationPaths[Person, Contact]]
+        // Person has 'name' and 'address', Contact has 'address.street' and 'address.country'
+        val sourceTree       = extractShapeTree[Person]
+        val targetTree       = extractShapeTree[Contact]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.nonEmpty || added.nonEmpty // At least some structural difference
+        )
       },
       test("derives for sealed traits") {
-        val _ = implicitly[MigrationPaths[Result, Status]]
-        assertCompletes
+        val mp = implicitly[MigrationPaths[Result, Status]]
+        // Result has Success and Failure cases, Status has Active and Inactive cases
+        val sourceTree       = extractShapeTree[Result]
+        val targetTree       = extractShapeTree[Status]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.exists(_.headOption.exists(_.isInstanceOf[Segment.Case])), // Has removed cases
+          added.exists(_.headOption.exists(_.isInstanceOf[Segment.Case]))    // Has added cases
+        )
       },
-      test("pathToFlatString converts field paths") {
+      test("Path.render converts field paths") {
         val path = List(Segment.Field("address"), Segment.Field("city"))
-        assertTrue(MigrationPaths.pathToFlatString(path) == "address.city")
+        assertTrue(Path.render(path) == "address.city")
       },
-      test("pathToFlatString converts case paths") {
+      test("Path.render converts case paths") {
         val path = List(Segment.Case("Success"))
-        assertTrue(MigrationPaths.pathToFlatString(path) == "case:Success")
+        assertTrue(Path.render(path) == "case:Success")
       },
-      test("pathToFlatString converts container paths") {
+      test("Path.render converts container paths") {
         val path = List(Segment.Field("items"), Segment.Element, Segment.Field("name"))
-        assertTrue(MigrationPaths.pathToFlatString(path) == "items.element.name")
+        assertTrue(Path.render(path) == "items.element.name")
       },
-      test("pathToFlatString handles empty path") {
-        assertTrue(MigrationPaths.pathToFlatString(Nil) == "<root>")
+      test("Path.render handles empty path") {
+        assertTrue(Path.render(Nil) == "<root>")
       }
     ),
     suite("TreeDiff")(
@@ -627,9 +666,9 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         val path2 = List(Segment.Case("Success"))
         val path3 = List(Segment.Field("items"), Segment.Element, Segment.Field("name"))
         assertTrue(
-          Path.render(path1) == ".address.city",
-          Path.render(path2) == "[case:Success]",
-          Path.render(path3) == ".items[element].name",
+          Path.render(path1) == "address.city",
+          Path.render(path2) == "case:Success",
+          Path.render(path3) == "items.element.name",
           Path.render(Nil) == "<root>"
         )
       }
@@ -643,7 +682,6 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         val tree = extractShapeTree[Amount]
         assertTrue(tree == ShapeNode.WrappedNode(ShapeNode.PrimitiveNode))
       },
-      /* TODO FIX ME AJAY
       test("case class with value class field has WrappedNode") {
         val tree = extractShapeTree[PersonWithUserId]
         assertTrue(
@@ -665,7 +703,6 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
           )
         )
       },
-       */
       test("Option of value class has OptionNode with WrappedNode element") {
         val tree = extractShapeTree[WithOptionAmount]
         assertTrue(
@@ -735,10 +772,10 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
     ),
     suite("Path rendering with wrapped segment")(
       test("wrapped segment renders correctly") {
-        assertTrue(Path.render(List(Segment.Wrapped)) == "[wrapped]")
+        assertTrue(Path.render(List(Segment.Wrapped)) == "wrapped")
       },
       test("field then wrapped renders correctly") {
-        assertTrue(Path.render(List(Segment.Field("id"), Segment.Wrapped)) == ".id[wrapped]")
+        assertTrue(Path.render(List(Segment.Field("id"), Segment.Wrapped)) == "id.wrapped")
       }
     )
   )

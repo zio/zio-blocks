@@ -71,22 +71,6 @@ object ShapeExtraction {
 
     /** Implicit derivation macro for MigrationPaths. */
     implicit def derived[A, B]: MigrationPaths[A, B] = macro ShapeExtractionMacros.migrationPathsDerivedImpl[A, B]
-
-    /**
-     * Convert a Path (List[Segment]) to a flat string for error messages and
-     * validation. Used at compile time in macros.
-     */
-    def pathToFlatString(path: List[Segment]): String = {
-      if (path.isEmpty) return "<root>"
-      path.map {
-        case Segment.Field(name) => name
-        case Segment.Case(name)  => s"case:$name"
-        case Segment.Element     => "element"
-        case Segment.Key         => "key"
-        case Segment.Value       => "value"
-        case Segment.Wrapped     => "wrapped"
-      }.mkString(".")
-    }
   }
 
   /**
@@ -245,8 +229,8 @@ private[migration] class ShapeExtractionHelper[C <: blackbox.Context](val c: C) 
     val (removed, added) = TreeDiff.diff(treeA, treeB)
 
     // Sort paths by their string representation for determinism
-    val removedSorted = removed.sortBy(ShapeExtraction.MigrationPaths.pathToFlatString)
-    val addedSorted   = added.sortBy(ShapeExtraction.MigrationPaths.pathToFlatString)
+    val removedSorted = removed.sortBy(Path.render)
+    val addedSorted   = added.sortBy(Path.render)
 
     // Build TList types from the paths as structured tuples
     val removedType = pathsToTupleListType(removedSorted)

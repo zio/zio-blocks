@@ -55,12 +55,12 @@ object ShapeNode {
  */
 sealed trait Segment {
   def render: String = this match {
-    case Segment.Field(name) => s".$name"
-    case Segment.Case(name)  => s"[case:$name]"
-    case Segment.Element     => "[element]"
-    case Segment.Key         => "[key]"
-    case Segment.Value       => "[value]"
-    case Segment.Wrapped     => "[wrapped]"
+    case Segment.Field(name) => name
+    case Segment.Case(name)  => s"case:$name"
+    case Segment.Element     => "element"
+    case Segment.Key         => "key"
+    case Segment.Value       => "value"
+    case Segment.Wrapped     => "wrapped"
   }
 }
 
@@ -80,12 +80,12 @@ object Segment {
 object Path {
 
   /**
-   * Render a path as a human-readable string (e.g., ".address.city" or
-   * "[element].name").
+   * Render a path as a human-readable string (e.g., "address.city" or
+   * "items.element.name").
    */
   def render(path: List[Segment]): String =
     if (path.isEmpty) "<root>"
-    else path.map(_.render).mkString
+    else path.map(_.render).mkString(".")
 }
 
 /**

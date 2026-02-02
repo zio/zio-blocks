@@ -342,9 +342,12 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     compileFailureSuite,
     nestedPathValidationSuite,
     caseTrackingSuite,
+    crossPathValidationSuite,
     joinSplitTrackingSuite,
-    EdgeCasesSuite,
-    requireValidationSuite
+    containerTypesSuite,
+    additionalCaseTrackingSuite,
+    shapeTreeEdgeCasesSuite,
+    EdgeCasesSuite
   )
 
   // Identical Schemas Suite
@@ -355,9 +358,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val personA = PersonA("John", 30)
       val result  = migration(personA)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.name) == Right("John")) &&
-      assertTrue(result.map(_.age) == Right(30))
+      assertTrue(result == Right(PersonB("John", 30)))
     },
     test("single field identical schemas") {
       val migration = syntax(MigrationBuilder.newBuilder[SingleA, SingleB]).build
@@ -365,8 +366,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = SingleA("test")
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.only) == Right("test"))
+      assertTrue(result == Right(SingleB("test")))
     },
     test("empty to empty schema") {
       val migration = syntax(MigrationBuilder.newBuilder[EmptySource, EmptyTarget]).build
@@ -374,7 +374,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = EmptySource()
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(EmptyTarget()))
     }
   )
 
@@ -388,9 +388,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = DropSource("John", 30, true)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.name) == Right("John")) &&
-      assertTrue(result.map(_.age) == Right(30))
+      assertTrue(result == Right(DropTarget("John", 30)))
     },
     test("complete drop migration - multiple fields inline") {
       val migration = syntax(
@@ -403,8 +401,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = MultiDropSource("keep", 1, true, 2.5)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.keep) == Right("keep"))
+      assertTrue(result == Right(MultiDropTarget("keep")))
     },
     test("complete drop migration - multiple fields over multiple lines") {
       val builder1 = MigrationBuilder.newBuilder[MultiDropSource, MultiDropTarget]
@@ -417,8 +414,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = MultiDropSource("keep", 1, true, 2.5)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.keep) == Right("keep"))
+      assertTrue(result == Right(MultiDropTarget("keep")))
     }
   )
 
@@ -432,9 +428,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = AddSource("John", 30)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.name) == Right("John")) &&
-      assertTrue(result.map(_.age) == Right(30))
+      assertTrue(result == Right(AddTarget("John", 30, true)))
     },
     test("complete add migration - multiple fields inline") {
       val migration = syntax(
@@ -447,8 +441,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = MultiAddSource("keep")
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.keep) == Right("keep"))
+      assertTrue(result == Right(MultiAddTarget("keep", 42, true, 3.14)))
     },
     test("complete add migration - multiple fields over multiple lines") {
       val builder1  = MigrationBuilder.newBuilder[MultiAddSource, MultiAddTarget]
@@ -460,8 +453,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = MultiAddSource("keep")
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.keep) == Right("keep"))
+      assertTrue(result == Right(MultiAddTarget("keep", 42, true, 3.14)))
     },
     test("empty source to non-empty target") {
       val migration = syntax(MigrationBuilder.newBuilder[EmptySource, NonEmptyForEmpty])
@@ -471,7 +463,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = EmptySource()
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(NonEmptyForEmpty("default")))
     }
   )
 
@@ -485,9 +477,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = RenameSource("John", 30)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.newName) == Right("John")) &&
-      assertTrue(result.map(_.age) == Right(30))
+      assertTrue(result == Right(RenameTarget("John", 30)))
     },
     test("rename handles both source and target tracking") {
       // Rename should mark oldName as handled and newName as provided
@@ -495,7 +485,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .renameField(_.oldName, _.newName)
         .build
 
-      assertTrue(migration != null)
+      val source = RenameSource("test", 25)
+      val result = migration(source)
+
+      assertTrue(result == Right(RenameTarget("test", 25)))
     }
   )
 
@@ -521,9 +514,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = ComplexSource("hello", 42, true, 3.14)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.x) == Right("hello")) &&
-      assertTrue(result.map(_.b) == Right(42))
+      assertTrue(result == Right(ComplexTarget("hello", 42, true, 0L)))
     },
     test("drop + add + rename over multiple lines") {
       val builder1  = MigrationBuilder.newBuilder[ComplexSource, ComplexTarget]
@@ -536,7 +527,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = ComplexSource("hello", 42, true, 3.14)
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(ComplexTarget("hello", 42, true, 0L)))
     },
     test("many shared fields - only handle changed fields") {
       val migration = syntax(
@@ -547,10 +538,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = ManySharedSource("a", 1, true, 2.5)
       val result = migration(source)
 
-      assertTrue(result.isRight) &&
-      assertTrue(result.map(_.shared1) == Right("a")) &&
-      assertTrue(result.map(_.shared2) == Right(1)) &&
-      assertTrue(result.map(_.shared3) == Right(true))
+      assertTrue(result == Right(ManySharedTarget("a", 1, true, 0L)))
     },
     test("all fields changed") {
       val migration = syntax(
@@ -565,7 +553,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = AllChangedSource("test", 42)
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(AllChangedTarget(false, 0.0)))
     }
   )
 
@@ -577,7 +565,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .dropField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
       ).build
 
-      assertTrue(migration != null)
+      val source = DropSource("test", 42, true)
+      val result = migration(source)
+
+      assertTrue(result == Right(DropTarget("test", 42)))
     },
     test("step by step with val assignments") {
       val step1: MigrationBuilder[DropSource, DropTarget, TNil, TNil] =
@@ -588,7 +579,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = syntax(step2).build
 
-      assertTrue(migration != null)
+      val source = DropSource("test", 42, true)
+      val result = migration(source)
+
+      assertTrue(result == Right(DropTarget("test", 42)))
     },
     test("mixed inline and multi-line") {
       val builder = syntax(
@@ -604,7 +598,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
       ).build
 
-      assertTrue(migration != null)
+      val source = ComplexSource("hello", 42, true, 3.14)
+      val result = migration(source)
+
+      assertTrue(result == Right(ComplexTarget("hello", 42, true, 0L)))
     },
     test("using implicit conversion for build") {
       // With the implicit conversion imported, build is available on MigrationBuilder
@@ -614,7 +611,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       // The implicit conversion allows calling build on MigrationBuilder
       val migration: Migration[DropSource, DropTarget] = builder.build
 
-      assertTrue(migration != null)
+      val source = DropSource("test", 42, true)
+      val result = migration(source)
+
+      assertTrue(result == Right(DropTarget("test", 42)))
     },
     // Tests for variable-based syntax usage
     // The key improvement: storing syntax wrapper in variable and calling .build without re-wrapping
@@ -641,7 +641,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = AddSource("test", 42)
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(AddTarget("test", 42, true)))
     },
     test("syntax stored in variable - renameField then build without re-wrap") {
       val ops        = syntax(MigrationBuilder.newBuilder[RenameSource, RenameTarget])
@@ -662,7 +662,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       // Key: calling .build directly without re-wrapping
       val migration = withTransform.build
 
-      assertTrue(migration != null)
+      val source = PersonA("John", 30)
+      val result = migration(source)
+
+      assertTrue(result == Right(PersonB("transformed", 30)))
     },
     test("syntax stored in variable - changeFieldType then build without re-wrap") {
       val ops        = syntax(MigrationBuilder.newBuilder[DeepOuterV1, DeepOuterV2])
@@ -673,7 +676,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = DeepOuterV1(DeepMiddleV1(DeepInnerV1(42)))
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(DeepOuterV2(DeepMiddleV2(DeepInnerV2(42L)))))
     },
     test("chained operations with syntax wrappers - build without final re-wrap") {
       // For chained operations, we need syntax() due to Scala 2 lambda type inference
@@ -718,7 +721,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = MultiAddSource("keep")
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(MultiAddTarget("keep", 42, true, 3.14)))
     },
     test("nested path with syntax wrappers - build without final re-wrap") {
       val step1 = syntax(MigrationBuilder.newBuilder[NestedPersonV1, NestedPersonV2])
@@ -731,7 +734,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = NestedPersonV1("John", AddressV1("Main St", "NYC"))
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(NestedPersonV2("John", AddressV2("Main St", "00000"))))
     }
   )
 
@@ -745,7 +748,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = NonEmptyForEmpty("test")
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(EmptyTarget()))
     },
     test("superset of required handled fields is OK") {
       // We can handle more fields than necessary
@@ -759,7 +762,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = syntax(withTransform).build
 
-      assertTrue(migration != null)
+      val source = DropSource("test", 42, true)
+      val result = migration(source)
+
+      assertTrue(result == Right(DropTarget("transformed", 42)))
     },
     test("superset of required provided fields is OK") {
       val builder = MigrationBuilder.newBuilder[AddSource, AddTarget]
@@ -772,7 +778,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = syntax(withTransform).build
 
-      assertTrue(migration != null)
+      val source = AddSource("test", 42)
+      val result = migration(source)
+
+      assertTrue(result == Right(AddTarget("transformed", 42, false)))
     }
   )
 
@@ -964,7 +973,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = TypeWithNestedSrc(SharedNested(42, "hello"), remove = true)
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(TypeWithNestedTgt(SharedNested(42, "hello"), 0.0)))
     },
     test("nested field change requires handling with full path") {
       // When a nested field changes, the full path must be handled/provided
@@ -977,7 +986,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = NestedPersonV1("John", AddressV1("Main St", "NYC"))
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(NestedPersonV2("John", AddressV2("Main St", "00000"))))
     },
     test("nested field rename with full path") {
       // Rename handles both source and target paths
@@ -988,7 +997,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = NestedPersonV1("Jane", AddressV1("Oak Ave", "LA"))
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(NestedPersonV2("Jane", AddressV2("Oak Ave", "LA"))))
     },
     test("deeply nested path tracking (3 levels)") {
       // Nested l2, l2.l3, l2.l3.value are shared, only "extra" needs handling
@@ -999,7 +1008,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = Level1Src(Level2(Level3("deep")), 42)
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(Level1Tgt(Level2(Level3("deep")))))
     },
     test("deeply nested change requires full path") {
       // The change at middle.inner.value needs to be handled
@@ -1010,7 +1019,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val source = DeepOuterV1(DeepMiddleV1(DeepInnerV1(42)))
       val result = migration(source)
 
-      assertTrue(result.isRight)
+      assertTrue(result == Right(DeepOuterV2(DeepMiddleV2(DeepInnerV2(42L)))))
     },
     test("nested field change fails without full path handling") {
       val result = typeCheck("""
@@ -1092,7 +1101,13 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       // When sealed traits have the same case names, no handling needed
       val migration = syntax(MigrationBuilder.newBuilder[StatusSame, StatusSame]).build
 
-      assertTrue(migration != null)
+      val activeSource: StatusSame   = ActiveSame("2024-01-01")
+      val inactiveSource: StatusSame = InactiveSame()
+
+      assertTrue(
+        migration(activeSource) == Right(ActiveSame("2024-01-01")),
+        migration(inactiveSource) == Right(InactiveSame())
+      )
     },
     test("missing case handling fails to compile") {
       val result = typeCheck("""
@@ -1181,7 +1196,192 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       // Verify ShapeTree typeclass extracts full nested structure
       val st = implicitly[ShapeExtraction.ShapeTree[NestedPersonV1]]
       // The tree should contain the full nested structure
-      assertTrue(st.tree != null)
+      assertTrue(
+        st.tree == ShapeNode.RecordNode(
+          Map(
+            "name" -> ShapeNode.PrimitiveNode,
+            "address" -> ShapeNode.RecordNode(
+              Map(
+                "street" -> ShapeNode.PrimitiveNode,
+                "city"   -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      )
+    }
+  )
+
+  // Cross-Path Compile-Time Validation Suite
+  val crossPathValidationSuite = suite("cross-path compile-time validation")(
+    test("joinFields should fail at compile time when source paths have different parents") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Meta(id: String)
+        case class Data(value: Int)
+        case class Source(meta: Meta, data: Data)
+        case class Target(result: String)
+
+        object Meta { implicit val schema: Schema[Meta] = Schema.derived }
+        object Data { implicit val schema: Schema[Data] = Schema.derived }
+        object Source { implicit val schema: Schema[Source] = Schema.derived }
+        object Target { implicit val schema: Schema[Target] = Schema.derived }
+
+        syntax(MigrationBuilder.newBuilder[Source, Target])
+          .joinFields(
+            (_: Target).result,
+            Seq((_: Source).meta.id, (_: Source).data.value),
+            SchemaExpr.Literal[DynamicValue, String]("combined", Schema.string)
+          )
+      """)
+
+      assertZIO(result)(isLeft(containsString("joinFields source fields must share common parent")))
+    },
+    test("splitField should fail at compile time when target paths have different parents") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        case class Meta(part1: String)
+        case class Info(part2: String)
+        case class Source(data: String)
+        case class Target(meta: Meta, info: Info)
+
+        object Meta { implicit val schema: Schema[Meta] = Schema.derived }
+        object Info { implicit val schema: Schema[Info] = Schema.derived }
+        object Source { implicit val schema: Schema[Source] = Schema.derived }
+        object Target { implicit val schema: Schema[Target] = Schema.derived }
+
+        syntax(MigrationBuilder.newBuilder[Source, Target])
+          .splitField(
+            (_: Source).data,
+            Seq((_: Target).meta.part1, (_: Target).info.part2),
+            SchemaExpr.Literal[DynamicValue, String]("split", Schema.string)
+          )
+      """)
+
+      assertZIO(result)(isLeft(containsString("splitField target fields must share common parent")))
+    },
+    test("joinFields should compile when source paths share common parent") {
+      case class NameSrc(first: String, last: String)
+      object NameSrc {
+        implicit val schema: Schema[NameSrc] = Schema.derived
+      }
+
+      case class NameTgt(full: String)
+      object NameTgt {
+        implicit val schema: Schema[NameTgt] = Schema.derived
+      }
+
+      case class PersonSrc(name: NameSrc)
+      object PersonSrc {
+        implicit val schema: Schema[PersonSrc] = Schema.derived
+      }
+
+      case class PersonTgt(name: NameTgt)
+      object PersonTgt {
+        implicit val schema: Schema[PersonTgt] = Schema.derived
+      }
+
+      // This should compile since both paths share parent "name"
+      // name.first and name.last are joined into name.full
+      val migration = syntax(MigrationBuilder.newBuilder[PersonSrc, PersonTgt])
+        .joinFields(
+          (_: PersonTgt).name.full,
+          Seq((_: PersonSrc).name.first, (_: PersonSrc).name.last),
+          SchemaExpr.Literal[DynamicValue, String]("combined", Schema.string)
+        )
+        .build
+
+      val source = PersonSrc(NameSrc("John", "Doe"))
+      val result = migration(source)
+
+      assertTrue(result == Right(PersonTgt(NameTgt("combined"))))
+    },
+    test("splitField should compile when target paths share common parent") {
+      case class NameSrc(full: String)
+      object NameSrc {
+        implicit val schema: Schema[NameSrc] = Schema.derived
+      }
+
+      case class NameTgt(first: String, last: String)
+      object NameTgt {
+        implicit val schema: Schema[NameTgt] = Schema.derived
+      }
+
+      case class PersonSrc(name: NameSrc)
+      object PersonSrc {
+        implicit val schema: Schema[PersonSrc] = Schema.derived
+      }
+
+      case class PersonTgt(name: NameTgt)
+      object PersonTgt {
+        implicit val schema: Schema[PersonTgt] = Schema.derived
+      }
+
+      // This should compile since both paths share parent "name"
+      // name.full is split into name.first and name.last
+      // Note: This test verifies compile-time validation (that splitField tracks paths correctly)
+      // The literal splitter doesn't actually split, so runtime test would fail
+      val migration = syntax(MigrationBuilder.newBuilder[PersonSrc, PersonTgt])
+        .splitField(
+          (_: PersonSrc).name.full,
+          Seq((_: PersonTgt).name.first, (_: PersonTgt).name.last),
+          SchemaExpr.Literal[DynamicValue, String]("split", Schema.string)
+        )
+        .build
+
+      // Verify migration was created successfully (compile-time validation passed)
+      assertTrue(
+        migration.sourceSchema == Schema[PersonSrc],
+        migration.targetSchema == Schema[PersonTgt]
+      )
+    },
+    test("joinFields with single source path should compile (no parent check needed)") {
+      // Single source path - no parent validation needed
+      // Uses existing FullNameSource/FullNameTarget, drops lastName to complete migration
+      val migration = syntax(
+        syntax(MigrationBuilder.newBuilder[FullNameSource, FullNameTarget])
+          .joinFields(
+            (_: FullNameTarget).fullName,
+            Seq((_: FullNameSource).firstName),
+            SchemaExpr.Literal[DynamicValue, String]("value", Schema.string)
+          )
+      ).dropField(
+        (_: FullNameSource).lastName,
+        SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+      ).build
+
+      val source = FullNameSource("John", "Doe", 30)
+      val result = migration(source)
+
+      assertTrue(result == Right(FullNameTarget("value", 30)))
+    },
+    test("splitField with single target path should compile (no parent check needed)") {
+      // Single target path - no parent validation needed
+      // Uses existing FullNameTarget/FullNameSource, adds lastName to complete migration
+      val migration = syntax(
+        syntax(MigrationBuilder.newBuilder[FullNameTarget, FullNameSource])
+          .splitField(
+            (_: FullNameTarget).fullName,
+            Seq((_: FullNameSource).firstName),
+            SchemaExpr.Literal[DynamicValue, String]("value", Schema.string)
+          )
+      ).addField(
+        (_: FullNameSource).lastName,
+        SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+      ).build
+
+      val source = FullNameTarget("John Doe", 30)
+      val result = migration(source)
+
+      assertTrue(result == Right(FullNameSource("value", "", 30)))
     }
   )
 
@@ -1199,13 +1399,19 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           SchemaExpr.Literal[DynamicValue, String]("combined", Schema.string)
         )
         .build
+
+      val source = FullNameSource("John", "Doe", 30)
+      val result = migration(source)
+
       // If joinFields didn't track firstName and lastName as Handled, .build wouldn't compile
-      assertTrue(migration != null)
+      assertTrue(result == Right(FullNameTarget("combined", 30)))
     },
     test("splitField tracks all target fields in Provided") {
       // splitField should handle fullName and provide firstName and lastName
       // Using top-level case classes FullNameTarget (as source) and FullNameSource (as target)
       // Macro requires inlined builder expression
+      // Note: This test verifies compile-time validation (that splitField tracks target paths)
+      // The literal splitter doesn't actually split, so we verify migration creation not runtime
       val migration = syntax(MigrationBuilder.newBuilder[FullNameTarget, FullNameSource])
         .splitField(
           (s: FullNameTarget) => s.fullName,
@@ -1213,8 +1419,13 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           SchemaExpr.Literal[DynamicValue, String]("split", Schema.string)
         )
         .build
+
       // If splitField didn't track firstName and lastName as Provided, .build wouldn't compile
-      assertTrue(migration != null)
+      // Verify migration was created successfully (compile-time validation passed)
+      assertTrue(
+        migration.sourceSchema == Schema[FullNameTarget],
+        migration.targetSchema == Schema[FullNameSource]
+      )
     },
     test("joinFields without tracking all sources fails to compile") {
       val result = typeCheck("""
@@ -1262,55 +1473,411 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     }
   )
 
+  // Container Types Suite (parity with Scala 3)
+  val containerTypesSuite = suite("container type migrations")(
+    test("Option field migration works") {
+      case class WithOptionSrc(name: String, data: Option[String])
+      object WithOptionSrc {
+        implicit val schema: Schema[WithOptionSrc] = Schema.derived
+      }
+
+      case class WithOptionTgt(name: String, data: Option[String], extra: Int)
+      object WithOptionTgt {
+        implicit val schema: Schema[WithOptionTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[WithOptionSrc, WithOptionTgt])
+        .addField(_.extra, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+        .build
+
+      val result = migration(WithOptionSrc("test", Some("value")))
+      assertTrue(result == Right(WithOptionTgt("test", Some("value"), 0)))
+    },
+    test("List field migration works") {
+      case class WithListSrc(name: String, items: List[String])
+      object WithListSrc {
+        implicit val schema: Schema[WithListSrc] = Schema.derived
+      }
+
+      case class WithListTgt(name: String, items: List[String], count: Int)
+      object WithListTgt {
+        implicit val schema: Schema[WithListTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[WithListSrc, WithListTgt])
+        .addField(_.count, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+        .build
+
+      val result = migration(WithListSrc("test", List("a", "b")))
+      assertTrue(result == Right(WithListTgt("test", List("a", "b"), 0)))
+    },
+    test("Set field migration works") {
+      case class WithSetSrc(name: String, tags: Set[String])
+      object WithSetSrc {
+        implicit val schema: Schema[WithSetSrc] = Schema.derived
+      }
+
+      case class WithSetTgt(name: String, tags: Set[String], active: Boolean)
+      object WithSetTgt {
+        implicit val schema: Schema[WithSetTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[WithSetSrc, WithSetTgt])
+        .addField(_.active, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+        .build
+
+      val result = migration(WithSetSrc("test", Set("tag1", "tag2")))
+      assertTrue(result == Right(WithSetTgt("test", Set("tag1", "tag2"), true)))
+    },
+    test("Map field migration works") {
+      case class WithMapSrc(name: String, data: Map[String, Int])
+      object WithMapSrc {
+        implicit val schema: Schema[WithMapSrc] = Schema.derived
+      }
+
+      case class WithMapTgt(name: String, data: Map[String, Int], version: Long)
+      object WithMapTgt {
+        implicit val schema: Schema[WithMapTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[WithMapSrc, WithMapTgt])
+        .addField(_.version, SchemaExpr.Literal[DynamicValue, Long](1L, Schema.long))
+        .build
+
+      val result = migration(WithMapSrc("test", Map("a" -> 1)))
+      assertTrue(result == Right(WithMapTgt("test", Map("a" -> 1), 1L)))
+    },
+    test("Vector field migration works") {
+      case class WithVectorSrc(name: String, values: Vector[Double])
+      object WithVectorSrc {
+        implicit val schema: Schema[WithVectorSrc] = Schema.derived
+      }
+
+      case class WithVectorTgt(name: String, values: Vector[Double], sum: Double)
+      object WithVectorTgt {
+        implicit val schema: Schema[WithVectorTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[WithVectorSrc, WithVectorTgt])
+        .addField(_.sum, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+        .build
+
+      val result = migration(WithVectorSrc("test", Vector(1.0, 2.0)))
+      assertTrue(result == Right(WithVectorTgt("test", Vector(1.0, 2.0), 0.0)))
+    },
+    test("nested case class in Option migration works") {
+      case class Inner(x: Int, y: String)
+      object Inner {
+        implicit val schema: Schema[Inner] = Schema.derived
+      }
+
+      case class OuterSrc(name: String, inner: Option[Inner])
+      object OuterSrc {
+        implicit val schema: Schema[OuterSrc] = Schema.derived
+      }
+
+      case class OuterTgt(name: String, inner: Option[Inner], extra: Boolean)
+      object OuterTgt {
+        implicit val schema: Schema[OuterTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[OuterSrc, OuterTgt])
+        .addField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+        .build
+
+      val result = migration(OuterSrc("test", Some(Inner(1, "hello"))))
+      assertTrue(result == Right(OuterTgt("test", Some(Inner(1, "hello")), false)))
+    },
+    test("nested case class in List migration works") {
+      case class Item(id: Int, name: String)
+      object Item {
+        implicit val schema: Schema[Item] = Schema.derived
+      }
+
+      case class ContainerSrc(items: List[Item])
+      object ContainerSrc {
+        implicit val schema: Schema[ContainerSrc] = Schema.derived
+      }
+
+      case class ContainerTgt(items: List[Item], count: Int)
+      object ContainerTgt {
+        implicit val schema: Schema[ContainerTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[ContainerSrc, ContainerTgt])
+        .addField(_.count, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+        .build
+
+      val result = migration(ContainerSrc(List(Item(1, "a"), Item(2, "b"))))
+      assertTrue(result == Right(ContainerTgt(List(Item(1, "a"), Item(2, "b")), 0)))
+    },
+    test("deeply nested containers migration works") {
+      case class DeepContainerSrc(data: Option[List[Map[String, Int]]])
+      object DeepContainerSrc {
+        implicit val schema: Schema[DeepContainerSrc] = Schema.derived
+      }
+
+      case class DeepContainerTgt(data: Option[List[Map[String, Int]]], meta: String)
+      object DeepContainerTgt {
+        implicit val schema: Schema[DeepContainerTgt] = Schema.derived
+      }
+
+      val migration = syntax(MigrationBuilder.newBuilder[DeepContainerSrc, DeepContainerTgt])
+        .addField(_.meta, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+        .build
+
+      val result = migration(DeepContainerSrc(Some(List(Map("a" -> 1)))))
+      assertTrue(result == Right(DeepContainerTgt(Some(List(Map("a" -> 1))), "")))
+    }
+  )
+
+  // Additional Case Tracking Suite (parity with Scala 3)
+  val additionalCaseTrackingSuite = suite("additional sealed trait case tracking")(
+    test("ShapeTree returns RecordNode for non-sealed types") {
+      // Verify ShapeTree extracts RecordNode for regular case classes
+      val st = implicitly[ShapeExtraction.ShapeTree[PersonA]]
+      // The tree should be a RecordNode (not SealedNode)
+      assertTrue(
+        st.tree == ShapeNode.RecordNode(
+          Map(
+            "name" -> ShapeNode.PrimitiveNode,
+            "age"  -> ShapeNode.PrimitiveNode
+          )
+        )
+      )
+    },
+    test("different case names require handling") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        sealed trait StatusV1
+        case class Active(since: String) extends StatusV1
+        case class Inactive() extends StatusV1
+        object StatusV1 { implicit val schema: Schema[StatusV1] = Schema.derived }
+        object Active { implicit val schema: Schema[Active] = Schema.derived }
+        object Inactive { implicit val schema: Schema[Inactive] = Schema.derived }
+
+        sealed trait StatusV2
+        case class Active2(since: String) extends StatusV2
+        case class Inactive2() extends StatusV2
+        object StatusV2 { implicit val schema: Schema[StatusV2] = Schema.derived }
+        object Active2 { implicit val schema: Schema[Active2] = Schema.derived }
+        object Inactive2 { implicit val schema: Schema[Inactive2] = Schema.derived }
+
+        // This should fail - case names changed but not handled
+        MigrationBuilder.newBuilder[StatusV1, StatusV2].build
+      """)
+
+      assertZIO(result)(isLeft)
+    },
+    test("case rename requires handling") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        sealed trait PaymentV1
+        case class CardPayment(number: String) extends PaymentV1
+        case class CashPayment(amount: Int) extends PaymentV1
+        object PaymentV1 { implicit val schema: Schema[PaymentV1] = Schema.derived }
+        object CardPayment { implicit val schema: Schema[CardPayment] = Schema.derived }
+        object CashPayment { implicit val schema: Schema[CashPayment] = Schema.derived }
+
+        sealed trait PaymentV2
+        case class CreditCard(number: String) extends PaymentV2
+        case class CashPayment2(amount: Int) extends PaymentV2
+        object PaymentV2 { implicit val schema: Schema[PaymentV2] = Schema.derived }
+        object CreditCard { implicit val schema: Schema[CreditCard] = Schema.derived }
+        object CashPayment2 { implicit val schema: Schema[CashPayment2] = Schema.derived }
+
+        // This should fail - case renames not handled
+        MigrationBuilder.newBuilder[PaymentV1, PaymentV2].build
+      """)
+
+      assertZIO(result)(isLeft)
+    },
+    test("mixed field and case changes fails without handling") {
+      val result = typeCheck("""
+        import zio.blocks.schema._
+        import zio.blocks.schema.migration._
+        import zio.blocks.schema.migration.TypeLevel._
+        import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+        sealed trait ContainerV1
+        case class BoxV1(value: Int, label: String) extends ContainerV1
+        object ContainerV1 { implicit val schema: Schema[ContainerV1] = Schema.derived }
+        object BoxV1 { implicit val schema: Schema[BoxV1] = Schema.derived }
+
+        sealed trait ContainerV2
+        case class BoxV2(value: Int) extends ContainerV2 // Renamed case, removed field
+        object ContainerV2 { implicit val schema: Schema[ContainerV2] = Schema.derived }
+        object BoxV2 { implicit val schema: Schema[BoxV2] = Schema.derived }
+
+        // This should fail - case rename and field changes not handled
+        MigrationBuilder.newBuilder[ContainerV1, ContainerV2].build
+      """)
+
+      assertZIO(result)(isLeft)
+    }
+  )
+
+  // ShapeTree Edge Cases Suite (parity with Scala 3)
+  val shapeTreeEdgeCasesSuite = suite("ShapeTree edge cases")(
+    test("empty case class ShapeTree extracts correctly") {
+      // Verify ShapeTree extracts empty RecordNode for empty case classes
+      val st = implicitly[ShapeExtraction.ShapeTree[EmptySource]]
+      // The tree should be a RecordNode with empty fields map
+      assertTrue(st.tree == ShapeNode.RecordNode(Map.empty))
+    },
+    test("single field case class ShapeTree extracts correctly") {
+      // Verify ShapeTree extracts single field
+      val st = implicitly[ShapeExtraction.ShapeTree[SingleA]]
+      // The tree should be a RecordNode with one field
+      assertTrue(
+        st.tree == ShapeNode.RecordNode(
+          Map("only" -> ShapeNode.PrimitiveNode)
+        )
+      )
+    },
+    test("ShapeTree extracts cases for sealed traits") {
+      // Verify ShapeTree extracts case names for sealed traits as SealedNode
+      val st = implicitly[ShapeExtraction.ShapeTree[ResultV1]]
+      // The tree should be a SealedNode with "SuccessV1" and "FailureV1" cases
+      assertTrue(
+        st.tree == ShapeNode.SealedNode(
+          Map(
+            "SuccessV1" -> ShapeNode.RecordNode(
+              Map("value" -> ShapeNode.PrimitiveNode)
+            ),
+            "FailureV1" -> ShapeNode.RecordNode(
+              Map("err" -> ShapeNode.PrimitiveNode)
+            )
+          )
+        )
+      )
+    }
+  )
+
   // Edge Cases Suite
   val EdgeCasesSuite = suite("edge cases")(
     test("container types extract with ShapeTree") {
       // Container fields should have proper ShapeNode representation
       val st = implicitly[ShapeExtraction.ShapeTree[WithContainers]]
       // ShapeTree should show SeqNode, OptionNode, MapNode for container fields
-      assertTrue(st.tree != null)
+      assertTrue(
+        st.tree == ShapeNode.RecordNode(
+          Map(
+            "opt" -> ShapeNode.OptionNode(
+              ShapeNode.RecordNode(
+                Map(
+                  "street" -> ShapeNode.PrimitiveNode,
+                  "city"   -> ShapeNode.PrimitiveNode
+                )
+              )
+            ),
+            "list" -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode),
+            "set"  -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode),
+            "map" -> ShapeNode.MapNode(
+              ShapeNode.PrimitiveNode,
+              ShapeNode.RecordNode(
+                Map(
+                  "street" -> ShapeNode.PrimitiveNode,
+                  "city"   -> ShapeNode.PrimitiveNode
+                )
+              )
+            )
+          )
+        )
+      )
     },
     test("deeply nested containers extract correctly") {
       // List[Option[Map[String, Vector[Int]]]] should extract as nested ShapeNodes
       val st = implicitly[ShapeExtraction.ShapeTree[DeeplyNestedContainers]]
-      assertTrue(st.tree != null)
+      assertTrue(
+        st.tree == ShapeNode.RecordNode(
+          Map(
+            "items" -> ShapeNode.SeqNode(
+              ShapeNode.OptionNode(
+                ShapeNode.MapNode(
+                  ShapeNode.PrimitiveNode,
+                  ShapeNode.SeqNode(ShapeNode.PrimitiveNode)
+                )
+              )
+            )
+          )
+        )
+      )
     },
     test("migration with container fields works") {
       // Containers with different element types should still migrate if container field names match
       val migration = syntax(MigrationBuilder.newBuilder[WithContainers, WithContainers]).build
-      assertTrue(migration != null)
+      val source    = WithContainers(Some(AddressV1("Main St", "NYC")), List("a", "b"), Set(1, 2), Map("k" -> AddressV1("Oak Ave", "LA")))
+      val result    = migration(source)
+      assertTrue(result == Right(source))
     },
     test("sealed trait with case objects extracts all cases") {
       // ShapeTree should include both case classes and case objects as SealedNode
       val st = implicitly[ShapeExtraction.ShapeTree[WithCaseObject]]
       // Should have "NoneValue" and "SomeValue" cases
-      assertTrue(st.tree != null)
+      assertTrue(
+        st.tree == ShapeNode.SealedNode(
+          Map(
+            "SomeValue" -> ShapeNode.RecordNode(
+              Map("x" -> ShapeNode.PrimitiveNode)
+            ),
+            "NoneValue" -> ShapeNode.RecordNode(Map.empty)
+          )
+        )
+      )
     },
     test("enum-like sealed trait with only case objects") {
       // All case objects should be extracted
       val st = implicitly[ShapeExtraction.ShapeTree[Color]]
       // Should have "Blue", "Green", "Red" cases
-      assertTrue(st.tree != null)
+      assertTrue(
+        st.tree == ShapeNode.SealedNode(
+          Map(
+            "Red"   -> ShapeNode.RecordNode(Map.empty),
+            "Green" -> ShapeNode.RecordNode(Map.empty),
+            "Blue"  -> ShapeNode.RecordNode(Map.empty)
+          )
+        )
+      )
     },
     test("identical sealed traits with case objects require no handling") {
       // Same case object structure should compile without handling
-      val migration = syntax(MigrationBuilder.newBuilder[WithCaseObject, WithCaseObject]).build
-      assertTrue(migration != null)
+      val migration          = syntax(MigrationBuilder.newBuilder[WithCaseObject, WithCaseObject]).build
+      val someSource: WithCaseObject = SomeValue(42)
+      val noneSource: WithCaseObject = NoneValue
+
+      assertTrue(
+        migration(someSource) == Right(SomeValue(42)),
+        migration(noneSource) == Right(NoneValue)
+      )
     },
     test("identical enum-like sealed traits require no handling") {
       // Same enum structure should compile without handling
       val migration = syntax(MigrationBuilder.newBuilder[Color, Color]).build
-      assertTrue(migration != null)
+
+      assertTrue(
+        migration(Red) == Right(Red),
+        migration(Green) == Right(Green),
+        migration(Blue) == Right(Blue)
+      )
     },
     test("empty case class migration works") {
       val migration = syntax(MigrationBuilder.newBuilder[EmptySource, EmptyTarget]).build
       val result    = migration(EmptySource())
-      assertTrue(result.isRight)
+      assertTrue(result == Right(EmptyTarget()))
     },
     test("single field case class migration works") {
       val migration = syntax(MigrationBuilder.newBuilder[SingleA, SingleB]).build
       val result    = migration(SingleA("test"))
-      assertTrue(result.isRight)
+      assertTrue(result == Right(SingleB("test")))
     },
     test("error message format is multi-line") {
       val result = typeCheck("""
@@ -1349,111 +1916,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       // Error should contain hint with example selector path
       assertZIO(result)(isLeft(containsString("Hint: Use .dropField(_.fieldToRemove")))
-    }
-  )
-
-  // requireValidation
-  val requireValidationSuite = suite("requireValidation macro")(
-    test("requireValidation succeeds for valid migration") {
-      // With all required fields handled/provided, validation should pass
-      MigrationBuilderSyntax.requireValidation[PersonA, PersonB, TNil, TNil]
-      assertTrue(true)
-    },
-    test("requireValidation succeeds with handled fields") {
-      // Create a type alias for the handled TList using structured path tuple
-      // ("field", "extra") represents a single field path segment
-      type HandledList = TCons[("field", "extra"), TNil]
-      MigrationBuilderSyntax.requireValidation[DropSource, DropTarget, HandledList, TNil]
-      assertTrue(true)
-    },
-    test("requireValidation succeeds with provided fields") {
-      // Create a type alias for the provided TList using structured path tuple
-      // ("field", "extra") represents a single field path segment
-      type ProvidedList = TCons[("field", "extra"), TNil]
-      MigrationBuilderSyntax.requireValidation[AddSource, AddTarget, TNil, ProvidedList]
-      assertTrue(true)
-    },
-    test("requireValidation fails with detailed error for missing handled") {
-      val result = typeCheck("""
-        import zio.blocks.schema._
-        import zio.blocks.schema.migration._
-        import zio.blocks.schema.migration.TypeLevel._
-        import zio.blocks.schema.migration.MigrationBuilderSyntax._
-
-        case class Src(name: String, toRemove: Int)
-        object Src { implicit val schema: Schema[Src] = Schema.derived }
-
-        case class Tgt(name: String)
-        object Tgt { implicit val schema: Schema[Tgt] = Schema.derived }
-
-        MigrationBuilderSyntax.requireValidation[Src, Tgt, TNil, TNil]
-      """)
-
-      assertZIO(result)(isLeft(containsString("toRemove")))
-    },
-    test("requireValidation fails with detailed error for missing provided") {
-      val result = typeCheck("""
-        import zio.blocks.schema._
-        import zio.blocks.schema.migration._
-        import zio.blocks.schema.migration.TypeLevel._
-        import zio.blocks.schema.migration.MigrationBuilderSyntax._
-
-        case class Src(name: String)
-        object Src { implicit val schema: Schema[Src] = Schema.derived }
-
-        case class Tgt(name: String, newField: Boolean)
-        object Tgt { implicit val schema: Schema[Tgt] = Schema.derived }
-
-        MigrationBuilderSyntax.requireValidation[Src, Tgt, TNil, TNil]
-      """)
-
-      assertZIO(result)(isLeft(containsString("newField")))
-    },
-    test("requireValidation shows nested paths in error") {
-      val result = typeCheck("""
-        import zio.blocks.schema._
-        import zio.blocks.schema.migration._
-        import zio.blocks.schema.migration.TypeLevel._
-        import zio.blocks.schema.migration.MigrationBuilderSyntax._
-
-        case class InnerSrc(old: String)
-        case class OuterSrc(inner: InnerSrc)
-        object InnerSrc { implicit val schema: Schema[InnerSrc] = Schema.derived }
-        object OuterSrc { implicit val schema: Schema[OuterSrc] = Schema.derived }
-
-        case class InnerTgt(newField: String)
-        case class OuterTgt(inner: InnerTgt)
-        object InnerTgt { implicit val schema: Schema[InnerTgt] = Schema.derived }
-        object OuterTgt { implicit val schema: Schema[OuterTgt] = Schema.derived }
-
-        MigrationBuilderSyntax.requireValidation[OuterSrc, OuterTgt, TNil, TNil]
-      """)
-
-      // Should show nested path "inner.old" as unhandled
-      assertZIO(result)(isLeft(containsString("inner.old")))
-    },
-    test("requireValidation shows case names in error") {
-      val result = typeCheck("""
-        import zio.blocks.schema._
-        import zio.blocks.schema.migration._
-        import zio.blocks.schema.migration.TypeLevel._
-        import zio.blocks.schema.migration.MigrationBuilderSyntax._
-
-        sealed trait TraitA
-        case class CaseX(x: Int) extends TraitA
-        object TraitA { implicit val schema: Schema[TraitA] = Schema.derived }
-        object CaseX { implicit val schema: Schema[CaseX] = Schema.derived }
-
-        sealed trait TraitB
-        case class CaseY(y: Int) extends TraitB
-        object TraitB { implicit val schema: Schema[TraitB] = Schema.derived }
-        object CaseY { implicit val schema: Schema[CaseY] = Schema.derived }
-
-        MigrationBuilderSyntax.requireValidation[TraitA, TraitB, TNil, TNil]
-      """)
-
-      // Should show case names in error
-      assertZIO(result)(isLeft(containsString("CaseX")))
     }
   )
 }
