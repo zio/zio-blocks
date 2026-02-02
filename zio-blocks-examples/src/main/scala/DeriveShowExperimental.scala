@@ -1,5 +1,7 @@
-import zio.blocks.schema.binding._
-import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.*
+import zio.blocks.schema.DynamicValue.Null
+import zio.blocks.schema.binding.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
 
@@ -20,14 +22,13 @@ object DeriveShowExperimental extends App {
       examples: Seq[A]
     ): Lazy[Show[A]] = Lazy {
       new Show[A] {
-        def show(value: A): String =
-          primitiveType match {
-            // For demonstration purposes, we only handle a few primitive types specially
-            // For the rest, we just use toString of primitive value
-            case _: PrimitiveType.String => "\"" + value + "\""
-            case _: PrimitiveType.Char   => "'" + value + "'"
-            case _                       => String.valueOf(value)
-          }
+        def show(value: A): String = primitiveType match {
+          // For demonstration purposes, we only handle a few primitive types specially
+          // For the rest, we just use toString of primitive value
+          case _: PrimitiveType.String => "\"" + value + "\""
+          case _: PrimitiveType.Char   => "'" + value + "'"
+          case _                       => String.valueOf(value)
+        }
       }
     }
 
@@ -124,7 +125,23 @@ object DeriveShowExperimental extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = ???
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
+      // Get Show instance for element type (force it eagerly)
+      val elementShow: Show[A] = D.instance(element.metadata).force
+
+      // Cast binding to Binding.Seq to access the deconstructor
+      val seqBinding    = binding.asInstanceOf[Binding.Seq[C, A]]
+      val deconstructor = seqBinding.deconstructor
+
+      new Show[C[A]] {
+        def show(value: C[A]): String = {
+          // Use deconstructor to iterate over elements
+          val iterator = deconstructor.deconstruct(value)
+          val elements = iterator.map(elem => elementShow.show(elem)).mkString(", ")
+          s"[$elements]"
+        }
+      }
+    }
 
     override def deriveMap[F[_, _], M[_, _], K, V](
       key: Reflect[F, K],
@@ -135,7 +152,28 @@ object DeriveShowExperimental extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = ???
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
+      // Get Show instances for key and value types (force them eagerly)
+      val keyShow: Show[K]   = D.instance(key.metadata).force
+      val valueShow: Show[V] = D.instance(value.metadata).force
+
+      // Cast binding to Binding.Map to access the deconstructor
+      val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
+      val deconstructor = mapBinding.deconstructor
+
+      new Show[M[K, V]] {
+        def show(m: M[K, V]): String = {
+          // Use deconstructor to iterate over key-value pairs
+          val iterator = deconstructor.deconstruct(m)
+          val entries  = iterator.map { kv =>
+            val k = deconstructor.getKey(kv)
+            val v = deconstructor.getValue(kv)
+            s"${keyShow.show(k)} -> ${valueShow.show(v)}"
+          }.mkString(", ")
+          s"Map($entries)"
+        }
+      }
+    }
 
     override def deriveDynamic[F[_, _]](
       binding: Binding[BindingType.Dynamic, DynamicValue],
@@ -143,7 +181,36 @@ object DeriveShowExperimental extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[DynamicValue],
       examples: Seq[DynamicValue]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[DynamicValue]] = ???
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[DynamicValue]] = Lazy {
+      new Show[DynamicValue] {
+        def show(value: DynamicValue): String =
+          value match {
+            case DynamicValue.Primitive(pv) =>
+              value.toString
+
+            case DynamicValue.Record(fields) =>
+              val fieldStrings = fields.map { case (name, v) =>
+                s"$name = ${show(v)}"
+              }
+              s"Record(${fieldStrings.mkString(", ")})"
+
+            case DynamicValue.Variant(caseName, v) =>
+              s"$caseName(${show(v)})"
+
+            case DynamicValue.Sequence(elements) =>
+              val elemStrings = elements.map(show)
+              s"[${elemStrings.mkString(", ")}]"
+
+            case DynamicValue.Map(entries) =>
+              val entryStrings = entries.map { case (k, v) =>
+                s"${show(k)} -> ${show(v)}"
+              }
+              s"Map(${entryStrings.mkString(", ")})"
+            case Null =>
+              "null"
+          }
+      }
+    }
 
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
@@ -153,18 +220,130 @@ object DeriveShowExperimental extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = ???
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
+      // Get Show instance for the wrapped (underlying) type B
+      val wrappedShow: Show[B] = D.instance(wrapped.metadata).force
+
+      // Cast binding to Binding.Wrapper to access unwrap function
+      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+
+      new Show[A] {
+        def show(value: A): String =
+          // Unwrap returns Either[SchemaError, B] now
+          wrapperBinding.unwrap(value) match {
+            case Right(unwrapped) =>
+              // Show the underlying value with the wrapper type name
+              s"${typeId.name}(${wrappedShow.show(unwrapped)})"
+            case Left(error) =>
+              // Handle unwrap failure - show error information
+              s"${typeId.name}(<unwrap failed: ${error.message}>)"
+          }
+      }
+    }
   }
 
-  case class Person(name: String, age: Int, bestFriend: Option[Person])
+  // ===========================================
+  // Examples
+  // ===========================================
+
+  def printHeader(title: String): Unit = {
+    println("=" * 60)
+    println(title)
+  }
+
+  /**
+   * Example 1: Simple Person Record with two primitive fields
+   */
+  printHeader("Example 1: Simple Person Record with two primitive fields")
+  case class Person(name: String, age: Int)
   object Person {
     implicit val schema: Schema[Person] = Schema.derived[Person]
     implicit val show: Show[Person]     = schema.derive(DeriveShow)
   }
+  println(Person.show.show(Person("Alice", 30)))
 
-  val person = Person("Alice", 30, Some(Person(name = "Foo", 29, None)))
-  println(Person.show.show(person))
+  /**
+   * Example 2: Simple Shape Variant (Circle, Rectangle)
+   */
+  printHeader("Example 2: Simple Shape Variant (Circle, Rectangle)")
+  sealed trait Shape
+  case class Circle(radius: Double)                   extends Shape
+  case class Rectangle(width: Double, height: Double) extends Shape
 
-//  val person = Person("Alice", 30, bestFriend = Some(Person("Bob", 25, bestFriend = None)))
-//  println(Person.show.show(person)) // Expected output: Person(name="Alice", age=30)
+  object Shape {
+    implicit val schema: Schema[Shape] = Schema.derived[Shape]
+    implicit val show: Show[Shape]     = schema.derive(DeriveShow)
+  }
+
+  val shape1: Shape = Circle(5.0)
+  val shape2: Shape = Rectangle(4.0, 6.0)
+  println(Shape.show.show(shape1))
+  println(Shape.show.show(shape2))
+
+  /**
+   * Example 3: Recursive Tree and Expr
+   */
+  printHeader("Example 3: Recursive Tree")
+  case class Tree(value: Int, children: List[Tree])
+  object Tree {
+    implicit val schema: Schema[Tree] = Schema.derived[Tree]
+    implicit val show: Show[Tree]     = schema.derive(DeriveShow)
+  }
+
+  val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
+  println(Tree.show.show(tree))
+
+  /**
+   * Example 4: Recursive Sealed Trait (Expr)
+   */
+  printHeader("Example 4: Recursive Sealed Trait (Expr)")
+  sealed trait Expr
+  case class Num(n: Int)           extends Expr
+  case class Add(a: Expr, b: Expr) extends Expr
+
+  object Expr {
+    implicit val schema: Schema[Expr] = Schema.derived[Expr]
+    implicit val show: Show[Expr]     = schema.derive(DeriveShow)
+  }
+
+  val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
+  println(Expr.show.show(expr))
+
+  /**
+   * Example 5: DynamicValue Example
+   */
+  printHeader("Example 5: DynamicValue Example")
+  implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
+
+  val manualRecord = DynamicValue.Record(
+    Chunk(
+      "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
+      "title" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")),
+      "tags"  -> DynamicValue.Sequence(
+        Chunk(
+          DynamicValue.Primitive(PrimitiveValue.String("scala")),
+          DynamicValue.Primitive(PrimitiveValue.String("zio"))
+        )
+      )
+    )
+  )
+
+  println(dynamicShow.show(manualRecord))
+
+  /**
+   * Example 6: Simple Email Wrapper Type
+   */
+  printHeader("Example 6: Simple Email Wrapper Type")
+  case class Email(value: String)
+  object Email {
+    implicit val schema: Schema[Email] = Schema[String].transform(
+      Email(_),
+      _.value
+    )
+    implicit val show: Show[Email] = schema.derive(DeriveShow)
+  }
+
+  val email = Email("alice@example.com")
+  println(s"Email: ${Email.show.show(email)}")
+
 }
