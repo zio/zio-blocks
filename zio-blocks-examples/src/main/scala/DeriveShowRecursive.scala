@@ -11,7 +11,7 @@ import zio.blocks.typeid.TypeId
  * Key Pattern:
  *   1. All derive* methods delegate to a single `deriveCodec` method
  *   2. `deriveCodec` recursively traverses the Reflect structure
- *   3. A ThreadLocal cache handles recursive types
+ *   3. A ThreadLocal cache handles recursive types (e.g., Tree with List[Tree])
  *
  * IMPORTANT: Use type member aliases for existential types to avoid type
  * erasure issues.
@@ -189,14 +189,13 @@ object DeriveShowRecursive extends App {
 
         // Check cache for recursive types
         val cached = cache.get.get(typeId)
-        if (cached != null) return {
-          println("Using cached Show for Record: " + typeId.name)
-          cached.asInstanceOf[Show[A]]
-        }
+        if (cached != null) return cached.asInstanceOf[Show[A]]
 
         // Create placeholder and put in cache BEFORE deriving fields
         var instance: Show[A] = null
-        val placeholder       = null
+        val placeholder       = new Show[A] {
+          def show(value: A): String = instance.show(value)
+        }
         cache.get.put(typeId, placeholder)
 
         // Derive Show instances for all fields
@@ -230,10 +229,7 @@ object DeriveShowRecursive extends App {
 
         // Check cache for recursive types
         val cached = cache.get.get(typeId)
-        if (cached != null) {
-          println("Using cached Show for Variant: " + typeId.name)
-          return cached.asInstanceOf[Show[A]]
-        }
+        if (cached != null) return cached.asInstanceOf[Show[A]]
 
         // Create placeholder and put in cache
         var instance: Show[A] = null
@@ -257,6 +253,7 @@ object DeriveShowRecursive extends App {
           }
         }
         instance
+
       } else if (actualReflect.isSequence) {
         // Use type member aliases with helper method to preserve proper types
         deriveSeqCodec(actualReflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Elem, Col]])
@@ -279,7 +276,10 @@ object DeriveShowRecursive extends App {
               case Left(error)      => s"${typeId.name}(<error: ${error.message}>)"
             }
           }
-        } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[Show, ?, A]].instance.force
+        } else {
+          wrapper.wrapperBinding.asInstanceOf[BindingInstance[Show, ?, A]].instance.force
+        }
+
       } else if (actualReflect.isDynamic) {
         new Show[A] {
           def show(value: A): String = showDynamic(value.asInstanceOf[DynamicValue])
@@ -296,7 +296,9 @@ object DeriveShowRecursive extends App {
           }
         }.asInstanceOf[Show[A]]
 
-      } else throw new IllegalArgumentException(s"Unsupported Reflect type: $actualReflect")
+      } else {
+        throw new IllegalArgumentException(s"Unsupported Reflect type: $actualReflect")
+      }
     }
 
     // Helper method for sequences - preserves proper type parameters
@@ -311,7 +313,9 @@ object DeriveShowRecursive extends App {
             s"[$elements]"
           }
         }
-      } else sequence.seqBinding.asInstanceOf[BindingInstance[Show, ?, C[E]]].instance.force
+      } else {
+        sequence.seqBinding.asInstanceOf[BindingInstance[Show, ?, C[E]]].instance.force
+      }
 
     // Helper method for maps - preserves proper type parameters
     private def deriveMapCodec[K, V, M[_, _]](map: Reflect.Map[Binding, K, V, M]): Show[M[K, V]] =
@@ -330,7 +334,9 @@ object DeriveShowRecursive extends App {
             s"Map($entries)"
           }
         }
-      } else map.mapBinding.asInstanceOf[BindingInstance[Show, ?, M[K, V]]].instance.force
+      } else {
+        map.mapBinding.asInstanceOf[BindingInstance[Show, ?, M[K, V]]].instance.force
+      }
   }
 
   // ===========================================
