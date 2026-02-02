@@ -4,28 +4,12 @@ import scala.quoted.*
 
 object TypeIdMacros {
 
-  // ============================================================================
-  // Caching Infrastructure
-  // ============================================================================
-  // Cache actual runtime values, not Expr values.
-  // This allows us to avoid re-analyzing symbols while still running
-  // Implicits.search() on every invocation.
-  // ToExpr instances convert cached values to Expr when needed.
-
   import java.util.concurrent.ConcurrentHashMap
 
-  // --- Caches ---
-
-  private val ownerCache       = new ConcurrentHashMap[String, Owner]()
-  private val typeParamsCache  = new ConcurrentHashMap[String, List[TypeParam]]()
-  private val defKindCache     = new ConcurrentHashMap[String, TypeDefKind]()
-  private val annotationsCache = new ConcurrentHashMap[String, List[Annotation]]()
-
-  // Top-level TypeId cache keyed by type representation string
   private val typeIdCache = new ConcurrentHashMap[String, TypeId[?]]()
 
   // ============================================================================
-  // ToExpr Instances
+  // ToExpr Instances (needed for top-level cache to convert TypeId values to Expr)
   // ============================================================================
 
   given ownerSegmentToExpr: ToExpr[Owner.Segment] with {
@@ -650,56 +634,17 @@ object TypeIdMacros {
     }
   }
 
-  // --- Raw Value Getters (for caching) ---
+  private def buildOwner(using Quotes)(sym: quotes.reflect.Symbol): Expr[Owner] =
+    Expr(analyzeOwner(sym))
 
-  private def getOwnerValue(using Quotes)(sym: quotes.reflect.Symbol): Owner = {
-    val key = if (sym.isNoSymbol) "" else sym.fullName
-    ownerCache.computeIfAbsent(key, _ => analyzeOwner(sym))
-  }
+  private def buildTypeParams(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[TypeParam]] =
+    Expr.ofList(analyzeTypeParams(sym).map(p => Expr(p)))
 
-  private def getTypeParamsValue(using Quotes)(sym: quotes.reflect.Symbol): List[TypeParam] = {
-    val key = if (sym.isNoSymbol) "" else sym.fullName
-    typeParamsCache.computeIfAbsent(key, _ => analyzeTypeParams(sym))
-  }
+  private def buildDefKind(using Quotes)(sym: quotes.reflect.Symbol): Expr[TypeDefKind] =
+    Expr(analyzeDefKind(sym))
 
-  private def getDefKindValue(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKind = {
-    val key = if (sym.isNoSymbol) "" else sym.fullName
-    defKindCache.computeIfAbsent(key, _ => analyzeDefKind(sym))
-  }
-
-  private def getAnnotationsValue(using Quotes)(sym: quotes.reflect.Symbol): List[Annotation] = {
-    val key = if (sym.isNoSymbol) "" else sym.fullName
-    annotationsCache.computeIfAbsent(key, _ => analyzeAnnotations(sym))
-  }
-
-  private def getEnumCaseDefKindValue(using Quotes)(termSym: quotes.reflect.Symbol): TypeDefKind = {
-    import quotes.reflect.*
-
-    val parentSym = termSym.owner
-    val siblings  = parentSym.children.filter(_.flags.is(Flags.Case))
-    val ordinal   = siblings.indexOf(termSym)
-
-    val isObjectCase = termSym.flags.is(Flags.Module) ||
-      termSym.primaryConstructor.paramSymss.flatten.isEmpty
-
-    val parentTypeRepr = analyzeTypeReprMinimal(parentSym.typeRef)
-
-    TypeDefKind.EnumCase(parentTypeRepr, ordinal, isObjectCase)
-  }
-
-  // --- Cached Build Functions ---
-
-  private def buildOwnerCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[Owner] =
-    Expr(getOwnerValue(sym))
-
-  private def buildTypeParamsCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[TypeParam]] =
-    Expr.ofList(getTypeParamsValue(sym).map(p => Expr(p)))
-
-  private def buildDefKindCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[TypeDefKind] =
-    Expr(getDefKindValue(sym))
-
-  private def buildAnnotationsCached(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[Annotation]] =
-    Expr.ofList(getAnnotationsValue(sym).map(a => Expr(a)))
+  private def buildAnnotations(using Quotes)(sym: quotes.reflect.Symbol): Expr[List[Annotation]] =
+    Expr.ofList(analyzeAnnotations(sym).map(a => Expr(a)))
 
   /**
    * Derives a TypeId for any type or type constructor.
@@ -935,11 +880,11 @@ object TypeIdMacros {
   ): Expr[TypeId[A]] = {
     val tyconSym        = tycon.typeSymbol
     val name            = tyconSym.name
-    val ownerExpr       = buildOwnerCached(tyconSym.owner)
-    val typeParamsExpr  = buildTypeParamsCached(tyconSym)
+    val ownerExpr       = buildOwner(tyconSym.owner)
+    val typeParamsExpr  = buildTypeParams(tyconSym)
     val typeArgsExpr    = args.map(arg => buildTypeReprFromTypeRepr(arg, Set.empty[String]))
-    val defKindExpr     = buildDefKindCached(tyconSym)
-    val annotationsExpr = buildAnnotationsCached(tyconSym)
+    val defKindExpr     = buildDefKind(tyconSym)
+    val annotationsExpr = buildAnnotations(tyconSym)
 
     '{
       TypeId.nominal[A](
@@ -963,9 +908,9 @@ object TypeIdMacros {
 
     val typeSymbol      = tr.typeSymbol
     val name            = typeSymbol.name
-    val ownerExpr       = buildOwnerCached(typeSymbol.owner)
-    val typeParamsExpr  = buildTypeParamsCached(typeSymbol)
-    val annotationsExpr = buildAnnotationsCached(typeSymbol)
+    val ownerExpr       = buildOwner(typeSymbol.owner)
+    val typeParamsExpr  = buildTypeParams(typeSymbol)
+    val annotationsExpr = buildAnnotations(typeSymbol)
 
     val aliasedType = tr.translucentSuperType.dealias
     val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set.empty[String])
@@ -1045,9 +990,9 @@ object TypeIdMacros {
 
     val typeSymbol      = tr.typeSymbol
     val name            = typeSymbol.name
-    val ownerExpr       = buildOwnerCached(typeSymbol.owner)
-    val typeParamsExpr  = buildTypeParamsCached(typeSymbol)
-    val annotationsExpr = buildAnnotationsCached(typeSymbol)
+    val ownerExpr       = buildOwner(typeSymbol.owner)
+    val typeParamsExpr  = buildTypeParams(typeSymbol)
+    val annotationsExpr = buildAnnotations(typeSymbol)
 
     val aliasedType = tr.translucentSuperType.dealias
     val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(typeSymbol.fullName))
@@ -1078,7 +1023,7 @@ object TypeIdMacros {
     val isEnumValue = !termSymbol.isNoSymbol && termSymbol.flags.is(Flags.Enum)
 
     val (name, ownerExpr) = if (isEnumValue) {
-      (termSymbol.name, buildOwnerCached(termSymbol.owner))
+      (termSymbol.name, buildOwner(termSymbol.owner))
     } else {
       val rawName     = typeSymbol.name
       val nm          = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
@@ -1088,20 +1033,20 @@ object TypeIdMacros {
         case tr: TypeRef =>
           resolveOwnerExprFromTypeRef(tr, directOwner)
         case _ =>
-          buildOwnerCached(directOwner)
+          buildOwner(directOwner)
       }
 
       (nm, resolvedOwnerExpr)
     }
 
-    val typeParamsExpr  = buildTypeParamsCached(typeSymbol)
-    val annotationsExpr = buildAnnotationsCached(if (isEnumValue) termSymbol else typeSymbol)
+    val typeParamsExpr  = buildTypeParams(typeSymbol)
+    val annotationsExpr = buildAnnotations(if (isEnumValue) termSymbol else typeSymbol)
 
     val flags = typeSymbol.flags
 
     val defKindExpr =
       if (isEnumValue) buildEnumCaseDefKindFromTermSymbol(termSymbol)
-      else buildDefKindCached(typeSymbol)
+      else buildDefKind(typeSymbol)
 
     if (flags.is(Flags.Opaque)) {
       val reprExpr     = extractOpaqueRepresentationExpr(tpe)
@@ -1121,10 +1066,10 @@ object TypeIdMacros {
         )
       }
     } else if (isEnumValue) {
-      val ownerValue       = getOwnerValue(termSymbol.owner)
-      val typeParamsValue  = getTypeParamsValue(typeSymbol)
-      val defKindValue     = getEnumCaseDefKindValue(termSymbol)
-      val annotationsValue = getAnnotationsValue(termSymbol)
+      val ownerValue       = analyzeOwner(termSymbol.owner)
+      val typeParamsValue  = analyzeTypeParams(typeSymbol)
+      val defKindValue     = analyzeEnumCaseDefKind(termSymbol)
+      val annotationsValue = analyzeAnnotations(termSymbol)
 
       val typeIdValue = TypeId.nominal[Any](
         name,
@@ -1155,11 +1100,11 @@ object TypeIdMacros {
     } else {
       val ownerValue = tpe match {
         case tr: TypeRef => resolveOwnerValueFromTypeRef(tr, typeSymbol.owner)
-        case _           => getOwnerValue(typeSymbol.owner)
+        case _           => analyzeOwner(typeSymbol.owner)
       }
-      val typeParamsValue  = getTypeParamsValue(typeSymbol)
-      val defKindValue     = getDefKindValue(typeSymbol)
-      val annotationsValue = getAnnotationsValue(typeSymbol)
+      val typeParamsValue  = analyzeTypeParams(typeSymbol)
+      val defKindValue     = analyzeDefKind(typeSymbol)
+      val annotationsValue = analyzeAnnotations(typeSymbol)
 
       val typeIdValue = TypeId.nominal[Any](
         name,
@@ -1210,7 +1155,7 @@ object TypeIdMacros {
 
     if (isAlias && visitingAliases.contains(symFullName)) {
       val name      = sym.name
-      val ownerExpr = buildOwnerCached(sym.owner)
+      val ownerExpr = buildOwner(sym.owner)
       return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
     }
 
@@ -1260,7 +1205,7 @@ object TypeIdMacros {
         '{ zio.blocks.typeid.TypeRepr.Singleton($path) }
 
       case ThisType(tref) =>
-        val ownerExpr = buildOwnerCached(tref.typeSymbol)
+        val ownerExpr = buildOwner(tref.typeSymbol)
         '{ zio.blocks.typeid.TypeRepr.ThisType($ownerExpr) }
 
       case ByNameType(underlying) =>
@@ -1351,7 +1296,7 @@ object TypeIdMacros {
       case "Null"    => return '{ zio.blocks.typeid.TypeRepr.NullType }
       case _         =>
         def createFreshTypeId(): Expr[TypeId[Nothing]] = {
-          val ownerExpr = buildOwnerCached(sym.owner)
+          val ownerExpr = buildOwner(sym.owner)
           if (sym.isAliasType) {
             val aliasedType = tref.translucentSuperType.dealias
             val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(sym.fullName))
@@ -1505,7 +1450,7 @@ object TypeIdMacros {
           case "Nothing" => '{ zio.blocks.typeid.TypeRepr.NothingType }
           case "Null"    => '{ zio.blocks.typeid.TypeRepr.NullType }
           case _         =>
-            val ownerExpr = buildOwnerCached(sym.owner)
+            val ownerExpr = buildOwner(sym.owner)
             '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
         }
       case _ =>
@@ -1564,13 +1509,13 @@ object TypeIdMacros {
           val termSym       = termRef.termSymbol
           val termName      = termSym.name.stripSuffix("$")
           val parentSegment = '{ Owner.Term(${ Expr(termName) }) }
-          val parentOwner   = buildOwnerCached(termSym.owner)
+          val parentOwner   = buildOwner(termSym.owner)
           '{ Owner($parentOwner.segments :+ $parentSegment) }
         case _ =>
-          buildOwnerCached(fallback)
+          buildOwner(fallback)
       }
     } else {
-      buildOwnerCached(fallback)
+      buildOwner(fallback)
     }
   }
 
@@ -1592,13 +1537,13 @@ object TypeIdMacros {
         case termRef: TermRef =>
           val termSym     = termRef.termSymbol
           val termName    = termSym.name.stripSuffix("$")
-          val parentOwner = getOwnerValue(termSym.owner)
+          val parentOwner = analyzeOwner(termSym.owner)
           Owner(parentOwner.segments :+ Owner.Term(termName))
         case _ =>
-          getOwnerValue(fallback)
+          analyzeOwner(fallback)
       }
     } else {
-      getOwnerValue(fallback)
+      analyzeOwner(fallback)
     }
   }
 
