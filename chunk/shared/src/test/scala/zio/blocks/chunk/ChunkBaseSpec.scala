@@ -24,16 +24,7 @@ import scala.annotation.tailrec
 trait ChunkBaseSpec extends ZIOSpecDefault {
   override def aspects: zio.Chunk[TestAspectAtLeastR[TestEnvironment]] =
     if (TestPlatform.isJVM) zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed)
-    else if (TestPlatform.isNative)
-      zio.Chunk(
-        TestAspect.timeout(120.seconds),
-        TestAspect.timed,
-        TestAspect.sequential,
-        TestAspect.size(10),
-        TestAspect.samples(50)
-      )
-    else
-      zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed, TestAspect.sequential, TestAspect.size(10))
+    else zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed, TestAspect.sequential, TestAspect.size(10))
 
   // Generator helpers that convert from zio.Chunk to zio.blocks.chunk.Chunk
   def genChunk[R, A](gen: Gen[R, A]): Gen[R, Chunk[A]] =
