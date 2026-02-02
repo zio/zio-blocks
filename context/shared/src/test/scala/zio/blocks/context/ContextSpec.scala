@@ -291,7 +291,7 @@ object ContextSpec extends ZIOSpecDefault {
       },
       test("does not compile for intersection type") {
         typeCheck("implicitly[IsNominalType[Logger with Database]]").map(result => assertTrue(result.isLeft))
-      } @@ TestAspect.exceptNative
+      }
     ),
     suite("IsNominalIntersection")(
       test("derives for single type") {
