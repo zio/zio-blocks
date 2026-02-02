@@ -11,7 +11,7 @@ package zio.blocks.schema.migration
  * if needed for advanced type-level computations. These would follow the
  * pattern of using implicit existence as proof of type-level propositions.
  */
-object TypeLevel {
+private[migration] object TypeLevel {
 
   /** Type-level heterogeneous list. Analogous to Scala 3's Tuple. */
   sealed trait TList

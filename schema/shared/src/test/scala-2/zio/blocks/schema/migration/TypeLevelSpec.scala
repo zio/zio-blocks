@@ -34,7 +34,6 @@ object TypeLevelSpec extends SchemaBaseSpec {
         assertTrue(evidence != null)
       },
       test("TList works with tuple types") {
-        // This tests the actual usage pattern in the migration system
         type FieldPath = (String, String)
         val evidence: (FieldPath :: TNil) <:< TList = implicitly
         assertTrue(evidence != null)

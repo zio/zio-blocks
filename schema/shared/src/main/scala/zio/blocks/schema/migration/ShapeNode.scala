@@ -1,7 +1,8 @@
 package zio.blocks.schema.migration
 
 /**
- * Hierarchical representation of a type's shape.
+ * Hierarchical representation of a type's shape. ShapeNode is used by both
+ * Scala 2 and Scala 3 for Compile time Validation
  *
  * ShapeNode provides a tree-based view of a type's structure, enabling:
  *   - Structural comparison between types (diff)
@@ -12,13 +13,14 @@ package zio.blocks.schema.migration
  *   - RecordNode: Product types (case classes) with named fields
  *   - SealedNode: Sum types (sealed traits/enums) with named cases
  *   - SeqNode: Sequence containers (List, Vector, Set, etc.)
+ *   - WrappedNode: For Wrapped container with inner shape
  *   - OptionNode: Optional values
  *   - MapNode: Key-value mappings
  *   - PrimitiveNode: Leaf types (String, Int, etc.)
  */
-sealed trait ShapeNode
+private[migration] sealed trait ShapeNode
 
-object ShapeNode {
+private[migration] object ShapeNode {
 
   /** Product type with named fields mapping to their shapes. */
   case class RecordNode(fields: Map[String, ShapeNode]) extends ShapeNode
@@ -53,7 +55,7 @@ object ShapeNode {
  *   - Value: Value access in a map
  *   - Wrapped: Access to wrapped value in a newtype
  */
-sealed trait Segment {
+private[migration] sealed trait Segment {
   def render: String = this match {
     case Segment.Field(name) => name
     case Segment.Case(name)  => s"case:$name"
@@ -64,7 +66,7 @@ sealed trait Segment {
   }
 }
 
-object Segment {
+private[migration] object Segment {
   case class Field(name: String) extends Segment
   case class Case(name: String)  extends Segment
   case object Element            extends Segment
@@ -77,7 +79,7 @@ object Segment {
  * A path is a sequence of segments representing a location within a ShapeNode
  * tree.
  */
-object Path {
+private[migration] object Path {
 
   /**
    * Render a path as a human-readable string (e.g., "address.city" or
@@ -97,7 +99,7 @@ object Path {
  *
  * Type changes (same path, different structure) appear in BOTH lists.
  */
-object TreeDiff {
+private[migration] object TreeDiff {
 
   /**
    * Compute the difference between source and target shape trees.

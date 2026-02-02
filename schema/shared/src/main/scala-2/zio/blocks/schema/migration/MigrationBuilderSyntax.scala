@@ -193,9 +193,7 @@ object MigrationBuilderSyntax {
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.reflect.macros.whitebox
 
-  // ==========================================================================
-  // build macro implementation
-  // ==========================================================================
+  // Build macro implementation
 
   /**
    * Compile-time validation for migration completeness.
@@ -216,9 +214,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     helper.buildImpl[A, B, Handled, Provided]
   }
 
-  // ==========================================================================
   // Field extraction helpers
-  // ==========================================================================
 
   /**
    * Extracts the full field path from a selector and returns it as a list of
@@ -469,9 +465,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     q"""$builder.renameField($fromOptic, $toNameExpr).asInstanceOf[$resultType]"""
   }
 
-  // ===========================================================================
   // Shared helper for field ops that add to both Handled and Provided
-  // ===========================================================================
 
   /**
    * Shared implementation for field operations that add the same field path to
@@ -669,9 +663,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     q"""$builder.splitField($sourceOptic, $targetOptics, $splitter).asInstanceOf[$resultType]"""
   }
 
-  // ===========================================================================
   // Shared helper for passthrough ops that don't affect Handled/Provided
-  // ===========================================================================
 
   /**
    * Shared implementation for operations that don't modify the Handled or
@@ -926,9 +918,7 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
     sb.toString
   }
 
-  // ===========================================================================
-  // TList Path Extraction - Split into focused helper methods
-  // ===========================================================================
+  // TList Path Extraction - Split into helper methods
 
   /**
    * Extracts paths from a TList type as List[List[Segment]]. Preserves full

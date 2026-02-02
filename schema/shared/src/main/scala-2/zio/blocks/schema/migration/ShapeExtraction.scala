@@ -22,12 +22,13 @@ object ShapeExtraction {
    *   - Sum types (sealed traits) become SealedNode with case shapes
    *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
    *     R's shape
+   *   - Wrapped[A] becomes WrappedNode with A's shape
    *   - Option[A] becomes OptionNode with A's shape
    *   - List/Vector/Set[A] become SeqNode with A's shape
    *   - Map[K, V] becomes MapNode with K's and V's shapes
    *   - Primitives become PrimitiveNode
    */
-  sealed trait ShapeTree[A] {
+  private[migration] sealed trait ShapeTree[A] {
     def tree: ShapeNode
   }
 
@@ -53,7 +54,7 @@ object ShapeExtraction {
    * // MigrationPaths[V1, V2].Added contains (("field", "email"),)
    * }}}
    */
-  sealed trait MigrationPaths[A, B] {
+  private[migration] sealed trait MigrationPaths[A, B] {
     type Removed <: TList
     type Added <: TList
   }
@@ -215,7 +216,7 @@ private[migration] class ShapeExtractionHelper[C <: blackbox.Context](val c: C) 
   /**
    * Derive a MigrationPaths typeclass instance for types A and B. Computes the
    * structural diff using TreeDiff and exposes removed/added paths as TList
-   * types. Paths are stored as structured tuples (("field", "name"), ...).
+   * types.
    */
   def migrationPathsDerived[A: c.WeakTypeTag, B: c.WeakTypeTag]: c.Expr[ShapeExtraction.MigrationPaths[A, B]] = {
     val aType = weakTypeOf[A].dealias

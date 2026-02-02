@@ -6,12 +6,6 @@ import zio.blocks.schema._
 import zio.blocks.schema.migration.ShapeExtraction._
 import zio.blocks.schema.CompanionOptics
 
-/**
- * Tests for compile-time migration validation.
- *
- * These tests verify that the build macro correctly enforces migration
- * completeness at compile time.
- */
 object CompileTimeValidationSpec extends ZIOSpecDefault {
 
   // Test case classes - identical schemas
@@ -1111,46 +1105,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
             .build
         """))(Assertion.isLeft)
       },
-      test("transformCase tracks case in Handled and Provided") {
-        // This test needs to verify that transformCase properly tracks
-        // case names in the Handled and Provided type parameters.
-        //
-        // transformCase adds the case name to both Handled and Provided because
-        // the case itself is being transformed (not renamed).
-        //
-        // When case names are the SAME in source and target but fields inside differ,
-        // transformCase handles the field changes within the case.
-        //
-        // Example use case:
-        //   sealed trait T { case class C(x: Int) }  ->  sealed trait T { case class C(x: Long) }
-        // where case name C is the same but field type changes.
-        //
-        // The test below is commented out due to complexity with the nested builder API
-        // and SchemaExpr requirements. The transformCase type tracking is verified to work
-        // via the macro implementation - see MigrationBuilderSyntax.transformCaseImpl which
-        // adds "case:CaseName" to both Handled and Provided tuples.
-        //
-        // Uncomment and fix when the nested transformCase builder API is clearer:
-        //
-        // sealed trait DataV1
-        // case class Item(value: Int) extends DataV1
-        // object DataV1 extends CompanionOptics[DataV1]
-        //
-        // given Schema[DataV1] = Schema.derived
-        //
-        // import DataV1.when
-        //
-        // val builder = MigrationBuilder
-        //   .newBuilder[DataV1, DataV1]
-        //   .transformCase((d: DataV1) => d.when[Item])(
-        //     _.transformField(_.value, <appropriate SchemaExpr>)
-        //   )
-        //
-        // val migration = builder.build
-        // assertTrue(migration != null)
-
-        assertTrue(true) // Placeholder - see TODO above
-      },
       test("enum case rename works") {
         enum ColorV1 {
           case Red, Green, Blue
@@ -1254,7 +1208,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         // This should compile since both paths share parent "name"
         // name.first and name.last are joined into name.full
-        // The parent "name" exists in both source and target
         val migration = MigrationBuilder
           .newBuilder[PersonSrc, PersonTgt]
           .joinFields(
@@ -1279,7 +1232,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         // This should compile since both paths share parent "name"
         // name.full is split into name.first and name.last
-        // The parent "name" exists in both source and target
         val migration = MigrationBuilder
           .newBuilder[PersonSrc, PersonTgt]
           .splitField(
@@ -1291,8 +1243,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         assertTrue(migration != null)
       },
-      test("joinFields with single source path should compile (no parent check needed)") {
-        // Single source path - no parent validation needed
+      test("joinFields with single source path should compile") {
         // Uses existing FullNameSource/FullNameTarget, drops lastName to complete migration
         val migration = MigrationBuilder
           .newBuilder[FullNameSource, FullNameTarget]
@@ -1309,8 +1260,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
         assertTrue(migration != null)
       },
-      test("splitField with single target path should compile (no parent check needed)") {
-        // Single target path - no parent validation needed
+      test("splitField with single target path should compile") {
         // Uses existing FullNameTarget/FullNameSource, adds lastName to complete migration
         val migration = MigrationBuilder
           .newBuilder[FullNameTarget, FullNameSource]
@@ -1331,8 +1281,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     suite("joinFields and splitField tracking")(
       test("joinFields tracks all source fields in Handled") {
         // joinFields should handle firstName and lastName, and provide fullName
-        // Using top-level case classes FullNameSource and FullNameTarget
-        // Note: explicit function types required due to type inference limitations with Seq
         val builder   = MigrationBuilder.newBuilder[FullNameSource, FullNameTarget]
         val afterJoin = builder.joinFields(
           (t: FullNameTarget) => t.fullName,
@@ -1357,9 +1305,6 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         assertTrue(migration != null)
       },
       test("joinFields without tracking all sources fails to compile") {
-        // This tests that if joinFields didn't track source fields properly,
-        // we would need to manually drop them - but since it does track them,
-        // this should fail if we try to do a migration where sources aren't handled
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration._
           import zio.blocks.schema._

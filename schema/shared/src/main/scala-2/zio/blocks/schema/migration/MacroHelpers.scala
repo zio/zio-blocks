@@ -5,8 +5,8 @@ import scala.reflect.macros.blackbox
 /**
  * Type category for classification during shape extraction.
  */
-sealed trait TypeCategory
-object TypeCategory {
+private[migration] sealed trait TypeCategory
+private[migration] object TypeCategory {
   case object Primitive   extends TypeCategory
   case object Record      extends TypeCategory
   case object Sealed      extends TypeCategory
@@ -171,6 +171,7 @@ private[migration] trait MacroHelpers {
    *   - Sum types (sealed traits) become SealedNode with case shapes
    *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
    *     R's shape
+   *   - Wrapped[A] becomes WrappedNode with A's shape
    *   - Option[A] becomes OptionNode with A's shape
    *   - List/Vector/Set[A] become SeqNode with A's shape
    *   - Map[K, V] becomes MapNode with K's and V's shapes

@@ -216,9 +216,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
 private[migration] object MigrationBuilderMacrosImpl {
   import scala.quoted.*
 
-  // ==========================================================================
-  // build macro implementation
-  // ==========================================================================
+  // Build macro implementation
 
   /**
    * Macro implementation for the build method that validates migration
@@ -238,7 +236,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     // 2. Compute diff - returns List[List[Segment]] (full structure)
     val (removed, added) = TreeDiff.diff(treeA, treeB)
 
-    // 3. Extract handled/provided as List[List[Segment]] (NOT strings!)
+    // 3. Extract handled/provided as List[List[Segment]]
     val handled: List[List[Segment]]  = MacroHelpers.extractTuplePaths(TypeRepr.of[Handled])
     val provided: List[List[Segment]] = MacroHelpers.extractTuplePaths(TypeRepr.of[Provided])
 
@@ -321,9 +319,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     sb.toString
   }
 
-  // ==========================================================================
   // Path type construction helpers
-  // ==========================================================================
 
   /**
    * Convert a list of field names to a structured path tuple type.
@@ -363,9 +359,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     TypeRepr.of[*:].appliedTo(List(segmentType, TypeRepr.of[EmptyTuple]))
   }
 
-  // ==========================================================================
   // Field extraction helpers
-  // ==========================================================================
 
   /**
    * Helper to extract field path from selector expression as a List of field
@@ -493,9 +487,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     extractCaseName(pathBody)
   }
 
-  // ==========================================================================
   // Shared helper for field ops that add to both Handled and Provided
-  // ==========================================================================
 
   /**
    * Shared implementation for field operations that add the same field path to
@@ -536,9 +528,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 
-  // ==========================================================================
   // Shared helper for passthrough ops that don't affect Handled/Provided
-  // ==========================================================================
 
   /**
    * Shared implementation for operations that don't modify the Handled or
@@ -557,9 +547,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     '{ ${ buildCall(builder, optic) }.asInstanceOf[MigrationBuilder[A, B, Handled, Provided]] }
   }
 
-  // ==========================================================================
   // Single-tracking field operations (addField, dropField)
-  // ==========================================================================
 
   def addFieldImpl[
     A: Type,
@@ -615,9 +603,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 
-  // ==========================================================================
   // Rename operation (handles both paths separately)
-  // ==========================================================================
 
   def renameFieldImpl[
     A: Type,
@@ -651,9 +637,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 
-  // ==========================================================================
   // Dual-tracking field operations (add to both Handled and Provided)
-  // ==========================================================================
 
   def transformFieldImpl[
     A: Type,
@@ -723,9 +707,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       '{ $b.changeFieldType($o, $converter) }
     }
 
-  // ==========================================================================
   // Multi-field operations (joinFields, splitField)
-  // ==========================================================================
 
   def joinFieldsImpl[
     A: Type,
@@ -851,9 +833,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 
-  // ==========================================================================
   // Passthrough operations (don't affect Handled/Provided)
-  // ==========================================================================
 
   def transformElementsImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
@@ -876,9 +856,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
     passthroughOpImpl(builder, at)((b, o) => '{ $b.transformValues($o, $transform) })
 
-  // ==========================================================================
   // Case operations (renameCase, transformCase)
-  // ==========================================================================
 
   def renameCaseImpl[
     A: Type,

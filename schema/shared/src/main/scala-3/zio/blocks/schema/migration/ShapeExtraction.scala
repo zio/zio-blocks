@@ -110,7 +110,7 @@ object ShapeExtraction {
    * // ))
    * }}}
    */
-  sealed trait ShapeTree[A] {
+  private[migration] sealed trait ShapeTree[A] {
 
     /** The hierarchical shape tree for type A. */
     def tree: ShapeNode

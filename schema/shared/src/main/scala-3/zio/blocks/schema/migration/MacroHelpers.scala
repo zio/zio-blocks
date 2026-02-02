@@ -5,8 +5,8 @@ import scala.quoted.*
 /**
  * Type category for classification during shape extraction.
  */
-sealed trait TypeCategory
-object TypeCategory {
+private[migration] sealed trait TypeCategory
+private[migration] object TypeCategory {
   case object Primitive   extends TypeCategory
   case object Record      extends TypeCategory
   case object Sealed      extends TypeCategory
@@ -183,49 +183,37 @@ private[migration] object MacroHelpers {
 
   /**
    * Categorize a type into its structural category.
-   *
-   * This is used to determine how to extract the shape tree from a type. The
-   * order of checks matters:
-   *   1. Check for Either first (before sealed check, as Either is a sealed
-   *      trait)
-   *   2. Check for Option (specific container)
-   *   3. Check for Map (specific container)
-   *   4. Check for other sequences/collections
-   *   5. Check for sealed traits/enums
-   *   6. Check for product types (case classes)
-   *   7. Default to Primitive
    */
   def categorizeType(using q: Quotes)(tpe: q.reflect.TypeRepr): TypeCategory = {
     import q.reflect.*
 
     val dealiased = tpe.dealias
 
-    // Check for Either first (it's a sealed trait but we handle it specially)
+    // Check for 1)Either
     if (dealiased <:< TypeRepr.of[Either[?, ?]]) {
       TypeCategory.EitherType
     }
-    // Check for Option
+    // Check for 2)Option
     else if (dealiased <:< TypeRepr.of[Option[?]]) {
       TypeCategory.OptionType
     }
-    // Check for Map
+    // Check for 3)Map
     else if (dealiased <:< TypeRepr.of[Map[?, ?]]) {
       TypeCategory.MapType
     }
-    // Check for sequences/collections (but not Map)
+    // Check for 4)Sequences/Collections
     else if (isContainerType(dealiased) && !(dealiased <:< TypeRepr.of[Map[?, ?]])) {
       TypeCategory.SeqType
     }
-    // Check for sealed traits/enums
+    // Check for 5)Sealed traits/enums
     else if (isSealedTraitOrEnum(dealiased)) {
       TypeCategory.Sealed
     }
-    // Check for wrapped types (value classes, opaque types) BEFORE product types
-    // because value classes are also case classes
+    // Check for 6)Wrapped types (value classes, opaque types)
     else if (isValueClass(dealiased) || isOpaqueType(dealiased)) {
       TypeCategory.WrappedType
     }
-    // Check for product types (case classes)
+    // Check for 7)Product types (case classes)
     else if (isProductType(dealiased.typeSymbol)) {
       TypeCategory.Record
     }
@@ -238,29 +226,18 @@ private[migration] object MacroHelpers {
   /**
    * Extract a ShapeNode tree from a type.
    *
-   * Recursively descends into the type structure to build a hierarchical
-   * representation:
+   *   - Recurse into the structure till you hit Primitives
    *   - Product types (case classes) become RecordNode with field shapes
    *   - Sum types (sealed traits) become SealedNode with case shapes
    *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
    *     R's shape
+   *   - Wrapped[A] becomes WrappedNode with A's shape
    *   - Option[A] becomes OptionNode with A's shape
    *   - List/Vector/Set[A] become SeqNode with A's shape
    *   - Map[K, V] becomes MapNode with K's and V's shapes
    *   - Primitives become PrimitiveNode
-   *
-   * Recursion handling:
    *   - Any recursion (direct or through containers) produces a compile error
    *   - Container elements are fully explored to extract their complete shape
-   *
-   * @param tpe
-   *   The type to extract the shape from
-   * @param visiting
-   *   Set of type full names currently being visited (for recursion detection)
-   * @param errorContext
-   *   Context string for error messages
-   * @return
-   *   The ShapeNode representing the type's structure
    */
   def extractShapeTree(using
     q: Quotes
