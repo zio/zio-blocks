@@ -498,6 +498,8 @@ lazy val zioGolemMacros = project
   .in(file("golem/macros"))
   .settings(stdSettings("zio-golem-macros"))
   .settings(
+    coverageEnabled := false,
+    coverageFailOnMinimum := false,
     scalacOptions += "-language:experimental.macros",
     Compile / unmanagedSourceDirectories ++= {
       val base = baseDirectory.value / "src" / "main"

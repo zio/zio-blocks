@@ -179,6 +179,25 @@ object DataInteropSpec extends ZIOSpecDefault {
         val mapType = DataInterop.schemaToDataType(Schema[Map[String, Int]])
         assertTrue(mapType.isInstanceOf[DataType.MapType])
       },
+      test("maps variant payload shapes to enum cases") {
+        sealed trait Payload
+        case object EmptyPayload extends Payload
+        final case class ValuePayload(value: Int) extends Payload
+        final case class RecordPayload(a: Int, b: String) extends Payload
+
+        implicit val payloadSchema: Schema[Payload] = Schema.derived
+
+        val dt = DataInterop.schemaToDataType(Schema[Payload])
+        assertTrue(dt.isInstanceOf[DataType.EnumType]) &&
+        assertTrue {
+          val enumType = dt.asInstanceOf[DataType.EnumType]
+          val caseMap  = enumType.cases.map(c => c.name -> c.payload).toMap
+
+          caseMap.get("EmptyPayload").exists(_.isEmpty) &&
+          caseMap.get("ValuePayload").exists(_.contains(DataType.IntType)) &&
+          caseMap.get("RecordPayload").exists(_.exists(_.isInstanceOf[DataType.StructType]))
+        }
+      },
       test("wrapper schemas map to underlying data types") {
         val dt = DataInterop.schemaToDataType(Schema[UserId])
         assertTrue(dt == DataType.LongType)
