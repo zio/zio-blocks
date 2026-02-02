@@ -1094,7 +1094,7 @@ object TypeIdMacros {
       else buildDefKindCached(typeSymbol)
 
     if (flags.is(Flags.Opaque)) {
-      val reprExpr     = extractOpaqueRepresentation(tpe, typeSymbol)
+      val reprExpr     = extractOpaqueRepresentationExpr(tpe)
       val publicBounds = defKindExpr match {
         case '{ TypeDefKind.OpaqueType($bounds) } => bounds
         case _                                    => '{ zio.blocks.typeid.TypeBounds.Unbounded }
@@ -1166,21 +1166,16 @@ object TypeIdMacros {
     }
   }
 
-  private def extractOpaqueRepresentation(using
+  private def extractOpaqueRepresentationExpr(using
     Quotes
-  )(
-    tpe: quotes.reflect.TypeRepr,
-    @annotation.unused typeSymbol: quotes.reflect.Symbol
-  ): Expr[zio.blocks.typeid.TypeRepr] = {
+  )(tpe: quotes.reflect.TypeRepr): Expr[zio.blocks.typeid.TypeRepr] = {
     import quotes.reflect.*
 
-    // For opaque types, use translucentSuperType to get the underlying type
     tpe match {
       case tr: TypeRef if tr.isOpaqueAlias =>
         val underlying = tr.translucentSuperType.dealias
         buildTypeReprFromTypeRepr(underlying, Set.empty[String])
       case _ =>
-        // Fallback - try dealias
         val underlying = tpe.dealias
         if (underlying != tpe) {
           buildTypeReprFromTypeRepr(underlying, Set.empty[String])
