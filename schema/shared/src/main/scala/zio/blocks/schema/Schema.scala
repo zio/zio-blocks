@@ -117,12 +117,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * This is useful for creating schemas for wrapper types, validated newtypes,
    * or any type that can be derived from another type with validation.
    *
-   * The `wrap` function is called during decoding (e.g., `fromDynamicValue`) to
+   * The `to` function is called during decoding (e.g., `fromDynamicValue`) to
    * convert the underlying `A` value to `B`. It can throw `SchemaError` (or any
    * exception, which will be converted to `SchemaError`) to indicate validation
    * failure.
    *
-   * The `unwrap` function is called during encoding (e.g., `toDynamicValue`) to
+   * The `from` function is called during encoding (e.g., `toDynamicValue`) to
    * convert `B` back to `A` for serialization. It can also throw exceptions if
    * needed, though this is less common.
    *
@@ -148,10 +148,10 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * object ValidatedInt {
    *   implicit val schema: Schema[ValidatedInt] =
    *     Schema[Int].transform(
-   *       wrap = n =>
+   *       to = n =>
    *         if (n > 0) ValidatedInt(n)
    *         else throw SchemaError.validationFailed("Expected positive"),
-   *       unwrap = v =>
+   *       from = v =>
    *         if (v.value < 100) v.value
    *         else throw SchemaError.validationFailed("Value too large")
    *     )
