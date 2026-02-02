@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.TypeRegistry
 import zio.blocks.schema.json.JsonSchema
 import zio.blocks.typeid.{Owner, TypeId}
 
@@ -206,41 +205,41 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
   /**
    * Rebinds this unbound schema using bindings from a
-   * [[zio.blocks.schema.binding.TypeRegistry TypeRegistry]].
+   * [[zio.blocks.schema.binding.BindingResolver BindingResolver]].
    *
    * This converts the structural schema information (types, fields, cases,
    * validations) into a fully operational `Schema[A]` by attaching runtime
-   * bindings (constructors, deconstructors, matchers) from the registry.
+   * bindings (constructors, deconstructors, matchers) from the resolver.
    *
-   * The registry must contain bindings for all types referenced in this schema:
+   * The resolver must provide bindings for all types referenced in this schema:
    *   - Record types need `Binding.Record` entries
    *   - Variant types need `Binding.Variant` entries
    *   - Primitive types need `Binding.Primitive` entries (provided by
-   *     `TypeRegistry.default`)
+   *     `BindingResolver.defaults`)
    *   - Sequence types need `Binding.Seq` entries (provided by
-   *     `TypeRegistry.default`)
+   *     `BindingResolver.defaults`)
    *   - Map types need `Binding.Map` entries (provided by
-   *     `TypeRegistry.default`)
+   *     `BindingResolver.defaults`)
    *   - Wrapper types need `Binding.Wrapper` entries
    *
-   * @param registry
-   *   The TypeRegistry containing bindings for all types in this schema
+   * @param resolver
+   *   The BindingResolver providing bindings for all types in this schema
    * @return
    *   A bound Schema that can construct and deconstruct values
    * @throws RebindException
-   *   If any required binding is missing from the registry
+   *   If any required binding is missing from the resolver
    *
    * @example
    *   {{{
    * case class Person(name: String, age: Int)
    *
    * val dynamicSchema: DynamicSchema = ...
-   * val registry = TypeRegistry.default.bind(Binding.of[Person])
-   * val schema: Schema[Person] = dynamicSchema.rebind[Person](registry)
+   * val resolver = BindingResolver.empty.bind(Binding.of[Person]) ++ BindingResolver.defaults
+   * val schema: Schema[Person] = dynamicSchema.rebind[Person](resolver)
    *   }}}
    */
-  def rebind[A](registry: TypeRegistry): Schema[A] = {
-    val transformer = new RebindTransformer(registry)
+  def rebind[A](resolver: BindingResolver): Schema[A] = {
+    val transformer = new RebindTransformer(resolver)
     val bound       = reflect.transform(DynamicOptic.root, transformer).force
     new Schema(bound.asInstanceOf[Reflect.Bound[A]])
   }

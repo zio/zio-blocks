@@ -5,16 +5,17 @@ import zio.blocks.typeid.TypeId
 
 /**
  * A [[ReflectTransformer]] that rebinds an unbound reflect structure using
- * bindings from a [[TypeRegistry]].
+ * bindings from a [[BindingResolver]].
  *
  * This transformer is used internally by [[Schema.rebind]] to convert
  * `Reflect.Unbound[A]` to `Reflect.Bound[A]` by looking up the appropriate
  * bindings for each type in the reflect structure.
  *
- * @param registry
- *   The TypeRegistry containing bindings for all types in the structure
+ * @param resolver
+ *   The BindingResolver providing bindings for all types in the structure
  */
-private[schema] final class RebindTransformer(registry: TypeRegistry) extends ReflectTransformer[NoBinding, Binding] {
+private[schema] final class RebindTransformer(resolver: BindingResolver)
+    extends ReflectTransformer[NoBinding, Binding] {
 
   def transformRecord[A](
     path: DynamicOptic,
@@ -26,8 +27,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Record[Binding, A]] = Lazy {
-    val binding = registry
-      .lookupRecordByTypeId(typeId)
+    val binding = resolver
+      .resolveRecord[A](typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Record")
       )
@@ -52,8 +53,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Variant[Binding, A]] = Lazy {
-    val binding = registry
-      .lookupVariantByTypeId(typeId)
+    val binding = resolver
+      .resolveVariant[A](typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Variant")
       )
@@ -78,8 +79,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Sequence[Binding, A, C]] = Lazy {
-    val binding = registry
-      .lookupSeqByTypeId[C, A](typeId)
+    val binding = resolver
+      .resolveSeqFor[C, A](typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Sequence")
       )
@@ -105,8 +106,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Map[Binding, Key, Value, M]] = Lazy {
-    val binding = registry
-      .lookupMapByTypeId[M, Key, Value](typeId)
+    val binding = resolver
+      .resolveMapFor[M, Key, Value](typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Map")
       )
@@ -131,8 +132,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Dynamic[Binding]] = Lazy {
-    val binding = registry
-      .lookupDynamicByTypeId(typeId)
+    val binding = resolver
+      .resolveDynamic(typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Dynamic")
       )
@@ -156,8 +157,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Primitive[Binding, A]] = Lazy {
-    val binding = registry
-      .lookupPrimitiveByTypeId(typeId)
+    val binding = resolver
+      .resolvePrimitive[A](typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Primitive")
       )
@@ -182,8 +183,8 @@ private[schema] final class RebindTransformer(registry: TypeRegistry) extends Re
     storedDefaultValue: Option[DynamicValue],
     storedExamples: collection.immutable.Seq[DynamicValue]
   ): Lazy[Reflect.Wrapper[Binding, A, B]] = Lazy {
-    val binding = registry
-      .lookupWrapperByTypeId(typeId)
+    val binding = resolver
+      .resolveWrapper[A](typeId)
       .getOrElse(
         throw new RebindException(path, typeId, "Wrapper")
       )
