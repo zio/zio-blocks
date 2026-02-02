@@ -532,22 +532,22 @@ object BindingOfSpec extends SchemaBaseSpec {
       },
       test("smart constructor wrap succeeds for valid input") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        assertTrue(binding.wrap("test@example.com").isRight)
+        assertTrue(scala.util.Try(binding.wrap("test@example.com")).isSuccess)
       },
       test("smart constructor wrap fails for invalid input") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        assertTrue(binding.wrap("invalid").isLeft)
+        assertTrue(scala.util.Try(binding.wrap("invalid")).isFailure)
       },
       test("smart constructor unwrap extracts underlying value") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        val email   = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(email) == Right("test@example.com"))
+        val email   = scala.util.Try(binding.wrap("test@example.com")).toOption.get
+        assertTrue(binding.unwrap(email) == "test@example.com")
       },
       test("smart constructor with SchemaError return type") {
         val binding = Binding.of[PositiveDouble].asInstanceOf[Binding.Wrapper[PositiveDouble, Double]]
         assertTrue(
-          binding.wrap(1.5).isRight &&
-            binding.wrap(-1.0).isLeft
+          scala.util.Try(binding.wrap(1.5)).isSuccess &&
+            scala.util.Try(binding.wrap(-1.0)).isFailure
         )
       },
       test("regular case class without smart constructor returns Binding.Record") {

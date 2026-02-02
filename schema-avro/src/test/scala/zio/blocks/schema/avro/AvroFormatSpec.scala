@@ -1024,10 +1024,10 @@ object AvroFormatSpec extends SchemaBaseSpec {
         TypeId.nominal[Email]("Email", Owner.fromPackagePath("zio.blocks.avro").term("AvroFormatSpec")),
         Binding.Wrapper(
           {
-            case x @ EmailRegex(_*) => new Right(new Email(x))
-            case _                  => new Left(SchemaError.validationFailed("Expected Email"))
+            case x @ EmailRegex(_*) => new Email(x)
+            case _                  => throw SchemaError.validationFailed("Expected Email")
           },
-          (e: Email) => Right(e.value)
+          (e: Email) => e.value
         )
       )
     )

@@ -147,8 +147,8 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
       test("rebinds wrapper schema") {
         val dynamicSchema  = Schema[UserId].toDynamicSchema
         val wrapperBinding = Binding.Wrapper[UserId, Long](
-          wrap = l => scala.Right(UserId(l)),
-          unwrap = u => scala.Right(u.value)
+          wrap = l => UserId(l),
+          unwrap = u => u.value
         )
         val registry = TypeRegistry.default.bind(wrapperBinding)
 

@@ -3479,14 +3479,14 @@ object OpticSpecTypes {
 
     def applyUnsafe(value: Record1): Wrapper =
       if (value.b ^ value.f < 0 || value.f == 0) new Wrapper(value)
-      else throw new IllegalArgumentException("Unexpected 'Wrapper' value")
+      else throw SchemaError.validationFailed("Unexpected 'Wrapper' value")
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
       typeId = TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("OpticSpec")),
       wrapperBinding = Binding.Wrapper(
-        wrap = Wrapper.apply,
-        unwrap = (x: Wrapper) => Right(x.value)
+        wrap = Wrapper.applyUnsafe,
+        unwrap = (x: Wrapper) => x.value
       )
     )
     implicit val schema: Schema[Wrapper] = new Schema(reflect)

@@ -1996,47 +1996,36 @@ class JsonBinaryCodecDeriver private[json] (
           private[this] val wrappedCodec = codec
 
           override def decodeValue(in: JsonReader, default: A): A =
-            wrap(
-              try {
+            try
+              wrap(
                 wrappedCodec.decodeValue(
                   in, {
                     if (default == null) null
-                    else
-                      unwrap(default) match {
-                        case Right(b)    => b
-                        case Left(error) => in.decodeError(error.message)
-                      }
+                    else unwrap(default)
                   }.asInstanceOf[Wrapped]
                 )
-              } catch {
-                case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
-              }
-            ) match {
-              case Right(x)    => x
-              case Left(error) => in.decodeError(error.message)
+              )
+            catch {
+              case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
             }
 
           override def encodeValue(x: A, out: JsonWriter): Unit =
-            unwrap(x) match {
-              case Right(b)    => wrappedCodec.encodeValue(b, out)
-              case Left(error) => out.encodeError(error.message)
+            try wrappedCodec.encodeValue(unwrap(x), out)
+            catch {
+              case error if NonFatal(error) => out.encodeError(error.getMessage)
             }
 
           override def decodeKey(in: JsonReader): A =
-            wrap(
-              try wrappedCodec.decodeKey(in)
-              catch {
-                case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
-              }
-            ) match {
-              case Right(x)    => x
-              case Left(error) => in.decodeError(error.message)
+            try
+              wrap(wrappedCodec.decodeKey(in))
+            catch {
+              case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
             }
 
           override def encodeKey(x: A, out: JsonWriter): Unit =
-            unwrap(x) match {
-              case Right(b)    => wrappedCodec.encodeKey(b, out)
-              case Left(error) => out.encodeError(error.message)
+            try wrappedCodec.encodeKey(unwrap(x), out)
+            catch {
+              case error if NonFatal(error) => out.encodeError(error.getMessage)
             }
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema

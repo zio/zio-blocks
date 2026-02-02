@@ -11,7 +11,7 @@ The validation system in ZIO Blocks provides:
 
 - **Declarative constraints** on numeric and string values
 - **Automatic enforcement** during schema-based decoding
-- **Integration with wrapper types** via `transformOrFail` for custom validation logic
+- **Integration with wrapper types** via `transform` for custom validation logic
 - **Schema error reporting** with path information for debugging
 
 ```
@@ -137,7 +137,7 @@ Use the factory methods on `SchemaError` to create errors:
 ```scala
 import zio.blocks.schema.SchemaError
 
-// For validation failures in transformOrFail
+// For validation failures in transform
 val error = SchemaError.validationFailed("must be positive")
 
 // Generic message error
@@ -179,7 +179,7 @@ Validation failed: value must be positive at: $.user.age
 
 ## Integration with Wrapper Types
 
-The most common way to use validation in ZIO Blocks is through `transformOrFail`, which creates a schema for a wrapper type with validation logic.
+The most common way to use validation in ZIO Blocks is through `transform`, which creates a schema for a wrapper type with validation logic.
 
 ### Basic Wrapper with Validation
 
@@ -189,12 +189,12 @@ import zio.blocks.schema.{Schema, SchemaError}
 case class PositiveInt private (value: Int)
 
 object PositiveInt {
-  def make(n: Int): Either[SchemaError, PositiveInt] =
-    if (n > 0) Right(PositiveInt(n))
-    else Left(SchemaError.validationFailed("must be positive"))
+  def unsafeMake(n: Int): PositiveInt =
+    if (n > 0) PositiveInt(n)
+    else throw SchemaError.validationFailed("must be positive")
 
   implicit val schema: Schema[PositiveInt] =
-    Schema[Int].transformOrFail(make, _.value)
+    Schema[Int].transform(unsafeMake, _.value)
 }
 ```
 
@@ -208,14 +208,14 @@ case class Email private (value: String)
 object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
 
-  def make(s: String): Either[SchemaError, Email] =
+  def unsafeMake(s: String): Email =
     s match {
-      case EmailRegex(_*) => Right(Email(s))
-      case _ => Left(SchemaError.validationFailed("Invalid email format"))
+      case EmailRegex(_*) => Email(s)
+      case _ => throw SchemaError.validationFailed("Invalid email format")
     }
 
   implicit val schema: Schema[Email] =
-    Schema[String].transformOrFail(make, _.value).withTypeName[Email]
+    Schema[String].transform(unsafeMake, _.value).withTypeName[Email]
 }
 ```
 
@@ -227,12 +227,12 @@ import zio.blocks.schema.{Schema, SchemaError}
 case class NonEmptyString private (value: String)
 
 object NonEmptyString {
-  def make(s: String): Either[SchemaError, NonEmptyString] =
-    if (s.nonEmpty) Right(NonEmptyString(s))
-    else Left(SchemaError.validationFailed("String must not be empty"))
+  def unsafeMake(s: String): NonEmptyString =
+    if (s.nonEmpty) NonEmptyString(s)
+    else throw SchemaError.validationFailed("String must not be empty")
 
   implicit val schema: Schema[NonEmptyString] =
-    Schema[String].transformOrFail(make, _.value).withTypeName[NonEmptyString]
+    Schema[String].transform(unsafeMake, _.value).withTypeName[NonEmptyString]
 }
 ```
 
@@ -244,12 +244,12 @@ import zio.blocks.schema.{Schema, SchemaError}
 case class Percentage private (value: Int)
 
 object Percentage {
-  def make(n: Int): Either[SchemaError, Percentage] =
-    if (n >= 0 && n <= 100) Right(Percentage(n))
-    else Left(SchemaError.validationFailed(s"Percentage must be 0-100, got $n"))
+  def unsafeMake(n: Int): Percentage =
+    if (n >= 0 && n <= 100) Percentage(n)
+    else throw SchemaError.validationFailed(s"Percentage must be 0-100, got $n")
 
   implicit val schema: Schema[Percentage] =
-    Schema[Int].transformOrFail(make, _.value).withTypeName[Percentage]
+    Schema[Int].transform(unsafeMake, _.value).withTypeName[Percentage]
 }
 ```
 
@@ -265,11 +265,11 @@ case class BoundedValue(value: Int)
 object BoundedValue {
   implicit val schema: Schema[BoundedValue] = Schema[Int].transform(
     wrap = n =>
-      if (n >= 0 && n < 100) Right(BoundedValue(n))
-      else Left(SchemaError.validationFailed("Value must be in [0, 100)")),
+      if (n >= 0 && n < 100) BoundedValue(n)
+      else throw SchemaError.validationFailed("Value must be in [0, 100)"),
     unwrap = v =>
-      if (v.value >= 0) Right(v.value)
-      else Left(SchemaError.validationFailed("Corrupted value"))
+      if (v.value >= 0) v.value
+      else throw SchemaError.validationFailed("Corrupted value")
   )
 }
 ```
@@ -286,12 +286,12 @@ import zio.blocks.schema.json._
 
 case class PositiveInt(value: Int)
 object PositiveInt {
-  def make(n: Int): Either[SchemaError, PositiveInt] =
-    if (n > 0) Right(PositiveInt(n))
-    else Left(SchemaError.validationFailed("must be positive"))
+  def unsafeMake(n: Int): PositiveInt =
+    if (n > 0) PositiveInt(n)
+    else throw SchemaError.validationFailed("must be positive")
 
   implicit val schema: Schema[PositiveInt] =
-    Schema[Int].transformOrFail(make, _.value)
+    Schema[Int].transform(unsafeMake, _.value)
 }
 
 case class Order(quantity: PositiveInt, price: BigDecimal)
@@ -374,7 +374,7 @@ When parsing JSON Schema, these constraints are converted back to `Validation` i
 
 ## Composing Validations
 
-The current `Validation` ADT does not support combining multiple validations on a single primitive (e.g., both `NonEmpty` and `Pattern`). For complex validation logic, use `transformOrFail`:
+The current `Validation` ADT does not support combining multiple validations on a single primitive (e.g., both `NonEmpty` and `Pattern`). For complex validation logic, use `transform`:
 
 ```scala
 import zio.blocks.schema.{Schema, SchemaError}
@@ -384,23 +384,21 @@ case class Username private (value: String)
 object Username {
   private val UsernameRegex = "^[a-z][a-z0-9_]{2,19}$".r
 
-  def make(s: String): Either[SchemaError, Username] = {
+  def unsafeMake(s: String): Username = {
     if (s.isEmpty)
-      Left(SchemaError.validationFailed("Username cannot be empty"))
+      throw SchemaError.validationFailed("Username cannot be empty")
     else if (s.length < 3)
-      Left(SchemaError.validationFailed("Username must be at least 3 characters"))
+      throw SchemaError.validationFailed("Username must be at least 3 characters")
     else if (s.length > 20)
-      Left(SchemaError.validationFailed("Username cannot exceed 20 characters"))
+      throw SchemaError.validationFailed("Username cannot exceed 20 characters")
     else if (!s.matches(UsernameRegex.regex))
-      Left(SchemaError.validationFailed(
-        "Username must start with a letter and contain only lowercase letters, numbers, and underscores"
-      ))
+      throw SchemaError.validationFailed("Username must start with a letter and contain only lowercase letters, numbers, and underscores")
     else
-      Right(Username(s))
+      Username(s)
   }
 
   implicit val schema: Schema[Username] =
-    Schema[String].transformOrFail(make, _.value).withTypeName[Username]
+    Schema[String].transform(unsafeMake, _.value).withTypeName[Username]
 }
 ```
 
@@ -408,18 +406,18 @@ object Username {
 
 ### 1. Use Wrapper Types for Domain Validation
 
-Prefer creating dedicated wrapper types with `transformOrFail` over relying solely on `Validation` constraints:
+Prefer creating dedicated wrapper types with `transform` over relying solely on `Validation` constraints:
 
 ```scala
 // Good: Explicit domain type with validation
 case class OrderId private (value: String)
 object OrderId {
-  def make(s: String): Either[SchemaError, OrderId] =
-    if (s.matches("^ORD-\\d{8}$")) Right(OrderId(s))
-    else Left(SchemaError.validationFailed("Invalid order ID format"))
+  def unsafeMake(s: String): OrderId =
+    if (s.matches("^ORD-\\d{8}$")) OrderId(s)
+    else throw SchemaError.validationFailed("Invalid order ID format")
 
   implicit val schema: Schema[OrderId] =
-    Schema[String].transformOrFail(make, _.value).withTypeName[OrderId]
+    Schema[String].transform(unsafeMake, _.value).withTypeName[OrderId]
 }
 
 // Less ideal: Raw String with separate validation
@@ -432,26 +430,15 @@ Include context in error messages to help users understand what went wrong:
 
 ```scala
 // Good: Specific, actionable error message
-Left(SchemaError.validationFailed(
+throw SchemaError.validationFailed(
   s"Age must be between 0 and 150, got $age"
-))
+)
 
 // Less helpful: Generic message
-Left(SchemaError.validationFailed("Invalid age"))
+throw SchemaError.validationFailed("Invalid age")
 ```
 
-### 3. Use withTypeName for Better Debugging
-
-Always call `withTypeName` after `transformOrFail` to ensure error messages reference the correct type:
-
-```scala
-implicit val schema: Schema[Email] =
-  Schema[String]
-    .transformOrFail(make, _.value)
-    .withTypeName[Email]  // Error messages will reference "Email"
-```
-
-### 4. Combine Errors When Possible
+### 3. Combine Errors When Possible
 
 For multiple validation failures, combine them into a single `SchemaError`:
 

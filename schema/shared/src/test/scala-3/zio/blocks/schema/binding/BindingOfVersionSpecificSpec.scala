@@ -218,22 +218,22 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       },
       test("smart constructor wrap succeeds for valid input") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        assertTrue(binding.wrap("test@example.com").isRight)
+        assertTrue(scala.util.Try(binding.wrap("test@example.com")).isSuccess)
       },
       test("smart constructor wrap fails for invalid input") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        assertTrue(binding.wrap("invalid").isLeft)
+        assertTrue(scala.util.Try(binding.wrap("invalid")).isFailure)
       },
       test("smart constructor unwrap extracts underlying value") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        val email   = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(email) == Right("test@example.com"))
+        val email   = scala.util.Try(binding.wrap("test@example.com")).toOption.get
+        assertTrue(binding.unwrap(email) == "test@example.com")
       },
       test("smart constructor with SchemaError return type") {
         val binding = Binding.of[PositiveDouble].asInstanceOf[Binding.Wrapper[PositiveDouble, Double]]
         assertTrue(
-          binding.wrap(1.5).isRight &&
-            binding.wrap(-1.0).isLeft
+          scala.util.Try(binding.wrap(1.5)).isSuccess &&
+            scala.util.Try(binding.wrap(-1.0)).isFailure
         )
       },
       test("regular case class without smart constructor returns Binding.Record") {
@@ -288,10 +288,7 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       test("opaque type wrap and unwrap work") {
         val binding = Binding.of[OpaqueAge].asInstanceOf[Binding.Wrapper[OpaqueAge, Int]]
         val wrapped = binding.wrap(25)
-        assertTrue(
-          wrapped.isRight &&
-            binding.unwrap(wrapped.toOption.get) == Right(25)
-        )
+        assertTrue(binding.unwrap(wrapped) == 25)
       },
       test("opaque type with String error smart constructor returns Binding.Wrapper") {
         val binding = Binding.of[ValidatedEmail]
@@ -300,16 +297,16 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       test("opaque type smart constructor wrap succeeds for valid input") {
         val binding = Binding.of[ValidatedEmail].asInstanceOf[Binding.Wrapper[ValidatedEmail, String]]
         val result  = binding.wrap("test@example.com")
-        assertTrue(result.isRight)
+        assertTrue(binding.unwrap(result) == "test@example.com")
       },
       test("opaque type smart constructor wrap fails for invalid input") {
         val binding = Binding.of[ValidatedEmail].asInstanceOf[Binding.Wrapper[ValidatedEmail, String]]
-        assertTrue(binding.wrap("invalid").isLeft)
+        assertTrue(scala.util.Try(binding.wrap("invalid")).isFailure)
       },
       test("opaque type smart constructor unwrap extracts value") {
         val binding = Binding.of[ValidatedEmail].asInstanceOf[Binding.Wrapper[ValidatedEmail, String]]
-        val wrapped = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(wrapped) == Right("test@example.com"))
+        val wrapped = scala.util.Try(binding.wrap("test@example.com")).toOption.get
+        assertTrue(binding.unwrap(wrapped) == "test@example.com")
       },
       test("opaque type with SchemaError smart constructor returns Binding.Wrapper") {
         val binding = Binding.of[PositiveInt]
@@ -317,12 +314,11 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       },
       test("opaque type with SchemaError smart constructor wrap succeeds for valid input") {
         val binding = Binding.of[PositiveInt].asInstanceOf[Binding.Wrapper[PositiveInt, Int]]
-        assertTrue(binding.wrap(42).isRight)
+        assertTrue(scala.util.Try(binding.wrap(42)).isSuccess)
       },
       test("opaque type with SchemaError smart constructor wrap fails for invalid input") {
         val binding = Binding.of[PositiveInt].asInstanceOf[Binding.Wrapper[PositiveInt, Int]]
-        val result  = binding.wrap(-5)
-        assertTrue(result.isLeft)
+        assertTrue(scala.util.Try(binding.wrap(-5)).isFailure)
       },
       test("case class with opaque type field roundtrip") {
         val binding   = Binding.of[PersonWithOpaqueName].asInstanceOf[Binding.Record[PersonWithOpaqueName]]
@@ -341,18 +337,12 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
       test("newtype wrap and unwrap work for Long") {
         val binding = Binding.of[UserId].asInstanceOf[Binding.Wrapper[UserId, Long]]
         val wrapped = binding.wrap(12345L)
-        assertTrue(
-          wrapped.isRight &&
-            binding.unwrap(wrapped.toOption.get) == Right(12345L)
-        )
+        assertTrue(binding.unwrap(wrapped) == 12345L)
       },
       test("newtype wrap and unwrap work for String") {
         val binding = Binding.of[Username].asInstanceOf[Binding.Wrapper[Username, String]]
         val wrapped = binding.wrap("alice")
-        assertTrue(
-          wrapped.isRight &&
-            binding.unwrap(wrapped.toOption.get) == Right("alice")
-        )
+        assertTrue(binding.unwrap(wrapped) == "alice")
       }
     ),
     suite("generic tuples")(

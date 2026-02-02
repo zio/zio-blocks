@@ -1050,8 +1050,13 @@ object Reflect {
       F: HasBinding[F]
     ): Either[SchemaError, A] =
       wrapped.fromDynamicValue(value, trace) match {
-        case Right(unwrapped) => binding.wrap(unwrapped)
-        case left             => left.asInstanceOf[Either[SchemaError, A]]
+        case Right(unwrapped) =>
+          try Right(binding.wrap(unwrapped))
+          catch {
+            case error: SchemaError => Left(error)
+            case other: Throwable   => Left(SchemaError.validationFailed(other.getMessage))
+          }
+        case left => left.asInstanceOf[Either[SchemaError, A]]
       }
 
     def metadata: F[NodeBinding, A] = wrapperBinding
@@ -1061,11 +1066,10 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Wrapper[F, A, B] =
       copy(modifiers = this.modifiers ++ modifiers)
 
-    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
-      binding.unwrap(value) match {
-        case Right(unwrapped) => wrapped.toDynamicValue(unwrapped)
-        case Left(error)      => throw error
-      }
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
+      val unwrapped = binding.unwrap(value)
+      wrapped.toDynamicValue(unwrapped)
+    }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {

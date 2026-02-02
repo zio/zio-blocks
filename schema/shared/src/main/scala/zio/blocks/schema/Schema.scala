@@ -111,18 +111,20 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
     patch.apply(value, PatchMode.Strict)
 
   /**
-   * Transforms this schema from type `A` to type `B` using the provided partial
-   * transformation function and its inverse.
+   * Transforms this schema from type `A` to type `B` using transformation
+   * functions that can fail by throwing exceptions.
    *
    * This is useful for creating schemas for wrapper types, validated newtypes,
-   * or any type that can be derived from another type with possible validation.
+   * or any type that can be derived from another type with validation.
    *
-   * The `to` function is called during decoding (e.g., `fromDynamicValue`) to
-   * convert the underlying `A` value to `B`. If it returns `Left`, decoding
-   * fails with the provided `SchemaError`.
+   * The `wrap` function is called during decoding (e.g., `fromDynamicValue`) to
+   * convert the underlying `A` value to `B`. It can throw `SchemaError` (or any
+   * exception, which will be converted to `SchemaError`) to indicate validation
+   * failure.
    *
-   * The `from` function is called during encoding (e.g., `toDynamicValue`) to
-   * convert `B` back to `A` for serialization.
+   * The `unwrap` function is called during encoding (e.g., `toDynamicValue`) to
+   * convert `B` back to `A` for serialization. It can also throw exceptions if
+   * needed, though this is less common.
    *
    * The `TypeId[B]` is captured implicitly to ensure correct type
    * identification.
@@ -131,44 +133,14 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *   {{{
    * case class PositiveInt private (value: Int)
    * object PositiveInt {
-   *   def make(n: Int): Either[SchemaError, PositiveInt] =
-   *     if (n > 0) Right(PositiveInt(n))
-   *     else Left(SchemaError.validationFailed("must be positive"))
+   *   def make(n: Int): PositiveInt =
+   *     if (n > 0) PositiveInt(n)
+   *     else throw SchemaError.validationFailed("must be positive")
    *
    *   implicit val schema: Schema[PositiveInt] =
-   *     Schema[Int].transformOrFail(make, _.value)
+   *     Schema[Int].transform(make, _.value)
    * }
    *   }}}
-   *
-   * @param to
-   *   Partial function to transform `A` to `B`, returning `Left` on validation
-   *   failure
-   * @param from
-   *   Total function to transform `B` back to `A`
-   * @tparam B
-   *   The target type
-   * @return
-   *   A new schema for type `B`
-   */
-  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A)(implicit typeId: TypeId[B]): Schema[B] =
-    new Schema(
-      new Reflect.Wrapper[Binding, B, A](
-        reflect,
-        typeId,
-        new Binding.Wrapper(to, b => Right(from(b)))
-      )
-    )
-
-  /**
-   * Transforms this schema from type `A` to type `B` using partial functions
-   * that can fail in both directions.
-   *
-   * This is useful for creating schemas for types with bidirectional validation
-   * requirements, where both constructing the type AND extracting the
-   * underlying value may need validation.
-   *
-   * The `TypeId[B]` is captured implicitly to ensure correct type
-   * identification.
    *
    * @example
    *   {{{
@@ -177,68 +149,31 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    *   implicit val schema: Schema[ValidatedInt] =
    *     Schema[Int].transform(
    *       wrap = n =>
-   *         if (n > 0) Right(ValidatedInt(n))
-   *         else Left(SchemaError.validationFailed("Expected positive")),
+   *         if (n > 0) ValidatedInt(n)
+   *         else throw SchemaError.validationFailed("Expected positive"),
    *       unwrap = v =>
-   *         if (v.value < 100) Right(v.value)
-   *         else Left(SchemaError.validationFailed("Value too large"))
+   *         if (v.value < 100) v.value
+   *         else throw SchemaError.validationFailed("Value too large")
    *     )
    * }
    *   }}}
    *
-   * @param wrap
-   *   Partial function to transform `A` to `B` (used during decoding), returns
-   *   `Left` on failure
-   * @param unwrap
-   *   Partial function to transform `B` back to `A` (used during encoding),
-   *   returns `Left` on failure
-   * @tparam B
-   *   The target type
-   * @return
-   *   A new schema for type `B`
-   */
-  def transform[B](wrap: A => Either[SchemaError, B], unwrap: B => Either[SchemaError, A])(implicit
-    typeId: TypeId[B]
-  ): Schema[B] = new Schema(
-    new Reflect.Wrapper[Binding, B, A](
-      reflect,
-      typeId,
-      new Binding.Wrapper(wrap, unwrap)
-    )
-  )
-
-  /**
-   * Transforms this schema from type `A` to type `B` using total functions.
-   *
-   * This is useful for creating schemas for simple wrapper types where the
-   * transformation cannot fail.
-   *
-   * The `TypeId[B]` is captured implicitly to ensure correct type
-   * identification.
-   *
-   * @example
-   *   {{{
-   * case class UserId(value: Long)
-   * object UserId {
-   *   implicit val schema: Schema[UserId] =
-   *     Schema[Long].transform(UserId(_), _.value)
-   * }
-   *   }}}
-   *
    * @param to
-   *   Total function to transform `A` to `B`
+   *   Function to transform `A` to `B` (used during decoding). Throws
+   *   `SchemaError` on validation failure.
    * @param from
-   *   Total function to transform `B` back to `A`
+   *   Function to transform `B` back to `A` (used during encoding). Can throw
+   *   `SchemaError` on validation failure.
    * @tparam B
    *   The target type
    * @return
    *   A new schema for type `B`
    */
-  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B], d: DummyImplicit): Schema[B] = new Schema(
+  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B]): Schema[B] = new Schema(
     new Reflect.Wrapper[Binding, B, A](
       reflect,
       typeId,
-      new Binding.Wrapper(a => Right(to(a)), b => Right(from(b)))
+      new Binding.Wrapper(to, from)
     )
   )
 
@@ -372,11 +307,11 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
           wrap = { dv =>
             val j = Json.fromDynamicValue(dv)
             jsonSchema.check(j) match {
-              case None        => Right(j)
-              case Some(error) => Left(error)
+              case None        => j
+              case Some(error) => throw error
             }
           },
-          unwrap = j => Right(j.toDynamicValue)
+          unwrap = j => j.toDynamicValue
         )
       )
     )

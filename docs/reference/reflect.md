@@ -352,33 +352,20 @@ object PosInt {
 }
 ```
 
-To create schemas for wrapper types, use `transform` or `transformOrFail` followed by `withTypeId`:
+To create schemas for wrapper types, use `transform`:
 
 ```scala
 import zio.blocks.schema.Schema
 
-// Wrapper with validation using transformOrFail (can fail)
 case class PosInt private (value: Int) extends AnyVal
 
 object PosInt {
   def apply(value: Int): Either[SchemaError, PosInt] =
-    if (value >= 0) Right(new PosInt(value))
-    else Left(SchemaError.validationFailed("Expected positive value"))
+    if (value >= 0) new PosInt(value)
+    else throw SchemaError.validationFailed("Expected positive value")
 
   implicit val schema: Schema[PosInt] = 
-    Schema[Int].transformOrFail(PosInt.apply, _.value)
-}
-```
-
-If the wrapping function is total (i.e., cannot fail), you can use `transform`:
-
-```scala
-// Simple wrapper using transform (no validation, always succeeds)
-case class UserId(value: Long) extends AnyVal
-
-object UserId {
-  implicit val schema: Schema[UserId] =
-    Schema[Long].transform(UserId(_), _.value)
+    Schema[Int].transform(PosInt.apply, _.value)
 }
 ```
 
