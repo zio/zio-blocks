@@ -3,7 +3,7 @@ package zio.blocks.schema.migration.json
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json._
 import zio.blocks.schema.migration._
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 
 object MigrationJsonCodec {
 
@@ -26,7 +26,7 @@ object MigrationJsonCodec {
         case Array("each")        => Right(DynamicOptic.Node.Elements)
         case _                    => Right(DynamicOptic.Node.Field(str.value))
       }
-    case _ => Left(JsonError("Expected String for Optic Node"))
+    case _ => Left(SchemaError("Expected String for Optic Node"))
   }
 
   implicit val opticEncoder: JsonEncoder[DynamicOptic] =
@@ -73,7 +73,7 @@ object MigrationJsonCodec {
   }
 
   // =================================================================================
-  // 3. SchemaExpr Codec (FIXED: Removed unreachable case _)
+  // 3. SchemaExpr Codec
   // =================================================================================
 
   implicit val exprEncoder: JsonEncoder[SchemaExpr[_]] = JsonEncoder.instance {
@@ -96,8 +96,6 @@ object MigrationJsonCodec {
         "operand" -> exprEncoder.encode(operand),
         "op"      -> new Json.String(opStr)
       )
-
-    // [FIX] Removed 'case _' here because all subclasses are covered.
   }
 
   implicit val exprDecoder: JsonDecoder[SchemaExpr[_]] = JsonDecoder.instance { json =>
@@ -119,20 +117,20 @@ object MigrationJsonCodec {
 
           case Some("converted") =>
             for {
-              opJson  <- findField(fields, "operand").toRight(JsonError("Missing operand"))
+              opJson  <- findField(fields, "operand").toRight(SchemaError("Missing operand"))
               operand <- exprDecoder.decode(opJson)
-              opStr   <- findField(fields, "op").flatMap(getString).toRight(JsonError("Missing op"))
+              opStr   <- findField(fields, "op").flatMap(getString).toRight(SchemaError("Missing op"))
               op      <- opStr match {
                       case "ToString" => Right(SchemaExpr.ConversionOp.ToString)
                       case "ToInt"    => Right(SchemaExpr.ConversionOp.ToInt)
-                      case _          => Left(JsonError(s"Unknown ConversionOp: $opStr"))
+                      case _          => Left(SchemaError(s"Unknown ConversionOp: $opStr"))
                     }
             } yield SchemaExpr.Converted(operand, op)
 
           case Some(_) => Right(SchemaExpr.Identity())
-          case None    => Left(JsonError("Missing 'type' field"))
+          case None    => Left(SchemaError("Missing 'type' field"))
         }
-      case _ => Left(JsonError("Expected Object for SchemaExpr"))
+      case _ => Left(SchemaError("Expected Object for SchemaExpr"))
     }
   }
 
@@ -214,14 +212,14 @@ object MigrationJsonCodec {
       case obj: Json.Object =>
         val fields = obj.value
 
-        val result = for {
-          opJson <- findField(fields, "op").toRight(JsonError("Missing 'op'"))
-          op     <- getString(opJson).toRight(JsonError("op must be string"))
+        for {
+          opJson <- findField(fields, "op").toRight(SchemaError("Missing 'op'"))
+          op     <- getString(opJson).toRight(SchemaError("op must be string"))
 
-          detJson  <- findField(fields, "details").toRight(JsonError("Missing 'details'"))
-          detChunk <- getObject(detJson).toRight(JsonError("details must be object"))
+          detJson  <- findField(fields, "details").toRight(SchemaError("Missing 'details'"))
+          detChunk <- getObject(detJson).toRight(SchemaError("details must be object"))
 
-          atJson <- findField(detChunk, "at").toRight(JsonError("Missing 'at'"))
+          atJson <- findField(detChunk, "at").toRight(SchemaError("Missing 'at'"))
           at     <- opticDecoder.decode(atJson)
 
           action <- op match {
@@ -240,7 +238,7 @@ object MigrationJsonCodec {
                       case "Rename" =>
                         findField(detChunk, "to")
                           .flatMap(getString)
-                          .toRight(JsonError("Missing 'to'"))
+                          .toRight(SchemaError("Missing 'to'"))
                           .map(to => MigrationAction.Rename(at, to))
 
                       case "TransformValue" =>
@@ -259,8 +257,8 @@ object MigrationJsonCodec {
 
                       case "RenameCase" =>
                         for {
-                          from <- findField(detChunk, "from").flatMap(getString).toRight(JsonError("Missing 'from'"))
-                          to   <- findField(detChunk, "to").flatMap(getString).toRight(JsonError("Missing 'to'"))
+                          from <- findField(detChunk, "from").flatMap(getString).toRight(SchemaError("Missing 'from'"))
+                          to   <- findField(detChunk, "to").flatMap(getString).toRight(SchemaError("Missing 'to'"))
                         } yield MigrationAction.RenameCase(at, from, to)
 
                       case "TransformElements" =>
@@ -289,34 +287,32 @@ object MigrationJsonCodec {
 
                       case "Join" =>
                         for {
-                          srcsJson <- findField(detChunk, "sourcePaths").toRight(JsonError("Missing sourcePaths"))
+                          srcsJson <- findField(detChunk, "sourcePaths").toRight(SchemaError("Missing sourcePaths"))
                           srcs     <- JsonDecoder[Vector[DynamicOptic]].decode(srcsJson)
-                          combJson <- findField(detChunk, "combiner").toRight(JsonError("Missing combiner"))
+                          combJson <- findField(detChunk, "combiner").toRight(SchemaError("Missing combiner"))
                           comb     <- exprDecoder.decode(combJson)
                         } yield MigrationAction.Join(at, srcs, comb)
 
                       case "Split" =>
                         for {
-                          tgtsJson  <- findField(detChunk, "targetPaths").toRight(JsonError("Missing targetPaths"))
+                          tgtsJson  <- findField(detChunk, "targetPaths").toRight(SchemaError("Missing targetPaths"))
                           tgts      <- JsonDecoder[Vector[DynamicOptic]].decode(tgtsJson)
-                          splitJson <- findField(detChunk, "splitter").toRight(JsonError("Missing splitter"))
+                          splitJson <- findField(detChunk, "splitter").toRight(SchemaError("Missing splitter"))
                           splitter  <- exprDecoder.decode(splitJson)
                         } yield MigrationAction.Split(at, tgts, splitter)
 
                       case "TransformCase" =>
                         for {
-                          actsJson <- findField(detChunk, "actions").toRight(JsonError("Missing actions"))
+                          actsJson <- findField(detChunk, "actions").toRight(SchemaError("Missing actions"))
                           acts     <- JsonDecoder[Vector[MigrationAction]].decode(actsJson)
                         } yield MigrationAction.TransformCase(at, acts)
 
                       case _ =>
-                        Left(JsonError(s"Unsupported Migration Action: $op"))
+                        Left(SchemaError(s"Unsupported Migration Action: $op"))
                     }
         } yield action
 
-        result
-
-      case _ => Left(JsonError("Expected Object"))
+      case _ => Left(SchemaError("Expected Object"))
     }
   }
 

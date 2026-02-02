@@ -2,7 +2,9 @@ package zio.blocks.schema.migration
 
 import zio.test._
 import zio.blocks.schema._
-import scala.annotation.unused // [FIX] Added unused
+import scala.annotation.unused
+import zio.blocks.chunk.Chunk // [FIX] Added Chunk Import
+
 //import scala.collection.immutable.ListMap
 
 object StructuralMigrationSpec extends ZIOSpecDefault {
@@ -38,11 +40,12 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
     },
 
     test("Zero Runtime Overhead: Structural access does not crash or use reflection at runtime") {
+      // [FIX] Converted Vector to Chunk using Chunk.fromIterable
       val oldData = DynamicValue.Record(
-        Vector(
+        Chunk.fromIterable(Vector(
           "name" -> DynamicValue.Primitive(PrimitiveValue.String("Rahim")),
           "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        )
+        ))
       )
 
       val dynamicMigration = zio.blocks.schema.migration.DynamicMigration(
@@ -55,11 +58,13 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
       )
 
       val result   = MigrationInterpreter.run(oldData, dynamicMigration.actions.head)
+      
+      // [FIX] Converted Vector to Chunk using Chunk.fromIterable
       val expected = DynamicValue.Record(
-        Vector(
+        Chunk.fromIterable(Vector(
           "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("Rahim")),
           "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        )
+        ))
       )
 
       assertTrue(result == Right(expected))
