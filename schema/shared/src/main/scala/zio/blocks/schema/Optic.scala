@@ -932,14 +932,16 @@ object Optional {
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = try wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
-          catch {
-            case error: SchemaError => throw toOpticCheckBuilder(idx, error)
-          }
-          try wrapperBinding.wrap({
-            if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
-            else modifyRecursive(registers, idx + 1, x1, f)
-          }.asInstanceOf[Wrapped])
+          val x1 =
+            try wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            catch {
+              case error: SchemaError => throw toOpticCheckBuilder(idx, error)
+            }
+          try
+            wrapperBinding.wrap({
+              if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+              else modifyRecursive(registers, idx + 1, x1, f)
+            }.asInstanceOf[Wrapped])
           catch {
             case error: SchemaError => throw toOpticCheckBuilder(idx, error)
           }
@@ -2099,14 +2101,16 @@ object Traversal {
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = try wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
-          catch {
-            case error: SchemaError => throw toOpticCheckBuilder(idx, error)
-          }
-          try wrapperBinding.wrap({
-            if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
-            else modifyRecursive(registers, idx + 1, x1, f)
-          }.asInstanceOf[Wrapped])
+          val x1 =
+            try wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            catch {
+              case error: SchemaError => throw toOpticCheckBuilder(idx, error)
+            }
+          try
+            wrapperBinding.wrap({
+              if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+              else modifyRecursive(registers, idx + 1, x1, f)
+            }.asInstanceOf[Wrapped])
           catch {
             case error: SchemaError => throw toOpticCheckBuilder(idx, error)
           }

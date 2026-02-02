@@ -688,8 +688,8 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
             }
           }
 
-        val fieldName       = info.unwrapFieldName
-        val fieldSymbol     = tpe.typeSymbol.fieldMember(fieldName)
+        val fieldName                = info.unwrapFieldName
+        val fieldSymbol              = tpe.typeSymbol.fieldMember(fieldName)
         val unwrapExpr: Expr[A => b] = '{ (a: A) =>
           ${ Select('a.asTerm, fieldSymbol).asExpr.asInstanceOf[Expr[b]] }
         }

@@ -170,10 +170,11 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   ): Schema[B] =
     Schema[A]
       .transform(
-        a => newType.make(a) match {
-          case Right(b) => b
-          case Left(err) => throw SchemaError.validationFailed(err)
-        },
+        a =>
+          newType.make(a) match {
+            case Right(b)  => b
+            case Left(err) => throw SchemaError.validationFailed(err)
+          },
         newType.unwrap
       )
 
@@ -184,10 +185,11 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
   ): Schema[B] =
     Schema[A]
       .transform(
-        a => subType.make(a) match {
-          case Right(b) => b
-          case Left(err) => throw SchemaError.validationFailed(err)
-        },
+        a =>
+          subType.make(a) match {
+            case Right(b)  => b
+            case Left(err) => throw SchemaError.validationFailed(err)
+          },
         _.asInstanceOf[A]
       )
 
