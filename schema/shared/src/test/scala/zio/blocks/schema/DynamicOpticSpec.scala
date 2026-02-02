@@ -156,6 +156,6 @@ object DynamicOpticSpec extends SchemaBaseSpec {
 
     implicit lazy val typeId: TypeId[PosInt] = TypeId.of[PosInt]
     implicit lazy val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value)
+      Schema[Int].transform[PosInt](PosInt.applyUnsafe, _.value)
   }
 }

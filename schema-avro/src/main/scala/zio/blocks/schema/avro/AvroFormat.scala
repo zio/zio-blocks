@@ -867,23 +867,14 @@ object AvroFormat
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
 
-                def decodeUnsafe(decoder: BinaryDecoder): A = {
-                  val wrapped =
-                    try wrappedCodec.decodeUnsafe(decoder)
-                    catch {
-                      case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
-                    }
-                  wrap(wrapped) match {
-                    case Right(x)  => x
-                    case Left(err) => decodeError(err.message)
+                def decodeUnsafe(decoder: BinaryDecoder): A =
+                  try wrap(wrappedCodec.decodeUnsafe(decoder))
+                  catch {
+                    case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
                   }
-                }
 
                 def encode(value: A, encoder: BinaryEncoder): Unit =
-                  unwrap(value) match {
-                    case Right(wrapped) => wrappedCodec.encode(wrapped, encoder)
-                    case Left(err)      => throw err
-                  }
+                  wrappedCodec.encode(unwrap(value), encoder)
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {

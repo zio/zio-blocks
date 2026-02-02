@@ -609,22 +609,13 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         private[this] val wrappedCodec = codec
 
         def decodeValue(in: MessagePackReader): A =
-          wrap(
-            try wrappedCodec.decodeValue(in)
-            catch {
-              case error if NonFatal(error) =>
-                decodeError(DynamicOptic.Node.Wrapped, error)
-            }
-          ) match {
-            case Right(x)    => x
-            case Left(error) => in.decodeError(error.toString)
+          try wrap(wrappedCodec.decodeValue(in))
+          catch {
+            case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
           }
 
         def encodeValue(value: A, out: MessagePackWriter): Unit =
-          unwrap(value) match {
-            case Right(wrapped) => wrappedCodec.encodeValue(wrapped, out)
-            case Left(error)    => throw error
-          }
+          wrappedCodec.encodeValue(unwrap(value), out)
       }
     } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance.force
 

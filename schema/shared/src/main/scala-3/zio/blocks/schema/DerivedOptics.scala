@@ -238,20 +238,14 @@ object DerivedOptics {
 
         override def construct(registers: Registers, offset: RegisterOffset): A = {
           val b = reader(registers, offset).asInstanceOf[B]
-          wrapper.binding.wrap(b) match {
-            case Right(a)  => a
-            case Left(err) => throw err
-          }
+          wrapper.binding.wrap(b)
         }
       },
       deconstructor = new Deconstructor[A] {
         override def usedRegisters: RegisterOffset = usedRegs
 
         override def deconstruct(registers: Registers, offset: RegisterOffset, value: A): Unit =
-          wrapper.binding.unwrap(value) match {
-            case Right(b)    => writer(registers, offset, b)
-            case Left(error) => throw error
-          }
+          writer(registers, offset, wrapper.binding.unwrap(value))
       }
     )
 

@@ -877,7 +877,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeId = TypeId.of[InnerId],
-        wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), s => Right(s))
+        wrapperBinding = Binding.Wrapper(
+          s =>
+            InnerId(s) match {
+              case Right(id) => id
+              case Left(err) => throw SchemaError.validationFailed(err)
+            },
+          s => s
+        )
       )
     )
 
@@ -922,7 +929,14 @@ object Id {
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeId = TypeId.of[Id],
-      wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), s => Right(s))
+      wrapperBinding = Binding.Wrapper(
+        s =>
+          Id(s) match {
+            case Right(id) => id
+            case Left(err) => throw SchemaError.validationFailed(err)
+          },
+        s => s
+      )
     )
   )
 

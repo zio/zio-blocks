@@ -95,11 +95,11 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *   structure
    */
   def toSchema: Schema[DynamicValue] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       to = dv =>
         check(dv) match {
-          case Some(error) => Left(error)
-          case scala.None  => Right(dv)
+          case Some(error) => throw error
+          case scala.None  => dv
         },
       from = identity
     )

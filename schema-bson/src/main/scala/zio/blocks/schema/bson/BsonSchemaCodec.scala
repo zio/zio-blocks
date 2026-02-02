@@ -1049,32 +1049,26 @@ object BsonSchemaCodec {
 
       val encoder = new BsonEncoder[A] {
         def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit =
-          binding.unwrap(value) match {
-            case Right(unwrapped) => wrappedCodec.encoder.encode(writer, unwrapped, ctx)
-            case Left(error)      => throw error
-          }
+          wrappedCodec.encoder.encode(writer, binding.unwrap(value), ctx)
 
         def toBsonValue(value: A): BsonValue =
-          binding.unwrap(value) match {
-            case Right(unwrapped) => wrappedCodec.encoder.toBsonValue(unwrapped)
-            case Left(error)      => throw error
-          }
+          wrappedCodec.encoder.toBsonValue(binding.unwrap(value))
       }
 
       val decoder = new BsonDecoder[A] {
         def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
           val unwrapped = wrappedCodec.decoder.decodeUnsafe(reader, trace, ctx)
-          binding.wrap(unwrapped) match {
-            case Right(wrapped) => wrapped
-            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
+          try binding.wrap(unwrapped)
+          catch {
+            case error: SchemaError => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
           }
         }
 
         def fromBsonValueUnsafe(value: BsonValue, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
           val unwrapped = wrappedCodec.decoder.fromBsonValueUnsafe(value, trace, ctx)
-          binding.wrap(unwrapped) match {
-            case Right(wrapped) => wrapped
-            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
+          try binding.wrap(unwrapped)
+          catch {
+            case error: SchemaError => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
           }
         }
       }

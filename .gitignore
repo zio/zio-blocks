@@ -31,3 +31,4 @@ TAGS
 # Compilation log files
 *.log
 schema/jvm/src/test/resources/json-schema-test-suite/
+.cursor/mcp.json
