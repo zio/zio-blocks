@@ -20,71 +20,10 @@ object TypeCategory {
 /**
  * Shared macro helper functions for compile-time type introspection.
  *
- * Note: This is implemented as a trait to be mixed in, which properly handles
- * Scala 2's path-dependent types in macros.
  */
 private[migration] trait MacroHelpers {
   val c: blackbox.Context
   import c.universe._
-
-  /**
-   * Check if a type is a primitive type that should not be recursed into.
-   */
-  protected def isPrimitiveType(tpe: c.Type): Boolean = {
-    val primitiveTypes = List(
-      typeOf[Boolean],
-      typeOf[Byte],
-      typeOf[Short],
-      typeOf[Int],
-      typeOf[Long],
-      typeOf[Float],
-      typeOf[Double],
-      typeOf[Char],
-      typeOf[String],
-      typeOf[java.math.BigInteger],
-      typeOf[java.math.BigDecimal],
-      typeOf[BigInt],
-      typeOf[BigDecimal],
-      typeOf[java.util.UUID],
-      typeOf[java.time.Instant],
-      typeOf[java.time.LocalDate],
-      typeOf[java.time.LocalTime],
-      typeOf[java.time.LocalDateTime],
-      typeOf[java.time.OffsetDateTime],
-      typeOf[java.time.ZonedDateTime],
-      typeOf[java.time.Duration],
-      typeOf[java.time.Period],
-      typeOf[java.time.Year],
-      typeOf[java.time.YearMonth],
-      typeOf[java.time.MonthDay],
-      typeOf[java.time.ZoneId],
-      typeOf[java.time.ZoneOffset],
-      typeOf[Unit],
-      typeOf[Nothing]
-    )
-
-    primitiveTypes.exists(pt => tpe =:= pt)
-  }
-
-  /**
-   * Check if a type is a container type (Option, List, Vector, Set, Map, etc.)
-   * that should not be recursed into.
-   */
-  protected def isContainerType(tpe: c.Type): Boolean = {
-    val containerTypes = List(
-      typeOf[Option[_]],
-      typeOf[List[_]],
-      typeOf[Vector[_]],
-      typeOf[Set[_]],
-      typeOf[Seq[_]],
-      typeOf[IndexedSeq[_]],
-      typeOf[Iterable[_]],
-      typeOf[Map[_, _]],
-      typeOf[Array[_]]
-    )
-
-    containerTypes.exists(ct => tpe <:< ct)
-  }
 
   /**
    * Check if a type is a product type (case class, but not abstract).
@@ -97,10 +36,7 @@ private[migration] trait MacroHelpers {
    */
   protected def isValueClass(tpe: c.Type): Boolean = {
     val symbol = tpe.typeSymbol
-    symbol.isClass &&
-    symbol.asClass.isCaseClass &&
-    tpe <:< c.typeOf[AnyVal] &&
-    symbol.asClass.primaryConstructor.asMethod.paramLists.flatten.filter(_.isTerm).length == 1
+    symbol.isClass && symbol.asClass.isDerivedValueClass
   }
 
   /**
@@ -129,8 +65,7 @@ private[migration] trait MacroHelpers {
         val paramList = ctor.paramLists.headOption.getOrElse(Nil)
         paramList.map { param =>
           val paramName = param.name.decodedName.toString
-          // Get the field type by looking up the accessor method in the type
-          val paramType = tpe.member(param.name).typeSignatureIn(tpe).dealias
+          val paramType = param.typeSignature.dealias
           (paramName, paramType)
         }
       case None => Nil
@@ -178,43 +113,32 @@ private[migration] trait MacroHelpers {
 
   /**
    * Categorize a type into its structural category.
-   *
-   * This is used to determine how to extract the shape tree from a type. The
-   * order of checks matters:
-   *   1. Check for Either first (before sealed check, as Either is a sealed
-   *      trait)
-   *   2. Check for Option (specific container)
-   *   3. Check for Map (specific container)
-   *   4. Check for other sequences/collections
-   *   5. Check for sealed traits
-   *   6. Check for product types (case classes)
-   *   7. Default to Primitive
    */
   protected def categorizeType(tpe: c.Type): TypeCategory = {
     val dealiased = tpe.dealias
 
-    // Use baseClasses to check inheritance - more reliable than <:< with existentials
+    // Use baseClasses to check inheritance
     // baseClasses returns all classes in the inheritance hierarchy
     val baseNames = dealiased.baseClasses.map(_.fullName).toSet
 
     def hasBase(name: String): Boolean = baseNames.contains(name)
 
-    // Check for Either first (it's a sealed trait but we handle it specially)
+    // Check for 1)Either
     if (hasBase("scala.util.Either")) {
       TypeCategory.EitherType
     }
-    // Check for Option
+    // Check for 2)Option
     else if (hasBase("scala.Option")) {
       TypeCategory.OptionType
     }
-    // Check for Map
+    // Check for 3)Map
     else if (
       hasBase("scala.collection.Map") || hasBase("scala.collection.immutable.Map") ||
       hasBase("scala.collection.mutable.Map")
     ) {
       TypeCategory.MapType
     }
-    // Check for sequences/collections
+    // Check for 4)Sequences/Collections
     else if (
       hasBase("scala.collection.Seq") || hasBase("scala.collection.immutable.Seq") ||
       hasBase("scala.collection.Iterable") || hasBase("scala.collection.immutable.Iterable") ||
@@ -222,20 +146,19 @@ private[migration] trait MacroHelpers {
     ) {
       TypeCategory.SeqType
     }
-    // Check for sealed traits (but not the containers we already handled)
+    // Check for 5)Sealed traits (but not the containers)
     else if (isSealedTrait(dealiased)) {
       TypeCategory.Sealed
     }
-    // Check for wrapped types (value classes) BEFORE product types
-    // because value classes are also case classes
+    // Check for 6)Wrapped types
     else if (isValueClass(dealiased)) {
       TypeCategory.WrappedType
     }
-    // Check for product types (case classes)
+    // Check for 7)Product types (case classes)
     else if (isProductType(dealiased.typeSymbol)) {
       TypeCategory.Record
     }
-    // Default to primitive
+    // Default to 8)Primitive
     else {
       TypeCategory.Primitive
     }
@@ -244,8 +167,7 @@ private[migration] trait MacroHelpers {
   /**
    * Extract a ShapeNode tree from a type.
    *
-   * Recursively descends into the type structure to build a hierarchical
-   * representation:
+   *   - Recurse into the structure till you hit Primitives
    *   - Product types (case classes) become RecordNode with field shapes
    *   - Sum types (sealed traits) become SealedNode with case shapes
    *   - Either[L, R] becomes SealedNode with "Left" -> L's shape, "Right" ->
@@ -254,19 +176,8 @@ private[migration] trait MacroHelpers {
    *   - List/Vector/Set[A] become SeqNode with A's shape
    *   - Map[K, V] becomes MapNode with K's and V's shapes
    *   - Primitives become PrimitiveNode
-   *
-   * Recursion handling:
    *   - Any recursion (direct or through containers) produces a compile error
    *   - Container elements are fully explored to extract their complete shape
-   *
-   * @param tpe
-   *   The type to extract the shape from
-   * @param visiting
-   *   Set of type full names currently being visited (for recursion detection)
-   * @param errorContext
-   *   Context string for error messages
-   * @return
-   *   The ShapeNode representing the type's structure
    */
   protected def extractShapeTree(
     tpe: c.Type,

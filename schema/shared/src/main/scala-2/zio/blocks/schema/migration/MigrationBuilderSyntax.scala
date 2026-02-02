@@ -187,30 +187,6 @@ object MigrationBuilderSyntax {
     builder: MigrationBuilder[A, B, Handled, Provided]
   ): MigrationBuilderSyntax[A, B, Handled, Provided] =
     new MigrationBuilderSyntax[A, B, Handled, Provided](builder)
-
-  /**
-   * Validate a migration with detailed error messages.
-   *
-   * This macro provides helpful compile-time error messages when validation
-   * fails, including specific field paths and case names that need handling or
-   * providing.
-   *
-   * Use this when you want clear feedback about what's missing in a migration
-   * without needing to build the migration first.
-   *
-   * @tparam A
-   *   Source type
-   * @tparam B
-   *   Target type
-   * @tparam Handled
-   *   Fields/cases that have been handled
-   * @tparam Provided
-   *   Fields/cases that have been provided
-   * @return
-   *   Unit if validation passes, compile error otherwise
-   */
-  def requireValidation[A, B, Handled <: TList, Provided <: TList]: Unit =
-    macro MigrationBuilderMacrosImpl.requireValidationImpl[A, B, Handled, Provided]
 }
 
 // Macro implementations for Scala 2 selector syntax with type tracking.
@@ -238,28 +214,6 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     val helper = new MigrationBuilderMacrosHelper[c.type](c)
     helper.buildImpl[A, B, Handled, Provided]
-  }
-
-  // ==========================================================================
-  // requireValidation macro implementation
-  // ==========================================================================
-
-  /**
-   * Compile-time validation with detailed error messages.
-   *
-   * This macro validates that:
-   *   1. All removed field paths (in A but not B) are in Handled
-   *   2. All added field paths (in B but not A) are in Provided
-   *   3. All removed case names (in A but not B) are in Handled
-   *   4. All added case names (in B but not A) are in Provided
-   *
-   * Produces detailed error messages showing exactly what's missing.
-   */
-  def requireValidationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
-    c: whitebox.Context
-  ): c.Tree = {
-    val helper = new MigrationBuilderMacrosHelper[c.type](c)
-    helper.requireValidationImpl[A, B, Handled, Provided]
   }
 
   // ==========================================================================
@@ -515,6 +469,41 @@ private[migration] object MigrationBuilderMacrosImpl {
     q"""$builder.renameField($fromOptic, $toNameExpr).asInstanceOf[$resultType]"""
   }
 
+  // ===========================================================================
+  // Shared helper for field ops that add to both Handled and Provided
+  // ===========================================================================
+
+  /**
+   * Shared implementation for field operations that add the same field path
+   * to both Handled and Provided type lists.
+   *
+   * @param buildCall Function that takes (builder, optic) and returns the builder method call tree
+   */
+  private def dualTrackingFieldOpImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
+    c: whitebox.Context
+  )(
+    at: c.Expr[A => Any]
+  )(
+    buildCall: (c.Tree, c.Tree) => c.Tree
+  ): c.Tree = {
+    import c.universe._
+
+    val builder       = q"${c.prefix}.builder"
+    val fieldNames    = extractFieldNamesFromSelector(c)(at.tree)
+    val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
+    val fieldPathType = fieldPathToTupleType(c)(fieldNames)
+
+    val newHandledTpe  = appendType(c)(weakTypeOf[Handled], fieldPathType)
+    val newProvidedTpe = appendType(c)(weakTypeOf[Provided], fieldPathType)
+
+    val resultType = appliedType(
+      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
+      List(weakTypeOf[A], weakTypeOf[B], newHandledTpe, newProvidedTpe)
+    )
+
+    q"${buildCall(builder, optic.tree)}.asInstanceOf[$resultType]"
+  }
+
   def transformFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
     c: whitebox.Context
   )(
@@ -522,27 +511,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     transform: c.Expr[SchemaExpr[DynamicValue, _]]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val fieldNames    = extractFieldNamesFromSelector(c)(at.tree)
-    val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-    val fieldPathType = fieldPathToTupleType(c)(fieldNames)
-
-    val handledType    = weakTypeOf[Handled]
-    val providedType   = weakTypeOf[Provided]
-    val newHandledTpe  = appendType(c)(handledType, fieldPathType)
-    val newProvidedTpe = appendType(c)(providedType, fieldPathType)
-
-    val aType = weakTypeOf[A]
-    val bType = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, newHandledTpe, newProvidedTpe)
-    )
-
-    q"""$builder.transformField($optic, $transform).asInstanceOf[$resultType]"""
+    dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.transformField($optic, $transform)"
+    }
   }
 
   def mandateFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -552,27 +523,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     default: c.Expr[SchemaExpr[DynamicValue, _]]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val fieldNames    = extractFieldNamesFromSelector(c)(at.tree)
-    val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-    val fieldPathType = fieldPathToTupleType(c)(fieldNames)
-
-    val handledType    = weakTypeOf[Handled]
-    val providedType   = weakTypeOf[Provided]
-    val newHandledTpe  = appendType(c)(handledType, fieldPathType)
-    val newProvidedTpe = appendType(c)(providedType, fieldPathType)
-
-    val aType = weakTypeOf[A]
-    val bType = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, newHandledTpe, newProvidedTpe)
-    )
-
-    q"""$builder.mandateField($optic, $default).asInstanceOf[$resultType]"""
+    dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.mandateField($optic, $default)"
+    }
   }
 
   def optionalizeFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -582,27 +535,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     defaultForReverse: c.Expr[SchemaExpr[DynamicValue, _]]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val fieldNames    = extractFieldNamesFromSelector(c)(at.tree)
-    val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-    val fieldPathType = fieldPathToTupleType(c)(fieldNames)
-
-    val handledType    = weakTypeOf[Handled]
-    val providedType   = weakTypeOf[Provided]
-    val newHandledTpe  = appendType(c)(handledType, fieldPathType)
-    val newProvidedTpe = appendType(c)(providedType, fieldPathType)
-
-    val aType = weakTypeOf[A]
-    val bType = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, newHandledTpe, newProvidedTpe)
-    )
-
-    q"""$builder.optionalizeField($optic, $defaultForReverse).asInstanceOf[$resultType]"""
+    dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.optionalizeField($optic, $defaultForReverse)"
+    }
   }
 
   def changeFieldTypeImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -612,27 +547,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     converter: c.Expr[PrimitiveConverter]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val fieldNames    = extractFieldNamesFromSelector(c)(at.tree)
-    val optic         = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-    val fieldPathType = fieldPathToTupleType(c)(fieldNames)
-
-    val handledType    = weakTypeOf[Handled]
-    val providedType   = weakTypeOf[Provided]
-    val newHandledTpe  = appendType(c)(handledType, fieldPathType)
-    val newProvidedTpe = appendType(c)(providedType, fieldPathType)
-
-    val aType = weakTypeOf[A]
-    val bType = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, newHandledTpe, newProvidedTpe)
-    )
-
-    q"""$builder.changeFieldType($optic, $converter).asInstanceOf[$resultType]"""
+    dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.changeFieldType($optic, $converter)"
+    }
   }
 
   def joinFieldsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -655,6 +572,17 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     if (sourceFieldPaths.isEmpty) {
       c.abort(c.enclosingPosition, "joinFields requires at least one source field")
+    }
+
+    // Validate that all source paths share the same parent
+    if (sourceFieldPaths.length > 1) {
+      val parents = sourceFieldPaths.map(_.dropRight(1))
+      if (!parents.forall(_ == parents.head)) {
+        c.abort(
+          c.enclosingPosition,
+          s"joinFields source fields must share common parent. Found paths: ${sourceFieldPaths.map(_.mkString(".")).mkString(", ")}"
+        )
+      }
     }
 
     val handledType  = weakTypeOf[Handled]
@@ -701,6 +629,17 @@ private[migration] object MigrationBuilderMacrosImpl {
       c.abort(c.enclosingPosition, "splitField requires at least one target field")
     }
 
+    // Validate that all target paths share the same parent
+    if (targetFieldPaths.length > 1) {
+      val parents = targetFieldPaths.map(_.dropRight(1))
+      if (!parents.forall(_ == parents.head)) {
+        c.abort(
+          c.enclosingPosition,
+          s"splitField target fields must share common parent. Found paths: ${targetFieldPaths.map(_.mkString(".")).mkString(", ")}"
+        )
+      }
+    }
+
     val handledType  = weakTypeOf[Handled]
     val providedType = weakTypeOf[Provided]
 
@@ -723,6 +662,34 @@ private[migration] object MigrationBuilderMacrosImpl {
     q"""$builder.splitField($sourceOptic, $targetOptics, $splitter).asInstanceOf[$resultType]"""
   }
 
+  // ===========================================================================
+  // Shared helper for passthrough ops that don't affect Handled/Provided
+  // ===========================================================================
+
+  /**
+   * Shared implementation for operations that don't modify the Handled or Provided
+   * type lists (like transformElements, transformKeys, transformValues).
+   */
+  private def passthroughOpImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
+    c: whitebox.Context
+  )(
+    at: c.Expr[A => Any]
+  )(
+    buildCall: (c.Tree, c.Tree) => c.Tree
+  ): c.Tree = {
+    import c.universe._
+
+    val builder = q"${c.prefix}.builder"
+    val optic   = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
+
+    val resultType = appliedType(
+      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
+      List(weakTypeOf[A], weakTypeOf[B], weakTypeOf[Handled], weakTypeOf[Provided])
+    )
+
+    q"${buildCall(builder, optic.tree)}.asInstanceOf[$resultType]"
+  }
+
   def transformElementsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
     c: whitebox.Context
   )(
@@ -730,22 +697,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     transform: c.Expr[SchemaExpr[DynamicValue, _]]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-    val aType        = weakTypeOf[A]
-    val bType        = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, handledType, providedType)
-    )
-
-    q"""$builder.transformElements($optic, $transform).asInstanceOf[$resultType]"""
+    passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.transformElements($optic, $transform)"
+    }
   }
 
   def transformKeysImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -755,22 +709,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     transform: c.Expr[SchemaExpr[DynamicValue, _]]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-    val aType        = weakTypeOf[A]
-    val bType        = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, handledType, providedType)
-    )
-
-    q"""$builder.transformKeys($optic, $transform).asInstanceOf[$resultType]"""
+    passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.transformKeys($optic, $transform)"
+    }
   }
 
   def transformValuesImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -780,22 +721,9 @@ private[migration] object MigrationBuilderMacrosImpl {
     transform: c.Expr[SchemaExpr[DynamicValue, _]]
   ): c.Tree = {
     import c.universe._
-
-    val builder = q"${c.prefix}.builder"
-
-    val optic = MigrationBuilderMacros.extractOptic[A, Any](c)(at)
-
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
-    val aType        = weakTypeOf[A]
-    val bType        = weakTypeOf[B]
-
-    val resultType = appliedType(
-      typeOf[MigrationBuilder[_, _, _, _]].typeConstructor,
-      List(aType, bType, handledType, providedType)
-    )
-
-    q"""$builder.transformValues($optic, $transform).asInstanceOf[$resultType]"""
+    passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
+      q"$builder.transformValues($optic, $transform)"
+    }
   }
 
   def renameCaseImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -894,6 +822,12 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
     extends MacroHelpers {
   import c.universe._
 
+  // Type symbols cached for reuse across methods
+  private lazy val tnilSym   = typeOf[TNil].typeSymbol
+  private lazy val tconsSym  = typeOf[TCons[_, _]].typeSymbol
+  private lazy val tuple2Sym = typeOf[(_, _)].typeSymbol
+  private lazy val tuple1Sym = typeOf[Tuple1[_]].typeSymbol
+
   def buildImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag]: c.Tree = {
     val builder = q"${c.prefix}.builder"
 
@@ -918,138 +852,75 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
     val missingProvided = added.filterNot(path => provided.contains(path))
 
     if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      // Convert to strings ONLY for error messages
-      val unhandledStrs  = missingHandled.map(pathToFlatString).sorted
-      val unprovidedStrs = missingProvided.map(pathToFlatString).sorted
-
-      val (unhandledPaths, unhandledCases)   = unhandledStrs.partition(!_.startsWith("case:"))
-      val (unprovidedPaths, unprovidedCases) = unprovidedStrs.partition(!_.startsWith("case:"))
-
-      val sb = new StringBuilder
-      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
-
-      if (unhandledPaths.nonEmpty) {
-        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
-        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unprovidedPaths.nonEmpty) {
-        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
-        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unhandledCases.nonEmpty) {
-        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
-        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
-      }
-
-      if (unprovidedCases.nonEmpty) {
-        sb.append("\nUnprovided cases for target (need renameCase):\n")
-        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
-      }
-
-      // Add hints with example paths
-      sb.append("\n")
-      if (unhandledPaths.nonEmpty) {
-        val example      = unhandledPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
-      }
-      if (unprovidedPaths.nonEmpty) {
-        val example      = unprovidedPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
-      }
-      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
-        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
-      }
-      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
-        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
-      }
-
-      c.abort(c.enclosingPosition, sb.toString)
+      c.abort(c.enclosingPosition, buildValidationErrorMessage(aType, bType, missingHandled, missingProvided))
     }
 
     q"$builder.buildPartial"
   }
 
-  def requireValidationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag]
-    : c.Tree = {
-    val aType        = weakTypeOf[A]
-    val bType        = weakTypeOf[B]
-    val handledType  = weakTypeOf[Handled]
-    val providedType = weakTypeOf[Provided]
+  /**
+   * Builds a detailed error message for migration validation failures.
+   */
+  private def buildValidationErrorMessage(
+    aType: c.Type,
+    bType: c.Type,
+    missingHandled: List[List[Segment]],
+    missingProvided: List[List[Segment]]
+  ): String = {
+    val unhandledStrs  = missingHandled.map(Path.render).sorted
+    val unprovidedStrs = missingProvided.map(Path.render).sorted
 
-    // Extract shape trees for both types
-    val treeA = extractShapeTree(aType, Set.empty, "Migration validation")
-    val treeB = extractShapeTree(bType, Set.empty, "Migration validation")
+    val (unhandledPaths, unhandledCases)   = unhandledStrs.partition(!_.startsWith("case:"))
+    val (unprovidedPaths, unprovidedCases) = unprovidedStrs.partition(!_.startsWith("case:"))
 
-    // Compute diff using TreeDiff - returns List[List[Segment]]
-    val (removed, added) = TreeDiff.diff(treeA, treeB)
+    val sb = new StringBuilder
+    sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
 
-    // Extract handled/provided as List[List[Segment]] (structural comparison)
-    val handled: List[List[Segment]]  = extractTListPaths(handledType)
-    val provided: List[List[Segment]] = extractTListPaths(providedType)
-
-    // Compare as List[List[Segment]] - full structural comparison
-    val missingHandled  = removed.filterNot(path => handled.contains(path))
-    val missingProvided = added.filterNot(path => provided.contains(path))
-
-    if (missingHandled.nonEmpty || missingProvided.nonEmpty) {
-      // Convert to strings ONLY for error messages
-      val unhandledStrs  = missingHandled.map(pathToFlatString).sorted
-      val unprovidedStrs = missingProvided.map(pathToFlatString).sorted
-
-      val (unhandledPaths, unhandledCases)   = unhandledStrs.partition(!_.startsWith("case:"))
-      val (unprovidedPaths, unprovidedCases) = unprovidedStrs.partition(!_.startsWith("case:"))
-
-      val sb = new StringBuilder
-      sb.append(s"Migration validation failed for ${aType.typeSymbol.name} => ${bType.typeSymbol.name}:\n")
-
-      if (unhandledPaths.nonEmpty) {
-        sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
-        unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unprovidedPaths.nonEmpty) {
-        sb.append("\nUnprovided paths for target (need addField or renameField):\n")
-        unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
-      }
-
-      if (unhandledCases.nonEmpty) {
-        sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
-        unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
-      }
-
-      if (unprovidedCases.nonEmpty) {
-        sb.append("\nUnprovided cases for target (need renameCase):\n")
-        unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
-      }
-
-      // Add hints
-      sb.append("\n")
-      if (unhandledPaths.nonEmpty) {
-        val example      = unhandledPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
-      }
-      if (unprovidedPaths.nonEmpty) {
-        val example      = unprovidedPaths.head
-        val selectorPath = example.split("\\.").mkString(".")
-        sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
-      }
-      if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
-        sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
-      }
-      if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
-        sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
-      }
-
-      c.abort(c.enclosingPosition, sb.toString)
+    if (unhandledPaths.nonEmpty) {
+      sb.append("\nUnhandled paths from source (need dropField or renameField):\n")
+      unhandledPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
     }
 
-    q"()"
+    if (unprovidedPaths.nonEmpty) {
+      sb.append("\nUnprovided paths for target (need addField or renameField):\n")
+      unprovidedPaths.sorted.foreach(p => sb.append(s"  - $p\n"))
+    }
+
+    if (unhandledCases.nonEmpty) {
+      sb.append("\nUnhandled cases from source (need renameCase or transformCase):\n")
+      unhandledCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
+    }
+
+    if (unprovidedCases.nonEmpty) {
+      sb.append("\nUnprovided cases for target (need renameCase):\n")
+      unprovidedCases.sorted.map(_.stripPrefix("case:")).foreach(cn => sb.append(s"  - $cn\n"))
+    }
+
+    // Add hints with example paths
+    sb.append("\n")
+    if (unhandledPaths.nonEmpty) {
+      val example      = unhandledPaths.head
+      val selectorPath = example.split("\\.").mkString(".")
+      sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
+    }
+    if (unprovidedPaths.nonEmpty) {
+      val example      = unprovidedPaths.head
+      val selectorPath = example.split("\\.").mkString(".")
+      sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
+    }
+    if (unhandledPaths.nonEmpty && unprovidedPaths.nonEmpty) {
+      sb.append("Hint: Use .renameField(_.oldPath, _.newPath) when a field was renamed\n")
+    }
+    if (unhandledCases.nonEmpty || unprovidedCases.nonEmpty) {
+      sb.append("Hint: Use .renameCase(_.when[OldCase], \"NewCase\") when a case was renamed\n")
+    }
+
+    sb.toString
   }
+
+  // ===========================================================================
+  // TList Path Extraction - Split into focused helper methods
+  // ===========================================================================
 
   /**
    * Extracts paths from a TList type as List[List[Segment]]. Preserves full
@@ -1058,161 +929,119 @@ private[migration] class MigrationBuilderMacrosHelper[C <: scala.reflect.macros.
    * Given a type like (("field", "a"), ("field", "b")) :: TNil, returns
    * List(List(Segment.Field("a"), Segment.Field("b"))).
    */
-  private def extractTListPaths(tpe: c.Type): List[List[Segment]] = {
-    val tnilSym   = typeOf[TNil].typeSymbol
-    val tconsSym  = typeOf[TCons[_, _]].typeSymbol
-    val tuple2Sym = typeOf[(_, _)].typeSymbol
-    val tuple1Sym = typeOf[Tuple1[_]].typeSymbol
-
-    /**
-     * Convert a segment type to a Segment. ("field", "name") ->
-     * Segment.Field("name") ("case", "name") -> Segment.Case("name") "element"
-     * literal -> Segment.Element
-     */
-    def segmentFromType(segType: c.Type): Option[Segment] = {
-      val dealiased = segType.dealias
-      dealiased match {
-        // Tuple2 segment: ("field", "name") or ("case", "name")
-        case t if t.typeSymbol == tuple2Sym =>
-          val args = t.typeArgs
-          if (args.size == 2) {
-            (args(0).dealias, args(1).dealias) match {
-              case (ConstantType(Constant("field")), ConstantType(Constant(name: String))) =>
-                Some(Segment.Field(name))
-              case (ConstantType(Constant("case")), ConstantType(Constant(name: String))) =>
-                Some(Segment.Case(name))
-              case _ => None
-            }
-          } else None
-        // Single string segment: "element", "key", "value", "wrapped"
-        case ConstantType(Constant("element")) => Some(Segment.Element)
-        case ConstantType(Constant("key"))     => Some(Segment.Key)
-        case ConstantType(Constant("value"))   => Some(Segment.Value)
-        case ConstantType(Constant("wrapped")) => Some(Segment.Wrapped)
-        case _                                 => None
+  private def extractTListPaths(tpe: c.Type): List[List[Segment]] =
+    tlistToTypes(tpe).flatMap { elemType =>
+      pathTupleToSegments(elemType) match {
+        case Some(segments) => Some(segments)
+        case None =>
+          c.abort(c.enclosingPosition, s"Could not extract path from TList element: ${elemType.dealias}")
       }
     }
 
-    /**
-     * Extract all segments from a path tuple type as List[Segment]. (("field",
-     * "a"), ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
-     * Tuple1(("case", "X")) -> List(Segment.Case("X"))
-     */
-    def pathTupleToSegments(pathType: c.Type): Option[List[Segment]] = {
-      val segments = extractPathSegments(pathType)
-      if (segments.isEmpty) None
-      else Some(segments)
-    }
-
-    /**
-     * Recursively extract segments from a nested tuple path. (("field", "a"),
-     * ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
-     * (("field", "a"), (("field", "b"), ("field", "c"))) ->
-     * List(Segment.Field("a"), Segment.Field("b"), Segment.Field("c"))
-     */
-    def extractPathSegments(pathType: c.Type): List[Segment] = {
-      val dealiased = pathType.dealias
-
-      // Check for Tuple1 (single-element case path)
-      if (dealiased.typeSymbol == tuple1Sym) {
-        val args = dealiased.typeArgs
-        if (args.size == 1) {
-          return segmentFromType(args.head).toList
-        }
-      }
-
-      // Check for Tuple2 (nested path segments or single segment)
-      if (dealiased.typeSymbol == tuple2Sym) {
-        val args = dealiased.typeArgs
-        if (args.size == 2) {
-          val first  = args(0).dealias
-          val second = args(1).dealias
-
-          // Check if this is a segment tuple ("field"/"case", name)
-          first match {
-            case ConstantType(Constant("field" | "case")) =>
-              // This is a single segment, not nested
-              return segmentFromType(dealiased).toList
-            case _ if first.typeSymbol == tuple2Sym =>
-              // First is a segment tuple, second might be another segment or nested tuple
-              val firstSeg                = segmentFromType(first)
-              val restSegs: List[Segment] = second.typeSymbol match {
-                case sym if sym == tuple2Sym =>
-                  // Check if second is a segment or nested
-                  second.typeArgs.headOption.map(_.dealias).flatMap {
-                    case ConstantType(Constant("field" | "case")) =>
-                      // Second is a single segment
-                      segmentFromType(second)
-                    case _ =>
-                      // Second is nested
-                      None
-                  } match {
-                    case Some(seg) => List(seg)
-                    case None      => extractPathSegments(second)
-                  }
-                case _ =>
-                  segmentFromType(second).toList
-              }
-              return firstSeg.toList ++ restSegs
-            case _ =>
-              // Other case - try direct extraction
-              return Nil
-          }
-        }
-      }
-
-      Nil
-    }
-
-    def loop(t: c.Type): List[List[Segment]] = {
-      val dealiased = t.dealias
-      val sym       = dealiased.typeSymbol
-
-      if (sym == tnilSym) {
-        Nil
-      } else if (sym == tconsSym) {
-        // TCons[H, T] - extract H and recurse on T
+  /**
+   * Converts a TList type to a List of its element types.
+   * TCons[A, TCons[B, TNil]] -> List(A, B)
+   */
+  private def tlistToTypes(tpe: c.Type): List[c.Type] = {
+    val dealiased = tpe.dealias
+    dealiased.typeSymbol match {
+      case sym if sym == tnilSym  => Nil
+      case sym if sym == tconsSym =>
         val args = dealiased.typeArgs
         if (args.size != 2) {
           c.abort(c.enclosingPosition, s"Invalid TCons type: $dealiased")
         }
-        val head = args(0)
-        val tail = args(1)
+        args(0) :: tlistToTypes(args(1))
+      case _ => Nil // Generic TList bounds
+    }
+  }
 
-        // Extract as structured path tuple
-        pathTupleToSegments(head) match {
-          case Some(segments) => segments :: loop(tail)
-          case None           =>
-            c.abort(c.enclosingPosition, s"Could not extract path from TList element: ${head.dealias}")
+  /**
+   * Convert a segment type to a Segment.
+   * ("field", "name") -> Segment.Field("name")
+   * ("case", "name") -> Segment.Case("name")
+   * "element" literal -> Segment.Element
+   */
+  private def segmentFromType(segType: c.Type): Option[Segment] = {
+    val dealiased = segType.dealias
+    dealiased match {
+      case t if t.typeSymbol == tuple2Sym && t.typeArgs.size == 2 =>
+        (t.typeArgs(0).dealias, t.typeArgs(1).dealias) match {
+          case (ConstantType(Constant("field")), ConstantType(Constant(name: String))) =>
+            Some(Segment.Field(name))
+          case (ConstantType(Constant("case")), ConstantType(Constant(name: String))) =>
+            Some(Segment.Case(name))
+          case _ => None
         }
-      } else {
-        // Generic TList or unexpected type
-        Nil
+      case ConstantType(Constant("element")) => Some(Segment.Element)
+      case ConstantType(Constant("key"))     => Some(Segment.Key)
+      case ConstantType(Constant("value"))   => Some(Segment.Value)
+      case ConstantType(Constant("wrapped")) => Some(Segment.Wrapped)
+      case _                                 => None
+    }
+  }
+
+  /**
+   * Check if a type is a segment tuple ("field"/"case", name).
+   */
+  private def isSegmentTuple(tpe: c.Type): Boolean = {
+    val dealiased = tpe.dealias
+    dealiased.typeSymbol == tuple2Sym &&
+    dealiased.typeArgs.headOption.exists { arg =>
+      arg.dealias match {
+        case ConstantType(Constant("field" | "case")) => true
+        case _                                        => false
       }
     }
-
-    loop(tpe)
   }
+
+  /**
+   * Extract all segments from a path tuple type as List[Segment].
+   * (("field", "a"), ("field", "b")) -> List(Segment.Field("a"), Segment.Field("b"))
+   * Tuple1(("case", "X")) -> List(Segment.Case("X"))
+   */
+  private def pathTupleToSegments(pathType: c.Type): Option[List[Segment]] = {
+    val dealiased = pathType.dealias
+
+    dealiased.typeSymbol match {
+      case sym if sym == tuple1Sym =>
+        // Single-element case path: Tuple1(("case", "X"))
+        dealiased.typeArgs.headOption.flatMap(segmentFromType).map(List(_))
+
+      case sym if sym == tuple2Sym && dealiased.typeArgs.size == 2 =>
+        val first  = dealiased.typeArgs(0).dealias
+        val second = dealiased.typeArgs(1).dealias
+
+        if (isSegmentTuple(dealiased)) {
+          // This is itself a segment tuple
+          segmentFromType(dealiased).map(List(_))
+        } else if (isSegmentTuple(first)) {
+          // Nested: (segment, rest)
+          for {
+            firstSeg <- segmentFromType(first)
+            restSegs <- extractRestSegments(second)
+          } yield firstSeg :: restSegs
+        } else {
+          None
+        }
+
+      case _ => None
+    }
+  }
+
+  /**
+   * Extract remaining segments from the "rest" part of a nested tuple.
+   * Handles both single segments and nested tuples.
+   */
+  private def extractRestSegments(tpe: c.Type): Option[List[Segment]] =
+    if (isSegmentTuple(tpe)) {
+      segmentFromType(tpe).map(List(_))
+    } else {
+      pathTupleToSegments(tpe)
+    }
 
   /**
    * Convert a path (List[Segment]) to a flat string representation for error
    * messages.
-   *
-   * Examples:
-   *   - List(Segment.Field("address"), Segment.Field("city")) -> "address.city"
-   *   - List(Segment.Case("Success")) -> "case:Success"
-   *   - List(Segment.Field("items"), Segment.Element, Segment.Field("name")) ->
-   *     "items.element.name"
    */
-  private def pathToFlatString(path: List[Segment]): String = {
-    if (path.isEmpty) return "<root>"
-    path.map {
-      case Segment.Field(name) => name
-      case Segment.Case(name)  => s"case:$name"
-      case Segment.Element     => "element"
-      case Segment.Key         => "key"
-      case Segment.Value       => "value"
-      case Segment.Wrapped     => "wrapped"
-    }.mkString(".")
-  }
 }

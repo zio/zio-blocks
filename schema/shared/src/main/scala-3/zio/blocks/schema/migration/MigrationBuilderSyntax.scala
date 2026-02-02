@@ -244,8 +244,8 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     if (unhandled.nonEmpty || unprovided.nonEmpty) {
       // Flatten to strings ONLY for error display
-      val unhandledStrs  = unhandled.map(MacroHelpers.pathToFlatString).sorted
-      val unprovidedStrs = unprovided.map(MacroHelpers.pathToFlatString).sorted
+      val unhandledStrs  = unhandled.map(Path.render).sorted
+      val unprovidedStrs = unprovided.map(Path.render).sorted
 
       // Categorize unhandled/unprovided into fields and cases
       val unhandledFields  = unhandledStrs.filterNot(_.startsWith("case:"))
@@ -561,6 +561,17 @@ private[migration] object MigrationBuilderMacrosImpl {
       report.errorAndAbort("joinFields requires at least one source field", sourcePaths.asTerm.pos)
     }
 
+    // Validate that all source paths share the same parent
+    if (sourcePathsList.length > 1) {
+      val parents = sourcePathsList.map(_.dropRight(1))
+      if (!parents.forall(_ == parents.head)) {
+        report.errorAndAbort(
+          s"joinFields source fields must share common parent. Found paths: ${sourcePathsList.map(_.mkString(".")).mkString(", ")}",
+          sourcePaths.asTerm.pos
+        )
+      }
+    }
+
     // Build the new Handled type by appending all source field paths as structured tuples
     val newHandledRepr = sourcePathsList.foldLeft(TypeRepr.of[Handled]) { (acc, path) =>
       val pathType = fieldPathToTupleType(path)
@@ -609,6 +620,17 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     if (targetPathsList.isEmpty) {
       report.errorAndAbort("splitField requires at least one target field", targetPaths.asTerm.pos)
+    }
+
+    // Validate that all target paths share the same parent
+    if (targetPathsList.length > 1) {
+      val parents = targetPathsList.map(_.dropRight(1))
+      if (!parents.forall(_ == parents.head)) {
+        report.errorAndAbort(
+          s"splitField target fields must share common parent. Found paths: ${targetPathsList.map(_.mkString(".")).mkString(", ")}",
+          targetPaths.asTerm.pos
+        )
+      }
     }
 
     // Build the new Handled type by appending the source field path as structured tuple

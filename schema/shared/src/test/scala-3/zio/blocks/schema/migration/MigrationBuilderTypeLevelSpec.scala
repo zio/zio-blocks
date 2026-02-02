@@ -440,7 +440,10 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         val migration = builder.build
         val person    = PersonV1("John", 30, "NYC")
         val result    = migration(person)
-        assertTrue(result.isRight)
+        assertTrue(result.isRight) &&
+        assertTrue(result.map(_.fullName) == Right("John")) &&
+        assertTrue(result.map(_.location) == Right("NYC")) &&
+        assertTrue(result.map(_.age) == Right(0))
       },
       test("buildPartial always succeeds") {
         val migration = MigrationBuilder

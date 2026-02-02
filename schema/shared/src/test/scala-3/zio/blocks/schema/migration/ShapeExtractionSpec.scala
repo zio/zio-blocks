@@ -5,22 +5,9 @@ import zio.test.Assertion
 import zio.blocks.schema.migration.ShapeExtraction._
 import zio.blocks.schema.migration.ShapeNode._
 import zio.blocks.schema.migration.Segment
-import zio.blocks.schema.migration.Path
 import zio.blocks.schema.migration.TreeDiff
 
 object ShapeExtractionSpec extends ZIOSpecDefault {
-
-  // Test types for extractFieldName and extractFieldPath
-  case class FlatPerson(name: String, age: Int)
-  case class AddressWithZip(street: String, city: String, zipCode: String)
-  case class PersonWithAddress(name: String, age: Int, address: AddressWithZip)
-  case class Wrapper(value: String)
-  case class LargeRecord(a: String, b: Int, c: Boolean, d: Double, e: Long, f: Float)
-
-  // For deeply nested field path extraction
-  case class FieldDeep(value: String)
-  case class FieldInner(deep: FieldDeep)
-  case class FieldOuter(inner: FieldInner)
 
   // Enum for ShapeTree tests
   enum Color {
@@ -66,52 +53,6 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
   case class BoxedPerson(person: PersonRecord) extends AnyVal
 
   def spec = suite("ShapeExtractionSpec")(
-    suite("extractFieldName")(
-      test("simple field access") {
-        val fieldName = extractFieldName[FlatPerson, String](_.name)
-        assertTrue(fieldName == "name")
-      },
-      test("different field in same class") {
-        val fieldName = extractFieldName[FlatPerson, Int](_.age)
-        assertTrue(fieldName == "age")
-      },
-      test("nested field access returns top-level field") {
-        // When accessing _.address.street, we get "address" (top-level)
-        val fieldName = extractFieldName[PersonWithAddress, String](_.address.street)
-        assertTrue(fieldName == "address")
-      },
-      test("single field case class") {
-        val fieldName = extractFieldName[Wrapper, String](_.value)
-        assertTrue(fieldName == "value")
-      },
-      test("field from large record") {
-        val fieldName = extractFieldName[LargeRecord, Double](_.d)
-        assertTrue(fieldName == "d")
-      }
-    ),
-    suite("extractFieldPath")(
-      test("simple field access") {
-        val path = extractFieldPath[FlatPerson, String](_.name)
-        assertTrue(path == List("name"))
-      },
-      test("nested field access returns full path") {
-        val path = extractFieldPath[PersonWithAddress, String](_.address.street)
-        assertTrue(path == List("address", "street"))
-      },
-      test("deeply nested access") {
-        val path = extractFieldPath[FieldOuter, String](_.inner.deep.value)
-        assertTrue(path == List("inner", "deep", "value"))
-      }
-    ),
-    suite("extractFieldName compile-time safety")(
-      test("extractFieldName requires field access syntax") {
-        assertZIO(typeCheck("""
-          import zio.blocks.schema.migration.ShapeExtraction._
-          case class Foo(x: Int)
-          extractFieldName[Foo, Int](f => f.x + 1)
-        """))(Assertion.isLeft)
-      }
-    ),
     suite("extractShapeTree")(
       test("flat case class returns RecordNode with primitive fields") {
         val tree = extractShapeTree[PersonForTree]
@@ -228,6 +169,46 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
         val tree = extractShapeTree[String]
         assertTrue(tree == PrimitiveNode)
       },
+      test("Int primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Int]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Long primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Long]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Boolean primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Boolean]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Double primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Double]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Float primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Float]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("BigDecimal primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[BigDecimal]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("BigInt primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[BigInt]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Short primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Short]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Byte primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Byte]
+        assertTrue(tree == PrimitiveNode)
+      },
+      test("Char primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[Char]
+        assertTrue(tree == PrimitiveNode)
+      },
       test("simple enum returns SealedNode with empty RecordNodes") {
         val tree = extractShapeTree[Color]
         assertTrue(
@@ -254,38 +235,34 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       }
     ),
     suite("extractShapeTree recursion detection")(
-      test("direct recursion produces compile error") {
+      test("direct recursion produces compile error with helpful message") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration.ShapeExtraction._
           case class DirectRecursionTree(self: DirectRecursionTree)
           extractShapeTree[DirectRecursionTree]
-        """))(Assertion.isLeft)
+        """))(Assertion.isLeft(Assertion.containsString("Recursive")))
       },
-      test("mutual recursion produces compile error") {
+      test("mutual recursion produces compile error with helpful message") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration.ShapeExtraction._
           case class MutualTreeA(b: MutualTreeB)
           case class MutualTreeB(a: MutualTreeA)
           extractShapeTree[MutualTreeA]
-        """))(Assertion.isLeft)
+        """))(Assertion.isLeft(Assertion.containsString("Recursive")))
       },
-      test("recursion through List produces compile error") {
-        // Unlike extractFieldPaths which stops at containers,
-        // extractShapeTree recurses into container elements, so recursion is detected
+      test("recursion through List produces compile error with helpful message") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration.ShapeExtraction._
           case class ListRecursionTree(children: List[ListRecursionTree])
           extractShapeTree[ListRecursionTree]
-        """))(Assertion.isLeft)
+        """))(Assertion.isLeft(Assertion.containsString("Recursive")))
       },
-      test("recursion through Option produces compile error") {
-        // Unlike extractFieldPaths which stops at containers,
-        // extractShapeTree recurses into container elements, so recursion is detected
+      test("recursion through Option produces compile error with helpful message") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration.ShapeExtraction._
           case class OptionRecursionTree(next: Option[OptionRecursionTree])
           extractShapeTree[OptionRecursionTree]
-        """))(Assertion.isLeft)
+        """))(Assertion.isLeft(Assertion.containsString("Recursive")))
       }
     ),
     suite("ShapeTree typeclass")(
@@ -578,25 +555,25 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       test("empty path renders as <root>") {
         assertTrue(Path.render(Nil) == "<root>")
       },
-      test("field path renders with dot prefix") {
-        assertTrue(Path.render(List(Segment.Field("name"))) == ".name")
+      test("field path renders without prefix") {
+        assertTrue(Path.render(List(Segment.Field("name"))) == "name")
       },
       test("nested field path") {
-        assertTrue(Path.render(List(Segment.Field("address"), Segment.Field("city"))) == ".address.city")
+        assertTrue(Path.render(List(Segment.Field("address"), Segment.Field("city"))) == "address.city")
       },
-      test("case segment renders with brackets") {
-        assertTrue(Path.render(List(Segment.Case("Success"))) == "[case:Success]")
+      test("case segment renders with case: prefix") {
+        assertTrue(Path.render(List(Segment.Case("Success"))) == "case:Success")
       },
-      test("element segment renders as [element]") {
-        assertTrue(Path.render(List(Segment.Element)) == "[element]")
+      test("element segment renders as element") {
+        assertTrue(Path.render(List(Segment.Element)) == "element")
       },
       test("complex path with multiple segment types") {
         val path = List(Segment.Field("items"), Segment.Element, Segment.Field("name"))
-        assertTrue(Path.render(path) == ".items[element].name")
+        assertTrue(Path.render(path) == "items.element.name")
       },
       test("map key/value segments") {
-        assertTrue(Path.render(List(Segment.Field("data"), Segment.Key)) == ".data[key]")
-        assertTrue(Path.render(List(Segment.Field("data"), Segment.Value)) == ".data[value]")
+        assertTrue(Path.render(List(Segment.Field("data"), Segment.Key)) == "data.key")
+        assertTrue(Path.render(List(Segment.Field("data"), Segment.Value)) == "data.value")
       }
     ),
     suite("extractShapeTree with wrapped types")(
@@ -731,23 +708,23 @@ object ShapeExtractionSpec extends ZIOSpecDefault {
       }
     ),
     suite("extractShapeTree recursion through wrapped types")(
-      test("direct recursion through value class produces compile error") {
+      test("direct recursion through value class produces compile error with helpful message") {
         assertZIO(typeCheck("""
           import zio.blocks.schema.migration.ShapeExtraction._
           case class RecursiveWrapper(self: RecursiveWrapper) extends AnyVal
           extractShapeTree[RecursiveWrapper]
-        """))(Assertion.isLeft)
+        """))(Assertion.isLeft(Assertion.containsString("Recursive")))
       }
     ),
     suite("Path rendering with wrapped segment")(
       test("wrapped segment renders correctly") {
-        assertTrue(Path.render(List(Segment.Wrapped)) == "[wrapped]")
+        assertTrue(Path.render(List(Segment.Wrapped)) == "wrapped")
       },
       test("field then wrapped renders correctly") {
-        assertTrue(Path.render(List(Segment.Field("id"), Segment.Wrapped)) == ".id[wrapped]")
+        assertTrue(Path.render(List(Segment.Field("id"), Segment.Wrapped)) == "id.wrapped")
       },
       test("wrapped then field renders correctly") {
-        assertTrue(Path.render(List(Segment.Wrapped, Segment.Field("x"))) == "[wrapped].x")
+        assertTrue(Path.render(List(Segment.Wrapped, Segment.Field("x"))) == "wrapped.x")
       }
     )
   )

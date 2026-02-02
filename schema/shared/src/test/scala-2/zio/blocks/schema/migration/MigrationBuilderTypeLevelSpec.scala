@@ -99,7 +99,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       // Fresh[A, B] = MigrationBuilder[A, B, TNil, TNil]
       val _: MigrationBuilder[PersonV1, PersonV2, TNil, TNil] = builder
 
-      assertTrue(true)
+      assertTrue(
+        builder.actions.isEmpty,
+        builder.sourceSchema == Schema[PersonV1],
+        builder.targetSchema == Schema[PersonV2]
+      )
     }
   )
 
@@ -115,8 +119,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
         .dropField(_.oldField, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.DropField])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.DropField]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("oldField"),
+        action.defaultForReverse.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
     },
     test("multiple dropField operations accumulate") {
       val builder = syntax(
@@ -124,7 +131,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
       ).dropField(_.c, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
 
-      assertTrue(builder.actions.size == 2)
+      assertTrue(
+        builder.actions.size == 2,
+        builder.actions(0).isInstanceOf[MigrationAction.DropField],
+        builder.actions(1).isInstanceOf[MigrationAction.DropField]
+      )
     }
   )
 
@@ -140,8 +151,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
         .addField(_.newField, SchemaExpr.Literal[DynamicValue, String]("default", Schema.string))
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.AddField])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.AddField]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("newField"),
+        action.default.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
     },
     test("multiple addField operations accumulate") {
       val builder = syntax(
@@ -149,7 +163,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
       ).addField(_.a, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
 
-      assertTrue(builder.actions.size == 2)
+      assertTrue(
+        builder.actions.size == 2,
+        builder.actions(0).isInstanceOf[MigrationAction.AddField],
+        builder.actions(1).isInstanceOf[MigrationAction.AddField]
+      )
     }
   )
 
@@ -165,8 +183,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV2])
         .renameField(_.oldField, _.newField)
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.Rename])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.Rename]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("oldField"),
+        action.to == "newField"
+      )
     }
   )
 
@@ -182,8 +203,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[PersonV1, PersonV1])
         .transformField(_.name, SchemaExpr.Literal[DynamicValue, String]("transformed", Schema.string))
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.TransformValue])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.TransformValue]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("name"),
+        action.transform.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
     }
   )
 
@@ -199,8 +223,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[WithOption, WithoutOption])
         .mandateField(_.maybeAge, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.Mandate])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.Mandate]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("maybeAge"),
+        action.default.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
     }
   )
 
@@ -216,8 +243,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[WithoutOption, WithOption])
         .optionalizeField(_.maybeAge, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.Optionalize])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.Optionalize]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("maybeAge"),
+        action.defaultForReverse.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
     }
   )
 
@@ -233,8 +263,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       val builder = syntax(MigrationBuilder.newBuilder[WithInt, WithString])
         .changeFieldType(_.count, PrimitiveConverter.IntToString)
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.ChangeType])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.ChangeType]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("count"),
+        action.converter == PrimitiveConverter.IntToString
+      )
     }
   )
 
@@ -268,8 +301,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           combiner
         )
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.Join])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.Join]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("name"),
+        action.sourcePaths.size == 2,
+        action.combiner.isInstanceOf[SchemaExpr.StringConcat[_]]
+      )
     }
   )
 
@@ -297,8 +334,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           splitter
         )
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.Split])
+      val action = builder.actions.head.asInstanceOf[MigrationAction.Split]
+      assertTrue(
+        action.at.nodes.last == DynamicOptic.Node.Field("name"),
+        action.targetPaths.size == 2,
+        action.splitter.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
     }
   )
 
@@ -335,7 +376,10 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           .dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
       ).dropField(_.c, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
 
-      assertTrue(builder.actions.size == 2)
+      assertTrue(
+        builder.actions.size == 2,
+        builder.actions.forall(_.isInstanceOf[MigrationAction.DropField])
+      )
     },
     test("chaining accumulates Provided fields") {
       val builder = syntax(
@@ -343,7 +387,10 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           .addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
       ).addField(_.c, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
 
-      assertTrue(builder.actions.size == 2)
+      assertTrue(
+        builder.actions.size == 2,
+        builder.actions.forall(_.isInstanceOf[MigrationAction.AddField])
+      )
     },
     test("mixed operations chain correctly") {
       val builder = syntax(
@@ -353,7 +400,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         ).addField(_.newField, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
       ).transformField(_.name, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
 
-      assertTrue(builder.actions.size == 3)
+      assertTrue(
+        builder.actions.size == 3,
+        builder.actions(0).isInstanceOf[MigrationAction.DropField],
+        builder.actions(1).isInstanceOf[MigrationAction.AddField],
+        builder.actions(2).isInstanceOf[MigrationAction.TransformValue]
+      )
     },
     test("complex chain with many operations") {
       val builder = syntax(
@@ -365,7 +417,13 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         ).transformField(_.a, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
       ).transformField(_.b, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
 
-      assertTrue(builder.actions.size == 4)
+      assertTrue(
+        builder.actions.size == 4,
+        builder.actions(0).isInstanceOf[MigrationAction.DropField],
+        builder.actions(1).isInstanceOf[MigrationAction.AddField],
+        builder.actions(2).isInstanceOf[MigrationAction.TransformValue],
+        builder.actions(3).isInstanceOf[MigrationAction.TransformValue]
+      )
     }
   )
 
