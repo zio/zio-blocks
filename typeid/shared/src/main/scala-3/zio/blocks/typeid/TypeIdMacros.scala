@@ -744,9 +744,16 @@ object TypeIdMacros {
     deriveTypeId[A]
 
   private def deriveTypeId[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
-    val tpe      = quotes.reflect.TypeRepr.of[A]
-    val sym      = tpe.typeSymbol
-    val cacheKey = if (sym.isNoSymbol) tpe.show else sym.fullName
+    import quotes.reflect.*
+    val tpe = TypeRepr.of[A]
+    val sym = tpe.typeSymbol
+    // Use tpe.show for applied types, union/intersection types, or when symbol is missing
+    // to ensure cache keys include type arguments
+    val cacheKey = tpe match {
+      case _: AppliedType | _: OrType | _: AndType => tpe.show
+      case _ if sym.isNoSymbol                     => tpe.show
+      case _                                       => sym.fullName
+    }
 
     Option(typeIdCache.get(cacheKey)) match {
       case Some(cached) =>
