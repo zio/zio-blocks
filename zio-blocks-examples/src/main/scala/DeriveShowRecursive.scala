@@ -5,15 +5,12 @@ import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import zio.blocks.typeid.TypeId
 
 /**
- * Recursive ShowDeriver - demonstrates the same pattern used by
- * JsonBinaryCodecDeriver.
- *
- * Key Pattern:
+ * Recursive ShowDeriver Key Patterns:
  *   1. All derive* methods delegate to a single `deriveCodec` method
  *   2. `deriveCodec` recursively traverses the Reflect structure
- *   3. A ThreadLocal cache handles recursive types (e.g., Tree with List[Tree])
+ *   3. A ThreadLocal cache handles recursive types
  *
- * IMPORTANT: Use type member aliases for existential types to avoid type
+ * IMPORTANT: We used type member aliases for existential types to avoid type
  * erasure issues.
  */
 object DeriveShowRecursive extends App {
@@ -24,7 +21,7 @@ object DeriveShowRecursive extends App {
 
   object DeriveShow extends Deriver[Show] {
 
-    // Cache for recursive type derivation (keyed by TypeId)
+    // Cache for recursive type derivation
     private val cache = new ThreadLocal[java.util.HashMap[TypeId[?], Show[?]]] {
       override def initialValue(): java.util.HashMap[TypeId[?], Show[?]] = new java.util.HashMap
     }
@@ -172,7 +169,9 @@ object DeriveShowRecursive extends App {
           def show(value: A): String = prim.primitiveType match {
             case _: PrimitiveType.String => "\"" + value + "\""
             case _: PrimitiveType.Char   => "'" + value + "'"
-            case _                       => String.valueOf(value)
+            // Add more pretty-printing for other primitive types as needed here
+            // We just use default toString for others for simplicity
+            case _ => String.valueOf(value)
           }
         }
       } else if (actualReflect.isRecord) {
@@ -214,7 +213,6 @@ object DeriveShowRecursive extends App {
           }
         }
         instance
-
       } else if (actualReflect.isVariant) {
         val variant = actualReflect.asVariant.get
         val typeId  = variant.typeId
@@ -253,17 +251,14 @@ object DeriveShowRecursive extends App {
           }
         }
         instance
-
       } else if (actualReflect.isSequence) {
         // Use type member aliases with helper method to preserve proper types
         deriveSeqCodec(actualReflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Elem, Col]])
           .asInstanceOf[Show[A]]
-
       } else if (actualReflect.isMap) {
         // Use type member aliases with helper method
         deriveMapCodec(actualReflect.asMapUnknown.get.map.asInstanceOf[Reflect.Map[Binding, Key, Value, Map]])
           .asInstanceOf[Show[A]]
-
       } else if (actualReflect.isWrapper) {
         val wrapper = actualReflect.asWrapperUnknown.get.wrapper
         val typeId  = wrapper.typeId
@@ -276,10 +271,7 @@ object DeriveShowRecursive extends App {
               case Left(error)      => s"${typeId.name}(<error: ${error.message}>)"
             }
           }
-        } else {
-          wrapper.wrapperBinding.asInstanceOf[BindingInstance[Show, ?, A]].instance.force
-        }
-
+        } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[Show, ?, A]].instance.force
       } else if (actualReflect.isDynamic) {
         new Show[A] {
           def show(value: A): String = showDynamic(value.asInstanceOf[DynamicValue])
@@ -296,9 +288,7 @@ object DeriveShowRecursive extends App {
           }
         }.asInstanceOf[Show[A]]
 
-      } else {
-        throw new IllegalArgumentException(s"Unsupported Reflect type: $actualReflect")
-      }
+      } else throw new IllegalArgumentException(s"Unsupported Reflect type: $actualReflect")
     }
 
     // Helper method for sequences - preserves proper type parameters
@@ -313,9 +303,7 @@ object DeriveShowRecursive extends App {
             s"[$elements]"
           }
         }
-      } else {
-        sequence.seqBinding.asInstanceOf[BindingInstance[Show, ?, C[E]]].instance.force
-      }
+      } else sequence.seqBinding.asInstanceOf[BindingInstance[Show, ?, C[E]]].instance.force
 
     // Helper method for maps - preserves proper type parameters
     private def deriveMapCodec[K, V, M[_, _]](map: Reflect.Map[Binding, K, V, M]): Show[M[K, V]] =
@@ -334,32 +322,51 @@ object DeriveShowRecursive extends App {
             s"Map($entries)"
           }
         }
-      } else {
-        map.mapBinding.asInstanceOf[BindingInstance[Show, ?, M[K, V]]].instance.force
-      }
+      } else map.mapBinding.asInstanceOf[BindingInstance[Show, ?, M[K, V]]].instance.force
   }
 
   // ===========================================
-  // Test Examples
+  // Examples
   // ===========================================
 
-//  println("=" * 60)
-//  println("Test 1: Simple Record")
-//  println("=" * 60)
+  def printHeader(title: String): Unit = {
+    println("=" * 60)
+    println(title)
+  }
 
-//  case class Person(name: String, age: Int)
-//  object Person {
-//    implicit val schema: Schema[Person] = Schema.derived[Person]
-//    implicit val show: Show[Person]     = schema.derive(DeriveShow)
-//  }
-//
-//  println(Person.show.show(Person("Alice", 30)))
-//
-//  println()
-//  println("=" * 60)
-//  println("Test 2: Recursive Tree")
-//  println("=" * 60)
+  /**
+   * Example 1: Simple Person Record with two primitive fields
+   */
+  printHeader("Example 1: Simple Person Record with two primitive fields")
+  case class Person(name: String, age: Int)
+  object Person {
+    implicit val schema: Schema[Person] = Schema.derived[Person]
+    implicit val show: Show[Person]     = schema.derive(DeriveShow)
+  }
+  println(Person.show.show(Person("Alice", 30)))
 
+  /**
+   * Example 2: Simple Shape Variant (Circle, Rectangle)
+   */
+  printHeader("Example 2: Simple Shape Variant (Circle, Rectangle)")
+  sealed trait Shape
+  case class Circle(radius: Double)                   extends Shape
+  case class Rectangle(width: Double, height: Double) extends Shape
+
+  object Shape {
+    implicit val schema: Schema[Shape] = Schema.derived[Shape]
+    implicit val show: Show[Shape]     = schema.derive(DeriveShow)
+  }
+
+  val shape1: Shape = Circle(5.0)
+  val shape2: Shape = Rectangle(4.0, 6.0)
+  println(Shape.show.show(shape1))
+  println(Shape.show.show(shape2))
+
+  /**
+   * Example 3: Recursive Tree and Expr
+   */
+  printHeader("Example 3: Recursive Tree")
   case class Tree(value: Int, children: List[Tree])
   object Tree {
     implicit val schema: Schema[Tree] = Schema.derived[Tree]
@@ -369,11 +376,10 @@ object DeriveShowRecursive extends App {
   val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
   println(Tree.show.show(tree))
 
-  println()
-  println("=" * 60)
-  println("Test 3: Recursive Sealed Trait (Expr)")
-  println("=" * 60)
-
+  /**
+   * Example 4: Recursive Sealed Trait (Expr)
+   */
+  printHeader("Example 4: Recursive Sealed Trait (Expr)")
   sealed trait Expr
   case class Num(n: Int)           extends Expr
   case class Add(a: Expr, b: Expr) extends Expr
@@ -386,27 +392,12 @@ object DeriveShowRecursive extends App {
   val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
   println(Expr.show.show(expr))
 
-  println()
-  println("=" * 60)
-  println("All tests passed!")
-  println("=" * 60)
-
-  // Example 1: Convert a typed value to DynamicValue and show it
-  case class Person(name: String, age: Int, active: Boolean)
-  object Person {
-    implicit val schema: Schema[Person] = Schema.derived[Person]
-  }
-
-  val person                      = Person("Alice", 30, active = true)
-  val personDynamic: DynamicValue = Person.schema.toDynamicValue(person)
-
+  /**
+   * Example 5: DynamicValue Example
+   */
+  printHeader("Example 5: DynamicValue Example")
   implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
 
-  println("Person as DynamicValue:")
-  println(dynamicShow.show(personDynamic))
-  // Output: Record(name = "Alice", age = 30, active = true)
-
-  // Example 2: Manually construct a DynamicValue
   val manualRecord = DynamicValue.Record(
     Chunk(
       "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
@@ -420,60 +411,12 @@ object DeriveShowRecursive extends App {
     )
   )
 
-  println("\nManual Record:")
   println(dynamicShow.show(manualRecord))
-  // Output: Record(id = 42, title = "Hello World", tags = ["scala", "zio"])
 
-  // Example 3: Variant (sum type) as DynamicValue
-  sealed trait Status
-  case class Active(since: String) extends Status
-  case object Inactive             extends Status
-
-  object Status {
-    implicit val schema: Schema[Status] = Schema.derived[Status]
-  }
-
-  val status: Status              = Active("2024-01-01")
-  val statusDynamic: DynamicValue = Status.schema.toDynamicValue(status)
-
-  println("\nStatus as DynamicValue:")
-  println(dynamicShow.show(statusDynamic))
-  // Output: Active(Record(since = "2024-01-01"))
-
-  // Example 4: Map as DynamicValue
-  val mapDynamic = DynamicValue.Map(
-    Chunk(
-      DynamicValue.Primitive(PrimitiveValue.String("key1")) ->
-        DynamicValue.Primitive(PrimitiveValue.Int(100)),
-      DynamicValue.Primitive(PrimitiveValue.String("key2")) ->
-        DynamicValue.Primitive(PrimitiveValue.Int(200))
-    )
-  )
-
-  println("\nMap DynamicValue:")
-  println(dynamicShow.show(mapDynamic))
-  // Output: Map("key1" -> 100, "key2" -> 200)
-
-  // Example 5: Nested structure
-  case class Order(id: Int, items: List[String], metadata: Map[String, Int])
-  object Order {
-    implicit val schema: Schema[Order] = Schema.derived[Order]
-  }
-
-  val order                      = Order(1, List("apple", "banana"), Map("quantity" -> 5, "price" -> 100))
-  val orderDynamic: DynamicValue = Order.schema.toDynamicValue(order)
-
-  println("\nOrder as DynamicValue:")
-  println(dynamicShow.show(orderDynamic))
-  // Output: Record(id = 1, items = ["apple", "banana"], metadata = Map("quantity" -> 5, "price" -> 100))
-
-  // Use DeriveShow from earlier (with all methods implemented including deriveWrapper)
-
-  // ==========================================
-  // Scala 2/3 Compatible: Case Class Wrappers
-  // ==========================================
-
-  // Example 1: Simple newtype wrapper using Schema.transform (total)
+  /**
+   * Example 6: Simple Email Wrapper Type
+   */
+  printHeader("Example 6: Simple Email Wrapper Type")
   case class Email(value: String)
   object Email {
     implicit val schema: Schema[Email] = Schema[String].transform(
@@ -485,168 +428,5 @@ object DeriveShowRecursive extends App {
 
   val email = Email("alice@example.com")
   println(s"Email: ${Email.show.show(email)}")
-  // Output: Email: Email("alice@example.com")
-
-  // Example 2: Wrapper with validation using Schema.transformOrFail
-  case class PositiveInt(value: Int)
-  object PositiveInt {
-    implicit val schema: Schema[PositiveInt] = Schema[Int].transformOrFail(
-      n => if (n > 0) Right(PositiveInt(n)) else Left(SchemaError.validationFailed("Must be positive")),
-      _.value
-    )
-    implicit val show: Show[PositiveInt] = schema.derive(DeriveShow)
-  }
-
-  val posInt = PositiveInt(42)
-  println(s"PositiveInt: ${PositiveInt.show.show(posInt)}")
-  // Output: PositiveInt: PositiveInt(42)
-
-  // ==========================================
-  // Scala 3 Only: Opaque Types
-  // ==========================================
-
-  // Example 3: Simple opaque type (Scala 3)
-  // Define in a separate file or object to hide the underlying type
-  object Types {
-    opaque type UserId = Long
-
-    object UserId {
-      def apply(id: Long): UserId = id
-
-      // Extension to access the underlying value (only visible inside Types)
-      extension (userId: UserId) def value: Long = userId
-
-      // Schema uses transform - the opaque type IS the underlying type at runtime
-      given Schema[UserId] = Schema[Long].transform(
-        UserId(_),
-        _.value
-      )
-
-      given Show[UserId] = summon[Schema[UserId]].derive(DeriveShow)
-    }
-
-    // Example 4: Validated opaque type
-    opaque type Age = Int
-
-    object Age {
-      def apply(n: Int): Either[String, Age] =
-        if (n >= 0 && n <= 150) Right(n) else Left("Age must be between 0 and 150")
-
-      def unsafe(n: Int): Age = n
-
-      extension (age: Age) def value: Int = age
-
-      given Schema[Age] = Schema[Int].transformOrFail(
-        n =>
-          if (n >= 0 && n <= 150) Right(n: Age)
-          else Left(SchemaError.validationFailed("Age must be between 0 and 150")),
-        _.value
-      )
-
-      given Show[Age] = summon[Schema[Age]].derive(DeriveShow)
-    }
-
-    // Example 5: Opaque type with type parameter
-    opaque type NonEmptyList[+A] = List[A]
-
-    object NonEmptyList {
-      def apply[A](head: A, tail: A*): NonEmptyList[A] = head :: tail.toList
-
-      def fromList[A](list: List[A]): Option[NonEmptyList[A]] =
-        if (list.nonEmpty) Some(list) else None
-
-      extension [A](nel: NonEmptyList[A]) {
-        def toList: List[A] = nel
-        def head: A         = nel.head
-      }
-
-      given [A](using Schema[A]): Schema[NonEmptyList[A]] =
-        Schema[List[A]].transformOrFail(
-          list =>
-            if (list.nonEmpty) Right(list: NonEmptyList[A])
-            else Left(SchemaError.validationFailed("List must not be empty")),
-          _.toList
-        )
-
-      given [A](using Schema[A], Show[A]): Show[NonEmptyList[A]] =
-        summon[Schema[NonEmptyList[A]]].derive(DeriveShow)
-    }
-
-    // Example 6: Opaque type for percentage (0.0 to 1.0)
-    opaque type Percentage = Double
-
-    object Percentage {
-      def apply(value: Double): Either[String, Percentage] =
-        if (value >= 0.0 && value <= 1.0) Right(value)
-        else Left("Percentage must be between 0.0 and 1.0")
-
-      def unsafe(value: Double): Percentage = value
-
-      extension (p: Percentage) def value: Double = p
-
-      given Schema[Percentage] = Schema[Double].transformOrFail(
-        d =>
-          if (d >= 0.0 && d <= 1.0) Right(d: Percentage)
-          else Left(SchemaError.validationFailed("Percentage must be between 0.0 and 1.0")),
-        _.value
-      )
-
-      given Show[Percentage] = summon[Schema[Percentage]].derive(DeriveShow)
-    }
-  }
-
-  import Types._
-  import Types.UserId.given
-  import Types.Age.given
-  import Types.Percentage.given
-
-  val userId = UserId(123456789L)
-  println(s"UserId: ${summon[Show[UserId]].show(userId)}")
-  // Output: UserId: UserId(123456789)
-
-  val age = Age.unsafe(30)
-  println(s"Age: ${summon[Show[Age]].show(age)}")
-  // Output: Age: Age(30)
-
-  val percentage = Percentage.unsafe(0.75)
-  println(s"Percentage: ${summon[Show[Percentage]].show(percentage)}")
-  // Output: Percentage: Percentage(0.75)
-
-  // ==========================================
-  // Scala 3: Using neotype library
-  // ==========================================
-
-  // Example 7: Using neotype Newtype (if neotype library is available)
-  /*
-    import neotype._
-
-    type Username = Username.Type
-    object Username extends Newtype[String]
-
-    // Automatic schema derivation for neotype
-    inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-      schema.transform(
-        a => newType.make(a).getOrElse(throw new IllegalArgumentException("Invalid value")),
-        newType.unwrap
-      )
-
-    val username = Username("alice123")
-    println(s"Username: ${summon[Show[Username]].show(username)}")
-   */
-
-  // ==========================================
-  // Nested structures with opaque types
-  // ==========================================
-
-  // Example 8: Record containing opaque types
-  case class User(id: UserId, age: Age, completionRate: Percentage)
-  object User {
-    given Schema[User] = Schema.derived[User]
-    given Show[User]   = summon[Schema[User]].derive(DeriveShow)
-  }
-
-  val user = User(UserId(1L), Age.unsafe(25), Percentage.unsafe(0.85))
-  println(s"User: ${summon[Show[User]].show(user)}")
-  // Output: User: User(id = UserId(1), age = Age(25), completionRate = Percentage(0.85))
 
 }
