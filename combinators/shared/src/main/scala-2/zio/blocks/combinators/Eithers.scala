@@ -74,16 +74,33 @@ object Eithers {
     def separate(a: A): Either[Left, Right]
   }
 
-  object Combiner extends CombinerLowPriority {
+  object Combiner extends CombinerHighPriority {
 
     /**
      * Type alias for a Combiner with a specific output type.
      */
     type WithOut[L, R, O] = Combiner[L, R] { type Out = O }
 
+    implicit def leftNestedNested[A, B, LO, X, Y](implicit
+      leftCombiner: Combiner.WithOut[A, B, LO],
+      inner: Combiner[Either[LO, X], Y]
+    ): WithOut[Either[A, B], Either[X, Y], inner.Out] =
+      new Combiner[Either[A, B], Either[X, Y]] {
+        type Out = inner.Out
+
+        def combine(either: Either[Either[A, B], Either[X, Y]]): inner.Out =
+          either match {
+            case Left(l)         => inner.combine(Left(Left(leftCombiner.combine(l))))
+            case Right(Left(x))  => inner.combine(Left(Right(x)))
+            case Right(Right(y)) => inner.combine(Right(y))
+          }
+      }
+  }
+
+  trait CombinerHighPriority extends CombinerMidPriority {
     implicit def nested[L, X, Y](implicit
       inner: Combiner[Either[L, X], Y]
-    ): WithOut[L, Either[X, Y], inner.Out] =
+    ): Combiner.WithOut[L, Either[X, Y], inner.Out] =
       new Combiner[L, Either[X, Y]] {
         type Out = inner.Out
 
@@ -92,6 +109,21 @@ object Eithers {
             case Left(l)         => inner.combine(Left(Left(l)))
             case Right(Left(x))  => inner.combine(Left(Right(x)))
             case Right(Right(y)) => inner.combine(Right(y))
+          }
+      }
+  }
+
+  trait CombinerMidPriority extends CombinerLowPriority {
+    implicit def leftNested[A, B, LO, R](implicit
+      leftCombiner: Combiner.WithOut[A, B, LO]
+    ): Combiner.WithOut[Either[A, B], R, Either[LO, R]] =
+      new Combiner[Either[A, B], R] {
+        type Out = Either[LO, R]
+
+        def combine(either: Either[Either[A, B], R]): Either[LO, R] =
+          either match {
+            case Left(inner) => Left(leftCombiner.combine(inner))
+            case Right(r)    => Right(r)
           }
       }
   }

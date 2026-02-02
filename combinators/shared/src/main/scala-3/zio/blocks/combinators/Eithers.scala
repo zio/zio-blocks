@@ -46,6 +46,23 @@ object Eithers {
   }
 
   /**
+   * Canonicalizes a type, recursively canonicalizing nested Eithers.
+   */
+  type Canonicalize[E] = E match {
+    case Either[l, r] => CanonicalizeEither[l, r]
+    case _            => E
+  }
+
+  /**
+   * Canonicalizes an Either by first canonicalizing both branches, then
+   * reassociating to left-nested form.
+   */
+  type CanonicalizeEither[L, R] <: Either[?, ?] = R match {
+    case Either[x, y] => CanonicalizeEither[Either[Canonicalize[L], Canonicalize[x]], y]
+    case _            => Either[Canonicalize[L], Canonicalize[R]]
+  }
+
+  /**
    * Extracts the left type from a left-nested Either.
    */
   type LeftOf[A] = A match {
@@ -109,12 +126,22 @@ object Eithers {
      */
     type WithOut[L, R, O] = Combiner[L, R] { type Out = O }
 
-    inline given combiner[L, R]: WithOut[L, R, LeftNest[L, R]] =
-      inline erasedValue[R] match {
-        case _: Either[x, y] =>
-          NestedCombiner[L, x, y]().asInstanceOf[WithOut[L, R, LeftNest[L, R]]]
+    inline given combiner[L, R]: WithOut[L, R, CanonicalizeEither[L, R]] =
+      inline erasedValue[L] match {
+        case _: Either[a, b] =>
+          inline erasedValue[R] match {
+            case _: Either[x, y] =>
+              LeftNestedNestedCombiner[a, b, x, y]().asInstanceOf[WithOut[L, R, CanonicalizeEither[L, R]]]
+            case _ =>
+              LeftNestedCombiner[a, b, R]().asInstanceOf[WithOut[L, R, CanonicalizeEither[L, R]]]
+          }
         case _ =>
-          AtomicCombiner[L, R]().asInstanceOf[WithOut[L, R, LeftNest[L, R]]]
+          inline erasedValue[R] match {
+            case _: Either[x, y] =>
+              NestedCombiner[L, x, y]().asInstanceOf[WithOut[L, R, CanonicalizeEither[L, R]]]
+            case _ =>
+              AtomicCombiner[L, R]().asInstanceOf[WithOut[L, R, CanonicalizeEither[L, R]]]
+          }
       }
 
     private[combinators] class AtomicCombiner[L, R] extends Combiner[L, R] {
@@ -124,13 +151,39 @@ object Eithers {
     }
 
     private[combinators] class NestedCombiner[L, X, Y](using
-      inner: Combiner.WithOut[Either[L, X], Y, LeftNest[Either[L, X], Y]]
+      inner: Combiner.WithOut[Either[L, X], Y, CanonicalizeEither[Either[L, X], Y]]
     ) extends Combiner[L, Either[X, Y]] {
-      type Out = LeftNest[Either[L, X], Y]
+      type Out = CanonicalizeEither[Either[L, X], Y]
 
-      def combine(either: Either[L, Either[X, Y]]): LeftNest[Either[L, X], Y] =
+      def combine(either: Either[L, Either[X, Y]]): CanonicalizeEither[Either[L, X], Y] =
         either match {
           case Left(l)         => inner.combine(Left(Left(l)))
+          case Right(Left(x))  => inner.combine(Left(Right(x)))
+          case Right(Right(y)) => inner.combine(Right(y))
+        }
+    }
+
+    private[combinators] class LeftNestedCombiner[A, B, R](using
+      val leftCombiner: Combiner[A, B]
+    ) extends Combiner[Either[A, B], R] {
+      type Out = Either[leftCombiner.Out, R]
+
+      def combine(either: Either[Either[A, B], R]): Either[leftCombiner.Out, R] =
+        either match {
+          case Left(inner) => Left(leftCombiner.combine(inner))
+          case Right(r)    => Right(r)
+        }
+    }
+
+    private[combinators] class LeftNestedNestedCombiner[A, B, X, Y](using
+      val leftCombiner: Combiner[A, B],
+      val inner: Combiner.WithOut[Either[leftCombiner.Out, X], Y, CanonicalizeEither[Either[leftCombiner.Out, X], Y]]
+    ) extends Combiner[Either[A, B], Either[X, Y]] {
+      type Out = CanonicalizeEither[Either[leftCombiner.Out, X], Y]
+
+      def combine(either: Either[Either[A, B], Either[X, Y]]): CanonicalizeEither[Either[leftCombiner.Out, X], Y] =
+        either match {
+          case Left(l)         => inner.combine(Left(Left(leftCombiner.combine(l))))
           case Right(Left(x))  => inner.combine(Left(Right(x)))
           case Right(Right(y)) => inner.combine(Right(y))
         }
