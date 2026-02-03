@@ -1177,7 +1177,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       }
     })
 
-    val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
       val typeIndicator =
         if (fi.tpe.dealias <:< intTpe) 1
         else if (fi.tpe.dealias <:< longTpe) 2
