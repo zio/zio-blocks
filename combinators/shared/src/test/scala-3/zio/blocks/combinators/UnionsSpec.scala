@@ -123,7 +123,7 @@ object UnionsSpec extends ZIOSpecDefault {
     suite("Compile-time uniqueness check")(
       test("Separator[Int | Int] fails with uniqueness error") {
         val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[Int, Int, Int]]")
-        val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        val expected = "Union types must contain unique types. Found overlapping types: Int. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
           errors.length == 1,
           errors.head.message == expected
@@ -131,7 +131,7 @@ object UnionsSpec extends ZIOSpecDefault {
       },
       test("Separator[String | String] with duplicate types fails with uniqueness error") {
         val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, String | Int, String]]")
-        val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        val expected = "Union types must contain unique types. Found overlapping types: String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
           errors.length == 1,
           errors.head.message == expected
@@ -143,11 +143,35 @@ object UnionsSpec extends ZIOSpecDefault {
       },
       test("Separator[String | Int, String | Int, String] fails when R is contained in L") {
         val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, String | Int, String]]")
-        val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        val expected = "Union types must contain unique types. Found overlapping types: String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
           errors.length == 1,
           errors.head.message == expected
         )
+      },
+      test("Separator[String | Int, Int, String | Int] fails when L is contained in R") {
+        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, Int, String | Int]]")
+        val expected = "Union types must contain unique types. Found overlapping types: Int. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        assertTrue(
+          errors.length == 1,
+          errors.head.message == expected
+        )
+      },
+      test("Separator with partial overlap fails (Int|String|Boolean vs Int|String|Char)") {
+        val errors = typeCheckErrors(
+          "summon[Unions.Separator.WithTypes[Int | String | Boolean | Char, Int | String | Boolean, Int | String | Char]]"
+        )
+        val expected =
+          "Union types must contain unique types. Found overlapping types: Int, String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        assertTrue(
+          errors.length == 1,
+          errors.head.message == expected
+        )
+      },
+      test("Separator with disjoint union types compiles successfully") {
+        val errors =
+          typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String | Boolean | Char, Int | String, Boolean | Char]]")
+        assertTrue(errors.isEmpty)
       }
     )
   )
