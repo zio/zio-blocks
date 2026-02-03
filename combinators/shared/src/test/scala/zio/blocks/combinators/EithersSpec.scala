@@ -120,6 +120,28 @@ object EithersSpec extends ZIOSpecDefault {
         val separated                  = separator.separate(combined.asInstanceOf[Either[Int, String]])
         assertTrue(separated == Right("hello"))
       }
+    ),
+    suite("Top-level convenience methods")(
+      test("Eithers.combine works without explicit combiner") {
+        val input: Either[Int, Either[String, Boolean]] = Right(Right(true))
+        val result: Any                                 = Eithers.combine(input)
+        assertTrue(result == Right(true))
+      },
+      test("Eithers.combine canonicalizes nested Left") {
+        val input: Either[Int, Either[String, Boolean]] = Left(42)
+        val result: Any                                 = Eithers.combine(input)
+        assertTrue(result == Left(Left(42)))
+      },
+      test("Eithers.separate works without explicit separator") {
+        val input: Either[Either[Int, String], Boolean] = Right(true)
+        val result                                      = Eithers.separate(input)
+        assertTrue(result == Right(true))
+      },
+      test("Eithers.separate peels Left correctly") {
+        val input: Either[Either[Int, String], Boolean] = Left(Left(42))
+        val result                                      = Eithers.separate(input)
+        assertTrue(result == Left(Left(42)))
+      }
     )
   )
 }
