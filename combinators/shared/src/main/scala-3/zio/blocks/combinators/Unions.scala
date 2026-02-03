@@ -126,7 +126,7 @@ object Unions {
      */
     inline given separator[L, R](using tt: TypeTest[L | R, R]): WithTypes[L | R, L, R] =
       summonFrom {
-        case _: (L =:= R) =>
+        case _: (R <:< L) =>
           error(
             "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
           )

@@ -130,20 +130,24 @@ object UnionsSpec extends ZIOSpecDefault {
         )
       },
       test("Separator[String | String] with duplicate types fails with uniqueness error") {
-        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String, String, String]]")
+        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, String | Int, String]]")
         val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
           errors.length == 1,
           errors.head.message == expected
         )
       },
-      test("Separator with unique types compiles successfully") {
-        val errors = typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String, Int, String]]")
-        assertTrue(errors.isEmpty)
-      },
       test("Separator with three unique types compiles successfully") {
         val errors = typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String | Boolean, Int | String, Boolean]]")
         assertTrue(errors.isEmpty)
+      },
+      test("Separator[String | Int, String | Int, String] fails when R is contained in L") {
+        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, String | Int, String]]")
+        val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        assertTrue(
+          errors.length == 1,
+          errors.head.message == expected
+        )
       }
     )
   )
