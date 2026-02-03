@@ -1,5 +1,6 @@
 package zio.blocks.combinators
 
+import scala.quoted.*
 import scala.reflect.TypeTest
 
 /**
@@ -101,38 +102,57 @@ object Unions {
   object Separator {
 
     /**
-     * Type alias for a Separator with specific left and right types.
-     */
+      * Type alias for a Separator with specific left and right types.
+      */
     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
-    import scala.compiletime.{error, summonFrom}
-
     /**
-     * Creates a Separator for union type L | R.
-     *
-     * Requires that L and R are distinct types. If they are the same (e.g., Int | Int
-     * which simplifies to Int), compilation will fail because TypeTest cannot reliably
-     * distinguish identical types.
-     *
-     * Union types must be unique. Use Either, a wrapper type, opaque type, or newtype
-     * to distinguish values of the same underlying type.
-     *
-     * @tparam L
-     *   The left type in the union
-     * @tparam R
-     *   The right type in the union
-     * @param tt
-     *   TypeTest for discriminating R from the union
-     */
+      * Creates a Separator for union type L | R.
+      *
+      * Requires that L and R are distinct types with no overlap. If any type appears
+      * in both L and R (e.g., `Int | String | Boolean` vs `Int | String | Char`),
+      * compilation will fail with an error listing the overlapping types.
+      *
+      * Union types must be unique. Use Either, a wrapper type, opaque type, or newtype
+      * to distinguish values of the same underlying type.
+      *
+      * @tparam L
+      *   The left type in the union
+      * @tparam R
+      *   The right type in the union
+      * @param tt
+      *   TypeTest for discriminating R from the union
+      */
     inline given separator[L, R](using tt: TypeTest[L | R, R]): WithTypes[L | R, L, R] =
-      summonFrom {
-        case _: (R <:< L) =>
-          error(
-            "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
-          )
-        case _ =>
-          new UnionSeparator[L, R]
+      ${ separatorMacro[L, R]('tt) }
+
+    private def separatorMacro[L: Type, R: Type](
+        tt: Expr[TypeTest[L | R, R]]
+    )(using Quotes): Expr[WithTypes[L | R, L, R]] = {
+      import quotes.reflect.*
+
+      def flattenUnion(tpe: TypeRepr): List[TypeRepr] = tpe.dealias match {
+        case OrType(left, right) => flattenUnion(left) ++ flattenUnion(right)
+        case other               => List(other)
       }
+
+      val lTypes = flattenUnion(TypeRepr.of[L])
+      val rTypes = flattenUnion(TypeRepr.of[R])
+
+      val overlap = lTypes.filter { lType =>
+        rTypes.exists { rType => lType =:= rType }
+      }
+
+      if (overlap.nonEmpty) {
+        val overlapNames = overlap.map(_.typeSymbol.name).mkString(", ")
+        report.errorAndAbort(
+          s"Union types must contain unique types. Found overlapping types: $overlapNames. " +
+            "Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        )
+      }
+
+      '{ new UnionSeparator[L, R](using $tt) }
+    }
 
     private[combinators] class UnionSeparator[L, R](using tt: TypeTest[L | R, R]) extends Separator[L | R] {
       type Left  = L
