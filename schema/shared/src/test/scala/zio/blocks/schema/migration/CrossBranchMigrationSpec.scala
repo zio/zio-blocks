@@ -176,7 +176,7 @@ object CrossBranchMigrationSpec extends SchemaBaseSpec {
 
         val root = dynamicRecord(
           "external" -> dynamicString("root-value"),
-          "nested" -> dynamicRecord(
+          "nested"   -> dynamicRecord(
             "data" -> dynamicString("ignored")
           )
         )
@@ -511,7 +511,7 @@ object CrossBranchMigrationSpec extends SchemaBaseSpec {
               case DynamicValue.Record(fields) =>
                 fields.exists { case (name, value) =>
                   name == "cityInfo" &&
-                    value == dynamicString("Current: New York, Default: Boston")
+                  value == dynamicString("Current: New York, Default: Boston")
                 }
               case _ => false
             }

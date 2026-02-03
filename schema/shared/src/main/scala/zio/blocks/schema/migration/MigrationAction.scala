@@ -28,8 +28,8 @@ sealed trait MigrationAction {
   /**
    * Apply this action to a DynamicValue.
    *
-   * Delegates to [[applyWithRoot]] using the value as its own root,
-   * maintaining backward compatibility.
+   * Delegates to [[applyWithRoot]] using the value as its own root, maintaining
+   * backward compatibility.
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
     applyWithRoot(value, value)
@@ -441,7 +441,9 @@ object MigrationAction {
         case DynamicValue.Record(entries) =>
           transformMapValuesWithRoot(entries.toVector, valueTransform, at, root).map(v => DynamicValue.Record(v: _*))
         case DynamicValue.Map(entries) =>
-          transformMapValuesFullMapWithRoot(entries.toVector, valueTransform, at, root).map(v => DynamicValue.Map(v: _*))
+          transformMapValuesFullMapWithRoot(entries.toVector, valueTransform, at, root).map(v =>
+            DynamicValue.Map(v: _*)
+          )
         case other =>
           Left(MigrationError.ExpectedMap(at, other))
       }
@@ -511,7 +513,8 @@ object MigrationAction {
     }
 
   /**
-   * Transform all elements in a vector using the given transform with root context.
+   * Transform all elements in a vector using the given transform with root
+   * context.
    */
   private def transformAllWithRoot(
     elements: Vector[DynamicValue],

@@ -440,8 +440,8 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
             MigrationAction.Rename(DynamicOptic.root, "old", "new")
           )
         )
-        val schema      = Schema[DynamicMigration]
-        val dynamic     = schema.toDynamicValue(original)
+        val schema        = Schema[DynamicMigration]
+        val dynamic       = schema.toDynamicValue(original)
         val reconstructed = schema.fromDynamicValue(dynamic)
         assertTrue(reconstructed == Right(original))
       },
@@ -451,8 +451,8 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           "field",
           Resolved.Literal.int(42)
         )
-        val schema      = Schema[MigrationAction]
-        val dynamic     = schema.toDynamicValue(original)
+        val schema        = Schema[MigrationAction]
+        val dynamic       = schema.toDynamicValue(original)
         val reconstructed = schema.fromDynamicValue(dynamic)
         assertTrue(reconstructed == Right(original))
       },
@@ -465,8 +465,8 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           ),
           ""
         )
-        val schema      = Schema[Resolved]
-        val dynamic     = schema.toDynamicValue(original)
+        val schema        = Schema[Resolved]
+        val dynamic       = schema.toDynamicValue(original)
         val reconstructed = schema.fromDynamicValue(dynamic)
         assertTrue(reconstructed == Right(original))
       },
@@ -488,7 +488,10 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
             ),
             MigrationAction.TransformElements(
               DynamicOptic.root.field("items"),
-              Resolved.Compose(Resolved.Convert("Int", "Long", Resolved.Identity), Resolved.FieldAccess("qty", Resolved.Identity)),
+              Resolved.Compose(
+                Resolved.Convert("Int", "Long", Resolved.Identity),
+                Resolved.FieldAccess("qty", Resolved.Identity)
+              ),
               Resolved.Compose(Resolved.Convert("Long", "Int", Resolved.Identity), Resolved.Identity)
             )
           )

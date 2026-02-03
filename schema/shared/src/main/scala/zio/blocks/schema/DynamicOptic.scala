@@ -34,8 +34,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   def wrapped: DynamicOptic = new DynamicOptic(nodes :+ Node.Wrapped)
 
   /**
-   * Get the parent optic by removing the last node.
-   * Returns None if this is the root optic (no nodes).
+   * Get the parent optic by removing the last node. Returns None if this is the
+   * root optic (no nodes).
    *
    * Example:
    * {{{

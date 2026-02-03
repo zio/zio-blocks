@@ -19,8 +19,8 @@ import zio.blocks.typeid.TypeId
  *   - Transmitted over the network
  *   - Reconstructed without reflection or code generation
  *
- * Manual derivation is used for Scala 2 compatibility. In Scala 3,
- * these could be derived using `Schema.derived`.
+ * Manual derivation is used for Scala 2 compatibility. In Scala 3, these could
+ * be derived using `Schema.derived`.
  */
 object MigrationSchemas {
 
@@ -36,12 +36,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Literal],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Literal] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                      = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.Literal =
             Resolved.Literal(in.getObject(offset + 0).asInstanceOf[DynamicValue])
         },
         deconstructor = new Deconstructor[Resolved.Literal] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                   = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Literal): Unit =
             out.setObject(offset + 0, in.value)
         }
@@ -71,7 +71,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.FieldAccess],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.FieldAccess] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                          = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.FieldAccess =
             Resolved.FieldAccess(
               in.getObject(offset + 0).asInstanceOf[String],
@@ -79,7 +79,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.FieldAccess] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                       = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.FieldAccess): Unit = {
             out.setObject(offset + 0, in.fieldName)
             out.setObject(offset + 1, in.inner)
@@ -99,7 +99,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.OpticAccess],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.OpticAccess] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                          = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.OpticAccess =
             Resolved.OpticAccess(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -107,7 +107,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.OpticAccess] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                       = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.OpticAccess): Unit = {
             out.setObject(offset + 0, in.path)
             out.setObject(offset + 1, in.inner)
@@ -126,12 +126,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.DefaultValue],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.DefaultValue] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                           = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.DefaultValue =
             Resolved.DefaultValue(in.getObject(offset + 0).asInstanceOf[Either[String, DynamicValue]])
         },
         deconstructor = new Deconstructor[Resolved.DefaultValue] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                        = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.DefaultValue): Unit =
             out.setObject(offset + 0, in.defaultDynamic)
         }
@@ -150,7 +150,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Convert],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Convert] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                      = 3
           def construct(in: Registers, offset: RegisterOffset): Resolved.Convert =
             Resolved.Convert(
               in.getObject(offset + 0).asInstanceOf[String],
@@ -159,7 +159,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.Convert] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                   = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Convert): Unit = {
             out.setObject(offset + 0, in.fromTypeName)
             out.setObject(offset + 1, in.toTypeName)
@@ -180,7 +180,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Concat],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Concat] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                     = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.Concat =
             Resolved.Concat(
               in.getObject(offset + 0).asInstanceOf[Vector[Resolved]],
@@ -188,7 +188,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.Concat] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                  = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Concat): Unit = {
             out.setObject(offset + 0, in.parts)
             out.setObject(offset + 1, in.separator)
@@ -208,7 +208,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.SplitString],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.SplitString] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                          = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.SplitString =
             Resolved.SplitString(
               in.getObject(offset + 0).asInstanceOf[String],
@@ -216,7 +216,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.SplitString] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                       = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.SplitString): Unit = {
             out.setObject(offset + 0, in.separator)
             out.setObject(offset + 1, in.inner)
@@ -235,12 +235,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.WrapSome],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.WrapSome] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                       = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.WrapSome =
             Resolved.WrapSome(in.getObject(offset + 0).asInstanceOf[Resolved])
         },
         deconstructor = new Deconstructor[Resolved.WrapSome] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                    = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.WrapSome): Unit =
             out.setObject(offset + 0, in.inner)
         }
@@ -258,7 +258,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.UnwrapOption],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.UnwrapOption] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                           = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.UnwrapOption =
             Resolved.UnwrapOption(
               in.getObject(offset + 0).asInstanceOf[Resolved],
@@ -266,7 +266,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.UnwrapOption] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                        = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.UnwrapOption): Unit = {
             out.setObject(offset + 0, in.inner)
             out.setObject(offset + 1, in.fallback)
@@ -286,7 +286,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Compose],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Compose] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                      = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.Compose =
             Resolved.Compose(
               in.getObject(offset + 0).asInstanceOf[Resolved],
@@ -294,7 +294,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.Compose] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                   = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Compose): Unit = {
             out.setObject(offset + 0, in.outer)
             out.setObject(offset + 1, in.inner)
@@ -313,12 +313,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Fail],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Fail] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                   = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.Fail =
             Resolved.Fail(in.getObject(offset + 0).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Resolved.Fail] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Fail): Unit =
             out.setObject(offset + 0, in.message)
         }
@@ -337,12 +337,12 @@ object MigrationSchemas {
       typeId = TypeId.of[(String, Resolved)],
       recordBinding = new Binding.Record(
         constructor = new Constructor[(String, Resolved)] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                        = 2
           def construct(in: Registers, offset: RegisterOffset): (String, Resolved) =
             (in.getObject(offset + 0).asInstanceOf[String], in.getObject(offset + 1).asInstanceOf[Resolved])
         },
         deconstructor = new Deconstructor[(String, Resolved)] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                     = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: (String, Resolved)): Unit = {
             out.setObject(offset + 0, in._1)
             out.setObject(offset + 1, in._2)
@@ -361,12 +361,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Construct],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Construct] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                        = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.Construct =
             Resolved.Construct(in.getObject(offset + 0).asInstanceOf[Vector[(String, Resolved)]])
         },
         deconstructor = new Deconstructor[Resolved.Construct] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                     = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Construct): Unit =
             out.setObject(offset + 0, in.fields)
         }
@@ -383,12 +383,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.ConstructSeq],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.ConstructSeq] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                           = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.ConstructSeq =
             Resolved.ConstructSeq(in.getObject(offset + 0).asInstanceOf[Vector[Resolved]])
         },
         deconstructor = new Deconstructor[Resolved.ConstructSeq] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                        = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.ConstructSeq): Unit =
             out.setObject(offset + 0, in.elements)
         }
@@ -405,12 +405,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Head],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Head] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                   = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.Head =
             Resolved.Head(in.getObject(offset + 0).asInstanceOf[Resolved])
         },
         deconstructor = new Deconstructor[Resolved.Head] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Head): Unit =
             out.setObject(offset + 0, in.inner)
         }
@@ -428,7 +428,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.JoinStrings],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.JoinStrings] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                          = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.JoinStrings =
             Resolved.JoinStrings(
               in.getObject(offset + 0).asInstanceOf[String],
@@ -436,7 +436,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.JoinStrings] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                       = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.JoinStrings): Unit = {
             out.setObject(offset + 0, in.separator)
             out.setObject(offset + 1, in.inner)
@@ -455,12 +455,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.Coalesce],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.Coalesce] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                       = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.Coalesce =
             Resolved.Coalesce(in.getObject(offset + 0).asInstanceOf[Vector[Resolved]])
         },
         deconstructor = new Deconstructor[Resolved.Coalesce] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                    = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.Coalesce): Unit =
             out.setObject(offset + 0, in.alternatives)
         }
@@ -478,7 +478,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.GetOrElse],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.GetOrElse] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                        = 2
           def construct(in: Registers, offset: RegisterOffset): Resolved.GetOrElse =
             Resolved.GetOrElse(
               in.getObject(offset + 0).asInstanceOf[Resolved],
@@ -486,7 +486,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.GetOrElse] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                     = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.GetOrElse): Unit = {
             out.setObject(offset + 0, in.primary)
             out.setObject(offset + 1, in.fallback)
@@ -505,12 +505,12 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.RootAccess],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.RootAccess] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                         = 1
           def construct(in: Registers, offset: RegisterOffset): Resolved.RootAccess =
             Resolved.RootAccess(in.getObject(offset + 0).asInstanceOf[DynamicOptic])
         },
         deconstructor = new Deconstructor[Resolved.RootAccess] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                      = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.RootAccess): Unit =
             out.setObject(offset + 0, in.path)
         }
@@ -528,7 +528,7 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved.At],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Resolved.At] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
+          def usedRegisters: RegisterOffset                                 = RegisterOffset(ints = 1, objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Resolved.At =
             Resolved.At(
               in.getInt(offset),
@@ -536,7 +536,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[Resolved.At] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
+          def usedRegisters: RegisterOffset                                              = RegisterOffset(ints = 1, objects = 1)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.At): Unit = {
             out.setInt(offset, in.index)
             out.setObject(offset, in.inner)
@@ -575,28 +575,30 @@ object MigrationSchemas {
       typeId = TypeId.of[Resolved],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Resolved] {
-          def discriminate(a: Resolved): Int = if (a == null) -1 else a match {
-            case _: Resolved.Literal       => 0
-            case Resolved.Identity         => 1
-            case _: Resolved.FieldAccess   => 2
-            case _: Resolved.OpticAccess   => 3
-            case _: Resolved.DefaultValue  => 4
-            case _: Resolved.Convert       => 5
-            case _: Resolved.Concat        => 6
-            case _: Resolved.SplitString   => 7
-            case _: Resolved.WrapSome      => 8
-            case _: Resolved.UnwrapOption  => 9
-            case _: Resolved.Compose       => 10
-            case _: Resolved.Fail          => 11
-            case _: Resolved.Construct     => 12
-            case _: Resolved.ConstructSeq  => 13
-            case _: Resolved.Head          => 14
-            case _: Resolved.JoinStrings   => 15
-            case _: Resolved.Coalesce      => 16
-            case _: Resolved.GetOrElse     => 17
-            case _: Resolved.RootAccess    => 18
-            case _: Resolved.At            => 19
-          }
+          def discriminate(a: Resolved): Int = if (a == null) -1
+          else
+            a match {
+              case _: Resolved.Literal      => 0
+              case Resolved.Identity        => 1
+              case _: Resolved.FieldAccess  => 2
+              case _: Resolved.OpticAccess  => 3
+              case _: Resolved.DefaultValue => 4
+              case _: Resolved.Convert      => 5
+              case _: Resolved.Concat       => 6
+              case _: Resolved.SplitString  => 7
+              case _: Resolved.WrapSome     => 8
+              case _: Resolved.UnwrapOption => 9
+              case _: Resolved.Compose      => 10
+              case _: Resolved.Fail         => 11
+              case _: Resolved.Construct    => 12
+              case _: Resolved.ConstructSeq => 13
+              case _: Resolved.Head         => 14
+              case _: Resolved.JoinStrings  => 15
+              case _: Resolved.Coalesce     => 16
+              case _: Resolved.GetOrElse    => 17
+              case _: Resolved.RootAccess   => 18
+              case _: Resolved.At           => 19
+            }
         },
         matchers = Matchers(
           new Matcher[Resolved.Literal] {
@@ -739,7 +741,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.AddField],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.AddField] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                              = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.AddField =
             MigrationAction.AddField(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -748,7 +750,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.AddField] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                           = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.AddField): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.fieldName)
@@ -770,7 +772,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.DropField],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.DropField] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                               = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.DropField =
             MigrationAction.DropField(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -779,7 +781,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.DropField] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                            = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.DropField): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.fieldName)
@@ -801,7 +803,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.Rename],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Rename] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                            = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.Rename =
             MigrationAction.Rename(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -810,7 +812,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.Rename] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                         = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.Rename): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.from)
@@ -833,7 +835,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.TransformValue],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformValue] {
-          def usedRegisters: RegisterOffset = 4
+          def usedRegisters: RegisterOffset                                                    = 4
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformValue =
             MigrationAction.TransformValue(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -843,7 +845,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.TransformValue] {
-          def usedRegisters: RegisterOffset = 4
+          def usedRegisters: RegisterOffset                                                                 = 4
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformValue): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.fieldName)
@@ -866,7 +868,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.Mandate],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Mandate] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                             = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.Mandate =
             MigrationAction.Mandate(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -875,7 +877,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.Mandate] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                          = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.Mandate): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.fieldName)
@@ -896,7 +898,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.Optionalize],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Optionalize] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                 = 2
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.Optionalize =
             MigrationAction.Optionalize(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -904,7 +906,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.Optionalize] {
-          def usedRegisters: RegisterOffset = 2
+          def usedRegisters: RegisterOffset                                                              = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.Optionalize): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.fieldName)
@@ -926,7 +928,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.ChangeType],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.ChangeType] {
-          def usedRegisters: RegisterOffset = 4
+          def usedRegisters: RegisterOffset                                                = 4
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.ChangeType =
             MigrationAction.ChangeType(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -936,7 +938,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.ChangeType] {
-          def usedRegisters: RegisterOffset = 4
+          def usedRegisters: RegisterOffset                                                             = 4
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.ChangeType): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.fieldName)
@@ -959,7 +961,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.RenameCase],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.RenameCase] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.RenameCase =
             MigrationAction.RenameCase(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -968,7 +970,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.RenameCase] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                             = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.RenameCase): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.from)
@@ -990,7 +992,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.TransformCase],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformCase] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                   = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformCase =
             MigrationAction.TransformCase(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -999,7 +1001,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.TransformCase] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                                = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformCase): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.caseName)
@@ -1021,7 +1023,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.TransformElements],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformElements] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                       = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformElements =
             MigrationAction.TransformElements(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -1030,7 +1032,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.TransformElements] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                                    = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformElements): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.elementTransform)
@@ -1052,7 +1054,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.TransformKeys],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformKeys] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                   = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformKeys =
             MigrationAction.TransformKeys(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -1061,7 +1063,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.TransformKeys] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                                = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformKeys): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.keyTransform)
@@ -1083,7 +1085,7 @@ object MigrationSchemas {
       typeId = TypeId.of[MigrationAction.TransformValues],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformValues] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                     = 3
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformValues =
             MigrationAction.TransformValues(
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -1092,7 +1094,7 @@ object MigrationSchemas {
             )
         },
         deconstructor = new Deconstructor[MigrationAction.TransformValues] {
-          def usedRegisters: RegisterOffset = 3
+          def usedRegisters: RegisterOffset                                                                  = 3
           def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformValues): Unit = {
             out.setObject(offset + 0, in.at)
             out.setObject(offset + 1, in.valueTransform)
@@ -1230,12 +1232,12 @@ object MigrationSchemas {
       typeId = TypeId.of[DynamicMigration],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicMigration] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                      = 1
           def construct(in: Registers, offset: RegisterOffset): DynamicMigration =
             DynamicMigration(in.getObject(offset + 0).asInstanceOf[Vector[MigrationAction]])
         },
         deconstructor = new Deconstructor[DynamicMigration] {
-          def usedRegisters: RegisterOffset = 1
+          def usedRegisters: RegisterOffset                                                   = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicMigration): Unit =
             out.setObject(offset + 0, in.actions)
         }

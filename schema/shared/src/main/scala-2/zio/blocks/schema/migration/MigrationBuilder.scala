@@ -381,9 +381,9 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
   /**
    * Split a source field into multiple target fields.
    *
-   * This operation splits a single source field by a separator and assigns
-   * each part to a corresponding target field. The source field is accessed
-   * from the root document using RootAccess.
+   * This operation splits a single source field by a separator and assigns each
+   * part to a corresponding target field. The source field is accessed from the
+   * root document using RootAccess.
    *
    * NOTE: This operation is NOT reversible - the reverse migration will fail.
    * Use dropField on the source if it should not exist in the target schema.
@@ -461,7 +461,6 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
 
     new MigrationBuilder(sourceSchema, targetSchema, actions ++ addActions :+ dropAction)
   }
-
 
   // ─────────────────────────────────────────────────────────────────────────
   // Build Methods

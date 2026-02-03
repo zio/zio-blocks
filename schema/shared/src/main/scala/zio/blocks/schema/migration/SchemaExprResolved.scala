@@ -43,7 +43,8 @@ sealed trait Resolved { self =>
   def evalDynamic(input: DynamicValue): Either[String, DynamicValue]
 
   /**
-   * Evaluate this expression with root document context for cross-branch access.
+   * Evaluate this expression with root document context for cross-branch
+   * access.
    *
    * This method enables expressions like `RootAccess` to access values from
    * anywhere in the document, regardless of the current evaluation context.
@@ -128,9 +129,11 @@ object Resolved {
    * Extract a field from a record.
    *
    * The field name is stored as a string, and nested access is supported
-   * through the `inner` expression which is applied to the extracted field value.
+   * through the `inner` expression which is applied to the extracted field
+   * value.
    *
-   * Semantics: First extract field from input record, then apply inner to the field value.
+   * Semantics: First extract field from input record, then apply inner to the
+   * field value.
    */
   final case class FieldAccess(fieldName: String, inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =

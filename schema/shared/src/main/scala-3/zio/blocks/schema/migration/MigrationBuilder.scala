@@ -366,9 +366,9 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   /**
    * Split a source field into multiple target fields.
    *
-   * This operation splits a single source field by a separator and assigns
-   * each part to a corresponding target field. The source field is accessed
-   * from the root document using RootAccess.
+   * This operation splits a single source field by a separator and assigns each
+   * part to a corresponding target field. The source field is accessed from the
+   * root document using RootAccess.
    *
    * NOTE: This operation is NOT reversible - the reverse migration will fail.
    * Use dropField on the source if it should not exist in the target schema.
@@ -423,7 +423,8 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
    * Split a source field into multiple target fields with type-level tracking.
    *
    * This variant explicitly consumes the source field from tracking and marks
-   * all target fields as provided. Use when you want full compile-time validation.
+   * all target fields as provided. Use when you want full compile-time
+   * validation.
    *
    * NOTE: This operation is NOT reversible - the reverse migration will fail.
    *
