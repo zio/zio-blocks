@@ -168,16 +168,16 @@ object CrossBranchMigrationSpec extends SchemaBaseSpec {
     ),
     suite("Root propagation")(
       test("FieldAccess propagates root to inner") {
-        // FieldAccess wraps a RootAccess - the root should be propagated
+        // FieldAccess: inner gets a record from root, then extract field from it
         val expr = Resolved.FieldAccess(
           "data",
-          Resolved.RootAccess(DynamicOptic.root.field("external"))
+          Resolved.RootAccess(DynamicOptic.root.field("nested"))
         )
 
         val root = dynamicRecord(
           "external" -> dynamicString("root-value"),
           "nested"   -> dynamicRecord(
-            "data" -> dynamicString("ignored")
+            "data" -> dynamicString("from-root-nested")
           )
         )
 
@@ -185,8 +185,9 @@ object CrossBranchMigrationSpec extends SchemaBaseSpec {
 
         val result = expr.evalDynamicWithRoot(input, root)
 
-        // FieldAccess should get "data" from input, but inner RootAccess accesses root
-        assertTrue(result == Right(dynamicString("root-value")))
+        // Inner RootAccess gets root.nested = {data: "from-root-nested"}
+        // Then FieldAccess extracts "data" from that record
+        assertTrue(result == Right(dynamicString("from-root-nested")))
       },
       test("Concat propagates root to all parts") {
         val expr = Resolved.Concat(
