@@ -83,7 +83,7 @@ private object SchemaCompanionVersionSpecific {
         case (name, occurrences) if occurrences.size > 1 =>
           val types = occurrences.map(_._2).distinct
           if (types.size > 1 && !types.tail.forall(_ =:= types.head)) {
-            fail(s"Conflicting types for member '$name' in intersection: ${types.map(_.toString).mkString(", ")}")
+            fail(s"Conflicting types for member '$name' in structural type: ${types.map(_.toString).mkString(", ")}")
           }
         case _ =>
       }
