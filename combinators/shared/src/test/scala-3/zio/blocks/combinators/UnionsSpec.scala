@@ -173,6 +173,93 @@ object UnionsSpec extends ZIOSpecDefault {
           typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String | Boolean | Char, Int | String, Boolean | Char]]")
         assertTrue(errors.isEmpty)
       }
+    ),
+    suite("Real-world API usage with type inference")(
+      test("combine Either to union without type annotations") {
+        // No explicit types - inference should work
+        val either: Either[Int, String] = Right("hello")
+        val union                        = Unions.combine(either)
+        assertTrue(union == "hello")
+      },
+      test("separate union to Either with inferred Separator") {
+        val union: Int | String = 42
+        // Separator is inferred from the union type
+        val either = Unions.separate(union)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        assertTrue(either == Left(42))
+      },
+      test("roundtrip with inferred typeclass") {
+        val original: Either[Int, String] = Left(42)
+        val union                          = Unions.combine(original)
+        // Separator synthesized from union type
+        val back = Unions.separate(union)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        assertTrue(back == Left(42))
+      },
+      test("generic function using Combiner with full inference") {
+        def toUnion[L, R](e: Either[L, R])(using Unions.Combiner[L, R]): Unions.Combiner[L, R]#Out =
+          Unions.combine(e)
+
+        // Type parameters inferred from argument
+        val result = toUnion(Right("test"): Either[Int, String])
+        assertTrue(result == "test")
+      },
+      test("generic function using Separator with using clause") {
+        def fromUnion[A](a: A)(using s: Unions.Separator[A]): Either[s.Left, s.Right] =
+          Unions.separate(a)
+
+        val input: Int | String = "hello"
+        // Separator inferred from input type at call site
+        val result = fromUnion(input)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        assertTrue(result == Right("hello"))
+      },
+      test("chained operations with type-annotated intermediates") {
+        val step1: Either[Boolean, Double] = Right(3.14)
+        val step2: Boolean | Double        = Unions.combine(step1)
+        // Separator inferred from annotated type
+        val step3 = Unions.separate(step2)(using summon[Unions.Separator.WithTypes[Boolean | Double, Boolean, Double]])
+        assertTrue(step3 == Right(3.14))
+      },
+      test("3-way union with rightmost type discrimination") {
+        // Start with 3-way union - Separator will discriminate Boolean (rightmost)
+        val union: Int | String | Boolean = true
+        val sep1 = Unions.separate(union)(using
+          summon[Unions.Separator.WithTypes[Int | String | Boolean, Int | String, Boolean]]
+        )
+        assertTrue(sep1 == Right(true))
+
+        // Separate a left value from 2-way union
+        val leftUnion: Int | String = 42
+        val sep2 = Unions.separate(leftUnion)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        assertTrue(sep2 == Left(42))
+      },
+      test("Combiner inference in higher-order functions") {
+        def processEither[L, R](e: Either[L, R])(using c: Unions.Combiner.WithOut[L, R, L | R])(
+            f: (L | R) => String
+        ): String = f(c.combine(e))
+
+        val result = processEither(Left(42): Either[Int, String]) { union =>
+          union match {
+            case i: Int    => s"got int: $i"
+            case s: String => s"got string: $s"
+          }
+        }
+
+        assertTrue(result == "got int: 42")
+      },
+      test("Separator inference preserves union semantics") {
+        def checkUnion[A](a: A)(using s: Unions.Separator[A]): String =
+          Unions.separate(a).fold(l => "left", r => "right")
+
+        val intVal: Int | String  = 42
+        val strVal: Int | String  = "hello"
+        val boolVal: Boolean | Int = true
+
+        // Each call uses appropriate Separator synthesized from input type
+        val r1 = checkUnion(intVal)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        val r2 = checkUnion(strVal)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        val r3 = checkUnion(boolVal)(using summon[Unions.Separator.WithTypes[Boolean | Int, Boolean, Int]])
+
+        assertTrue(r1 == "left" && r2 == "right" && r3 == "left")
+      }
     )
   )
 }

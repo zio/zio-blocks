@@ -153,6 +153,66 @@ object EithersSpec extends ZIOSpecDefault {
         val result: Any                                 = Eithers.separate(input)
         assertTrue(result == Left(Left(42)))
       }
+    ),
+    suite("Real-world API usage with type inference")(
+      test("combine Either without explicit types") {
+        val either: Either[Int, String] = Right("hello")
+        val result                       = Eithers.combine(either)
+        assertTrue(result == Right("hello"))
+      },
+      test("combine canonicalizes right-nested Either with inference") {
+        // Right-nested: Either[Int, Either[String, Boolean]]
+        val nested: Either[Int, Either[String, Boolean]] = Right(Right(true))
+        val canonical                                    = Eithers.combine(nested)
+        // Should be left-nested: Either[Either[Int, String], Boolean]
+        assertTrue(canonical == Right(true))
+      },
+      test("separate with inferred Separator") {
+        val either: Either[Either[Int, String], Boolean] = Right(true)
+        val result: Any                                  = Eithers.separate(either)
+        assertTrue(result == Right(true))
+      },
+      test("roundtrip with inferred types") {
+        val original: Either[Int, String] = Left(42)
+        val combined                      = Eithers.combine(original)
+        val separated: Any                = Eithers.separate(combined)
+        assertTrue(separated == Left(42))
+      },
+      test("generic function using Combiner") {
+        def canonicalize[L, R](e: Either[L, R])(implicit c: Eithers.Combiner[L, R]): c.Out =
+          Eithers.combine(e)
+
+        val nested: Either[Int, Either[String, Boolean]] = Right(Left("middle"))
+        val result: Any                                  = canonicalize(nested)
+        assertTrue(result == Left(Right("middle")))
+      },
+      test("generic function using Separator") {
+        def peel[A](a: A)(implicit s: Eithers.Separator[A]): Either[s.Left, s.Right] =
+          Eithers.separate(a)
+
+        val either: Either[Either[Int, String], Boolean] = Left(Left(42))
+        val result: Any                                  = peel(either)
+        assertTrue(result == Left(Left(42)))
+      },
+      test("chained operations - deep nesting canonicalization") {
+        // 4 levels deep: Either[Int, Either[String, Either[Boolean, Double]]]
+        val deep: Either[Int, Either[String, Either[Boolean, Double]]] = Right(Right(Right(3.14)))
+        val canonical: Any                                             = Eithers.combine(deep)
+        // Should be: Either[Either[Either[Int, String], Boolean], Double]
+        assertTrue(canonical == Right(3.14))
+      },
+      test("Combiner in higher-order function") {
+        def handleResult[L, R](e: Either[L, R])(implicit c: Eithers.Combiner[L, R]): String = {
+          val canonical: c.Out = c.combine(e)
+          canonical match {
+            case _: Left[?, ?]  => "left"
+            case _: Right[?, ?] => "right"
+          }
+        }
+
+        val result = handleResult[Int, String](Right("test"))
+        assertTrue(result == "right")
+      }
     )
   )
 }
