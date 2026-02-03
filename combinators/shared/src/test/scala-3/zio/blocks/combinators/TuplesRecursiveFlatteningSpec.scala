@@ -115,20 +115,20 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
     ),
     suite("Real-world API usage with type inference")(
       test("combine two values without type annotations") {
-        val a    = 42
-        val b    = "hello"
+        val a     = 42
+        val b     = "hello"
         val tuple = Tuples.combine(a, b)
         assertTrue(tuple == (42, "hello"))
       },
       test("separate tuple without type annotations - 3-tuple") {
-        val tuple = (42, "hello", true)
+        val tuple        = (42, "hello", true)
         val (init, last) = Tuples.separate(tuple)
         assertTrue(last == true && init == (42, "hello"))
       },
       test("roundtrip with inferred types") {
-        val a       = 1
-        val b       = "two"
-        val combined = Tuples.combine(a, b)
+        val a            = 1
+        val b            = "two"
+        val combined     = Tuples.combine(a, b)
         val (init, last) = Tuples.separate(combined)
         assertTrue(last == "two" && init == Tuple1(1))
       },
@@ -147,13 +147,13 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
         assertTrue(result == ((1, "a"), true))
       },
       test("chained operations with inference - building larger tuples") {
-        val step1 = Tuples.combine(1, "a")       // (1, "a")
-        val step2 = Tuples.combine(step1, true)  // (1, "a", true) - flattened!
-        val step3 = Tuples.combine(step2, 3.14)  // (1, "a", true, 3.14)
+        val step1 = Tuples.combine(1, "a")      // (1, "a")
+        val step2 = Tuples.combine(step1, true) // (1, "a", true) - flattened!
+        val step3 = Tuples.combine(step2, 3.14) // (1, "a", true, 3.14)
         assertTrue(step3 == (1, "a", true, 3.14))
       },
       test("chained separations - decomposing tuples") {
-        val tuple = (1, "a", true, 3.14)
+        val tuple          = (1, "a", true, 3.14)
         val (rest1, last1) = Tuples.separate(tuple)
         val (rest2, last2) = Tuples.separate(rest1)
         val (rest3, last3) = Tuples.separate(rest2)

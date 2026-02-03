@@ -102,32 +102,33 @@ object Unions {
   object Separator {
 
     /**
-      * Type alias for a Separator with specific left and right types.
-      */
+     * Type alias for a Separator with specific left and right types.
+     */
     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
     /**
-      * Creates a Separator for union type L | R.
-      *
-      * Requires that L and R are distinct types with no overlap. If any type appears
-      * in both L and R (e.g., `Int | String | Boolean` vs `Int | String | Char`),
-      * compilation will fail with an error listing the overlapping types.
-      *
-      * Union types must be unique. Use Either, a wrapper type, opaque type, or newtype
-      * to distinguish values of the same underlying type.
-      *
-      * @tparam L
-      *   The left type in the union
-      * @tparam R
-      *   The right type in the union
-      * @param tt
-      *   TypeTest for discriminating R from the union
-      */
+     * Creates a Separator for union type L | R.
+     *
+     * Requires that L and R are distinct types with no overlap. If any type
+     * appears in both L and R (e.g., `Int | String | Boolean` vs
+     * `Int | String | Char`), compilation will fail with an error listing the
+     * overlapping types.
+     *
+     * Union types must be unique. Use Either, a wrapper type, opaque type, or
+     * newtype to distinguish values of the same underlying type.
+     *
+     * @tparam L
+     *   The left type in the union
+     * @tparam R
+     *   The right type in the union
+     * @param tt
+     *   TypeTest for discriminating R from the union
+     */
     inline given separator[L, R](using tt: TypeTest[L | R, R]): WithTypes[L | R, L, R] =
       ${ separatorMacro[L, R]('tt) }
 
     private def separatorMacro[L: Type, R: Type](
-        tt: Expr[TypeTest[L | R, R]]
+      tt: Expr[TypeTest[L | R, R]]
     )(using Quotes): Expr[WithTypes[L | R, L, R]] = {
       import quotes.reflect.*
 
@@ -140,7 +141,7 @@ object Unions {
       val rTypes = flattenUnion(TypeRepr.of[R])
 
       val overlap = lTypes.filter { lType =>
-        rTypes.exists { rType => lType =:= rType }
+        rTypes.exists(rType => lType =:= rType)
       }
 
       if (overlap.nonEmpty) {
