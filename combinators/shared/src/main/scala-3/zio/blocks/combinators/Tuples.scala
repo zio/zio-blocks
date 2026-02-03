@@ -182,69 +182,69 @@ object Tuples {
     }
   }
 
-   object Separator extends SeparatorLowPriority {
+  object Separator extends SeparatorLowPriority {
 
-     /**
-      * Type alias for a Separator with specific left and right types.
-      */
-     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
+    /**
+     * Type alias for a Separator with specific left and right types.
+     */
+    type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
-     /**
-      * Canonicalizing separator for non-empty tuples. Flattens the input tuple
-      * first, then extracts init (all but last) and last.
-      *
-      * Example: `separate(((1, "a"), (true, 3.0)))` first flattens to
-      * `(1, "a", true, 3.0)`, then produces `((1, "a", true), 3.0)`.
-      */
-     inline given canonicalSeparator[A <: NonEmptyTuple](using
-       ev: Flatten[A] <:< NonEmptyTuple
-     ): WithTypes[A, Init[Flatten[A]], Last[Flatten[A]]] =
-       CanonicalSeparator[A, Init[Flatten[A]], Last[Flatten[A]]](
-         constValue[Tuple.Size[Init[Flatten[A]]]]
-       )
+    /**
+     * Canonicalizing separator for non-empty tuples. Flattens the input tuple
+     * first, then extracts init (all but last) and last.
+     *
+     * Example: `separate(((1, "a"), (true, 3.0)))` first flattens to
+     * `(1, "a", true, 3.0)`, then produces `((1, "a", true), 3.0)`.
+     */
+    inline given canonicalSeparator[A <: NonEmptyTuple](using
+      ev: Flatten[A] <:< NonEmptyTuple
+    ): WithTypes[A, Init[Flatten[A]], Last[Flatten[A]]] =
+      CanonicalSeparator[A, Init[Flatten[A]], Last[Flatten[A]]](
+        constValue[Tuple.Size[Init[Flatten[A]]]]
+      )
 
-     private[combinators] class CanonicalSeparator[A <: Tuple, I <: Tuple, L](sizeInit: Int) extends Separator[A] {
-       type Left  = I
-       type Right = L
-       def separate(a: A): (I, L) = {
-         val flat              = flattenTuple(a)
-         val (init, lastTuple) = flat.splitAt(sizeInit)
-         (init.asInstanceOf[I], lastTuple.asInstanceOf[Tuple1[L]].head)
-       }
-     }
-   }
+    private[combinators] class CanonicalSeparator[A <: Tuple, I <: Tuple, L](sizeInit: Int) extends Separator[A] {
+      type Left  = I
+      type Right = L
+      def separate(a: A): (I, L) = {
+        val flat              = flattenTuple(a)
+        val (init, lastTuple) = flat.splitAt(sizeInit)
+        (init.asInstanceOf[I], lastTuple.asInstanceOf[Tuple1[L]].head)
+      }
+    }
+  }
 
-   trait SeparatorLowPriority {
-     given leftUnit[R]: Separator.WithTypes[R, Unit, R] = new Separator[R] {
-       type Left  = Unit
-       type Right = R
-       def separate(a: R): (Unit, R) = ((), a)
-     }
+  trait SeparatorLowPriority {
+    given leftUnit[R]: Separator.WithTypes[R, Unit, R] = new Separator[R] {
+      type Left  = Unit
+      type Right = R
+      def separate(a: R): (Unit, R) = ((), a)
+    }
 
-     given rightUnit[L]: Separator.WithTypes[L, L, Unit] = new Separator[L] {
-       type Left  = L
-       type Right = Unit
-       def separate(a: L): (L, Unit) = (a, ())
-     }
+    given rightUnit[L]: Separator.WithTypes[L, L, Unit] = new Separator[L] {
+      type Left  = L
+      type Right = Unit
+      def separate(a: L): (L, Unit) = (a, ())
+    }
 
-     given leftEmptyTuple[R]: Separator.WithTypes[R, EmptyTuple, R] = new Separator[R] {
-       type Left  = EmptyTuple
-       type Right = R
-       def separate(a: R): (EmptyTuple, R) = (EmptyTuple, a)
-     }
+    given leftEmptyTuple[R]: Separator.WithTypes[R, EmptyTuple, R] = new Separator[R] {
+      type Left  = EmptyTuple
+      type Right = R
+      def separate(a: R): (EmptyTuple, R) = (EmptyTuple, a)
+    }
 
-     given rightEmptyTuple[L]: Separator.WithTypes[L, L, EmptyTuple] = new Separator[L] {
-       type Left  = L
-       type Right = EmptyTuple
-       def separate(a: L): (L, EmptyTuple) = (a, EmptyTuple)
-     }
+    given rightEmptyTuple[L]: Separator.WithTypes[L, L, EmptyTuple] = new Separator[L] {
+      type Left  = L
+      type Right = EmptyTuple
+      def separate(a: L): (L, EmptyTuple) = (a, EmptyTuple)
+    }
 
-     given fallback[L, R]: Separator.WithTypes[(L, R), L, R] = new Separator[(L, R)] {
-       type Left  = L
-       type Right = R
-       def separate(a: (L, R)): (L, R) = a
-     }
-   }
+    given fallback[L, R]: Separator.WithTypes[(L, R), L, R] = new Separator[(L, R)] {
+      type Left  = L
+      type Right = R
+      def separate(a: (L, R)): (L, R) = a
+    }
+  }
 
   def combine[L, R](l: L, r: R)(using c: Combiner[L, R]): c.Out = c.combine(l, r)
 
