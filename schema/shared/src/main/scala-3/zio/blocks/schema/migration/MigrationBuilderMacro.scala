@@ -61,7 +61,7 @@ object MigrationBuilderMacros {
 
   def extractFieldNamesImpl[T: Type](using q: Quotes): Expr[Set[String]] = {
     import q.reflect.*
-    val fieldNames = MacroHelpers.getFieldNamesFromType(TypeRepr.of[T].dealias)
+    val fieldNames = MigrationHelperMacro.getFieldNamesFromType(TypeRepr.of[T].dealias)
     val fieldExprs = fieldNames.toList.map(Expr(_))
     '{ Set(${ Expr.ofSeq(fieldExprs) }*) }
   }
@@ -124,8 +124,8 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[Unit] = {
     import q.reflect.*
 
-    val sourceFields = MacroHelpers.extractFieldPathsFromType(TypeRepr.of[A].dealias, "", Set.empty).toSet
-    val targetFields = MacroHelpers.extractFieldPathsFromType(TypeRepr.of[B].dealias, "", Set.empty).toSet
+    val sourceFields = MigrationHelperMacro.extractFieldPathsFromType(TypeRepr.of[A].dealias, "", Set.empty).toSet
+    val targetFields = MigrationHelperMacro.extractFieldPathsFromType(TypeRepr.of[B].dealias, "", Set.empty).toSet
 
     val addedOpt       = extractLiteralSetOpt(addedFieldsExpr)
     val removedOpt     = extractLiteralSetOpt(removedFieldsExpr)
@@ -189,8 +189,8 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[Unit] = {
     import q.reflect.*
 
-    val sourceFields = MacroHelpers.extractFieldPathsFromType(TypeRepr.of[A].dealias, "", Set.empty).toSet
-    val targetFields = MacroHelpers.extractFieldPathsFromType(TypeRepr.of[B].dealias, "", Set.empty).toSet
+    val sourceFields = MigrationHelperMacro.extractFieldPathsFromType(TypeRepr.of[A].dealias, "", Set.empty).toSet
+    val targetFields = MigrationHelperMacro.extractFieldPathsFromType(TypeRepr.of[B].dealias, "", Set.empty).toSet
 
     val added       = extractLiteralSet(addedExpr)
     val removed     = extractLiteralSet(removedExpr)

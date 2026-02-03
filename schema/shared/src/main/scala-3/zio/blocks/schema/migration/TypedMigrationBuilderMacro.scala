@@ -3,7 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.{DynamicValue, Schema}
 import scala.quoted.*
 
-object TypedMigrationBuilder {
+object TypedMigrationBuilderMacro {
   import TypeLevel.*
 
   extension [A, B, HandledTree <: FieldTree, ProvidedTree <: FieldTree](
@@ -309,8 +309,8 @@ object TypedMigrationBuilderMacros {
     targetType: q.reflect.TypeRepr,
     isForHandled: Boolean
   ): Set[TreePath] = {
-    val sourcePaths = MacroHelpers.extractFieldPathsFromType(sourceType.dealias, "", Set.empty)
-    val targetPaths = MacroHelpers.extractFieldPathsFromType(targetType.dealias, "", Set.empty)
+    val sourcePaths = MigrationHelperMacro.extractFieldPathsFromType(sourceType.dealias, "", Set.empty)
+    val targetPaths = MigrationHelperMacro.extractFieldPathsFromType(targetType.dealias, "", Set.empty)
 
     val sourceCases = extractCaseNamesForValidation(sourceType)
     val targetCases = extractCaseNamesForValidation(targetType)
@@ -369,7 +369,7 @@ object TypedMigrationBuilderMacros {
   private def extractCaseNamesForValidation(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
     val dealiased = tpe.dealias
 
-    if (MacroHelpers.isSealedTraitOrEnum(dealiased)) {
+    if (MigrationHelperMacro.isSealedTraitOrEnum(dealiased)) {
       val symbol   = dealiased.typeSymbol
       val children = symbol.children
       children.map { child =>

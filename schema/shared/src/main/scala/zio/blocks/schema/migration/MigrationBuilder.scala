@@ -352,4 +352,4 @@ final case class MigrationBuilder[A, B, Handled, Provided](
     }
 }
 
-object MigrationBuilder extends MigrationBuilderCompanionVersionSpecific
+object MigrationBuilder extends MigrationBuilderCompanionMacro

@@ -5,7 +5,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue}
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
-trait MigrationBuilderSyntax {
+trait MigrationBuilderSyntaxMacro {
 
   implicit class MigrationBuilderOps[A, B, Handled, Provided](
     val builder: MigrationBuilder[A, B, Handled, Provided]
@@ -74,11 +74,11 @@ trait MigrationBuilderSyntax {
   }
 }
 
-object MigrationBuilderSyntax extends MigrationBuilderSyntax
+object MigrationBuilderSyntaxMacro extends MigrationBuilderSyntaxMacro
 
 private[migration] object MigrationBuilderSyntaxMacros {
 
-  private abstract class MacroSupport[C <: whitebox.Context](val c: C) extends MacroHelpers {
+  private abstract class MacroSupport[C <: whitebox.Context](val c: C) extends MigrationHelperMacro {
     import c.universe._
 
     def extractFieldPath(selector: Tree): List[String] = {

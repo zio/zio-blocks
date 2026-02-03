@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import scala.reflect.macros.blackbox
 
-private[migration] trait MacroHelpers {
+private[migration] trait MigrationHelperMacro {
   val c: blackbox.Context
   import c.universe._
 

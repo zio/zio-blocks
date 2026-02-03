@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.Schema
 
-trait MigrationBuilderCompanionVersionSpecific {
+trait MigrationBuilderCompanionMacro {
 
   def apply[A, B](
     sourceSchema: Schema[A],

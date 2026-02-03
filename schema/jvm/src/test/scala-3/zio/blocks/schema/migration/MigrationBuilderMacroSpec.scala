@@ -323,7 +323,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
     ),
     suite("TypedMigrationBuilder compile-time failure tests")(
       test("incomplete migration would fail at compile time") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val completeMigration = MigrationBuilder[PersonV1, PersonV2, Empty, Empty](
@@ -339,7 +339,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV2("Alice", 0)))
       },
       test("migration with drop requires handling removed field") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val completeMigration = MigrationBuilder[PersonV2, PersonV1, Empty, Empty](
@@ -355,7 +355,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV1("Alice")))
       },
       test("complex migration with multiple operations must handle all changes") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val completeMigration = MigrationBuilder[PersonV2, PersonV4, Empty, Empty](
@@ -372,7 +372,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV4("Alice", "default@test.com")))
       },
       test("nested field migration must handle nested changes") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val completeMigration = MigrationBuilder[PersonWithAddress, PersonWithAddressV2, Empty, Empty](
@@ -390,7 +390,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
     ),
     suite("TypedMigrationBuilder compile-time validation")(
       test("addTyped tracks field at type level and buildTyped validates") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[PersonV1, PersonV2, Empty, Empty](
@@ -408,7 +408,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV2("Alice", 25)))
       },
       test("dropTyped tracks field at type level") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[PersonV2, PersonV1, Empty, Empty](
@@ -426,7 +426,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV1("Alice")))
       },
       test("renameTyped tracks both old and new fields at type level") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[PersonV1, PersonRenamed, Empty, Empty](
@@ -444,7 +444,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonRenamed("Alice")))
       },
       test("multiple typed operations chain correctly") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[PersonV1, PersonV3, Empty, Empty](
@@ -463,9 +463,9 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV3("Alice", 30, true)))
       },
       test("TypedMigrationBuilder.from fluent API works") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
 
-        val migration = TypedMigrationBuilder
+        val migration = TypedMigrationBuilderMacro
           .from[PersonV1]
           .to[PersonV2]
           .addTyped(_.age, DynamicValue.int(42))
@@ -477,7 +477,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV2("Bob", 42)))
       },
       test("complex migration with add, drop, and rename") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[PersonV2, PersonV4, Empty, Empty](
@@ -496,7 +496,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonV4("Alice", "default@example.com")))
       },
       test("nested field paths work with addTyped") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[PersonWithAddress, PersonWithAddressV2, Empty, Empty](
@@ -514,7 +514,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(PersonWithAddressV2("Alice", AddressWithZip("123 Main St", "NYC", "12345"))))
       },
       test("deeply nested paths (3+ levels) work with tree-based tracking") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[CompanyV1, CompanyV2, Empty, Empty](
@@ -532,7 +532,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         assertTrue(result == Right(CompanyV2("Acme", HeadquartersV2(LocationV2(CountryV2("United States", "US"))))))
       },
       test("multiple deeply nested operations on different branches") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[OrganizationV1, OrganizationV2, Empty, Empty](
@@ -563,7 +563,7 @@ object MigrationBuilderMacroSpec extends SchemaBaseSpec {
         )
       },
       test("drop nested field and add at different nesting level") {
-        import TypedMigrationBuilder.*
+        import TypedMigrationBuilderMacro.*
         import TypeLevel.Empty
 
         val migration = MigrationBuilder[ProjectV1, ProjectV2, Empty, Empty](

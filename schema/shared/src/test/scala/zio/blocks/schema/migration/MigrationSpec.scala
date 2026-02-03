@@ -1276,6 +1276,68 @@ object MigrationSpec extends SchemaBaseSpec {
           case Left(MigrationError.TransformFailed(_, _)) => assertTrue(true)
           case _                                          => assertTrue(false)
         }
+      },
+      test("MakeRequired fails when field does not exist") {
+        val original  = DynamicValue.Record("other" -> DynamicValue.int(1))
+        val migration = DynamicMigration.record(_.makeFieldRequired("nonexistent", DynamicValue.string("")))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, _)) => assertTrue(true)
+          case _                                        => assertTrue(false)
+        }
+      }
+    ),
+    suite("MakeOptional error cases")(
+      test("MakeOptional fails when field does not exist") {
+        val original  = DynamicValue.Record("other" -> DynamicValue.int(1))
+        val migration = DynamicMigration.record(_.makeFieldOptional("nonexistent", DynamicValue.Null))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, _)) => assertTrue(true)
+          case _                                        => assertTrue(false)
+        }
+      }
+    ),
+    suite("ChangeType error cases")(
+      test("ChangeType fails when field does not exist") {
+        val original  = DynamicValue.Record("other" -> DynamicValue.int(1))
+        val migration = DynamicMigration.record(
+          _.changeFieldType("nonexistent", PrimitiveConversion.IntToLong, PrimitiveConversion.LongToInt)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, _)) => assertTrue(true)
+          case _                                        => assertTrue(false)
+        }
+      },
+      test("ChangeType fails when conversion fails") {
+        val original  = DynamicValue.Record("field" -> DynamicValue.string("not an int"))
+        val migration = DynamicMigration.record(
+          _.changeFieldType("field", PrimitiveConversion.IntToLong, PrimitiveConversion.LongToInt)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.TransformFailed(_, _)) => assertTrue(true)
+          case _                                          => assertTrue(false)
+        }
+      }
+    ),
+    suite("Transform error cases")(
+      test("Transform fails when field does not exist") {
+        val original  = DynamicValue.Record("other" -> DynamicValue.int(1))
+        val migration = DynamicMigration.record(
+          _.transformField("nonexistent", DynamicValueTransform.identity, DynamicValueTransform.identity)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, _)) => assertTrue(true)
+          case _                                        => assertTrue(false)
+        }
       }
     ),
     suite("Additional MigrationError types")(
@@ -1320,6 +1382,17 @@ object MigrationSpec extends SchemaBaseSpec {
         val result           = migration(original)
 
         assertTrue(result.isLeft)
+      },
+      test("Sequence migration fails when applied to non-Sequence value") {
+        val original  = DynamicValue.Record("field" -> DynamicValue.int(1))
+        val migration =
+          DynamicMigration(MigrationStep.Sequence(MigrationStep.Record.empty.addField("x", DynamicValue.int(0))))
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.TypeMismatch(_, expected, _)) => assertTrue(expected == "Sequence")
+          case _                                                 => assertTrue(false)
+        }
       }
     ),
     suite("PrimitiveConversion type errors")(
@@ -2566,6 +2639,1239 @@ object MigrationSpec extends SchemaBaseSpec {
         }
 
         assertTrue(results.forall(_ == true))
+      }
+    ),
+    suite("Error propagation in fold operations")(
+      test("Multiple field action errors stop at first failure") {
+        val original  = DynamicValue.Record("name" -> DynamicValue.string("Alice"))
+        val migration = DynamicMigration.record(
+          _.removeField("nonexistent1", DynamicValue.Null)
+            .removeField("nonexistent2", DynamicValue.Null)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, "nonexistent1")) => assertTrue(true)
+          case _                                                     => assertTrue(false)
+        }
+      },
+      test("Nested field error propagates correctly when earlier nested step fails") {
+        val original = DynamicValue.Record(
+          "field1" -> DynamicValue.Record("inner" -> DynamicValue.int(1)),
+          "field2" -> DynamicValue.Record("inner" -> DynamicValue.int(2))
+        )
+        val migration = DynamicMigration.record(
+          _.nested("field1")(_.removeField("missing", DynamicValue.Null))
+            .nested("field2")(_.addField("added", DynamicValue.int(0)))
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, "missing")) => assertTrue(true)
+          case _                                                => assertTrue(false)
+        }
+      },
+      test("Map entry error propagates on second entry failure") {
+        val original = DynamicValue.Map(
+          DynamicValue.string("key1") -> DynamicValue.Record("required" -> DynamicValue.int(1)),
+          DynamicValue.string("key2") -> DynamicValue.Record("other" -> DynamicValue.int(2))
+        )
+        val migration = DynamicMigration(
+          MigrationStep.MapEntries(
+            MigrationStep.NoOp,
+            MigrationStep.Record.empty.withFieldAction(FieldAction.Remove("required", DynamicValue.Null))
+          )
+        )
+        val result = migration(original)
+
+        assertTrue(result.isLeft)
+      },
+      test("Sequence element error propagates on later element failure") {
+        val original = DynamicValue.Sequence(
+          DynamicValue.Record("field" -> DynamicValue.int(1)),
+          DynamicValue.Record("field" -> DynamicValue.int(2)),
+          DynamicValue.Record("wrong" -> DynamicValue.int(3))
+        )
+        val migration = DynamicMigration.sequence(
+          DynamicMigration.record(_.removeField("field", DynamicValue.Null))
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(path, "field")) =>
+            assertTrue(path.toScalaString.contains(".at(2)"))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Variant type mismatch")(
+      test("Variant migration fails when applied to non-Variant value") {
+        val original  = DynamicValue.Record("field" -> DynamicValue.int(1))
+        val migration = DynamicMigration(MigrationStep.Variant.empty.renameCase("A", "B"))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.TypeMismatch(_, expected, _)) => assertTrue(expected == "Variant")
+          case _                                                 => assertTrue(false)
+        }
+      }
+    ),
+    suite("Map type mismatch")(
+      test("Map migration fails when applied to non-Map value") {
+        val original  = DynamicValue.Record("field" -> DynamicValue.int(1))
+        val migration = DynamicMigration(MigrationStep.MapEntries(MigrationStep.NoOp, MigrationStep.NoOp))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.TypeMismatch(_, expected, _)) => assertTrue(expected == "Map")
+          case _                                                 => assertTrue(false)
+        }
+      }
+    ),
+    suite("IntToDouble conversion errors")(
+      test("IntToDouble fails for non-Int input") {
+        val value  = DynamicValue.string("not an int")
+        val result = PrimitiveConversion.IntToDouble(value)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("Rename field edge cases")(
+      test("Rename fails when target field already exists") {
+        val original = DynamicValue.Record(
+          "oldName" -> DynamicValue.string("value"),
+          "newName" -> DynamicValue.string("existing")
+        )
+        val migration = DynamicMigration.record(_.renameField("oldName", "newName"))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldAlreadyExists(_, "newName")) => assertTrue(true)
+          case _                                                     => assertTrue(false)
+        }
+      },
+      test("Rename fails when source field does not exist") {
+        val original  = DynamicValue.Record("other" -> DynamicValue.string("value"))
+        val migration = DynamicMigration.record(_.renameField("nonexistent", "newName"))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, "nonexistent")) => assertTrue(true)
+          case _                                                    => assertTrue(false)
+        }
+      }
+    ),
+    suite("Compose Sequence and MapEntries steps")(
+      test("andThen composes two Sequence migrations") {
+        val m1       = DynamicMigration(MigrationStep.Sequence(MigrationStep.Record.empty.addField("a", DynamicValue.int(1))))
+        val m2       = DynamicMigration(MigrationStep.Sequence(MigrationStep.Record.empty.addField("b", DynamicValue.int(2))))
+        val composed = m1.andThen(m2)
+
+        val original = DynamicValue.Sequence(DynamicValue.Record("x" -> DynamicValue.string("test")))
+        val result   = composed(original)
+
+        result match {
+          case Right(DynamicValue.Sequence(elems)) =>
+            val fields = elems.head.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              fields.contains("a"),
+              fields.contains("b"),
+              fields.contains("x")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("andThen composes two MapEntries migrations") {
+        val m1 = DynamicMigration(
+          MigrationStep.MapEntries(MigrationStep.NoOp, MigrationStep.Record.empty.addField("v1", DynamicValue.int(1)))
+        )
+        val m2 = DynamicMigration(
+          MigrationStep.MapEntries(MigrationStep.NoOp, MigrationStep.Record.empty.addField("v2", DynamicValue.int(2)))
+        )
+        val composed = m1.andThen(m2)
+
+        val original = DynamicValue.Map(
+          DynamicValue.string("k") -> DynamicValue.Record("existing" -> DynamicValue.string("x"))
+        )
+        val result = composed(original)
+
+        result match {
+          case Right(DynamicValue.Map(entries)) =>
+            val (_, value) = entries.head
+            val fields     = value.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              fields.contains("v1"),
+              fields.contains("v2"),
+              fields.contains("existing")
+            )
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("SplitField error cases")(
+      test("SplitField fails when splitter returns non-Record") {
+        val nonRecordSplitter = DynamicValueTransform.constant(DynamicValue.string("not a record"))
+
+        val original = DynamicValue.Record(
+          "source" -> DynamicValue.string("value")
+        )
+        val migration = DynamicMigration.record(
+          _.splitField("source", Vector("a", "b"), nonRecordSplitter, DynamicValueTransform.identity)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.TransformFailed(_, msg)) =>
+            assertTrue(msg.contains("Record"))
+          case _ => assertTrue(false)
+        }
+      },
+      test("SplitField fails when splitter returns Record without all target fields") {
+        val incompleteSplitter = DynamicValueTransform.constant(
+          DynamicValue.Record("a" -> DynamicValue.string("only a"))
+        )
+
+        val original = DynamicValue.Record(
+          "source" -> DynamicValue.string("value")
+        )
+        val migration = DynamicMigration.record(
+          _.splitField("source", Vector("a", "b", "c"), incompleteSplitter, DynamicValueTransform.identity)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.TransformFailed(_, msg)) =>
+            assertTrue(msg.contains("all target fields"))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("Nested step edge cases")(
+      test("Empty nested step on missing field returns error") {
+        val migration = DynamicMigration.record(
+          _.nested("missing")(_.addField("x", DynamicValue.int(1)))
+        )
+        val original = DynamicValue.Record("other" -> DynamicValue.int(42))
+        val result   = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, "missing")) => assertTrue(true)
+          case _                                                => assertTrue(false)
+        }
+      }
+    ),
+    suite("MergeNestedMaps coverage")(
+      test("andThen with nested fields only in first migration") {
+        val m1 = DynamicMigration.record(
+          _.nested("inner")(_.addField("a", DynamicValue.int(1)))
+        )
+        val m2 = DynamicMigration.record(
+          _.addField("outer", DynamicValue.string("x"))
+        )
+        val composed = m1.andThen(m2)
+
+        val original = DynamicValue.Record(
+          "inner" -> DynamicValue.Record("existing" -> DynamicValue.int(0))
+        )
+        val result = composed(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap    = fields.toVector.toMap
+            val innerFields = fieldMap("inner").asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              innerFields.contains("a"),
+              fieldMap.contains("outer")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("andThen with nested fields only in second migration") {
+        val m1 = DynamicMigration.record(
+          _.addField("outer", DynamicValue.string("x"))
+        )
+        val m2 = DynamicMigration.record(
+          _.nested("inner")(_.addField("b", DynamicValue.int(2)))
+        )
+        val composed = m1.andThen(m2)
+
+        val original = DynamicValue.Record(
+          "inner" -> DynamicValue.Record("existing" -> DynamicValue.int(0))
+        )
+        val result = composed(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap    = fields.toVector.toMap
+            val innerFields = fieldMap("inner").asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              innerFields.contains("b"),
+              fieldMap.contains("outer")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("Empty nested step is allowed when field doesn't exist") {
+        val emptyNestedStep = MigrationStep.Record(Vector.empty, Map("missing" -> MigrationStep.NoOp))
+        val migration       = DynamicMigration(emptyNestedStep)
+        val original        = DynamicValue.Record("other" -> DynamicValue.int(42))
+        val result          = migration(original)
+
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("Sequence transform error propagation")(
+      test("Sequence transform stops at first failure and propagates error") {
+        val failingFirst = DynamicValueTransform.sequence(
+          DynamicValueTransform.stringAppend(" suffix"),
+          DynamicValueTransform.identity,
+          DynamicValueTransform.stringPrepend("prefix ")
+        )
+        val result = failingFirst(DynamicValue.int(10))
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("MakeRequired with Null value")(
+      test("MakeRequired handles DynamicValue.Null") {
+        val original = DynamicValue.Record(
+          "field" -> DynamicValue.Null
+        )
+        val migration = DynamicMigration.record(
+          _.makeFieldRequired("field", DynamicValue.string("default"))
+        )
+        val result = migration(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toVector.toMap
+            assertTrue(fieldMap("field") == DynamicValue.string("default"))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("JoinFields combiner error")(
+      test("JoinFields fails when combiner returns Left") {
+        val original = DynamicValue.Record(
+          "a" -> DynamicValue.int(1),
+          "b" -> DynamicValue.int(2)
+        )
+        val failingCombiner = DynamicValueTransform.stringJoinFields(Vector("a", "b"), "-")
+        val migration       = DynamicMigration.record(
+          _.joinFields("combined", Vector("a", "b"), failingCombiner, DynamicValueTransform.identity)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.TransformFailed(_, _)) => assertTrue(true)
+          case _                                          => assertTrue(false)
+        }
+      }
+    ),
+    suite("Map key migration error propagation")(
+      test("Map migration fails on second entry and propagates to third") {
+        val original = DynamicValue.Map(
+          DynamicValue.Record("id" -> DynamicValue.string("a"))    -> DynamicValue.int(1),
+          DynamicValue.Record("wrong" -> DynamicValue.string("b")) -> DynamicValue.int(2),
+          DynamicValue.Record("id" -> DynamicValue.string("c"))    -> DynamicValue.int(3)
+        )
+        val keyMigration = DynamicMigration.record(_.removeField("id", DynamicValue.Null))
+        val migration    = DynamicMigration(MigrationStep.MapEntries(keyMigration.step, MigrationStep.NoOp))
+        val result       = migration(original)
+
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("SplitField splitter error")(
+      test("SplitField fails when splitter returns Left") {
+        val failingSplitter = DynamicValueTransform.numericAdd(1)
+        val original        = DynamicValue.Record(
+          "source" -> DynamicValue.string("value")
+        )
+        val migration = DynamicMigration.record(
+          _.splitField("source", Vector("a", "b"), failingSplitter, DynamicValueTransform.identity)
+        )
+        val result = migration(original)
+
+        result match {
+          case Left(MigrationError.TransformFailed(_, _)) => assertTrue(true)
+          case _                                          => assertTrue(false)
+        }
+      }
+    ),
+    suite("MakeOptional field not found")(
+      test("MakeOptional fails when field does not exist in record") {
+        val original  = DynamicValue.Record("other" -> DynamicValue.int(1))
+        val migration = DynamicMigration.record(_.makeFieldOptional("missing", DynamicValue.Null))
+        val result    = migration(original)
+
+        result match {
+          case Left(MigrationError.FieldNotFound(_, "missing")) => assertTrue(true)
+          case _                                                => assertTrue(false)
+        }
+      }
+    ),
+    suite("NumericMultiply coverage")(
+      test("NumericMultiply on Long values") {
+        val transform = DynamicValueTransform.numericMultiply(2)
+        val result    = transform(DynamicValue.long(5L))
+        assertTrue(result == Right(DynamicValue.long(10L)))
+      },
+      test("NumericMultiply on Long overflow") {
+        val transform = DynamicValueTransform.numericMultiply(BigDecimal(Long.MaxValue))
+        val result    = transform(DynamicValue.long(2L))
+        assertTrue(result.isLeft)
+      },
+      test("NumericMultiply on Float values") {
+        val transform = DynamicValueTransform.numericMultiply(2)
+        val result    = transform(DynamicValue.float(2.5f))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Float(f))) =>
+            assertTrue(f == 5.0f)
+          case _ => assertTrue(false)
+        }
+      },
+      test("NumericMultiply on non-numeric fails") {
+        val transform = DynamicValueTransform.numericMultiply(2)
+        val result    = transform(DynamicValue.string("not a number"))
+        assertTrue(result.isLeft)
+      },
+      test("NumericMultiply on BigDecimal values") {
+        val transform = DynamicValueTransform.numericMultiply(2)
+        val result    = transform(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("3.14"))))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(bd))) =>
+            assertTrue(bd == BigDecimal("6.28"))
+          case _ => assertTrue(false)
+        }
+      },
+      test("NumericMultiply on BigInt values") {
+        val transform = DynamicValueTransform.numericMultiply(3)
+        val result    = transform(DynamicValue.bigInt(BigInt(100)))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.BigInt(bi))) =>
+            assertTrue(bi == BigInt(300))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("NumericAdd coverage")(
+      test("NumericAdd on Long values") {
+        val transform = DynamicValueTransform.numericAdd(5)
+        val result    = transform(DynamicValue.long(10L))
+        assertTrue(result == Right(DynamicValue.long(15L)))
+      },
+      test("NumericAdd on Long overflow") {
+        val transform = DynamicValueTransform.numericAdd(BigDecimal(Long.MaxValue))
+        val result    = transform(DynamicValue.long(1L))
+        assertTrue(result.isLeft)
+      },
+      test("NumericAdd on Float values") {
+        val transform = DynamicValueTransform.numericAdd(1)
+        val result    = transform(DynamicValue.float(2.5f))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Float(f))) =>
+            assertTrue(f == 3.5f)
+          case _ => assertTrue(false)
+        }
+      },
+      test("NumericAdd on BigDecimal values") {
+        val transform = DynamicValueTransform.numericAdd(BigDecimal("0.5"))
+        val result    = transform(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("1.5"))))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(bd))) =>
+            assertTrue(bd == BigDecimal("2.0"))
+          case _ => assertTrue(false)
+        }
+      },
+      test("NumericAdd on BigInt values") {
+        val transform = DynamicValueTransform.numericAdd(50)
+        val result    = transform(DynamicValue.bigInt(BigInt(100)))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.BigInt(bi))) =>
+            assertTrue(bi == BigInt(150))
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("StringSplitToFields coverage")(
+      test("StringSplitToFields splits correctly") {
+        val transform = DynamicValueTransform.stringSplitToFields(Vector("first", "last"), " ")
+        val result    = transform(DynamicValue.string("John Doe"))
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toVector.toMap
+            assertTrue(
+              fieldMap.get("first") == Some(DynamicValue.string("John")),
+              fieldMap.get("last") == Some(DynamicValue.string("Doe"))
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("StringSplitToFields fails on non-string") {
+        val transform = DynamicValueTransform.stringSplitToFields(Vector("a", "b"), " ")
+        val result    = transform(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("StringSplitToFields pads with empty strings when fewer parts") {
+        val transform = DynamicValueTransform.stringSplitToFields(Vector("a", "b", "c"), " ")
+        val result    = transform(DynamicValue.string("only two"))
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toVector.toMap
+            assertTrue(
+              fieldMap.get("a") == Some(DynamicValue.string("only")),
+              fieldMap.get("b") == Some(DynamicValue.string("two")),
+              fieldMap.get("c") == Some(DynamicValue.string(""))
+            )
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("PrimitiveConversion type errors")(
+      test("LongToString fails on non-Long") {
+        val result = PrimitiveConversion.LongToString(DynamicValue.string("not a long"))
+        assertTrue(result.isLeft)
+      },
+      test("StringToLong fails on non-String") {
+        val result = PrimitiveConversion.StringToLong(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToString fails on non-Double") {
+        val result = PrimitiveConversion.DoubleToString(DynamicValue.string("not a double"))
+        assertTrue(result.isLeft)
+      },
+      test("StringToDouble fails on non-String") {
+        val result = PrimitiveConversion.StringToDouble(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("StringToLong fails on non-parseable string") {
+        val result = PrimitiveConversion.StringToLong(DynamicValue.string("not-a-number"))
+        assertTrue(result.isLeft)
+      },
+      test("StringToDouble fails on non-parseable string") {
+        val result = PrimitiveConversion.StringToDouble(DynamicValue.string("not-a-number"))
+        assertTrue(result.isLeft)
+      },
+      test("IntToString success") {
+        val result = PrimitiveConversion.IntToString(DynamicValue.int(42))
+        assertTrue(result == Right(DynamicValue.string("42")))
+      },
+      test("StringToInt success") {
+        val result = PrimitiveConversion.StringToInt(DynamicValue.string("42"))
+        assertTrue(result == Right(DynamicValue.int(42)))
+      },
+      test("StringToInt fails on non-parseable") {
+        val result = PrimitiveConversion.StringToInt(DynamicValue.string("not-a-number"))
+        assertTrue(result.isLeft)
+      },
+      test("FloatToDouble success") {
+        val result = PrimitiveConversion.FloatToDouble(DynamicValue.float(1.5f))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Double(d))) =>
+            assertTrue(d == 1.5)
+          case _ => assertTrue(false)
+        }
+      },
+      test("DoubleToFloat success") {
+        val result = PrimitiveConversion.DoubleToFloat(DynamicValue.double(1.5))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Float(f))) =>
+            assertTrue(f == 1.5f)
+          case _ => assertTrue(false)
+        }
+      },
+      test("BooleanToString success") {
+        val result = PrimitiveConversion.BooleanToString(DynamicValue.boolean(true))
+        assertTrue(result == Right(DynamicValue.string("true")))
+      },
+      test("StringToBoolean success") {
+        val result = PrimitiveConversion.StringToBoolean(DynamicValue.string("true"))
+        assertTrue(result == Right(DynamicValue.boolean(true)))
+      },
+      test("StringToBoolean fails on invalid") {
+        val result = PrimitiveConversion.StringToBoolean(DynamicValue.string("not-a-bool"))
+        assertTrue(result.isLeft)
+      },
+      test("IntToDouble success") {
+        val result = PrimitiveConversion.IntToDouble(DynamicValue.int(42))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Double(d))) =>
+            assertTrue(d == 42.0)
+          case _ => assertTrue(false)
+        }
+      },
+      test("DoubleToInt success") {
+        val result = PrimitiveConversion.DoubleToInt(DynamicValue.double(42.0))
+        assertTrue(result == Right(DynamicValue.int(42)))
+      },
+      test("DoubleToInt fails on NaN") {
+        val result = PrimitiveConversion.DoubleToInt(DynamicValue.double(Double.NaN))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToInt fails on Infinity") {
+        val result = PrimitiveConversion.DoubleToInt(DynamicValue.double(Double.PositiveInfinity))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToInt fails on overflow") {
+        val result = PrimitiveConversion.DoubleToInt(DynamicValue.double(Double.MaxValue))
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("String transform error cases")(
+      test("StringAppend fails on non-String") {
+        val result = DynamicValueTransform.stringAppend("suffix")(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("StringPrepend fails on non-String") {
+        val result = DynamicValueTransform.stringPrepend("prefix")(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("StringReplace fails on non-String") {
+        val result = DynamicValueTransform.stringReplace("a", "b")(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("More PrimitiveConversion error cases")(
+      test("FloatToDouble fails on non-Float") {
+        val result = PrimitiveConversion.FloatToDouble(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToFloat fails on non-Double") {
+        val result = PrimitiveConversion.DoubleToFloat(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToFloat fails on overflow") {
+        val result = PrimitiveConversion.DoubleToFloat(DynamicValue.double(Double.MaxValue))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToFloat handles NaN") {
+        val result = PrimitiveConversion.DoubleToFloat(DynamicValue.double(Double.NaN))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Float(f))) =>
+            assertTrue(f.isNaN)
+          case _ => assertTrue(false)
+        }
+      },
+      test("DoubleToFloat handles Infinity") {
+        val result = PrimitiveConversion.DoubleToFloat(DynamicValue.double(Double.PositiveInfinity))
+        result match {
+          case Right(DynamicValue.Primitive(PrimitiveValue.Float(f))) =>
+            assertTrue(f.isInfinite)
+          case _ => assertTrue(false)
+        }
+      },
+      test("BooleanToString fails on non-Boolean") {
+        val result = PrimitiveConversion.BooleanToString(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("StringToBoolean fails on non-String") {
+        val result = PrimitiveConversion.StringToBoolean(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("IntToDouble fails on non-Int") {
+        val result = PrimitiveConversion.IntToDouble(DynamicValue.string("not int"))
+        assertTrue(result.isLeft)
+      },
+      test("DoubleToInt fails on non-Double") {
+        val result = PrimitiveConversion.DoubleToInt(DynamicValue.string("not double"))
+        assertTrue(result.isLeft)
+      },
+      test("IntToString fails on non-Int") {
+        val result = PrimitiveConversion.IntToString(DynamicValue.string("not int"))
+        assertTrue(result.isLeft)
+      },
+      test("StringToInt fails on non-String") {
+        val result = PrimitiveConversion.StringToInt(DynamicValue.int(123))
+        assertTrue(result.isLeft)
+      },
+      test("IntToLong fails on non-Int") {
+        val result = PrimitiveConversion.IntToLong(DynamicValue.string("not int"))
+        assertTrue(result.isLeft)
+      },
+      test("LongToInt fails on non-Long") {
+        val result = PrimitiveConversion.LongToInt(DynamicValue.string("not long"))
+        assertTrue(result.isLeft)
+      },
+      test("LongToInt fails on overflow") {
+        val result = PrimitiveConversion.LongToInt(DynamicValue.long(Long.MaxValue))
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("SchemaError message coverage")(
+      test("ConversionFailed with no cause") {
+        val err = SchemaError.ConversionFailed(DynamicOptic.root, "Test error")
+        assertTrue(err.message == "Test error")
+      },
+      test("ConversionFailed with single cause error") {
+        val innerErr = SchemaError.ExpectationMismatch(DynamicOptic.root, "inner error")
+        val cause    = new SchemaError(::(innerErr, Nil))
+        val err      = SchemaError.ConversionFailed(DynamicOptic.root, "Outer error", Some(cause))
+        assertTrue(
+          err.message.contains("Outer error"),
+          err.message.contains("Caused by"),
+          err.message.contains("inner error")
+        )
+      },
+      test("ConversionFailed with multiple cause errors") {
+        val err1  = SchemaError.ExpectationMismatch(DynamicOptic.root, "error 1")
+        val err2  = SchemaError.ExpectationMismatch(DynamicOptic.root, "error 2")
+        val cause = new SchemaError(::(err1, List(err2)))
+        val err   = SchemaError.ConversionFailed(DynamicOptic.root, "Outer error", Some(cause))
+        assertTrue(
+          err.message.contains("Outer error"),
+          err.message.contains("Caused by"),
+          err.message.contains("error 1"),
+          err.message.contains("error 2")
+        )
+      }
+    ),
+    suite("FieldAction.reverse methods")(
+      test("Add.reverse returns Remove") {
+        val add      = FieldAction.Add("field", DynamicValue.int(42))
+        val reversed = add.reverse
+        assertTrue(reversed == FieldAction.Remove("field", DynamicValue.int(42)))
+      },
+      test("Remove.reverse returns Add") {
+        val remove   = FieldAction.Remove("field", DynamicValue.string("default"))
+        val reversed = remove.reverse
+        assertTrue(reversed == FieldAction.Add("field", DynamicValue.string("default")))
+      },
+      test("Rename.reverse swaps from and to") {
+        val rename   = FieldAction.Rename("old", "new")
+        val reversed = rename.reverse
+        assertTrue(reversed == FieldAction.Rename("new", "old"))
+      },
+      test("Transform.reverse swaps forward and backward") {
+        val transform = FieldAction.Transform(
+          "field",
+          DynamicValueTransform.stringAppend(" suffix"),
+          DynamicValueTransform.stringPrepend("prefix ")
+        )
+        val reversed = transform.reverse
+        reversed match {
+          case FieldAction.Transform(name, fwd, bwd) =>
+            assertTrue(
+              name == "field",
+              fwd == DynamicValueTransform.stringPrepend("prefix "),
+              bwd == DynamicValueTransform.stringAppend(" suffix")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("MakeOptional.reverse returns MakeRequired") {
+        val makeOpt  = FieldAction.MakeOptional("field", DynamicValue.int(0))
+        val reversed = makeOpt.reverse
+        assertTrue(reversed == FieldAction.MakeRequired("field", DynamicValue.int(0)))
+      },
+      test("MakeRequired.reverse returns MakeOptional") {
+        val makeReq  = FieldAction.MakeRequired("field", DynamicValue.string("default"))
+        val reversed = makeReq.reverse
+        assertTrue(reversed == FieldAction.MakeOptional("field", DynamicValue.string("default")))
+      },
+      test("ChangeType.reverse swaps forward and backward conversions") {
+        val changeType = FieldAction.ChangeType(
+          "field",
+          PrimitiveConversion.IntToLong,
+          PrimitiveConversion.LongToInt
+        )
+        val reversed = changeType.reverse
+        assertTrue(
+          reversed == FieldAction.ChangeType("field", PrimitiveConversion.LongToInt, PrimitiveConversion.IntToLong)
+        )
+      },
+      test("JoinFields.reverse returns SplitField") {
+        val join = FieldAction.JoinFields(
+          "combined",
+          Vector("a", "b"),
+          DynamicValueTransform.identity,
+          DynamicValueTransform.constant(DynamicValue.string("split"))
+        )
+        val reversed = join.reverse
+        reversed match {
+          case FieldAction.SplitField(sourceName, targetNames, splitter, combiner) =>
+            assertTrue(
+              sourceName == "combined",
+              targetNames == Vector("a", "b"),
+              splitter == DynamicValueTransform.constant(DynamicValue.string("split")),
+              combiner == DynamicValueTransform.identity
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("SplitField.reverse returns JoinFields") {
+        val split = FieldAction.SplitField(
+          "source",
+          Vector("x", "y"),
+          DynamicValueTransform.identity,
+          DynamicValueTransform.constant(DynamicValue.string("joined"))
+        )
+        val reversed = split.reverse
+        reversed match {
+          case FieldAction.JoinFields(targetName, sourceNames, combiner, splitter) =>
+            assertTrue(
+              targetName == "source",
+              sourceNames == Vector("x", "y"),
+              combiner == DynamicValueTransform.constant(DynamicValue.string("joined")),
+              splitter == DynamicValueTransform.identity
+            )
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("MigrationStep.isEmpty edge cases")(
+      test("Sequence.isEmpty returns true when elementStep is NoOp") {
+        val seq = MigrationStep.Sequence(MigrationStep.NoOp)
+        assertTrue(seq.isEmpty)
+      },
+      test("Sequence.isEmpty returns false when elementStep has actions") {
+        val seq = MigrationStep.Sequence(MigrationStep.Record.empty.addField("x", DynamicValue.int(1)))
+        assertTrue(!seq.isEmpty)
+      },
+      test("MapEntries.isEmpty returns true when both key and value steps are NoOp") {
+        val mapEntries = MigrationStep.MapEntries(MigrationStep.NoOp, MigrationStep.NoOp)
+        assertTrue(mapEntries.isEmpty)
+      },
+      test("MapEntries.isEmpty returns false when keyStep has actions") {
+        val mapEntries = MigrationStep.MapEntries(
+          MigrationStep.Record.empty.addField("k", DynamicValue.int(1)),
+          MigrationStep.NoOp
+        )
+        assertTrue(!mapEntries.isEmpty)
+      },
+      test("MapEntries.isEmpty returns false when valueStep has actions") {
+        val mapEntries = MigrationStep.MapEntries(
+          MigrationStep.NoOp,
+          MigrationStep.Record.empty.addField("v", DynamicValue.int(1))
+        )
+        assertTrue(!mapEntries.isEmpty)
+      },
+      test("Record.isEmpty returns true with empty fieldActions and empty nestedFields") {
+        val record = MigrationStep.Record.empty
+        assertTrue(record.isEmpty)
+      },
+      test("Record.isEmpty returns true with empty fieldActions and all-empty nestedFields") {
+        val record = MigrationStep.Record(Vector.empty, Map("nested" -> MigrationStep.NoOp))
+        assertTrue(record.isEmpty)
+      },
+      test("Variant.isEmpty returns true with empty renames and all-empty nestedCases") {
+        val variant = MigrationStep.Variant(Map.empty, Map("case" -> MigrationStep.NoOp))
+        assertTrue(variant.isEmpty)
+      }
+    ),
+    suite("MigrationError.message methods")(
+      test("FieldNotFound.message includes field name and path") {
+        val err = MigrationError.FieldNotFound(DynamicOptic.root.field("parent"), "missingField")
+        val msg = err.message
+        assertTrue(
+          msg.contains("missingField"),
+          msg.contains("parent")
+        )
+      },
+      test("CaseNotFound.message includes case name and path") {
+        val err = MigrationError.CaseNotFound(DynamicOptic.root, "UnknownCase")
+        val msg = err.message
+        assertTrue(msg.contains("UnknownCase"))
+      },
+      test("TypeMismatch.message includes expected and actual types") {
+        val err = MigrationError.TypeMismatch(DynamicOptic.root, "Record", "Variant")
+        val msg = err.message
+        assertTrue(
+          msg.contains("Record"),
+          msg.contains("Variant"),
+          msg.contains("expected")
+        )
+      },
+      test("InvalidIndex.message includes index and size") {
+        val err = MigrationError.InvalidIndex(DynamicOptic.root, 5, 3)
+        val msg = err.message
+        assertTrue(
+          msg.contains("5"),
+          msg.contains("3"),
+          msg.contains("out of bounds")
+        )
+      },
+      test("TransformFailed.message includes reason") {
+        val err = MigrationError.TransformFailed(DynamicOptic.root, "conversion failed")
+        val msg = err.message
+        assertTrue(msg.contains("conversion failed"))
+      },
+      test("ExpressionEvalFailed.message includes reason") {
+        val err = MigrationError.ExpressionEvalFailed(DynamicOptic.root, "eval error")
+        val msg = err.message
+        assertTrue(msg.contains("eval error"))
+      },
+      test("FieldAlreadyExists.message includes field name") {
+        val err = MigrationError.FieldAlreadyExists(DynamicOptic.root, "duplicateField")
+        val msg = err.message
+        assertTrue(msg.contains("duplicateField"))
+      },
+      test("IncompatibleValue.message includes reason") {
+        val err = MigrationError.IncompatibleValue(DynamicOptic.root, "wrong type")
+        val msg = err.message
+        assertTrue(msg.contains("wrong type"))
+      },
+      test("DuplicateMapKey.message includes path") {
+        val err = MigrationError.DuplicateMapKey(DynamicOptic.root.field("mapField"))
+        val msg = err.message
+        assertTrue(msg.contains("duplicate"))
+      }
+    ),
+    suite("Migration class methods")(
+      test("Migration.applyDynamic applies migration to DynamicValue") {
+        val migration = MigrationBuilder[PersonV1, PersonV2]
+          .addField("age", DynamicValue.int(25))
+          .buildPartial
+
+        val dynamicInput = Schema[PersonV1].toDynamicValue(PersonV1("Alice"))
+        val result       = migration.applyDynamic(dynamicInput)
+
+        result match {
+          case Right(dv) =>
+            val fields = dv.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              fields.get("name") == Some(DynamicValue.string("Alice")),
+              fields.get("age") == Some(DynamicValue.int(25))
+            )
+          case Left(_) => assertTrue(false)
+        }
+      },
+      test("Migration.reverse returns reversed migration") {
+        val migration = MigrationBuilder[PersonV1, PersonV2]
+          .addField("age", DynamicValue.int(30))
+          .buildPartial
+
+        val reversed = migration.reverse
+
+        assertTrue(
+          reversed.sourceSchema == Schema[PersonV2],
+          reversed.targetSchema == Schema[PersonV1]
+        )
+
+        val person2        = PersonV2("Bob", 30)
+        val dynamicInput   = Schema[PersonV2].toDynamicValue(person2)
+        val reversedDynMig = reversed.dynamicMigration
+        val result         = reversedDynMig(dynamicInput)
+
+        result match {
+          case Right(dv) =>
+            val fields = dv.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              fields.get("name") == Some(DynamicValue.string("Bob")),
+              !fields.contains("age")
+            )
+          case Left(_) => assertTrue(false)
+        }
+      },
+      test("Migration.andThen composes two migrations") {
+        val m1 = MigrationBuilder[PersonV1, PersonV2]
+          .addField("age", DynamicValue.int(25))
+          .buildPartial
+
+        val m2 = MigrationBuilder[PersonV2, PersonV3]
+          .addField("active", DynamicValue.boolean(true))
+          .buildPartial
+
+        val composed = m1.andThen(m2)
+        val result   = composed(PersonV1("Charlie"))
+
+        assertTrue(result == Right(PersonV3("Charlie", 25, true)))
+      }
+    ),
+    suite("MigrationBuilder nested path operations")(
+      test("optionalizeField on nested path wraps field in Some") {
+        val original = DynamicValue.Record(
+          "outer" -> DynamicValue.Record(
+            "inner" -> DynamicValue.int(42)
+          )
+        )
+        val step = MigrationStep.Record.empty
+          .nested("outer")(_.makeFieldOptional("inner", DynamicValue.Null))
+        val migration = DynamicMigration(step)
+        val result    = migration(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap   = fields.toVector.toMap
+            val outer      = fieldMap("outer").asInstanceOf[DynamicValue.Record]
+            val innerMap   = outer.fields.toVector.toMap
+            val innerField = innerMap.get("inner")
+            innerField match {
+              case Some(DynamicValue.Variant("Some", _)) => assertTrue(true)
+              case _                                     => assertTrue(false)
+            }
+          case _ => assertTrue(false)
+        }
+      },
+      test("mandateField on nested path unwraps Some") {
+        val original = DynamicValue.Record(
+          "outer" -> DynamicValue.Record(
+            "inner" -> DynamicValue.Variant("Some", DynamicValue.Record("value" -> DynamicValue.string("test")))
+          )
+        )
+        val step = MigrationStep.Record.empty
+          .nested("outer")(_.makeFieldRequired("inner", DynamicValue.string("default")))
+        val migration = DynamicMigration(step)
+        val result    = migration(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap   = fields.toVector.toMap
+            val outer      = fieldMap("outer").asInstanceOf[DynamicValue.Record]
+            val innerMap   = outer.fields.toVector.toMap
+            val innerField = innerMap.get("inner")
+            assertTrue(innerField == Some(DynamicValue.string("test")))
+          case _ => assertTrue(false)
+        }
+      },
+      test("transformCase applies nested record step to variant case") {
+        val original = DynamicValue.Variant(
+          "MyCase",
+          DynamicValue.Record("value" -> DynamicValue.int(1))
+        )
+        val step = MigrationStep.Variant.empty
+          .transformCase("MyCase")(_.addField("extra", DynamicValue.string("added")))
+        val migration = DynamicMigration(step)
+        val result    = migration(original)
+
+        result match {
+          case Right(DynamicValue.Variant(caseName, payload)) =>
+            val fieldMap = payload.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              caseName == "MyCase",
+              fieldMap.get("value") == Some(DynamicValue.int(1)),
+              fieldMap.get("extra") == Some(DynamicValue.string("added"))
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("deeply nested transformElements") {
+        val original = DynamicValue.Record(
+          "level1" -> DynamicValue.Record(
+            "level2" -> DynamicValue.Record(
+              "items" -> DynamicValue.Sequence(
+                DynamicValue.Record("name" -> DynamicValue.string("item1"))
+              )
+            )
+          )
+        )
+        val step = MigrationStep.Record.empty
+          .nested("level1") { l1 =>
+            l1.nested("level2") { l2 =>
+              l2.copy(nestedFields =
+                l2.nestedFields + ("items" -> MigrationStep.Sequence(
+                  MigrationStep.Record.empty.addField("count", DynamicValue.int(0))
+                ))
+              )
+            }
+          }
+        val migration = DynamicMigration(step)
+        val result    = migration(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap = fields.toVector.toMap
+            val l1       = fieldMap("level1").asInstanceOf[DynamicValue.Record]
+            val l1Map    = l1.fields.toVector.toMap
+            val l2       = l1Map("level2").asInstanceOf[DynamicValue.Record]
+            val l2Map    = l2.fields.toVector.toMap
+            val items    = l2Map("items").asInstanceOf[DynamicValue.Sequence]
+            val itemMap  = items.elements.head.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              itemMap.get("name") == Some(DynamicValue.string("item1")),
+              itemMap.get("count") == Some(DynamicValue.int(0))
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("transformKeys on map field") {
+        val original = DynamicValue.Record(
+          "data" -> DynamicValue.Map(
+            DynamicValue.Record("id" -> DynamicValue.string("k1")) -> DynamicValue.int(1)
+          )
+        )
+        val step = MigrationStep.Record.empty
+          .copy(nestedFields =
+            Map(
+              "data" -> MigrationStep.MapEntries(
+                MigrationStep.Record.empty.renameField("id", "key"),
+                MigrationStep.NoOp
+              )
+            )
+          )
+        val migration = DynamicMigration(step)
+        val result    = migration(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap  = fields.toVector.toMap
+            val dataMap   = fieldMap("data").asInstanceOf[DynamicValue.Map]
+            val (key, _)  = dataMap.entries.head
+            val keyFields = key.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(keyFields.contains("key") && !keyFields.contains("id"))
+          case _ => assertTrue(false)
+        }
+      },
+      test("transformValues on map field") {
+        val original = DynamicValue.Record(
+          "data" -> DynamicValue.Map(
+            DynamicValue.string("k1") -> DynamicValue.Record("value" -> DynamicValue.int(1))
+          )
+        )
+        val step = MigrationStep.Record.empty
+          .copy(nestedFields =
+            Map(
+              "data" -> MigrationStep.MapEntries(
+                MigrationStep.NoOp,
+                MigrationStep.Record.empty.addField("extra", DynamicValue.string("added"))
+              )
+            )
+          )
+        val migration = DynamicMigration(step)
+        val result    = migration(original)
+
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val fieldMap    = fields.toVector.toMap
+            val dataMap     = fieldMap("data").asInstanceOf[DynamicValue.Map]
+            val (_, value)  = dataMap.entries.head
+            val valueFields = value.asInstanceOf[DynamicValue.Record].fields.toVector.toMap
+            assertTrue(
+              valueFields.get("value") == Some(DynamicValue.int(1)),
+              valueFields.get("extra") == Some(DynamicValue.string("added"))
+            )
+          case _ => assertTrue(false)
+        }
+      }
+    ),
+    suite("MigrationStep.reverse methods")(
+      test("Record.reverse reverses fieldActions and updates nestedFields keys") {
+        val record = MigrationStep.Record.empty
+          .addField("a", DynamicValue.int(1))
+          .renameField("x", "y")
+          .nested("y")(_.addField("inner", DynamicValue.string("test")))
+
+        val reversed = record.reverse.asInstanceOf[MigrationStep.Record]
+
+        val renamedBack = reversed.fieldActions.exists {
+          case FieldAction.Rename("y", "x") => true
+          case _                            => false
+        }
+        assertTrue(
+          renamedBack,
+          reversed.nestedFields.contains("x")
+        )
+      },
+      test("Variant.reverse reverses renames and updates nestedCases keys") {
+        val variant = MigrationStep.Variant.empty
+          .renameCase("CaseA", "CaseB")
+          .nested("CaseB")(_.addField("field", DynamicValue.int(1)))
+
+        val reversed = variant.reverse.asInstanceOf[MigrationStep.Variant]
+
+        assertTrue(
+          reversed.renames.get("CaseB") == Some("CaseA"),
+          reversed.nestedCases.contains("CaseA")
+        )
+      },
+      test("Sequence.reverse reverses the elementStep") {
+        val seq = MigrationStep.Sequence(
+          MigrationStep.Record.empty.addField("x", DynamicValue.int(1))
+        )
+        val reversed = seq.reverse.asInstanceOf[MigrationStep.Sequence]
+
+        val innerReversed = reversed.elementStep.asInstanceOf[MigrationStep.Record]
+        assertTrue(
+          innerReversed.fieldActions.exists {
+            case FieldAction.Remove("x", _) => true
+            case _                          => false
+          }
+        )
+      },
+      test("MapEntries.reverse reverses both key and value steps") {
+        val mapEntries = MigrationStep.MapEntries(
+          MigrationStep.Record.empty.addField("k", DynamicValue.int(1)),
+          MigrationStep.Record.empty.addField("v", DynamicValue.int(2))
+        )
+        val reversed = mapEntries.reverse.asInstanceOf[MigrationStep.MapEntries]
+
+        val keyReversed   = reversed.keyStep.asInstanceOf[MigrationStep.Record]
+        val valueReversed = reversed.valueStep.asInstanceOf[MigrationStep.Record]
+
+        assertTrue(
+          keyReversed.fieldActions.exists {
+            case FieldAction.Remove("k", _) => true
+            case _                          => false
+          },
+          valueReversed.fieldActions.exists {
+            case FieldAction.Remove("v", _) => true
+            case _                          => false
+          }
+        )
+      },
+      test("NoOp.reverse returns NoOp") {
+        val noop     = MigrationStep.NoOp
+        val reversed = noop.reverse
+        assertTrue(reversed == MigrationStep.NoOp)
+      }
+    ),
+    suite("MigrationBuilder field name extraction")(
+      test("addedFieldNames extracts direct added fields") {
+        val step = MigrationStep.Record.empty
+          .addField("topLevel", DynamicValue.int(1))
+          .joinFields("combined", Vector("a", "b"), DynamicValueTransform.identity, DynamicValueTransform.identity)
+          .splitField("source", Vector("x", "y"), DynamicValueTransform.identity, DynamicValueTransform.identity)
+        val builder = MigrationBuilder(Schema[Unit], Schema[Unit], step, MigrationStep.Variant.empty)
+
+        val added = builder.addedFieldNames
+        assertTrue(
+          added.contains("topLevel"),
+          added.contains("combined"),
+          added.contains("x"),
+          added.contains("y")
+        )
+      },
+      test("addedFieldNames extracts nested added fields") {
+        val step = MigrationStep.Record.empty
+          .nested("outer")(_.addField("inner", DynamicValue.int(2)))
+        val builder = MigrationBuilder(Schema[Unit], Schema[Unit], step, MigrationStep.Variant.empty)
+
+        val added = builder.addedFieldNames
+        assertTrue(added.contains("outer.inner"))
+      },
+      test("removedFieldNames extracts direct removed fields") {
+        val step = MigrationStep.Record.empty
+          .removeField("removed", DynamicValue.Null)
+          .joinFields("combined", Vector("a", "b"), DynamicValueTransform.identity, DynamicValueTransform.identity)
+          .splitField("source", Vector("x", "y"), DynamicValueTransform.identity, DynamicValueTransform.identity)
+        val builder = MigrationBuilder(Schema[Unit], Schema[Unit], step, MigrationStep.Variant.empty)
+
+        val removed = builder.removedFieldNames
+        assertTrue(
+          removed.contains("removed"),
+          removed.contains("a"),
+          removed.contains("b"),
+          removed.contains("source")
+        )
+      },
+      test("renamedFromNames and renamedToNames track renames") {
+        val step = MigrationStep.Record.empty
+          .renameField("oldName", "newName")
+          .nested("parent")(_.renameField("oldInner", "newInner"))
+        val builder = MigrationBuilder(Schema[Unit], Schema[Unit], step, MigrationStep.Variant.empty)
+
+        assertTrue(
+          builder.renamedFromNames.contains("oldName"),
+          builder.renamedFromNames.contains("parent.oldInner"),
+          builder.renamedToNames.contains("newName"),
+          builder.renamedToNames.contains("parent.newInner")
+        )
+      }
+    ),
+    suite("MigrationBuilder error cases")(
+      test("renameField with different parent paths via DynamicMigration") {
+        val migration = DynamicMigration.record(_.renameField("field1", "field2"))
+        val original  = DynamicValue.Record("field1" -> DynamicValue.int(1))
+        val result    = migration(original)
+        assertTrue(result == Right(DynamicValue.Record("field2" -> DynamicValue.int(1))))
       }
     )
   )

@@ -3,7 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.Schema
 import zio.blocks.schema.migration.TypeLevel.Empty
 
-trait MigrationBuilderCompanionVersionSpecific extends MigrationBuilderSyntax {
+trait MigrationBuilderCompanionMacro extends MigrationBuilderSyntaxMacro {
 
   def apply[A, B](
     sourceSchema: Schema[A],

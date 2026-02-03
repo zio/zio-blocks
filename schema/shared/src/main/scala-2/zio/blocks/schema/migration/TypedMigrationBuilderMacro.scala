@@ -5,7 +5,7 @@ import zio.blocks.schema.{DynamicValue, Schema}
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
-object TypedMigrationBuilder {
+object TypedMigrationBuilderMacro {
   import TypeLevel._
 
   def from[A](implicit sourceSchema: Schema[A]): TypedFromBuilder[A] =
@@ -208,7 +208,8 @@ private[migration] object TypedMigrationBuilderMacros {
   }
 }
 
-private[migration] class TypedMigrationBuilderMacroHelpers[C <: whitebox.Context](val c: C) extends MacroHelpers {
+private[migration] class TypedMigrationBuilderMacroHelpers[C <: whitebox.Context](val c: C)
+    extends MigrationHelperMacro {
   import c.universe._
 
   private val fieldTreeSym = typeOf[TypeLevel.FieldTree].typeSymbol

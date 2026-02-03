@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import scala.quoted.*
 
-private[migration] object MacroHelpers {
+private[migration] object MigrationHelperMacro {
 
   def isPrimitiveType(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect.*
