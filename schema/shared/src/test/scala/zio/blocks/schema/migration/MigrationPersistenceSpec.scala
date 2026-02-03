@@ -552,6 +552,325 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           assertTrue(reconstructed == Right(original))
         }
         assertTrue(true)
+      },
+      test("RootAccess serialization round-trip") {
+        val original: Resolved = Resolved.RootAccess(DynamicOptic.root.field("nested").field("path"))
+        val schema             = Schema[Resolved]
+        val dynamic            = schema.toDynamicValue(original)
+        val reconstructed      = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      },
+      test("At serialization round-trip") {
+        val original: Resolved = Resolved.At(3, Resolved.FieldAccess("field", Resolved.Identity))
+        val schema             = Schema[Resolved]
+        val dynamic            = schema.toDynamicValue(original)
+        val reconstructed      = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      },
+      test("complex At with RootAccess inner round-trip") {
+        val original: Resolved = Resolved.At(
+          0,
+          Resolved.RootAccess(DynamicOptic.root.field("external"))
+        )
+        val schema        = Schema[Resolved]
+        val dynamic       = schema.toDynamicValue(original)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // MigrationAction Edge Cases for Coverage
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("MigrationAction edge cases")(
+      test("AddField action reverse is DropField") {
+        val add     = MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.int(42))
+        val reverse = add.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.DropField])
+        reverse match {
+          case MigrationAction.DropField(at, name, _) =>
+            assertTrue(at == DynamicOptic.root && name == "newField")
+          case _ => assertTrue(false)
+        }
+      },
+      test("DropField action reverse is AddField") {
+        val drop    = MigrationAction.DropField(DynamicOptic.root, "oldField", Resolved.Literal.string("default"))
+        val reverse = drop.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.AddField])
+        reverse match {
+          case MigrationAction.AddField(at, name, _) =>
+            assertTrue(at == DynamicOptic.root && name == "oldField")
+          case _ => assertTrue(false)
+        }
+      },
+      test("Rename action reverse swaps from and to") {
+        val rename  = MigrationAction.Rename(DynamicOptic.root, "oldName", "newName")
+        val reverse = rename.reverse
+        reverse match {
+          case MigrationAction.Rename(_, from, to) =>
+            assertTrue(from == "newName" && to == "oldName")
+          case _ => assertTrue(false)
+        }
+      },
+      test("Optionalize action reverse is Mandate with Fail default") {
+        val optionalize = MigrationAction.Optionalize(DynamicOptic.root, "field")
+        val reverse     = optionalize.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.Mandate])
+      },
+      test("Mandate action reverse is Optionalize") {
+        val mandate = MigrationAction.Mandate(DynamicOptic.root, "field", Resolved.Literal.int(0))
+        val reverse = mandate.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.Optionalize])
+      },
+      test("ChangeType action reverse swaps converters") {
+        val changeType = MigrationAction.ChangeType(
+          DynamicOptic.root,
+          "field",
+          Resolved.Convert("Int", "String", Resolved.Identity),
+          Resolved.Convert("String", "Int", Resolved.Identity)
+        )
+        val reverse = changeType.reverse
+        reverse match {
+          case MigrationAction.ChangeType(_, _, fwd, rev) =>
+            assertTrue(
+              fwd.isInstanceOf[Resolved.Convert] &&
+                rev.isInstanceOf[Resolved.Convert]
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformValue action reverse swaps transforms") {
+        val transform = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          "field",
+          Resolved.Convert("Int", "Long", Resolved.Identity),
+          Resolved.Convert("Long", "Int", Resolved.Identity)
+        )
+        val reverse = transform.reverse
+        reverse match {
+          case MigrationAction.TransformValue(_, _, fwd, rev) =>
+            assertTrue(fwd.isInstanceOf[Resolved.Convert] && rev.isInstanceOf[Resolved.Convert])
+          case _ => assertTrue(false)
+        }
+      },
+      test("RenameCase action reverse swaps names") {
+        val renameCase = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
+        val reverse    = renameCase.reverse
+        reverse match {
+          case MigrationAction.RenameCase(_, from, to) =>
+            assertTrue(from == "NewCase" && to == "OldCase")
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformElements action reverse swaps transforms") {
+        val transformElements = MigrationAction.TransformElements(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Literal.int(0)
+        )
+        val reverse = transformElements.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.TransformElements])
+      },
+      test("TransformKeys action reverse swaps transforms") {
+        val transformKeys = MigrationAction.TransformKeys(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Literal.string("")
+        )
+        val reverse = transformKeys.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.TransformKeys])
+      },
+      test("TransformValues action reverse swaps transforms") {
+        val transformValues = MigrationAction.TransformValues(
+          DynamicOptic.root,
+          Resolved.Identity,
+          Resolved.Literal.string("")
+        )
+        val reverse = transformValues.reverse
+        assertTrue(reverse.isInstanceOf[MigrationAction.TransformValues])
+      },
+      test("prefixPath updates action path") {
+        val action         = MigrationAction.AddField(DynamicOptic.root, "field", Resolved.Literal.int(1))
+        val prefix         = DynamicOptic.root.field("nested")
+        val prefixedAction = action.prefixPath(prefix)
+        prefixedAction match {
+          case MigrationAction.AddField(at, _, _) =>
+            assertTrue(at.nodes.nonEmpty)
+          case _ => assertTrue(false)
+        }
+      },
+      test("DynamicMigration reverse reverses action order") {
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+            MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1))
+          )
+        )
+        val reversed = migration.reverse
+        assertTrue(reversed.actions.length == 2)
+        // First action should be reverse of second original
+        assertTrue(reversed.actions(0).isInstanceOf[MigrationAction.DropField])
+        // Second action should be reverse of first original
+        assertTrue(reversed.actions(1).isInstanceOf[MigrationAction.Rename])
+      },
+      test("DynamicMigration composition (++) concatenates actions") {
+        val m1       = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "a", "b"))
+        val m2       = DynamicMigration.single(MigrationAction.AddField(DynamicOptic.root, "c", Resolved.Literal.int(1)))
+        val composed = m1 ++ m2
+        assertTrue(composed.actions.length == 2)
+      },
+      test("DynamicMigration.identity has no actions") {
+        assertTrue(DynamicMigration.identity.actions.isEmpty)
+      },
+      test("DynamicMigration.single creates migration with one action") {
+        val action    = MigrationAction.Rename(DynamicOptic.root, "a", "b")
+        val migration = DynamicMigration.single(action)
+        assertTrue(migration.actions.length == 1 && migration.actions.head == action)
+      }
+    ),
+    suite("Resolved expression edge cases")(
+      test("Literal.boolean creates boolean literal") {
+        val literal = Resolved.Literal.boolean(true)
+        assertTrue(literal.evalDynamic.isRight)
+      },
+      test("Literal.long creates long literal") {
+        val literal = Resolved.Literal.long(100L)
+        assertTrue(literal.evalDynamic.isRight)
+      },
+      test("DefaultValue.noDefault fails") {
+        val dv = Resolved.DefaultValue.noDefault
+        assertTrue(dv.evalDynamic.isLeft)
+      },
+      test("DefaultValue.fail with custom message fails") {
+        val dv     = Resolved.DefaultValue.fail("custom error")
+        val result = dv.evalDynamic
+        assertTrue(result.isLeft && result.swap.toOption.get.contains("custom error"))
+      },
+      test("DefaultValue.fromValue creates valid default") {
+        val dv = Resolved.DefaultValue.fromValue(42, Schema[Int])
+        assertTrue(dv.evalDynamic.isRight)
+      },
+      test("Fail.evalDynamic returns Left with message") {
+        val fail   = Resolved.Fail("test-error")
+        val result = fail.evalDynamic
+        assertTrue(result == Left("test-error"))
+      },
+      test("Identity returns input unchanged") {
+        val input  = dynamicString("hello")
+        val result = Resolved.Identity.evalDynamic(input)
+        assertTrue(result == Right(input))
+      }
+    ),
+    suite("Serialization coverage - complex cases")(
+      test("TransformCase with nested RootAccess serialization") {
+        val action: MigrationAction = MigrationAction.TransformCase(
+          DynamicOptic.root.field("payment"),
+          "Card",
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "verified",
+              Resolved.RootAccess(DynamicOptic.root.field("isVerified"))
+            )
+          )
+        )
+        val schema        = Schema[MigrationAction]
+        val dynamic       = schema.toDynamicValue(action)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(action))
+      },
+      test("Nested At in Construct serialization") {
+        val expr: Resolved = Resolved.Construct(
+          Vector(
+            "first"  -> Resolved.At(0, Resolved.RootAccess(DynamicOptic.root.field("items"))),
+            "second" -> Resolved.At(1, Resolved.RootAccess(DynamicOptic.root.field("items")))
+          )
+        )
+        val schema        = Schema[Resolved]
+        val dynamic       = schema.toDynamicValue(expr)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(expr))
+      },
+      test("OpticAccess with RootAccess inner serialization") {
+        val expr: Resolved = Resolved.OpticAccess(
+          DynamicOptic.root.field("local"),
+          Resolved.RootAccess(DynamicOptic.root.field("external"))
+        )
+        val schema        = Schema[Resolved]
+        val dynamic       = schema.toDynamicValue(expr)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(expr))
+      },
+      test("GetOrElse with RootAccess serialization") {
+        val expr: Resolved = Resolved.GetOrElse(
+          Resolved.RootAccess(DynamicOptic.root.field("optional")),
+          Resolved.RootAccess(DynamicOptic.root.field("default"))
+        )
+        val schema        = Schema[Resolved]
+        val dynamic       = schema.toDynamicValue(expr)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(expr))
+      },
+      test("Coalesce with RootAccess alternatives serialization") {
+        val expr: Resolved = Resolved.Coalesce(
+          Vector(
+            Resolved.RootAccess(DynamicOptic.root.field("primary")),
+            Resolved.RootAccess(DynamicOptic.root.field("secondary")),
+            Resolved.Literal.string("fallback")
+          )
+        )
+        val schema        = Schema[Resolved]
+        val dynamic       = schema.toDynamicValue(expr)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(expr))
+      },
+      test("Complex migration with all new features serialization") {
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "joined",
+              Resolved.Concat(
+                Vector(
+                  Resolved.RootAccess(DynamicOptic.root.field("a").field("b")),
+                  Resolved.Literal.string(" "),
+                  Resolved.RootAccess(DynamicOptic.root.field("c").field("d"))
+                ),
+                ""
+              )
+            ),
+            MigrationAction.AddField(
+              DynamicOptic.root,
+              "splitFirst",
+              Resolved.Compose(
+                Resolved.At(0, Resolved.Identity),
+                Resolved.SplitString(" ", Resolved.RootAccess(DynamicOptic.root.field("fullText")))
+              )
+            ),
+            MigrationAction.TransformCase(
+              DynamicOptic.root.field("status"),
+              "Active",
+              Vector(
+                MigrationAction.AddField(
+                  DynamicOptic.root,
+                  "activatedAt",
+                  Resolved.RootAccess(DynamicOptic.root.field("timestamp"))
+                )
+              )
+            )
+          )
+        )
+        val schema        = Schema[DynamicMigration]
+        val dynamic       = schema.toDynamicValue(migration)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(migration))
+      },
+      test("DynamicOptic with deep nesting serialization") {
+        val path           = DynamicOptic.root.field("a").field("b").field("c").field("d").field("e")
+        val expr: Resolved = Resolved.RootAccess(path)
+        val schema         = Schema[Resolved]
+        val dynamic        = schema.toDynamicValue(expr)
+        val reconstructed  = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(expr))
       }
     )
   )
