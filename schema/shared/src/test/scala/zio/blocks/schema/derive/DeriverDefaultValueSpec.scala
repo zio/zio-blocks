@@ -49,7 +49,7 @@ object DeriverDefaultValueSpec extends SchemaBaseSpec {
       TypeId.nominal[StringWrapper]("StringWrapper", zio.blocks.typeid.Owner.Root)
     implicit val schema: Schema[StringWrapper] =
       Schema[String]
-        .transformOrFail(s => Right(StringWrapper(s)), (w: StringWrapper) => w.value)
+        .transform(s => StringWrapper(s), (w: StringWrapper) => w.value)
   }
 
   class CapturingDeriver extends Deriver[CapturedValues] {

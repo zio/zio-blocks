@@ -19,6 +19,21 @@ private[typeid] object TypeIdOps {
 
   def normalize(id: TypeId[_]): TypeId[_] = normalizeWithArgs(id, id.typeArgs)
 
+  def unapplied(id: TypeId[_]): TypeId[_] =
+    if (!id.isApplied) id
+    else
+      createImpl(
+        id.name,
+        id.owner,
+        id.typeParams,
+        Nil,
+        id.defKind,
+        id.selfType,
+        id.aliasedTo,
+        id.representation,
+        id.annotations
+      )
+
   @tailrec
   private[typeid] def normalizeWithArgs(id: TypeId[_], accumulatedArgs: List[TypeRepr]): TypeId[_] =
     id.aliasedTo match {

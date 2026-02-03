@@ -90,16 +90,16 @@ val rejectAll = JsonSchema.False
 Create schemas that validate specific JSON types:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
 
 // Single type
-val stringSchema = JsonSchema.ofType(JsonType.String)
-val numberSchema = JsonSchema.ofType(JsonType.Number)
-val integerSchema = JsonSchema.ofType(JsonType.Integer)
-val booleanSchema = JsonSchema.ofType(JsonType.Boolean)
-val arraySchema = JsonSchema.ofType(JsonType.Array)
-val objectSchema = JsonSchema.ofType(JsonType.Object)
-val nullSchema = JsonSchema.ofType(JsonType.Null)
+val stringSchema = JsonSchema.ofType(JsonSchemaType.String)
+val numberSchema = JsonSchema.ofType(JsonSchemaType.Number)
+val integerSchema = JsonSchema.ofType(JsonSchemaType.Integer)
+val booleanSchema = JsonSchema.ofType(JsonSchemaType.Boolean)
+val arraySchema = JsonSchema.ofType(JsonSchemaType.Array)
+val objectSchema = JsonSchema.ofType(JsonSchemaType.Object)
+val nullSchema = JsonSchema.ofType(JsonSchemaType.Null)
 
 // Convenience aliases
 val isNull = JsonSchema.nullSchema
@@ -159,31 +159,31 @@ val evenNumber = JsonSchema.integer(
 Create schemas for array validation:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType, NonNegativeInt}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType, NonNegativeInt}
 
 // Array of strings
 val stringArray = JsonSchema.array(
-  items = Some(JsonSchema.ofType(JsonType.String))
+  items = Some(JsonSchema.ofType(JsonSchemaType.String))
 )
 
 // Array with length constraints
 val shortList = JsonSchema.array(
-  JsonSchema.ofType(JsonType.Number),
+  JsonSchema.ofType(JsonSchemaType.Number),
   NonNegativeInt.literal(1),
   NonNegativeInt.literal(5)
 )
 
 // Array with unique items
 val uniqueNumbers = JsonSchema.array(
-  items = Some(JsonSchema.ofType(JsonType.Number)),
+  items = Some(JsonSchema.ofType(JsonSchemaType.Number)),
   uniqueItems = Some(true)
 )
 
 // Tuple-like array with prefixItems
 val point2D = JsonSchema.array(
   prefixItems = Some(new ::(
-    JsonSchema.ofType(JsonType.Number),
-    JsonSchema.ofType(JsonType.Number) :: Nil
+    JsonSchema.ofType(JsonSchemaType.Number),
+    JsonSchema.ofType(JsonSchemaType.Number) :: Nil
   ))
 )
 ```
@@ -193,22 +193,23 @@ val point2D = JsonSchema.array(
 Create schemas for object validation:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
+import zio.blocks.chunk.ChunkMap
 
 // Object with properties
 val person = JsonSchema.obj(
-  properties = Some(Map(
-    "name" -> JsonSchema.ofType(JsonType.String),
-    "age" -> JsonSchema.ofType(JsonType.Integer)
+  properties = Some(ChunkMap(
+    "name" -> JsonSchema.ofType(JsonSchemaType.String),
+    "age" -> JsonSchema.ofType(JsonSchemaType.Integer)
   )),
   required = Some(Set("name"))
 )
 
 // Object with no additional properties
 val strictPerson = JsonSchema.obj(
-  properties = Some(Map(
-    "name" -> JsonSchema.ofType(JsonType.String),
-    "age" -> JsonSchema.ofType(JsonType.Integer)
+  properties = Some(ChunkMap(
+    "name" -> JsonSchema.ofType(JsonSchemaType.String),
+    "age" -> JsonSchema.ofType(JsonSchemaType.Integer)
   )),
   required = Some(Set("name")),
   additionalProperties = Some(JsonSchema.False)
@@ -240,11 +241,11 @@ val alwaysTrue = JsonSchema.constOf(Json.Boolean(true))
 Combine schemas using logical operators:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
 
-val stringSchema = JsonSchema.ofType(JsonType.String)
-val numberSchema = JsonSchema.ofType(JsonType.Number)
-val nullSchema = JsonSchema.ofType(JsonType.Null)
+val stringSchema = JsonSchema.ofType(JsonSchemaType.String)
+val numberSchema = JsonSchema.ofType(JsonSchemaType.Number)
+val nullSchema = JsonSchema.ofType(JsonSchemaType.Null)
 
 // allOf - must match all schemas
 val stringAndNotEmpty = stringSchema && JsonSchema.string(
@@ -266,9 +267,9 @@ val nullableString = stringSchema || nullSchema
 Make any schema nullable:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
 
-val stringSchema = JsonSchema.ofType(JsonType.String)
+val stringSchema = JsonSchema.ofType(JsonSchemaType.String)
 
 // Accepts string or null
 val nullableString = stringSchema.withNullable
@@ -281,11 +282,11 @@ val nullableString = stringSchema.withNullable
 Apply different schemas based on conditions:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType, NonNegativeInt}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType, NonNegativeInt}
 
 // If type is string, require minLength
 val conditionalSchema = JsonSchema.Object(
-  `if` = Some(JsonSchema.ofType(JsonType.String)),
+  `if` = Some(JsonSchema.ofType(JsonSchemaType.String)),
   `then` = Some(JsonSchema.string(minLength = Some(NonNegativeInt.literal(1)))),
   `else` = Some(JsonSchema.True)
 )
@@ -296,15 +297,16 @@ val conditionalSchema = JsonSchema.Object(
 Apply schemas when properties are present:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
+import zio.blocks.chunk.ChunkMap
 
 // If "credit_card" exists, require "billing_address"
 val paymentSchema = JsonSchema.Object(
-  properties = Some(Map(
-    "credit_card" -> JsonSchema.ofType(JsonType.String),
-    "billing_address" -> JsonSchema.ofType(JsonType.String)
+  properties = Some(ChunkMap(
+    "credit_card" -> JsonSchema.ofType(JsonSchemaType.String),
+    "billing_address" -> JsonSchema.ofType(JsonSchemaType.String)
   )),
-  dependentRequired = Some(Map(
+  dependentRequired = Some(ChunkMap(
     "credit_card" -> Set("billing_address")
   ))
 )
@@ -315,23 +317,24 @@ val paymentSchema = JsonSchema.Object(
 ### Basic Validation
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, Json, JsonType}
+import zio.blocks.schema.json.{JsonSchema, Json, JsonSchemaType}
+import zio.blocks.chunk.ChunkMap
 
 val schema = JsonSchema.obj(
-  properties = Some(Map(
-    "name" -> JsonSchema.ofType(JsonType.String),
+  properties = Some(ChunkMap(
+    "name" -> JsonSchema.ofType(JsonSchemaType.String),
     "age" -> JsonSchema.integer(minimum = Some(BigDecimal(0)))
   )),
   required = Some(Set("name"))
 )
 
-val validJson = Json.obj(
-  "name" -> Json.str("Alice"),
-  "age" -> Json.number(30)
+val validJson = Json.Object(
+  "name" -> Json.String("Alice"),
+  "age" -> Json.Number(30)
 )
 
-val invalidJson = Json.obj(
-  "age" -> Json.number(-5)
+val invalidJson = Json.Object(
+  "age" -> Json.Number(-5)
 )
 
 // Using check() - returns Option[SchemaError]
@@ -351,7 +354,7 @@ Control validation behavior:
 import zio.blocks.schema.json.{JsonSchema, Json, ValidationOptions}
 
 val schema = JsonSchema.string(format = Some("email"))
-val value = Json.str("not-an-email")
+val value = Json.String("not-an-email")
 
 // With format validation (default)
 val strictOptions = ValidationOptions.formatAssertion
@@ -367,13 +370,14 @@ schema.check(value, lenientOptions) // None
 Validation errors include path information:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, Json, JsonType}
+import zio.blocks.schema.json.{JsonSchema, Json, JsonSchemaType}
+import zio.blocks.chunk.ChunkMap
 
 val schema = JsonSchema.obj(
-  properties = Some(Map(
+  properties = Some(ChunkMap(
     "users" -> JsonSchema.array(
       items = Some(JsonSchema.obj(
-        properties = Some(Map(
+        properties = Some(ChunkMap(
           "email" -> JsonSchema.string(format = Some("email"))
         ))
       ))
@@ -381,14 +385,14 @@ val schema = JsonSchema.obj(
   ))
 )
 
-val invalid = Json.obj(
-  "users" -> Json.arr(
-    Json.obj("email" -> Json.str("invalid"))
+val invalid = Json.Object(
+  "users" -> Json.Array(
+    Json.Object("email" -> Json.String("invalid"))
   )
 )
 
 schema.check(invalid) match {
-  case Some(error) => println(error.message)
+  case Some(err) => println(err.message)
   // "String 'invalid' is not a valid email address"
   case None => println("Valid")
 }
@@ -413,9 +417,9 @@ val parsed = JsonSchema.parse("""
 """)
 
 // From Json value
-val json = Json.obj(
-  "type" -> Json.str("string"),
-  "minLength" -> Json.number(1)
+val json = Json.Object(
+  "type" -> Json.String("string"),
+  "minLength" -> Json.Number(1)
 )
 val fromJson = JsonSchema.fromJson(json)
 ```
@@ -423,7 +427,7 @@ val fromJson = JsonSchema.fromJson(json)
 ### Serializing to JSON
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType, NonNegativeInt}
+import zio.blocks.schema.json.{JsonSchema, NonNegativeInt}
 
 val schema = JsonSchema.string(
   NonNegativeInt.literal(1),
@@ -463,12 +467,13 @@ Format validation is enabled by default. Use `ValidationOptions.annotationOnly` 
 JSON Schema 2020-12 introduces `unevaluatedProperties` and `unevaluatedItems` for validating properties/items not matched by any applicator keyword:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, JsonType}
+import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
+import zio.blocks.chunk.ChunkMap
 
 // Reject any properties not defined in properties or patternProperties
 val strictObject = JsonSchema.Object(
-  properties = Some(Map(
-    "name" -> JsonSchema.ofType(JsonType.String)
+  properties = Some(ChunkMap(
+    "name" -> JsonSchema.ofType(JsonSchemaType.String)
   )),
   unevaluatedProperties = Some(JsonSchema.False)
 )
@@ -476,8 +481,8 @@ val strictObject = JsonSchema.Object(
 // Reject extra array items not matched by prefixItems or items
 val strictArray = JsonSchema.Object(
   prefixItems = Some(new ::(
-    JsonSchema.ofType(JsonType.String),
-    JsonSchema.ofType(JsonType.Number) :: Nil
+    JsonSchema.ofType(JsonSchemaType.String),
+    JsonSchema.ofType(JsonSchemaType.Number) :: Nil
   )),
   unevaluatedItems = Some(JsonSchema.False)
 )
@@ -551,10 +556,11 @@ The implementation passes **817 of 844 tests** (97%+) from the official JSON Sch
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json._
+import zio.blocks.chunk.ChunkMap
 
 // Define a complex schema
 val userSchema = JsonSchema.obj(
-  properties = Some(Map(
+  properties = Some(ChunkMap(
     "id" -> JsonSchema.string(format = Some("uuid")),
     "email" -> JsonSchema.string(format = Some("email")),
     "name" -> JsonSchema.string(
@@ -573,7 +579,7 @@ val userSchema = JsonSchema.obj(
       uniqueItems = Some(true)
     ),
     "metadata" -> JsonSchema.obj(
-      additionalProperties = Some(JsonSchema.ofType(JsonType.String))
+      additionalProperties = Some(JsonSchema.ofType(JsonSchemaType.String))
     )
   )),
   required = Some(Set("id", "email", "name", "roles")),
@@ -581,19 +587,19 @@ val userSchema = JsonSchema.obj(
 )
 
 // Validate some data
-val validUser = Json.obj(
-  "id" -> Json.str("550e8400-e29b-41d4-a716-446655440000"),
-  "email" -> Json.str("alice@example.com"),
-  "name" -> Json.str("Alice"),
-  "roles" -> Json.arr(Json.str("admin"), Json.str("user"))
+val validUser = Json.Object(
+  "id" -> Json.String("550e8400-e29b-41d4-a716-446655440000"),
+  "email" -> Json.String("alice@example.com"),
+  "name" -> Json.String("Alice"),
+  "roles" -> Json.Array(Json.String("admin"), Json.String("user"))
 )
 
-val invalidUser = Json.obj(
-  "id" -> Json.str("not-a-uuid"),
-  "email" -> Json.str("invalid-email"),
-  "name" -> Json.str(""),
-  "roles" -> Json.arr(),
-  "extra" -> Json.str("not allowed")
+val invalidUser = Json.Object(
+  "id" -> Json.String("not-a-uuid"),
+  "email" -> Json.String("invalid-email"),
+  "name" -> Json.String(""),
+  "roles" -> Json.Array(),
+  "extra" -> Json.String("not allowed")
 )
 
 userSchema.conforms(validUser)   // true
@@ -601,7 +607,7 @@ userSchema.conforms(invalidUser) // false
 
 // Get detailed errors
 userSchema.check(invalidUser) match {
-  case Some(error) => println(error.message)
+  case Some(err) => println(err.message)
   case None => println("Valid!")
 }
 
@@ -616,6 +622,5 @@ val schemaJson = userSchema.toJson.print
 
 - **JVM** - Full functionality
 - **Scala.js** - Browser and Node.js
-- **Scala Native** - Native compilation
 
 All features work identically across platforms.

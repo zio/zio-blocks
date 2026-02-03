@@ -10,7 +10,6 @@ package zio.blocks.schema
  * Platform-specific implementations are provided in:
  *   - jvm/src/main/scala/zio/blocks/schema/PlatformSpecific.scala
  *   - js/src/main/scala/zio/blocks/schema/PlatformSpecific.scala
- *   - native/src/main/scala/zio/blocks/schema/PlatformSpecific.scala
  */
 trait Platform {
 
@@ -19,9 +18,6 @@ trait Platform {
 
   /** Whether this is the JavaScript platform */
   def isJS: Boolean
-
-  /** Whether this is the Native platform */
-  def isNative: Boolean
 
   /** Human-readable name of the platform */
   def name: String

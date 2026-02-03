@@ -9,6 +9,7 @@ import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 object AvroFormat
@@ -251,7 +252,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Boolean] = {
-                      val builder = constructor.newBooleanBuilder()
+                      val builder = constructor.newBuilder[Boolean](8)(ClassTag.Boolean)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -275,7 +276,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultBoolean(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Boolean], encoder: BinaryEncoder): Unit = {
@@ -297,7 +298,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Byte] = {
-                      val builder = constructor.newByteBuilder()
+                      val builder = constructor.newBuilder[Byte](8)(ClassTag.Byte)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -321,7 +322,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultByte(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Byte], encoder: BinaryEncoder): Unit = {
@@ -343,7 +344,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Char] = {
-                      val builder = constructor.newCharBuilder()
+                      val builder = constructor.newBuilder[Char](8)(ClassTag.Char)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -367,7 +368,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultChar(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Char], encoder: BinaryEncoder): Unit = {
@@ -389,7 +390,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Short] = {
-                      val builder = constructor.newShortBuilder()
+                      val builder = constructor.newBuilder[Short](8)(ClassTag.Short)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -413,7 +414,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultShort(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Short], encoder: BinaryEncoder): Unit = {
@@ -435,7 +436,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Float] = {
-                      val builder = constructor.newFloatBuilder()
+                      val builder = constructor.newBuilder[Float](8)(ClassTag.Float)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -459,7 +460,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultFloat(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Float], encoder: BinaryEncoder): Unit = {
@@ -481,7 +482,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Int] = {
-                      val builder = constructor.newIntBuilder()
+                      val builder = constructor.newBuilder[Int](8)(ClassTag.Int)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -505,7 +506,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultInt(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Int], encoder: BinaryEncoder): Unit = {
@@ -527,7 +528,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Double] = {
-                      val builder = constructor.newDoubleBuilder()
+                      val builder = constructor.newBuilder[Double](8)(ClassTag.Double)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -551,7 +552,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultDouble(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Double], encoder: BinaryEncoder): Unit = {
@@ -573,7 +574,7 @@ object AvroFormat
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Long] = {
-                      val builder = constructor.newLongBuilder()
+                      val builder = constructor.newBuilder[Long](8)(ClassTag.Long)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -597,7 +598,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultLong(builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Long], encoder: BinaryEncoder): Unit = {
@@ -615,11 +616,12 @@ object AvroFormat
                     private[this] val deconstructor = binding.deconstructor
                     private[this] val constructor   = binding.constructor
                     private[this] val elementCodec  = codec
+                    private[this] val elemClassTag  = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Elem] = {
-                      val builder = constructor.newObjectBuilder[Elem](8)
+                      val builder = constructor.newBuilder[Elem](8)(elemClassTag)
                       var count   = 0L
                       var size    = 0
                       while ({
@@ -633,7 +635,7 @@ object AvroFormat
                         }
                         try {
                           while (size > 0) {
-                            constructor.addObject(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
                             count += 1
                             size -= 1
                           }
@@ -643,7 +645,7 @@ object AvroFormat
                         }
                       }
                       if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                      constructor.resultObject[Elem](builder)
+                      constructor.result(builder)
                     }
 
                     def encode(value: Col[Elem], encoder: BinaryEncoder): Unit = {
@@ -865,23 +867,14 @@ object AvroFormat
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
 
-                def decodeUnsafe(decoder: BinaryDecoder): A = {
-                  val wrapped =
-                    try wrappedCodec.decodeUnsafe(decoder)
-                    catch {
-                      case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
-                    }
-                  wrap(wrapped) match {
-                    case Right(x)  => x
-                    case Left(err) => decodeError(err.message)
+                def decodeUnsafe(decoder: BinaryDecoder): A =
+                  try wrap(wrappedCodec.decodeUnsafe(decoder))
+                  catch {
+                    case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
                   }
-                }
 
                 def encode(value: A, encoder: BinaryEncoder): Unit =
-                  unwrap(value) match {
-                    case Right(wrapped) => wrappedCodec.encode(wrapped, encoder)
-                    case Left(err)      => throw err
-                  }
+                  wrappedCodec.encode(unwrap(value), encoder)
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {

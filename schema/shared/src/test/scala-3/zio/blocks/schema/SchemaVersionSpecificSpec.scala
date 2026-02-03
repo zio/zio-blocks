@@ -499,14 +499,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(traversal8.fold(IArray(1.0f, 2.0f, 3.0f))(0.0f, _ + _))(equalTo(6.0f)) &&
         assert(traversal9.fold(IArray(1.0, 2.0, 3.0))(0.0, _ + _))(equalTo(6.0))
       },
-      test("has consistent newObjectBuilder, addObject and resultObject") {
+      test("has consistent newBuilder, add and result") {
         val schema      = Schema.derived[IArray[Int]]
         val constructor = schema.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[IArray, Int]].constructor
-        val xs          = constructor.newObjectBuilder[Int](0)
-        constructor.addObject(xs, 1)
-        constructor.addObject(xs, 2)
-        constructor.addObject(xs, 3)
-        assert(constructor.resultObject(xs))(equalTo(Array(1, 2, 3)))
+        val xs          = constructor.newBuilder[Int](0)
+        constructor.add(xs, 1)
+        constructor.add(xs, 2)
+        constructor.add(xs, 3)
+        assert(constructor.result(xs))(equalTo(Array(1, 2, 3)))
       },
 
       test("doesn't generate schema for unsupported collections") {
@@ -877,7 +877,14 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeId = TypeId.of[InnerId],
-        wrapperBinding = Binding.Wrapper(s => InnerId(s).left.map(SchemaError.validationFailed), s => Right(s))
+        wrapperBinding = Binding.Wrapper(
+          s =>
+            InnerId(s) match {
+              case Right(id) => id
+              case Left(err) => throw SchemaError.validationFailed(err)
+            },
+          s => s
+        )
       )
     )
 
@@ -922,7 +929,14 @@ object Id {
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeId = TypeId.of[Id],
-      wrapperBinding = Binding.Wrapper(s => Id(s).left.map(SchemaError.validationFailed), s => Right(s))
+      wrapperBinding = Binding.Wrapper(
+        s =>
+          Id(s) match {
+            case Right(id) => id
+            case Left(err) => throw SchemaError.validationFailed(err)
+          },
+        s => s
+      )
     )
   )
 

@@ -381,44 +381,31 @@ class ToonBinaryCodecDeriver private[toon] (
         private[this] val wrappedCodec = codec
 
         override def decodeValue(in: ToonReader, default: A): A =
-          wrap(
-            try {
+          try
+            wrap(
               wrappedCodec.decodeValue(
                 in, {
                   if (default == null) null
                   else unwrap(default)
                 }.asInstanceOf[B]
               )
-            } catch {
-              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
-            }
-          ) match {
-            case Right(x)    => x
-            case Left(error) => in.decodeError(error.message)
+            )
+          catch {
+            case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
           }
 
         override def encodeValue(x: A, out: ToonWriter): Unit =
-          unwrap(x) match {
-            case Right(wrapped) => wrappedCodec.encodeValue(wrapped, out)
-            case Left(error)    => throw error
-          }
+          wrappedCodec.encodeValue(unwrap(x), out)
 
         override def decodeKey(in: ToonReader): A =
-          wrap(
-            try wrappedCodec.decodeKey(in)
-            catch {
-              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
-            }
-          ) match {
-            case Right(x)    => x
-            case Left(error) => in.decodeError(error.message)
+          try
+            wrap(wrappedCodec.decodeKey(in))
+          catch {
+            case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
           }
 
         override def encodeKey(x: A, out: ToonWriter): Unit =
-          unwrap(x) match {
-            case Right(wrapped) => wrappedCodec.encodeKey(wrapped, out)
-            case Left(error)    => throw error
-          }
+          wrappedCodec.encodeKey(unwrap(x), out)
       }
     } else {
       wrapper.wrapperBinding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance.force

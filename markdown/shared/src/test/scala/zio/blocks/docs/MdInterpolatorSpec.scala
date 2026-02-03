@@ -3,7 +3,6 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.exceptNative
 
 object MdInterpolatorSpec extends MarkdownBaseSpec {
   def spec = suite("md interpolator")(
@@ -454,7 +453,7 @@ This is $bold information."""
           md"```scala\nval x = 1"
           """
         }.map(assert(_)(isLeft(containsString("Invalid markdown"))))
-      } @@ exceptNative,
+      },
       test("rejects type without ToMarkdown instance") {
         typeCheck {
           """
@@ -464,7 +463,7 @@ This is $bold information."""
           md"Value: $c"
           """
         }.map(assert(_)(isLeft(containsString("No ToMarkdown instance"))))
-      } @@ exceptNative,
+      },
       test("rejects class without ToMarkdown instance") {
         typeCheck {
           """
@@ -474,7 +473,7 @@ This is $bold information."""
           md"Object: $obj"
           """
         }.map(assert(_)(isLeft(containsString("No ToMarkdown instance"))))
-      } @@ exceptNative,
+      },
       test("accepts List with ToMarkdown instance") {
         typeCheck {
           """
@@ -483,7 +482,7 @@ This is $bold information."""
           md"Items: $list"
           """
         }.map(assert(_)(isRight))
-      } @@ exceptNative,
+      },
       test("rejects Map without ToMarkdown instance") {
         typeCheck {
           """
@@ -492,7 +491,7 @@ This is $bold information."""
           md"Mapping: $map"
           """
         }.map(assert(_)(isLeft(containsString("No ToMarkdown instance"))))
-      } @@ exceptNative
+      }
     )
   )
 }

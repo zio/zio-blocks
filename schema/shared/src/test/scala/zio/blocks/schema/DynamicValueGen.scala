@@ -44,7 +44,7 @@ object DynamicValueGen {
   // Null generator
   val genNull: Gen[Any, DynamicValue.Null.type] = Gen.const(DynamicValue.Null)
 
-  // Depth-limited generators for Scala Native compatibility
+  // Depth-limited generators to keep test execution time manageable
   val genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
 
   private[this] def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =

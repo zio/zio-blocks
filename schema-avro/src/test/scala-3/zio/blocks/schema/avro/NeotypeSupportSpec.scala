@@ -23,8 +23,10 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
     schema: Schema[A],
     typeId: TypeId[B]
   ): Schema[B] =
-    Schema[A]
-      .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
+    Schema[A].transform(
+      a => newType.make(a).fold(msg => throw SchemaError.validationFailed(msg), identity),
+      newType.unwrap
+    )
 
   type Name = Name.Type
 

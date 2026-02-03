@@ -1220,7 +1220,7 @@ Consider a scenario where you have a record containing a field whose type is a s
 
 For instance, suppose we have an `Employee` case class that contains a `ContactInfo` field, where `ContactInfo` is a sealed trait with different cases:
 
-```scala mdoc:silent
+```scala
 import zio.blocks.schema._
 
 sealed trait ContactInfo
@@ -1287,7 +1287,7 @@ object Employee {
 
 The `Employee.contactEmail` is an `Optional[Employee, ContactInfo.Email]` that allows you to access or modify the email contact of an employee, but only if their contact information is indeed an `Email`. If the contact information is a `Phone` or `NoContact`, the operations will fail gracefully, returning `None`:
 
-```scala mdoc:silent
+```scala
 val employee1 = Employee("Alice", ContactInfo.Email("alice@example.com"))
 // getOption returns Some when the contact is an Email
 Employee.contactEmail.getOption(employee1) // => Some(Email("alice@example.com"))
@@ -1306,7 +1306,7 @@ Employee.contactEmail.replaceOption(employee2, ContactInfo.Email("bob@example.co
 
 You can further compose this `Optional` to reach deeper into the structure:
 
-```scala mdoc:compile-only
+```scala
 // Now you can get/set the email address string directly
 Employee.emailAddress.getOption(employee1)
 // => Some("alice@example.com")

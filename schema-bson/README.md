@@ -2,9 +2,11 @@
 
 BSON (Binary JSON) codec support for ZIO Blocks Schema.
 
+> **Note:** This module is JVM-only. It does not support Scala.js.
+
 ## Overview
 
-This module provides automatic BSON serialization and deserialization for any type with a ZIO Blocks `Schema`. It leverages `zio-bson` `version 1.0.6` to interface directly with MongoDB and other BSON-native tools. This allows you to use your ZIO Schema data models directly with MongoDB drivers without boilerplate standard code.
+This module provides automatic BSON serialization and deserialization for any type with a ZIO Blocks `Schema`. It uses MongoDB's native BSON library (`org.mongodb:bson`) to interface directly with MongoDB and other BSON-native tools. This allows you to use your ZIO Schema data models directly with MongoDB drivers without boilerplate code.
 
 ## Installation
 
@@ -14,6 +16,8 @@ Add to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "<version>"
 ```
 
+This module depends on `org.mongodb:bson:5.2.1`, which is included transitively.
+
 ## Usage
 
 ### Basic Usage
@@ -21,9 +25,9 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "<version>"
 Define your data models with schemas, then derive BSON codecs:
 
 ```scala
+import org.bson.BsonValue
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
-import zio.bson._
 
 case class Person(name: String, age: Int)
 

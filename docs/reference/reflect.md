@@ -88,6 +88,7 @@ The following example shows a `Person` case class represented as a `Reflect.Reco
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 
 case class Person(
   name: String,
@@ -108,7 +109,7 @@ object Person {
           Term("height", Schema.double.reflect),
           Term("weight", Schema.double.reflect)
         ),
-        typeName = TypeName(namespace = Namespace(Seq.empty), "Person"),
+        typeId = TypeId.of[Person],
         recordBinding = Binding.Record[Person](
           constructor = new Constructor[Person] {
             override def usedRegisters: RegisterOffset =
@@ -132,8 +133,7 @@ object Person {
               out.setDouble(offset + RegisterOffset(ints = 1), in.height)
               out.setDouble(offset + RegisterOffset(ints = 1, doubles = 1), in.weight)
             }
-          },
-          examples = Seq(Person("Jane", "jane@examle.com", 32, 180, 76.0))
+          }
         )
       )
     }
@@ -352,33 +352,20 @@ object PosInt {
 }
 ```
 
-To create schemas for wrapper types, use `transform` or `transformOrFail` followed by `withTypeId`:
+To create schemas for wrapper types, use `transform`:
 
 ```scala
 import zio.blocks.schema.Schema
 
-// Wrapper with validation using transformOrFail (can fail)
 case class PosInt private (value: Int) extends AnyVal
 
 object PosInt {
-  def apply(value: Int): Either[SchemaError, PosInt] =
-    if (value >= 0) Right(new PosInt(value))
-    else Left(SchemaError.validationFailed("Expected positive value"))
+  def unsafeApply(value: Int): PosInt =
+    if (value >= 0) new PosInt(value)
+    else throw SchemaError.validationFailed("Expected positive value")
 
   implicit val schema: Schema[PosInt] = 
-    Schema[Int].transformOrFail(PosInt.apply, _.value)
-}
-```
-
-If the wrapping function is total (i.e., cannot fail), you can use `transform`:
-
-```scala
-// Simple wrapper using transform (no validation, always succeeds)
-case class UserId(value: Long) extends AnyVal
-
-object UserId {
-  implicit val schema: Schema[UserId] =
-    Schema[Long].transform(UserId(_), _.value)
+    Schema[Int].transform(PosInt.unsafeApply, _.value)
 }
 ```
 
@@ -404,6 +391,7 @@ We can define its schema using `Reflect.Deferred` as follows:
 import zio.blocks.schema._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 
 // Recursive data type
 case class Tree(value: Int, children: List[Tree])
@@ -415,7 +403,7 @@ object Tree {
         Schema[Int].reflect.asTerm("value"),
         Reflect.Deferred(() => Schema.list(new Schema(treeReflect)).reflect).asTerm("children")
       ),
-      typeName = TypeName(Namespace(Nil), "Tree"),
+      typeId = TypeId.of[Tree],
       recordBinding = Binding.Record(
         constructor = new Constructor[Tree] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)

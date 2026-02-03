@@ -4,8 +4,6 @@ import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys._
-import scala.scalanative.build.Mode
-import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
@@ -156,7 +154,14 @@ object BuildHelper {
 
   def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala33, Scala213)): Seq[Def.Setting[?]] =
     Seq(
-      name                     := prjName,
+      name := prjName,
+      // For Scala 3.7+, publish this module/artifact as "zio-blocks-next-*" (project name remains prjName)
+      moduleName := {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, minor)) if minor >= 7 => prjName.replace("zio-blocks-", "zio-blocks-next-")
+          case _                              => prjName
+        }
+      },
       crossScalaVersions       := scalaVersions,
       scalaVersion             := scalaVersions.head,
       ThisBuild / scalaVersion := scalaVersions.head,
@@ -213,29 +218,13 @@ object BuildHelper {
       // without Automatic-Module-Name, the module name is derived from the jar file which is invalid because of the scalaVersion suffix.
       Compile / packageBin / packageOptions +=
         Package.ManifestAttributes(
-          "Automatic-Module-Name" -> s"${organization.value}.$prjName".replaceAll("-", ".")
+          "Automatic-Module-Name" -> s"${organization.value}.${moduleName.value}".replaceAll("-", ".")
         ),
       coverageFailOnMinimum      := true,
       coverageMinimumStmtTotal   := 95,
       coverageMinimumBranchTotal := 90,
       coverageExcludedFiles      := ".*BuildInfo.*"
     )
-
-  def nativeSettings: Seq[Def.Setting[?]] = Seq(
-    nativeConfig ~= {
-      _.withMode(Mode.debug)
-        .withOptimize(false)
-        .withCompileOptions(
-          _ ++ Seq(
-            "-DGC_INITIAL_HEAP_SIZE=1g",
-            "-DGC_MAXIMUM_HEAP_SIZE=4g"
-          )
-        )
-    },
-    coverageEnabled          := false,
-    Test / parallelExecution := false,
-    Test / fork              := false
-  )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
     coverageEnabled          := false,

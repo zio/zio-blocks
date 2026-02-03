@@ -94,11 +94,11 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *   structure
    */
   def toSchema: Schema[DynamicValue] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       to = dv =>
         check(dv) match {
-          case Some(error) => Left(error)
-          case scala.None  => Right(dv)
+          case Some(error) => throw error
+          case scala.None  => dv
         },
       from = identity
     )
@@ -202,6 +202,47 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    * JSON Schema directly from the unbound reflect.
    */
   def toJsonSchema: JsonSchema = Schema[DynamicValue].toJsonSchema
+
+  /**
+   * Rebinds this unbound schema using bindings from a
+   * [[zio.blocks.schema.binding.BindingResolver BindingResolver]].
+   *
+   * This converts the structural schema information (types, fields, cases,
+   * validations) into a fully operational `Schema[A]` by attaching runtime
+   * bindings (constructors, deconstructors, matchers) from the resolver.
+   *
+   * The resolver must provide bindings for all types referenced in this schema:
+   *   - Record types need `Binding.Record` entries
+   *   - Variant types need `Binding.Variant` entries
+   *   - Primitive types need `Binding.Primitive` entries (provided by
+   *     `BindingResolver.defaults`)
+   *   - Sequence types need `Binding.Seq` entries (provided by
+   *     `BindingResolver.defaults`)
+   *   - Map types need `Binding.Map` entries (provided by
+   *     `BindingResolver.defaults`)
+   *   - Wrapper types need `Binding.Wrapper` entries
+   *
+   * @param resolver
+   *   The BindingResolver providing bindings for all types in this schema
+   * @return
+   *   A bound Schema that can construct and deconstruct values
+   * @throws RebindException
+   *   If any required binding is missing from the resolver
+   *
+   * @example
+   *   {{{
+   * case class Person(name: String, age: Int)
+   *
+   * val dynamicSchema: DynamicSchema = ...
+   * val resolver = BindingResolver.empty.bind(Binding.of[Person]) ++ BindingResolver.defaults
+   * val schema: Schema[Person] = dynamicSchema.rebind[Person](resolver)
+   *   }}}
+   */
+  def rebind[A](resolver: BindingResolver): Schema[A] = {
+    val transformer = new RebindTransformer(resolver)
+    val bound       = reflect.transform(DynamicOptic.root, transformer).force
+    new Schema(bound.asInstanceOf[Reflect.Bound[A]])
+  }
 }
 
 object DynamicSchema extends TypeIdSchemas {
