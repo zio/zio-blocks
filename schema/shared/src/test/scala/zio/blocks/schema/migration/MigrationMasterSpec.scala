@@ -17,7 +17,8 @@ object MigrationMasterSpec extends ZIOSpecDefault {
     interpreterFullSuite,
     jsonCodecFullSuite,
     errorRenderSuite,
-    structuralActionsSuite
+    structuralActionsSuite,
+    coverageBoosterSuite // কভারেজ ৮০% করার জন্য নতুন যুক্ত করা হয়েছে
   )
 
   // ১. Interpreter
@@ -96,7 +97,6 @@ object MigrationMasterSpec extends ZIOSpecDefault {
         Vector(DynamicOptic.Node.Field("user"), DynamicOptic.Node.Elements, DynamicOptic.Node.Case("Admin"))
       )
 
-      // containsString
       assert(MigrationErrorRender.render(MigrationError.FieldNotFound(optic, "f")))(
         containsString(".user.each.when[Admin]")
       ) &&
@@ -132,6 +132,46 @@ object MigrationMasterSpec extends ZIOSpecDefault {
       )
       val result = MigrationInterpreter.run(data, action)
       assert(result.isRight)(isTrue)
+    }
+  )
+
+  // ৪. Coverage Booster: এই অংশটি আপনার ব্রাঞ্চ কভারেজ ৮০% এর উপরে নিয়ে যাবে।
+  val coverageBoosterSuite = suite("Coverage Booster - Negative Paths")(
+    test("Should handle error branches in Interpreter") {
+      val recordData    = DynamicValue.Record(Chunk("f1" -> DynamicValue.Primitive(PrimitiveValue.String("val"))))
+      val primitiveData = DynamicValue.Primitive(PrimitiveValue.Int(10))
+
+      // TypeMismatch: রেকর্ড অ্যাকশন প্রিমিটিভ ডাটার ওপর চালানো
+      val mismatchAction = MigrationAction.Rename(fieldOptic("f1"), "f2")
+      val res1           = MigrationInterpreter.run(primitiveData, mismatchAction)
+
+      // FieldNotFound: এমন ফিল্ড রিনেম করা যা রেকর্ডে নেই
+      val notFoundAction = MigrationAction.Rename(fieldOptic("missing_field"), "new_name")
+      val res2           = MigrationInterpreter.run(recordData, notFoundAction)
+
+      // Mandate with 'None' variant: ডিফল্ট ভ্যালু ব্যবহারের ব্রাঞ্চ চেক করবে
+      val noneData      = DynamicValue.Variant("None", DynamicValue.Primitive(PrimitiveValue.Unit))
+      val mandateAction = MigrationAction.Mandate(
+        DynamicOptic.root,
+        MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.String("default")))
+      )
+      val res3 = MigrationInterpreter.run(noneData, mandateAction)
+
+      // Identity branches: যখন রিনেম কেস বা ট্রান্সফর্ম কেস ম্যাচ করে না
+      val renameCaseAction = MigrationAction.RenameCase(DynamicOptic.root, "NonExistent", "New")
+      val res4             = MigrationInterpreter.run(DynamicValue.Variant("Existing", primitiveData), renameCaseAction)
+
+      val transformCaseAction = MigrationAction.TransformCase(
+        DynamicOptic(Vector(DynamicOptic.Node.Case("NonExistent"))),
+        Vector.empty
+      )
+      val res5 = MigrationInterpreter.run(recordData, transformCaseAction)
+
+      assert(res1.isLeft)(isTrue) &&
+      assert(res2.isLeft)(isTrue) &&
+      assert(res3.isRight)(isTrue) &&
+      assert(res4.isRight)(isTrue) &&
+      assert(res5.isRight)(isTrue)
     }
   )
 }
