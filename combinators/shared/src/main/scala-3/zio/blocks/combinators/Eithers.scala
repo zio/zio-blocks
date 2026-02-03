@@ -197,16 +197,21 @@ object Eithers {
      */
     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
-    inline given separator[L, R]: WithTypes[Either[L, R], L, R] =
-      new SeparatorImpl[L, R]
+    inline given separator[L, R](using
+      c: Combiner.WithOut[L, R, CanonicalizeEither[L, R]]
+    ): WithTypes[Either[L, R], LeftOf[CanonicalizeEither[L, R]], RightOf[CanonicalizeEither[L, R]]] =
+      new CanonicalSeparator[L, R]
 
-     private[combinators] class SeparatorImpl[L, R] extends Separator[Either[L, R]] {
-       type Left  = L
-       type Right = R
+    private[combinators] class CanonicalSeparator[L, R](using
+      c: Combiner.WithOut[L, R, CanonicalizeEither[L, R]]
+    ) extends Separator[Either[L, R]] {
+      type Left  = LeftOf[CanonicalizeEither[L, R]]
+      type Right = RightOf[CanonicalizeEither[L, R]]
 
-       def separate(a: Either[L, R]): Either[L, R] = a
-     }
-   }
+      def separate(a: Either[L, R]): Either[Left, Right] =
+        c.combine(a).asInstanceOf[Either[Left, Right]]
+    }
+  }
 
   def combine[L, R](either: Either[L, R])(using c: Combiner[L, R]): c.Out = c.combine(either)
   def separate[A](a: A)(using s: Separator[A]): Either[s.Left, s.Right] = s.separate(a)
