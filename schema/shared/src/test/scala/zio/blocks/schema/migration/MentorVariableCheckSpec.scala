@@ -25,14 +25,6 @@ object MentorVariableCheckSpec extends ZIOSpecDefault {
   def spec = suite("Addressing @bikramadhikari001's Feedback")(
     test("The 'Acid Test': Breaking the chain into VALs works correctly") {
 
-      // MENTOR'S CLAIM:
-      // "The moment you pull out the migration builder into a val... the macro will fail."
-      // (Assuming we parse the AST/Context Tree).
-
-      // OUR REBUTTAL:
-      // We rely on the Type System (State S), not the AST.
-      // So breaking the chain into variables preserves the Type State, allowing the macro to work.
-
       // --- Step 1: Base Builder ---
       val step1 = MigrationBuilder.make[V1, V2]
 
