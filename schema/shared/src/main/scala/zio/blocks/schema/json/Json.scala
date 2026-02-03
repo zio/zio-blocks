@@ -1292,25 +1292,28 @@ object Json {
         node match {
           case field: DynamicOptic.Node.Field =>
             val name    = field.name
-            val results = jsons.flatMap {
+            val results = Chunk.newBuilder[Json]
+            jsons.foreach {
               case obj: Object =>
-                obj.get(name).one match {
-                  case Right(v) => Chunk.single(v)
-                  case _        => Chunk.empty[Json]
-                }
-              case _ => Chunk.empty[Json]
+                var kv: (java.lang.String, Json) = null
+                val kvs                          = obj.value
+                val len                          = kvs.length
+                var idx                          = 0
+                while (
+                  idx < len && {
+                    kv = kvs(idx)
+                    kv._1 != name
+                  }
+                ) idx += 1
+                if (idx < len) results.addOne(kv._2)
+              case _ => ()
             }
-            if (results.isEmpty && jsons.nonEmpty) new Left(SchemaError(s"Field '$name' not found"))
-            else new Right(results)
+            if (results.knownSize == 0 && jsons.nonEmpty) new Left(SchemaError(s"Field '$name' not found"))
+            else new Right(results.result())
           case atIndex: DynamicOptic.Node.AtIndex =>
             val index   = atIndex.index
-            val results = jsons.flatMap {
-              case arr: Array =>
-                arr.get(index).one match {
-                  case Right(v) => Chunk.single(v)
-                  case _        => Chunk.empty[Json]
-                }
-              case _ => Chunk.empty[Json]
+            val results = jsons.collect {
+              case arr: Array if index < arr.value.length => arr.value.apply(index)
             }
             if (results.isEmpty && jsons.nonEmpty) new Left(SchemaError(s"Index $index out of bounds").atIndex(index))
             else new Right(results)
@@ -1341,16 +1344,25 @@ object Json {
             // Convert DynamicValue key to string for JSON objects
             atMapKey.key match {
               case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
-                new Right(jsons.flatMap {
+                val name    = pv.value
+                val results = Chunk.newBuilder[Json]
+                jsons.foreach {
                   case obj: Object =>
-                    obj.get(pv.value).one match {
-                      case Right(v) => Chunk.single(v)
-                      case _        => Chunk.empty[Json]
-                    }
-                  case _ => Chunk.empty[Json]
-                })
-              case _ =>
-                new Left(SchemaError("AtMapKey requires a string key for JSON objects"))
+                    var kv: (java.lang.String, Json) = null
+                    val kvs                          = obj.value
+                    val len                          = kvs.length
+                    var idx                          = 0
+                    while (
+                      idx < len && {
+                        kv = kvs(idx)
+                        kv._1 != name
+                      }
+                    ) idx += 1
+                    if (idx < len) results.addOne(kv._2)
+                  case _ => ()
+                }
+                new Right(results.result())
+              case _ => new Left(SchemaError("AtMapKey requires a string key for JSON objects"))
             }
           case atMapKeys: DynamicOptic.Node.AtMapKeys =>
             val keyStrs = atMapKeys.keys.collect { case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
