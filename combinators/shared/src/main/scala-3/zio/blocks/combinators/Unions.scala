@@ -105,8 +105,34 @@ object Unions {
      */
     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
-    given separator[L, R](using tt: TypeTest[L | R, R]): WithTypes[L | R, L, R] =
-      new UnionSeparator[L, R]
+    import scala.compiletime.{error, summonFrom}
+
+    /**
+     * Creates a Separator for union type L | R.
+     *
+     * Requires that L and R are distinct types. If they are the same (e.g., Int | Int
+     * which simplifies to Int), compilation will fail because TypeTest cannot reliably
+     * distinguish identical types.
+     *
+     * Union types must be unique. Use Either, a wrapper type, opaque type, or newtype
+     * to distinguish values of the same underlying type.
+     *
+     * @tparam L
+     *   The left type in the union
+     * @tparam R
+     *   The right type in the union
+     * @param tt
+     *   TypeTest for discriminating R from the union
+     */
+    inline given separator[L, R](using tt: TypeTest[L | R, R]): WithTypes[L | R, L, R] =
+      summonFrom {
+        case _: (L =:= R) =>
+          error(
+            "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+          )
+        case _ =>
+          new UnionSeparator[L, R]
+      }
 
     private[combinators] class UnionSeparator[L, R](using tt: TypeTest[L | R, R]) extends Separator[L | R] {
       type Left  = L
