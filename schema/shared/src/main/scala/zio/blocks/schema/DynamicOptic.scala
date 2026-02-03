@@ -11,27 +11,27 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, ?]] = reflect.get(this)
 
-  def field(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Field(name))
+  def field(name: String): DynamicOptic = new DynamicOptic(nodes.appended(new Node.Field(name)))
 
-  def caseOf(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Case(name))
+  def caseOf(name: String): DynamicOptic = new DynamicOptic(nodes.appended(new Node.Case(name)))
 
-  def at(index: Int): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndex(index))
+  def at(index: Int): DynamicOptic = new DynamicOptic(nodes.appended(new Node.AtIndex(index)))
 
-  def atIndices(indices: Int*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndices(indices))
+  def atIndices(indices: Int*): DynamicOptic = new DynamicOptic(nodes.appended(new Node.AtIndices(indices)))
 
   def atKey[K](key: K)(implicit schema: Schema[K]): DynamicOptic =
-    new DynamicOptic(nodes :+ Node.AtMapKey(schema.toDynamicValue(key)))
+    new DynamicOptic(nodes.appended(new Node.AtMapKey(schema.toDynamicValue(key))))
 
   def atKeys[K](keys: K*)(implicit schema: Schema[K]): DynamicOptic =
-    new DynamicOptic(nodes :+ Node.AtMapKeys(keys.map(schema.toDynamicValue)))
+    new DynamicOptic(nodes.appended(new Node.AtMapKeys(keys.map(schema.toDynamicValue))))
 
-  def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
+  def elements: DynamicOptic = new DynamicOptic(nodes.appended(Node.Elements))
 
-  def mapKeys: DynamicOptic = new DynamicOptic(nodes :+ Node.MapKeys)
+  def mapKeys: DynamicOptic = new DynamicOptic(nodes.appended(Node.MapKeys))
 
-  def mapValues: DynamicOptic = new DynamicOptic(nodes :+ Node.MapValues)
+  def mapValues: DynamicOptic = new DynamicOptic(nodes.appended(Node.MapValues))
 
-  def wrapped: DynamicOptic = new DynamicOptic(nodes :+ Node.Wrapped)
+  def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
   override lazy val toString: String = {
     val sb  = new StringBuilder
