@@ -1,5 +1,6 @@
 package zio.blocks.combinators
 
+import scala.compiletime.testing.typeCheckErrors
 import zio.test._
 
 object UnionsSpec extends ZIOSpecDefault {
@@ -112,10 +113,37 @@ object UnionsSpec extends ZIOSpecDefault {
         val result: Int | String       = Unions.combine(input)
         assertTrue(result == "hello")
       },
-      test("Unions.separate works without explicit separator") {
+      test("Unions.separate works with explicit separator") {
+        val separator          = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
         val input: Int | String = "hello"
-        val result              = Unions.separate(input)
+        val result              = separator.separate(input)
         assertTrue(result == Right("hello"))
+      }
+    ),
+    suite("Compile-time uniqueness check")(
+      test("Separator[Int | Int] fails with uniqueness error") {
+        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[Int, Int, Int]]")
+        val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        assertTrue(
+          errors.length == 1,
+          errors.head.message == expected
+        )
+      },
+      test("Separator[String | String] with duplicate types fails with uniqueness error") {
+        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String, String, String]]")
+        val expected = "Union types must contain unique types. Found duplicate types in the union. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
+        assertTrue(
+          errors.length == 1,
+          errors.head.message == expected
+        )
+      },
+      test("Separator with unique types compiles successfully") {
+        val errors = typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String, Int, String]]")
+        assertTrue(errors.isEmpty)
+      },
+      test("Separator with three unique types compiles successfully") {
+        val errors = typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String | Boolean, Int | String, Boolean]]")
+        assertTrue(errors.isEmpty)
       }
     )
   )
