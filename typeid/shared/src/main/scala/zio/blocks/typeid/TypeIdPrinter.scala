@@ -110,10 +110,24 @@ object TypeIdPrinter {
       v.toString
 
     case TypeRepr.Constant.CharConst(v) =>
-      s"'$v'"
+      val escaped = v match {
+        case '\n' => "\\n"
+        case '\t' => "\\t"
+        case '\r' => "\\r"
+        case '\\' => "\\\\"
+        case '\'' => "\\'"
+        case c    => c.toString
+      }
+      s"'$escaped'"
 
     case TypeRepr.Constant.StringConst(v) =>
-      "\"" + v + "\""
+      val escaped = v
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+        .replace("\r", "\\r")
+      s"\"$escaped\""
 
     case TypeRepr.Constant.NullConst =>
       "null"
