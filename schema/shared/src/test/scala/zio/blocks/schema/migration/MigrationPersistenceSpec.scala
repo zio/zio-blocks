@@ -416,6 +416,140 @@ object MigrationPersistenceSpec extends SchemaBaseSpec {
           case _ => assertTrue(false)
         }
       }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Schema-based serialization tests
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Schema-based serialization")(
+      test("DynamicMigration has Schema instance") {
+        val schema = implicitly[Schema[DynamicMigration]]
+        assertTrue(schema != null)
+      },
+      test("MigrationAction has Schema instance") {
+        val schema = implicitly[Schema[MigrationAction]]
+        assertTrue(schema != null)
+      },
+      test("Resolved has Schema instance") {
+        val schema = implicitly[Schema[Resolved]]
+        assertTrue(schema != null)
+      },
+      test("DynamicMigration round-trips through DynamicValue") {
+        val original = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "name", Resolved.Literal.string("default")),
+            MigrationAction.Rename(DynamicOptic.root, "old", "new")
+          )
+        )
+        val schema      = Schema[DynamicMigration]
+        val dynamic     = schema.toDynamicValue(original)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      },
+      test("MigrationAction round-trips through DynamicValue") {
+        val original: MigrationAction = MigrationAction.AddField(
+          DynamicOptic.root.field("nested"),
+          "field",
+          Resolved.Literal.int(42)
+        )
+        val schema      = Schema[MigrationAction]
+        val dynamic     = schema.toDynamicValue(original)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      },
+      test("Resolved round-trips through DynamicValue") {
+        val original: Resolved = Resolved.Concat(
+          Vector(
+            Resolved.FieldAccess("first", Resolved.Identity),
+            Resolved.Literal.string(" "),
+            Resolved.FieldAccess("last", Resolved.Identity)
+          ),
+          ""
+        )
+        val schema      = Schema[Resolved]
+        val dynamic     = schema.toDynamicValue(original)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      },
+      test("complex nested migration round-trips") {
+        val original = DynamicMigration(
+          Vector(
+            MigrationAction.TransformCase(
+              DynamicOptic.root.field("payment"),
+              "CreditCard",
+              Vector(
+                MigrationAction.AddField(DynamicOptic.root, "cvv", Resolved.Literal.string("000")),
+                MigrationAction.ChangeType(
+                  DynamicOptic.root,
+                  "expiry",
+                  Resolved.Convert("String", "LocalDate", Resolved.Identity),
+                  Resolved.Convert("LocalDate", "String", Resolved.Identity)
+                )
+              )
+            ),
+            MigrationAction.TransformElements(
+              DynamicOptic.root.field("items"),
+              Resolved.Compose(Resolved.Convert("Int", "Long", Resolved.Identity), Resolved.FieldAccess("qty", Resolved.Identity)),
+              Resolved.Compose(Resolved.Convert("Long", "Int", Resolved.Identity), Resolved.Identity)
+            )
+          )
+        )
+        val schema        = Schema[DynamicMigration]
+        val dynamic       = schema.toDynamicValue(original)
+        val reconstructed = schema.fromDynamicValue(dynamic)
+        assertTrue(reconstructed == Right(original))
+      },
+      test("all Resolved variants can be serialized") {
+        val variants: Vector[Resolved] = Vector(
+          Resolved.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          Resolved.Identity,
+          Resolved.FieldAccess("field", Resolved.Identity),
+          Resolved.OpticAccess(DynamicOptic.root.field("x"), Resolved.Identity),
+          Resolved.DefaultValue(Right(DynamicValue.Primitive(PrimitiveValue.String("default")))),
+          Resolved.Convert("Int", "Long", Resolved.Identity),
+          Resolved.Concat(Vector(Resolved.Literal.string("a"), Resolved.Literal.string("b")), "-"),
+          Resolved.SplitString(",", Resolved.Identity),
+          Resolved.WrapSome(Resolved.Identity),
+          Resolved.UnwrapOption(Resolved.Identity, Resolved.Literal.int(0)),
+          Resolved.Compose(Resolved.Identity, Resolved.Identity),
+          Resolved.Fail("error"),
+          Resolved.Construct(Vector(("a", Resolved.Literal.int(1)))),
+          Resolved.ConstructSeq(Vector(Resolved.Literal.int(1), Resolved.Literal.int(2))),
+          Resolved.Head(Resolved.Identity),
+          Resolved.JoinStrings(",", Resolved.Identity),
+          Resolved.Coalesce(Vector(Resolved.Identity, Resolved.Literal.int(0))),
+          Resolved.GetOrElse(Resolved.Identity, Resolved.Literal.int(0))
+        )
+        val schema = Schema[Resolved]
+        variants.foreach { original =>
+          val dynamic       = schema.toDynamicValue(original)
+          val reconstructed = schema.fromDynamicValue(dynamic)
+          assertTrue(reconstructed == Right(original))
+        }
+        assertTrue(true)
+      },
+      test("all MigrationAction variants can be serialized") {
+        val actions: Vector[MigrationAction] = Vector(
+          MigrationAction.AddField(DynamicOptic.root, "f", Resolved.Literal.int(1)),
+          MigrationAction.DropField(DynamicOptic.root, "f", Resolved.Literal.int(1)),
+          MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+          MigrationAction.TransformValue(DynamicOptic.root, "f", Resolved.Identity, Resolved.Identity),
+          MigrationAction.Mandate(DynamicOptic.root, "f", Resolved.Literal.int(0)),
+          MigrationAction.Optionalize(DynamicOptic.root, "f"),
+          MigrationAction.ChangeType(DynamicOptic.root, "f", Resolved.Identity, Resolved.Identity),
+          MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+          MigrationAction.TransformCase(DynamicOptic.root, "A", Vector.empty),
+          MigrationAction.TransformElements(DynamicOptic.root, Resolved.Identity, Resolved.Identity),
+          MigrationAction.TransformKeys(DynamicOptic.root, Resolved.Identity, Resolved.Identity),
+          MigrationAction.TransformValues(DynamicOptic.root, Resolved.Identity, Resolved.Identity)
+        )
+        val schema = Schema[MigrationAction]
+        actions.foreach { original =>
+          val dynamic       = schema.toDynamicValue(original)
+          val reconstructed = schema.fromDynamicValue(dynamic)
+          assertTrue(reconstructed == Right(original))
+        }
+        assertTrue(true)
+      }
     )
   )
 }

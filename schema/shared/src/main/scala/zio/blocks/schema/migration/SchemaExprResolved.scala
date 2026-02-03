@@ -518,4 +518,10 @@ object Resolved {
           fallback.evalDynamic(input)
       }
   }
+
+  /**
+   * Schema for Resolved enabling serialization to JSON, Protobuf, etc.
+   */
+  implicit def schema: zio.blocks.schema.Schema[Resolved] =
+    MigrationSchemas.resolvedSchema
 }

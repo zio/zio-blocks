@@ -618,4 +618,10 @@ object MigrationAction {
     }
     Right(results.result())
   }
+
+  /**
+   * Schema for MigrationAction enabling serialization to JSON, Protobuf, etc.
+   */
+  implicit def schema: zio.blocks.schema.Schema[MigrationAction] =
+    MigrationSchemas.migrationActionSchema
 }

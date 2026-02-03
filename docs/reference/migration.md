@@ -414,3 +414,57 @@ Use `Into/As` for simple type conversions. Use `Migration` when you need:
 - Storage in registries or databases
 - Generation of DDL or data transforms
 - Full introspection of migration logic
+
+## Limitations
+
+### Cross-Branch Field Operations
+
+**Joint and Split operations require fields to share the same parent path:**
+
+```scala
+// ✅ WORKS: Same parent (_.address)
+.concat(
+  select[V1](_.address.street), 
+  select[V1](_.address.city),
+  select[V2](_.address.fullAddress)
+)
+
+// ❌ DOES NOT WORK: Different parents (_.address vs _.origin)
+.concat(
+  select[V1](_.address.street),    // parent: _.address
+  select[V1](_.origin.country),    // parent: _.origin
+  select[V2](_.location.combined)  // ERROR: Runtime/compile-time error
+)
+```
+
+**Workaround**: Lift values to a common parent (root level) first, then combine:
+
+```scala
+MigrationBuilder.withFieldTracking[V1, V2]
+  .transformField(select(_.address.street), select(_.tempStreet), identity)
+  .transformField(select(_.origin.country), select(_.tempCountry), identity)
+  .concat(select(_.tempStreet), select(_.tempCountry), select(_.location.combined))
+  .dropField(select(_.tempStreet), "")
+  .dropField(select(_.tempCountry), "")
+  .build
+```
+
+This limitation exists because operations across different nested structures require complex tree reconstruction logic. It may be addressed in a future version.
+
+### Serialization Constraints
+
+**DynamicMigration contains existential types that cannot be fully serialized:**
+
+The `SchemaExpr[DynamicValue, ?]` type in `TransformValue` actions uses existential types for type safety. While the migration structure is pure data and can be inspected, full round-trip serialization/deserialization is not currently supported.
+
+**What works:**
+- Inspecting migration structure via `.describe()`
+- Pattern matching on `MigrationAction` types
+- Storing migrations as Scala source code
+
+**What doesn't work:**
+- Serializing migrations to JSON/binary and reconstructing them
+- Sending migrations over the wire (RPC)
+- Storing migrations in databases as data
+
+This limitation affects migrations using `transformField` with custom expressions. Simple migrations using only `addField`, `dropField`, `renameField`, etc., with literal defaults can be serialized.

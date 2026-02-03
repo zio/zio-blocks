@@ -176,6 +176,15 @@ object DynamicMigration {
    */
   def apply(actions: MigrationAction*): DynamicMigration =
     DynamicMigration(actions.toVector)
+
+  /**
+   * Schema for DynamicMigration enabling serialization to JSON, Protobuf, etc.
+   *
+   * With this schema, migrations can be stored in registries, transmitted over
+   * networks, and persisted to databases.
+   */
+  implicit def schema: zio.blocks.schema.Schema[DynamicMigration] =
+    MigrationSchemas.dynamicMigrationSchema
 }
 
 /**
