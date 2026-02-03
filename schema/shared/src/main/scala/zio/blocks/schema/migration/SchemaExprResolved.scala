@@ -129,34 +129,32 @@ object Resolved {
    * Extract a field from a record.
    *
    * The field name is stored as a string, and nested access is supported
-   * through the `inner` expression which is applied to the extracted field
-   * value.
+   * through the `inner` expression which is applied first to navigate to the
+   * correct context.
    *
-   * Semantics: First extract field from input record, then apply inner to the
-   * field value.
+   * Semantics: Apply inner to get a record, then extract fieldName from that
+   * record.
    */
   final case class FieldAccess(fieldName: String, inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
       Left("FieldAccess requires input")
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      // First extract the field, then apply inner to the field value
-      input match {
+      // First apply inner to navigate to the correct context, then extract the field
+      inner.evalDynamic(input).flatMap {
         case DynamicValue.Record(fields) =>
           fields.collectFirst { case (name, v) if name == fieldName => v }
             .toRight(s"Field '$fieldName' not found")
-            .flatMap(inner.evalDynamic)
 
         case other =>
           Left(s"Expected record for field access '$fieldName', got ${other.valueType}")
       }
 
     override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
-      input match {
+      inner.evalDynamicWithRoot(input, root).flatMap {
         case DynamicValue.Record(fields) =>
           fields.collectFirst { case (name, v) if name == fieldName => v }
             .toRight(s"Field '$fieldName' not found")
-            .flatMap(v => inner.evalDynamicWithRoot(v, root))
         case other =>
           Left(s"Expected record for field access '$fieldName', got ${other.valueType}")
       }
