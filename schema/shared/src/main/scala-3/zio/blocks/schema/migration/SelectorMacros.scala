@@ -55,48 +55,80 @@ object SelectorMacros {
    *
    * Extracts the field name from the selector lambda and creates a
    * FieldSelector with the name as a singleton string type.
+   *
+   * Supports nested field access like _.address.street, building the full
+   * DynamicOptic path.
    */
   def selectImpl[S: Type, F: Type](selector: Expr[S => F])(using Quotes): Expr[FieldSelector[S, F, ?]] = {
     import quotes.reflect.*
 
-    // Extract field name - defined as nested function so quotes is in scope
-    def extractFieldName(term: Term): String = term match {
-      // Pattern: Inlined(_, _, Block(List(DefDef(_, _, _, Some(Select(_, name)))), _))
-      case Inlined(_, _, Block(List(DefDef(_, _, _, Some(Select(_, name)))), _)) =>
-        name
-      // Pattern with method call: _.fieldName()
-      case Inlined(_, _, Block(List(DefDef(_, _, _, Some(Apply(Select(_, name), _)))), _)) =>
-        name
-      // Without Inlined wrapper
-      case Block(List(DefDef(_, _, _, Some(Select(_, name)))), _) =>
-        name
-      case Block(List(DefDef(_, _, _, Some(Apply(Select(_, name), _)))), _) =>
-        name
-      // Lambda patterns
-      case Lambda(_, Select(_, name)) =>
-        name
-      case Lambda(_, Apply(Select(_, name), _)) =>
-        name
-      // Recurse through Inlined
-      case Inlined(_, _, inner) =>
-        extractFieldName(inner)
-      case other =>
-        report.errorAndAbort(
-          s"select() requires a simple field access like _.fieldName, got: ${other.show}"
-        )
+    // Extract full field path and return (leafName, fullPath)
+    def extractFieldPath(term: Term): (String, List[String]) = {
+      // Recursively extract the path from Select chains
+      def extractPath(t: Term): List[String] = t match {
+        // Nested select: inner.fieldName
+        case Select(inner @ Select(_, _), name) =>
+          extractPath(inner) :+ name
+        // Base select on identifier: _.fieldName
+        case Select(Ident(_), name) =>
+          List(name)
+        // Apply (method call): expr.fieldName()
+        case Apply(Select(inner @ Select(_, _), name), _) =>
+          extractPath(inner) :+ name
+        case Apply(Select(Ident(_), name), _) =>
+          List(name)
+        // Single field select
+        case Select(_, name) =>
+          List(name)
+        // Method call on single field
+        case Apply(Select(_, name), _) =>
+          List(name)
+        case other =>
+          report.errorAndAbort(
+            s"select() requires a field access like _.field or _.a.b.c, got: ${other.show}"
+          )
+      }
+
+      // Navigate through wrappers to find the actual selector
+      def navigate(t: Term): (String, List[String]) = t match {
+        // Pattern: Inlined(_, _, Block(List(DefDef(_, _, _, Some(body))), _))
+        case Inlined(_, _, Block(List(DefDef(_, _, _, Some(body))), _)) =>
+          val path = extractPath(body)
+          (path.last, path)
+        // Without Inlined wrapper
+        case Block(List(DefDef(_, _, _, Some(body))), _) =>
+          val path = extractPath(body)
+          (path.last, path)
+        // Lambda patterns
+        case Lambda(_, body) =>
+          val path = extractPath(body)
+          (path.last, path)
+        // Recurse through Inlined
+        case Inlined(_, _, inner) =>
+          navigate(inner)
+        case other =>
+          report.errorAndAbort(
+            s"select() requires a simple field access like _.fieldName, got: ${other.show}"
+          )
+      }
+
+      navigate(term)
     }
 
-    val fieldName = extractFieldName(selector.asTerm)
+    val (fieldName, path) = extractFieldPath(selector.asTerm)
 
     // Create singleton type for the field name
     val nameType = ConstantType(StringConstant(fieldName))
+
+    // Build the optic expression from the path
+    val pathExpr = Expr(path)
 
     nameType.asType match {
       case '[n] =>
         '{
           new FieldSelector[S, F, n & String](
             ${ Expr(fieldName) }.asInstanceOf[n & String],
-            DynamicOptic.root.field(${ Expr(fieldName) })
+            ${ pathExpr }.foldLeft(DynamicOptic.root)((optic, field) => optic.field(field))
           )
         }
     }

@@ -497,6 +497,56 @@ object MigrationSchemas {
     )
   )
 
+  private lazy val rootAccessSchema: Schema[Resolved.RootAccess] = new Schema(
+    reflect = new Reflect.Record[Binding, Resolved.RootAccess](
+      fields = Vector(
+        Schema[DynamicOptic].reflect.asTerm("path")
+      ),
+      typeId = TypeId.of[Resolved.RootAccess],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Resolved.RootAccess] {
+          def usedRegisters: RegisterOffset = 1
+          def construct(in: Registers, offset: RegisterOffset): Resolved.RootAccess =
+            Resolved.RootAccess(in.getObject(offset + 0).asInstanceOf[DynamicOptic])
+        },
+        deconstructor = new Deconstructor[Resolved.RootAccess] {
+          def usedRegisters: RegisterOffset = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.RootAccess): Unit =
+            out.setObject(offset + 0, in.path)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  private lazy val atSchema: Schema[Resolved.At] = new Schema(
+    reflect = new Reflect.Record[Binding, Resolved.At](
+      fields = Vector(
+        Schema[Int].reflect.asTerm("index"),
+        Reflect.Deferred(() => resolvedSchema.reflect).asTerm("inner")
+      ),
+      typeId = TypeId.of[Resolved.At],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Resolved.At] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
+          def construct(in: Registers, offset: RegisterOffset): Resolved.At =
+            Resolved.At(
+              in.getInt(offset),
+              in.getObject(offset).asInstanceOf[Resolved]
+            )
+        },
+        deconstructor = new Deconstructor[Resolved.At] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Resolved.At): Unit = {
+            out.setInt(offset, in.index)
+            out.setObject(offset, in.inner)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
   // Schema for Resolved sealed trait
   implicit lazy val resolvedSchema: Schema[Resolved] = new Schema(
     reflect = new Reflect.Variant[Binding, Resolved](
@@ -518,12 +568,14 @@ object MigrationSchemas {
         headSchema.reflect.asTerm("Head"),
         joinStringsSchema.reflect.asTerm("JoinStrings"),
         coalesceSchema.reflect.asTerm("Coalesce"),
-        getOrElseSchema.reflect.asTerm("GetOrElse")
+        getOrElseSchema.reflect.asTerm("GetOrElse"),
+        rootAccessSchema.reflect.asTerm("RootAccess"),
+        atSchema.reflect.asTerm("At")
       ),
       typeId = TypeId.of[Resolved],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Resolved] {
-          def discriminate(a: Resolved): Int = a match {
+          def discriminate(a: Resolved): Int = if (a == null) -1 else a match {
             case _: Resolved.Literal       => 0
             case Resolved.Identity         => 1
             case _: Resolved.FieldAccess   => 2
@@ -542,6 +594,8 @@ object MigrationSchemas {
             case _: Resolved.JoinStrings   => 15
             case _: Resolved.Coalesce      => 16
             case _: Resolved.GetOrElse     => 17
+            case _: Resolved.RootAccess    => 18
+            case _: Resolved.At            => 19
           }
         },
         matchers = Matchers(
@@ -651,6 +705,18 @@ object MigrationSchemas {
             def downcastOrNull(a: Any): Resolved.GetOrElse = a match {
               case x: Resolved.GetOrElse => x
               case _                     => null.asInstanceOf[Resolved.GetOrElse]
+            }
+          },
+          new Matcher[Resolved.RootAccess] {
+            def downcastOrNull(a: Any): Resolved.RootAccess = a match {
+              case x: Resolved.RootAccess => x
+              case _                      => null.asInstanceOf[Resolved.RootAccess]
+            }
+          },
+          new Matcher[Resolved.At] {
+            def downcastOrNull(a: Any): Resolved.At = a match {
+              case x: Resolved.At => x
+              case _              => null.asInstanceOf[Resolved.At]
             }
           }
         )

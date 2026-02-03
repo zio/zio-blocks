@@ -41,6 +41,22 @@ sealed trait Resolved { self =>
    *   Right containing the result, or Left with an error message
    */
   def evalDynamic(input: DynamicValue): Either[String, DynamicValue]
+
+  /**
+   * Evaluate this expression with root document context for cross-branch access.
+   *
+   * This method enables expressions like `RootAccess` to access values from
+   * anywhere in the document, regardless of the current evaluation context.
+   *
+   * @param input
+   *   The local context (record at current action path)
+   * @param root
+   *   The root document (for RootAccess expressions)
+   * @return
+   *   Right containing the result, or Left with an error message
+   */
+  def evalDynamicWithRoot(input: DynamicValue, @annotation.unused root: DynamicValue): Either[String, DynamicValue] =
+    evalDynamic(input) // Default: ignore root, use local context
 }
 
 object Resolved {
@@ -112,19 +128,32 @@ object Resolved {
    * Extract a field from a record.
    *
    * The field name is stored as a string, and nested access is supported
-   * through the `inner` expression which is applied to the field value.
+   * through the `inner` expression which is applied to the extracted field value.
+   *
+   * Semantics: First extract field from input record, then apply inner to the field value.
    */
   final case class FieldAccess(fieldName: String, inner: Resolved) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
       Left("FieldAccess requires input")
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      // First, apply inner to the input to navigate to the correct context
-      inner.evalDynamic(input).flatMap {
+      // First extract the field, then apply inner to the field value
+      input match {
         case DynamicValue.Record(fields) =>
           fields.collectFirst { case (name, v) if name == fieldName => v }
             .toRight(s"Field '$fieldName' not found")
+            .flatMap(inner.evalDynamic)
 
+        case other =>
+          Left(s"Expected record for field access '$fieldName', got ${other.valueType}")
+      }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      input match {
+        case DynamicValue.Record(fields) =>
+          fields.collectFirst { case (name, v) if name == fieldName => v }
+            .toRight(s"Field '$fieldName' not found")
+            .flatMap(v => inner.evalDynamicWithRoot(v, root))
         case other =>
           Left(s"Expected record for field access '$fieldName', got ${other.valueType}")
       }
@@ -147,6 +176,39 @@ object Resolved {
         case Left(error)  => Left(s"Path $path: ${error.message}")
       }
     }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] = {
+      val selection = input.get(path)
+      selection.one match {
+        case Right(value) => inner.evalDynamicWithRoot(value, root)
+        case Left(error)  => Left(s"Path $path: ${error.message}")
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Root Access (for Cross-Branch Operations)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Access a value at an absolute path from the root document.
+   *
+   * Enables cross-branch operations where source fields are in different
+   * subtrees of the document. Unlike other access expressions that operate on
+   * the local context, RootAccess always navigates from the document root.
+   */
+  final case class RootAccess(path: DynamicOptic) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      Left("RootAccess requires root context")
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      evalDynamicWithRoot(input, input) // Fallback: treat input as root
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      root.get(path).one match {
+        case Right(value) => Right(value)
+        case Left(error)  => Left(s"Root path $path: ${error.message}")
+      }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -214,6 +276,11 @@ object Resolved {
       inner.evalDynamic(input).flatMap { value =>
         PrimitiveConversions.convert(value, fromTypeName, toTypeName)
       }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).flatMap { value =>
+        PrimitiveConversions.convert(value, fromTypeName, toTypeName)
+      }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -258,6 +325,21 @@ object Resolved {
       }
       results.map(strings => DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
     }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] = {
+      val results = parts.foldLeft[Either[String, Vector[String]]](Right(Vector.empty)) {
+        case (Right(acc), part) =>
+          part.evalDynamicWithRoot(input, root).map { value =>
+            val str = value match {
+              case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+              case other                                            => other.toString
+            }
+            acc :+ str
+          }
+        case (left, _) => left
+      }
+      results.map(strings => DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
+    }
   }
 
   /**
@@ -279,6 +361,48 @@ object Resolved {
         case other =>
           Left(s"SplitString requires String input, got ${other.valueType}")
       }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).flatMap {
+        case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+          val parts = s.split(java.util.regex.Pattern.quote(separator), -1)
+          Right(DynamicValue.Sequence(parts.toSeq.map(p => DynamicValue.Primitive(PrimitiveValue.String(p))): _*))
+        case other =>
+          Left(s"SplitString requires String input, got ${other.valueType}")
+      }
+  }
+
+  /**
+   * Extract an element at a specific index from a sequence, then apply inner.
+   *
+   * Semantics: Input must be a Sequence. Extract element at index, then apply
+   * inner to the extracted element.
+   *
+   * For cases where you need to evaluate an expression that produces a sequence
+   * first, use Compose: `Compose(At(index, Identity), sequenceProducingExpr)`
+   */
+  final case class At(index: Int, inner: Resolved) extends Resolved {
+    def evalDynamic: Either[String, DynamicValue] =
+      Left("At requires sequence input")
+
+    def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
+      extractAndApply(input, inner.evalDynamic)
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      extractAndApply(input, v => inner.evalDynamicWithRoot(v, root))
+
+    private def extractAndApply(
+      input: DynamicValue,
+      applyInner: DynamicValue => Either[String, DynamicValue]
+    ): Either[String, DynamicValue] =
+      input match {
+        case DynamicValue.Sequence(elements) if index >= 0 && index < elements.length =>
+          applyInner(elements(index))
+        case DynamicValue.Sequence(elements) =>
+          Left(s"Index $index out of bounds (length: ${elements.length})")
+        case other =>
+          Left(s"Expected sequence for At, got ${other.valueType}")
+      }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -296,6 +420,9 @@ object Resolved {
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
       inner.evalDynamic(input).map(v => DynamicValue.Variant("Some", DynamicValue.Record(("value", v))))
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).map(v => DynamicValue.Variant("Some", DynamicValue.Record(("value", v))))
   }
 
   /**
@@ -312,6 +439,14 @@ object Resolved {
         case DynamicValue.Variant("Some", value) => Right(value)
         case DynamicValue.Variant("None", _)     => fallback.evalDynamic
         case DynamicValue.Null                   => fallback.evalDynamic
+        case other                               => Right(other) // Already non-optional
+      }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).flatMap {
+        case DynamicValue.Variant("Some", value) => Right(value)
+        case DynamicValue.Variant("None", _)     => fallback.evalDynamicWithRoot(input, root)
+        case DynamicValue.Null                   => fallback.evalDynamicWithRoot(input, root)
         case other                               => Right(other) // Already non-optional
       }
   }
@@ -331,6 +466,9 @@ object Resolved {
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
       inner.evalDynamic(input).flatMap(outer.evalDynamic)
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).flatMap(v => outer.evalDynamicWithRoot(v, root))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -372,6 +510,15 @@ object Resolved {
           case (left, _) => left
         }
         .map(v => DynamicValue.Record(v: _*))
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      fields
+        .foldLeft[Either[String, Vector[(String, DynamicValue)]]](Right(Vector.empty)) {
+          case (Right(acc), (name, expr)) =>
+            expr.evalDynamicWithRoot(input, root).map(v => acc :+ (name -> v))
+          case (left, _) => left
+        }
+        .map(v => DynamicValue.Record(v: _*))
   }
 
   /**
@@ -388,6 +535,15 @@ object Resolved {
         .foldLeft[Either[String, Vector[DynamicValue]]](Right(Vector.empty)) {
           case (Right(acc), expr) =>
             expr.evalDynamic(input).map(v => acc :+ v)
+          case (left, _) => left
+        }
+        .map(v => DynamicValue.Sequence(v: _*))
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      elements
+        .foldLeft[Either[String, Vector[DynamicValue]]](Right(Vector.empty)) {
+          case (Right(acc), expr) =>
+            expr.evalDynamicWithRoot(input, root).map(v => acc :+ v)
           case (left, _) => left
         }
         .map(v => DynamicValue.Sequence(v: _*))
@@ -408,6 +564,16 @@ object Resolved {
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
       inner.evalDynamic(input).flatMap {
+        case DynamicValue.Sequence(elements) if elements.nonEmpty =>
+          Right(elements.head)
+        case DynamicValue.Sequence(_) =>
+          Left("Cannot get head of empty sequence")
+        case other =>
+          Left(s"Expected sequence for head operation, got ${other.valueType}")
+      }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).flatMap {
         case DynamicValue.Sequence(elements) if elements.nonEmpty =>
           Right(elements.head)
         case DynamicValue.Sequence(_) =>
@@ -438,6 +604,18 @@ object Resolved {
         case other =>
           Left(s"Expected sequence for JoinStrings, got ${other.valueType}")
       }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      inner.evalDynamicWithRoot(input, root).flatMap {
+        case DynamicValue.Sequence(elements) =>
+          val strings = elements.map {
+            case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+            case other                                            => other.toString
+          }
+          Right(DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(separator))))
+        case other =>
+          Left(s"Expected sequence for JoinStrings, got ${other.valueType}")
+      }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -452,19 +630,26 @@ object Resolved {
    */
   final case class Coalesce(alternatives: Vector[Resolved]) extends Resolved {
     def evalDynamic: Either[String, DynamicValue] =
-      evalWithAlternatives(None)
+      evalWithAlternatives(None, None)
 
     def evalDynamic(input: DynamicValue): Either[String, DynamicValue] =
-      evalWithAlternatives(Some(input))
+      evalWithAlternatives(Some(input), None)
 
-    private def evalWithAlternatives(input: Option[DynamicValue]): Either[String, DynamicValue] =
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      evalWithAlternatives(Some(input), Some(root))
+
+    private def evalWithAlternatives(
+      input: Option[DynamicValue],
+      root: Option[DynamicValue]
+    ): Either[String, DynamicValue] =
       if (alternatives.isEmpty) {
         Left("Coalesce requires at least one alternative")
       } else {
         alternatives.iterator.map { alt =>
-          input match {
-            case Some(in) => alt.evalDynamic(in)
-            case None     => alt.evalDynamic
+          (input, root) match {
+            case (Some(in), Some(r)) => alt.evalDynamicWithRoot(in, r)
+            case (Some(in), None)    => alt.evalDynamic(in)
+            case (None, _)           => alt.evalDynamic
           }
         }.find {
           // Skip None values, find first Some or non-Option value
@@ -516,6 +701,20 @@ object Resolved {
           Right(value)
         case Left(_) =>
           fallback.evalDynamic(input)
+      }
+
+    override def evalDynamicWithRoot(input: DynamicValue, root: DynamicValue): Either[String, DynamicValue] =
+      primary.evalDynamicWithRoot(input, root) match {
+        case Right(DynamicValue.Variant("Some", DynamicValue.Record(fields))) =>
+          fields.find(_._1 == "value").map(kv => Right(kv._2)).getOrElse(fallback.evalDynamicWithRoot(input, root))
+        case Right(DynamicValue.Variant("None", _)) =>
+          fallback.evalDynamicWithRoot(input, root)
+        case Right(DynamicValue.Null) =>
+          fallback.evalDynamicWithRoot(input, root)
+        case Right(value) =>
+          Right(value)
+        case Left(_) =>
+          fallback.evalDynamicWithRoot(input, root)
       }
   }
 

@@ -12,6 +12,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
  *   - `at`: The path where this action operates (using DynamicOptic)
  *   - `reverse`: The structural inverse of this action
  *   - `apply`: The runtime transformation on DynamicValue
+ *   - `applyWithRoot`: The transformation with access to the root document
  *
  * Actions can be composed into a [[DynamicMigration]] and applied to transform
  * data between schema versions.
@@ -24,8 +25,31 @@ sealed trait MigrationAction {
   /** Structural reverse of this action (for bidirectional migrations) */
   def reverse: MigrationAction
 
-  /** Apply this action to a DynamicValue */
-  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+  /**
+   * Apply this action to a DynamicValue.
+   *
+   * Delegates to [[applyWithRoot]] using the value as its own root,
+   * maintaining backward compatibility.
+   */
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    applyWithRoot(value, value)
+
+  /**
+   * Apply this action with access to the root document.
+   *
+   * This method enables expressions like `RootAccess` to access values from
+   * anywhere in the document, regardless of the current action's path. This is
+   * essential for cross-branch operations that need to combine fields from
+   * different branches of the document tree.
+   *
+   * @param value
+   *   The value at the action's path (local context)
+   * @param root
+   *   The root document (for RootAccess expressions)
+   * @return
+   *   Right with the transformed value, or Left with an error
+   */
+  def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue]
 
   /**
    * Create a copy of this action with the path prefixed by the given prefix.
@@ -60,11 +84,11 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
-        // Pass the current record to evalDynamic so expressions like FieldAccess work
+        // Pass the current record to evalDynamicWithRoot so expressions like FieldAccess work
         val recordValue = DynamicValue.Record(fields: _*)
-        default.evalDynamic(recordValue) match {
+        default.evalDynamicWithRoot(recordValue, root) match {
           case Right(defaultValue) =>
             Right(fields :+ (fieldName -> defaultValue))
           case Left(err) =>
@@ -92,7 +116,7 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
         Right(fields.filterNot(_._1 == fieldName))
       }
@@ -115,7 +139,7 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyRecord(value, at) { fields =>
         Right(fields.map {
           case (name, v) if name == from => (to, v)
@@ -144,10 +168,10 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
-        transform.evalDynamic(fieldValue) match {
+        transform.evalDynamicWithRoot(fieldValue, root) match {
           case Right(result) => Right(result)
           case Left(err)     => Left(MigrationError.ExpressionFailed(fieldPath, err))
         }
@@ -173,7 +197,7 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       // Work at record level so we have context for FieldAccess in defaults
       modifyRecord(value, at) { fields =>
         val recordValue = DynamicValue.Record(fields: _*)
@@ -197,12 +221,12 @@ object MigrationAction {
               // Fallback for simple representation
               Right(inner)
             case DynamicValue.Variant("None", _) =>
-              default.evalDynamic(recordValue) match {
+              default.evalDynamicWithRoot(recordValue, root) match {
                 case Right(d)  => Right(d)
                 case Left(err) => Left(MigrationError.ExpressionFailed(at.field(fieldName), err))
               }
             case DynamicValue.Null =>
-              default.evalDynamic(recordValue) match {
+              default.evalDynamicWithRoot(recordValue, root) match {
                 case Right(d)  => Right(d)
                 case Left(err) => Left(MigrationError.ExpressionFailed(at.field(fieldName), err))
               }
@@ -230,7 +254,7 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
         // Some is represented as Variant("Some", Record(Chunk(("value", inner))))
@@ -259,10 +283,10 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] = {
       val fieldPath = at.field(fieldName)
       modifyAtPath(value, fieldPath) { fieldValue =>
-        converter.evalDynamic(fieldValue) match {
+        converter.evalDynamicWithRoot(fieldValue, root) match {
           case Right(result) => Right(result)
           case Left(err)     => Left(MigrationError.ExpressionFailed(fieldPath, err))
         }
@@ -291,7 +315,7 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Variant(caseName, caseValue) if caseName == from =>
           Right(DynamicValue.Variant(to, caseValue))
@@ -320,13 +344,13 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Variant(name, caseValue) if name == caseName =>
-          // Apply nested migration to the case value
+          // Apply nested migration to the case value, passing root for cross-branch access
           caseActions
             .foldLeft[Either[MigrationError, DynamicValue]](Right(caseValue)) {
-              case (Right(v), action) => action.apply(v)
+              case (Right(v), action) => action.applyWithRoot(v, root)
               case (left, _)          => left
             }
             .map(DynamicValue.Variant(name, _))
@@ -355,10 +379,10 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Sequence(elements) =>
-          transformAll(elements.toVector, elementTransform, at).map(v => DynamicValue.Sequence(v: _*))
+          transformAllWithRoot(elements.toVector, elementTransform, at, root).map(v => DynamicValue.Sequence(v: _*))
         case other =>
           Left(MigrationError.ExpectedSequence(at, other))
       }
@@ -386,12 +410,12 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Record(entries) =>
-          transformMapKeys(entries.toVector, keyTransform, at).map(v => DynamicValue.Record(v: _*))
+          transformMapKeysWithRoot(entries.toVector, keyTransform, at, root).map(v => DynamicValue.Record(v: _*))
         case DynamicValue.Map(entries) =>
-          transformMapKeysFullMap(entries.toVector, keyTransform, at).map(v => DynamicValue.Map(v: _*))
+          transformMapKeysFullMapWithRoot(entries.toVector, keyTransform, at, root).map(v => DynamicValue.Map(v: _*))
         case other =>
           Left(MigrationError.ExpectedMap(at, other))
       }
@@ -412,12 +436,12 @@ object MigrationAction {
 
     def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
 
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
       modifyAtPath(value, at) {
         case DynamicValue.Record(entries) =>
-          transformMapValues(entries.toVector, valueTransform, at).map(v => DynamicValue.Record(v: _*))
+          transformMapValuesWithRoot(entries.toVector, valueTransform, at, root).map(v => DynamicValue.Record(v: _*))
         case DynamicValue.Map(entries) =>
-          transformMapValuesFullMap(entries.toVector, valueTransform, at).map(v => DynamicValue.Map(v: _*))
+          transformMapValuesFullMapWithRoot(entries.toVector, valueTransform, at, root).map(v => DynamicValue.Map(v: _*))
         case other =>
           Left(MigrationError.ExpectedMap(at, other))
       }
@@ -487,12 +511,13 @@ object MigrationAction {
     }
 
   /**
-   * Transform all elements in a vector using the given transform.
+   * Transform all elements in a vector using the given transform with root context.
    */
-  private def transformAll(
+  private def transformAllWithRoot(
     elements: Vector[DynamicValue],
     transform: Resolved,
-    path: DynamicOptic
+    path: DynamicOptic,
+    root: DynamicValue
   ): Either[MigrationError, Vector[DynamicValue]] = {
     var idx     = 0
     val len     = elements.length
@@ -500,7 +525,7 @@ object MigrationAction {
     results.sizeHint(len)
 
     while (idx < len) {
-      transform.evalDynamic(elements(idx)) match {
+      transform.evalDynamicWithRoot(elements(idx), root) match {
         case Right(v) =>
           results += v
           idx += 1
@@ -512,12 +537,13 @@ object MigrationAction {
   }
 
   /**
-   * Transform map keys (for Record representation of maps).
+   * Transform map keys (for Record representation of maps) with root context.
    */
-  private def transformMapKeys(
+  private def transformMapKeysWithRoot(
     entries: Vector[(String, DynamicValue)],
     transform: Resolved,
-    path: DynamicOptic
+    path: DynamicOptic,
+    root: DynamicValue
   ): Either[MigrationError, Vector[(String, DynamicValue)]] = {
     var idx     = 0
     val len     = entries.length
@@ -527,7 +553,7 @@ object MigrationAction {
     while (idx < len) {
       val (k, v) = entries(idx)
       val keyDV  = DynamicValue.Primitive(PrimitiveValue.String(k))
-      transform.evalDynamic(keyDV) match {
+      transform.evalDynamicWithRoot(keyDV, root) match {
         case Right(DynamicValue.Primitive(PrimitiveValue.String(newK))) =>
           results += ((newK, v))
           idx += 1
@@ -542,12 +568,13 @@ object MigrationAction {
   }
 
   /**
-   * Transform map keys (for Map representation).
+   * Transform map keys (for Map representation) with root context.
    */
-  private def transformMapKeysFullMap(
+  private def transformMapKeysFullMapWithRoot(
     entries: Vector[(DynamicValue, DynamicValue)],
     transform: Resolved,
-    path: DynamicOptic
+    path: DynamicOptic,
+    root: DynamicValue
   ): Either[MigrationError, Vector[(DynamicValue, DynamicValue)]] = {
     var idx     = 0
     val len     = entries.length
@@ -556,7 +583,7 @@ object MigrationAction {
 
     while (idx < len) {
       val (k, v) = entries(idx)
-      transform.evalDynamic(k) match {
+      transform.evalDynamicWithRoot(k, root) match {
         case Right(newK) =>
           results += ((newK, v))
           idx += 1
@@ -568,12 +595,13 @@ object MigrationAction {
   }
 
   /**
-   * Transform map values (for Record representation).
+   * Transform map values (for Record representation) with root context.
    */
-  private def transformMapValues(
+  private def transformMapValuesWithRoot(
     entries: Vector[(String, DynamicValue)],
     transform: Resolved,
-    path: DynamicOptic
+    path: DynamicOptic,
+    root: DynamicValue
   ): Either[MigrationError, Vector[(String, DynamicValue)]] = {
     var idx     = 0
     val len     = entries.length
@@ -582,7 +610,7 @@ object MigrationAction {
 
     while (idx < len) {
       val (k, v) = entries(idx)
-      transform.evalDynamic(v) match {
+      transform.evalDynamicWithRoot(v, root) match {
         case Right(newV) =>
           results += ((k, newV))
           idx += 1
@@ -594,12 +622,13 @@ object MigrationAction {
   }
 
   /**
-   * Transform map values (for Map representation).
+   * Transform map values (for Map representation) with root context.
    */
-  private def transformMapValuesFullMap(
+  private def transformMapValuesFullMapWithRoot(
     entries: Vector[(DynamicValue, DynamicValue)],
     transform: Resolved,
-    path: DynamicOptic
+    path: DynamicOptic,
+    root: DynamicValue
   ): Either[MigrationError, Vector[(DynamicValue, DynamicValue)]] = {
     var idx     = 0
     val len     = entries.length
@@ -608,7 +637,7 @@ object MigrationAction {
 
     while (idx < len) {
       val (k, v) = entries(idx)
-      transform.evalDynamic(v) match {
+      transform.evalDynamicWithRoot(v, root) match {
         case Right(newV) =>
           results += ((k, newV))
           idx += 1

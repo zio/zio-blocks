@@ -300,6 +300,175 @@ final class MigrationBuilder[A, B, SrcRemaining <: Tuple, TgtRemaining <: Tuple]
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Cross-Branch Field Operations
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Join multiple source fields into a single target field.
+   *
+   * This operation works across different branches of the document, enabling
+   * combining fields that don't share a common parent. Each source field is
+   * accessed from the root document using RootAccess.
+   *
+   * NOTE: Source fields are NOT automatically removed from tracking - use
+   * dropField if they should not exist in the target schema.
+   *
+   * Example:
+   * {{{
+   * case class V0(address: Address, origin: Origin)
+   * case class V1(location: Location)
+   *
+   * val migration = MigrationBuilder.withFieldTracking[V0, V1]
+   *   .joinFields(
+   *     sources = Vector(
+   *       select[V0](_.address.street),
+   *       select[V0](_.origin.country)
+   *     ),
+   *     target = select[V1](_.location.combined),
+   *     separator = ", "
+   *   )
+   *   // ... additional field handling ...
+   *   .build
+   * }}}
+   *
+   * @param sources
+   *   Vector of FieldSelectors for the source fields to join
+   * @param target
+   *   FieldSelector for the target field to create
+   * @param separator
+   *   String to use between joined values (default: empty string)
+   * @return
+   *   Builder with the target field marked as provided
+   */
+  def joinFields[T, TgtName <: String](
+    sources: Vector[FieldSelector[A, ?, ?]],
+    target: FieldSelector[B, T, TgtName],
+    separator: String = ""
+  )(using
+    tgtEv: FieldSet.Contains[TgtRemaining, TgtName] =:= true
+  ): MigrationBuilder[A, B, SrcRemaining, FieldSet.Remove[TgtRemaining, TgtName]] = {
+    // Build RootAccess expressions for each source using full optic path
+    val accessExprs = sources.map { src =>
+      Resolved.RootAccess(src.optic)
+    }
+
+    // Combine with Concat
+    val combiner = Resolved.Concat(accessExprs, separator)
+
+    // Generate AddField at target's parent path
+    // Extract parent path by removing the last field component
+    val targetParentOptic = target.optic.parent.getOrElse(DynamicOptic.root)
+    val action            = MigrationAction.AddField(targetParentOptic, target.name, combiner)
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
+  }
+
+  /**
+   * Split a source field into multiple target fields.
+   *
+   * This operation splits a single source field by a separator and assigns
+   * each part to a corresponding target field. The source field is accessed
+   * from the root document using RootAccess.
+   *
+   * NOTE: This operation is NOT reversible - the reverse migration will fail.
+   * Use dropField on the source if it should not exist in the target schema.
+   *
+   * Example:
+   * {{{
+   * case class V0(location: Location)
+   * case class V1(address: Address, origin: Origin)
+   *
+   * val migration = MigrationBuilder.withFieldTracking[V0, V1]
+   *   .splitField(
+   *     source = select[V0](_.location.combined),
+   *     targets = Vector(
+   *       select[V1](_.address.street),
+   *       select[V1](_.origin.country)
+   *     ),
+   *     separator = ", "
+   *   )
+   *   // ... additional field handling ...
+   *   .build
+   * }}}
+   *
+   * @param source
+   *   FieldSelector for the source field to split
+   * @param targets
+   *   Vector of FieldSelectors for the target fields to create
+   * @param separator
+   *   String to split the source value on
+   * @return
+   *   Builder with all target fields marked as provided (via type intersection)
+   */
+  def splitField[S, SrcName <: String](
+    source: FieldSelector[A, S, SrcName],
+    targets: Vector[FieldSelector[B, ?, ?]],
+    separator: String
+  ): MigrationBuilder[A, B, SrcRemaining, TgtRemaining] = {
+    // For each target, create AddField with Compose(At(index, Identity), SplitString(...))
+    // Compose evaluates inner (SplitString) first to get sequence, then outer (At) extracts element
+    val addActions = targets.zipWithIndex.map { case (tgt, idx) =>
+      val splitExpr = Resolved.Compose(
+        Resolved.At(idx, Resolved.Identity),
+        Resolved.SplitString(separator, Resolved.RootAccess(source.optic))
+      )
+      val targetParentOptic = tgt.optic.parent.getOrElse(DynamicOptic.root)
+      MigrationAction.AddField(targetParentOptic, tgt.name, splitExpr)
+    }
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ addActions)
+  }
+
+  /**
+   * Split a source field into multiple target fields with type-level tracking.
+   *
+   * This variant explicitly consumes the source field from tracking and marks
+   * all target fields as provided. Use when you want full compile-time validation.
+   *
+   * NOTE: This operation is NOT reversible - the reverse migration will fail.
+   *
+   * @param source
+   *   FieldSelector for the source field to split (will be consumed)
+   * @param target1
+   *   First target field
+   * @param target2
+   *   Second target field
+   * @param separator
+   *   String to split the source value on
+   */
+  def splitFieldTracked[S, SrcName <: String, T1, Tgt1Name <: String, T2, Tgt2Name <: String](
+    source: FieldSelector[A, S, SrcName],
+    target1: FieldSelector[B, T1, Tgt1Name],
+    target2: FieldSelector[B, T2, Tgt2Name],
+    separator: String
+  )(using
+    srcEv: FieldSet.Contains[SrcRemaining, SrcName] =:= true,
+    tgt1Ev: FieldSet.Contains[TgtRemaining, Tgt1Name] =:= true,
+    tgt2Ev: FieldSet.Contains[FieldSet.Remove[TgtRemaining, Tgt1Name], Tgt2Name] =:= true
+  ): MigrationBuilder[
+    A,
+    B,
+    FieldSet.Remove[SrcRemaining, SrcName],
+    FieldSet.Remove[FieldSet.Remove[TgtRemaining, Tgt1Name], Tgt2Name]
+  ] = {
+    val targets = Vector(target1, target2)
+    // Use Compose(At(index, Identity), SplitString(...)) - evaluates SplitString first, then extracts element
+    val addActions = targets.zipWithIndex.map { case (tgt, idx) =>
+      val splitExpr = Resolved.Compose(
+        Resolved.At(idx, Resolved.Identity),
+        Resolved.SplitString(separator, Resolved.RootAccess(source.optic))
+      )
+      val targetParentOptic = tgt.optic.parent.getOrElse(DynamicOptic.root)
+      MigrationAction.AddField(targetParentOptic, tgt.name, splitExpr)
+    }
+
+    // Also add a dropField action for the source
+    val dropAction = MigrationAction.DropField(DynamicOptic.root, source.name, Resolved.Fail("Split is not reversible"))
+
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ addActions :+ dropAction)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Build Methods
   // ─────────────────────────────────────────────────────────────────────────
 

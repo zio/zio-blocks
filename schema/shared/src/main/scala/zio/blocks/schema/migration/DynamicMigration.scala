@@ -47,6 +47,11 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
    * the input to the next. If any action fails, the entire migration fails with
    * that error.
    *
+   * Each action receives the current document state as both the value to
+   * transform and the root context. This enables cross-branch operations where
+   * expressions can access values from anywhere in the document using
+   * `RootAccess`.
+   *
    * @param value
    *   The input DynamicValue to transform
    * @return
@@ -58,7 +63,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
     val len                                           = actions.length
 
     while (idx < len && current.isRight) {
-      current = current.flatMap(actions(idx).apply)
+      // Pass current state as both value and root for cross-branch access
+      current = current.flatMap(v => actions(idx).applyWithRoot(v, v))
       idx += 1
     }
 

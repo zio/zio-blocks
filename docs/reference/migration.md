@@ -366,22 +366,67 @@ v2User.flatMap(reversed.apply)
 // Right(UserV1("Alice Smith", "alice@example.com", 30))
 ```
 
-## Serialization
+## Nested Migrations
 
-Since migrations are pure data, they can be serialized:
+For nested types, use `inField()` with a pre-built `Migration` object. This approach ensures compile-time validation at all nesting levels:
 
 ```scala
-// DynamicMigration is a case class with Vector[MigrationAction]
-// MigrationAction is a sealed trait of case classes
-// Resolved is a sealed trait of case classes
+case class PersonV0(name: String, address: AddressV0)
+case class AddressV0(street: String)
 
-// All can be serialized using any Schema-based codec:
-val jsonCodec = Schema[DynamicMigration].derive(JsonFormat.deriver)
+case class PersonV1(name: String, address: AddressV1)
+case class AddressV1(street: String, city: String)
+
+// First, build the nested migration
+val addressMigration = MigrationBuilder.withFieldTracking[AddressV0, AddressV1]
+  .keepField(select(_.street))
+  .addField(select(_.city), "Unknown")
+  .build
+
+// Then compose into the parent migration
+val migration = MigrationBuilder.withFieldTracking[PersonV0, PersonV1]
+  .keepField(select(_.name))
+  .inField(select(_.address), select(_.address))(addressMigration)
+  .build
+```
+
+The nested migration's actions are automatically prefixed with the field path using `DynamicOptic.field()`, ensuring correct application at any nesting depth. This design addresses the maintainer's requirement for "lists of lists" where the top level encodes depth and the bottom level encodes operations.
+
+Additional methods for other nested contexts:
+- `inElements()` - For migrating sequence/list elements
+- `inMapValues()` - For migrating map values
+- `inCase()` - For migrating variant/enum cases
+
+## Serialization
+
+Since migrations are pure data, they are **fully serializable**. Complete `Schema` instances are provided for all migration types:
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+// Schema instances are provided implicitly
+// - Schema[DynamicMigration]
+// - Schema[MigrationAction] (12 variants)
+// - Schema[Resolved] (20 variants including RootAccess and At)
+// - Schema[DynamicOptic]
+
+// Serialize to JSON
+val jsonCodec = JsonCodec.from(Schema[DynamicMigration])
 val json = jsonCodec.encode(migration.dynamicMigration)
 
 // Store in a registry, database, or file
 // Later, deserialize and apply
 val restored = jsonCodec.decode(json)
+restored.flatMap(_.apply(dynamicValue))
+
+// Round-trip is fully supported
+val original = DynamicMigration(Vector(
+  MigrationAction.AddField(DynamicOptic.root, "newField", Resolved.Literal.int(0)),
+  MigrationAction.Rename(DynamicOptic.root, "oldName", "newName")
+))
+val roundTripped = jsonCodec.decode(jsonCodec.encode(original))
+assert(roundTripped == Right(original))
 ```
 
 ## Migration Optimizer
@@ -415,56 +460,112 @@ Use `Into/As` for simple type conversions. Use `Migration` when you need:
 - Generation of DDL or data transforms
 - Full introspection of migration logic
 
-## Limitations
+## Cross-Branch Field Operations
 
-### Cross-Branch Field Operations
+ZIO Blocks migrations support combining or splitting fields across different branches of a document. This is achieved through two key expression types: `RootAccess` and `At`.
 
-**Joint and Split operations require fields to share the same parent path:**
+### Joining Fields from Different Branches
 
-```scala
-// ✅ WORKS: Same parent (_.address)
-.concat(
-  select[V1](_.address.street), 
-  select[V1](_.address.city),
-  select[V2](_.address.fullAddress)
-)
-
-// ❌ DOES NOT WORK: Different parents (_.address vs _.origin)
-.concat(
-  select[V1](_.address.street),    // parent: _.address
-  select[V1](_.origin.country),    // parent: _.origin
-  select[V2](_.location.combined)  // ERROR: Runtime/compile-time error
-)
-```
-
-**Workaround**: Lift values to a common parent (root level) first, then combine:
+Use `joinFields` to combine fields from different parts of the document:
 
 ```scala
-MigrationBuilder.withFieldTracking[V1, V2]
-  .transformField(select(_.address.street), select(_.tempStreet), identity)
-  .transformField(select(_.origin.country), select(_.tempCountry), identity)
-  .concat(select(_.tempStreet), select(_.tempCountry), select(_.location.combined))
-  .dropField(select(_.tempStreet), "")
-  .dropField(select(_.tempCountry), "")
+case class AddressV1(street: String)
+case class OriginV1(country: String)
+case class PersonV1(address: AddressV1, origin: OriginV1)
+
+case class LocationV2(combined: String)
+case class PersonV2(address: AddressV1, origin: OriginV1, location: LocationV2)
+
+val migration = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+  .keepField(select(_.address))
+  .keepField(select(_.origin))
+  .joinFields(
+    sources = Vector(
+      select[PersonV1](_.address.street),
+      select[PersonV1](_.origin.country)
+    ),
+    target = select[PersonV2](_.location.combined),
+    separator = ", "
+  )
   .build
+
+// Input: PersonV1(AddressV1("123 Main St"), OriginV1("USA"))
+// Output: PersonV2(AddressV1("123 Main St"), OriginV1("USA"), LocationV2("123 Main St, USA"))
 ```
 
-This limitation exists because operations across different nested structures require complex tree reconstruction logic. It may be addressed in a future version.
+### Splitting Fields to Different Branches
 
-### Serialization Constraints
+Use `splitField` to divide a single field into multiple target locations:
 
-**DynamicMigration contains existential types that cannot be fully serialized:**
+```scala
+case class FullNameV1(value: String)
+case class PersonV1(fullName: FullNameV1)
 
-The `SchemaExpr[DynamicValue, ?]` type in `TransformValue` actions uses existential types for type safety. While the migration structure is pure data and can be inspected, full round-trip serialization/deserialization is not currently supported.
+case class NameV2(firstName: String, lastName: String)
+case class PersonV2(name: NameV2)
 
-**What works:**
-- Inspecting migration structure via `.describe()`
-- Pattern matching on `MigrationAction` types
-- Storing migrations as Scala source code
+val migration = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+  .splitField(
+    source = select[PersonV1](_.fullName.value),
+    targets = Vector(
+      select[PersonV2](_.name.firstName),
+      select[PersonV2](_.name.lastName)
+    ),
+    separator = " "
+  )
+  .build
 
-**What doesn't work:**
-- Serializing migrations to JSON/binary and reconstructing them
-- Sending migrations over the wire (RPC)
-- Storing migrations in databases as data
+// Input: PersonV1(FullNameV1("John Doe"))
+// Output: PersonV2(NameV2("John", "Doe"))
+```
 
-This limitation affects migrations using `transformField` with custom expressions. Simple migrations using only `addField`, `dropField`, `renameField`, etc., with literal defaults can be serialized.
+> **Note**: `splitField` operations are NOT reversible. The reverse migration will fail.
+> For tracked field removal, use `splitFieldTracked` which provides compile-time tracking.
+
+### RootAccess Expression
+
+`RootAccess` enables accessing values from the root document, regardless of the current context:
+
+```scala
+// Access root.external from within a nested transformation
+val expr = Resolved.RootAccess(DynamicOptic.root.field("external"))
+
+// Use in an AddField action
+MigrationAction.AddField(
+  DynamicOptic.root,
+  "combined",
+  Resolved.Concat(
+    Vector(
+      Resolved.RootAccess(DynamicOptic.root.field("address").field("street")),
+      Resolved.Literal.string(", "),
+      Resolved.RootAccess(DynamicOptic.root.field("origin").field("country"))
+    ),
+    ""
+  )
+)
+```
+
+### At Expression
+
+`At` extracts an element at a specific index from a sequence:
+
+```scala
+// Get the second element (index 1) from a split string
+val splitAndExtract = Resolved.At(
+  1,
+  Resolved.SplitString(" ", Resolved.FieldAccess("fullName", Resolved.Identity))
+)
+```
+
+### Nested Path Support
+
+The `select` macro now captures the full path for nested field access:
+
+```scala
+// Captures full path: address → street
+val selector = select[Person](_.address.street)
+selector.optic  // DynamicOptic.root.field("address").field("street")
+selector.name   // "street" (leaf field name)
+```
+
+This enables cross-branch operations to correctly navigate to deeply nested fields.
