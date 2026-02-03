@@ -157,7 +157,7 @@ object EithersSpec extends ZIOSpecDefault {
     suite("Real-world API usage with type inference")(
       test("combine Either without explicit types") {
         val either: Either[Int, String] = Right("hello")
-        val result                       = Eithers.combine(either)
+        val result                      = Eithers.combine(either)
         assertTrue(result == Right("hello"))
       },
       test("combine canonicalizes right-nested Either with inference") {
