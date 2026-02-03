@@ -7,17 +7,17 @@ import scala.compiletime.uninitialized
 
 class JsonListOfJsonsBenchmark extends BaseBenchmark {
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                         = 100
-  val record: String = """{"id":12345678901,"name":"John","age":30,"address":"123 Main St","childrenAges":[5,7,9]}"""
-  var encodedListOfRecords: Array[Byte] = uninitialized
+  var size: Int                                  = 100
+  val record: String                             = """{"id":12345678901,"name":"John","age":30,"address":"123 Main St","childrenAges":[5,7,9]}"""
+  var encodedListOfRecords: Array[Byte]          = uninitialized
   var zioBlocksJson: zio.blocks.schema.json.Json = uninitialized
-  var zioJsonJson: zio.json.ast.Json = uninitialized
+  var zioJsonJson: zio.json.ast.Json             = uninitialized
 
   @Setup
   def setup(): Unit = {
     encodedListOfRecords = (1 to size).map(_ => record).mkString("[", ",", "]").getBytes(UTF_8)
     zioBlocksJson = readingZioBlocks
-    zioJsonJson =  readingZioJson
+    zioJsonJson = readingZioJson
   }
 
   @Benchmark

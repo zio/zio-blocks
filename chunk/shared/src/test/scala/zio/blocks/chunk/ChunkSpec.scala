@@ -220,7 +220,16 @@ object ChunkSpec extends ChunkBaseSpec {
       check(smallChunks(Gen.int))(c => assert(roundTrip(c))(equalTo(c))) &&
       check(smallChunks(Gen.double))(c => assert(roundTrip(c))(equalTo(c))) &&
       check(smallChunks(Gen.long))(c => assert(roundTrip(c))(equalTo(c))) &&
-      check(smallChunks(Gen.string))(c => assert(roundTrip(c))(equalTo(c)))
+      check(smallChunks(Gen.string), smallChunks(Gen.string)) { (c1, c2) =>
+        val c3 = c1 ++ c2
+        val c4 = c1.prepended(c2)
+        val c5 = Chunk.single(c1.headOption.getOrElse(""))
+        assert(roundTrip(c1))(equalTo(c1)) &&
+        assert(roundTrip(c2))(equalTo(c2)) &&
+        assert(roundTrip(c3))(equalTo(c3)) &&
+        assert(roundTrip(c4))(equalTo(c4)) &&
+        assert(roundTrip(c5))(equalTo(c5))
+      }
     },
     test("fill") {
       val smallInt = Gen.int(-10, 10)
@@ -584,7 +593,8 @@ object ChunkSpec extends ChunkBaseSpec {
     test("zipAllWith") {
       assert(Chunk(1, 2, 3).zipAllWith(Chunk(3, 2, 1))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 4))) &&
       assert(Chunk(1, 2, 3).zipAllWith(Chunk(3, 2))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 0))) &&
-      assert(Chunk(1, 2).zipAllWith(Chunk(3, 2, 1))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 0)))
+      assert(Chunk(1, 2).zipAllWith(Chunk(3, 2, 1))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 0))) &&
+      assert(Chunk.empty[Int].zipAllWith(Chunk.empty[Int])(_ => 0, _ => 0)(_ + _))(equalTo(Chunk.empty[Int]))
     },
     test("zipWithIndex") {
       val (ch1, ch2) = Chunk("a", "b", "c", "d").splitAt(2)

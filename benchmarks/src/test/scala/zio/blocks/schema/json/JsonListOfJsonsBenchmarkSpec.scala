@@ -9,15 +9,15 @@ object JsonListOfJsonsBenchmarkSpec extends SchemaBaseSpec {
     test("reading") {
       val benchmark = new JsonListOfJsonsBenchmark
       benchmark.setup()
-      val zioBlocksOutput     = benchmark.readingZioBlocks
-      val zioJsonOutput       = benchmark.readingZioJson
+      val zioBlocksOutput = benchmark.readingZioBlocks
+      val zioJsonOutput   = benchmark.readingZioJson
       assert(zioJsonOutput.toString())(equalTo(zioBlocksOutput.print))
     },
     test("writing") {
       val benchmark = new JsonListOfJsonsBenchmark
       benchmark.setup()
-      val zioBlocksOutput     = benchmark.writingZioBlocks
-      val zioJsonOutput       = benchmark.writingZioJson
+      val zioBlocksOutput = benchmark.writingZioBlocks
+      val zioJsonOutput   = benchmark.writingZioJson
       assert(new String(zioJsonOutput))(equalTo(new String(zioBlocksOutput)))
     }
   )
