@@ -94,6 +94,24 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
         val result: (Int, String, Boolean, Double, Char) = combiner.combine(((1, "a"), true), (3.0, 'x'))
         assertTrue(result == (1, "a", true, 3.0, 'x'))
       }
+    ),
+    suite("Top-level convenience methods")(
+      test("Tuples.combine works without explicit combiner") {
+        val result = Tuples.combine((1, "a"), true)
+        assertTrue(result == (1, "a", true))
+      },
+      test("Tuples.separate works without explicit separator") {
+        val result = Tuples.separate((1, "a", true))
+        assertTrue(result == ((1, "a"), true))
+      },
+      test("Tuples.combine with nested tuples flattens") {
+        val result = Tuples.combine(((1, "a"), true), (3.0, 'x'))
+        assertTrue(result == (1, "a", true, 3.0, 'x'))
+      },
+      test("Tuples.separate canonicalizes nested input") {
+        val result = Tuples.separate(((1, "a"), (true, 3.0)))
+        assertTrue(result == ((1, "a", true), 3.0))
+      }
     )
   )
 }
