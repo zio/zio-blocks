@@ -99,24 +99,24 @@ object UnionsSpec extends ZIOSpecDefault {
         val separated              = separator.separate(original)
         val recombined             = combiner.combine(separated)
         assertTrue(recombined == "hello")
-       }
-     ),
-     suite("Top-level convenience methods")(
-        test("Unions.combine works without explicit combiner") {
-          val input: Either[Int, String] = Left(42)
-          val result: Int | String       = Unions.combine(input)
-          assertTrue(result == 42)
-        },
-        test("Unions.combine Right works without explicit combiner") {
-          val input: Either[Int, String] = Right("hello")
-          val result: Int | String       = Unions.combine(input)
-          assertTrue(result == "hello")
-        },
-        test("Unions.separate works without explicit separator") {
-          val input: Int | String = "hello"
-          val result              = Unions.separate(input)
-          assertTrue(result == Right("hello"))
-        }
-      )
-   )
+      }
+    ),
+    suite("Top-level convenience methods")(
+      test("Unions.combine works without explicit combiner") {
+        val input: Either[Int, String] = Left(42)
+        val result: Int | String       = Unions.combine(input)
+        assertTrue(result == 42)
+      },
+      test("Unions.combine Right works without explicit combiner") {
+        val input: Either[Int, String] = Right("hello")
+        val result: Int | String       = Unions.combine(input)
+        assertTrue(result == "hello")
+      },
+      test("Unions.separate works without explicit separator") {
+        val input: Int | String = "hello"
+        val result              = Unions.separate(input)
+        assertTrue(result == Right("hello"))
+      }
+    )
+  )
 }

@@ -214,5 +214,5 @@ object Eithers {
   }
 
   def combine[L, R](either: Either[L, R])(using c: Combiner[L, R]): c.Out = c.combine(either)
-  def separate[A](a: A)(using s: Separator[A]): Either[s.Left, s.Right] = s.separate(a)
+  def separate[A](a: A)(using s: Separator[A]): Either[s.Left, s.Right]   = s.separate(a)
 }
