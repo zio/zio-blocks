@@ -1,12 +1,10 @@
 package zio.blocks.typeid
 
 import scala.quoted.*
+import java.util.concurrent.ConcurrentHashMap
 
 object TypeIdMacros {
-
-  import java.util.concurrent.ConcurrentHashMap
-
-  private val typeIdCache = new ConcurrentHashMap[String, TypeId[?]]()
+  private[this] val typeIdCache = new ConcurrentHashMap[Any, TypeId[?]]
 
   // ============================================================================
   // ToExpr Instances (needed for top-level cache to convert TypeId values to Expr)
@@ -690,31 +688,17 @@ object TypeIdMacros {
 
   private def deriveTypeId[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect.*
-    val tpe        = TypeRepr.of[A]
-    val sym        = tpe.typeSymbol
-    val termSym    = tpe.termSymbol
-    val isEnumCase = !termSym.isNoSymbol && termSym.flags.is(Flags.Enum)
-    // Use tpe.show for applied types, union/intersection types, or when symbol is missing
-    // to ensure cache keys include type arguments.
-    // For enum cases, use termSymbol.fullName to distinguish between cases (e.g., Red vs Yellow)
-    val cacheKey = tpe match {
-      case _: AppliedType | _: OrType | _: AndType => tpe.show
-      case _ if sym.isNoSymbol                     => tpe.show
-      case _ if isEnumCase                         => termSym.fullName
-      case _                                       => sym.fullName
-    }
 
-    Option(typeIdCache.get(cacheKey)) match {
-      case Some(cached) =>
-        '{ ${ typeIdToExpr(cached) }.asInstanceOf[TypeId[A]] }
-      case None =>
-        deriveTypeIdCore[A](tpe, cacheKey)
+    val tpe = TypeRepr.of[A]
+    Option(typeIdCache.get(tpe)) match {
+      case Some(cached) => typeIdToExpr(cached).asInstanceOf[Expr[TypeId[A]]]
+      case None         => deriveTypeIdCore[A](tpe)
     }
   }
 
   private def deriveTypeIdCore[A <: AnyKind: Type](using
     Quotes
-  )(tpe: quotes.reflect.TypeRepr, cacheKey: String): Expr[TypeId[A]] = {
+  )(tpe: quotes.reflect.TypeRepr): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
     tpe match {
@@ -730,10 +714,9 @@ object TypeIdMacros {
             deriveAppliedTypeNew[A](tycon, args)
         }
       case tr: TypeRef if tr.typeSymbol.isAliasType && !isUserDefinedAlias(tr) =>
-        val dealiased = tr.dealias
-        getPredefinedTypeId[A](dealiased).getOrElse(deriveNew[A](cacheKey))
+        getPredefinedTypeId[A](tr.dealias).getOrElse(deriveNew[A](tpe))
       case _ =>
-        deriveNew[A](cacheKey)
+        deriveNew[A](tpe)
     }
   }
 
@@ -969,24 +952,18 @@ object TypeIdMacros {
     }
   }
 
-  private def deriveNew[A <: AnyKind: Type](using Quotes)(cacheKey: String): Expr[TypeId[A]] = {
+  private def deriveNew[A <: AnyKind: Type](using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
-    val tpe = quotes.reflect.TypeRepr.of[A]
-
     tpe match {
-      case tr: TypeRef if tr.typeSymbol.isAliasType =>
-        deriveTypeAlias[A](tr)
-      case _ =>
-        deriveNominalOrOpaque[A](tpe, cacheKey)
+      case tr: TypeRef if tr.typeSymbol.isAliasType => deriveTypeAlias[A](tr)
+      case _                                        => deriveNominalOrOpaque[A](tpe)
     }
   }
 
   private def deriveTypeAlias[A <: AnyKind: Type](using
     Quotes
-  )(
-    tr: quotes.reflect.TypeRef
-  ): Expr[TypeId[A]] = {
+  )(tr: quotes.reflect.TypeRef): Expr[TypeId[A]] = {
 
     val typeSymbol      = tr.typeSymbol
     val name            = typeSymbol.name
@@ -1011,43 +988,30 @@ object TypeIdMacros {
 
   private def deriveNominalOrOpaque[A <: AnyKind: Type](using
     Quotes
-  )(
-    tpe: quotes.reflect.TypeRepr,
-    cacheKey: String
-  ): Expr[TypeId[A]] = {
+  )(tpe: quotes.reflect.TypeRepr): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
-    val typeSymbol = tpe.typeSymbol
-    val termSymbol = tpe.termSymbol
-
-    val isEnumValue = !termSymbol.isNoSymbol && termSymbol.flags.is(Flags.Enum)
-
+    val typeSymbol        = tpe.typeSymbol
+    val termSymbol        = tpe.termSymbol
+    val isEnumValue       = !termSymbol.isNoSymbol && termSymbol.flags.is(Flags.Enum)
     val (name, ownerExpr) = if (isEnumValue) {
       (termSymbol.name, buildOwner(termSymbol.owner))
     } else {
-      val rawName     = typeSymbol.name
-      val nm          = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
-      val directOwner = typeSymbol.owner
-
+      val rawName           = typeSymbol.name
+      val nm                = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
+      val directOwner       = typeSymbol.owner
       val resolvedOwnerExpr = tpe match {
-        case tr: TypeRef =>
-          resolveOwnerExprFromTypeRef(tr, directOwner)
-        case _ =>
-          buildOwner(directOwner)
+        case tr: TypeRef => resolveOwnerExprFromTypeRef(tr, directOwner)
+        case _           => buildOwner(directOwner)
       }
-
       (nm, resolvedOwnerExpr)
     }
-
     val typeParamsExpr  = buildTypeParams(typeSymbol)
     val annotationsExpr = buildAnnotations(if (isEnumValue) termSymbol else typeSymbol)
-
-    val flags = typeSymbol.flags
-
-    val defKindExpr =
+    val flags           = typeSymbol.flags
+    val defKindExpr     =
       if (isEnumValue) buildEnumCaseDefKindFromTermSymbol(termSymbol)
       else buildDefKind(typeSymbol)
-
     if (flags.is(Flags.Opaque)) {
       val reprExpr     = extractOpaqueRepresentationExpr(tpe)
       val publicBounds = defKindExpr match {
@@ -1070,8 +1034,7 @@ object TypeIdMacros {
       val typeParamsValue  = analyzeTypeParams(typeSymbol)
       val defKindValue     = analyzeEnumCaseDefKind(termSymbol)
       val annotationsValue = analyzeAnnotations(termSymbol)
-
-      val typeIdValue = TypeId.nominal[Any](
+      val typeIdValue      = TypeId.nominal[Any](
         name,
         ownerValue,
         typeParamsValue,
@@ -1080,10 +1043,8 @@ object TypeIdMacros {
         None,
         annotationsValue
       )
-
-      typeIdCache.put(cacheKey, typeIdValue)
-
-      '{ ${ typeIdToExpr(typeIdValue) }.asInstanceOf[TypeId[A]] }
+      typeIdCache.put(tpe, typeIdValue)
+      typeIdToExpr(typeIdValue).asInstanceOf[Expr[TypeId[A]]]
     } else if (hasSelfType(typeSymbol)) {
       val selfTypeExpr = extractSelfType(typeSymbol)
       '{
@@ -1105,8 +1066,7 @@ object TypeIdMacros {
       val typeParamsValue  = analyzeTypeParams(typeSymbol)
       val defKindValue     = analyzeDefKind(typeSymbol)
       val annotationsValue = analyzeAnnotations(typeSymbol)
-
-      val typeIdValue = TypeId.nominal[Any](
+      val typeIdValue      = TypeId.nominal[Any](
         name,
         ownerValue,
         typeParamsValue,
@@ -1115,10 +1075,8 @@ object TypeIdMacros {
         None,
         annotationsValue
       )
-
-      typeIdCache.put(cacheKey, typeIdValue)
-
-      '{ ${ typeIdToExpr(typeIdValue) }.asInstanceOf[TypeId[A]] }
+      typeIdCache.put(tpe, typeIdValue)
+      typeIdToExpr(typeIdValue).asInstanceOf[Expr[TypeId[A]]]
     }
   }
 
