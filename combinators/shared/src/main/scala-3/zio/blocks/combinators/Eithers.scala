@@ -200,11 +200,14 @@ object Eithers {
     inline given separator[L, R]: WithTypes[Either[L, R], L, R] =
       new SeparatorImpl[L, R]
 
-    private[combinators] class SeparatorImpl[L, R] extends Separator[Either[L, R]] {
-      type Left  = L
-      type Right = R
+     private[combinators] class SeparatorImpl[L, R] extends Separator[Either[L, R]] {
+       type Left  = L
+       type Right = R
 
-      def separate(a: Either[L, R]): Either[L, R] = a
-    }
-  }
+       def separate(a: Either[L, R]): Either[L, R] = a
+     }
+   }
+
+  def combine[L, R](either: Either[L, R])(using c: Combiner[L, R]): c.Out = c.combine(either)
+  def separate[A](a: A)(using s: Separator[A]): Either[s.Left, s.Right] = s.separate(a)
 }
