@@ -20,16 +20,16 @@ object MacroCompleteSpec extends ZIOSpecDefault {
   case class Group(tags: List[String])
 
   // Normal Classes (Schema will be empty map)
-  class NormalSrc { val field: Int = 0 }
-  class NormalTgt { val field: Int = 0 }
+  class NormalSrc    { val field: Int = 0            }
+  class NormalTgt    { val field: Int = 0            }
   class NormalSrcOpt { val field: Option[Int] = None }
-  
+
   // Case Classes (Schema will have fields)
   case class Src(field: String)
   case class Tgt(field: String)
 
   sealed trait Status
-  case class Active(since: Int) extends Status
+  case class Active(since: Int)       extends Status
   case class Inactive(reason: String) extends Status
   case class UserStatus(status: Status)
 
@@ -71,12 +71,10 @@ object MacroCompleteSpec extends ZIOSpecDefault {
   // 3. TEST SUITE
   // =================================================================================
   def spec = suite("Macro Complete Spec - 100% Coverage")(
-
     // ---------------------------------------------------------------------------
     // SECTION A: AccessorMacros
     // ---------------------------------------------------------------------------
     suite("AccessorMacros Logic")(
-
       test("Simple Field Access") {
         val optic = AccessorMacros.derive[SimpleUser, String](_.name)
         assert(optic.optic.nodes)(equalTo(zio.blocks.chunk.Chunk(DynamicOptic.Node.Field("name"))))
@@ -84,7 +82,7 @@ object MacroCompleteSpec extends ZIOSpecDefault {
 
       test("Intersection Types (AndType coverage)") {
         val result = typeCheck {
-           """
+          """
            import zio.blocks.schema.migration.MacroCompleteSpec._
            import zio.blocks.schema.migration.MacroCompleteSpec.Stubs._
            AccessorMacros.derive[Mixed, Int](_.value.when[TraitA & TraitB].hashCode)
@@ -95,7 +93,7 @@ object MacroCompleteSpec extends ZIOSpecDefault {
 
       test("Complex AST: Empty Blocks and Typed expressions") {
         // { u.name } simulates Block(List(), expr)
-        val opticBlock = AccessorMacros.derive[SimpleUser, String](u => { u.name })
+        val opticBlock = AccessorMacros.derive[SimpleUser, String](u => u.name)
         // (u: SimpleUser).name simulates Typed(expr, tpe)
         val opticTyped = AccessorMacros.derive[SimpleUser, String](u => (u: SimpleUser).name)
 
@@ -125,7 +123,6 @@ object MacroCompleteSpec extends ZIOSpecDefault {
     // SECTION B: MigrationMacros
     // ---------------------------------------------------------------------------
     suite("MigrationMacros Operations")(
-
       test("Manual Cast Logic (Dead Code Coverage)") {
         // [FIXED] We pass a cast expression directly (not a lambda).
         // This hits the 'case TypeApply(asInstanceOf)' inside deriveOptic/isCast logic.

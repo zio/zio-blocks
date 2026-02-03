@@ -109,14 +109,12 @@ object MigrationMasterSpec extends ZIOSpecDefault {
         DynamicValue.Primitive(PrimitiveValue.Unit)
       )
 
-      val actions = primitives.map(p =>
-        MigrationAction.AddField(DynamicOptic.root, MigExpr.Constant(p))
-      )
+      val actions = primitives.map(p => MigrationAction.AddField(DynamicOptic.root, MigExpr.Constant(p)))
 
       val migration = DynamicMigration(actions)
       import MigrationJsonCodec._
       val decoded = migrationDecoder.decode(Json.parse(migration.toJson).toOption.get)
-      
+
       assert(decoded)(isRight(anything))
     },
 
@@ -142,7 +140,13 @@ object MigrationMasterSpec extends ZIOSpecDefault {
       val badExpr = new Json.Object(Chunk.empty)
       val errExpr = exprDecoder.decode(badExpr)
 
-      val badOp = new Json.Object(Chunk("type" -> new Json.String("converted"), "operand" -> new Json.Object(Chunk("type" -> new Json.String("identity"))), "op" -> new Json.String("UnknownOp")))
+      val badOp = new Json.Object(
+        Chunk(
+          "type"    -> new Json.String("converted"),
+          "operand" -> new Json.Object(Chunk("type" -> new Json.String("identity"))),
+          "op"      -> new Json.String("UnknownOp")
+        )
+      )
       val errOp = exprDecoder.decode(badOp)
 
       val badAction = new Json.Object(Chunk.empty)
@@ -151,7 +155,12 @@ object MigrationMasterSpec extends ZIOSpecDefault {
       val badDetails = new Json.Object(Chunk("op" -> new Json.String("Rename")))
       val errDetails = actionDecoder.decode(badDetails)
 
-      val badType = new Json.Object(Chunk("op" -> new Json.String("FlyingCar"), "details" -> new Json.Object(Chunk("at" -> new Json.String("field:x")))))
+      val badType = new Json.Object(
+        Chunk(
+          "op"      -> new Json.String("FlyingCar"),
+          "details" -> new Json.Object(Chunk("at" -> new Json.String("field:x")))
+        )
+      )
       val errType = actionDecoder.decode(badType)
 
       val badOptic = new Json.Number("123")
@@ -164,11 +173,11 @@ object MigrationMasterSpec extends ZIOSpecDefault {
       assert(errType)(isLeft(anything)) &&
       assert(errOptic)(isLeft(anything))
     },
-    
+
     test("4. Unknown Optic Node fallback") {
       import MigrationJsonCodec._
       val badNodeStr = new Json.String("something:else:entirely")
-      val decoded = nodeDecoder.decode(badNodeStr)
+      val decoded    = nodeDecoder.decode(badNodeStr)
       assert(decoded)(isRight(isSubtype[DynamicOptic.Node.Field](anything)))
     }
   )
@@ -240,10 +249,12 @@ object MigrationMasterSpec extends ZIOSpecDefault {
     test("Split action") {
       val data = DynamicValue.Record(
         Chunk(
-          "a" -> DynamicValue.Sequence(Chunk(
-            DynamicValue.Primitive(PrimitiveValue.Int(1)),
-            DynamicValue.Primitive(PrimitiveValue.Int(2))
-          ))
+          "a" -> DynamicValue.Sequence(
+            Chunk(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
         )
       )
       val action = MigrationAction.Split(
@@ -256,14 +267,14 @@ object MigrationMasterSpec extends ZIOSpecDefault {
     },
 
     test("Optionalize action") {
-      val data = DynamicValue.Primitive(PrimitiveValue.Int(42))
+      val data   = DynamicValue.Primitive(PrimitiveValue.Int(42))
       val action = MigrationAction.Optionalize(DynamicOptic.root)
       val result = MigrationInterpreter.run(data, action)
       assert(result)(isRight(equalTo(DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42))))))
     },
 
     test("Mandate action with Some") {
-      val data = DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42)))
+      val data   = DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42)))
       val action = MigrationAction.Mandate(DynamicOptic.root, MigExpr.Identity())
       val result = MigrationInterpreter.run(data, action)
       assert(result)(isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(42)))))
@@ -336,7 +347,9 @@ object MigrationMasterSpec extends ZIOSpecDefault {
     },
 
     test("Error in nested structures for prependErrorPath coverage") {
-      val data = DynamicValue.Record(Chunk("outer" -> DynamicValue.Record(Chunk("inner" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))))
+      val data = DynamicValue.Record(
+        Chunk("outer" -> DynamicValue.Record(Chunk("inner" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))))
+      )
       val action = MigrationAction.Rename(
         DynamicOptic(Vector(DynamicOptic.Node.Field("outer"), DynamicOptic.Node.Field("missing"))),
         "new"
@@ -347,14 +360,14 @@ object MigrationMasterSpec extends ZIOSpecDefault {
 
     // FIXED: Mandate on non-optional primitive definitely triggers TypeMismatch
     test("TypeMismatch on Mandate applied to non-optional primitive") {
-      val data = DynamicValue.Primitive(PrimitiveValue.Int(42))
+      val data   = DynamicValue.Primitive(PrimitiveValue.Int(42))
       val action = MigrationAction.Mandate(DynamicOptic.root, MigExpr.Identity())
-      val res = MigrationInterpreter.run(data, action)
+      val res    = MigrationInterpreter.run(data, action)
       assert(res.isLeft)(isTrue)
     },
 
     test("CaseNotFound in TransformCase") {
-      val data = DynamicValue.Variant("Silver", DynamicValue.Primitive(PrimitiveValue.Int(1)))
+      val data   = DynamicValue.Variant("Silver", DynamicValue.Primitive(PrimitiveValue.Int(1)))
       val action = MigrationAction.TransformCase(
         DynamicOptic.root,
         Vector(
@@ -411,7 +424,7 @@ object MigrationMasterSpec extends ZIOSpecDefault {
   val schemaExprSuite = suite("SchemaExpr Smart Constructors")(
     test("Should create Constant via helper") {
       val value = 123
-      val expr = MigExpr.constant[Int, Int](value, Schema[Int])
+      val expr  = MigExpr.constant[Int, Int](value, Schema[Int])
       assert(expr)(isSubtype[MigExpr.Constant[_]](anything))
     },
     test("Should create Default via helper") {
@@ -476,7 +489,7 @@ object MigrationMasterSpec extends ZIOSpecDefault {
   val typedMigrationSuite = suite("Typed Migration Suite - Primitive Types")(
     test("Successful identity migration String to String") {
       val migration = Migration(DynamicMigration.empty, Schema[String], Schema[String])
-      val result = migration.apply("test")
+      val result    = migration.apply("test")
       assert(result)(isRight(equalTo("test")))
     },
 
@@ -490,13 +503,13 @@ object MigrationMasterSpec extends ZIOSpecDefault {
         )
       )
       val migration = Migration(dynamicMigration, Schema[String], Schema[Int])
-      val result = migration.apply("123")
+      val result    = migration.apply("123")
       assert(result)(isRight(equalTo(123)))
     },
 
     test("Decoding error at root via identity migration String to Int with invalid value") {
       val migration = Migration(DynamicMigration.empty, Schema[String], Schema[Int])
-      val result = migration.apply("notAnInt")
+      val result    = migration.apply("notAnInt")
       assert(result)(isLeft(isSubtype[MigrationError.DecodingError](anything)))
     },
 
@@ -505,7 +518,7 @@ object MigrationMasterSpec extends ZIOSpecDefault {
         Vector(MigrationAction.Rename(fieldOptic("f1"), "f1_new"))
       )
       val migration = Migration(dynamicMigration, Schema[String], Schema[String])
-      val result = migration.apply("test")
+      val result    = migration.apply("test")
       assert(result)(isLeft(isSubtype[MigrationError.TypeMismatch](anything)))
     }
   )
@@ -518,18 +531,30 @@ object MigrationMasterSpec extends ZIOSpecDefault {
 
       val composed = m1 ++ m2
 
-      val data = DynamicValue.Record(Chunk("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+      val data   = DynamicValue.Record(Chunk("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
       val result = composed.apply(data)
 
       assert(result.map(_.asInstanceOf[DynamicValue.Record].fields.head._1))(isRight(equalTo("c")))
     },
 
     test("Associativity law for composition") {
-      val m1 = DynamicMigration(Vector(MigrationAction.AddField(fieldOptic("x"), MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Int(1))))))
-      val m2 = DynamicMigration(Vector(MigrationAction.AddField(fieldOptic("y"), MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Int(2))))))
-      val m3 = DynamicMigration(Vector(MigrationAction.AddField(fieldOptic("z"), MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Int(3))))))
+      val m1 = DynamicMigration(
+        Vector(
+          MigrationAction.AddField(fieldOptic("x"), MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        )
+      )
+      val m2 = DynamicMigration(
+        Vector(
+          MigrationAction.AddField(fieldOptic("y"), MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Int(2))))
+        )
+      )
+      val m3 = DynamicMigration(
+        Vector(
+          MigrationAction.AddField(fieldOptic("z"), MigExpr.Constant(DynamicValue.Primitive(PrimitiveValue.Int(3))))
+        )
+      )
 
-      val left = (m1 ++ m2) ++ m3
+      val left  = (m1 ++ m2) ++ m3
       val right = m1 ++ (m2 ++ m3)
 
       assert(left.actions)(equalTo(right.actions))
