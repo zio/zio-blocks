@@ -1,3 +1,6 @@
+package typeclassderivation
+
+import typeclassderivation.DeriveShowApproachTwo.DeriveShow.HasInstance
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.*
@@ -13,7 +16,7 @@ import zio.blocks.typeid.TypeId
  * IMPORTANT: We used type member aliases for existential types to avoid type
  * erasure issues.
  */
-object DeriveShowRecursive extends App {
+object DeriveShowApproachTwo extends App {
 
   trait Show[A] {
     def show(value: A): String
@@ -338,95 +341,95 @@ object DeriveShowRecursive extends App {
    * Example 1: Simple Person Record with two primitive fields
    */
   printHeader("Example 1: Simple Person Record with two primitive fields")
-  case class Person(name: String, age: Int)
+  case class Person(name: String, age: Int, bestFriend: Option[Person] = None)
   object Person {
     implicit val schema: Schema[Person] = Schema.derived[Person]
     implicit val show: Show[Person]     = schema.derive(DeriveShow)
   }
-  println(Person.show.show(Person("Alice", 30)))
+  println(Person.show.show(Person("Alice", 30, bestFriend = Some(Person("Bob", 25)))))
 
-  /**
-   * Example 2: Simple Shape Variant (Circle, Rectangle)
-   */
-  printHeader("Example 2: Simple Shape Variant (Circle, Rectangle)")
-  sealed trait Shape
-  case class Circle(radius: Double)                   extends Shape
-  case class Rectangle(width: Double, height: Double) extends Shape
-
-  object Shape {
-    implicit val schema: Schema[Shape] = Schema.derived[Shape]
-    implicit val show: Show[Shape]     = schema.derive(DeriveShow)
-  }
-
-  val shape1: Shape = Circle(5.0)
-  val shape2: Shape = Rectangle(4.0, 6.0)
-  println(Shape.show.show(shape1))
-  println(Shape.show.show(shape2))
-
-  /**
-   * Example 3: Recursive Tree and Expr
-   */
-  printHeader("Example 3: Recursive Tree")
-  case class Tree(value: Int, children: List[Tree])
-  object Tree {
-    implicit val schema: Schema[Tree] = Schema.derived[Tree]
-    implicit val show: Show[Tree]     = schema.derive(DeriveShow)
-  }
-
-  val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
-  println(Tree.show.show(tree))
-
-  /**
-   * Example 4: Recursive Sealed Trait (Expr)
-   */
-  printHeader("Example 4: Recursive Sealed Trait (Expr)")
-  sealed trait Expr
-  case class Num(n: Int)           extends Expr
-  case class Add(a: Expr, b: Expr) extends Expr
-
-  object Expr {
-    implicit val schema: Schema[Expr] = Schema.derived[Expr]
-    implicit val show: Show[Expr]     = schema.derive(DeriveShow)
-  }
-
-  val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
-  println(Expr.show.show(expr))
-
-  /**
-   * Example 5: DynamicValue Example
-   */
-  printHeader("Example 5: DynamicValue Example")
-  implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
-
-  val manualRecord = DynamicValue.Record(
-    Chunk(
-      "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
-      "title" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")),
-      "tags"  -> DynamicValue.Sequence(
-        Chunk(
-          DynamicValue.Primitive(PrimitiveValue.String("scala")),
-          DynamicValue.Primitive(PrimitiveValue.String("zio"))
-        )
-      )
-    )
-  )
-
-  println(dynamicShow.show(manualRecord))
-
-  /**
-   * Example 6: Simple Email Wrapper Type
-   */
-  printHeader("Example 6: Simple Email Wrapper Type")
-  case class Email(value: String)
-  object Email {
-    implicit val schema: Schema[Email] = Schema[String].transform(
-      Email(_),
-      _.value
-    )
-    implicit val show: Show[Email] = schema.derive(DeriveShow)
-  }
-
-  val email = Email("alice@example.com")
-  println(s"Email: ${Email.show.show(email)}")
+//  /**
+//   * Example 2: Simple Shape Variant (Circle, Rectangle)
+//   */
+//  printHeader("Example 2: Simple Shape Variant (Circle, Rectangle)")
+//  sealed trait Shape
+//  case class Circle(radius: Double)                   extends Shape
+//  case class Rectangle(width: Double, height: Double) extends Shape
+//
+//  object Shape {
+//    implicit val schema: Schema[Shape] = Schema.derived[Shape]
+//    implicit val show: Show[Shape]     = schema.derive(DeriveShow)
+//  }
+//
+//  val shape1: Shape = Circle(5.0)
+//  val shape2: Shape = Rectangle(4.0, 6.0)
+//  println(Shape.show.show(shape1))
+//  println(Shape.show.show(shape2))
+//
+//  /**
+//   * Example 3: Recursive Tree and Expr
+//   */
+//  printHeader("Example 3: Recursive Tree")
+//  case class Tree(value: Int, children: List[Tree])
+//  object Tree {
+//    implicit val schema: Schema[Tree] = Schema.derived[Tree]
+//    implicit val show: Show[Tree]     = schema.derive(DeriveShow)
+//  }
+//
+//  val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
+//  println(Tree.show.show(tree))
+//
+//  /**
+//   * Example 4: Recursive Sealed Trait (Expr)
+//   */
+//  printHeader("Example 4: Recursive Sealed Trait (Expr)")
+//  sealed trait Expr
+//  case class Num(n: Int)           extends Expr
+//  case class Add(a: Expr, b: Expr) extends Expr
+//
+//  object Expr {
+//    implicit val schema: Schema[Expr] = Schema.derived[Expr]
+//    implicit val show: Show[Expr]     = schema.derive(DeriveShow)
+//  }
+//
+//  val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
+//  println(Expr.show.show(expr))
+//
+//  /**
+//   * Example 5: DynamicValue Example
+//   */
+//  printHeader("Example 5: DynamicValue Example")
+//  implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
+//
+//  val manualRecord = DynamicValue.Record(
+//    Chunk(
+//      "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
+//      "title" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")),
+//      "tags"  -> DynamicValue.Sequence(
+//        Chunk(
+//          DynamicValue.Primitive(PrimitiveValue.String("scala")),
+//          DynamicValue.Primitive(PrimitiveValue.String("zio"))
+//        )
+//      )
+//    )
+//  )
+//
+//  println(dynamicShow.show(manualRecord))
+//
+//  /**
+//   * Example 6: Simple Email Wrapper Type
+//   */
+//  printHeader("Example 6: Simple Email Wrapper Type")
+//  case class Email(value: String)
+//  object Email {
+//    implicit val schema: Schema[Email] = Schema[String].transform(
+//      Email(_),
+//      _.value
+//    )
+//    implicit val show: Show[Email] = schema.derive(DeriveShow)
+//  }
+//
+//  val email = Email("alice@example.com")
+//  println(s"Email: ${Email.show.show(email)}")
 
 }
