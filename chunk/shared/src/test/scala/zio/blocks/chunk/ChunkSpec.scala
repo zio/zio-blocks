@@ -25,14 +25,11 @@ object ChunkSpec extends ChunkBaseSpec {
 
   val intGen: Gen[Any, Int] = Gen.int(-10, 10)
 
-  def toBoolFn[R, A]: Gen[R, A => Boolean] =
-    Gen.function(Gen.boolean)
+  def toBoolFn[R, A]: Gen[R, A => Boolean] = Gen.function(Gen.boolean)
 
-  def tinyChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
-    genChunkBounded(0, 3)(a)
+  def tinyChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] = genChunkBounded(0, 3)(a)
 
-  def smallChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
-    Gen.small(n => genChunkN(n)(a))
+  def smallChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] = Gen.small(n => genChunkN(n)(a))
 
   def chunkWithIndex[R, A](a: Gen[R, A]): Gen[R, (Chunk[A], Int)] =
     for {
@@ -240,7 +237,12 @@ object ChunkSpec extends ChunkBaseSpec {
       }
     },
     test("splitWhere") {
-      assert(Chunk(1, 2, 3, 4).splitWhere(_ == 2))(equalTo((Chunk(1), Chunk(2, 3, 4))))
+      assert(Chunk(1, 2, 3, 4).splitWhere(_ == 2))(equalTo((Chunk(1), Chunk(2, 3, 4)))) &&
+      assert(Chunk(1, 2, 3, 4).splitWhere(_ => false))(equalTo((Chunk(1, 2, 3, 4), Chunk.empty)))
+    },
+    test("span") {
+      assert(Chunk(1, 2, 3, 4).span(_ != 2))(equalTo((Chunk(1), Chunk(2, 3, 4)))) &&
+      assert(Chunk(1, 2, 3, 4).span(_ => true))(equalTo((Chunk(1, 2, 3, 4), Chunk.empty)))
     },
     test("length") {
       check(genChunk(intGen))(chunk => assert(chunk.length)(equalTo(chunk.toList.length)))
@@ -253,6 +255,9 @@ object ChunkSpec extends ChunkBaseSpec {
     },
     test("materialize") {
       check(genChunk(intGen))(c => assert(c.materialize.toList)(equalTo(c.toList)))
+    },
+    test("nonEmptyOrElse") {
+      check(genChunk(intGen))(c => assert(c.nonEmptyOrElse(0)(_.length))(equalTo(c.length)))
     },
     test("foldLeft") {
       check(Gen.alphaNumericString, Gen.function2(Gen.alphaNumericString), smallChunks(Gen.alphaNumericString)) {
@@ -411,7 +416,8 @@ object ChunkSpec extends ChunkBaseSpec {
       }
     },
     test("dropWhile chunk") {
-      check(genChunk(intGen), toBoolFn[Any, Int]) { (c, p) =>
+      check(genChunk(intGen), genChunk(intGen), toBoolFn[Any, Int]) { (c1, c2, p) =>
+        val c = c1 ++ c2
         assert(c.dropWhile(p).toList)(equalTo(c.toList.dropWhile(p)))
       }
     },
@@ -421,31 +427,31 @@ object ChunkSpec extends ChunkBaseSpec {
       }
     },
     test("takeWhile chunk") {
-      check(genChunk(Gen.boolean), toBoolFn[Any, Boolean]) { (c, p) =>
+      check(smallChunks(Gen.boolean), toBoolFn[Any, Boolean]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.byte), toBoolFn[Any, Byte]) { (c, p) =>
+      check(smallChunks(Gen.byte), toBoolFn[Any, Byte]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.short), toBoolFn[Any, Short]) { (c, p) =>
+      check(smallChunks(Gen.short), toBoolFn[Any, Short]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.char), toBoolFn[Any, Char]) { (c, p) =>
+      check(smallChunks(Gen.char), toBoolFn[Any, Char]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(intGen), toBoolFn[Any, Int]) { (c, p) =>
+      check(smallChunks(intGen), toBoolFn[Any, Int]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.float), toBoolFn[Any, Float]) { (c, p) =>
+      check(smallChunks(Gen.float), toBoolFn[Any, Float]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.long), toBoolFn[Any, Long]) { (c, p) =>
+      check(smallChunks(Gen.long), toBoolFn[Any, Long]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.double), toBoolFn[Any, Double]) { (c, p) =>
+      check(smallChunks(Gen.double), toBoolFn[Any, Double]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.string), toBoolFn[Any, String]) { (c, p) =>
+      check(smallChunks(Gen.string), toBoolFn[Any, String]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       }
     },
@@ -474,21 +480,22 @@ object ChunkSpec extends ChunkBaseSpec {
       assert(Chunk.fromIterable(v).toArray.toVector)(equalTo(v))
     },
     test("collect") {
-      check(genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c, pf) =>
+      check(genChunk(intGen), genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c1, c2, pf) =>
+        val c = c1 ++ c2
         assert(c.collect(pf).toList)(equalTo(c.toList.collect(pf)))
-      } &&
-      assert(Chunk.empty[Nothing].collect { case _ => 1 })(isEmpty)
+      }
     },
     test("collectWhile") {
-      check(genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c, pf) =>
+      check(genChunk(intGen), genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c1, c2, pf) =>
+        val c = c1 ++ c2
         assert(c.collectWhile(pf).toList)(equalTo(c.toList.takeWhile(pf.isDefinedAt).map(pf.apply)))
-      } &&
-      assert(Chunk.empty[Nothing].collectWhile { case _ => 1 })(isEmpty)
+      }
     },
     test("foreach") {
-      check(genChunk(intGen)) { c =>
-        var sum = 0
-        c.foreach(sum += _)
+      check(smallChunks(intGen), smallChunks(intGen)) { (c1, c2) =>
+        val c   = c1 ++ c2
+        var sum = c.headOption.getOrElse(0)
+        c.drop(1).foreach(sum += _)
         assert(sum)(equalTo(c.sum))
       }
     },
@@ -840,7 +847,7 @@ object ChunkSpec extends ChunkBaseSpec {
     },
     suite("combinators on chunks with different underlying primitives")(
       test("concat on small chunks") {
-        assertTrue((Chunk(1) ++ Chunk(2L)).materialize == Chunk(1L, 2L))
+        assertTrue(Chunk(1) ++ Chunk(2L) == Chunk(1L, 2L))
       },
       test("concat on large chunks") {
         val arr1 = Array.fill(1000)(1)

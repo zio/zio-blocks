@@ -23,7 +23,12 @@ object ChunkMapSpec extends ChunkBaseSpec {
     suite("construction")(
       test("empty creates an empty map") {
         val map = ChunkMap.empty[String, Int]
-        assertTrue(map.isEmpty, map.size == 0)
+        assertTrue(
+          map.isEmpty,
+          map.size == 0,
+          map.empty.isEmpty,
+          map.empty.size == 0
+        )
       },
       test("apply creates map from varargs") {
         val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
@@ -138,19 +143,35 @@ object ChunkMapSpec extends ChunkBaseSpec {
     ),
     suite("transformation")(
       test("map transforms key-value pairs") {
-        val map    = ChunkMap("a" -> 1, "b" -> 2)
-        val mapped = map.map { case (k, v) => (k.toUpperCase, v * 10) }
-        assertTrue(mapped("A") == 10, mapped("B") == 20)
+        val map1    = ChunkMap("a" -> 1, "b" -> 2)
+        val map2    = ChunkMap.empty[String, Int]
+        val mapped1 = map1.map { case (k, v) => (k.toUpperCase, v * 10) }
+        val mapped2 = map2.map { case (k, v) => (k.toUpperCase, v * 10) }
+        assertTrue(
+          mapped1("A") == 10,
+          mapped1("B") == 20,
+          mapped2.isEmpty
+        )
       },
       test("filter keeps matching pairs") {
-        val map      = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
-        val filtered = map.filter { case (_, v) => v % 2 == 1 }
-        assertTrue(filtered.size == 2, filtered.contains("a"), filtered.contains("c"), !filtered.contains("b"))
+        val map1      = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
+        val map2      = ChunkMap.empty[String, Int]
+        val filtered1 = map1.filter { case (_, v) => v % 2 == 1 }
+        val filtered2 = map2.filter { case (_, v) => v % 2 == 1 }
+        assertTrue(
+          filtered1.size == 2,
+          filtered1.contains("a"),
+          filtered1.contains("c"),
+          !filtered1.contains("b"),
+          filtered2.isEmpty
+        )
       },
       test("flatMap transforms to multiple pairs") {
-        val map        = ChunkMap("a" -> 1)
-        val flatMapped = map.flatMap { case (k, v) => List((k, v), (k + k, v + v)) }
-        assertTrue(flatMapped.size == 2, flatMapped("a") == 1, flatMapped("aa") == 2)
+        val map1        = ChunkMap("a" -> 1)
+        val map2        = ChunkMap.empty[String, Int]
+        val flatMapped1 = map1.flatMap { case (k, v) => List((k, v), (k + k, v + v)) }
+        val flatMapped2 = map2.flatMap { case (k, v) => List((k, v), (k + k, v + v)) }
+        assertTrue(flatMapped1.size == 2, flatMapped1("a") == 1, flatMapped1("aa") == 2, flatMapped2.isEmpty)
       },
       test("transformValues transforms only values") {
         val map         = ChunkMap("a" -> 1, "b" -> 2)
@@ -162,6 +183,41 @@ object ChunkMapSpec extends ChunkBaseSpec {
         val map2   = ChunkMap("c" -> 3, "d" -> 4)
         val concat = map1.concat(map2)
         assertTrue(concat.size == 4)
+      }
+    ),
+    suite("iteration")(
+      test("foreach") {
+        val map  = ChunkMap("a" -> 1, "b" -> 2)
+        var map2 = ChunkMap.empty[String, Int]
+        map.foreach { case (k, v) => map2 = map2.updated(k.toUpperCase, v * 10) }
+        assertTrue(map2("A") == 10, map2("B") == 20)
+      },
+      test("foreachEntry") {
+        val map  = ChunkMap("a" -> 1, "b" -> 2)
+        var map2 = ChunkMap.empty[String, Int]
+        map.foreachEntry { (k, v) => map2 = map2.updated(k.toUpperCase, v * 10) }
+        assertTrue(map2("A") == 10, map2("B") == 20)
+      },
+      test("keysIterator and valuesIterator") {
+        val map            = ChunkMap("a" -> 1, "b" -> 2)
+        var map2           = ChunkMap.empty[String, Int]
+        val keysIterator   = map.keysIterator
+        val valuesIterator = map.valuesIterator
+        while (keysIterator.hasNext && valuesIterator.hasNext) {
+          map2 = map2.updated(keysIterator.next().toUpperCase, valuesIterator.next() * 10)
+        }
+        assertTrue(map2("A") == 10, map2("B") == 20)
+      },
+      test("keyAtIndex and valueAtIndex") {
+        val map  = ChunkMap("a" -> 1, "b" -> 2)
+        var map2 = ChunkMap.empty[String, Int]
+        val len  = map.size
+        var idx  = 0
+        while (idx < len) {
+          map2 = map2.updated(map.keyAtIndex(idx).toUpperCase, map.valueAtIndex(idx) * 10)
+          idx += 1
+        }
+        assertTrue(map2("A") == 10, map2("B") == 20)
       }
     ),
     suite("equality")(
@@ -210,12 +266,25 @@ object ChunkMapSpec extends ChunkBaseSpec {
     ),
     suite("builder")(
       test("builder handles duplicate keys by keeping last value") {
-        val map = ChunkMap("a" -> 1, "b" -> 2, "a" -> 100)
-        assertTrue(map.size == 2, map("a") == 100, map("b") == 2)
+        val builder = ChunkMap.newBuilder[String, Int]
+        builder.addAll(Seq("a" -> 1, "b" -> 2, "a" -> 100, "c" -> 3, "d" -> 4, "e" -> 5))
+        val map = builder.result()
+        assertTrue(map.size == 5, map("a") == 100, map("b") == 2)
       },
       test("builder preserves first occurrence order for duplicates") {
-        val map = ChunkMap("a" -> 1, "b" -> 2, "a" -> 100)
+        val builder = ChunkMap.newBuilder[String, Int]
+        builder.addAll(Seq("a" -> 1, "b" -> 2, "a" -> 100))
+        val map = builder.result()
         assertTrue(map.keysChunk == Chunk("a", "b"))
+      },
+      test("builder can be reused after cleaning") {
+        val builder = ChunkMap.newBuilder[String, Int]
+        builder.sizeHint(10)
+        builder.addOne("a" -> 1)
+        builder.clear()
+        val map = builder.result()
+        builder.addOne("b" -> 2)
+        assertTrue(map.isEmpty, builder.result().keysChunk == Chunk("b"))
       }
     )
   )
