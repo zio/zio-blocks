@@ -32,7 +32,7 @@ object CloseableRunSpec extends ZIOSpecDefault {
       finalizers.add { cleaned = true }
       val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
       try {
-        closeable.run { throw new RuntimeException("boom") }
+        closeable.run(throw new RuntimeException("boom"))
       } catch {
         case _: RuntimeException => ()
       }
