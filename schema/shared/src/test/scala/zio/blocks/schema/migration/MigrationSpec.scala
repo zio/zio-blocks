@@ -1980,6 +1980,84 @@ object MigrationSpec extends ZIOSpecDefault {
         val reversed  = migration.reverse
         assertTrue(reversed.size == 3)
       }
+    ),
+
+    suite("Migration Companion Methods")(
+      test("Migration.identity creates empty migration") {
+        case class Person(name: String)
+        implicit val schema: Schema[Person] = Schema.derived[Person]
+
+        val migration = Migration.identity[Person]
+        assertTrue(migration.isEmpty && migration.size == 0)
+      },
+
+      test("Migration.fromAction creates single-action migration") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val action = MigrationAction.AddField(
+          DynamicOptic.root.field("age"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        )
+        val migration = Migration.fromAction[PersonV1, PersonV2](action)
+        assertTrue(migration.size == 1)
+      },
+
+      test("Migration.fromDynamic wraps DynamicMigration") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val dynamicMigration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("age"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
+        )
+        val migration = Migration.fromDynamic[PersonV1, PersonV2](dynamicMigration)
+        assertTrue(migration.size == 1 && migration.dynamicMigration == dynamicMigration)
+      },
+
+      test("Migration.++ composes migrations") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
+        case class PersonV3(name: String, age: Int, city: String)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+        implicit val v3Schema: Schema[PersonV3] = Schema.derived[PersonV3]
+
+        val m1 = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .build
+        val m2 = Migration
+          .newBuilder[PersonV2, PersonV3]
+          .addField(_.city, literal(DynamicValue.Primitive(PrimitiveValue.String(""))))
+          .build
+        val composed = m1 ++ m2
+        assertTrue(composed.size == 2)
+      },
+
+      test("Migration.reverse swaps schemas") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .build
+        val reversed = migration.reverse
+        assertTrue(reversed.sourceSchema == v2Schema && reversed.targetSchema == v1Schema)
+      }
     )
   )
 }
