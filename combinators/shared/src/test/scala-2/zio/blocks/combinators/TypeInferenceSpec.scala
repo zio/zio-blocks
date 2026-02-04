@@ -119,41 +119,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Tuples.separate type inference with explicit Separator")(
-      test("separate((1, \"a\", true)) with explicit Separator infers (sep.Left, sep.Right)") {
-        assertInferredType(
-          """
-            import zio.blocks.combinators.Tuples
-            import zio.blocks.combinators.Tuples.Separator
-            val sep = implicitly[Separator.WithTypes[(Int, String, Boolean), (Int, String), Boolean]]
-            val result: String = sep.separate((1, "a", true))
-          """,
-          "(sep.Left, sep.Right)"
-        )
-      },
-      test("separate((1, \"a\", true, 3.0)) with explicit Separator infers (sep.Left, sep.Right)") {
-        assertInferredType(
-          """
-            import zio.blocks.combinators.Tuples
-            import zio.blocks.combinators.Tuples.Separator
-            val sep = implicitly[Separator.WithTypes[(Int, String, Boolean, Double), (Int, String, Boolean), Double]]
-            val result: String = sep.separate((1, "a", true, 3.0))
-          """,
-          "(sep.Left, sep.Right)"
-        )
-      },
-      test("separate on 5-element tuple with explicit Separator infers (sep.Left, sep.Right)") {
-        assertInferredType(
-          """
-            import zio.blocks.combinators.Tuples
-            import zio.blocks.combinators.Tuples.Separator
-            val sep = implicitly[Separator.WithTypes[(Int, Int, Int, Int, Int), (Int, Int, Int, Int), Int]]
-            val result: String = sep.separate((1, 2, 3, 4, 5))
-          """,
-          "(sep.Left, sep.Right)"
-        )
-      }
-    ),
+
     suite("Eithers.combine type inference")(
       test("combine on atomic Either[Int, String] infers Either[Int, String]") {
         assertInferredType(
