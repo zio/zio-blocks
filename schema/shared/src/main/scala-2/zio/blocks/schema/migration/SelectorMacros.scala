@@ -56,7 +56,7 @@ object SelectorMacros {
 
       // Field access: _.field or _.a.b.c
       case Select(parent, fieldName) =>
-        val parentOptic = toDynamicOptic(parent)
+        val parentOptic  = toDynamicOptic(parent)
         val fieldNameStr = fieldName.decodedName.toString
         q"$parentOptic.field($fieldNameStr)"
 
@@ -78,7 +78,7 @@ object SelectorMacros {
       // Case selection: _.variant.when[CaseType]
       case q"$_[..$_]($parent).when[$caseTree]" =>
         val parentOptic = toDynamicOptic(parent)
-        val caseName = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
+        val caseName    = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
         q"$parentOptic.caseOf($caseName)"
 
       // Wrapper unwrap: _.wrapper.wrapped[Inner]
@@ -101,7 +101,7 @@ object SelectorMacros {
     }
 
     val pathBody = toPathBody(selector.tree)
-    val result = toDynamicOptic(pathBody)
+    val result   = toDynamicOptic(pathBody)
     c.Expr[DynamicOptic](result)
   }
 }
