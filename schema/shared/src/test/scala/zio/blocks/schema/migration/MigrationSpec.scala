@@ -1210,6 +1210,201 @@ object MigrationSpec extends ZIOSpecDefault {
           )
         )
         assertTrue(migration(input).isLeft)
+      },
+
+      test("migration with multiple actions stops on first failure") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration(
+          MigrationAction.Rename(DynamicOptic.root.field("nonexistent"), "b"),
+          MigrationAction.Rename(DynamicOptic.root.field("a"), "c")
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("transformElements with nested record in sequence") {
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record("value" -> DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            DynamicValue.Record("value" -> DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("replaced")))
+          )
+        )
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.String("replaced")),
+            DynamicValue.Primitive(PrimitiveValue.String("replaced"))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("transformKeys on map with multiple entries") {
+        val input = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("k1")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            (DynamicValue.Primitive(PrimitiveValue.String("k2")), DynamicValue.Primitive(PrimitiveValue.Int(2))),
+            (DynamicValue.Primitive(PrimitiveValue.String("k3")), DynamicValue.Primitive(PrimitiveValue.Int(3)))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("unified")))
+          )
+        )
+        val expected = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("unified")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            (DynamicValue.Primitive(PrimitiveValue.String("unified")), DynamicValue.Primitive(PrimitiveValue.Int(2))),
+            (DynamicValue.Primitive(PrimitiveValue.String("unified")), DynamicValue.Primitive(PrimitiveValue.Int(3)))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("variant case mismatch in transform case") {
+        val input =
+          DynamicValue.Variant("CaseA", DynamicValue.Record("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            Vector(
+              MigrationAction.Rename(DynamicOptic.root.field("x"), "y")
+            )
+          )
+        )
+        val expected =
+          DynamicValue.Variant("CaseA", DynamicValue.Record("y" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath navigates deeply nested records with field operations") {
+        val input = DynamicValue.Record(
+          "l1" -> DynamicValue.Record(
+            "l2" -> DynamicValue.Record(
+              "l3" -> DynamicValue.Record(
+                "target" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+              )
+            )
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("l1").field("l2").field("l3").field("target"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(42L)))
+          )
+        )
+        val expected = DynamicValue.Record(
+          "l1" -> DynamicValue.Record(
+            "l2" -> DynamicValue.Record(
+              "l3" -> DynamicValue.Record(
+                "target" -> DynamicValue.Primitive(PrimitiveValue.Long(42L))
+              )
+            )
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath Node.Wrapped allows path continuation") {
+        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Wrapped
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(42L)))
+          )
+        )
+        assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
+      },
+
+      test("split creates multiple fields from single source") {
+        val input = DynamicValue.Record(
+          "source" -> DynamicValue.Primitive(PrimitiveValue.String("data"))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.Split(
+            at = DynamicOptic.root.field("source"),
+            targetPaths = Vector(
+              DynamicOptic.root.field("target1"),
+              DynamicOptic.root.field("target2")
+            ),
+            splitter = literal(DynamicValue.Primitive(PrimitiveValue.String("split")))
+          )
+        )
+        assertTrue(migration(input).isRight)
+      },
+
+      test("mandate with None and default value") {
+        val input        = DynamicValue.Variant("None", DynamicValue.Record.empty)
+        val defaultValue = DynamicValue.Primitive(PrimitiveValue.String("default"))
+        val migration    = DynamicMigration.single(
+          MigrationAction.Mandate(
+            DynamicOptic.root,
+            literal(defaultValue)
+          )
+        )
+        assertTrue(migration(input) == Right(defaultValue))
+      },
+
+      test("optionalize double wraps value") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.String("hello"))
+        val migration = DynamicMigration.single(
+          MigrationAction.Optionalize(DynamicOptic.root)
+        )
+        val expected = DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.String("hello")))
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("join with empty source paths") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.Join(
+            at = DynamicOptic.root.field("joined"),
+            sourcePaths = Vector.empty,
+            combiner = literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+          )
+        )
+        assertTrue(migration(input).isRight)
+      },
+
+      test("renameCase preserves non-matching variants") {
+        val input     = DynamicValue.Variant("Other", DynamicValue.Record.empty)
+        val migration = DynamicMigration.single(
+          MigrationAction.RenameCase(DynamicOptic.root, "Target", "NewName")
+        )
+        assertTrue(migration(input) == Right(input))
+      },
+
+      test("transformElements on empty sequence returns empty") {
+        val input     = DynamicValue.Sequence(Chunk.empty)
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input) == Right(DynamicValue.Sequence(Chunk.empty)))
+      },
+
+      test("transformValues on empty map returns empty") {
+        val input     = DynamicValue.Map(Chunk.empty)
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValues(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("any")))
+          )
+        )
+        assertTrue(migration(input) == Right(DynamicValue.Map(Chunk.empty)))
       }
     )
   )
