@@ -45,8 +45,10 @@ An untyped, serializable migration operating on `DynamicValue`:
 ```scala
 val dynamicMigration = migration.dynamicMigration
 
+import zio.blocks.chunk.Chunk
+
 // Apply to DynamicValue directly
-val oldValue: DynamicValue = DynamicValue.Record(Vector(
+val oldValue: DynamicValue = DynamicValue.Record(Chunk(
   "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
   "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
 ))

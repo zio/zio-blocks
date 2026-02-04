@@ -10,7 +10,7 @@ object SelectorMacrosSpec extends SchemaBaseSpec {
   final case class Person(addresses: List[Address])
 
   sealed trait PaymentMethod
-  final case class CreditCard(number: String) extends PaymentMethod
+  final case class CreditCard(number: String)    extends PaymentMethod
   final case class WireTransfer(account: String) extends PaymentMethod
   final case class Buyer(payment: PaymentMethod)
 

@@ -21,16 +21,16 @@ object StructuralMigrationApplySpec extends SchemaBaseSpec {
       val old: Old  = new OldValue(1)
 
       migration(old) match {
-        case Left(err)  => assertTrue(err.message.contains("structural source schema"))
-        case Right(_)   => assertTrue(false)
+        case Left(err) => assertTrue(err.message.contains("structural source schema"))
+        case Right(_)  => assertTrue(false)
       }
     },
     test("Migration.apply fails with clear message for structural target schemas") {
       val migration = Migration.newBuilder[New, Old].buildPartial
 
       migration(New(1)) match {
-        case Left(err)  => assertTrue(err.message.contains("structural target schema"))
-        case Right(_)   => assertTrue(false)
+        case Left(err) => assertTrue(err.message.contains("structural target schema"))
+        case Right(_)  => assertTrue(false)
       }
     }
   )

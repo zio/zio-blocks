@@ -3,7 +3,8 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * A type-safe selector for building [[DynamicOptic]] paths from lambda expressions.
+ * A type-safe selector for building [[DynamicOptic]] paths from lambda
+ * expressions.
  *
  * Selectors allow compile-time validation of field paths while producing
  * runtime [[DynamicOptic]] values. The macro inspects selector lambdas like

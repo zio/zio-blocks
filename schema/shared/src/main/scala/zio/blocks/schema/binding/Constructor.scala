@@ -27,6 +27,7 @@ class ConstantConstructor[A](constant: A) extends Constructor[A] {
 
 /**
  * A constructor for structural types that exist only at compile-time.
- * Structural types cannot be instantiated at runtime; they work only with DynamicValue.
+ * Structural types cannot be instantiated at runtime; they work only with
+ * DynamicValue.
  */
 abstract class StructuralConstructor[+A] extends Constructor[A]

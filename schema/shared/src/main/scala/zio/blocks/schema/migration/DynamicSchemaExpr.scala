@@ -32,10 +32,12 @@ sealed trait DynamicSchemaExpr { self =>
 object DynamicSchemaExpr {
 
   /**
-   * Convert a typed [[SchemaExpr]] into a fully serializable [[DynamicSchemaExpr]].
+   * Convert a typed [[SchemaExpr]] into a fully serializable
+   * [[DynamicSchemaExpr]].
    *
    * Notes:
-   *   - Only the subset of SchemaExpr operations supported by DynamicSchemaExpr can be converted.
+   *   - Only the subset of SchemaExpr operations supported by DynamicSchemaExpr
+   *     can be converted.
    *   - [[SchemaExpr.StringRegexMatch]] is currently not supported.
    */
   def fromSchemaExpr[A, B](expr: SchemaExpr[A, B]): Either[String, DynamicSchemaExpr] = expr match {
@@ -71,9 +73,10 @@ object DynamicSchemaExpr {
           case SchemaExpr.RelationalOperator.LessThan           => DynamicSchemaExpr.RelationalOperator.LessThan
           case SchemaExpr.RelationalOperator.LessThanOrEqual    => DynamicSchemaExpr.RelationalOperator.LessThanOrEqual
           case SchemaExpr.RelationalOperator.GreaterThan        => DynamicSchemaExpr.RelationalOperator.GreaterThan
-          case SchemaExpr.RelationalOperator.GreaterThanOrEqual => DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual
-          case SchemaExpr.RelationalOperator.Equal              => DynamicSchemaExpr.RelationalOperator.Equal
-          case SchemaExpr.RelationalOperator.NotEqual           => DynamicSchemaExpr.RelationalOperator.NotEqual
+          case SchemaExpr.RelationalOperator.GreaterThanOrEqual =>
+            DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual
+          case SchemaExpr.RelationalOperator.Equal    => DynamicSchemaExpr.RelationalOperator.Equal
+          case SchemaExpr.RelationalOperator.NotEqual => DynamicSchemaExpr.RelationalOperator.NotEqual
         }
         DynamicSchemaExpr.Relational(l, r, dynOp)
       }
@@ -360,6 +363,7 @@ object DynamicSchemaExpr {
     case _: DynamicValue.Variant   => "Variant"
     case _: DynamicValue.Sequence  => "Sequence"
     case _: DynamicValue.Map       => "Map"
+    case DynamicValue.Null         => "Null"
   }
 
   // Navigate into a DynamicValue using a DynamicOptic path

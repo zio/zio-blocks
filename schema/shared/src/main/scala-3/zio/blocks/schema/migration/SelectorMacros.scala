@@ -113,49 +113,49 @@ object SelectorMacros {
             // Optional access doesn't add to the DynamicOptic path.
             recurse(qualifier)
           case "head" =>
-            '{ ${recurse(qualifier)}.at(0) }
+            '{ ${ recurse(qualifier) }.at(0) }
           case "keys" =>
-            '{ ${recurse(qualifier)}.mapKeys }
+            '{ ${ recurse(qualifier) }.mapKeys }
           case "values" =>
-            '{ ${recurse(qualifier)}.mapValues }
+            '{ ${ recurse(qualifier) }.mapValues }
           case fieldName =>
-            '{ ${recurse(qualifier)}.field(${ Expr(fieldName) }) }
+            '{ ${ recurse(qualifier) }.field(${ Expr(fieldName) }) }
         }
 
       // Indexed access: _.seq(0)
       case Apply(Select(qualifier, "apply"), List(index)) if index.tpe.widen.dealias <:< TypeRepr.of[Int] =>
-        '{ ${recurse(qualifier)}.at(${ index.asExprOf[Int] }) }
+        '{ ${ recurse(qualifier) }.at(${ index.asExprOf[Int] }) }
 
       // .each
       case Apply(TypeApply(eachTerm, _), List(parent)) if hasName(eachTerm, "each") =>
-        '{ ${recurse(parent)}.elements }
+        '{ ${ recurse(parent) }.elements }
 
       // .eachKey
       case Apply(TypeApply(keyTerm, _), List(parent)) if hasName(keyTerm, "eachKey") =>
-        '{ ${recurse(parent)}.mapKeys }
+        '{ ${ recurse(parent) }.mapKeys }
 
       // .eachValue
       case Apply(TypeApply(valueTerm, _), List(parent)) if hasName(valueTerm, "eachValue") =>
-        '{ ${recurse(parent)}.mapValues }
+        '{ ${ recurse(parent) }.mapValues }
 
       // .when[Case]
       case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree)) if hasName(caseTerm, "when") =>
         val caseName = caseNameFromType(typeTree.tpe)
-        '{ ${recurse(parent)}.caseOf(${ Expr(caseName) }) }
+        '{ ${ recurse(parent) }.caseOf(${ Expr(caseName) }) }
 
       // .wrapped[Wrapped]
       case TypeApply(Apply(TypeApply(wrapperTerm, _), List(parent)), List(_)) if hasName(wrapperTerm, "wrapped") =>
-        '{ ${recurse(parent)}.wrapped }
+        '{ ${ recurse(parent) }.wrapped }
 
       // .at(index)
       case Apply(Apply(TypeApply(atTerm, _), List(parent)), List(index)) if hasName(atTerm, "at") =>
-        '{ ${recurse(parent)}.at(${ index.asExprOf[Int] }) }
+        '{ ${ recurse(parent) }.at(${ index.asExprOf[Int] }) }
 
       // .atIndices(i1, i2, ...)
       case Apply(Apply(TypeApply(atIndicesTerm, _), List(parent)), List(Typed(Repeated(indices, _), _)))
           if hasName(atIndicesTerm, "atIndices") =>
         val indicesExprs = indices.map(_.asExprOf[Int])
-        '{ ${recurse(parent)}.atIndices(${ Varargs(indicesExprs) }*) }
+        '{ ${ recurse(parent) }.atIndices(${ Varargs(indicesExprs) }*) }
 
       // .atKey(key)
       case Apply(Apply(TypeApply(atKeyTerm, _), List(parent)), List(key)) if hasName(atKeyTerm, "atKey") =>
@@ -165,7 +165,7 @@ object SelectorMacros {
               case Some(schemaExpr) =>
                 '{
                   given Schema[k] = $schemaExpr
-                  ${recurse(parent)}.atKey(${ key.asExprOf[k] })
+                  ${ recurse(parent) }.atKey(${ key.asExprOf[k] })
                 }
               case None =>
                 report.errorAndAbort(s"Missing Schema for key type: ${key.tpe.widen.show}")
@@ -186,7 +186,7 @@ object SelectorMacros {
                   case Some(schemaExpr) =>
                     '{
                       given Schema[k] = $schemaExpr
-                      ${recurse(parent)}.atKeys(${ Varargs(keyExprs) }*)
+                      ${ recurse(parent) }.atKeys(${ Varargs(keyExprs) }*)
                     }
                   case None =>
                     report.errorAndAbort(s"Missing Schema for key type: ${head.tpe.widen.show}")

@@ -221,9 +221,10 @@ Having the schema for `DynamicValue` allows seamless encoding/decoding between `
 
 ```scala
 import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
 
 // Records have unquoted keys
-val record = DynamicValue.Record(Vector(
+val record = DynamicValue.Record(Chunk(
   "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
   "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
 ))
@@ -234,7 +235,7 @@ println(record)
 // }
 
 // Maps have quoted string keys
-val map = DynamicValue.Map(Vector(
+val map = DynamicValue.Map(Chunk(
   DynamicValue.Primitive(PrimitiveValue.String("key")) ->
     DynamicValue.Primitive(PrimitiveValue.String("value"))
 ))
@@ -244,7 +245,7 @@ println(map)
 // }
 
 // Variants use @ metadata
-val variant = DynamicValue.Variant("Some", DynamicValue.Record(Vector(
+val variant = DynamicValue.Variant("Some", DynamicValue.Record(Chunk(
   "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
 )))
 println(variant)

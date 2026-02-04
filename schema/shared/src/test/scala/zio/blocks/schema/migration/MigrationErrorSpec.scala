@@ -2,7 +2,6 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema._
 import zio.test._
-import zio.test.Assertion._
 
 object MigrationErrorSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("MigrationErrorSpec")(
@@ -49,8 +48,8 @@ object MigrationErrorSpec extends SchemaBaseSpec {
     ),
     suite("MigrationError composition")(
       test("can combine multiple errors with ++") {
-        val error1 = MigrationError.single(MigrationError.FieldNotFound(DynamicOptic.root, "a"))
-        val error2 = MigrationError.single(MigrationError.FieldNotFound(DynamicOptic.root, "b"))
+        val error1   = MigrationError.single(MigrationError.FieldNotFound(DynamicOptic.root, "a"))
+        val error2   = MigrationError.single(MigrationError.FieldNotFound(DynamicOptic.root, "b"))
         val combined = error1 ++ error2
         assertTrue(
           combined.errors.length == 2,

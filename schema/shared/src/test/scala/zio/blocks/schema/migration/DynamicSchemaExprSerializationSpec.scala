@@ -14,14 +14,14 @@ object DynamicSchemaExprSerializationSpec extends SchemaBaseSpec {
     suite("DynamicSchemaExprSerializationSpec")(
       test("Literal encodes/decodes via JsonBinaryCodec") {
         val expr: DynamicSchemaExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
-        val codec = Schema[DynamicSchemaExpr].derive(deriver)
-        val json  = codec.encodeToString(expr)
+        val codec                   = Schema[DynamicSchemaExpr].derive(deriver)
+        val json                    = codec.encodeToString(expr)
         assertTrue(codec.decode(json) == Right(expr))
       },
       test("Path encodes/decodes via JsonBinaryCodec") {
         val expr: DynamicSchemaExpr = DynamicSchemaExpr.Path(DynamicOptic.root.field("test"))
-        val codec = Schema[DynamicSchemaExpr].derive(deriver)
-        val json  = codec.encodeToString(expr)
+        val codec                   = Schema[DynamicSchemaExpr].derive(deriver)
+        val json                    = codec.encodeToString(expr)
         assertTrue(codec.decode(json) == Right(expr))
       },
       test("Arithmetic encodes/decodes via JsonBinaryCodec") {

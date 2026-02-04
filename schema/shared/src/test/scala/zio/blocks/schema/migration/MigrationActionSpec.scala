@@ -1,8 +1,8 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
 import zio.test._
-import zio.test.Assertion._
 
 object MigrationActionSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("MigrationActionSpec")(
@@ -48,7 +48,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("RenameField")(
       test("reverse swaps from and to") {
-        val action = MigrationAction.RenameField(DynamicOptic.root, "oldName", "newName")
+        val action   = MigrationAction.RenameField(DynamicOptic.root, "oldName", "newName")
         val reversed = action.reverse.asInstanceOf[MigrationAction.RenameField]
         assertTrue(
           reversed.from == "newName",
@@ -59,10 +59,10 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("TransformValue")(
       test("reverse swaps transform and reverseTransform") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val transform        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val reverseTransform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
-        val action = MigrationAction.TransformValue(DynamicOptic.root.field("x"), transform, reverseTransform)
-        val reversed = action.reverse.asInstanceOf[MigrationAction.TransformValue]
+        val action           = MigrationAction.TransformValue(DynamicOptic.root.field("x"), transform, reverseTransform)
+        val reversed         = action.reverse.asInstanceOf[MigrationAction.TransformValue]
         assertTrue(
           reversed.transform == reverseTransform,
           reversed.reverseTransform == transform
@@ -80,7 +80,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("Optionalize")(
       test("reverse is Mandate with DefaultValue") {
-        val action = MigrationAction.Optionalize(DynamicOptic.root.field("field"))
+        val action   = MigrationAction.Optionalize(DynamicOptic.root.field("field"))
         val reversed = action.reverse
         assertTrue(reversed.isInstanceOf[MigrationAction.Mandate])
         val mandate = reversed.asInstanceOf[MigrationAction.Mandate]
@@ -89,10 +89,10 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("ChangeType")(
       test("reverse swaps converters") {
-        val converter = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "String")
+        val converter        = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "String")
         val reverseConverter = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "Int")
-        val action = MigrationAction.ChangeType(DynamicOptic.root.field("x"), converter, reverseConverter)
-        val reversed = action.reverse.asInstanceOf[MigrationAction.ChangeType]
+        val action           = MigrationAction.ChangeType(DynamicOptic.root.field("x"), converter, reverseConverter)
+        val reversed         = action.reverse.asInstanceOf[MigrationAction.ChangeType]
         assertTrue(
           reversed.converter == reverseConverter,
           reversed.reverseConverter == converter
@@ -105,7 +105,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
           DynamicOptic.root.field("fullName"),
           Vector(DynamicOptic.root.field("firstName"), DynamicOptic.root.field("lastName")),
           DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(""))),
-          DynamicSchemaExpr.Literal(DynamicValue.Sequence(Vector.empty))
+          DynamicSchemaExpr.Literal(DynamicValue.Sequence(Chunk.empty))
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Split])
       }
@@ -115,7 +115,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
         val action = MigrationAction.Split(
           DynamicOptic.root.field("fullName"),
           Vector(DynamicOptic.root.field("firstName"), DynamicOptic.root.field("lastName")),
-          DynamicSchemaExpr.Literal(DynamicValue.Sequence(Vector.empty)),
+          DynamicSchemaExpr.Literal(DynamicValue.Sequence(Chunk.empty)),
           DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Join])
@@ -123,7 +123,7 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("RenameCase")(
       test("reverse swaps from and to") {
-        val action = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
+        val action   = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
         val reversed = action.reverse.asInstanceOf[MigrationAction.RenameCase]
         assertTrue(
           reversed.from == "NewCase",
@@ -135,9 +135,13 @@ object MigrationActionSpec extends SchemaBaseSpec {
       test("reverse reverses nested actions in reverse order") {
         val nestedActions = Vector(
           MigrationAction.RenameField(DynamicOptic.root, "a", "b"),
-          MigrationAction.AddField(DynamicOptic.root, "c", DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          MigrationAction.AddField(
+            DynamicOptic.root,
+            "c",
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
         )
-        val action = MigrationAction.TransformCase(DynamicOptic.root, "Case1", nestedActions)
+        val action   = MigrationAction.TransformCase(DynamicOptic.root, "Case1", nestedActions)
         val reversed = action.reverse.asInstanceOf[MigrationAction.TransformCase]
         assertTrue(
           reversed.caseName == "Case1",
@@ -148,10 +152,10 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("TransformElements")(
       test("reverse swaps transforms") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val transform        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val reverseTransform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
-        val action = MigrationAction.TransformElements(DynamicOptic.root.field("items"), transform, reverseTransform)
-        val reversed = action.reverse.asInstanceOf[MigrationAction.TransformElements]
+        val action           = MigrationAction.TransformElements(DynamicOptic.root.field("items"), transform, reverseTransform)
+        val reversed         = action.reverse.asInstanceOf[MigrationAction.TransformElements]
         assertTrue(
           reversed.transform == reverseTransform,
           reversed.reverseTransform == transform
@@ -160,10 +164,10 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("TransformKeys")(
       test("reverse swaps transforms") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("new")))
+        val transform        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("new")))
         val reverseTransform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("old")))
-        val action = MigrationAction.TransformKeys(DynamicOptic.root.field("map"), transform, reverseTransform)
-        val reversed = action.reverse.asInstanceOf[MigrationAction.TransformKeys]
+        val action           = MigrationAction.TransformKeys(DynamicOptic.root.field("map"), transform, reverseTransform)
+        val reversed         = action.reverse.asInstanceOf[MigrationAction.TransformKeys]
         assertTrue(
           reversed.transform == reverseTransform,
           reversed.reverseTransform == transform
@@ -172,10 +176,10 @@ object MigrationActionSpec extends SchemaBaseSpec {
     ),
     suite("TransformValues")(
       test("reverse swaps transforms") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100)))
+        val transform        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100)))
         val reverseTransform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val action = MigrationAction.TransformValues(DynamicOptic.root.field("map"), transform, reverseTransform)
-        val reversed = action.reverse.asInstanceOf[MigrationAction.TransformValues]
+        val action           = MigrationAction.TransformValues(DynamicOptic.root.field("map"), transform, reverseTransform)
+        val reversed         = action.reverse.asInstanceOf[MigrationAction.TransformValues]
         assertTrue(
           reversed.transform == reverseTransform,
           reversed.reverseTransform == transform

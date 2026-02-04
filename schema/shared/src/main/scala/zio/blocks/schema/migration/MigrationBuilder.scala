@@ -398,8 +398,8 @@ class MigrationBuilder[A, B](
   /**
    * Build the migration and return validation result.
    *
-   * Unlike `build`, this does not throw on validation failure but returns
-   * the validation result along with the migration.
+   * Unlike `build`, this does not throw on validation failure but returns the
+   * validation result along with the migration.
    */
   def buildValidated: Either[List[String], Migration[A, B]] = {
     val validation = MigrationValidator.validate(sourceSchema, targetSchema, actions)
@@ -429,17 +429,17 @@ class MigrationBuilder[A, B](
       }
 
     def containsDefaultValue(expr: DynamicSchemaExpr): Boolean = expr match {
-      case DynamicSchemaExpr.DefaultValue             => true
-      case DynamicSchemaExpr.ResolvedDefault(_)       => false
-      case DynamicSchemaExpr.Literal(_)               => false
-      case DynamicSchemaExpr.Path(_)                  => false
-      case DynamicSchemaExpr.Not(e)                   => containsDefaultValue(e)
-      case DynamicSchemaExpr.Logical(l, r, _)         => containsDefaultValue(l) || containsDefaultValue(r)
-      case DynamicSchemaExpr.Relational(l, r, _)      => containsDefaultValue(l) || containsDefaultValue(r)
-      case DynamicSchemaExpr.Arithmetic(l, r, _)      => containsDefaultValue(l) || containsDefaultValue(r)
-      case DynamicSchemaExpr.StringConcat(l, r)       => containsDefaultValue(l) || containsDefaultValue(r)
-      case DynamicSchemaExpr.StringLength(e)          => containsDefaultValue(e)
-      case DynamicSchemaExpr.CoercePrimitive(e, _)    => containsDefaultValue(e)
+      case DynamicSchemaExpr.DefaultValue          => true
+      case DynamicSchemaExpr.ResolvedDefault(_)    => false
+      case DynamicSchemaExpr.Literal(_)            => false
+      case DynamicSchemaExpr.Path(_)               => false
+      case DynamicSchemaExpr.Not(e)                => containsDefaultValue(e)
+      case DynamicSchemaExpr.Logical(l, r, _)      => containsDefaultValue(l) || containsDefaultValue(r)
+      case DynamicSchemaExpr.Relational(l, r, _)   => containsDefaultValue(l) || containsDefaultValue(r)
+      case DynamicSchemaExpr.Arithmetic(l, r, _)   => containsDefaultValue(l) || containsDefaultValue(r)
+      case DynamicSchemaExpr.StringConcat(l, r)    => containsDefaultValue(l) || containsDefaultValue(r)
+      case DynamicSchemaExpr.StringLength(e)       => containsDefaultValue(e)
+      case DynamicSchemaExpr.CoercePrimitive(e, _) => containsDefaultValue(e)
     }
 
     def rewriteDefault(expr: DynamicSchemaExpr, replacement: DynamicSchemaExpr): DynamicSchemaExpr = expr match {

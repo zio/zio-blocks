@@ -47,4 +47,3 @@ object DefaultValueResolutionSpec extends SchemaBaseSpec {
     }
   )
 }
-

@@ -1,6 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object MigrationValidatorOptionalitySpec extends SchemaBaseSpec {
@@ -21,7 +22,7 @@ object MigrationValidatorOptionalitySpec extends SchemaBaseSpec {
         MigrationAction.AddField(
           DynamicOptic.root,
           "extra",
-          DynamicSchemaExpr.Literal(DynamicValue.Variant("None", DynamicValue.Record(Vector.empty)))
+          DynamicSchemaExpr.Literal(DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty)))
         )
       )
 
@@ -34,4 +35,3 @@ object MigrationValidatorOptionalitySpec extends SchemaBaseSpec {
     }
   )
 }
-

@@ -128,8 +128,8 @@ object DynamicMigration {
       }
 
     case MigrationAction.TransformValue(at, transform, _) =>
-      modifyAtPathWithParentContext(value, at) { (context, _) =>
-        transform.eval(context).left.map(wrapExprError(at, "TransformValue"))
+      modifyAtPathWithParentContext(value, at) { (_, targetValue) =>
+        transform.eval(targetValue).left.map(wrapExprError(at, "TransformValue"))
       }
 
     case MigrationAction.Mandate(at, default) =>
@@ -169,9 +169,11 @@ object DynamicMigration {
             Left(MigrationError.single(MigrationError.PathNavigationFailed(at, "Not all source paths exist")))
           } else {
             // Create a temporary record with the source values for the combiner
-            val tempRecord = DynamicValue.Record(Chunk.from(
-              sourceValues.zipWithIndex.map { case (v, i) => (s"_$i", v) }
-            ))
+            val tempRecord = DynamicValue.Record(
+              Chunk.from(
+                sourceValues.zipWithIndex.map { case (v, i) => (s"_$i", v) }
+              )
+            )
             combiner.eval(tempRecord).left.map(wrapExprError(at, "Join")).map { combined =>
               // Remove source fields and add combined field
               val sourceFieldNames = sourcePaths
@@ -259,8 +261,9 @@ object DynamicMigration {
     case MigrationAction.TransformElements(at, transform, _) =>
       modifyAtPath(value, at) {
         case DynamicValue.Sequence(elements) =>
-          val transformedElements = elements.map(e => transform.eval(e).left.map(wrapExprError(at, "TransformElements")))
-          val errors              = transformedElements.collect { case Left(e) => e }
+          val transformedElements =
+            elements.map(e => transform.eval(e).left.map(wrapExprError(at, "TransformElements")))
+          val errors = transformedElements.collect { case Left(e) => e }
           if (errors.nonEmpty) {
             Left(errors.reduce(_ ++ _))
           } else {
@@ -319,7 +322,9 @@ object DynamicMigration {
   private def modifyAtPathWithParentContext(
     value: DynamicValue,
     path: DynamicOptic
-  )(modify: (DynamicValue, DynamicValue) => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] =
+  )(
+    modify: (DynamicValue, DynamicValue) => Either[MigrationError, DynamicValue]
+  ): Either[MigrationError, DynamicValue] =
     if (path.nodes.isEmpty) {
       modify(value, value)
     } else {
@@ -330,7 +335,9 @@ object DynamicMigration {
     value: DynamicValue,
     path: DynamicOptic,
     idx: Int
-  )(modify: (DynamicValue, DynamicValue) => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
+  )(
+    modify: (DynamicValue, DynamicValue) => Either[MigrationError, DynamicValue]
+  ): Either[MigrationError, DynamicValue] = {
     if (idx >= path.nodes.length) {
       // This should be unreachable for non-empty paths.
       modify(value, value)
@@ -418,7 +425,7 @@ object DynamicMigration {
         case DynamicOptic.Node.AtIndices(indices) =>
           value match {
             case DynamicValue.Sequence(elements) =>
-              val unique = indices.distinct.sorted
+              val unique  = indices.distinct.sorted
               val results = unique.map { i =>
                 if (i < 0 || i >= elements.length) {
                   Left(MigrationError.single(MigrationError.IndexOutOfBounds(path, i, elements.length)))
@@ -428,7 +435,7 @@ object DynamicMigration {
                   modifyAtPathWithParentContextRec(elements(i), path, idx + 1)(modify).map(v => (i, v))
                 }
               }
-              val errors  = results.collect { case Left(e) => e }
+              val errors = results.collect { case Left(e) => e }
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
@@ -447,21 +454,23 @@ object DynamicMigration {
           value match {
             case DynamicValue.Map(entries) =>
               val uniqueKeys = keys.distinct
-              val results = uniqueKeys.map { key =>
+              val results    = uniqueKeys.map { key =>
                 val entryIdx = entries.indexWhere(_._1 == key)
                 if (entryIdx < 0) {
                   Left(MigrationError.single(MigrationError.KeyNotFound(path, key.toString)))
                 } else if (isLast) {
                   modify(value, entries(entryIdx)._2).map(v => (entryIdx, key, v))
                 } else {
-                  modifyAtPathWithParentContextRec(entries(entryIdx)._2, path, idx + 1)(modify).map(v => (entryIdx, key, v))
+                  modifyAtPathWithParentContextRec(entries(entryIdx)._2, path, idx + 1)(modify).map(v =>
+                    (entryIdx, key, v)
+                  )
                 }
               }
               val errors = results.collect { case Left(e) => e }
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
-                val updates = results.collect { case Right((idx, k, v)) => (idx, (k, v)) }.toMap
+                val updates    = results.collect { case Right((idx, k, v)) => (idx, (k, v)) }.toMap
                 val newEntries =
                   entries.zipWithIndex.map { case (entry, i) => updates.getOrElse(i, entry) }
                 Right(DynamicValue.Map(newEntries))
@@ -477,7 +486,7 @@ object DynamicMigration {
                 elements.map { e =>
                   if (isLast) modify(value, e) else modifyAtPathWithParentContextRec(e, path, idx + 1)(modify)
                 }
-              val errors  = results.collect { case Left(e) => e }
+              val errors = results.collect { case Left(e) => e }
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
@@ -490,12 +499,11 @@ object DynamicMigration {
         case DynamicOptic.Node.MapKeys =>
           value match {
             case DynamicValue.Map(entries) =>
-              val results = entries.map {
-                case (k, v) =>
-                  if (isLast) modify(value, k).map(nk => (nk, v))
-                  else modifyAtPathWithParentContextRec(k, path, idx + 1)(modify).map(nk => (nk, v))
+              val results = entries.map { case (k, v) =>
+                if (isLast) modify(value, k).map(nk => (nk, v))
+                else modifyAtPathWithParentContextRec(k, path, idx + 1)(modify).map(nk => (nk, v))
               }
-              val errors  = results.collect { case Left(e) => e }
+              val errors = results.collect { case Left(e) => e }
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
@@ -508,12 +516,11 @@ object DynamicMigration {
         case DynamicOptic.Node.MapValues =>
           value match {
             case DynamicValue.Map(entries) =>
-              val results = entries.map {
-                case (k, v) =>
-                  if (isLast) modify(value, v).map(nv => (k, nv))
-                  else modifyAtPathWithParentContextRec(v, path, idx + 1)(modify).map(nv => (k, nv))
+              val results = entries.map { case (k, v) =>
+                if (isLast) modify(value, v).map(nv => (k, nv))
+                else modifyAtPathWithParentContextRec(v, path, idx + 1)(modify).map(nv => (k, nv))
               }
-              val errors  = results.collect { case Left(e) => e }
+              val errors = results.collect { case Left(e) => e }
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
@@ -531,7 +538,7 @@ object DynamicMigration {
                   DynamicValue.Record(fields.head._1 -> newValue)
                 }
               } else {
-              modifyAtPathWithParentContextRec(fields.head._2, path, idx + 1)(modify).map { newValue =>
+                modifyAtPathWithParentContextRec(fields.head._2, path, idx + 1)(modify).map { newValue =>
                   DynamicValue.Record(fields.head._1 -> newValue)
                 }
               }
@@ -675,7 +682,7 @@ object DynamicMigration {
         case DynamicOptic.Node.AtIndices(indices) =>
           value match {
             case DynamicValue.Sequence(elements) =>
-              val unique = indices.distinct.sorted
+              val unique  = indices.distinct.sorted
               val results = unique.map { i =>
                 if (i < 0 || i >= elements.length) {
                   Left(MigrationError.single(MigrationError.IndexOutOfBounds(path, i, elements.length)))
@@ -683,7 +690,7 @@ object DynamicMigration {
                   modifyAtPathRec(elements(i), path, idx + 1)(modify).map(v => (i, v))
                 }
               }
-              val errors  = results.collect { case Left(e) => e }
+              val errors = results.collect { case Left(e) => e }
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
@@ -702,7 +709,7 @@ object DynamicMigration {
           value match {
             case DynamicValue.Map(entries) =>
               val uniqueKeys = keys.distinct
-              val results = uniqueKeys.map { key =>
+              val results    = uniqueKeys.map { key =>
                 val entryIdx = entries.indexWhere(_._1 == key)
                 if (entryIdx < 0) {
                   Left(MigrationError.single(MigrationError.KeyNotFound(path, key.toString)))
@@ -714,7 +721,7 @@ object DynamicMigration {
               if (errors.nonEmpty) {
                 Left(errors.reduce(_ ++ _))
               } else {
-                val updates = results.collect { case Right((idx, k, v)) => (idx, (k, v)) }.toMap
+                val updates    = results.collect { case Right((idx, k, v)) => (idx, (k, v)) }.toMap
                 val newEntries =
                   entries.zipWithIndex.map { case (entry, i) => updates.getOrElse(i, entry) }
                 Right(DynamicValue.Map(newEntries))
@@ -732,5 +739,6 @@ object DynamicMigration {
     case _: DynamicValue.Variant   => "Variant"
     case _: DynamicValue.Sequence  => "Sequence"
     case _: DynamicValue.Map       => "Map"
+    case DynamicValue.Null         => "Null"
   }
 }

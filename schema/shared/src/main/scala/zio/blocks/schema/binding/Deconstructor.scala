@@ -27,6 +27,7 @@ class ConstantDeconstructor[A] extends Deconstructor[A] {
 
 /**
  * A deconstructor for structural types that exist only at compile-time.
- * Structural types cannot be deconstructed at runtime; they work only with DynamicValue.
+ * Structural types cannot be deconstructed at runtime; they work only with
+ * DynamicValue.
  */
 abstract class StructuralDeconstructor[-A] extends Deconstructor[A]

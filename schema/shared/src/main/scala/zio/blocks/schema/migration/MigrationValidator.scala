@@ -3,10 +3,12 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * Validates that migration actions will correctly transform source schema to target schema.
+ * Validates that migration actions will correctly transform source schema to
+ * target schema.
  *
- * The validator simulates migration actions on a structural representation of the source
- * schema and verifies the result matches the target schema structure.
+ * The validator simulates migration actions on a structural representation of
+ * the source schema and verifies the result matches the target schema
+ * structure.
  */
 object MigrationValidator {
 
@@ -84,9 +86,9 @@ object MigrationValidator {
     def errors: List[String]
 
     def ++(other: ValidationResult): ValidationResult = (this, other) match {
-      case (Valid, Valid)           => Valid
-      case (Valid, e: Invalid)      => e
-      case (e: Invalid, Valid)      => e
+      case (Valid, Valid)             => Valid
+      case (Valid, e: Invalid)        => e
+      case (e: Invalid, Valid)        => e
       case (Invalid(e1), Invalid(e2)) => Invalid(e1 ++ e2)
     }
   }
@@ -107,11 +109,10 @@ object MigrationValidator {
   /**
    * Extract the structural representation from a schema.
    */
-  def extractStructure[A](schema: Schema[A]): SchemaStructure = {
+  def extractStructure[A](schema: Schema[A]): SchemaStructure =
     extractFromReflect(schema.reflect)
-  }
 
-  private def extractFromReflect[F[_, _], A](reflect: Reflect[F, A]): SchemaStructure = {
+  private def extractFromReflect[F[_, _], A](reflect: Reflect[F, A]): SchemaStructure =
     // Check for Option types first (Options are encoded as Variants with Some/None)
     if (reflect.isOption) {
       reflect.optionInnerType match {
@@ -163,10 +164,10 @@ object MigrationValidator {
           }
       }
     }
-  }
 
   /**
-   * Validate that applying actions to source schema produces target schema structure.
+   * Validate that applying actions to source schema produces target schema
+   * structure.
    */
   def validate[A, B](
     sourceSchema: Schema[A],
@@ -191,11 +192,10 @@ object MigrationValidator {
   private def simulateActions(
     structure: SchemaStructure,
     actions: Vector[MigrationAction]
-  ): Either[String, SchemaStructure] = {
+  ): Either[String, SchemaStructure] =
     actions.foldLeft[Either[String, SchemaStructure]](Right(structure)) { (current, action) =>
       current.flatMap(s => simulateAction(s, action))
     }
-  }
 
   /**
    * Simulate a single migration action.
@@ -211,10 +211,12 @@ object MigrationValidator {
             if (r.fields.contains(fieldName)) {
               Left(s"Cannot add field '$fieldName': already exists")
             } else {
-              Right(r.copy(
-                fields = r.fields + (fieldName -> SchemaStructure.Dynamic),
-                isOptional = r.isOptional + (fieldName -> false)
-              ))
+              Right(
+                r.copy(
+                  fields = r.fields + (fieldName         -> SchemaStructure.Dynamic),
+                  isOptional = r.isOptional + (fieldName -> false)
+                )
+              )
             }
           case other =>
             Left(s"Cannot add field to non-record structure: ${describeStructure(other)}")
@@ -226,10 +228,12 @@ object MigrationValidator {
             if (!r.fields.contains(fieldName)) {
               Left(s"Cannot drop field '$fieldName': does not exist")
             } else {
-              Right(r.copy(
-                fields = r.fields - fieldName,
-                isOptional = r.isOptional - fieldName
-              ))
+              Right(
+                r.copy(
+                  fields = r.fields - fieldName,
+                  isOptional = r.isOptional - fieldName
+                )
+              )
             }
           case other =>
             Left(s"Cannot drop field from non-record structure: ${describeStructure(other)}")
@@ -245,10 +249,12 @@ object MigrationValidator {
             } else {
               val fieldValue = r.fields(fromName)
               val isOpt      = r.isOptional.getOrElse(fromName, false)
-              Right(r.copy(
-                fields = (r.fields - fromName) + (toName -> fieldValue),
-                isOptional = (r.isOptional - fromName) + (toName -> isOpt)
-              ))
+              Right(
+                r.copy(
+                  fields = (r.fields - fromName) + (toName         -> fieldValue),
+                  isOptional = (r.isOptional - fromName) + (toName -> isOpt)
+                )
+              )
             }
           case other =>
             Left(s"Cannot rename field in non-record structure: ${describeStructure(other)}")
@@ -263,10 +269,12 @@ object MigrationValidator {
             } else {
               r.fields(fieldName) match {
                 case SchemaStructure.Optional(inner) =>
-                  Right(r.copy(
-                    fields = r.fields + (fieldName -> inner),
-                    isOptional = r.isOptional + (fieldName -> false)
-                  ))
+                  Right(
+                    r.copy(
+                      fields = r.fields + (fieldName         -> inner),
+                      isOptional = r.isOptional + (fieldName -> false)
+                    )
+                  )
                 case _ =>
                   Right(r.copy(isOptional = r.isOptional + (fieldName -> false)))
               }
@@ -283,10 +291,12 @@ object MigrationValidator {
               Left(s"Cannot optionalize field '$fieldName': does not exist")
             } else {
               val wrapped = SchemaStructure.Optional(r.fields(fieldName))
-              Right(r.copy(
-                fields = r.fields + (fieldName -> wrapped),
-                isOptional = r.isOptional + (fieldName -> true)
-              ))
+              Right(
+                r.copy(
+                  fields = r.fields + (fieldName         -> wrapped),
+                  isOptional = r.isOptional + (fieldName -> true)
+                )
+              )
             }
           case other =>
             Left(s"Cannot optionalize field in non-record structure: ${describeStructure(other)}")
@@ -308,9 +318,9 @@ object MigrationValidator {
         }
 
       // These actions don't change structure, just values
-      case _: MigrationAction.TransformValue    => Right(structure)
-      case _: MigrationAction.ChangeType        => Right(structure)
-      case _: MigrationAction.TransformCase     => Right(structure)
+      case _: MigrationAction.TransformValue => Right(structure)
+      case _: MigrationAction.ChangeType     => Right(structure)
+      case _: MigrationAction.TransformCase  => Right(structure)
 
       case MigrationAction.Join(targetPath, sourcePaths, _, _) =>
         // Join removes source fields and adds a target field
@@ -325,10 +335,12 @@ object MigrationValidator {
                       if (!r.fields.contains(fieldName)) {
                         Left(s"Join source field '$fieldName' does not exist")
                       } else {
-                        Right(r.copy(
-                          fields = r.fields - fieldName,
-                          isOptional = r.isOptional - fieldName
-                        ))
+                        Right(
+                          r.copy(
+                            fields = r.fields - fieldName,
+                            isOptional = r.isOptional - fieldName
+                          )
+                        )
                       }
                     case other =>
                       Left(s"Cannot drop join source from non-record: ${describeStructure(other)}")
@@ -345,10 +357,12 @@ object MigrationValidator {
             case Some(fieldName) =>
               modifyAtPath(s, parentPath) {
                 case r: SchemaStructure.Record =>
-                  Right(r.copy(
-                    fields = r.fields + (fieldName -> SchemaStructure.Dynamic),
-                    isOptional = r.isOptional + (fieldName -> false)
-                  ))
+                  Right(
+                    r.copy(
+                      fields = r.fields + (fieldName         -> SchemaStructure.Dynamic),
+                      isOptional = r.isOptional + (fieldName -> false)
+                    )
+                  )
                 case other =>
                   Left(s"Cannot add join target to non-record: ${describeStructure(other)}")
               }
@@ -360,17 +374,19 @@ object MigrationValidator {
       case MigrationAction.Split(sourcePath, targetPaths, _, _) =>
         // Split removes source field and adds target fields
         val (sourceParentPath, sourceFieldNameOpt) = sourcePath.dropLastField
-        val afterDrop = sourceFieldNameOpt match {
+        val afterDrop                              = sourceFieldNameOpt match {
           case Some(fieldName) =>
             modifyAtPath(structure, sourceParentPath) {
               case r: SchemaStructure.Record =>
                 if (!r.fields.contains(fieldName)) {
                   Left(s"Split source field '$fieldName' does not exist")
                 } else {
-                  Right(r.copy(
-                    fields = r.fields - fieldName,
-                    isOptional = r.isOptional - fieldName
-                  ))
+                  Right(
+                    r.copy(
+                      fields = r.fields - fieldName,
+                      isOptional = r.isOptional - fieldName
+                    )
+                  )
                 }
               case other =>
                 Left(s"Cannot drop split source from non-record: ${describeStructure(other)}")
@@ -387,10 +403,12 @@ object MigrationValidator {
                 case Some(fieldName) =>
                   modifyAtPath(struct, parentPath) {
                     case r: SchemaStructure.Record =>
-                      Right(r.copy(
-                        fields = r.fields + (fieldName -> SchemaStructure.Dynamic),
-                        isOptional = r.isOptional + (fieldName -> false)
-                      ))
+                      Right(
+                        r.copy(
+                          fields = r.fields + (fieldName         -> SchemaStructure.Dynamic),
+                          isOptional = r.isOptional + (fieldName -> false)
+                        )
+                      )
                     case other =>
                       Left(s"Cannot add split target to non-record: ${describeStructure(other)}")
                   }
@@ -415,14 +433,13 @@ object MigrationValidator {
     path: DynamicOptic
   )(
     modify: SchemaStructure => Either[String, SchemaStructure]
-  ): Either[String, SchemaStructure] = {
+  ): Either[String, SchemaStructure] =
     if (path.nodes.isEmpty) {
       modify(structure)
     } else {
       val nodes = path.nodes.toList
       modifyAtPathRecursive(structure, nodes, modify)
     }
-  }
 
   private def modifyAtPathRecursive(
     structure: SchemaStructure,
@@ -546,7 +563,7 @@ object MigrationValidator {
     actual: SchemaStructure,
     expected: SchemaStructure,
     path: DynamicOptic
-  ): ValidationResult = {
+  ): ValidationResult =
     (actual, expected) match {
       case (SchemaStructure.Dynamic, _) =>
         // Dynamic matches anything
@@ -573,7 +590,7 @@ object MigrationValidator {
         // Compare common fields
         val commonFields = a.fields.keySet.intersect(e.fields.keySet)
         commonFields.foreach { fieldName =>
-          val fieldPath = path.field(fieldName)
+          val fieldPath     = path.field(fieldName)
           val actualField   = a.fields(fieldName)
           val expectedField = e.fields(fieldName)
 
@@ -585,7 +602,9 @@ object MigrationValidator {
             if (actualOpt != expectedOpt) {
               val expectedLabel = if (expectedOpt) "optional" else "mandatory"
               val actualLabel   = if (actualOpt) "optional" else "mandatory"
-              result = result ++ Invalid(s"At ${fieldPath.toString}: Optionality mismatch: expected $expectedLabel, got $actualLabel")
+              result = result ++ Invalid(
+                s"At ${fieldPath.toString}: Optionality mismatch: expected $expectedLabel, got $actualLabel"
+              )
             }
           }
 
@@ -632,25 +651,26 @@ object MigrationValidator {
         else Invalid(s"At ${path.toString}: Type mismatch: expected ${e.typeName}, got ${a.typeName}")
 
       case (a, e) =>
-        Invalid(s"At ${path.toString}: Structure mismatch: expected ${describeStructure(e)}, got ${describeStructure(a)}")
+        Invalid(
+          s"At ${path.toString}: Structure mismatch: expected ${describeStructure(e)}, got ${describeStructure(a)}"
+        )
     }
-  }
 
   private def describeStructure(s: SchemaStructure): String = s match {
-    case r: SchemaStructure.Record   => s"Record(${r.name})"
-    case v: SchemaStructure.Variant  => s"Variant(${v.name})"
-    case _: SchemaStructure.Sequence => "Sequence"
-    case _: SchemaStructure.MapType  => "Map"
+    case r: SchemaStructure.Record    => s"Record(${r.name})"
+    case v: SchemaStructure.Variant   => s"Variant(${v.name})"
+    case _: SchemaStructure.Sequence  => "Sequence"
+    case _: SchemaStructure.MapType   => "Map"
     case p: SchemaStructure.Primitive => p.typeName
-    case _: SchemaStructure.Optional => "Optional"
-    case SchemaStructure.Dynamic     => "Dynamic"
+    case _: SchemaStructure.Optional  => "Optional"
+    case SchemaStructure.Dynamic      => "Dynamic"
   }
 
   /**
    * Extension methods for DynamicOptic to help with validation.
    */
   implicit class DynamicOpticOps(private val optic: DynamicOptic) extends AnyVal {
-    def dropLastField: (DynamicOptic, Option[String]) = {
+    def dropLastField: (DynamicOptic, Option[String]) =
       if (optic.nodes.isEmpty) {
         (optic, None)
       } else {
@@ -661,14 +681,13 @@ object MigrationValidator {
             (optic, None)
         }
       }
-    }
 
-    def lastFieldName: Option[String] = {
+    def lastFieldName: Option[String] =
       if (optic.nodes.isEmpty) None
-      else optic.nodes.last match {
-        case DynamicOptic.Node.Field(name) => Some(name)
-        case _                             => None
-      }
-    }
+      else
+        optic.nodes.last match {
+          case DynamicOptic.Node.Field(name) => Some(name)
+          case _                             => None
+        }
   }
 }
