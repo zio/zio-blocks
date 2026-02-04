@@ -30,15 +30,30 @@ object MigrationMetadata {
    * Computes a deterministic structural fingerprint of a migration's actions.
    *
    * The fingerprint is a 32-character hex string (128-bit truncation of SHA-256)
-   * computed from the canonical representation of each action: its type name,
-   * path, and lossy flag. This enables detecting when composed migrations
-   * differ structurally, deduplicating migrations in a registry, and auditing
-   * which migration transformed a given event.
+   * computed from the ordered representation of each action including its type,
+   * path, lossy flag, and semantic parameters. Action order is preserved since
+   * it is semantically significant.
    */
   def fingerprint(actions: Vector[MigrationAction]): String = {
     val parts = actions.map { a =>
-      s"${a.getClass.getSimpleName}:${a.at}:${a.lossy}"
-    }.sorted
+      val details = a match {
+        case MigrationAction.Rename(_, newName)              => s":$newName"
+        case MigrationAction.RenameCase(_, from, to)         => s":$from:$to"
+        case MigrationAction.AddField(_, expr)               => s":${expr.hashCode}"
+        case MigrationAction.Mandate(_, expr)                => s":${expr.hashCode}"
+        case MigrationAction.DropField(_, rev)               => s":${rev.map(_.hashCode).getOrElse(0)}"
+        case MigrationAction.TransformValue(_, t, inv)       => s":${t.hashCode}:${inv.map(_.hashCode).getOrElse(0)}"
+        case MigrationAction.ChangeType(_, c, inv)           => s":${c.hashCode}:${inv.map(_.hashCode).getOrElse(0)}"
+        case MigrationAction.TransformCase(_, cn, sub)       => s":$cn:${sub.size}"
+        case MigrationAction.TransformElements(_, t, inv)    => s":${t.hashCode}:${inv.map(_.hashCode).getOrElse(0)}"
+        case MigrationAction.TransformKeys(_, t, inv)        => s":${t.hashCode}:${inv.map(_.hashCode).getOrElse(0)}"
+        case MigrationAction.TransformValues(_, t, inv)      => s":${t.hashCode}:${inv.map(_.hashCode).getOrElse(0)}"
+        case MigrationAction.Join(_, srcs, _, _, _)          => s":${srcs.size}"
+        case MigrationAction.Split(_, tgts, _, _, _)         => s":${tgts.size}"
+        case _                                               => ""
+      }
+      s"${a.getClass.getSimpleName}:${a.at}:${a.lossy}$details"
+    }
     val digest = java.security.MessageDigest
       .getInstance("SHA-256")
       .digest(parts.mkString("|").getBytes("UTF-8"))

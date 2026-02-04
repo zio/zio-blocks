@@ -291,7 +291,13 @@ object MigrationSchemas {
                 elems.iterator.map { elem =>
                   actionSchema.fromDynamicValue(elem).fold(e => throw e, identity)
                 }.toVector
-              case _ => Vector.empty
+              case None =>
+                throw SchemaError.missingField(Nil, "actions")
+              case Some(other) =>
+                throw SchemaError.expectationMismatch(
+                  Nil,
+                  s"Expected Sequence for 'actions', got ${other.valueType}"
+                )
             }
             val metadata = fieldMap.get("metadata")
               .flatMap(metaSchema.fromDynamicValue(_).toOption)

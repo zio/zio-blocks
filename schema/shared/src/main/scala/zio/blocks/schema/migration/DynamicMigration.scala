@@ -32,12 +32,24 @@ final case class DynamicMigration(
    *   If `true`, error messages include truncated DynamicValue snippets at
    *   the failure path. Disable for production to avoid leaking sensitive data.
    */
-  def apply(value: DynamicValue, includeInputSlice: Boolean = false): Either[MigrationError, DynamicValue] = {
+  def apply(value: DynamicValue, includeInputSlice: Boolean = false): Either[MigrationError, DynamicValue] =
+    applyWithDepth(value, includeInputSlice, 0)
+
+  private[migration] def applyWithDepth(
+    value: DynamicValue,
+    includeInputSlice: Boolean,
+    depth: Int
+  ): Either[MigrationError, DynamicValue] = {
+    if (depth > DynamicMigration.MaxExecutionDepth)
+      return Left(MigrationError(
+        s"TransformCase nesting depth $depth exceeds maximum ${DynamicMigration.MaxExecutionDepth}",
+        DynamicOptic.root
+      ))
     var current = value
     var i       = 0
     while (i < actions.length) {
       val action = actions(i)
-      DynamicMigration.executeAction(current, action, i, includeInputSlice) match {
+      DynamicMigration.executeAction(current, action, i, includeInputSlice, depth) match {
         case Right(next) =>
           current = next
           i += 1
@@ -128,7 +140,8 @@ object DynamicMigration {
     maxActions: Int = 100,
     maxExprDepth: Int = 20,
     maxOpticDepth: Int = 50,
-    maxTotalNodes: Int = 1000
+    maxTotalNodes: Int = 1000,
+    maxNestingDepth: Int = 10
   )
 
   /**
@@ -142,43 +155,45 @@ object DynamicMigration {
    */
   def validate(migration: DynamicMigration, limits: Limits = Limits()): Either[List[String], DynamicMigration] = {
     val errors = List.newBuilder[String]
+    var totalNodes = 0
 
     if (migration.actions.size > limits.maxActions)
       errors += s"Too many actions: ${migration.actions.size} > ${limits.maxActions}"
 
-    var totalNodes = 0
-    migration.actions.foreach { action =>
-      val opticDepth = action.at.nodes.size
-      if (opticDepth > limits.maxOpticDepth)
-        errors += s"Optic depth ${opticDepth} exceeds limit ${limits.maxOpticDepth} at ${action.at}"
-      totalNodes += opticDepth + 1 // +1 for the action node itself
+    def validateActions(actions: Vector[MigrationAction], depth: Int): Unit = {
+      if (depth > limits.maxNestingDepth) {
+        errors += s"TransformCase nesting depth $depth exceeds limit ${limits.maxNestingDepth}"
+        return
+      }
+      actions.foreach { action =>
+        val opticDepth = action.at.nodes.size
+        if (opticDepth > limits.maxOpticDepth)
+          errors += s"Optic depth $opticDepth exceeds limit ${limits.maxOpticDepth} at ${action.at}"
+        totalNodes += opticDepth + 1
 
-      action match {
-        case MigrationAction.Join(_, sourcePaths, _, _, _) =>
-          sourcePaths.foreach { sp =>
-            val d = sp.nodes.size
-            if (d > limits.maxOpticDepth)
-              errors += s"Join source optic depth $d exceeds limit ${limits.maxOpticDepth} at $sp"
-            totalNodes += d
-          }
-        case MigrationAction.Split(_, targetPaths, _, _, _) =>
-          targetPaths.foreach { tp =>
-            val d = tp.nodes.size
-            if (d > limits.maxOpticDepth)
-              errors += s"Split target optic depth $d exceeds limit ${limits.maxOpticDepth} at $tp"
-            totalNodes += d
-          }
-        case MigrationAction.TransformCase(_, _, subActions) =>
-          totalNodes += subActions.size
-          subActions.foreach { sub =>
-            val d = sub.at.nodes.size
-            if (d > limits.maxOpticDepth)
-              errors += s"Sub-action optic depth $d exceeds limit ${limits.maxOpticDepth} at ${sub.at}"
-            totalNodes += d
-          }
-        case _ => ()
+        action match {
+          case MigrationAction.Join(_, sourcePaths, _, _, _) =>
+            sourcePaths.foreach { sp =>
+              val d = sp.nodes.size
+              if (d > limits.maxOpticDepth)
+                errors += s"Join source optic depth $d exceeds limit ${limits.maxOpticDepth} at $sp"
+              totalNodes += d
+            }
+          case MigrationAction.Split(_, targetPaths, _, _, _) =>
+            targetPaths.foreach { tp =>
+              val d = tp.nodes.size
+              if (d > limits.maxOpticDepth)
+                errors += s"Split target optic depth $d exceeds limit ${limits.maxOpticDepth} at $tp"
+              totalNodes += d
+            }
+          case MigrationAction.TransformCase(_, _, subActions) =>
+            validateActions(subActions, depth + 1)
+          case _ => ()
+        }
       }
     }
+
+    validateActions(migration.actions, 0)
 
     if (totalNodes > limits.maxTotalNodes)
       errors += s"Total node count $totalNodes exceeds limit ${limits.maxTotalNodes}"
@@ -190,11 +205,14 @@ object DynamicMigration {
 
   // ── Action Execution ────────────────────────────────────────────────────
 
+  private val MaxExecutionDepth: Int = 50
+
   private def executeAction(
     value: DynamicValue,
     action: MigrationAction,
     actionIndex: Int,
-    includeInputSlice: Boolean
+    includeInputSlice: Boolean,
+    depth: Int
   ): Either[MigrationError, DynamicValue] = {
     def mkError(msg: String, path: DynamicOptic): MigrationError = {
       val slice =
@@ -302,7 +320,7 @@ object DynamicMigration {
         modifyAtPath(value, at, actionIndex, action) {
           case DynamicValue.Variant(cn, caseValue) if cn == caseName =>
             val subMigration = DynamicMigration(subActions)
-            subMigration.apply(caseValue, includeInputSlice) match {
+            subMigration.applyWithDepth(caseValue, includeInputSlice, depth + 1) match {
               case Right(transformed) => Right(DynamicValue.Variant(cn, transformed))
               case Left(err)          => Left(err.copy(actionIndex = Some(actionIndex)))
             }
@@ -455,28 +473,39 @@ object DynamicMigration {
     if (path.nodes.isEmpty) {
       f(value)
     } else {
-      var result: Either[MigrationError, DynamicValue] = null
-      val modified = value.modifyOrFail(path) {
-        case dv =>
-          f(dv) match {
-            case Right(newDv) =>
-              result = null
-              newDv
-            case Left(err) =>
-              result = Left(err)
-              dv // Return unchanged, error captured
-          }
-      }
-      if (result != null) result
-      else modified match {
-        case Right(v) => Right(v)
-        case Left(err) =>
-          Left(MigrationError(
-            s"Path not found: ${err.message}",
-            path,
-            Some(actionIndex),
-            Some(action)
+      var capturedError: Option[MigrationError] = None
+      val modified = try {
+        value.modifyOrFail(path) {
+          case dv =>
+            f(dv) match {
+              case Right(newDv) =>
+                capturedError = None
+                newDv
+              case Left(err) =>
+                capturedError = Some(err)
+                dv // Return unchanged, error captured
+            }
+        }
+      } catch {
+        case e: Throwable =>
+          Left(zio.blocks.schema.SchemaError.conversionFailed(
+            Nil,
+            s"Unexpected error modifying path $path: ${e.getMessage}"
           ))
+      }
+      capturedError match {
+        case Some(err) => Left(err)
+        case None =>
+          modified match {
+            case Right(v) => Right(v)
+            case Left(err) =>
+              Left(MigrationError(
+                s"Path not found: ${err.message}",
+                path,
+                Some(actionIndex),
+                Some(action)
+              ))
+          }
       }
     }
   }
@@ -511,7 +540,7 @@ object DynamicMigration {
         case Left(check)                      => Left(s"Expression check failed: $check")
       }
     } catch {
-      case e: Exception => Left(s"Expression evaluation error: ${e.getMessage}")
+      case e: Throwable => Left(s"Expression evaluation error: ${e.getMessage}")
     }
 
   /** Evaluates a SchemaExpr with a DynamicValue as input, producing a DynamicValue output. */
@@ -523,7 +552,7 @@ object DynamicMigration {
         case Left(check)                      => Left(s"Expression check failed: $check")
       }
     } catch {
-      case e: Exception => Left(s"Expression evaluation error: ${e.getMessage}")
+      case e: Throwable => Left(s"Expression evaluation error: ${e.getMessage}")
     }
 
   /** Maps a transform expression over each element in a Chunk. */
