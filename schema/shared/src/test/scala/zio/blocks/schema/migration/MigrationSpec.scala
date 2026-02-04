@@ -133,9 +133,9 @@ object MigrationSpec extends ZIOSpecDefault {
         val m3 = DynamicMigration.single(
           MigrationAction.AddField(DynamicOptic.root.field("c"), DynamicValue.Primitive(PrimitiveValue.Int(3)))
         )
-        val leftAssoc  = (m1 ++ m2) ++ m3
-        val rightAssoc = m1 ++ (m2 ++ m3)
-        val input      = DynamicValue.Record(Chunk.empty)
+        val leftAssoc   = (m1 ++ m2) ++ m3
+        val rightAssoc  = m1 ++ (m2 ++ m3)
+        val input       = DynamicValue.Record(Chunk.empty)
         val leftResult  = leftAssoc(input)
         val rightResult = rightAssoc(input)
         assertTrue(
@@ -162,7 +162,10 @@ object MigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1))),
             MigrationAction.Rename(DynamicOptic.root.field("old"), "new"),
-            MigrationAction.DropField(DynamicOptic.root.field("removed"), DynamicValue.Primitive(PrimitiveValue.String("default")))
+            MigrationAction.DropField(
+              DynamicOptic.root.field("removed"),
+              DynamicValue.Primitive(PrimitiveValue.String("default"))
+            )
           )
         )
         val doubleReversed = m.reverse.reverse
