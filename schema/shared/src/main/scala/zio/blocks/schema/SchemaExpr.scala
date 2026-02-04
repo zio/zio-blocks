@@ -16,8 +16,6 @@
 
 package zio.blocks.schema
 
-import scala.annotation.unchecked.uncheckedVariance
-
 /**
  * A {{SchemaExpr}} is an expression on the value of a type fully described by a
  * {{Schema}}.
@@ -37,7 +35,7 @@ sealed trait SchemaExpr[A, +B] { self =>
    * @return
    *   the result of the expression
    */
-  def eval(input: A)(implicit schema: Schema[B @uncheckedVariance]): Either[OpticCheck, Seq[B]]
+  def eval[B1 >: B](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]]
 
   /**
    * Evaluate the expression on the input value.
@@ -79,7 +77,7 @@ object SchemaExpr {
    * type to another based on the ConversionType.
    */
   final case class PrimitiveConversion[S](conversionType: ConversionType) extends SchemaExpr[S, Any] {
-    def eval(input: S)(implicit schema: Schema[Any]): Either[OpticCheck, Seq[Any]] =
+    def eval[B1 >: Any](input: S)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       // Input is ignored - conversion is applied to a DynamicValue at the migration level
       throw new UnsupportedOperationException("PrimitiveConversion.eval requires DynamicValue context")
 
@@ -465,7 +463,7 @@ object SchemaExpr {
   }
 
   final case class Literal[S, A](dynamicValue: DynamicValue) extends SchemaExpr[S, A] {
-    def eval(input: S)(implicit schema: Schema[A]): Either[OpticCheck, Seq[A]] =
+    def eval[B1 >: A](input: S)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       schema.fromDynamicValue(dynamicValue) match {
         case Right(value) => new Right(value :: Nil)
         case Left(error)  => new Left(new OpticCheck(::(OpticCheck.DynamicConversionError(error.message), Nil)))
@@ -484,7 +482,7 @@ object SchemaExpr {
   final case class Optic[A, B](path: DynamicOptic, sourceSchema: Schema[A]) extends SchemaExpr[A, B] {
     import zio.blocks.chunk.Chunk
 
-    def eval(input: A)(implicit schema: Schema[B]): Either[OpticCheck, Seq[B]] =
+    def eval[B1 >: B](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       evalWithStructuredErrors(input) match {
         case Right(chunk) =>
           val results   = chunk.toSeq.map(dv => schema.fromDynamicValue(dv))
@@ -701,10 +699,10 @@ object SchemaExpr {
 
   final case class Logical[A](left: SchemaExpr[A, Boolean], right: SchemaExpr[A, Boolean], operator: LogicalOperator)
       extends BinaryOp[A, Boolean, Boolean] {
-    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
+    def eval[B1 >: Boolean](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
+        xs <- left.eval[Boolean](input)(Schema[Boolean])
+        ys <- right.eval[Boolean](input)(Schema[Boolean])
       } yield operator match {
         case _: LogicalOperator.And.type => for { x <- xs; y <- ys } yield x && y
         case _: LogicalOperator.Or.type  => for { x <- xs; y <- ys } yield x || y
@@ -731,10 +729,10 @@ object SchemaExpr {
   }
 
   final case class Not[A](expr: SchemaExpr[A, Boolean]) extends UnaryOp[A, Boolean] {
-    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
+    def eval[B1 >: Boolean](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        xs <- expr.eval(input)
-      } yield xs.map(!_)
+        xs <- expr.eval[Boolean](input)(Schema[Boolean])
+      } yield xs.map(x => (!x).asInstanceOf[B1])
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
@@ -751,19 +749,19 @@ object SchemaExpr {
     operator: ArithmeticOperator,
     numericType: NumericPrimitiveType[A]
   ) extends BinaryOp[S, A, A] {
-    def eval(input: S)(implicit schema: Schema[A]): Either[OpticCheck, Seq[A]] =
+    def eval[B1 >: A](input: S)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        xs <- left.eval(input)(schema)
-        ys <- right.eval(input)(schema)
+        xs <- left.eval(input)(schema.asInstanceOf[Schema[A]])
+        ys <- right.eval(input)(schema.asInstanceOf[Schema[A]])
       } yield {
         val n = numericType.numeric
         operator match {
-          case ArithmeticOperator.Add      => for { x <- xs; y <- ys } yield n.plus(x, y)
-          case ArithmeticOperator.Subtract => for { x <- xs; y <- ys } yield n.minus(x, y)
-          case ArithmeticOperator.Multiply => for { x <- xs; y <- ys } yield n.times(x, y)
-          case ArithmeticOperator.Divide   => for { x <- xs; y <- ys } yield divide(x, y)
-          case ArithmeticOperator.Pow      => for { x <- xs; y <- ys } yield pow(x, y)
-          case ArithmeticOperator.Modulo   => for { x <- xs; y <- ys } yield modulo(x, y)
+          case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield n.plus(x, y)
+          case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield n.minus(x, y)
+          case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield n.times(x, y)
+          case _: ArithmeticOperator.Divide.type   => for { x <- xs; y <- ys } yield divide(x, y)
+          case _: ArithmeticOperator.Pow.type      => for { x <- xs; y <- ys } yield pow(x, y)
+          case _: ArithmeticOperator.Modulo.type   => for { x <- xs; y <- ys } yield modulo(x, y)
         }
       }
 
@@ -774,12 +772,12 @@ object SchemaExpr {
       } yield {
         val n = numericType.numeric
         operator match {
-          case ArithmeticOperator.Add      => for { x <- xs; y <- ys } yield toDynamicValue(n.plus(x, y))
-          case ArithmeticOperator.Subtract => for { x <- xs; y <- ys } yield toDynamicValue(n.minus(x, y))
-          case ArithmeticOperator.Multiply => for { x <- xs; y <- ys } yield toDynamicValue(n.times(x, y))
-          case ArithmeticOperator.Divide   => for { x <- xs; y <- ys } yield toDynamicValue(divide(x, y))
-          case ArithmeticOperator.Pow      => for { x <- xs; y <- ys } yield toDynamicValue(pow(x, y))
-          case ArithmeticOperator.Modulo   => for { x <- xs; y <- ys } yield toDynamicValue(modulo(x, y))
+          case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield toDynamicValue(n.plus(x, y))
+          case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield toDynamicValue(n.minus(x, y))
+          case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield toDynamicValue(n.times(x, y))
+          case _: ArithmeticOperator.Divide.type   => for { x <- xs; y <- ys } yield toDynamicValue(divide(x, y))
+          case _: ArithmeticOperator.Pow.type      => for { x <- xs; y <- ys } yield toDynamicValue(pow(x, y))
+          case _: ArithmeticOperator.Modulo.type   => for { x <- xs; y <- ys } yield toDynamicValue(modulo(x, y))
         }
       }
 
@@ -847,7 +845,7 @@ object SchemaExpr {
     right: SchemaExpr[S, A],
     operator: BitwiseOperator
   ) extends BinaryOp[S, A, A] {
-    def eval(input: S)(implicit schema: Schema[A]): Either[OpticCheck, Seq[A]] =
+    def eval[B1 >: A](input: S)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- left.evalDynamic(input)
         ys <- right.evalDynamic(input)
@@ -914,7 +912,7 @@ object SchemaExpr {
   }
 
   final case class BitwiseNot[S, A](expr: SchemaExpr[S, A]) extends UnaryOp[S, A] {
-    def eval(input: S)(implicit schema: Schema[A]): Either[OpticCheck, Seq[A]] =
+    def eval[B1 >: A](input: S)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- expr.evalDynamic(input)
       } yield xs.map(applyNot)
@@ -946,11 +944,11 @@ object SchemaExpr {
 
   final case class StringConcat[A](left: SchemaExpr[A, String], right: SchemaExpr[A, String])
       extends BinaryOp[A, String, String] {
-    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
+    def eval[B1 >: String](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield for { x <- xs; y <- ys } yield x + y
+        xs <- left.eval[String](input)(Schema[String])
+        ys <- right.eval[String](input)(Schema[String])
+      } yield for { x <- xs; y <- ys } yield (x + y).asInstanceOf[B1]
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
@@ -964,7 +962,7 @@ object SchemaExpr {
 
   final case class StringRegexMatch[A](regex: SchemaExpr[A, String], string: SchemaExpr[A, String])
       extends SchemaExpr[A, Boolean] {
-    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
+    def eval[B1 >: Boolean](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- regex.eval(input)(Schema[String])
         ys <- string.eval(input)(Schema[String])
@@ -981,7 +979,7 @@ object SchemaExpr {
   }
 
   final case class StringLength[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, Int] {
-    def eval(input: A)(implicit schema: Schema[Int]): Either[OpticCheck, Seq[Int]] =
+    def eval[B1 >: Int](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- string.eval(input)(Schema[String])
       } yield xs.map(_.length)
@@ -1000,7 +998,7 @@ object SchemaExpr {
     start: SchemaExpr[A, Int],
     end: SchemaExpr[A, Int]
   ) extends SchemaExpr[A, String] {
-    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
+    def eval[B1 >: String](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         strings <- string.eval(input)(Schema[String])
         starts  <- start.eval(input)(Schema[Int])
@@ -1029,7 +1027,7 @@ object SchemaExpr {
   }
 
   final case class StringTrim[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, String] {
-    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
+    def eval[B1 >: String](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- string.eval(input)(Schema[String])
       } yield xs.map(_.trim)
@@ -1044,7 +1042,7 @@ object SchemaExpr {
   }
 
   final case class StringToUpperCase[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, String] {
-    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
+    def eval[B1 >: String](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- string.eval(input)(Schema[String])
       } yield xs.map(_.toUpperCase)
@@ -1059,7 +1057,7 @@ object SchemaExpr {
   }
 
   final case class StringToLowerCase[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, String] {
-    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
+    def eval[B1 >: String](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
         xs <- string.eval(input)(Schema[String])
       } yield xs.map(_.toLowerCase)
@@ -1078,17 +1076,17 @@ object SchemaExpr {
     target: SchemaExpr[A, String],
     replacement: SchemaExpr[A, String]
   ) extends SchemaExpr[A, String] {
-    def eval(input: A)(implicit schema: Schema[String]): Either[OpticCheck, Seq[String]] =
+    def eval[B1 >: String](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        strings      <- string.eval(input)(Schema[String])
-        targets      <- target.eval(input)(Schema[String])
-        replacements <- replacement.eval(input)(Schema[String])
+        strings      <- string.eval[String](input)(Schema[String])
+        targets      <- target.eval[String](input)(Schema[String])
+        replacements <- replacement.eval[String](input)(Schema[String])
       } yield
         for {
           s <- strings
           t <- targets
           r <- replacements
-        } yield s.replace(t, r)
+        } yield s.replace(t, r).asInstanceOf[B1]
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
@@ -1110,15 +1108,15 @@ object SchemaExpr {
     string: SchemaExpr[A, String],
     prefix: SchemaExpr[A, String]
   ) extends SchemaExpr[A, Boolean] {
-    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
+    def eval[B1 >: Boolean](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        strings  <- string.eval(input)(Schema[String])
-        prefixes <- prefix.eval(input)(Schema[String])
+        strings  <- string.eval[String](input)(Schema[String])
+        prefixes <- prefix.eval[String](input)(Schema[String])
       } yield
         for {
           s <- strings
           p <- prefixes
-        } yield s.startsWith(p)
+        } yield s.startsWith(p).asInstanceOf[B1]
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
@@ -1138,15 +1136,15 @@ object SchemaExpr {
     string: SchemaExpr[A, String],
     suffix: SchemaExpr[A, String]
   ) extends SchemaExpr[A, Boolean] {
-    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
+    def eval[B1 >: Boolean](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        strings  <- string.eval(input)(Schema[String])
-        suffixes <- suffix.eval(input)(Schema[String])
+        strings  <- string.eval[String](input)(Schema[String])
+        suffixes <- suffix.eval[String](input)(Schema[String])
       } yield
         for {
           s  <- strings
           sx <- suffixes
-        } yield s.endsWith(sx)
+        } yield s.endsWith(sx).asInstanceOf[B1]
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
@@ -1166,15 +1164,15 @@ object SchemaExpr {
     string: SchemaExpr[A, String],
     substring: SchemaExpr[A, String]
   ) extends SchemaExpr[A, Boolean] {
-    def eval(input: A)(implicit schema: Schema[Boolean]): Either[OpticCheck, Seq[Boolean]] =
+    def eval[B1 >: Boolean](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        strings    <- string.eval(input)(Schema[String])
-        substrings <- substring.eval(input)(Schema[String])
+        strings    <- string.eval[String](input)(Schema[String])
+        substrings <- substring.eval[String](input)(Schema[String])
       } yield
         for {
           s   <- strings
           sub <- substrings
-        } yield s.contains(sub)
+        } yield s.contains(sub).asInstanceOf[B1]
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
@@ -1194,15 +1192,15 @@ object SchemaExpr {
     string: SchemaExpr[A, String],
     substring: SchemaExpr[A, String]
   ) extends SchemaExpr[A, Int] {
-    def eval(input: A)(implicit schema: Schema[Int]): Either[OpticCheck, Seq[Int]] =
+    def eval[B1 >: Int](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] =
       for {
-        strings    <- string.eval(input)(Schema[String])
-        substrings <- substring.eval(input)(Schema[String])
+        strings    <- string.eval[String](input)(Schema[String])
+        substrings <- substring.eval[String](input)(Schema[String])
       } yield
         for {
           s   <- strings
           sub <- substrings
-        } yield s.indexOf(sub)
+        } yield s.indexOf(sub).asInstanceOf[B1]
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
