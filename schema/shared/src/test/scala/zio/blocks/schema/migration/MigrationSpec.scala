@@ -1915,6 +1915,90 @@ object MigrationSpec extends ZIOSpecDefault {
         val expr   = a - b
         val result = expr.eval(DynamicValue.Null)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(7))))
+      },
+      test("DSL === operator creates Eq comparison") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val expr   = a === b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL =!= operator creates Ne comparison") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val expr   = a =!= b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL toInt creates ToInt conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.String("42"))).toInt
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("MigrationExpr.field creates FieldRef") {
+        val expr   = MigrationExpr.field(DynamicOptic.root.field("name"))
+        val input  = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("test"))))
+        val result = expr.eval(input)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("test"))))
+      },
+      test("Convert ToString works with Long") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(9876543210L))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("9876543210"))))
+      },
+      test("Convert ToString works with Double") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("3.14"))))
+      },
+      test("Convert ToString works with Float") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(2.5f))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("2.5"))))
+      },
+      test("Convert ToString works with Boolean") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("true"))))
+      },
+      test("Convert ToString works with BigInt") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("123456789012345")))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("123456789012345"))))
+      },
+      test("Convert ToString works with BigDecimal") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("999.99")))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("999.99"))))
+      },
+      test("Convert ToString works with Char") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Char('X'))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("X"))))
       }
     ),
     suite("Expression-based MigrationActions")(
