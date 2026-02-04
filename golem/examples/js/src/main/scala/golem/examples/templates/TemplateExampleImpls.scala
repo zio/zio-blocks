@@ -6,6 +6,7 @@ import golem.runtime.snapshot.SnapshotExports
 
 import scala.annotation.unused
 import scala.concurrent.Future
+import scala.language.reflectiveCalls
 import scala.reflect.Selectable.reflectiveSelectable
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js

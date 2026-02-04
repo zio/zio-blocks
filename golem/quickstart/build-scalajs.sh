@@ -22,7 +22,7 @@ case "$component" in
   scala:quickstart-counter)
     sbt_project="zioGolemQuickstartJS"
     bundle_glob="$repo_root/golem/quickstart/js/target/scala-*/zio-golem-quickstart-fastopt/main.js"
-    out_file="$component_dir/src/scala.js"
+    out_file="$component_dir/.golem/scala.js"
     ;;
   *)
     echo "[scala.js] Unknown component: $component" >&2

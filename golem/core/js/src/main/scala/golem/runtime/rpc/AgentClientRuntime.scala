@@ -103,7 +103,7 @@ object AgentClientRuntime {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
       val encoded                     = RpcValueCodec.encodeArgs(input)
-      val functionName                = normalizeFunctionName(method.functionName)
+      val functionName                = method.functionName
       val result: Either[String, Out] = for {
         params <- encoded
         raw    <- client.rpc.invokeAndAwait(functionName, params)
@@ -119,7 +119,7 @@ object AgentClientRuntime {
     private def runFireAndForget[In, Out0](method: AgentMethod[Trait, In, Out0], input: In): Future[Unit] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
-      val functionName                 = normalizeFunctionName(method.functionName)
+      val functionName                 = method.functionName
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
         _      <- client.rpc.trigger(functionName, params)
@@ -135,7 +135,7 @@ object AgentClientRuntime {
     ): Future[Unit] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
-      val functionName                 = normalizeFunctionName(method.functionName)
+      val functionName                 = method.functionName
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
         _      <- client.rpc.scheduleInvocation(datetime, functionName, params)
@@ -143,45 +143,6 @@ object AgentClientRuntime {
 
       FutureInterop.fromEither(result)
     }
-  }
-
-  private def normalizeFunctionName(functionName: String): String = {
-    val methodIdx = functionName.indexOf(".{")
-    if (methodIdx <= 0) return functionName
-
-    val prefix            = functionName.substring(0, methodIdx)
-    val suffix            = functionName.substring(methodIdx)
-    val slashAt           = prefix.lastIndexOf('/')
-    val (base, agentName) =
-      if (slashAt >= 0) (prefix.substring(0, slashAt + 1), prefix.substring(slashAt + 1))
-      else ("", prefix)
-
-    val kebab = kebabCase(agentName)
-    if (kebab == agentName) functionName else base + kebab + suffix
-  }
-
-  private def kebabCase(value: String): String = {
-    val builder     = new StringBuilder(value.length * 2)
-    var i           = 0
-    var prevWasDash = false
-    while (i < value.length) {
-      val ch = value.charAt(i)
-      if (ch == '_' || ch == ' ') {
-        if (!prevWasDash && builder.nonEmpty) {
-          builder.append('-')
-          prevWasDash = true
-        }
-      } else if (ch.isUpper) {
-        if (builder.nonEmpty && !prevWasDash) builder.append('-')
-        builder.append(ch.toLower)
-        prevWasDash = false
-      } else {
-        builder.append(ch)
-        prevWasDash = ch == '-'
-      }
-      i += 1
-    }
-    builder.toString
   }
 
   private[rpc] object TestHooks {

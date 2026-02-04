@@ -7,9 +7,9 @@ componentTemplates:
       sources:
       - src
       targets:
-      - src/scala.js
+      - .golem/scala.js
     - injectToPrebuiltQuickjs: ../../golem-temp/agent_guest.wasm
-      module: src/scala.js
+      module: .golem/scala.js
       moduleWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
       into: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
     - generateAgentWrapper: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm

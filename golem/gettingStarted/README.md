@@ -180,9 +180,9 @@ componentTemplates:
       sources:
       - src
       targets:
-      - src/scala.js
+      - .golem/scala.js
     - injectToPrebuiltQuickjs: golem-temp/agent_guest.wasm
-      module: src/scala.js
+      module: .golem/scala.js
       moduleWasm: golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
       into: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
     - generateAgentWrapper: golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
@@ -270,8 +270,8 @@ if [[ -z "$bundle" ]]; then
   exit 1
 fi
 
-mkdir -p "$component_dir/src"
-cp "$bundle" "$component_dir/src/scala.js"
+mkdir -p "$component_dir/.golem"
+cp "$bundle" "$component_dir/.golem/scala.js"
 ```
 
 Then:
