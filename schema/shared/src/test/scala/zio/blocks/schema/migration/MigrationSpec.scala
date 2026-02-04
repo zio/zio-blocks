@@ -123,6 +123,26 @@ object MigrationSpec extends ZIOSpecDefault {
           result.toOption.get.asInstanceOf[DynamicValue.Record].fields.exists(_._1 == "age")
         )
       },
+      test("associativity law: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
+        val m1 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val m2 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("b"), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+        val m3 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("c"), DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        )
+        val leftAssoc  = (m1 ++ m2) ++ m3
+        val rightAssoc = m1 ++ (m2 ++ m3)
+        val input      = DynamicValue.Record(Chunk.empty)
+        val leftResult  = leftAssoc(input)
+        val rightResult = rightAssoc(input)
+        assertTrue(
+          leftResult == rightResult,
+          leftAssoc.actions == rightAssoc.actions
+        )
+      },
       test("reverse reverses actions in order") {
         val m = DynamicMigration(
           Vector(
@@ -135,6 +155,22 @@ object MigrationSpec extends ZIOSpecDefault {
           reversed.actions.size == 2,
           reversed.actions(0).isInstanceOf[MigrationAction.DropField],
           reversed.actions(1).isInstanceOf[MigrationAction.DropField]
+        )
+      },
+      test("structural reverse law: m.reverse.reverse == m") {
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            MigrationAction.Rename(DynamicOptic.root.field("old"), "new"),
+            MigrationAction.DropField(DynamicOptic.root.field("removed"), DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+        val doubleReversed = m.reverse.reverse
+        assertTrue(
+          m.actions.size == doubleReversed.actions.size,
+          m.actions.zip(doubleReversed.actions).forall { case (a, b) =>
+            a.getClass == b.getClass && a.at == b.at
+          }
         )
       }
     ),
