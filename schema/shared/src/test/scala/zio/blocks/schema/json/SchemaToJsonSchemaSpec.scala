@@ -155,8 +155,8 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
         val json   = schema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("integer")),
-          json.get("minimum").one == Right(Json.Number("-128")),
-          json.get("maximum").one == Right(Json.Number("127"))
+          json.get("minimum").one == Right(Json.Number(-128)),
+          json.get("maximum").one == Right(Json.Number(127))
         )
       },
       test("Short schema includes min/max constraints") {
@@ -164,8 +164,8 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
         val json   = schema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("integer")),
-          json.get("minimum").one == Right(Json.Number("-32768")),
-          json.get("maximum").one == Right(Json.Number("32767"))
+          json.get("minimum").one == Right(Json.Number(-32768)),
+          json.get("maximum").one == Right(Json.Number(32767))
         )
       },
       test("Char schema includes length constraints") {
@@ -173,8 +173,8 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
         val json   = schema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("string")),
-          json.get("minLength").one == Right(Json.Number("1")),
-          json.get("maxLength").one == Right(Json.Number("1"))
+          json.get("minLength").one == Right(Json.Number(1)),
+          json.get("maxLength").one == Right(Json.Number(1))
         )
       }
     ),

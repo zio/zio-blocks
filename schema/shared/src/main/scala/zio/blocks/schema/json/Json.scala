@@ -635,7 +635,7 @@ object Json {
    * Represents a JSON number stored as a String to preserve exact
    * representation.
    */
-  final case class Number(value: java.lang.String) extends Json {
+  final case class Number(value: BigDecimal) extends Json {
     override def jsonType: JsonType = JsonType.Number
 
     override def as(jsonType: JsonType): Option[jsonType.Type] =
@@ -643,54 +643,54 @@ object Json {
       else None
 
     override def unwrap(jsonType: JsonType): Option[jsonType.Unwrap] =
-      if (jsonType eq JsonType.Number) toBigDecimalOption.asInstanceOf[Option[jsonType.Unwrap]]
+      if (jsonType eq JsonType.Number) new Some(value).asInstanceOf[Option[jsonType.Unwrap]]
       else None
 
     override def typeIndex: Int = 2
 
-    /** Returns the underlying BigDecimal value. */
-    def toBigDecimal: BigDecimal = BigDecimal(value)
-
-    /** Returns the underlying BigDecimal value if parseable, otherwise None. */
-    def toBigDecimalOption: Option[BigDecimal] =
-      try new Some(BigDecimal(value))
-      catch { case _: NumberFormatException => None }
-
     override def compare(that: Json): Int = that match {
-      case thatNum: Number =>
-        try BigDecimal(value).compare(BigDecimal(thatNum.value))
-        catch {
-          case err if NonFatal(err) => value.compareTo(thatNum.value)
-        }
-      case _ => typeIndex - that.typeIndex
+      case thatNum: Number => value.compare(thatNum.value)
+      case _               => typeIndex - that.typeIndex
     }
   }
 
   object Number {
 
     /** Creates a JSON number from an Int. */
-    def apply(value: Int): Number = new Number(value.toString)
+    def apply(value: Int): Number = new Number(BigDecimal(value))
 
     /** Creates a JSON number from a Long. */
-    def apply(value: Long): Number = new Number(value.toString)
+    def apply(value: Long): Number = new Number(BigDecimal(value))
 
-    /** Creates a JSON number from a Float. */
-    def apply(value: Float): Number = new Number(value.toString)
+    /**
+     * Creates a JSON number from a Float.
+     *
+     * @throws java.lang.IllegalArgumentException
+     *   in cases of NaN of infinity values
+     */
+    def apply(value: Float): Number = new Number(JsonWriter.toBigDecimal(value))
 
-    /** Creates a JSON number from a Double. */
-    def apply(value: Double): Number = new Number(value.toString)
+    /**
+     * Creates a JSON number from a Double.
+     *
+     * @throws java.lang.IllegalArgumentException
+     *   in cases of NaN of infinity values
+     */
+    def apply(value: Double): Number = new Number(JsonWriter.toBigDecimal(value))
 
     /** Creates a JSON number from a BigDecimal. */
-    def apply(value: BigDecimal): Number = new Number(value.toString)
+    def apply(value: BigDecimal): Number = new Number(value)
 
     /** Creates a JSON number from a BigInt. */
-    def apply(value: BigInt): Number = new Number(value.toString)
+    def apply(value: BigInt): Number =
+      if (value.isValidLong) apply(value.toLong)
+      else new Number(BigDecimal(value))
 
     /** Creates a JSON number from a Byte. */
-    def apply(value: Byte): Number = new Number(value.toString)
+    def apply(value: Byte): Number = new Number(BigDecimal(value))
 
     /** Creates a JSON number from a Short. */
-    def apply(value: Short): Number = new Number(value.toString)
+    def apply(value: Short): Number = new Number(BigDecimal(value))
   }
 
   /**
@@ -821,16 +821,16 @@ object Json {
   private[this] def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
     case PrimitiveValue.Unit              => Object.empty
     case v: PrimitiveValue.Boolean        => Boolean(v.value)
-    case v: PrimitiveValue.Byte           => new Number(v.value.toString)
-    case v: PrimitiveValue.Short          => new Number(v.value.toString)
-    case v: PrimitiveValue.Int            => new Number(v.value.toString)
-    case v: PrimitiveValue.Long           => new Number(v.value.toString)
-    case v: PrimitiveValue.Float          => new Number(v.value.toString)
-    case v: PrimitiveValue.Double         => new Number(v.value.toString)
+    case v: PrimitiveValue.Byte           => Number(v.value)
+    case v: PrimitiveValue.Short          => Number(v.value)
+    case v: PrimitiveValue.Int            => Number(v.value)
+    case v: PrimitiveValue.Long           => Number(v.value)
+    case v: PrimitiveValue.Float          => Number(v.value)
+    case v: PrimitiveValue.Double         => Number(v.value)
     case v: PrimitiveValue.Char           => new String(v.value.toString)
     case v: PrimitiveValue.String         => new String(v.value)
-    case v: PrimitiveValue.BigInt         => new Number(v.value.toString)
-    case v: PrimitiveValue.BigDecimal     => new Number(v.value.toString)
+    case v: PrimitiveValue.BigInt         => Number(v.value)
+    case v: PrimitiveValue.BigDecimal     => Number(v.value)
     case v: PrimitiveValue.DayOfWeek      => new String(v.value.toString)
     case v: PrimitiveValue.Duration       => new String(v.value.toString)
     case v: PrimitiveValue.Instant        => new String(v.value.toString)
@@ -857,7 +857,7 @@ object Json {
     case bool: Boolean => new DynamicValue.Primitive(new PrimitiveValue.Boolean(bool.value))
     case num: Number   =>
       // Try to preserve Int/Long if possible
-      val bd        = BigDecimal(num.value)
+      val bd        = num.value
       val longValue = bd.bigDecimal.longValue
       if (bd == BigDecimal(longValue)) {
         val intValue = longValue.toInt
@@ -1963,13 +1963,13 @@ object Json {
 
   implicit lazy val numberSchema: Schema[Number] = new Schema(
     reflect = new Reflect.Record[Binding, Number](
-      fields = Vector(Schema[java.lang.String].reflect.asTerm("value")),
+      fields = Vector(Schema[BigDecimal].reflect.asTerm("value")),
       typeId = TypeId.of[Number],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Number] {
           def usedRegisters: RegisterOffset                            = 1
           def construct(in: Registers, offset: RegisterOffset): Number =
-            new Number(in.getObject(offset).asInstanceOf[java.lang.String])
+            new Number(in.getObject(offset).asInstanceOf[BigDecimal])
         },
         deconstructor = new Deconstructor[Number] {
           def usedRegisters: RegisterOffset                                         = 1
@@ -2140,10 +2140,7 @@ object Json {
         Boolean.apply(in.readBoolean())
       } else if (b >= '0' && b <= '9' || b == '-') {
         in.rollbackToken()
-        in.setMark()
-        val _ = in.readBigDecimal(null)
-        in.rollbackToMark()
-        new Number(new java.lang.String(in.readRawValAsBytes()))
+        new Number(in.readBigDecimal(null))
       } else if (b == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
@@ -2192,7 +2189,7 @@ object Json {
     override def encodeValue(x: Json, out: JsonWriter): Unit = x match {
       case str: String   => out.writeVal(str.value)
       case bool: Boolean => out.writeVal(bool.value)
-      case num: Number   => out.writeRawVal(num.value.getBytes)
+      case num: Number   => out.writeVal(num.value)
       case arr: Array    =>
         out.writeArrayStart()
         val vs  = arr.value

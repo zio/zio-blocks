@@ -129,8 +129,8 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val json       = jsonSchema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("integer")),
-          json.get("minimum").one == Right(Json.Number("-128")),
-          json.get("maximum").one == Right(Json.Number("127"))
+          json.get("minimum").one == Right(Json.Number(-128)),
+          json.get("maximum").one == Right(Json.Number(127))
         )
       },
       test("Short produces integer JSON Schema with min/max constraints") {
@@ -138,8 +138,8 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val json       = jsonSchema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("integer")),
-          json.get("minimum").one == Right(Json.Number("-32768")),
-          json.get("maximum").one == Right(Json.Number("32767"))
+          json.get("minimum").one == Right(Json.Number(-32768)),
+          json.get("maximum").one == Right(Json.Number(32767))
         )
       },
       test("Char produces string JSON Schema with minLength/maxLength = 1") {
@@ -147,8 +147,8 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val json       = jsonSchema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("string")),
-          json.get("minLength").one == Right(Json.Number("1")),
-          json.get("maxLength").one == Right(Json.Number("1"))
+          json.get("minLength").one == Right(Json.Number(1)),
+          json.get("maxLength").one == Right(Json.Number(1))
         )
       },
       test("BigInt produces integer JSON Schema") {
