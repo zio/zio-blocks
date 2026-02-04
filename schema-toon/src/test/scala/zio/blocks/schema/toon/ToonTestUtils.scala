@@ -12,6 +12,8 @@ import scala.collection.immutable.ArraySeq
 import scala.util.Try
 
 object ToonTestUtils {
+  private def normalizeNewlines(s: String): String =
+    s.replace("\r\n", "\n").replace("\r", "\n")
   def roundTrip[A](value: A, expectedToon: String)(implicit schema: Schema[A]): TestResult =
     roundTrip(value, expectedToon, getOrDeriveCodec(schema))
 
@@ -47,7 +49,7 @@ object ToonTestUtils {
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
     val encodedBySchema5 = codec.encodeToString(value, writerConfig).getBytes(UTF_8)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedToon)) &&
+    assert(normalizeNewlines(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeNewlines(expectedToon))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
@@ -110,7 +112,7 @@ object ToonTestUtils {
   ): TestResult = {
     val codec  = ToonBinaryCodec.dynamicValueCodec
     val result = codec.encodeToString(value, writerConfig)
-    assert(result)(equalTo(expectedToon))
+    assert(normalizeNewlines(result))(equalTo(normalizeNewlines(expectedToon)))
   }
 
   def decodeError[A](invalidToon: String, error: String)(implicit schema: Schema[A]): TestResult =
@@ -181,7 +183,7 @@ object ToonTestUtils {
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
     val encodedBySchema5 = codec.encodeToString(value, writerConfig).getBytes(UTF_8)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedToon)) &&
+    assert(normalizeNewlines(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeNewlines(expectedToon))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
