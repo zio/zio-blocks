@@ -45,7 +45,7 @@ addCommandAlias(
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; " +
+  "++3.3.7!; typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; " +
     "zioGolemModelJS/test; zioGolemCoreJS/test"
 )
 

@@ -163,8 +163,8 @@ object BuildHelper {
         }
       },
       crossScalaVersions       := scalaVersions,
-      scalaVersion             := scalaVersions.head,
       ThisBuild / scalaVersion := scalaVersions.head,
+      scalaVersion             := (ThisBuild / scalaVersion).value,
       ThisBuild / publishTo    := {
         val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
         if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
@@ -227,6 +227,9 @@ object BuildHelper {
     )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
+    // Scala.js 3.7.4 compiler fails on virtualfile: URIs during JS builds.
+    scalaVersion             := Scala33,
+    crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),
     coverageEnabled          := false,
     Test / parallelExecution := false,
     Test / fork              := false

@@ -35,7 +35,7 @@ object RemoteAgentOps {
 }
 
 private object RemoteAgentRpcMacro {
-  def rpcImpl[Trait: Type](remoteExpr: Expr[RemoteAgent[Trait]])(using Quotes): Expr[Any] = {
+  def rpcImpl[Trait: Type](remoteExpr: Expr[RemoteAgent[Trait]])(using Quotes): Expr[?] = {
     import quotes.reflect.*
 
     case class MethodData(
@@ -297,9 +297,11 @@ private object RemoteAgentRpcMacro {
         )
       }
 
-    val casted = Typed(objRef.asTerm, Inferred(rpcType)).asExpr
-
-    Block(remoteVal :: objVal :: updates, casted.asTerm).asExpr
+    rpcType.asType match {
+      case '[t] =>
+        val casted = Typed(objRef.asTerm, Inferred(rpcType)).asExprOf[t]
+        Block(remoteVal :: objVal :: updates, casted.asTerm).asExprOf[t]
+    }
   }
 
   private enum MethodParamAccess { case NoArgs, SingleArg, MultiArgs }
