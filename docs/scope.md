@@ -52,10 +52,8 @@ Scope gives you compile-time verification with natural, fluent syntax:
 ```scala
 Scope.global
   .injected[Config]
-  .injected[Database]
-  .injected[Cache]
-  .injected[UserService]
-  .injected[App]
+  .injected[Database & Cache]       // Batch inject independent services
+  .injected[UserService & App]
   .run { ctx =>
     ctx.get[App].run()
   }
@@ -98,12 +96,12 @@ class Database(config: Config) extends AutoCloseable {
   def close(): Unit = pool.close()
 }
 
-// Manual cleanup via Scope
-class Cache(config: Config)(using scope: Scope[?]) {
+// Manual cleanup via defer (top-level function)
+class Cache(config: Config)(using Scope[?]) {
   private val store = new LRUCache(config.cacheSize)
   private val evictor = new Thread(() => evictionLoop())
   evictor.start()
-  scope.defer {
+  defer {
     evictor.interrupt()
     evictor.join()
     store.clear()
@@ -129,14 +127,12 @@ class App(userService: UserService) {
   }
 }
 
-// Wire it up
+// Wire it up — batch injection for independent services
 @main def main(): Unit = {
   Scope.global
     .injected[Config]
-    .injected[Database]
-    .injected[Cache]
-    .injected[UserService]
-    .injected[App]
+    .injected[Database & Cache]     // Both depend only on Config, inject together
+    .injected[UserService & App]    // Both can be injected in same layer
     .run { ctx =>
       ctx.get[App].run()
     }
@@ -275,7 +271,7 @@ Scope.global
   .injected[Database](
     Wire.Shared { ctx =>
       val db = Database.connect(sys.env("DB_URL"))
-      summon[Scope[?]].defer(db.close())
+      defer(db.close())  // Top-level defer function
       Context(db)
     }
   )
@@ -285,7 +281,16 @@ Scope.global
 
 ### Batch Injection
 
-Inject multiple services into the same layer using intersection types:
+Inject multiple services into the same layer using intersection types. This is the preferred style when services at the same "level" of the dependency graph can be injected together:
+
+```scala
+// Inject all infrastructure at once
+Scope.global
+  .injected[Config]
+  .injected[Database & Cache & MessageQueue]  // All depend on Config
+  .injected[UserService & OrderService]        // All depend on DB/Cache
+  .injected[App]
+```
 
 ```scala
 // Scala 3 (match types auto-expand)
@@ -296,7 +301,7 @@ Scope.global.injected[Config & Database & Cache]
 Scope.global.injected[Context[Config] & Context[Database] & Context[Cache]]
 ```
 
-All three services share the same layer and finalizer scope.
+All services in a batch share the same layer — their finalizers run together when that layer closes.
 
 ### Wireable for Interfaces
 
@@ -346,12 +351,12 @@ class Database(config: Config) extends AutoCloseable {
 
 ### Manual Cleanup
 
-For complex cleanup, take an implicit `Scope` and register finalizers manually:
+For complex cleanup, take an implicit `Scope` and use the top-level `defer` function:
 
 ```scala
-class Cache(config: Config)(using scope: Scope[?]) {
+class Cache(config: Config)(using Scope[?]) {
   private val evictor = startEvictor()
-  scope.defer {
+  defer {
     evictor.stop()
     evictor.awaitTermination()
   }
@@ -553,16 +558,14 @@ Testing is straightforward — just inject test implementations:
 ```scala
 // Production
 Scope.global
-  .injected[RealDatabase]
-  .injected[RealCache]
+  .injected[RealDatabase & RealCache]
   .injected[UserService]
   .run { ctx => runApp(ctx.get[UserService]) }
 
-// Test
+// Test — swap implementations
 Scope.global
-  .injected[MockDatabase]
-  .injected[MockCache]
-  .injected[UserService]
+  .injected[MockDatabase & MockCache]
+  .injected[UserService]  // Same UserService, uses mocks
   .run { ctx => 
     val service = ctx.get[UserService]
     assert(service.getUser("123") == expectedUser)
@@ -573,7 +576,10 @@ Or override specific services with explicit wires:
 
 ```scala
 Scope.global
-  .injected[Database](Wire.value(new MockDatabase()))
+  .injected[Database & Cache](
+    Wire.value(new MockDatabase()),
+    Wire.value(new MockCache())
+  )
   .injected[UserService]
   .run { ctx => /* test */ }
 ```
@@ -665,6 +671,15 @@ object Wireable {
 inline def shared[T]: Wire[???, T]  // Uses Wireable[T] if available, else constructor
 inline def unique[T]: Wire[???, T]  // Uses Wireable[T] if available, else constructor
 ```
+
+### Top-Level Functions
+
+```scala
+def defer(finalizer: => Unit)(using Scope[?]): Unit  // Register cleanup on current scope
+def get[T](using Scope[?], InStack[T, ?], IsNominalType[T]): T  // Get from stack
+```
+
+These are convenience functions that delegate to the implicit `Scope`, avoiding verbose `summon[Scope[?]].defer(...)` calls.
 
 ---
 
