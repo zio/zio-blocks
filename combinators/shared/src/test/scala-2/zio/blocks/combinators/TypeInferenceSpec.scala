@@ -9,8 +9,8 @@ object TypeInferenceSpec extends ZIOSpecDefault {
   private val toolbox = currentMirror.mkToolBox()
 
   /**
-   * Attempts to typecheck the given code and returns any error messages.
-   * Uses the ToolBox to compile code at runtime.
+   * Attempts to typecheck the given code and returns any error messages. Uses
+   * the ToolBox to compile code at runtime.
    */
   private def typeCheckErrors(code: String): List[String] =
     try {
@@ -22,9 +22,9 @@ object TypeInferenceSpec extends ZIOSpecDefault {
     }
 
   /**
-   * Extracts the "found" type from a Scala 2 type mismatch error.
-   * Scala 2 format: "type mismatch;\n found   : <type>\n required: <type>"
-   * Note: multiple spaces between "found" and ":"
+   * Extracts the "found" type from a Scala 2 type mismatch error. Scala 2
+   * format: "type mismatch;\n found : <type>\n required: <type>" Note: multiple
+   * spaces between "found" and ":"
    */
   private def extractFoundType(errors: List[String]): Option[String] = {
     val foundPattern = """found\s+:\s+([^\n]+)""".r
@@ -55,8 +55,8 @@ object TypeInferenceSpec extends ZIOSpecDefault {
   }
 
   /**
-   * Checks that the inferred type contains the expected substring.
-   * Used when the exact type is complex or has path-dependent components.
+   * Checks that the inferred type contains the expected substring. Used when
+   * the exact type is complex or has path-dependent components.
    */
   private def assertInferredTypeContains(code: String, expectedSubstring: String) = {
     val errors         = typeCheckErrors(code)
@@ -89,7 +89,9 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           "(Int, String, Boolean)"
         )
       },
-      test("combine(((1, \"a\"), true), (3.0, 'x')) infers ((Int, String), Boolean, (Double, Char)) - single-level flatten") {
+      test(
+        "combine(((1, \"a\"), true), (3.0, 'x')) infers ((Int, String), Boolean, (Double, Char)) - single-level flatten"
+      ) {
         assertInferredType(
           """
             import zio.blocks.combinators.Tuples
@@ -162,7 +164,9 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           "Either[Int,String]"
         )
       },
-      test("combine on Right(Right(true)): Either[Int, Either[String, Boolean]] infers Either[Either[Int, String], Boolean]") {
+      test(
+        "combine on Right(Right(true)): Either[Int, Either[String, Boolean]] infers Either[Either[Int, String], Boolean]"
+      ) {
         assertInferredType(
           """
             import zio.blocks.combinators.Eithers
@@ -171,7 +175,9 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           "Either[Either[Int,String],Boolean]"
         )
       },
-      test("combine on Right(Left(\"mid\")): Either[Int, Either[String, Boolean]] infers Either[Either[Int, String], Boolean]") {
+      test(
+        "combine on Right(Left(\"mid\")): Either[Int, Either[String, Boolean]] infers Either[Either[Int, String], Boolean]"
+      ) {
         assertInferredType(
           """
             import zio.blocks.combinators.Eithers
@@ -221,7 +227,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
     ),
     suite("Generic functions with type inference")(
       test("generic function using Tuples.Combiner shows c.Out in error") {
-        val code = """
+        val code   = """
           import zio.blocks.combinators.Tuples
           def combineValues[L, R](l: L, r: R)(implicit c: Tuples.Combiner[L, R]): String = Tuples.combine(l, r)
           combineValues(1, "a")
@@ -233,7 +239,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         )
       },
       test("generic function using Tuples.Separator shows path-dependent types in error") {
-        val code = """
+        val code   = """
           import zio.blocks.combinators.Tuples
           def separateValue[A](a: A)(implicit s: Tuples.Separator[A]): String = Tuples.separate(a)
           separateValue((1, "a", true))
@@ -245,7 +251,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         )
       },
       test("generic function using Eithers.Combiner shows c.Out in error") {
-        val code = """
+        val code   = """
           import zio.blocks.combinators.Eithers
           def canonicalize[L, R](e: Either[L, R])(implicit c: Eithers.Combiner[L, R]): String = Eithers.combine(e)
           canonicalize(Right(Right(true)): Either[Int, Either[String, Boolean]])
