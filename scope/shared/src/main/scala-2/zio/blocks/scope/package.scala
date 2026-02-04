@@ -26,9 +26,4 @@ package object scope {
 
   def injected[T](wires: Wire[_, _]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] =
     macro ScopeMacros.injectedImpl[T]
-
-  implicit final class ScopeInjectedOps[Stack](private val scope: Scope[Stack]) extends AnyVal {
-    def injected[T](wires: Wire[_, _]*): Scope.Closeable[T, _] =
-      macro ScopeMacros.injectedFromPrefixImpl[T]
-  }
 }

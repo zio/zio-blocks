@@ -68,7 +68,7 @@ def processRequest()(using Scope.Any): Response = {
 }
 
 def doWork()(using Scope.Has[TempFile]): Unit = {
-  get[TempFile].write(data)  // Compiler verified TempFile is available
+  $[TempFile].write(data)  // Compiler verified TempFile is available
 }
 
 def finalize()(using Scope.Has[TempFile]): Unit = { ... }
@@ -176,13 +176,13 @@ A `Scope[Stack]` manages resource lifecycle and tracks available services at the
 sealed trait Scope[+Stack] {
   def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
-  def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
+  inline def injected[T](wires: Wire[?,?]*): Scope.Closeable[T, ?]
 }
 
 object Scope {
-  val global: Scope[TNil]                 // Root scope, closes on JVM shutdown
-  type Any = Scope[?]                     // Use in constructors needing cleanup
-  type Has[+T] = Scope[Context[T] :: Any] // Scope that has T available
+  val global: Scope[TNil]                      // Root scope, closes on JVM shutdown
+  type Any = Scope[?]                          // Use in constructors needing cleanup
+  type Has[+T] = Scope[Context[T] :: scala.Any] // Scope that has T available
 }
 ```
 
@@ -225,9 +225,9 @@ Services can be retrieved from any layer in the stack. The stack type ensures at
 `injected` returns a `Scope.Closeable` — a scope that can be explicitly closed:
 
 ```scala
-trait Scope.Closeable[Stack] extends Scope[Stack] with AutoCloseable {
+trait Scope.Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
   def close(): Unit
-  def run[B](f: Context[CurrentLayer] => B): B
+  def run[B](f: Scope.Has[Head] ?=> B): B  // Scala 3: scope available via context function
 }
 ```
 
@@ -587,18 +587,19 @@ Scope provides rich error messages with dependency graphs.
 sealed trait Scope[+Stack] {
   def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
-  def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
+  inline def injected[T](wires: Wire[?,?]*): Scope.Closeable[T, ?]
 }
 
 object Scope {
   val global: Scope[TNil]
   
-  type Any = Scope[?]                          // Scope-polymorphic  
-  type Has[+T] = Scope[Context[T] :: ?]        // Scope that has T available
+  type Any = Scope[?]                           // Scope-polymorphic  
+  type Has[+T] = Scope[Context[T] :: scala.Any] // Scope that has T available
   
-  trait Closeable[+Stack] extends Scope[Stack] with AutoCloseable {
+  trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
     def close(): Unit
-    def run[B](f: Scope[Stack] ?=> Context[CurrentLayer] => B): B
+    def run[B](f: Scope.Has[Head] ?=> B): B  // Scala 3
+    def run[B](f: Scope.Has[Head] => B): B   // Scala 2
   }
 }
 
@@ -609,28 +610,26 @@ trait InStack[-T, +Stack]
 ### Wire
 
 ```scala
-// Scala 3
 sealed trait Wire[-In, +Out] {
-  def construct: Scope[In] ?=> Context[Out]
+  def construct(using Scope.Has[In]): Context[Out]  // Scala 3
+  def construct(implicit scope: Scope.Has[In]): Context[Out]  // Scala 2
 
   def isShared: Boolean
-
   def isUnique: Boolean
-
   def shared: Wire.Shared[In, Out]
-
   def unique: Wire.Unique[In, Out]
 }
 
-// Scala 2
-sealed trait Wire[-In, +Out] {
-  def construct(implicit scope: Scope[?]): Context[In] => Context[Out]
-}
-
 object Wire {
-  final case class Shared[-In, +Out](construct: Scope[In] ?=> Context[Out]) extends Wire[In, Out]
-  final case class Unique[-In, +Out](construct: Scope[In] ?=> Context[Out]) extends Wire[In, Out]
-  def value[T](t: T)(implicit ev: IsNominalType[T]): Wire[Any, T]
+  final class Shared[-In, +Out](constructFn: Scope.Has[In] => Context[Out]) extends Wire[In, Out]
+  final class Unique[-In, +Out](constructFn: Scope.Has[In] => Context[Out]) extends Wire[In, Out]
+  
+  object Shared {
+    def apply[In, Out](f: Scope.Has[In] ?=> Context[Out]): Wire.Shared[In, Out]  // Scala 3
+    def apply[In, Out](f: Scope.Has[In] => Context[Out]): Wire.Shared[In, Out]   // Scala 2
+  }
+  
+  def value[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T]
 }
 ```
 
@@ -639,28 +638,33 @@ object Wire {
 ```scala
 trait Wireable[+Out] {
   type In
-
-  def wire: Wire[In, +Out]
+  def wire: Wire[In, Out]
 }
 
 object Wireable {
-  type Typed[In0, +Out] = Wireable[Out] {
-    type In = In0
-  }
-
-  // Scala 3
-  // How do we adjust the `In` type param in Scala 2???
-  transparent inline def from[T]: Wireable.Typed[?, T]
+  type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
+  
+  transparent inline def from[T]: Wireable[T]  // Scala 3
+  def from[T]: Wireable[T] = macro ...         // Scala 2
 }
 ```
 
 ### Top-Level Functions
 
 ```scala
-inline def injected[T](wires: Wire[?,?]*)(using Scope.Any): Scope.Closeable[...]
-inline def shared[T]: Wire[???, T]
-inline def unique[T]: Wire[???, T]
+// Scala 3
+transparent inline def shared[T]: Wire.Shared[?, T]
+transparent inline def unique[T]: Wire.Unique[?, T]
+inline def injected[T](wires: Wire[?,?]*)(using Scope.Any): Scope.Closeable[T, ?]
+def $[T](using Scope.Has[T], IsNominalType[T]): T
 def defer(finalizer: => Unit)(using Scope.Any): Unit
+
+// Scala 2
+def shared[T]: Wire.Shared[_, T] = macro ...
+def unique[T]: Wire.Unique[_, T] = macro ...
+def injected[T](wires: Wire[_,_]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
+def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T
+def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit
 ```
 
 ---

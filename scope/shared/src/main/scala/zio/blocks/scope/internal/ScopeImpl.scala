@@ -3,9 +3,9 @@ package zio.blocks.scope.internal
 import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.Scope
 
-private[scope] final class ScopeImpl[H, T](
+private[scope] abstract class ScopeImpl[H, T](
   private val parent: Scope[?],
-  private val context: Context[H],
+  private[scope] val context: Context[H],
   private val finalizers: Finalizers
 ) extends Scope.Closeable[H, T] {
 
@@ -39,7 +39,5 @@ private[scope] final class ScopeImpl[H, T](
     }
   }
 
-  def run[B](f: Context[H] => B): B =
-    try f(context)
-    finally close()
+  protected def doClose(): Unit = close()
 }

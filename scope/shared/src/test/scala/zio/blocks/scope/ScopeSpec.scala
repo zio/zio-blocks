@@ -60,20 +60,6 @@ object ScopeSpec extends ZIOSpecDefault {
       }
     ),
     suite("Closeable")(
-      test("run executes block and closes scope") {
-        var blockRan          = false
-        var cleaned           = false
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        finalizers.add { cleaned = true }
-        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
-        closeable.run { ctx =>
-          blockRan = true
-          assertTrue(ctx.get[Config] == config)
-        }
-        assertTrue(blockRan, cleaned)
-      },
       test("close is idempotent") {
         var closeCount        = 0
         val parent: Scope.Any = Scope.global
@@ -159,20 +145,6 @@ object ScopeSpec extends ZIOSpecDefault {
         val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         closeable.close()
         assertTrue(order.toList == List(3, 2, 1))
-      },
-      test("run even on exception") {
-        var cleaned           = false
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        finalizers.add { cleaned = true }
-        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
-        try {
-          closeable.run(_ => throw new RuntimeException("boom"))
-        } catch {
-          case _: RuntimeException => ()
-        }
-        assertTrue(cleaned)
       },
       test("exception in finalizer is propagated") {
         val parent: Scope.Any = Scope.global

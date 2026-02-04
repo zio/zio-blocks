@@ -1,9 +1,9 @@
 package zio.blocks.scope
 
 import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.internal.{Finalizers, ScopeImpl}
+import zio.blocks.scope.internal.Finalizers
 
-sealed trait Scope[+Stack] {
+sealed trait Scope[+Stack] extends ScopeVersionSpecific[Stack] {
   private[scope] def getImpl[T](nom: IsNominalType[T]): T
 
   def defer(finalizer: => Unit): Unit
@@ -18,10 +18,11 @@ object Scope {
     def get[T](implicit ev: InStack[T, Stack], nom: IsNominalType[T]): T = self.getImpl(nom)
   }
 
-  trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
+  trait Closeable[+Head, +Tail]
+      extends Scope[Context[Head] :: Tail]
+      with CloseableVersionSpecific[Head, Tail]
+      with AutoCloseable {
     def close(): Unit
-
-    def run[B](f: Context[Head] => B): B
   }
 
   private[scope] def makeCloseable[T, S](
@@ -29,7 +30,7 @@ object Scope {
     context: Context[T],
     finalizers: Finalizers
   ): Closeable[T, S] =
-    new ScopeImpl[T, S](parent, context, finalizers)
+    ScopeFactory.createScopeImpl[T, S](parent, context, finalizers)
 
   private val globalInstance: GlobalScope = new GlobalScope
 
