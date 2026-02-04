@@ -972,6 +972,78 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
 
     suite("Error Branches")(
+      test("AddField.fieldName extracts field name from path") {
+        val action = MigrationAction.AddField(
+          DynamicOptic.root.field("myField"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.fieldName == "myField")
+      },
+
+      test("AddField.fieldName throws on invalid path (root only)") {
+        val action = MigrationAction.AddField(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val result = scala.util.Try(action.fieldName)
+        assertTrue(result.isFailure)
+      },
+
+      test("AddField.fieldName throws on non-Field path node") {
+        val action = MigrationAction.AddField(
+          DynamicOptic(Vector(DynamicOptic.Node.Case("SomeCase"))),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val result = scala.util.Try(action.fieldName)
+        assertTrue(result.isFailure)
+      },
+
+      test("DropField.fieldName extracts field name from path") {
+        val action = MigrationAction.DropField(
+          DynamicOptic.root.field("myField"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.fieldName == "myField")
+      },
+
+      test("DropField.fieldName throws on invalid path (root only)") {
+        val action = MigrationAction.DropField(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val result = scala.util.Try(action.fieldName)
+        assertTrue(result.isFailure)
+      },
+
+      test("DropField.fieldName throws on non-Field path node") {
+        val action = MigrationAction.DropField(
+          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val result = scala.util.Try(action.fieldName)
+        assertTrue(result.isFailure)
+      },
+
+      test("Rename.from extracts field name from path") {
+        val action = MigrationAction.Rename(DynamicOptic.root.field("oldName"), "newName")
+        assertTrue(action.from == "oldName")
+      },
+
+      test("Rename.from throws on invalid path (root only)") {
+        val action = MigrationAction.Rename(DynamicOptic.root, "newName")
+        val result = scala.util.Try(action.from)
+        assertTrue(result.isFailure)
+      },
+
+      test("Rename.from throws on non-Field path node") {
+        val action = MigrationAction.Rename(
+          DynamicOptic(Vector(DynamicOptic.Node.MapKeys)),
+          "newName"
+        )
+        val result = scala.util.Try(action.from)
+        assertTrue(result.isFailure)
+      },
+
       test("isEmpty on empty migration") {
         val empty = DynamicMigration.empty
         assertTrue(empty.isEmpty == true)
