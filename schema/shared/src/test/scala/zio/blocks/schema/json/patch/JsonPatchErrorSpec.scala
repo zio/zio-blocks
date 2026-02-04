@@ -406,7 +406,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
       val lenientResult = patch.apply(original, PatchMode.Lenient)
       val clobberResult = patch.apply(original, PatchMode.Clobber)
 
-      assertTrue(strictResult == Right(Json.Number("15"))) &&
+      assertTrue(strictResult == Right(Json.Number(15))) &&
       assertTrue(strictResult == lenientResult) &&
       assertTrue(strictResult == clobberResult)
     },
