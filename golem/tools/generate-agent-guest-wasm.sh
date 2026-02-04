@@ -12,6 +12,8 @@ set -euo pipefail
 #    (set GOLEM_WIT_DIR to override)
 # 2) stages a WIT package for `golem:agent` (using a static agent.wit + deps)
 # 3) runs `wasm-rquickjs generate-wrapper-crate` (injecting `@composition` for golem-cli)
+#    Note: unlike the TS SDK, we do NOT embed a separate SDK JS module here.
+#    Scala.js bundles the SDK into the user's `scala.js`, which golem-cli injects later.
 # 4) builds the component with `cargo component`
 # 5) updates embedded plugin resources (used by sbt/mill plugins).
 #
