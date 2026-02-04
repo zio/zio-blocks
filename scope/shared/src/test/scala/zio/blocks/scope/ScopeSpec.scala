@@ -260,34 +260,31 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(wire.isInstanceOf[Wire.Shared[_, _]])
       },
       test("Wire.value construction works") {
-        val wire                  = Wire.value(Config(true))
-        val parent: Scope.Any     = Scope.global
-        val finalizers            = new Finalizers
-        val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        given Scope.Has[Any]      = scope
-        val ctx                   = wire.construct
+        val wire                           = Wire.value(Config(true))
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        implicit val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
+        val ctx                            = wire.construct
         assertTrue(ctx.get[Config].debug)
       },
       test("Wire.Shared constructs context") {
-        val wire: Wire.Shared[Any, Config] = Wire.Shared[Any, Config] {
+        val wire: Wire.Shared[Any, Config] = Wire.Shared.fromFunction[Any, Config] { _ =>
           Context(Config(debug = true))
         }
-        val parent: Scope.Any     = Scope.global
-        val finalizers            = new Finalizers
-        val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        given Scope.Has[Any]      = scope
-        val ctx                   = wire.construct
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        implicit val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
+        val ctx                            = wire.construct
         assertTrue(ctx.get[Config].debug)
       },
       test("Wire.Unique constructs context") {
-        val wire: Wire.Unique[Any, Config] = Wire.Unique[Any, Config] {
+        val wire: Wire.Unique[Any, Config] = Wire.Unique.fromFunction[Any, Config] { _ =>
           Context(Config(debug = false))
         }
-        val parent: Scope.Any     = Scope.global
-        val finalizers            = new Finalizers
-        val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        given Scope.Has[Any]      = scope
-        val ctx                   = wire.construct
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        implicit val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
+        val ctx                            = wire.construct
         assertTrue(!ctx.get[Config].debug)
       },
       test("Wire.isShared and isUnique") {
