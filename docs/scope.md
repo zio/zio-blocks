@@ -11,7 +11,7 @@ title: "Scope"
 
 Scope is a minimalist dependency injection library that makes **lifecycle errors into compile-time errors**. Most DI libraries verify that your dependencies are wired correctly — Scope goes further by verifying that resources are used within their intended lifecycle.
 
-The key insight: **resources should be part of the scope's type**. A `Scope.Required[Database & Cache]` is a different type from `Scope.Required[Database]`. This means:
+The key insight: **resources should be part of the scope's type**. A `Scope.Has[Database & Cache]` is a different type from `Scope.Has[Database]`. This means:
 
 - You can't access a resource that isn't in scope — compile error
 - You can't pass the wrong scope to a function — compile error  
@@ -67,11 +67,11 @@ def processRequest()(using Scope.Any): Response = {
   finalize()  // Can NOT access TempFile — it's not in the type
 }
 
-def doWork()(using Scope.Required[TempFile]): Unit = {
+def doWork()(using Scope.Has[TempFile]): Unit = {
   get[TempFile].write(data)  // Compiler verified TempFile is available
 }
 
-def finalize()(using Scope.Required[TempFile]): Unit = { ... }
+def finalize()(using Scope.Has[TempFile]): Unit = { ... }
 // ^ Would NOT compile when called after TempFile scope closes!
 ```
 
@@ -157,7 +157,7 @@ class App(userService: UserService) {
 A `Scope[Stack]` manages resource lifecycle and tracks available services at the type level:
 
 ```scala
-sealed trait Scope[Stack] {
+sealed trait Scope[+Stack] {
   def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
   def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
@@ -166,10 +166,11 @@ sealed trait Scope[Stack] {
 object Scope {
   val global: Scope[TNil]               // Root scope, closes on JVM shutdown
   type Any = Scope[?]                   // Use in constructors needing cleanup
+  type Has[+T] = Scope[Context[T] :: ?] // Scope that has T available
 }
 ```
 
-The `InStack[T, Stack]` evidence is resolved at compile time, ensuring you can only `get` services that exist in the stack.
+The `InStack[T, Stack]` evidence is resolved at compile time, ensuring you can only `get` services that exist in the stack. Variance allows a `Scope.Has[Dog]` to satisfy a `Scope.Has[Animal]` requirement.
 
 **Key semantics:**
 - Finalizers run in **reverse order** of registration (LIFO)
@@ -313,12 +314,12 @@ def processUpload(file: UploadedFile)(using Scope.Any): Result = {
   // Socket cleaned up here
 }
 
-def validate()(using Scope.Required[Socket & TempFile]): ValidationResult = {
+def validate()(using Scope.Has[Socket & TempFile]): ValidationResult = {
   // Type guarantees both resources are available
   get[Socket].send(get[TempFile].readAll())
 }
 
-def finalize()(using Scope.Required[Socket]): Unit = {
+def finalize()(using Scope.Has[Socket]): Unit = {
   // Type guarantees Socket is available
   // Can't accidentally require TempFile here — it would fail to compile
   // at the call site where TempFile is out of scope
@@ -326,7 +327,7 @@ def finalize()(using Scope.Required[Socket]): Unit = {
 }
 
 // This would NOT compile:
-def badFinalize()(using Scope.Required[Socket & TempFile]): Unit = {
+def badFinalize()(using Scope.Has[Socket & TempFile]): Unit = {
   // ...
 }
 // Called from the outer scope where TempFile is gone:
@@ -514,7 +515,7 @@ Scope provides rich error messages with dependency graphs.
 ### Scope
 
 ```scala
-sealed trait Scope[Stack] {
+sealed trait Scope[+Stack] {
   def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
   def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
@@ -523,17 +524,17 @@ sealed trait Scope[Stack] {
 object Scope {
   val global: Scope[TNil]
   
-  type Any = Scope[?]                          // Scope-polymorphic
-  type Required[T] = Scope[Context[T] :: ?]    // Requires T in stack
+  type Any = Scope[?]                          // Scope-polymorphic  
+  type Has[+T] = Scope[Context[T] :: ?]        // Scope that has T available
   
-  trait Closeable[Stack] extends Scope[Stack] with AutoCloseable {
+  trait Closeable[+Stack] extends Scope[Stack] with AutoCloseable {
     def close(): Unit
     def run[B](f: Scope[Stack] ?=> Context[CurrentLayer] => B): B
   }
 }
 
 // Type-level evidence that T exists somewhere in the Stack
-trait InStack[T, Stack]
+trait InStack[-T, +Stack]
 ```
 
 ### Wire
