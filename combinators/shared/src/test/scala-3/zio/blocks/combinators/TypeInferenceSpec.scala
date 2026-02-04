@@ -34,7 +34,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Int") && e.message.contains("String") && e.message.contains("Boolean") && e.message.contains("Double"))
+          errors.exists(e =>
+            e.message.contains("Int") && e.message.contains("String") && e.message.contains("Boolean") && e.message
+              .contains("Double")
+          )
         )
       },
       test("combine with literal Int and String infers (Int, String)") {
@@ -362,7 +365,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Combiner") && e.message.contains("Int") && e.message.contains("String") && e.message.contains("Boolean") && e.message.contains("Double"))
+          errors.exists(e =>
+            e.message.contains("Combiner") && e.message.contains("Int") && e.message.contains("String") && e.message
+              .contains("Boolean") && e.message.contains("Double")
+          )
         )
       }
     )
