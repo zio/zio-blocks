@@ -1,5 +1,5 @@
-let c = counter("demo");
-let a = c.increment();
-let b = c.increment();
+let c = coordinator("demo");
+let a = c.route("demo", 1, "hello");
+let b = c.route("demo", 2, "world");
 { a: a, b: b }
 

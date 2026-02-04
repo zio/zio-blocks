@@ -68,7 +68,7 @@ private object RemoteAgentRpcMacro {
     // - trigger_<name>(...): Future[Unit]
     // - schedule_<name>(datetime: js.Dynamic, ...): Future[Unit]
     val rpcType: TypeRepr =
-      pendingMethods.foldLeft(TypeRepr.of[AnyRef]) { case (acc, m) =>
+      pendingMethods.foldLeft(TypeRepr.of[Selectable]) { case (acc, m) =>
         val callTpe =
           MethodType(m.params.map(_._1))(_ => m.params.map(_._2), _ => TypeRepr.of[Future].appliedTo(m.outputType))
         val triggerTpe =

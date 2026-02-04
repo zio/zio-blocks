@@ -1,11 +1,12 @@
 package golem.examples.templates
 
-import golem.HostApi
+import golem.*
 import golem.runtime.annotations.agentImplementation
 import golem.runtime.snapshot.SnapshotExports
 
 import scala.annotation.unused
 import scala.concurrent.Future
+import scala.reflect.Selectable.reflectiveSelectable
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.typedarray.{ArrayBuffer, DataView, Uint8Array}
@@ -19,6 +20,14 @@ final class CounterImpl(@unused private val name: String) extends Counter {
       value += 1
       value
     }
+}
+
+@agentImplementation()
+final class RpcClientImpl(@unused private val name: String) extends RpcClient {
+  override def callCounter(counterId: String): Future[Int] = {
+    val remote = Counter.getRemote(counterId)
+    remote.rpc.call_increment()
+  }
 }
 
 @agentImplementation()

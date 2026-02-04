@@ -49,12 +49,12 @@ cd scala-demo
 Create these directories:
 
 ```bash
-    mkdir -p project src/main/scala/demo
-mkdir -p .golem/common-scala-js .golem/components-js/scala-demo/src golem-temp
+mkdir -p project src/main/scala/demo
+mkdir -p .golem/common-scala-js golem-temp
 ```
 
 All commands below assume your working directory is the **project root** (the directory that contains `golem.yaml`,
-`.golem/common-scala-js/`, `.golem/components-js/`, and `golem-temp/`).
+`.golem/common-scala-js/`, and `golem-temp/`).
 
 Create `project/plugins.sbt`:
 
@@ -126,48 +126,7 @@ trait CounterAgent extends BaseAgent[String] {
 object CounterAgent extends AgentCompanion[CounterAgent]
 ```
 
-### Remote invocation variants (await/trigger/schedule)
-
-All agent methods support three invocation styles. Use `getRemote(...)` plus
-`RemoteAgentOps` to access them:
-
-```scala
-import golem.{Datetime, RemoteAgentOps}
-import golem.RemoteAgentOps.*
-
-val remote = CounterAgent.getRemote("shard-id")
-
-// Await (always invoke-and-await)
-remote.rpc.call_increment()
-
-// Fire-and-forget trigger
-remote.rpc.trigger_increment()
-
-// Schedule (run 5 seconds later)
-remote.rpc.schedule_increment(Datetime.afterSeconds(5))
-```
-
-Notes:
-
-- Works in Scala 2.13 and Scala 3.
-- `trigger_*` / `schedule_*` always return `Future[Unit]` by design.
-- `remote.rpc.call_increment()` always invokes the await path.
-
-### Custom data types (Schemas)
-
-If you use custom Scala types as **constructor inputs** (`BaseAgent[MyInput]`) or **method parameters/return values**,
-the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
-
-You normally **do not** define `GolemSchema` directly — instead, derive/provide a `zio.blocks.schema.Schema[T]`,
-and `GolemSchema` will be derived automatically from it.
-
-For example (Scala 3):
-
-```scala
-import zio.blocks.schema.Schema
-
-final case class State(value: Int) derives Schema
-```
+For RPC invocation variants and custom schema derivation, see `golem/README.md`.
 
 Create `src/main/scala/demo/CounterAgentImpl.scala`:
 
@@ -205,7 +164,10 @@ environments:
 
 includes:
 - .golem/common-*/golem.yaml
-- .golem/components-*/*/golem.yaml
+
+components:
+  scala:demo:
+    templates: scala.js
 ```
 
 Create `.golem/common-scala-js/golem.yaml`:
@@ -214,50 +176,24 @@ Create `.golem/common-scala-js/golem.yaml`:
 componentTemplates:
   scala.js:
     build:
-    - command: bash ../../build-scalajs.sh {{ component_name }}
+    - command: bash .golem/build-scalajs.sh {{ component_name }}
       sources:
       - src
       targets:
       - src/scala.js
-    - injectToPrebuiltQuickjs: ../../../golem-temp/agent_guest.wasm
+    - injectToPrebuiltQuickjs: golem-temp/agent_guest.wasm
       module: src/scala.js
-      moduleWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
-      into: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-    - generateAgentWrapper: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
-      basedOnCompiledWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-    - composeAgentWrapper: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
-      withAgent: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-      to: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    sourceWit: ../../../golem-temp/agent_guest.wasm
-    generatedWit: ../../../golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
-    componentWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    linkedWasm: ../../../golem-temp/agents/{{ component_name | to_snake_case }}.wasm
-```
-
-Create `.golem/components-js/scala-demo/golem.yaml`:
-
-```yaml
-components:
-  scala:demo:
-    # Use the shared Scala.js component template defined in common-scala-js/golem.yaml
-    templates: scala.js
-```
-
-### Adding Golem AI provider dependencies
-
-Golem AI is a unified API, but you still need to add the provider WASM as a
-component dependency. Add a `dependencies:` section under your component in
-`.golem/components-js/<component>/golem.yaml`.
-
-Example (Ollama provider for LLMs):
-
-```yaml
-components:
-  scala:demo:
-    templates: scala.js
-    dependencies:
-    - type: wasm
-      url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0/golem_llm_ollama.wasm
+      moduleWasm: golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
+      into: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+    - generateAgentWrapper: golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
+      basedOnCompiledWasm: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+    - composeAgentWrapper: golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
+      withAgent: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
+      to: golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
+    sourceWit: golem-temp/agent_guest.wasm
+    generatedWit: golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
+    componentWasm: golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
+    linkedWasm: golem-temp/agents/{{ component_name | to_snake_case }}.wasm
 ```
 
 Create `.golem/build-scalajs.sh`:
@@ -275,7 +211,7 @@ fi
 component_dir="$PWD"
 
 app_root="$(cd "$(dirname "$0")/.." && pwd)"
-scala_dir="$app_root/scala"
+scala_dir="$app_root"
 
 build_log="$(mktemp)"
 trap 'rm -f "$build_log"' EXIT
@@ -344,30 +280,12 @@ Then:
 chmod +x .golem/build-scalajs.sh
 ```
 
-## 5) Base guest runtime (no user files)
-
-You should **not** commit any WASM or WIT files in the starter project. The Scala
-plugin bundles a compatible `agent_guest.wasm` internally and writes it into
-`golem-temp/agent_guest.wasm` automatically during the first build.
-
-In other words, the initial project layout should be free of WASM/WIT artifacts;
-`golem-temp/` is created after running the build.
-to point at the desired output file.
-
-## 6) Deploy + invoke
+## 5) Deploy + invoke
 
 If you see authentication / login errors (especially when switching between local and remote setups), it can help to reset the local server state:
 
 ```bash
 golem-cli server run --clean --local
-```
-
-Build the Scala.js bundle once (optional, but useful to validate your build before running `golem-cli`):
-
-```bash
-cd scala
-sbt -batch -no-colors -Dsbt.supershell=false "compile" "fastLinkJS"
-cd ..
 ```
 
 Deploy from the project root:

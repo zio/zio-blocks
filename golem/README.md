@@ -94,6 +94,50 @@ val agentType = AgentClient.agentType[NameAgent] // uses @agentDefinition + Name
 val result: Future[NameAgent] = AgentClient.connect(agentType, ())
 ```
 
+### Remote invocation variants (await/trigger/schedule)
+
+All agent methods support three invocation styles. Use `getRemote(...)` plus
+`RemoteAgentOps` to access them:
+
+```scala
+import golem.Datetime
+import golem.*
+
+val remote = CounterAgent.getRemote("shard-id")
+
+// Await (always invoke-and-await)
+remote.rpc.call_increment()
+
+// Fire-and-forget trigger
+remote.rpc.trigger_increment()
+
+// Schedule (run 5 seconds later)
+remote.rpc.schedule_increment(Datetime.afterSeconds(5))
+```
+
+Notes:
+
+- Works in Scala 2.13 and Scala 3.
+- Scala 3 exports `remote.rpc.*` via `golem.*`, so an explicit `RemoteAgentOps.*` import is not required.
+- `trigger_*` / `schedule_*` always return `Future[Unit]` by design.
+- `remote.rpc.call_increment()` always invokes the await path.
+
+### Custom data types (Schemas)
+
+If you use custom Scala types as **constructor inputs** (`BaseAgent[MyInput]`) or **method parameters/return values**,
+the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
+
+You normally **do not** define `GolemSchema` directly — instead, derive/provide a `zio.blocks.schema.Schema[T]`,
+and `GolemSchema` will be derived automatically from it.
+
+For example (Scala 3):
+
+```scala
+import zio.blocks.schema.Schema
+
+final case class State(value: Int) derives Schema
+```
+
 ### Optional companion ergonomics (Scala-only)
 
 If you want `Shard.get(...)` / `Shard.getPhantom(...)` style ergonomics, Scala requires a companion `object Shard` to exist.
