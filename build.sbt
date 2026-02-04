@@ -214,6 +214,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     coverageExcludedFiles := Seq(
       ".*scala-2/zio/blocks/schema/comptime/.*",
       ".*scala-3/zio/blocks/schema/comptime/.*",
+      ".*Macros.*",
       ".*BuildInfo.*"
     ).mkString(";")
   )
