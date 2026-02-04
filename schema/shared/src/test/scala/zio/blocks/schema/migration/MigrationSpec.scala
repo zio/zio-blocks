@@ -211,6 +211,27 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         // With Literal, the transform just replaces the value
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+
+      test("rename field not found") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root.field("b"), "c"))
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("rename field already exists") {
+        val input = DynamicValue.Record(
+          "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+        )
+        val migration = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root.field("a"), "b"))
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("renameCase with non-matching case name") {
+        val input     = DynamicValue.Variant("CaseA", DynamicValue.Record.empty)
+        val migration = DynamicMigration.single(MigrationAction.RenameCase(DynamicOptic.root, "CaseB", "CaseC"))
+        assertTrue(migration(input) == Right(input))
       }
     ),
 
@@ -685,6 +706,34 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         val expected = DynamicValue.Map(Chunk.empty)
         assertTrue(migration(input) == Right(expected))
+      }
+    ),
+
+    suite("Utility Methods")(
+      test("andThen composes migrations") {
+        val input = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val m1    = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root.field("a"), "b"))
+        val m2    = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("c"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        val expected = DynamicValue.Record(
+          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          "c" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+        )
+        assertTrue(m1.andThen(m2)(input) == Right(expected))
+      },
+      test("size returns number of actions") {
+        val migration = DynamicMigration(
+          MigrationAction.Rename(DynamicOptic.root.field("a"), "b"),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("c"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration.size == 2)
       }
     ),
 
