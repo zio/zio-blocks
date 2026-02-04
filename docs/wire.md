@@ -683,7 +683,7 @@ val configWire: Wire.Shared[Any, Config] = Wire.Shared { ctx =>
 // Manual wire with cleanup
 val dbWire: Wire.Shared[Config, Database] = Wire.Shared { ctx =>
   val db = Database.connect(ctx.get[Config].dbUrl)
-  summon[Scope].defer(db.close())  // Access scope via summon
+  defer(db.close())  // Access scope via summon
   Context(db)
 }
 
@@ -693,8 +693,8 @@ val infraWire: Wire.Shared[Config, Database & Cache] = Wire.Shared { ctx =>
   val db = Database.connect(config.dbUrl)
   val cache = Cache.create(config.cacheSize)
   val scope = summon[Scope]
-  scope.defer(db.close())
-  scope.defer(cache.close())
+  defer(db.close())
+  defer(cache.close())
   Context(db, cache)
 }
 ```
@@ -704,7 +704,7 @@ val infraWire: Wire.Shared[Config, Database & Cache] = Wire.Shared { ctx =>
 
 val dbWire: Wire.Shared[Config, Database] = Wire.Shared { implicit scope => ctx =>
   val db = Database.connect(ctx.get[Config].dbUrl)
-  scope.defer(db.close())
+  defer(db.close())
   Context(db)
 }
 ```
@@ -856,11 +856,19 @@ object Wireable {
 }
 ```
 
-### Macros
+### Top-Level
+
+#### Macros
 
 ```scala
 inline def shared[T]: Wire[???, T]  // Uses Wireable[T] if available, else constructor
 inline def unique[T]: Wire[???, T]  // Uses Wireable[T] if available, else constructor
+```
+
+#### Functions
+
+```scala
+def defer(finalizer: => Unit)(using Scope): Unit
 ```
 
 ---
