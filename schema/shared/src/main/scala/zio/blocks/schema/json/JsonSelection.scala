@@ -45,13 +45,7 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
     case Right(v) =>
       val len = v.length
       if (len == 1) new Right(v.head)
-      else
-        new Left(
-          SchemaError(
-            if (len == 0) "Expected single value but got none"
-            else s"Expected single value but got $len"
-          )
-        )
+      else new Left(SchemaError(s"Expected single value but got $len"))
     case l => l.asInstanceOf[Either[SchemaError, Json]]
   }
 
@@ -175,43 +169,37 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Maps a function over all selected values. */
-  def map(f: Json => Json): JsonSelection = new JsonSelection({
-    either match {
-      case Right(v) => new Right(v.map(f))
-      case l        => l
-    }
+  def map(f: Json => Json): JsonSelection = new JsonSelection(either match {
+    case Right(v) => new Right(v.map(f))
+    case l        => l
   })
 
   /** FlatMaps a function over all selected values, combining results. */
-  def flatMap(f: Json => JsonSelection): JsonSelection = new JsonSelection({
-    either match {
-      case Right(v) =>
-        new Right({
-          val len = v.length
-          if (len == 0) Vector.empty
-          else {
-            val builder = Vector.newBuilder[Json]
-            var idx     = 0
-            while (idx < len) {
-              f(v(idx)).either match {
-                case Right(v1) => builder.addAll(v1)
-                case l         => return new JsonSelection(l)
-              }
-              idx += 1
+  def flatMap(f: Json => JsonSelection): JsonSelection = new JsonSelection(either match {
+    case Right(v) =>
+      new Right({
+        val len = v.length
+        if (len == 0) Vector.empty
+        else {
+          val builder = Vector.newBuilder[Json]
+          var idx     = 0
+          while (idx < len) {
+            f(v(idx)).either match {
+              case Right(v1) => builder.addAll(v1)
+              case l         => return new JsonSelection(l)
             }
-            builder.result()
+            idx += 1
           }
-        })
-      case l => l
-    }
+          builder.result()
+        }
+      })
+    case l => l
   })
 
   /** Filters selected values based on a predicate. */
-  def filter(p: Json => Boolean): JsonSelection = new JsonSelection({
-    either match {
-      case Right(v) => new Right(v.filter(p))
-      case l        => l
-    }
+  def filter(p: Json => Boolean): JsonSelection = new JsonSelection(either match {
+    case Right(v) => new Right(v.filter(p))
+    case l        => l
   })
 
   /** Collects values for which the partial function is defined. */
@@ -232,13 +220,17 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
   }
 
   /** Combines two selections, concatenating their values. */
-  def ++(other: JsonSelection): JsonSelection = new JsonSelection({
-    (either, other.either) match {
-      case (Right(v1), Right(v2)) => new Right(v1 ++ v2)
-      case (Left(e1), Left(e2))   => new Left(e1 ++ e2)
-      case (l @ Left(_), _)       => l
-      case (_, l @ Left(_))       => l
-    }
+  def ++(other: JsonSelection): JsonSelection = new JsonSelection(either match {
+    case Right(v1) =>
+      other.either match {
+        case Right(v2) => new Right(v1 ++ v2)
+        case l         => l
+      }
+    case l @ Left(e1) =>
+      other.either match {
+        case Left(e2) => new Left(e1 ++ e2)
+        case _        => l
+      }
   })
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -278,13 +270,14 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
     case Right(v) =>
       val len = v.length
       if (len == 1) decoder.decode(v.head)
-      else
+      else {
         new Left(
           SchemaError(
             if (len == 0) "Expected single value but got none"
             else s"Expected single value but got $len"
           )
         )
+      }
     case l => l.asInstanceOf[Either[SchemaError, A]]
   }
 
@@ -413,8 +406,8 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
    * Uses cartesian product semantics: if this has N values and that has M
    * values, the result has N × M values.
    */
-  def merge(that: JsonSelection, strategy: MergeStrategy = MergeStrategy.Auto): JsonSelection = new JsonSelection({
-    either match {
+  def merge(that: JsonSelection, strategy: MergeStrategy = MergeStrategy.Auto): JsonSelection =
+    new JsonSelection(either match {
       case Right(v1) =>
         that.either match {
           case Right(v2) =>
@@ -426,8 +419,7 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
           case l => l
         }
       case l => l
-    }
-  })
+    })
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fallible Mutation Methods
@@ -438,46 +430,38 @@ final case class JsonSelection(either: Either[SchemaError, Vector[Json]]) extend
    * path doesn't exist or the partial function is not defined.
    */
   def modifyOrFail(path: DynamicOptic)(pf: PartialFunction[Json, Json]): JsonSelection =
-    flatMap { json =>
-      json.modifyOrFail(path)(pf) match {
-        case Right(j) => JsonSelection.succeed(j)
-        case Left(e)  => JsonSelection.fail(e)
-      }
-    }
+    flatMap(_.modifyOrFail(path)(pf) match {
+      case Right(j) => JsonSelection.succeed(j)
+      case Left(e)  => JsonSelection.fail(e)
+    })
 
   /**
    * Sets a value at the given path. Fails if the path doesn't exist.
    */
   def setOrFail(path: DynamicOptic, value: Json): JsonSelection =
-    flatMap { json =>
-      json.setOrFail(path, value) match {
-        case Right(j) => JsonSelection.succeed(j)
-        case Left(e)  => JsonSelection.fail(e)
-      }
-    }
+    flatMap(_.setOrFail(path, value) match {
+      case Right(j) => JsonSelection.succeed(j)
+      case Left(e)  => JsonSelection.fail(e)
+    })
 
   /**
    * Deletes the value at the given path. Fails if the path doesn't exist.
    */
   def deleteOrFail(path: DynamicOptic): JsonSelection =
-    flatMap { json =>
-      json.deleteOrFail(path) match {
-        case Right(j) => JsonSelection.succeed(j)
-        case Left(e)  => JsonSelection.fail(e)
-      }
-    }
+    flatMap(_.deleteOrFail(path) match {
+      case Right(j) => JsonSelection.succeed(j)
+      case Left(e)  => JsonSelection.fail(e)
+    })
 
   /**
    * Inserts a value at the given path. Fails if the path already exists or the
    * parent doesn't exist.
    */
   def insertOrFail(path: DynamicOptic, value: Json): JsonSelection =
-    flatMap { json =>
-      json.insertOrFail(path, value) match {
-        case Right(j) => JsonSelection.succeed(j)
-        case Left(e)  => JsonSelection.fail(e)
-      }
-    }
+    flatMap(_.insertOrFail(path, value) match {
+      case Right(j) => JsonSelection.succeed(j)
+      case Left(e)  => JsonSelection.fail(e)
+    })
 
   // ─────────────────────────────────────────────────────────────────────────
   // Type-Directed Extraction
