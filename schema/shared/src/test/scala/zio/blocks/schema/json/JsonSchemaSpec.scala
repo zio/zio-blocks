@@ -223,6 +223,84 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           nullable.conforms(Json.Null),
           !nullable.conforms(Json.Number(42))
         )
+      },
+      test("withNullable on True returns True") {
+        assertTrue(JsonSchema.True.withNullable == JsonSchema.True)
+      },
+      test("withNullable on False returns Null schema") {
+        val result = JsonSchema.False.withNullable
+        assertTrue(result match {
+          case obj: JsonSchema.Object =>
+            obj.`type`.exists {
+              case SchemaType.Single(t) => t == JsonSchemaType.Null
+              case _                    => false
+            }
+          case _ => false
+        })
+      },
+      test("withNullable on schema already with Null type returns unchanged") {
+        val schema = JsonSchema.ofType(JsonSchemaType.Null)
+        assertTrue(schema.withNullable == schema)
+      },
+      test("withNullable on single non-null type adds Null to union") {
+        val schema = JsonSchema.ofType(JsonSchemaType.String)
+        val result = schema.withNullable
+        assertTrue(result match {
+          case obj: JsonSchema.Object =>
+            obj.`type`.exists {
+              case SchemaType.Union(ts) => ts.contains(JsonSchemaType.Null) && ts.contains(JsonSchemaType.String)
+              case _                    => false
+            }
+          case _ => false
+        })
+      },
+      test("withNullable on union already with Null returns unchanged") {
+        val schema =
+          JsonSchema.Object(`type` = Some(SchemaType.Union(new ::(JsonSchemaType.Null, JsonSchemaType.String :: Nil))))
+        assertTrue(schema.withNullable == schema)
+      },
+      test("withNullable on union without Null adds Null") {
+        val schema = JsonSchema.Object(`type` =
+          Some(SchemaType.Union(new ::(JsonSchemaType.String, JsonSchemaType.Integer :: Nil)))
+        )
+        val result = schema.withNullable
+        assertTrue(result match {
+          case obj: JsonSchema.Object =>
+            obj.`type`.exists {
+              case SchemaType.Union(ts) =>
+                ts.contains(JsonSchemaType.Null) &&
+                ts.contains(JsonSchemaType.String) &&
+                ts.contains(JsonSchemaType.Integer)
+              case _ => false
+            }
+          case _ => false
+        })
+      },
+      test("withNullable on schema with no type uses anyOf") {
+        val schema = JsonSchema.Object(minLength = Some(NonNegativeInt.one))
+        val result = schema.withNullable
+        assertTrue(result match {
+          case obj: JsonSchema.Object => obj.anyOf.isDefined
+          case _                      => false
+        })
+      }
+    ),
+    suite("FormatValidator via schema validation")(
+      test("uri-reference validation succeeds for valid reference") {
+        val schema = JsonSchema.string(format = Some("uri-reference"))
+        assertTrue(schema.conforms(Json.String("/path/to/resource"), ValidationOptions.formatAssertion))
+      },
+      test("uri-reference validation fails for invalid reference") {
+        val schema = JsonSchema.string(format = Some("uri-reference"))
+        assertTrue(!schema.conforms(Json.String("://invalid"), ValidationOptions.formatAssertion))
+      },
+      test("uri-reference validation with relative path") {
+        val schema = JsonSchema.string(format = Some("uri-reference"))
+        assertTrue(schema.conforms(Json.String("relative/path"), ValidationOptions.formatAssertion))
+      },
+      test("uri-reference validation with fragment") {
+        val schema = JsonSchema.string(format = Some("uri-reference"))
+        assertTrue(schema.conforms(Json.String("#fragment"), ValidationOptions.formatAssertion))
       }
     ),
     suite("Type unions")(

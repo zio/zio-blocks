@@ -29,15 +29,20 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test"
+)
+
+addCommandAlias(
+  "docJVM",
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; contextJVM/doc"
 )
 addCommandAlias(
-  "testNative",
-  "typeidNative/test; chunkNative/test; schemaNative/test; streamsNative/test; schema-toonNative/test; schema-messagepackNative/test"
+  "docJS",
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc"
 )
 
 lazy val root = project
@@ -48,36 +53,30 @@ lazy val root = project
   .aggregate(
     typeid.jvm,
     typeid.js,
-    typeid.native,
+    context.jvm,
+    context.js,
     schema.jvm,
     schema.js,
-    schema.native,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
-    `schema-messagepack`.native,
     `schema-thrift`,
     `schema-bson`,
     `schema-toon`.jvm,
     `schema-toon`.js,
-    `schema-toon`.native,
     streams.jvm,
     streams.js,
-    streams.native,
     chunk.jvm,
     chunk.js,
-    chunk.native,
     markdown.jvm,
     markdown.js,
-    markdown.native,
     scalaNextTests.jvm,
     scalaNextTests.js,
-    scalaNextTests.native,
     benchmarks,
     docs
   )
 
-lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val typeid = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(chunk)
   .settings(stdSettings("zio-blocks-typeid"))
@@ -86,7 +85,6 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -103,7 +101,32 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 65
   )
 
-lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val context = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(typeid)
+  .settings(stdSettings("zio-blocks-context"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.context"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 45
+  )
+
+lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
@@ -112,7 +135,6 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(chunk)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
@@ -154,14 +176,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
     })
   )
-  .nativeSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
 
-lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-streams"))
   .settings(crossProjectSettings)
@@ -169,7 +185,6 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -179,7 +194,7 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 0
   )
 
-lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val chunk = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-chunk"))
   .settings(crossProjectSettings)
@@ -187,25 +202,23 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 84, // Lowered from 87 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 80  // Lowered from 83 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 88,
+    coverageMinimumBranchTotal := 85
   )
 
-lazy val markdown = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-markdown"))
+  .settings(stdSettings("zio-blocks-docs"))
   .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks.markdown"))
+  .settings(buildInfoSettings("zio.blocks.docs"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(chunk)
   .settings(
     libraryDependencies ++= Seq(
@@ -265,7 +278,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.2.1",
+      "org.mongodb" % "bson"         % "5.6.3",
       "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -280,7 +293,7 @@ lazy val `schema-bson` = project
     coverageMinimumBranchTotal := 55  // Lowered from 58 for Scala 3.5 compatibility
   )
 
-lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-messagepack"))
   .settings(crossProjectSettings)
@@ -288,7 +301,6 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlat
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
@@ -304,14 +316,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform, NativePlat
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     )
   )
-  .nativeSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
 
-lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-toon"))
   .settings(crossProjectSettings)
@@ -319,7 +325,6 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
@@ -352,14 +357,8 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
     })
   )
-  .nativeSettings(
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
 
-lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
   .dependsOn(schema % "compile->compile;test->test")
@@ -375,7 +374,6 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     coverageMinimumBranchTotal := 0
   )
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
@@ -418,11 +416,12 @@ lazy val docs = project
     moduleName := "zio-blocks-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
+    scalacOptions += "-experimental",
     projectName                                := (ThisBuild / name).value,
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true
   )
-  .dependsOn(schema.jvm)
+  .dependsOn(schema.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
   .enablePlugins(WebsitePlugin)

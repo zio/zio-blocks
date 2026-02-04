@@ -1,5 +1,7 @@
 package zio.blocks.typeid
 
+import zio.blocks.chunk.Chunk
+
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -18,7 +20,7 @@ package zio.blocks.typeid
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-sealed trait TypeId[A <: AnyKind] {
+sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
@@ -29,10 +31,16 @@ sealed trait TypeId[A <: AnyKind] {
   def representation: Option[TypeRepr] // For opaque types
   def annotations: List[Annotation]
 
+  final def clazz: Option[Class[?]] = TypeIdPlatformMethods.getClass(this)
+
+  final def construct(args: Chunk[AnyRef]): Either[String, Any] = TypeIdPlatformMethods.construct(this, args)
+
   final def parents: List[TypeRepr] = defKind.baseTypes
 
   /** Returns true if this is an applied type (has type arguments) */
   final def isApplied: Boolean = typeArgs.nonEmpty
+
+  final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
 
   // Derived properties
   final def arity: Int = typeParams.size
@@ -65,6 +73,30 @@ sealed trait TypeId[A <: AnyKind] {
   final def isValueClass: Boolean = defKind match {
     case TypeDefKind.Class(_, _, _, isValue, _) => isValue
     case _                                      => false
+  }
+
+  /**
+   * Returns a ClassTag for this type, using the correct primitive ClassTag for
+   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char,
+   * Unit) and ClassTag.AnyRef for all reference types.
+   *
+   * This is useful for creating properly-typed arrays at runtime.
+   */
+  lazy val classTag: scala.reflect.ClassTag[?] = {
+    import scala.reflect.ClassTag
+    if (owner == Owner.scala) name match {
+      case "Int"     => ClassTag.Int
+      case "Long"    => ClassTag.Long
+      case "Float"   => ClassTag.Float
+      case "Double"  => ClassTag.Double
+      case "Boolean" => ClassTag.Boolean
+      case "Byte"    => ClassTag.Byte
+      case "Short"   => ClassTag.Short
+      case "Char"    => ClassTag.Char
+      case "Unit"    => ClassTag.Unit
+      case _         => ClassTag.AnyRef
+    }
+    else ClassTag.AnyRef
   }
 
   /** Get enum cases if this is an enum */
@@ -362,6 +394,22 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   def structuralHash(id: TypeId[?]): Int = TypeIdOps.structuralHash(id)
 
+  /**
+   * Returns the type constructor by stripping all type arguments.
+   *
+   * For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns a TypeId
+   * equivalent to `TypeId.of[List]` (the unapplied type constructor).
+   *
+   * This is useful for TypeRegistry lookups where Seq/Map bindings are stored
+   * by their type constructor rather than applied types.
+   *
+   * @param id
+   *   The TypeId to unapply
+   * @return
+   *   A TypeId with empty typeArgs representing the type constructor
+   */
+  def unapplied(id: TypeId[?]): TypeId[?] = TypeIdOps.unapplied(id)
+
   // ========== Predefined TypeIds for Common Types ==========
 
   // ========== Scala 3-only Helpers ==========
@@ -390,4 +438,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   given iarray: TypeId[IArray] =
     nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
+
+  // ========== Erased TypeId for Type-Indexed Maps ==========
+
+  type Unknown <: AnyKind
+
+  type Erased = TypeId[Unknown]
 }

@@ -156,10 +156,10 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
 
     given TypeId[Name]                = TypeId.opaque("Name", zioPreludeOwner, representation = TypeRepr.Ref(TypeId.string))
     implicit val schema: Schema[Name] = Schema[String]
-      .transformOrFail(
+      .transform(
         s =>
-          if (s.length > 0) Right(s.asInstanceOf[Name])
-          else Left(SchemaError.validationFailed("String must not be empty")),
+          if (s.length > 0) s.asInstanceOf[Name]
+          else throw SchemaError.validationFailed("String must not be empty"),
         _.asInstanceOf[String]
       )
 

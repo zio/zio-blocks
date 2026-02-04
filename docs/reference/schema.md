@@ -356,10 +356,9 @@ To derive type class instances for a type `A` based on its schema, you can use t
 
 In the following example, we derive a JSON codec for the `Person` case class using the `JsonFormat` deriver:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.JsonFormat
-import zio.blocks.schema.json.JsonBinaryCodec
+import zio.blocks.schema.json.{JsonFormat, JsonBinaryCodec}
 
 case class Person(name: String, age: Int)
 
@@ -579,16 +578,15 @@ Here is an example of adding modifiers to a schema:
 
 ## Wrapper Types
 
-ZIO Blocks provides convenient methods for creating schemas for wrapper types, such as newtypes, opaque types and value classes. These methods are `transform` and `transformOrFail`, which allow defining schemas for types that wrap an underlying type:
+ZIO Blocks provides the `transform` method for creating schemas for wrapper types, such as newtypes, opaque types and value classes:
 
 ```scala
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def transform[B](to: A => B, from: B => A): Schema[B]                              = ???
-  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B]   = ???
+  def transform[B](to: A => B, from: B => A): Schema[B] = ???
 }
 ```
 
-The `transformOrFail` method is used for types where the transformation may fail (e.g., validation), while `transform` is used for total transformations that never fail. 
+The `transform` method allows you to define transformations that can fail by throwing `SchemaError` exceptions. Use it for both simple wrapper types and types with validation requirements. 
 
 Here are examples of both:
 
@@ -602,14 +600,13 @@ object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
   
   implicit val schema: Schema[Email] = Schema[String]
-    .transformOrFail(
+    .transform(
       {
-        case x @ EmailRegex(_*) => Right(Email(x))
-        case _                  => Left(SchemaError.validationFailed("Invalid email format"))
+        case x @ EmailRegex(_*) => Email(x)
+        case _                  => throw SchemaError.validationFailed("Invalid email format")
       },
       _.value
     )
-    .withTypeName[Email]
 }
 
 // For total transformations (never fail)
@@ -618,6 +615,5 @@ case class UserId(value: Long)
 object UserId {
   implicit val schema: Schema[UserId] = Schema[Long]
     .transform(UserId(_), _.value)
-    .withTypeName[UserId]
 }
 ```

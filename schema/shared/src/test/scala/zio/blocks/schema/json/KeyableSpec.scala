@@ -3,7 +3,6 @@ package zio.blocks.schema.json
 import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.JavaTimeGen._
 import zio.test._
-import zio.test.TestAspect.exceptNative
 
 import java.time._
 import java.util.{Currency, UUID}
@@ -207,41 +206,41 @@ object KeyableSpec extends SchemaBaseSpec {
     suite("non-keyable types have no instance")(
       test("List[Int] has no Keyable instance") {
         typeCheck("Keyable[List[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Map[String, Int] has no Keyable instance") {
         typeCheck("Keyable[Map[String, Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Option[Int] has no Keyable instance") {
         typeCheck("Keyable[Option[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Vector[String] has no Keyable instance") {
         typeCheck("Keyable[Vector[String]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Set[Int] has no Keyable instance") {
         typeCheck("Keyable[Set[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Array[Int] has no Keyable instance") {
         typeCheck("Keyable[Array[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("case class has no Keyable instance") {
         typeCheck("""
           case class Point(x: Int, y: Int)
           Keyable[Point]
         """).map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("sealed trait has no Keyable instance") {
         typeCheck("""
           sealed trait Color
           case object Red extends Color
           Keyable[Color]
         """).map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("tuple has no Keyable instance") {
         typeCheck("Keyable[(Int, String)]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Either has no Keyable instance") {
         typeCheck("Keyable[Either[String, Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative
+      }
     )
   )
 }

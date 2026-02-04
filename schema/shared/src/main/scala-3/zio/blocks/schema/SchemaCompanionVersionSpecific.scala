@@ -158,6 +158,44 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = CommonMacroOps.isNonAbstractScalaClass(tpe)
 
+  // === Structural Type Support (JVM only) ===
+
+  private def isStructuralType(tpe: TypeRepr): Boolean = tpe.dealias match {
+    case Refinement(_, _, _)            => true
+    case t if t =:= TypeRepr.of[AnyRef] => true
+    case _                              => false
+  }
+
+  private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
+    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t match {
+      case Refinement(parent, name, info) =>
+        val memberType = info match {
+          case MethodType(_, _, returnType) => returnType
+          case ByNameType(underlying)       => underlying
+          case other                        => other
+        }
+        (name, memberType) :: collectMembers(parent)
+      case _ => Nil
+    }
+    collectMembers(tpe.dealias).reverse
+  }
+
+  private def structuralFieldOffset(tpe: TypeRepr): RegisterOffset = {
+    val dealiased = tpe.dealias
+    if (dealiased <:< intTpe) RegisterOffset(ints = 1)
+    else if (dealiased <:< floatTpe) RegisterOffset(floats = 1)
+    else if (dealiased <:< longTpe) RegisterOffset(longs = 1)
+    else if (dealiased <:< doubleTpe) RegisterOffset(doubles = 1)
+    else if (dealiased <:< booleanTpe) RegisterOffset(booleans = 1)
+    else if (dealiased <:< byteTpe) RegisterOffset(bytes = 1)
+    else if (dealiased <:< charTpe) RegisterOffset(chars = 1)
+    else if (dealiased <:< shortTpe) RegisterOffset(shorts = 1)
+    else if (dealiased <:< unitTpe) RegisterOffset.Zero
+    else RegisterOffset(objects = 1)
+  }
+
+  private class StructuralFieldInfo(val name: String, val tpe: TypeRepr, val offset: RegisterOffset)
+
   private def typeArgs(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.typeArgs(tpe)
 
   private def isGenericTuple(tpe: TypeRepr): Boolean = CommonMacroOps.isGenericTuple(tpe)
@@ -649,10 +687,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val classTag        = summonClassTag[et]
             val baseArrayTypeId = '{ zio.blocks.typeid.TypeId.of[Array[Any]] }
             '{
-              implicit val ct: ClassTag[et] = $classTag
-              val elementReflect            = $schema.reflect
-              val baseTypeId                = $baseArrayTypeId
-              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[Array[et]](
+              implicit val elemClassTag: ClassTag[et] = $classTag
+              val elementReflect                      = $schema.reflect
+              val baseTypeId                          = $baseArrayTypeId
+              val seqTypeId                           = zio.blocks.typeid.TypeId.applied[Array[et]](
                 baseTypeId,
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
@@ -661,11 +699,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   element = elementReflect,
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                    constructor = new SeqConstructor[Array] {
+                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      type Builder[A] = ArrayBuilder[A]
+
+                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+
+                      def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
@@ -678,7 +720,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         builder.size = idx + 1
                       }
 
-                      def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
+                      def result[B](builder: Builder[B]): Array[B] = {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
@@ -688,7 +730,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B]: Array[B] = Array.empty[et].asInstanceOf[Array[B]]
+                      def empty[B](implicit ct: ClassTag[B]): Array[B] =
+                        Array.empty[et](elemClassTag).asInstanceOf[Array[B]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -704,10 +747,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val classTag         = summonClassTag[et]
             val baseIArrayTypeId = '{ zio.blocks.typeid.TypeId.of[IArray[Any]] }
             '{
-              implicit val ct: ClassTag[et] = $classTag
-              val elementReflect            = $schema.reflect
-              val baseTypeId                = $baseIArrayTypeId
-              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[IArray[et]](
+              implicit val elemClassTag: ClassTag[et] = $classTag
+              val elementReflect                      = $schema.reflect
+              val baseTypeId                          = $baseIArrayTypeId
+              val seqTypeId                           = zio.blocks.typeid.TypeId.applied[IArray[et]](
                 baseTypeId,
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
@@ -716,11 +759,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   element = elementReflect,
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.IArrayConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                    constructor = new SeqConstructor[IArray] {
+                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      type Builder[A] = ArrayBuilder[A]
+
+                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+
+                      def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
@@ -733,7 +780,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         builder.size = idx + 1
                       }
 
-                      def resultObject[B](builder: ObjectBuilder[B]): IArray[B] = IArray.unsafeFromArray {
+                      def result[B](builder: Builder[B]): IArray[B] = IArray.unsafeFromArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
@@ -743,7 +790,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B]: IArray[B] = IArray.empty[et].asInstanceOf[IArray[B]]
+                      def empty[B](implicit ct: ClassTag[B]): IArray[B] =
+                        IArray.unsafeFromArray(Array.empty[et](elemClassTag)).asInstanceOf[IArray[B]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
@@ -759,10 +807,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val classTag           = summonClassTag[et]
             val baseArraySeqTypeId = '{ zio.blocks.typeid.TypeId.of[ArraySeq[Any]] }
             '{
-              implicit val ct: ClassTag[et] = $classTag
-              val elementReflect            = $schema.reflect
-              val baseTypeId                = $baseArraySeqTypeId
-              val seqTypeId                 = zio.blocks.typeid.TypeId.applied[ArraySeq[et]](
+              implicit val elemClassTag: ClassTag[et] = $classTag
+              val elementReflect                      = $schema.reflect
+              val baseTypeId                          = $baseArraySeqTypeId
+              val seqTypeId                           = zio.blocks.typeid.TypeId.applied[ArraySeq[et]](
                 baseTypeId,
                 zio.blocks.typeid.TypeRepr.Ref(elementReflect.typeId)
               )
@@ -771,11 +819,15 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   element = elementReflect,
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
-                    constructor = new SeqConstructor.ArraySeqConstructor {
-                      def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
+                    constructor = new SeqConstructor[ArraySeq] {
+                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
 
-                      def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      type Builder[A] = ArrayBuilder[A]
+
+                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+
+                      def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
@@ -788,7 +840,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         builder.size = idx + 1
                       }
 
-                      def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                      def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
@@ -798,7 +850,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
+                      def empty[B](implicit ct: ClassTag[B]): ArraySeq[B] =
+                        ArraySeq.empty[et](elemClassTag).asInstanceOf[ArraySeq[B]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )
@@ -961,6 +1014,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             )
           }
       }
+    } else if (isStructuralType(tpe)) {
+      deriveSchemaForStructuralType(tpe)
     } else if (isNonAbstractScalaClass(tpe)) {
       deriveSchemaForNonAbstractScalaClass(tpe)
     } else if (isZioPreludeNewtype(tpe)) {
@@ -1048,6 +1103,169 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           ),
           doc = ${ doc(tpe) },
           modifiers = ${ modifiers(tpe) }
+        )
+      )
+    }
+  }
+
+  private def deriveSchemaForStructuralType[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
+    if (!Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Schema for structural type '${tpe.show}' on ${Platform.name}.
+           |
+           |Structural types require reflection which is only available on JVM.
+           |
+           |Consider using a case class instead.""".stripMargin
+      )
+    }
+
+    val members = getStructuralMembers(tpe)
+
+    if (members.isEmpty) {
+      '{
+        new Schema(
+          reflect = new Reflect.Record[Binding, T](
+            fields = Vector.empty,
+            typeId = zio.blocks.typeid.TypeId.of[T],
+            recordBinding = new Binding.Record(
+              constructor = new Constructor {
+                def usedRegisters: RegisterOffset                           = RegisterOffset.Zero
+                def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                  val emptyInstance = new Object {}
+                  emptyInstance.asInstanceOf[T]
+                }
+              },
+              deconstructor = new Deconstructor {
+                def usedRegisters: RegisterOffset                                        = RegisterOffset.Zero
+                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ()
+              }
+            )
+          )
+        )
+      }
+    } else {
+      deriveSchemaForPureStructuralType[T](members)
+    }
+  }
+
+  private def deriveSchemaForPureStructuralType[T: Type](members: List[(String, TypeRepr)])(using
+    Quotes
+  ): Expr[Schema[T]] = {
+
+    var currentOffset                                           = RegisterOffset.Zero
+    val fieldInfos: List[(StructuralFieldInfo, RegisterOffset)] = members.map { case (name, memberTpe) =>
+      val offset     = structuralFieldOffset(memberTpe)
+      val baseOffset = currentOffset
+      currentOffset = currentOffset + offset
+      (new StructuralFieldInfo(name, memberTpe, offset), baseOffset)
+    }
+
+    val totalRegisters     = currentOffset
+    val totalRegistersExpr = '{
+      RegisterOffset(
+        objects = ${ Expr(RegisterOffset.getObjects(totalRegisters)) },
+        bytes = ${ Expr(RegisterOffset.getBytes(totalRegisters)) }
+      )
+    }
+
+    val fieldTerms = Varargs(fieldInfos.map { case (fi, _) =>
+      fi.tpe.asType match {
+        case '[ft] =>
+          val fieldName   = Expr(fi.name)
+          val fieldSchema = findImplicitOrDeriveSchema[ft](fi.tpe)
+          '{ $fieldSchema.reflect.asTerm[T]($fieldName).asInstanceOf[SchemaTerm[Binding, T, ?]] }
+      }
+    })
+
+    val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
+      val typeIndicator =
+        if (fi.tpe.dealias <:< intTpe) 1
+        else if (fi.tpe.dealias <:< longTpe) 2
+        else if (fi.tpe.dealias <:< floatTpe) 3
+        else if (fi.tpe.dealias <:< doubleTpe) 4
+        else if (fi.tpe.dealias <:< booleanTpe) 5
+        else if (fi.tpe.dealias <:< byteTpe) 6
+        else if (fi.tpe.dealias <:< charTpe) 7
+        else if (fi.tpe.dealias <:< shortTpe) 8
+        else 0
+      (fi.name, typeIndicator, RegisterOffset.getBytes(baseOffset), RegisterOffset.getObjects(baseOffset))
+    }
+
+    val fieldNamesExpr   = Expr(fieldInfoForRuntime.map(_._1).toArray)
+    val fieldTypesExpr   = Expr(fieldInfoForRuntime.map(_._2).toArray)
+    val fieldBytesExpr   = Expr(fieldInfoForRuntime.map(_._3).toArray)
+    val fieldObjectsExpr = Expr(fieldInfoForRuntime.map(_._4).toArray)
+
+    '{
+      val _fieldNames: Array[String] = $fieldNamesExpr
+      val _fieldTypes: Array[Int]    = $fieldTypesExpr
+      val _fieldBytes: Array[Int]    = $fieldBytesExpr
+      val _fieldObjects: Array[Int]  = $fieldObjectsExpr
+
+      new Schema(
+        reflect = new Reflect.Record[Binding, T](
+          fields = Vector($fieldTerms*),
+          typeId = zio.blocks.typeid.TypeId.of[T],
+          recordBinding = new Binding.Record(
+            constructor = new Constructor {
+              def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+              def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                val values = new scala.collection.mutable.HashMap[String, Any]()
+                var idx    = 0
+                val len    = _fieldNames.length
+                while (idx < len) {
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  val value: Any  = _fieldTypes(idx) match {
+                    case 1 => in.getInt(baseOffset + fieldOffset)
+                    case 2 => in.getLong(baseOffset + fieldOffset)
+                    case 3 => in.getFloat(baseOffset + fieldOffset)
+                    case 4 => in.getDouble(baseOffset + fieldOffset)
+                    case 5 => in.getBoolean(baseOffset + fieldOffset)
+                    case 6 => in.getByte(baseOffset + fieldOffset)
+                    case 7 => in.getChar(baseOffset + fieldOffset)
+                    case 8 => in.getShort(baseOffset + fieldOffset)
+                    case _ => in.getObject(baseOffset + fieldOffset)
+                  }
+                  values.put(_fieldNames(idx), value)
+                  idx += 1
+                }
+                (new scala.Selectable {
+                  private val fields = values.toMap
+                  @scala.annotation.unused
+                  def selectDynamic(name: String): Any = fields(name)
+                }).asInstanceOf[T]
+              }
+            },
+            deconstructor = new Deconstructor {
+              def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
+                var idx = 0
+                val len = _fieldNames.length
+                while (idx < len) {
+                  val method      = in.getClass.getMethod(_fieldNames(idx))
+                  val value       = method.invoke(in)
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  _fieldTypes(idx) match {
+                    case 1 => out.setInt(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Integer].intValue)
+                    case 2 => out.setLong(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Long].longValue)
+                    case 3 => out.setFloat(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Float].floatValue)
+                    case 4 =>
+                      out.setDouble(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Double].doubleValue)
+                    case 5 =>
+                      out.setBoolean(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Boolean].booleanValue)
+                    case 6 => out.setByte(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Byte].byteValue)
+                    case 7 =>
+                      out.setChar(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Character].charValue)
+                    case 8 => out.setShort(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Short].shortValue)
+                    case _ => out.setObject(baseOffset + fieldOffset, value.asInstanceOf[AnyRef])
+                  }
+                  idx += 1
+                }
+              }
+            }
+          )
         )
       )
     }

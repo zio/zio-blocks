@@ -398,10 +398,11 @@ object BsonSchemaCodec {
 
   // Sequence (List, Vector, Set, etc.) codec derivation
   private def deriveSequenceCodec[C[_], E](sequence: Reflect.Sequence.Bound[E, C], config: Config): BsonCodec[C[E]] = {
-    val elementReflect = sequence.element
-    val binding        = sequence.binding.asInstanceOf[zio.blocks.schema.binding.Binding.Seq[C, E]]
-    val constructor    = binding.constructor
-    val deconstructor  = binding.deconstructor
+    val elementReflect                                   = sequence.element
+    val binding                                          = sequence.binding.asInstanceOf[zio.blocks.schema.binding.Binding.Seq[C, E]]
+    val constructor                                      = binding.constructor
+    val deconstructor                                    = binding.deconstructor
+    implicit val elemClassTag: scala.reflect.ClassTag[E] = sequence.elemClassTag
 
     // Derive codec for the element type
     val elementCodec = deriveCodec(elementReflect.asInstanceOf[Reflect.Bound[E]], config)
@@ -441,18 +442,18 @@ object BsonSchemaCodec {
         if (reader.getCurrentBsonType() == org.bson.BsonType.ARRAY) {
           reader.readStartArray()
 
-          val builder = constructor.newObjectBuilder[E](16)
+          val builder = constructor.newBuilder[E](16)
           var idx     = 0
 
           while (reader.readBsonType() != org.bson.BsonType.END_OF_DOCUMENT) {
             val elemTrace = BsonTrace.Array(idx) :: trace
             val elem      = elementCodec.decoder.decodeUnsafe(reader, elemTrace, BsonDecoder.BsonDecoderContext.default)
-            constructor.addObject(builder, elem)
+            constructor.add(builder, elem)
             idx += 1
           }
 
           reader.readEndArray()
-          constructor.resultObject[E](builder)
+          constructor.result(builder)
         } else {
           throw BsonDecoder.Error(trace, s"Expected ARRAY but got ${reader.getCurrentBsonType()}")
         }
@@ -464,7 +465,7 @@ object BsonSchemaCodec {
         }
 
         val array   = value.asArray()
-        val builder = constructor.newObjectBuilder[E](array.size())
+        val builder = constructor.newBuilder[E](array.size())
         var idx     = 0
 
         val iter = array.iterator()
@@ -473,11 +474,11 @@ object BsonSchemaCodec {
           val elemTrace = BsonTrace.Array(idx) :: trace
           val decoded   =
             elementCodec.decoder.fromBsonValueUnsafe(elem, elemTrace, BsonDecoder.BsonDecoderContext.default)
-          constructor.addObject(builder, decoded)
+          constructor.add(builder, decoded)
           idx += 1
         }
 
-        constructor.resultObject[E](builder)
+        constructor.result(builder)
       }
     }
 
@@ -1048,32 +1049,26 @@ object BsonSchemaCodec {
 
       val encoder = new BsonEncoder[A] {
         def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit =
-          binding.unwrap(value) match {
-            case Right(unwrapped) => wrappedCodec.encoder.encode(writer, unwrapped, ctx)
-            case Left(error)      => throw error
-          }
+          wrappedCodec.encoder.encode(writer, binding.unwrap(value), ctx)
 
         def toBsonValue(value: A): BsonValue =
-          binding.unwrap(value) match {
-            case Right(unwrapped) => wrappedCodec.encoder.toBsonValue(unwrapped)
-            case Left(error)      => throw error
-          }
+          wrappedCodec.encoder.toBsonValue(binding.unwrap(value))
       }
 
       val decoder = new BsonDecoder[A] {
         def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
           val unwrapped = wrappedCodec.decoder.decodeUnsafe(reader, trace, ctx)
-          binding.wrap(unwrapped) match {
-            case Right(wrapped) => wrapped
-            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
+          try binding.wrap(unwrapped)
+          catch {
+            case error: SchemaError => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
           }
         }
 
         def fromBsonValueUnsafe(value: BsonValue, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): A = {
           val unwrapped = wrappedCodec.decoder.fromBsonValueUnsafe(value, trace, ctx)
-          binding.wrap(unwrapped) match {
-            case Right(wrapped) => wrapped
-            case Left(error)    => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
+          try binding.wrap(unwrapped)
+          catch {
+            case error: SchemaError => throw BsonDecoder.Error(trace, s"Failed to wrap value: ${error.message}")
           }
         }
       }

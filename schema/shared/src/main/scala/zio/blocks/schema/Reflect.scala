@@ -7,6 +7,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
+import scala.reflect.ClassTag
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
@@ -687,124 +688,20 @@ object Reflect {
 
       value match {
         case DynamicValue.Sequence(elements) =>
-          val seqTrace    = DynamicOptic.Node.Elements :: trace
-          val constructor = seqConstructor
-          var idx         = -1
-          unwrapToPrimitiveTypeOption(element) match {
-            case Some(primitiveType) =>
-              primitiveType match {
-                case _: PrimitiveType.Boolean =>
-                  val builder = constructor.newBooleanBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addBoolean(builder, value.asInstanceOf[Boolean])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultBoolean(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Byte =>
-                  val builder = constructor.newByteBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addByte(builder, value.asInstanceOf[Byte])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultByte(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Char =>
-                  val builder = constructor.newCharBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addChar(builder, value.asInstanceOf[Char])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultChar(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Short =>
-                  val builder = constructor.newShortBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addShort(builder, value.asInstanceOf[Short])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultShort(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Int =>
-                  val builder = constructor.newIntBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addInt(builder, value.asInstanceOf[Int])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultInt(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Long =>
-                  val builder = constructor.newLongBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addLong(builder, value.asInstanceOf[Long])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultLong(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Float =>
-                  val builder = constructor.newFloatBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addFloat(builder, value.asInstanceOf[Float])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultFloat(builder).asInstanceOf[C[A]])
-                case _: PrimitiveType.Double =>
-                  val builder = constructor.newDoubleBuilder(elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addDouble(builder, value.asInstanceOf[Double])
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
-                case _ =>
-                  val builder = constructor.newObjectBuilder[A](elements.size)
-                  elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                      case Right(value) => constructor.addObject(builder, value)
-                      case Left(error)  => addError(error)
-                    }
-                  }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultObject(builder))
-              }
-            case _ =>
-              val builder = constructor.newObjectBuilder[A](elements.size)
-              elements.foreach { elem =>
-                idx += 1
-                element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
-                  case Right(value) => constructor.addObject(builder, value)
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultObject(builder))
+          val seqTrace                       = DynamicOptic.Node.Elements :: trace
+          val constructor                    = seqConstructor
+          var idx                            = -1
+          implicit val classTag: ClassTag[A] = elemClassTag
+          val builder                        = constructor.newBuilder[A](elements.size)
+          elements.foreach { elem =>
+            idx += 1
+            element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+              case Right(value) => constructor.add(builder, value)
+              case Left(error)  => addError(error)
+            }
           }
+          if (error.isDefined) new Left(error.get)
+          else new Right(constructor.result(builder))
         case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a sequence"))
       }
     }
@@ -833,6 +730,8 @@ object Reflect {
     def seqConstructor(implicit F: HasBinding[F]): SeqConstructor[C] = F.seqConstructor(seqBinding)
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
+
+    def elemClassTag: ClassTag[A] = element.typeId.classTag.asInstanceOf[ClassTag[A]]
 
     def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
 
@@ -1151,8 +1050,13 @@ object Reflect {
       F: HasBinding[F]
     ): Either[SchemaError, A] =
       wrapped.fromDynamicValue(value, trace) match {
-        case Right(unwrapped) => binding.wrap(unwrapped)
-        case left             => left.asInstanceOf[Either[SchemaError, A]]
+        case Right(unwrapped) =>
+          try Right(binding.wrap(unwrapped))
+          catch {
+            case error: SchemaError => Left(error)
+            case other: Throwable   => Left(SchemaError.validationFailed(other.getMessage))
+          }
+        case left => left.asInstanceOf[Either[SchemaError, A]]
       }
 
     def metadata: F[NodeBinding, A] = wrapperBinding
@@ -1162,11 +1066,10 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Wrapper[F, A, B] =
       copy(modifiers = this.modifiers ++ modifiers)
 
-    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
-      binding.unwrap(value) match {
-        case Right(unwrapped) => wrapped.toDynamicValue(unwrapped)
-        case Left(error)      => throw error
-      }
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
+      val unwrapped = binding.unwrap(value)
+      wrapped.toDynamicValue(unwrapped)
+    }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
