@@ -163,6 +163,16 @@ object MigrationBuilderSyntax {
       builder.optionalizeField(SelectorMacros.toOptic(selector))
 
     /**
+     * Make a mandatory field optional using a type-safe selector with a reverse
+     * default.
+     */
+    inline def optionalizeFieldExpr[T](
+      inline selector: A => T,
+      defaultForReverse: DynamicSchemaExpr
+    ): MigrationBuilder[A, B] =
+      builder.optionalizeField(SelectorMacros.toOptic(selector), defaultForReverse)
+
+    /**
      * Change field type using type-safe selector.
      */
     inline def changeFieldType[T](

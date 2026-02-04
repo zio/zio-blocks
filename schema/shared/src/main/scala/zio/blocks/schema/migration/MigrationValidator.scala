@@ -283,7 +283,7 @@ object MigrationValidator {
             Left(s"Cannot mandate field in non-record structure: ${describeStructure(other)}")
         }
 
-      case MigrationAction.Optionalize(path) =>
+      case MigrationAction.Optionalize(path, _) =>
         modifyAtPath(structure, path.dropLastField._1) {
           case r: SchemaStructure.Record =>
             val fieldName = path.lastFieldName.getOrElse("")

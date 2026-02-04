@@ -121,7 +121,7 @@ object MigrationAction {
     at: DynamicOptic,
     default: DynamicSchemaExpr
   ) extends MigrationAction {
-    def reverse: MigrationAction = Optionalize(at)
+    def reverse: MigrationAction = Optionalize(at, default)
   }
 
   /**
@@ -131,9 +131,10 @@ object MigrationAction {
    *   path to the field
    */
   final case class Optionalize(
-    at: DynamicOptic
+    at: DynamicOptic,
+    defaultForReverse: DynamicSchemaExpr = DynamicSchemaExpr.DefaultValue
   ) extends MigrationAction {
-    def reverse: MigrationAction = Mandate(at, DynamicSchemaExpr.DefaultValue)
+    def reverse: MigrationAction = Mandate(at, defaultForReverse)
   }
 
   /**

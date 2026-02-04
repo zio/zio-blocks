@@ -150,11 +150,14 @@ class MigrationBuilder[A, B](
    * @param path
    *   path to the field
    */
-  def optionalizeField(path: DynamicOptic): MigrationBuilder[A, B] =
+  def optionalizeField(
+    path: DynamicOptic,
+    defaultForReverse: DynamicSchemaExpr = DynamicSchemaExpr.DefaultValue
+  ): MigrationBuilder[A, B] =
     new MigrationBuilder(
       sourceSchema,
       targetSchema,
-      actions :+ MigrationAction.Optionalize(path)
+      actions :+ MigrationAction.Optionalize(path, defaultForReverse)
     )
 
   /**
@@ -382,7 +385,7 @@ class MigrationBuilder[A, B](
    * This validates that applying the migration actions to the source schema
    * structure would produce a structure compatible with the target schema.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if validation fails
    */
   def build: Migration[A, B] = {

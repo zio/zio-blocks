@@ -798,19 +798,25 @@ object MigrationSchemas {
   implicit lazy val optionalizeSchema: Schema[MigrationAction.Optionalize] = new Schema(
     reflect = new Reflect.Record[Binding, MigrationAction.Optionalize](
       fields = Vector(
-        Schema[DynamicOptic].reflect.asTerm("at")
+        Schema[DynamicOptic].reflect.asTerm("at"),
+        dynamicSchemaExprSchema.reflect.asTerm("defaultForReverse")
       ),
       typeId = TypeId.of[MigrationAction.Optionalize],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Optionalize] {
-          def usedRegisters: RegisterOffset                                                 = 1
+          def usedRegisters: RegisterOffset                                                 = 2
           def construct(in: Registers, offset: RegisterOffset): MigrationAction.Optionalize =
-            MigrationAction.Optionalize(in.getObject(offset + 0).asInstanceOf[DynamicOptic])
+            MigrationAction.Optionalize(
+              in.getObject(offset + 0).asInstanceOf[DynamicOptic],
+              in.getObject(offset + 1).asInstanceOf[DynamicSchemaExpr]
+            )
         },
         deconstructor = new Deconstructor[MigrationAction.Optionalize] {
-          def usedRegisters: RegisterOffset                                                              = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.Optionalize): Unit =
+          def usedRegisters: RegisterOffset                                                              = 2
+          def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.Optionalize): Unit = {
             out.setObject(offset + 0, in.at)
+            out.setObject(offset + 1, in.defaultForReverse)
+          }
         }
       )
     )

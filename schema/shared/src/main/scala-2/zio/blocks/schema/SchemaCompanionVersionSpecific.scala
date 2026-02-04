@@ -11,12 +11,13 @@ import scala.reflect.NameTransformer
 
 trait SchemaCompanionVersionSpecific {
   def derived[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
-  
+
   /**
    * Derive a schema for a structural type. This is only supported in Scala 3
    * due to the requirement for:
-   * - Refinement types (structural records): `{ val name: String; val age: Int }`
-   * - Union types (structural enums): `Type1 | Type2`
+   *   - Refinement types (structural records):
+   *     `{ val name: String; val age: Int }`
+   *   - Union types (structural enums): `Type1 | Type2`
    *
    * In Scala 2, use regular case classes with `Schema.derived[A]` instead.
    */
@@ -947,11 +948,10 @@ private object SchemaCompanionVersionSpecific {
     c.Expr[Schema[A]](schemaBlock)
   }
 
-  def structural[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] = {
+  def structural[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] =
     CommonMacroOps.fail(c)(
       "Schema.structural is only supported in Scala 3. " +
-      "Structural types (refinement types and union types) are a Scala 3 feature. " +
-      "In Scala 2, please use regular case classes with Schema.derived[A] instead."
+        "Structural types (refinement types and union types) are a Scala 3 feature. " +
+        "In Scala 2, please use regular case classes with Schema.derived[A] instead."
     )
-  }
 }

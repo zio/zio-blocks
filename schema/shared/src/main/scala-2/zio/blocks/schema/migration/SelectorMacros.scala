@@ -28,8 +28,8 @@ class SelectorMacrosImpl(val c: blackbox.Context) {
 
   def toOpticImpl[A: WeakTypeTag, B: WeakTypeTag](selector: c.Expr[A => B]): c.Expr[DynamicOptic] = {
     // Use tags to avoid -Xfatal-warnings unused-parameter errors in Scala 2.
-    val _ = weakTypeOf[A]
-    val _ = weakTypeOf[B]
+    val _        = weakTypeOf[A]
+    val _        = weakTypeOf[B]
     val segments = extractPathSegments(selector.tree)
     buildDynamicOptic(segments)
   }
@@ -40,17 +40,17 @@ class SelectorMacrosImpl(val c: blackbox.Context) {
   }
 
   private sealed trait PathSegment
-  private case class FieldAccess(name: String)    extends PathSegment
-  private case class CaseAccess(name: String)     extends PathSegment
-  private case object ElementsAccess              extends PathSegment
-  private case object MapKeysAccess               extends PathSegment
-  private case object MapValuesAccess             extends PathSegment
-  private case object WrappedAccess               extends PathSegment
-  private case class AtIndexAccess(index: Tree)   extends PathSegment
+  private case class FieldAccess(name: String)            extends PathSegment
+  private case class CaseAccess(name: String)             extends PathSegment
+  private case object ElementsAccess                      extends PathSegment
+  private case object MapKeysAccess                       extends PathSegment
+  private case object MapValuesAccess                     extends PathSegment
+  private case object WrappedAccess                       extends PathSegment
+  private case class AtIndexAccess(index: Tree)           extends PathSegment
   private case class AtIndicesAccess(indices: List[Tree]) extends PathSegment
-  private case class AtMapKeyAccess(key: Tree)    extends PathSegment
-  private case class AtMapKeysAccess(keys: List[Tree]) extends PathSegment
-  private case object OptionGet                   extends PathSegment
+  private case class AtMapKeyAccess(key: Tree)            extends PathSegment
+  private case class AtMapKeysAccess(keys: List[Tree])    extends PathSegment
+  private case object OptionGet                           extends PathSegment
 
   private def extractPathSegments(tree: Tree): List[PathSegment] = {
     def extract(t: Tree): List[PathSegment] = t match {
@@ -99,15 +99,16 @@ class SelectorMacrosImpl(val c: blackbox.Context) {
       case Select(qualifier, name) if name.toString != "apply" =>
         val segments = extract(qualifier)
         name.toString match {
-          case "get"       => segments :+ OptionGet
-          case "head"      => segments :+ AtIndexAccess(Literal(Constant(0)))
-          case "keys"      => segments :+ MapKeysAccess
-          case "values"    => segments :+ MapValuesAccess
-          case fieldName   => segments :+ FieldAccess(fieldName)
+          case "get"     => segments :+ OptionGet
+          case "head"    => segments :+ AtIndexAccess(Literal(Constant(0)))
+          case "keys"    => segments :+ MapKeysAccess
+          case "values"  => segments :+ MapValuesAccess
+          case fieldName => segments :+ FieldAccess(fieldName)
         }
 
       // Apply for indexed access: _.seq(0)
-      case Apply(Select(qualifier, TermName("apply")), List(idxTree)) if idxTree.tpe.widen.dealias <:< definitions.IntTpe =>
+      case Apply(Select(qualifier, TermName("apply")), List(idxTree))
+          if idxTree.tpe.widen.dealias <:< definitions.IntTpe =>
         extract(qualifier) :+ AtIndexAccess(idxTree)
 
       // Typed expression
@@ -119,21 +120,23 @@ class SelectorMacrosImpl(val c: blackbox.Context) {
         Nil
 
       case other =>
-        c.abort(c.enclosingPosition,
+        c.abort(
+          c.enclosingPosition,
           s"Unsupported selector expression: ${showRaw(other)}. " +
             "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), " +
-            ".atKeys(<keys>), .each, .eachKey, .eachValue, .wrapped[<T>], or optional `.get`.")
+            ".atKeys(<keys>), .each, .eachKey, .eachValue, .wrapped[<T>], or optional `.get`."
+        )
     }
 
     extract(tree)
   }
 
-  private def buildDynamicOptic(segments: List[PathSegment]): c.Expr[DynamicOptic] = {
+  private def buildDynamicOptic(segments: List[PathSegment]): c.Expr[DynamicOptic] =
     if (segments.isEmpty) {
       c.Expr[DynamicOptic](q"_root_.zio.blocks.schema.DynamicOptic.root")
     } else {
       val initialOptic = q"_root_.zio.blocks.schema.DynamicOptic.root"
-      
+
       val resultTree = segments.foldLeft(initialOptic: Tree) { (optic, segment) =>
         segment match {
           case FieldAccess(name) =>
@@ -163,14 +166,15 @@ class SelectorMacrosImpl(val c: blackbox.Context) {
       }
       c.Expr[DynamicOptic](resultTree)
     }
-  }
 
   private def buildSelector[A: WeakTypeTag, B: WeakTypeTag](segments: List[PathSegment]): c.Expr[Selector[A, B]] = {
     val aType = weakTypeOf[A]
     val bType = weakTypeOf[B]
-    
+
     if (segments.isEmpty) {
-      c.Expr[Selector[A, B]](q"_root_.zio.blocks.schema.migration.Selector.root[$aType].asInstanceOf[_root_.zio.blocks.schema.migration.Selector[$aType, $bType]]")
+      c.Expr[Selector[A, B]](
+        q"_root_.zio.blocks.schema.migration.Selector.root[$aType].asInstanceOf[_root_.zio.blocks.schema.migration.Selector[$aType, $bType]]"
+      )
     } else {
       val opticExpr = buildDynamicOptic(segments)
       c.Expr[Selector[A, B]](

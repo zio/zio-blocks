@@ -145,7 +145,7 @@ object DynamicMigration {
         }
       }
 
-    case MigrationAction.Optionalize(at) =>
+    case MigrationAction.Optionalize(at, _) =>
       modifyAtPath(value, at) { targetValue =>
         // Wrap the value in a Some variant
         Right(DynamicValue.Variant("Some", targetValue))

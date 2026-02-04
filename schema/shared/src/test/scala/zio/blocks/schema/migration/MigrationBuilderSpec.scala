@@ -157,6 +157,16 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
           .optionalizeField(DynamicOptic.root.field("b"))
         val migration = builder.buildPartial
         assertTrue(migration.actions.length == 1)
+      },
+      test("supports reverse default expression") {
+        val builder = MigrationBuilder[SimpleRecord, SimpleRecord]
+          .optionalizeField(
+            DynamicOptic.root.field("b"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
+        val migration = builder.buildPartial
+        val action    = migration.actions.head.asInstanceOf[MigrationAction.Optionalize]
+        assertTrue(action.defaultForReverse.isInstanceOf[DynamicSchemaExpr.Literal])
       }
     ),
     suite("changeFieldType")(

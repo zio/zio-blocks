@@ -75,16 +75,16 @@ object MigrationActionSpec extends SchemaBaseSpec {
           DynamicOptic.root.field("opt"),
           DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.Optionalize])
+        val reversed = action.reverse.asInstanceOf[MigrationAction.Optionalize]
+        assertTrue(reversed.defaultForReverse == action.default)
       }
     ),
     suite("Optionalize")(
-      test("reverse is Mandate with DefaultValue") {
-        val action   = MigrationAction.Optionalize(DynamicOptic.root.field("field"))
-        val reversed = action.reverse
-        assertTrue(reversed.isInstanceOf[MigrationAction.Mandate])
-        val mandate = reversed.asInstanceOf[MigrationAction.Mandate]
-        assertTrue(mandate.default == DynamicSchemaExpr.DefaultValue)
+      test("reverse is Mandate with provided default") {
+        val default  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("fallback")))
+        val action   = MigrationAction.Optionalize(DynamicOptic.root.field("field"), default)
+        val reversed = action.reverse.asInstanceOf[MigrationAction.Mandate]
+        assertTrue(reversed.default == default)
       }
     ),
     suite("ChangeType")(
