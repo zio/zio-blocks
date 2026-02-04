@@ -97,7 +97,7 @@ class Database(config: Config) extends AutoCloseable {
 }
 
 // Manual cleanup via defer (top-level function)
-class Cache(config: Config)(using Scope[?]) {
+class Cache(config: Config)(using Scope.Any) {
   private val store = new LRUCache(config.cacheSize)
   private val evictor = new Thread(() => evictionLoop())
   evictor.start()
@@ -351,10 +351,10 @@ class Database(config: Config) extends AutoCloseable {
 
 ### Manual Cleanup
 
-For complex cleanup, take an implicit `Scope` and use the top-level `defer` function:
+For complex cleanup, take an implicit `Scope.Any` and use the top-level `defer` function:
 
 ```scala
-class Cache(config: Config)(using Scope[?]) {
+class Cache(config: Config)(using Scope.Any) {
   private val evictor = startEvictor()
   defer {
     evictor.stop()
@@ -403,23 +403,91 @@ try {
 
 ---
 
-## Type-Level Stack
+## When Do You See Scope Types?
 
-### Required Dependencies
+### Global Application Graph: You Don't
 
-User code should be polymorphic over the tail of the stack. Use `Scope.Required`:
+For the common case — a single application-wide dependency graph — users never interact with specific scope types:
+
+```scala
+// Your classes just take Scope.Any for defer access
+class Database(config: Config)(using Scope.Any) extends AutoCloseable { ... }
+class Cache(config: Config)(using Scope.Any) { defer { cleanup() } }
+class UserService(db: Database, cache: Cache) { ... }  // No scope needed
+
+// At the top level, you just chain injected calls
+Scope.global
+  .injected[Config]
+  .injected[Database & Cache]
+  .injected[UserService & App]
+  .run { ctx => ctx.get[App].run() }
+```
+
+The type-level stack is an **implementation detail** — the macro tracks it, but users don't see it.
+
+### Request Handling: Scoped Resources
+
+Where typed scopes shine is **request/session/resource scoping**:
 
 ```scala
 object Scope {
-  type Required[Layer] = Scope[Layer :: ?]
+  type Any = Scope[?]                           // "I need a scope, don't care which"
+  type Required[Layer] = Scope[Layer :: ?]      // "I need these services available"
+  type Resource[X] = Scope[Context[X] :: ?]     // "I have access to managed resource X"
+}
+```
+
+**Example: HTTP Request Handler**
+
+```scala
+class Server(using Scope.Any) {
+  def handleRequest(request: Request): Response = {
+    // Create child scope with request injected
+    Scope.global.child
+      .injected[Request](Wire.value(request))
+      .injected[Transaction]
+      .injected[RequestHandler]
+      .run { ctx => ctx.get[RequestHandler].handle() }
+  }
 }
 
-// User code only declares what it needs:
-def handleRequest(using scope: Scope.Required[Context[Database & Config]]): Unit = {
-  val db = scope.get[Database]
-  val config = scope.get[Config]
-  // Don't care what else is in the stack
+// The handler receives a scope with Request available
+class RequestHandler(using scope: Scope.Resource[Request]) {
+  val request = scope.get[Request]  // Type-safe access to the request
+  // ...
 }
+```
+
+**Example: File Processing**
+
+```scala
+def processFile(using scope: Scope.Resource[FileHandle]): Unit = {
+  val file = scope.get[FileHandle]
+  // File is guaranteed to be open and managed by this scope
+  file.readLines().foreach(process)
+}
+
+// Caller provides the scoped resource
+Scope.global
+  .injected[FileHandle](Wire.Shared { _ =>
+    val fh = FileHandle.open("data.txt")
+    defer(fh.close())
+    Context(fh)
+  })
+  .run { _ => processFile }
+```
+
+### Type Aliases for Clarity
+
+For complex requirements, define type aliases:
+
+```scala
+// In your app
+type AppScope = Scope.Required[Context[Config & Database & Cache]]
+type RequestScope = Scope.Required[Context[Request & Transaction]]
+
+// In handler code
+def handle(using RequestScope): Response = { ... }
 ```
 
 ### Match Types (Scala 3)
@@ -616,7 +684,10 @@ trait Scope[Stack] {
 object Scope {
   val global: Scope[TNil]
   
-  type Required[Layer] = Scope[Layer :: ?]
+  // Type aliases for common patterns
+  type Any = Scope[?]                           // Scope-polymorphic
+  type Required[Layer] = Scope[Layer :: ?]      // Requires specific services
+  type Resource[X] = Scope[Context[X] :: ?]     // Access to managed resource X
   
   trait Closeable[Stack] extends Scope[Stack] with AutoCloseable {
     def close(): Unit
@@ -675,8 +746,8 @@ inline def unique[T]: Wire[???, T]  // Uses Wireable[T] if available, else const
 ### Top-Level Functions
 
 ```scala
-def defer(finalizer: => Unit)(using Scope[?]): Unit  // Register cleanup on current scope
-def get[T](using Scope[?], InStack[T, ?], IsNominalType[T]): T  // Get from stack
+def defer(finalizer: => Unit)(using Scope.Any): Unit  // Register cleanup on current scope
+def get[T](using Scope.Any, InStack[T, ?], IsNominalType[T]): T  // Get from stack
 ```
 
 These are convenience functions that delegate to the implicit `Scope`, avoiding verbose `summon[Scope[?]].defer(...)` calls.
