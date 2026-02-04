@@ -32,7 +32,7 @@ private[schema] object LCS {
     }
 
     // Reconstruct the LCS
-    val result = new StringBuilder
+    val result = new java.lang.StringBuilder
     i = m
     var j = n
     while (i > 0 && j > 0) {
