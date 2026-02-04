@@ -17,6 +17,7 @@ import zio.blocks.schema.Schema
 trait MigrationSelectorSyntax {
 
   extension [A](a: A) {
+
     /** Select a specific case of a sum type. */
     inline def when[B <: A]: B = error("Can only be used inside migration selector macros")
 
@@ -25,6 +26,7 @@ trait MigrationSelectorSyntax {
   }
 
   extension [C[_], A](c: C[A]) {
+
     /** Access element at a specific index. */
     inline def at(index: Int): A = error("Can only be used inside migration selector macros")
 
@@ -36,6 +38,7 @@ trait MigrationSelectorSyntax {
   }
 
   extension [M[_, _], K, V](m: M[K, V]) {
+
     /** Access value at a specific key. */
     inline def atKey(key: K)(using Schema[K]): V = error("Can only be used inside migration selector macros")
 

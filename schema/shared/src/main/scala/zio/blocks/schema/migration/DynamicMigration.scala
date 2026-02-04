@@ -4,9 +4,9 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaError}
 
 /**
- * A pure, serializable migration that operates on `DynamicValue`.
- * This is the untyped core of the migration system, containing a sequence
- * of `MigrationAction`s that are applied in order.
+ * A pure, serializable migration that operates on `DynamicValue`. This is the
+ * untyped core of the migration system, containing a sequence of
+ * `MigrationAction`s that are applied in order.
  *
  * `DynamicMigration` is fully serializable because:
  *   - It contains no closures or functions
@@ -25,15 +25,17 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   /**
    * Apply this migration to a `DynamicValue`.
    *
-   * @param value The input value to migrate
-   * @return Either a `SchemaError` or the migrated value
+   * @param value
+   *   The input value to migrate
+   * @return
+   *   Either a `SchemaError` or the migrated value
    */
   def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicMigration.execute(actions, value)
 
   /**
-   * Compose this migration with another, applying this migration first,
-   * then the other.
+   * Compose this migration with another, applying this migration first, then
+   * the other.
    */
   def ++(that: DynamicMigration): DynamicMigration =
     new DynamicMigration(actions ++ that.actions)
@@ -42,11 +44,11 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   def andThen(that: DynamicMigration): DynamicMigration = this ++ that
 
   /**
-   * Returns the structural reverse of this migration.
-   * The reverse migration has all actions reversed and in reverse order.
+   * Returns the structural reverse of this migration. The reverse migration has
+   * all actions reversed and in reverse order.
    *
-   * Note: Runtime execution of the reverse migration is best-effort.
-   * It may fail if information was lost during the forward migration.
+   * Note: Runtime execution of the reverse migration is best-effort. It may
+   * fail if information was lost during the forward migration.
    */
   def reverse: DynamicMigration =
     new DynamicMigration(actions.reverseIterator.map(_.reverse).toVector)
@@ -72,17 +74,16 @@ object DynamicMigration {
     new DynamicMigration(actions.toVector)
 
   /**
-   * Execute a sequence of migration actions on a value.
-   * Actions are applied in order, with the output of each action
-   * becoming the input to the next.
+   * Execute a sequence of migration actions on a value. Actions are applied in
+   * order, with the output of each action becoming the input to the next.
    */
   private[migration] def execute(
     actions: Vector[MigrationAction],
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] = {
     var current: DynamicValue = value
-    var idx = 0
-    val len = actions.length
+    var idx                   = 0
+    val len                   = actions.length
 
     while (idx < len) {
       ActionExecutor.execute(actions(idx), current) match {
@@ -194,7 +195,7 @@ private[migration] object ActionExecutor {
   ): Either[SchemaError, DynamicValue] = {
     val from = at.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => name
-      case _ => return Left(SchemaError.message("Rename path must end with a Field node", at))
+      case _                                   => return Left(SchemaError.message("Rename path must end with a Field node", at))
     }
     val parentPath = DynamicOptic(at.nodes.dropRight(1))
 
@@ -234,9 +235,9 @@ private[migration] object ActionExecutor {
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value, at) {
-      case DynamicValue.Variant("None", _) => Right(default)
+      case DynamicValue.Variant("None", _)     => Right(default)
       case DynamicValue.Variant("Some", inner) => Right(inner)
-      case other => Right(other) // Already not optional
+      case other                               => Right(other) // Already not optional
     }
 
   private def executeOptionalize(
@@ -252,9 +253,9 @@ private[migration] object ActionExecutor {
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] = {
     val parentPath = DynamicOptic(at.nodes.dropRight(1))
-    val fieldName = at.nodes.lastOption match {
+    val fieldName  = at.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => name
-      case _ => return Left(SchemaError.message("Join target path must end with a Field node", at))
+      case _                                   => return Left(SchemaError.message("Join target path must end with a Field node", at))
     }
     modifyAt(parentPath, value, at) {
       case DynamicValue.Record(fields) =>
@@ -374,8 +375,8 @@ private[migration] object ActionExecutor {
   // ==================== Helper Methods ====================
 
   /**
-   * Navigate to a path and apply a modification function.
-   * If the path is empty (root), apply directly to the value.
+   * Navigate to a path and apply a modification function. If the path is empty
+   * (root), apply directly to the value.
    */
   private def modifyAt(
     path: DynamicOptic,
@@ -443,11 +444,12 @@ private[migration] object ActionExecutor {
         case Node.MapKeys =>
           value match {
             case DynamicValue.Map(entries) =>
-              val results = entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
-                case (Right(acc), (k, v)) =>
-                  modifyAtPath(nodes, idx + 1, k, fullPath)(f).map(newK => acc :+ (newK -> v))
-                case (left, _) => left
-              }
+              val results =
+                entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+                  case (Right(acc), (k, v)) =>
+                    modifyAtPath(nodes, idx + 1, k, fullPath)(f).map(newK => acc :+ (newK -> v))
+                  case (left, _) => left
+                }
               results.map(DynamicValue.Map(_))
             case other =>
               Left(SchemaError.message(s"Expected Map, got ${other.valueType}", fullPath))
@@ -456,11 +458,12 @@ private[migration] object ActionExecutor {
         case Node.MapValues =>
           value match {
             case DynamicValue.Map(entries) =>
-              val results = entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
-                case (Right(acc), (k, v)) =>
-                  modifyAtPath(nodes, idx + 1, v, fullPath)(f).map(newV => acc :+ (k -> newV))
-                case (left, _) => left
-              }
+              val results =
+                entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+                  case (Right(acc), (k, v)) =>
+                    modifyAtPath(nodes, idx + 1, v, fullPath)(f).map(newV => acc :+ (k -> newV))
+                  case (left, _) => left
+                }
               results.map(DynamicValue.Map(_))
             case other =>
               Left(SchemaError.message(s"Expected Map, got ${other.valueType}", fullPath))

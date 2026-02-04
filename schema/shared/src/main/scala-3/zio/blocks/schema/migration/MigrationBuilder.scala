@@ -6,13 +6,17 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
  * A fluent builder for constructing type-safe migrations.
  *
  * The builder uses type-level tracking to ensure migrations are complete:
- * - `SourceHandled` tracks which source fields have been addressed
- * - `TargetProvided` tracks which target fields have been provided
+ *   - `SourceHandled` tracks which source fields have been addressed
+ *   - `TargetProvided` tracks which target fields have been provided
  *
- * @tparam A The source type
- * @tparam B The target type
- * @tparam SourceHandled Tuple of source field names that have been handled
- * @tparam TargetProvided Tuple of target field names that have been provided
+ * @tparam A
+ *   The source type
+ * @tparam B
+ *   The target type
+ * @tparam SourceHandled
+ *   Tuple of source field names that have been handled
+ * @tparam TargetProvided
+ *   Tuple of target field names that have been provided
  */
 final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tuple](
   val sourceSchema: Schema[A],
@@ -25,7 +29,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     inline target: B => T,
     default: T
   )(using targetFieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[B, T](target)
+    val path           = SelectorMacros.toPath[B, T](target)
     val dynamicDefault = targetFieldSchema.toDynamicValue(default)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.AddField(path, dynamicDefault))
   }
@@ -44,7 +48,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     inline source: A => T,
     defaultForReverse: T
   )(using sourceFieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, T](source)
+    val path           = SelectorMacros.toPath[A, T](source)
     val dynamicDefault = sourceFieldSchema.toDynamicValue(defaultForReverse)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.DropField(path, dynamicDefault))
   }
@@ -63,7 +67,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     inline from: A => Any,
     inline to: B => Any
   ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val fromPath = SelectorMacros.toPath[A, Any](from)
+    val fromPath    = SelectorMacros.toPath[A, Any](from)
     val toFieldName = SelectorMacros.extractFieldName[B, Any](to)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Rename(fromPath, toFieldName))
   }
@@ -73,12 +77,19 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     inline from: A => T,
     inline to: B => U,
     @scala.annotation.unused transform: T => U
-  )(using @scala.annotation.unused fromSchema: Schema[T], @scala.annotation.unused toSchema: Schema[U]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+  )(using
+    @scala.annotation.unused fromSchema: Schema[T],
+    @scala.annotation.unused toSchema: Schema[U]
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
     // For serializable migrations, we capture a representative transformed value
     // In practice, users should use transformFieldDynamic for full control
     val fromPath = SelectorMacros.toPath[A, T](from)
     // Note: This is a simplified version - full implementation would use SchemaExpr
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Rename(fromPath, SelectorMacros.extractFieldName[B, U](to)))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.Rename(fromPath, SelectorMacros.extractFieldName[B, U](to))
+    )
   }
 
   /** Transform a field with a literal new value. */
@@ -86,7 +97,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     inline at: A => T,
     newValue: T
   )(using fieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, T](at)
+    val path         = SelectorMacros.toPath[A, T](at)
     val dynamicValue = fieldSchema.toDynamicValue(newValue)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformValue(path, dynamicValue))
   }
@@ -97,7 +108,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     @scala.annotation.unused inline target: B => T,
     default: T
   )(using fieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, Option[T]](source)
+    val path           = SelectorMacros.toPath[A, Option[T]](source)
     val dynamicDefault = fieldSchema.toDynamicValue(default)
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Mandate(path, dynamicDefault))
   }
@@ -116,11 +127,13 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     @scala.annotation.unused inline source: A => T,
     @scala.annotation.unused inline target: B => U,
     @scala.annotation.unused converter: T => U
-  )(using @scala.annotation.unused fromSchema: Schema[T], @scala.annotation.unused toSchema: Schema[U]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+  )(using
+    @scala.annotation.unused fromSchema: Schema[T],
+    @scala.annotation.unused toSchema: Schema[U]
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
     // For serializable migrations, use transformFieldLiteral with a pre-computed value
     // This method is a placeholder - users should use changeFieldTypeLiteral
     new MigrationBuilder(sourceSchema, targetSchema, actions)
-  }
 
   /** Rename an enum case. */
   def renameCase(
@@ -157,14 +170,18 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
   )(
     elementMigration: MigrationBuilder[E, E, EmptyTuple, EmptyTuple] => MigrationBuilder[E, E, ?, ?]
   )(using elementSchema: Schema[E]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, Iterable[E]](at)
+    val path         = SelectorMacros.toPath[A, Iterable[E]](at)
     val innerBuilder = new MigrationBuilder[E, E, EmptyTuple, EmptyTuple](
       elementSchema,
       elementSchema,
       Vector.empty
     )
     val builtInner = elementMigration(innerBuilder)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformElements(path, builtInner.actions))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformElements(path, builtInner.actions)
+    )
   }
 
   /** Transform keys in a map. */
@@ -173,7 +190,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
   )(
     keyMigration: MigrationBuilder[K, K, EmptyTuple, EmptyTuple] => MigrationBuilder[K, K, ?, ?]
   )(using keySchema: Schema[K]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, Map[K, V]](at)
+    val path         = SelectorMacros.toPath[A, Map[K, V]](at)
     val innerBuilder = new MigrationBuilder[K, K, EmptyTuple, EmptyTuple](
       keySchema,
       keySchema,
@@ -189,14 +206,18 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
   )(
     valueMigration: MigrationBuilder[V, V, EmptyTuple, EmptyTuple] => MigrationBuilder[V, V, ?, ?]
   )(using valueSchema: Schema[V]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, Map[K, V]](at)
+    val path         = SelectorMacros.toPath[A, Map[K, V]](at)
     val innerBuilder = new MigrationBuilder[V, V, EmptyTuple, EmptyTuple](
       valueSchema,
       valueSchema,
       Vector.empty
     )
     val builtInner = valueMigration(innerBuilder)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformValues(path, builtInner.actions))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformValues(path, builtInner.actions)
+    )
   }
 
   /** Build the migration with validation (compile-time where possible). */
@@ -209,6 +230,7 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
 }
 
 object MigrationBuilder {
+
   /** Create a new migration builder. */
   def apply[A, B](using
     sourceSchema: Schema[A],
