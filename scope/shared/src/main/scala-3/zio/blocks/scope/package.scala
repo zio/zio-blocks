@@ -25,4 +25,9 @@ package object scope {
 
   inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
+
+  extension [Stack](scope: Scope[Stack]) {
+    inline def injected[T](inline wires: Wire[?, ?]*): Scope.Closeable[T, ?] =
+      ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
+  }
 }

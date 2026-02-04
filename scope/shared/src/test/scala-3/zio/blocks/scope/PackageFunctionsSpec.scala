@@ -56,61 +56,51 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     given Wireable.Typed[Config, DatabaseTrait] = new Wireable[DatabaseTrait] {
       type In = Config
       def wire: Wire[Config, DatabaseTrait] = Wire.Shared[Config, DatabaseTrait] {
-        val scope  = summon[Scope.Has[Config]]
-        val config = scope.get[Config]
+        val config = get[Config]
         val impl   = new DatabaseImpl(config)
-        scope.defer(impl.close())
+        defer(impl.close())
         Context[DatabaseTrait](impl)
       }
     }
   }
 
   def spec = suite("package functions (Scala 3)")(
-    test("defer delegates to scope") {
-      var cleaned           = false
-      val parent: Scope.Any = Scope.global
-      val f                 = new Finalizers
-      val config            = new Config
-      val s                 = Scope.makeCloseable[Config, TNil](parent, Context(config), f)
-      {
-        given Scope.Any = s
-        defer { cleaned = true }
-      }
-      s.close()
+    test("defer registers cleanup on scope") {
+      var cleaned     = false
+      val config      = new Config
+      val closeable   = Scope.makeCloseable[Config, TNil](Scope.global, Context(config), new Finalizers)
+      given Scope.Any = closeable
+      defer { cleaned = true }
+      closeable.close()
       assertTrue(cleaned)
     },
-    test("get delegates to scope") {
-      val parent: Scope.Any = Scope.global
-      val config            = new Config
-      val f                 = new Finalizers
-      val s                 = Scope.makeCloseable[Config, TNil](parent, Context(config), f)
-      val retrieved         = {
-        given Scope.Has[Config] = s
-        get[Config]
-      }
-      s.close()
+    test("get retrieves from scope") {
+      val config              = new Config
+      val closeable           = Scope.makeCloseable[Config, TNil](Scope.global, Context(config), new Finalizers)
+      given Scope.Has[Config] = closeable
+      val retrieved           = get[Config]
+      closeable.close()
       assertTrue(retrieved eq config)
     },
-    test("injectedValue creates closeable scope") {
-      val parent: Scope.Any = Scope.global
-      val config            = new Config
-      val closeable         = {
-        given Scope.Any = parent
-        injectedValue(config)
-      }
+    test("scope.injected creates closeable scope") {
+      val closeable = Scope.global.injected[Config]()
       val retrieved = closeable.get[Config]
       closeable.close()
-      assertTrue(retrieved eq config)
+      assertTrue(retrieved.debug == false) // Config was constructed
     },
-    test("injectedValue registers AutoCloseable cleanup") {
-      val parent: Scope.Any = Scope.global
-      val resource          = new CloseableResource("test")
-      val closeable         = {
-        given Scope.Any = parent
-        injectedValue(resource)
-      }
+    test("scope.injected with wires builds dependencies") {
+      val config    = new Config
+      val closeable = Scope.global.injected[SimpleService](shared[Config])
+      val svc       = closeable.get[SimpleService]
       closeable.close()
-      assertTrue(resource.closed)
+      assertTrue(svc != null && svc.config != null)
+    },
+    test("scope.injected handles AutoCloseable") {
+      val closeable = Scope.global.injected[CloseableConfig]()
+      val instance  = closeable.get[CloseableConfig]
+      assertTrue(!instance.closed)
+      closeable.close()
+      assertTrue(instance.closed)
     },
     suite("shared[T]")(
       test("derives wire for no-arg class") {
