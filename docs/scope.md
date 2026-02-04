@@ -58,7 +58,7 @@ Scope makes resources part of the scope's type, so lifecycle errors become type 
 
 ```scala
 def processRequest()(using Scope.Any): Response = {
-  injected[TempFile](Wire.value(TempFile.create())).run { _ =>
+  injected[TempFile](Wire.value(TempFile.create())).run {
     // TempFile is in THIS scope's type — cleanup is automatic
     doWork()  // Has access to TempFile
   }
@@ -109,7 +109,9 @@ class App(db: Database) {
 }
 
 @main def main(): Unit =
-  injected[App].run { _.run() }
+  Scope.global.injected[App]().run {
+    $[App].run()
+  }
 ```
 
 The `injected[App]` macro discovers that `App` needs `Database` needs `Config`, wires them up, runs your code, then cleans up in reverse order.
@@ -143,7 +145,9 @@ class App(userService: UserService) {
 }
 
 @main def main(): Unit =
-  injected[App].run { _.run() }
+  Scope.global.injected[App]().run {
+    $[App].run()
+  }
   // Cleanup runs automatically in reverse order:
   // Cache (evictor stopped), Database (pool closed)
 ```
@@ -161,7 +165,9 @@ class Cache(config: Config)(implicit scope: Scope.Any) {
 }
 
 def main(): Unit =
-  injected[App].run { _.run() }(Scope.global)
+  Scope.global.injected[App]().run { scope =>
+    scope.get[App].run()
+  }
 ```
 
 ---
@@ -181,7 +187,7 @@ sealed trait Scope[+Stack] {
 
 object Scope {
   val global: Scope[TNil]                      // Root scope, closes on JVM shutdown
-  type Any = Scope[?]                          // Use in constructors needing cleanup
+  type Any = Scope[Any]                          // Use in constructors needing cleanup
   type Has[+T] = Scope[Context[T] :: scala.Any] // Scope that has T available
 }
 ```
@@ -198,14 +204,16 @@ The `InStack[T, Stack]` evidence is resolved at compile time, ensuring you can o
 `Scope.global` never closes during normal execution — it finalizes via JVM shutdown hook. Use it for application-lifetime services:
 
 ```scala
-injected[App](using Scope.global).run { _.run() }
+Scope.global.injected[App]().run {
+  $[App].run()
+}
 ```
 
 For tests, create a child scope for deterministic cleanup:
 
 ```scala
-val testScope = Scope.global.child
-try { /* test */ } finally { testScope.close() }
+val testScope = Scope.global.injected[TestFixture]()
+try { testScope.run { /* test */ } } finally { testScope.close() }
 ```
 
 ### The Type-Level Stack
@@ -285,8 +293,8 @@ class App(userService: UserService)(using Scope.Any) {
   def handleRequest(request: Request): Response =
     injected[RequestHandler](
       Wire.value(request)        // Inject the request value
-    ).run { handler =>
-      handler.handle()
+    ).run {
+      $[RequestHandler].handle()
     }
     // RequestHandler and dependencies cleaned up here
 }
@@ -298,10 +306,10 @@ Each request gets its own child scope. The `UserService` from the parent scope i
 
 ```scala
 // Private: Cache is a hidden dependency of RequestHandler
-injected[RequestHandler](shared[Cache]).run { ... }
+injected[RequestHandler](shared[Cache]).run { /* ... */ }
 
 // Public: Cache is visible in the scope stack
-injected[Cache].injected[RequestHandler].run { ... }
+Scope.global.injected[Cache]().injected[RequestHandler]().run { /* ... */ }
 ```
 
 ### Type Safety with Multiple Lifecycles
@@ -311,14 +319,14 @@ When multiple resources have different lifecycles, the type system ensures you c
 ```scala
 def processUpload(file: UploadedFile)(using Scope.Any): Result = {
   // Request scope — socket lives for this request
-  injected[Socket](Wire.value(Socket.connect(validationServiceUrl))).run { _ =>
+  injected[Socket](Wire.value(Socket.connect(validationServiceUrl))).run {
     // Socket is now in scope, cleanup automatic
     
     // Operation scope — temp file lives only for validation
-    injected[TempFile](Wire.value(TempFile.create())).run { _ =>
+    injected[TempFile](Wire.value(TempFile.create())).run {
       // TempFile is now in scope, cleanup automatic
       
-      get[TempFile].write(file.bytes)
+      $[TempFile].write(file.bytes)
       validate()  // Can access both Socket and TempFile
     }
     // TempFile cleaned up here
@@ -332,14 +340,14 @@ def processUpload(file: UploadedFile)(using Scope.Any): Result = {
 
 def validate()(using Scope.Has[Socket & TempFile]): ValidationResult = {
   // Type guarantees both resources are available
-  get[Socket].send(get[TempFile].readAll())
+  $[Socket].send($[TempFile].readAll())
 }
 
 def finalize()(using Scope.Has[Socket]): Unit = {
   // Type guarantees Socket is available
   // Can't accidentally require TempFile here — it would fail to compile
   // at the call site where TempFile is out of scope
-  get[Socket].sendComplete()
+  $[Socket].sendComplete()
 }
 
 // This would NOT compile:
@@ -352,16 +360,16 @@ def badFinalize()(using Scope.Has[Socket & TempFile]): Unit = { ... }
 
 ```scala
 def validate()(implicit scope: Scope.Has[Socket with TempFile]): ValidationResult = {
-  get[Socket].send(get[TempFile].readAll())
+  $[Socket].send($[TempFile].readAll())
 }
 
 def finalize()(implicit scope: Scope.Has[Socket]): Unit = {
-  get[Socket].sendComplete()
+  $[Socket].sendComplete()
 }
 ```
 
 **The advantage**: Each scope has a distinct type based on its contents. The compiler prevents:
-- Accessing resources that aren't in scope (compile error on `get[TempFile]` after its scope closed)
+- Accessing resources that aren't in scope (compile error on `$[TempFile]` after its scope closed)
 - Passing a scope that doesn't have required resources (compile error on call site)
 - Registering cleanup on the wrong scope (cleanup is always on the current scope via `defer`)
 
@@ -373,16 +381,16 @@ Swap implementations by providing different wires:
 
 ```scala
 // Production
-injected[UserService].run { svc =>
-  svc.getUser("123")
+Scope.global.injected[UserService]().run {
+  $[UserService].getUser("123")
 }
 
 // Test with mocks
-injected[UserService](
+Scope.global.injected[UserService](
   Wire.value(new MockDatabase()),
   Wire.value(new MockCache())
-).run { svc =>
-  assert(svc.getUser("123") == expectedUser)
+).run {
+  assert($[UserService].getUser("123") == expectedUser)
 }
 ```
 
@@ -390,10 +398,10 @@ Or inject mock types directly:
 
 ```scala
 // MockDatabase and MockCache extend the traits
-injected[MockDatabase & MockCache]
-  .injected[UserService]
-  .run { ctx =>
-    val svc = ctx.get[UserService]
+Scope.global.injected[MockDatabase & MockCache]()
+  .injected[UserService]()
+  .run {
+    val svc = $[UserService]
     assert(svc.getUser("123") == expectedUser)
   }
 ```
@@ -419,18 +427,22 @@ class DatabaseImpl(config: Config) extends Database with AutoCloseable {
 }
 
 // Now works:
-injected[App].run { _.run() }  // Uses DatabaseImpl via Wireable
+Scope.global.injected[App]().run {
+  $[App].run()  // Uses DatabaseImpl via Wireable
+}
 ```
 
 The `Wireable` trait:
 
 ```scala
-trait Wireable[T] {
-  def wire: Wire[?, T]
+trait Wireable[+Out] {
+  type In
+  def wire: Wire[In, Out]
 }
 
 object Wireable {
-  inline def from[Impl <: T, T]: Wireable[T]
+  type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
+  transparent inline def from[T]: Wireable[T]
 }
 ```
 
@@ -453,32 +465,34 @@ For complex construction logic, create wires directly instead of relying on macr
 
 ```scala
 // Scala 3 — scope available via context function
-val configWire: Wire.Shared[Any, Config] = Wire.Shared { ctx =>
+val configWire = Wire.Shared[Any, Config] {
   Context(Config.load(sys.env("CONFIG_PATH")))
 }
 
-val dbWire: Wire.Shared[Config, Database] = Wire.Shared { ctx =>
-  val db = Database.connect(ctx.get[Config].dbUrl)
+val dbWire = Wire.Shared[Config, Database] {
+  val config = $[Config]
+  val db = Database.connect(config.dbUrl)
   defer(db.close())  // Register cleanup
   Context(db)
 }
 
 // Wire that produces multiple services
-val infraWire: Wire.Shared[Config, Database & Cache] = Wire.Shared { ctx =>
-  val config = ctx.get[Config]
+val infraWire = Wire.Shared[Config, Database & Cache] {
+  val config = $[Config]
   val db = Database.connect(config.dbUrl)
   val cache = Cache.create(config.cacheSize)
   defer(db.close())
   defer(cache.close())
-  Context(db, cache)
+  Context(db).add(cache)
 }
 ```
 
 ```scala
-// Scala 2 — scope is an explicit implicit parameter
-val dbWire: Wire.Shared[Config, Database] = Wire.Shared { implicit scope => ctx =>
-  val db = Database.connect(ctx.get[Config].dbUrl)
-  defer(db.close())
+// Scala 2 — scope is an explicit function parameter
+val dbWire = Wire.Shared.fromFunction[Config, Database] { scope =>
+  val config = scope.get[Config]
+  val db = Database.connect(config.dbUrl)
+  scope.defer(db.close())
   Context(db)
 }
 ```
@@ -489,12 +503,16 @@ Pass manual wires to `injected` alongside or instead of macro-generated ones:
 
 ```scala
 // Mix manual and derived wires
-injected[App](configWire, dbWire).run { _.run() }
+Scope.global.injected[App](configWire, dbWire).run {
+  $[App].run()
+}
 
 // Override a derived wire with a manual one
-injected[App](
-  Wire.Shared[Any, Config] { _ => Context(Config(debug = true)) }  // Custom config
-).run { _.run() }
+Scope.global.injected[App](
+  Wire.Shared[Any, Config] { Context(Config(debug = true)) }  // Custom config
+).run {
+  $[App].run()
+}
 ```
 
 ### Wire.value for Injecting Existing Values
@@ -506,8 +524,8 @@ def handleRequest(request: Request)(using Scope.Any): Response =
   injected[RequestHandler](
     Wire.value(request),           // Inject the request
     Wire.value(Transaction.begin()) // Inject a fresh transaction
-  ).run { handler =>
-    handler.handle()
+  ).run {
+    $[RequestHandler].handle()
   }
 ```
 
