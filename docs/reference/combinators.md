@@ -3,19 +3,22 @@ id: combinators
 title: "Combinators"
 ---
 
-The `combinators` module provides compile-time typeclasses for composing values in type-safe ways. These typeclasses enable powerful abstractions for combining tuples, zipping values, and alternating between sum types, with automatic flattening and identity handling.
+The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, Either types, and union types.
 
 ## Overview
 
-The combinators module consists of five core typeclasses:
+The combinators module consists of three core modules:
 
-- **Combiner** - Bidirectional tuple composition with automatic flattening
-- **Zippable** - One-way tuple zipping with discard tracking
-- **EitherAlternator** - Either-based sum type alternation (cross-version compatible)
-- **UnionAlternator** - Union type alternation for Scala 3 (prevents same-type unions)
-- **StructuralCombiner** - Macro-based structural type merging (JVM-only, Scala 3)
+- **Tuples** - Tuple composition with automatic flattening and separation
+- **Eithers** - Either canonicalization to left-nested form
+- **Unions** - Union type operations (Scala 3 only)
 
-All typeclasses are derived automatically via compile-time resolution and provide zero-cost abstractions for common composition patterns found in schema derivation, optics, and effect composition.
+Each module provides:
+- A `Combiner[L, R]` typeclass for combining values
+- A `Separator[A]` typeclass for separating combined values
+- Convenience methods `combine` and `separate`
+
+All typeclasses are derived automatically via compile-time resolution and provide zero-cost abstractions.
 
 ## Installation
 
@@ -32,600 +35,311 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "<version>"
 ```
 
 Supported platforms:
-- **Combiner, Zippable, EitherAlternator**: JVM, Scala.js
-- **UnionAlternator**: JVM, Scala.js (Scala 3 only)
-- **StructuralCombiner**: JVM only (Scala 3 only)
+- **Tuples, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
+- **Unions**: JVM, Scala.js (Scala 3 only)
 
-Supported Scala versions: 2.13.x and 3.x
+## Tuples
 
-## Combiner
+The `Tuples` module combines values into flat tuples and separates them back.
 
-`Combiner[L, R]` combines two values into a flattened tuple with bidirectional support. It automatically handles unit identity, empty tuple identity, and nested tuple flattening.
+### Combiner
 
-### Core Operations
+`Tuples.Combiner[L, R]` combines two values into a flattened tuple.
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Combiner
+```scala
+import zio.blocks.combinators.Tuples
 
-// Combine two values
-val combined: (Int, String, Boolean) = Combiner.combiner[((Int, String)), Boolean].combine((1, "hello"), true)
+// Basic combination
+val result1: (Int, String) = Tuples.combine(1, "hello")
 
-// Separate back to original parts
-val (tuple, bool) = Combiner.combiner[(Int, String), Boolean].separate(combined)
-// tuple = (1, "hello"), bool = true
+// Tuple flattening
+val result2: (Int, String, Boolean) = Tuples.combine((1, "hello"), true)
+
+// Deep flattening (Scala 3)
+val result3: (Int, String, Boolean, Double) = Tuples.combine((1, "hello"), (true, 3.14))
 ```
 
-### Identity Handling
+#### Identity Handling
 
 Unit and EmptyTuple values are automatically eliminated:
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Combiner
+```scala
+import zio.blocks.combinators.Tuples
 
 // Unit on left - returns right value
-val combiner1 = Combiner.combiner[Unit, Int]
-val result1: Int = combiner1.combine((), 42)  // 42
+val result1: Int = Tuples.combine((), 42)
 
 // Unit on right - returns left value
-val combiner2 = Combiner.combiner[String, Unit]
-val result2: String = combiner2.combine("hello", ())  // "hello"
+val result2: String = Tuples.combine("hello", ())
 
-// EmptyTuple identity
-val combiner3 = Combiner.combiner[EmptyTuple, String]
-val result3: String = combiner3.combine(EmptyTuple, "world")  // "world"
+// EmptyTuple identity (Scala 3)
+val result3: String = Tuples.combine(EmptyTuple, "world")
 ```
 
-### Tuple Flattening
+#### Tuple Flattening
 
 Nested tuples are automatically flattened:
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Combiner
+```scala
+import zio.blocks.combinators.Tuples
 
 // Tuple + value flattens to larger tuple
-val combiner1 = Combiner.combiner[(Int, String), Boolean]
-val result1: (Int, String, Boolean) = combiner1.combine((1, "a"), true)
+val result1: (Int, String, Boolean) = Tuples.combine((1, "a"), true)
 
-// Tuple + tuple concatenates
-val combiner2 = Combiner.combiner[(Int, String), (Boolean, Double)]
-val result2: (Int, String, Boolean, Double) = combiner2.combine((1, "a"), (true, 3.14))
+// Tuple + tuple concatenates (Scala 3 - recursive flattening)
+val result2: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.14))
 
-// Separation maintains structure
-val (left, right) = combiner2.separate(result2)
-// left = (1, "a"), right = (true, 3.14)
+// Scala 2 - flattens left tuple only
+val result2: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
 ```
 
-### Type-Level Output
+### Separator
+
+`Tuples.Separator[A]` separates a tuple into its init (all but last) and last element.
+
+```scala
+import zio.blocks.combinators.Tuples
+
+// 2-tuple separation
+val (left1, right1): (Int, String) = Tuples.separate((1, "hello"))
+// left1 = 1, right1 = "hello"
+
+// 3-tuple separation
+val (left2, right2): ((Int, String), Boolean) = Tuples.separate((1, "hello", true))
+// left2 = (1, "hello"), right2 = true
+
+// 4-tuple separation
+val (left3, right3): ((Int, String, Boolean), Double) = Tuples.separate((1, "hello", true, 3.14))
+// left3 = (1, "hello", true), right3 = 3.14
+```
+
+### Type-Level Operations
 
 The output type is computed at compile time via the `Out` type member:
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Combiner
+```scala
+import zio.blocks.combinators.Tuples
 
-type Result1 = Combiner.WithOut[Int, String, ?]
-// Result1 has Out = (Int, String)
+// Access the combiner with explicit output type
+val combiner: Tuples.Combiner.WithOut[Int, String, (Int, String)] = 
+  summon[Tuples.Combiner[Int, String]]
 
-type Result2 = Combiner.WithOut[(Int, String), Boolean, ?]
-// Result2 has Out = (Int, String, Boolean)
+// Access the separator with explicit types
+val separator: Tuples.Separator.WithTypes[(Int, String, Boolean), (Int, String), Boolean] =
+  summon[Tuples.Separator[(Int, String, Boolean)]]
+```
 
-type Result3 = Combiner.WithOut[Unit, String, ?]
-// Result3 has Out = String
+### Scala 2 vs Scala 3 Differences
+
+| Feature | Scala 2.13 | Scala 3.x |
+|---------|------------|-----------|
+| Maximum tuple arity | 22 | Unlimited |
+| Tuple flattening | Left tuple only | Recursive both sides |
+| EmptyTuple identity | Not available | Supported |
+
+## Eithers
+
+The `Eithers` module canonicalizes Either types to left-nested form and separates them.
+
+### Combiner
+
+`Eithers.Combiner[L, R]` transforms an `Either[L, R]` into its left-nested canonical form.
+
+```scala
+import zio.blocks.combinators.Eithers
+
+// Atomic Either - unchanged
+val result1: Either[Int, String] = Eithers.combine(Left(42): Either[Int, String])
+
+// Right-nested Either - reassociates to left-nested
+val input: Either[Int, Either[String, Boolean]] = Right(Right(true))
+val result2: Either[Either[Int, String], Boolean] = Eithers.combine(input)
+// Right(Right(true)) becomes Right(true)
+
+// Left(42) becomes Left(Left(42))
+val input2: Either[Int, Either[String, Boolean]] = Left(42)
+val result3: Either[Either[Int, String], Boolean] = Eithers.combine(input2)
+```
+
+#### Canonical Form
+
+The canonical form is always left-nested:
+
+```
+Right-nested input:          Left-nested output:
+Either[A, Either[B, C]]  =>  Either[Either[A, B], C]
+Either[A, Either[B, Either[C, D]]]  =>  Either[Either[Either[A, B], C], D]
+```
+
+This transformation preserves values while reassociating the structure:
+- `Left(a)` → `Left(Left(a))`
+- `Right(Left(b))` → `Left(Right(b))`
+- `Right(Right(c))` → `Right(c)`
+
+### Separator
+
+`Eithers.Separator[A]` peels the rightmost alternative from a canonical Either:
+
+```scala
+import zio.blocks.combinators.Eithers
+
+val input: Either[Int, String] = Left(42)
+val result: Either[Int, String] = Eithers.separate(input)
 ```
 
 ### Use Cases
 
-Combiner is primarily used in:
-- **Schema field composition** - Combining record fields into tuples
-- **Optics composition** - Building lenses for nested structures
-- **Effect composition** - ZIO-style `<*>` operators
+Eithers canonicalization is useful for:
+- **Schema sum type encoding** - Uniform representation of sealed traits
+- **Error handling composition** - Combining error types systematically
+- **Cross-version compatibility** - Works identically on Scala 2 and 3
 
-## Zippable
+## Unions (Scala 3 Only)
 
-`Zippable[L, R]` zips two values into a flattened tuple with one-way composition. Unlike `Combiner`, it provides discard flags and has no separation operation.
+The `Unions` module converts between Either types and Scala 3 union types.
 
-### Core Operations
+### Combiner
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Zippable
+`Unions.Combiner[L, R]` converts an `Either[L, R]` to a union type `L | R`:
 
-// Zip two values
-val zipped: (Int, String) = Zippable.zippable[Int, String].zip(42, "hello")
+```scala
+import zio.blocks.combinators.Unions
 
-// Check discard flags
-val zippable1 = Zippable.zippable[Unit, Int]
-zippable1.discardsLeft   // true
-zippable1.discardsRight  // false
+val either: Either[Int, String] = Left(42)
+val union: Int | String = Unions.combine(either)
+// Result: 42 (typed as Int | String)
 
-val zippable2 = Zippable.zippable[String, Unit]
-zippable2.discardsLeft   // false
-zippable2.discardsRight  // true
+val either2: Either[Int, String] = Right("hello")
+val union2: Int | String = Unions.combine(either2)
+// Result: "hello" (typed as Int | String)
 ```
 
-### Identity Handling
+### Separator
 
-Like Combiner, Unit and EmptyTuple are discarded:
+`Unions.Separator[A]` discriminates a union type back to Either:
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Zippable
+```scala
+import zio.blocks.combinators.Unions
 
-// Unit on left
-val result1: String = Zippable.zippable[Unit, String].zip((), "hello")
+val value: Int | String = 42
+val result: Either[Int, String] = Unions.separate(value)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+// Result: Left(42)
 
-// Unit on right
-val result2: Int = Zippable.zippable[Int, Unit].zip(42, ())
-
-// EmptyTuple identity
-val result3: Boolean = Zippable.zippable[EmptyTuple, Boolean].zip(EmptyTuple, true)
-```
-
-### Tuple Flattening
-
-Tuples are flattened identically to Combiner:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Zippable
-
-// Tuple + value
-val result1: (Int, String, Boolean) = 
-  Zippable.zippable[(Int, String), Boolean].zip((1, "a"), true)
-
-// Tuple + tuple
-val result2: (Int, String, Boolean, Double) = 
-  Zippable.zippable[(Int, String), (Boolean, Double)].zip((1, "a"), (true, 3.14))
-```
-
-### Discard Flags
-
-The discard flags enable optimization in effect composition:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Zippable
-
-def zipWithDiscard[A, B](a: A, b: B)(using z: Zippable[A, B]): z.Out = {
-  if (z.discardsLeft) {
-    // Skip computing left value
-    z.zip(a, b)
-  } else if (z.discardsRight) {
-    // Skip computing right value
-    z.zip(a, b)
-  } else {
-    // Both values needed
-    z.zip(a, b)
-  }
-}
-```
-
-### Use Cases
-
-Zippable is primarily used in:
-- **Effect sequencing** - ZIO's `*>`, `<*`, `<*>` operators
-- **Parser combinators** - Combining parsers with selective results
-- **Builder patterns** - Accumulating values with optional discards
-
-## EitherAlternator
-
-`EitherAlternator[L, R]` provides bidirectional conversion between sum types and `Either[L, R]`. Unlike `UnionAlternator`, it allows same-type combinations because `Left` and `Right` wrappers preserve positional information.
-
-### Core Operations
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.EitherAlternator
-
-val alternator = EitherAlternator.alternator[Int, String]
-
-// Create left and right values
-val leftVal: Either[Int, String] = alternator.left(42)
-val rightVal: Either[Int, String] = alternator.right("hello")
-
-// Extract values
-val maybeInt: Option[Int] = alternator.unleft(leftVal)        // Some(42)
-val maybeStr1: Option[String] = alternator.unright(leftVal)   // None
-val maybeStr2: Option[String] = alternator.unright(rightVal)  // Some("hello")
-```
-
-### Same-Type Support
-
-EitherAlternator allows same-type combinations:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.EitherAlternator
-
-val alternator = EitherAlternator.alternator[Int, Int]
-
-val left: Either[Int, Int] = alternator.left(1)    // Left(1)
-val right: Either[Int, Int] = alternator.right(2)  // Right(2)
-
-// Distinguishable due to Left/Right wrappers
-alternator.unleft(left)    // Some(1)
-alternator.unright(left)   // None
-alternator.unleft(right)   // None
-alternator.unright(right)  // Some(2)
-```
-
-### Pattern Matching
-
-Use with standard Either pattern matching:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.EitherAlternator
-
-def process[L, R](value: Either[L, R])(using alt: EitherAlternator.WithOut[L, R, Either[L, R]]): String =
-  value match {
-    case Left(l) => s"Left: $l"
-    case Right(r) => s"Right: $r"
-  }
-```
-
-### Cross-Version Compatibility
-
-EitherAlternator works identically on Scala 2.13 and Scala 3, making it ideal for cross-version libraries.
-
-### Use Cases
-
-EitherAlternator is primarily used in:
-- **Schema sum type encoding** - Representing sealed traits and enums
-- **Error handling** - Left for errors, Right for success
-- **Cross-version code** - Works on Scala 2.13 and 3.x
-
-## UnionAlternator
-
-`UnionAlternator[L, R]` provides bidirectional conversion for Scala 3's union types (`L | R`). It rejects same-type combinations at compile time to prevent ambiguity.
-
-### Core Operations
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.UnionAlternator
-
-val alternator = UnionAlternator.alternator[Int, String]
-
-// Create union values
-val intVal: Int | String = alternator.left(42)
-val strVal: Int | String = alternator.right("hello")
-
-// Extract values
-val maybeInt: Option[Int] = alternator.unleft(intVal)        // Some(42)
-val maybeStr1: Option[String] = alternator.unright(intVal)   // None
-val maybeStr2: Option[String] = alternator.unright(strVal)   // Some("hello")
+val value2: Int | String = "hello"
+val result2: Either[Int, String] = Unions.separate(value2)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+// Result: Right("hello")
 ```
 
 ### Same-Type Rejection
 
-Union types collapse same types (`A | A` = `A`), so UnionAlternator rejects them:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.UnionAlternator
-
-// Compile error: Cannot alternate same types
-// val bad = UnionAlternator.alternator[Int, Int]
-// Use Either[Int, Int] or wrap in distinct types instead
-```
-
-### Nothing Handling
-
-UnionAlternator handles `Nothing` gracefully:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.UnionAlternator
-
-// Nothing on left - output is right type
-val alternator1 = UnionAlternator.alternator[Nothing, String]
-type Out1 = alternator1.Out  // String
-
-// Nothing on right - output is left type
-val alternator2 = UnionAlternator.alternator[Int, Nothing]
-type Out2 = alternator2.Out  // Int
-```
-
-### Pattern Matching
-
-Use with Scala 3's union type pattern matching:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.UnionAlternator
-
-def process[L, R](value: L | R)(using alt: UnionAlternator[L, R]): String =
-  value match {
-    case l: L => s"Left: $l"
-    case r: R => s"Right: $r"
-  }
-```
-
-### Use Cases
-
-UnionAlternator is primarily used in:
-- **Scala 3 sealed traits** - Representing sum types with union types
-- **Type-safe alternation** - Preventing ambiguous same-type unions
-- **Schema encoding** - Compact sum type representation
-
-## StructuralCombiner
-
-`StructuralCombiner` combines two structural types into their intersection type (`A & B`) using compile-time macros. It validates that no member names conflict and generates a wrapper that delegates to the appropriate source value.
-
-### Basic Usage
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.StructuralCombiner
-
-type HasName = { def name: String }
-type HasAge = { def age: Int }
-
-val a: HasName = new { def name = "Alice" }
-val b: HasAge = new { def age = 30 }
-
-val combined: HasName & HasAge = StructuralCombiner.combine(a, b)
-combined.name  // "Alice"
-combined.age   // 30
-```
-
-### Compile-Time Validation
-
-Conflicting member names are detected at compile time:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.StructuralCombiner
-
-type HasId1 = { def id: Int }
-type HasId2 = { def id: String }
-
-val a: HasId1 = new { def id = 42 }
-val b: HasId2 = new { def id = "abc" }
-
-// Compile error: Conflicting members found in types A and B: id
-// val bad = StructuralCombiner.combine(a, b)
-```
-
-### Empty Combinations
-
-When one type has no members, the result is simply cast:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.StructuralCombiner
-
-type Empty = Any
-type HasValue = { def value: Int }
-
-val empty: Empty = new {}
-val hasValue: HasValue = new { def value = 42 }
-
-val result: Empty & HasValue = StructuralCombiner.combine(empty, hasValue)
-result.value  // 42
-```
-
-### Reflection-Based Implementation
-
-StructuralCombiner uses Java reflection via `Selectable`:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.StructuralCombiner
-
-// Generated wrapper delegates to source values
-type A = { def foo: String }
-type B = { def bar: Int }
-
-val a: A = new { def foo = "hello" }
-val b: B = new { def bar = 42 }
-
-val combined: A & B = StructuralCombiner.combine(a, b)
-// Internally creates: StructuralWrapper(a, b, List("foo"), List("bar"))
-// combined.foo calls a.foo via reflection
-// combined.bar calls b.bar via reflection
-```
-
-### Platform Restrictions
-
-StructuralCombiner requires JVM platform and Scala 3:
+Union types collapse same types (`A | A` = `A`), making them ambiguous. The separator rejects overlapping types at compile time:
 
 ```scala
-// JVM-only - does not compile on Scala.js or Scala Native
-// Scala 3 only - does not compile on Scala 2.13
+import zio.blocks.combinators.Unions
+
+// Compile error: Union types must contain unique types
+// val sep = summon[Unions.Separator.WithTypes[Int | Int, Int, Int]]
+
+// Use Either for same-type alternation instead:
+import zio.blocks.combinators.Eithers
+val either: Either[Int, Int] = Left(1)  // Distinguishable via Left/Right
 ```
 
-### Use Cases
+### Type Erasure Caveat
 
-StructuralCombiner is primarily used in:
-- **Schema record merging** - Combining structural record types
-- **Optics composition** - Building lenses for intersection types
-- **Type-safe configuration** - Merging config objects without case classes
+Union discrimination relies on runtime type tests, which are fragile for erased types:
 
-## Advanced Patterns
+```scala
+// Problematic: List[Int] and List[String] erase to List
+val value: List[Int] | List[String] = List(1, 2, 3)
+// Runtime cannot distinguish List[Int] from List[String]
 
-### Chaining Combiners
-
-Combine multiple values by chaining:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Combiner
-
-val step1 = Combiner.combiner[Int, String].combine(1, "a")
-val step2 = Combiner.combiner[(Int, String), Boolean].combine(step1, true)
-val step3 = Combiner.combiner[(Int, String, Boolean), Double].combine(step2, 3.14)
-// step3: (Int, String, Boolean, Double) = (1, "a", true, 3.14)
+// Safe: Use distinct concrete types
+val value: Int | String = 42  // Works reliably
 ```
 
-### Effect Sequencing with Zippable
+## Generic Usage Patterns
 
-Implement ZIO-style operators:
+### With Implicit Parameters (Scala 2)
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Zippable
+```scala
+import zio.blocks.combinators.Tuples
 
-trait Effect[+A] {
-  def zipWith[B](that: Effect[B])(using z: Zippable[A, B]): Effect[z.Out] = {
-    // Implement using z.zip(this.run, that.run)
-    ???
-  }
-
-  def *>[B](that: Effect[B])(using z: Zippable[A, B]): Effect[z.Out] = {
-    // Optimize: skip left value if z.discardsLeft
-    ???
-  }
-
-  def <*[B](that: Effect[B])(using z: Zippable[A, B]): Effect[z.Out] = {
-    // Optimize: skip right value if z.discardsRight
-    ???
-  }
+def combineAll[A, B, C](a: A, b: B, c: C)(
+  implicit ab: Tuples.Combiner[A, B],
+           abc: Tuples.Combiner[ab.Out, C]
+): abc.Out = {
+  val step1 = ab.combine(a, b)
+  abc.combine(step1, c)
 }
+
+val result = combineAll(1, "hello", true)
+// result: (Int, String, Boolean)
 ```
 
-### Generic Sum Type Handling
+### With Context Parameters (Scala 3)
 
-Use EitherAlternator or UnionAlternator generically:
+```scala
+import zio.blocks.combinators.Tuples
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.{EitherAlternator, UnionAlternator}
+def combineAll[A, B, C](a: A, b: B, c: C)(using
+  ab: Tuples.Combiner[A, B],
+  abc: Tuples.Combiner[ab.Out, C]
+): abc.Out =
+  val step1 = ab.combine(a, b)
+  abc.combine(step1, c)
 
-def encodeSumType[L, R, Out](value: Either[L, R])(using alt: EitherAlternator.WithOut[L, R, Out]): Out =
-  value match {
-    case Left(l) => alt.left(l)
-    case Right(r) => alt.right(r)
-  }
-
-// Scala 3 variant with union types
-def encodeUnion[L, R](value: Either[L, R])(using alt: UnionAlternator[L, R]): alt.Out =
-  value match {
-    case Left(l) => alt.left(l)
-    case Right(r) => alt.right(r)
-  }
+val result = combineAll(1, "hello", true)
+// result: (Int, String, Boolean)
 ```
 
-### Structural Type Builders
+### Path-Dependent Types
 
-Build complex structural types incrementally:
+The `Out`, `Left`, and `Right` type members are path-dependent:
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.StructuralCombiner
+```scala
+import zio.blocks.combinators.Tuples
 
-type Step1 = { def name: String }
-type Step2 = { def age: Int }
-type Step3 = { def email: String }
+def process[A](a: A)(using s: Tuples.Separator[A]): (s.Left, s.Right) =
+  s.separate(a)
 
-val s1: Step1 = new { def name = "Alice" }
-val s2: Step2 = new { def age = 30 }
-val s3: Step3 = new { def email = "alice@example.com" }
+val result: (Int, String) = process((1, "hello"))
+```
 
-val combined12: Step1 & Step2 = StructuralCombiner.combine(s1, s2)
-val combined123: Step1 & Step2 & Step3 = StructuralCombiner.combine(combined12, s3)
+### Type Aliases for Clarity
 
-combined123.name   // "Alice"
-combined123.age    // 30
-combined123.email  // "alice@example.com"
+```scala
+import zio.blocks.combinators.Tuples
+
+// Combiner with known output type
+type IntStringCombiner = Tuples.Combiner.WithOut[Int, String, (Int, String)]
+
+// Separator with known left/right types
+type TripleSeparator = Tuples.Separator.WithTypes[(Int, String, Boolean), (Int, String), Boolean]
 ```
 
 ## Performance Characteristics
 
-| Typeclass | Time Complexity | Notes |
-|-----------|-----------------|-------|
-| Combiner | O(1) | Tuple operations are constant time |
-| Zippable | O(1) | Identical to Combiner |
-| EitherAlternator | O(1) | Direct Either construction |
-| UnionAlternator | O(1) | Union values are unboxed |
-| StructuralCombiner | O(m) per call | Reflection lookup; m = number of members accessed |
+| Module | Time Complexity | Notes |
+|--------|-----------------|-------|
+| Tuples.combine | O(1) to O(n) | O(1) for small tuples; O(n) for flattening nested tuples |
+| Tuples.separate | O(n) | Splits tuple at size-1 position |
+| Eithers.combine | O(d) | d = nesting depth of right-nested Either |
+| Eithers.separate | O(d) | Same as combine (delegates to combiner) |
+| Unions.combine | O(1) | Direct Either fold |
+| Unions.separate | O(1) | Single type test |
 
-### Optimization Notes
+All operations are pure and allocation-minimal.
 
-- **Combiner/Zippable**: Zero-cost abstractions, compiled to direct tuple operations
-- **EitherAlternator**: Same cost as manual Either construction
-- **UnionAlternator**: Same cost as union type casting (zero overhead in Scala 3)
-- **StructuralCombiner**: Reflection overhead; cache the wrapper if used frequently
+## Cross-Version Summary
 
-## Integration with Schema
-
-The combinators module is heavily used in ZIO Blocks Schema:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.combinators.Combiner
-
-// Schema uses Combiner for field composition
-case class Person(name: String, age: Int)
-
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-  
-  // Internally uses:
-  // Combiner.combiner[String, Int].combine(name, age)
-}
-```
-
-### Schema Optics
-
-Optics use Combiner for path composition:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.combinators.Combiner
-
-case class Address(street: String, city: String)
-case class Person(name: String, address: Address)
-
-object Person extends CompanionOptics[Person] {
-  implicit val schema: Schema[Person] = Schema.derived
-
-  // Uses Combiner to flatten path: Person -> Address -> street
-  val streetName: Lens[Person, String] = $(_.address.street)
-}
-```
-
-## Cross-Version Considerations
-
-### Scala 2.13
-- **Combiner**: Maximum tuple arity is 22
-- **Zippable**: Maximum tuple arity is 22
-- **EitherAlternator**: Fully supported
-- **UnionAlternator**: Not available (union types require Scala 3)
-- **StructuralCombiner**: Not available (macro API requires Scala 3)
-
-### Scala 3
-- **Combiner**: No arity limits
-- **Zippable**: No arity limits
-- **EitherAlternator**: Fully supported
-- **UnionAlternator**: Fully supported
-- **StructuralCombiner**: JVM only
-
-## Common Patterns
-
-### Type-Safe Field Accumulation
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Combiner
-
-def buildRecord[A, B](a: A, b: B)(using c: Combiner[A, B]): c.Out =
-  c.combine(a, b)
-
-val r1 = buildRecord("Alice", 30)
-val r2 = buildRecord(r1, true)
-val r3 = buildRecord(r2, "Engineer")
-// r3: (String, Int, Boolean, String)
-```
-
-### Generic Effect Composition
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Zippable
-
-trait F[+A] {
-  def flatMap[B](f: A => F[B]): F[B]
-  def map[B](f: A => B): F[B]
-}
-
-extension [A](fa: F[A]) {
-  def zip[B](fb: F[B])(using z: Zippable[A, B]): F[z.Out] =
-    fa.flatMap(a => fb.map(b => z.zip(a, b)))
-}
-```
-
-### Sealed Trait Encoding
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.EitherAlternator
-
-sealed trait Result[+E, +A]
-case class Failure[E](error: E) extends Result[E, Nothing]
-case class Success[A](value: A) extends Result[Nothing, A]
-
-def toEither[E, A](result: Result[E, A])(using alt: EitherAlternator[E, A]): alt.Out =
-  result match {
-    case Failure(e) => alt.left(e)
-    case Success(a) => alt.right(a)
-  }
-```
+| Feature | Scala 2.13 | Scala 3.x |
+|---------|------------|-----------|
+| Tuples.Combiner | Yes (max 22) | Yes (unlimited) |
+| Tuples.Separator | Yes (max 22) | Yes (unlimited) |
+| Eithers.Combiner | Yes | Yes |
+| Eithers.Separator | Yes | Yes |
+| Unions.Combiner | No | Yes |
+| Unions.Separator | No | Yes |
+| Recursive tuple flattening | No | Yes |
+| EmptyTuple handling | No | Yes |
