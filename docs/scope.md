@@ -11,7 +11,7 @@ title: "Scope"
 
 Scope is a minimalist dependency injection library that combines **service construction**, **lifecycle management**, and **type-safe dependency tracking** into a single abstraction. It leverages Scala's type system to track available services at compile time, ensuring your dependency graph is complete before your code runs.
 
-Scope supports both **Scala 2.13** and **Scala 3.x**. Scala 3 offers a nicer experience with match types for ergonomic syntax, but the core functionality is identical across versions.
+Scope supports both **Scala 2.13** and **Scala 3.x**. The core functionality is identical across versions.
 
 The core insight: a **scope** is both a lifecycle boundary AND a typed context of available services. By tracking the service stack at the type level, dependencies can be resolved implicitly from what's already in scope.
 
@@ -47,18 +47,13 @@ val layer: ZLayer[Any, Nothing, App] =
 
 ### The Solution
 
-Scope gives you compile-time verification with natural, fluent syntax:
+Scope gives you compile-time verification with fluent syntax:
 
 ```scala
-Scope.global
-  .injected[Config]
-  .injected[Database & Cache]       // Batch inject independent services
-  .injected[UserService & App]
-  .run { ctx =>
-    ctx.get[App].run()
-  }
-// ^ All services cleaned up in reverse order
+injected[App].run { app => app.run() }
 ```
+
+That's it. The macro inspects `App`'s constructor, discovers it needs `UserService`, which needs `Database` and `Cache`, which need `Config` — and wires everything up. If any dependency is missing, you get a compile error.
 
 **What you get:**
 - Compile-time errors if dependencies are missing
@@ -78,234 +73,237 @@ Scope is deliberately **not**:
 
 ---
 
-## Quick Example
+## Quick Start
 
-Here's a complete example showing Scope's features:
+### Minimal Example
 
 ```scala
 import zio.blocks.scope._
-import zio.blocks.context._
 
-// Simple service — no cleanup needed
+class Config(val dbUrl: String)
+class Database(config: Config)
+class App(db: Database) {
+  def run(): Unit = println("Running")
+}
+
+@main def main(): Unit =
+  injected[App].run { _.run() }
+```
+
+The `injected[App]` macro recursively discovers and wires all dependencies.
+
+### With Lifecycle Management
+
+```scala
+import zio.blocks.scope._
+
 class Config(val dbUrl: String, val cacheSize: Int)
 
 // AutoCloseable — cleanup auto-registered
 class Database(config: Config) extends AutoCloseable {
   val pool = ConnectionPool.create(config.dbUrl)
-  def query(sql: String): ResultSet = pool.query(sql)
   def close(): Unit = pool.close()
 }
 
-// Manual cleanup via defer (top-level function)
+// Manual cleanup via defer
 class Cache(config: Config)(using Scope.Any) {
-  private val store = new LRUCache(config.cacheSize)
-  private val evictor = new Thread(() => evictionLoop())
-  evictor.start()
+  private val evictor = startEvictorThread()
   defer {
     evictor.interrupt()
     evictor.join()
-    store.clear()
   }
-  
-  def get(key: String): Option[String] = store.get(key)
-  def put(key: String, value: String): Unit = store.put(key, value)
 }
 
-class UserService(db: Database, cache: Cache) {
-  def getUser(id: String): User = 
-    cache.get(id).map(User.parse).getOrElse {
-      val user = db.query(s"SELECT * FROM users WHERE id = $id")
-      cache.put(id, user.toString)
-      user
-    }
-}
+class UserService(db: Database, cache: Cache)
 
 class App(userService: UserService) {
-  def run(): Unit = {
-    val user = userService.getUser("123")
-    println(s"Hello, ${user.name}")
-  }
+  def run(): Unit = println(s"Hello, ${userService.getUser("123").name}")
 }
 
-// Wire it up — batch injection for independent services
-@main def main(): Unit = {
-  Scope.global
-    .injected[Config]
-    .injected[Database & Cache]     // Both depend only on Config, inject together
-    .injected[UserService & App]    // Both can be injected in same layer
-    .run { ctx =>
-      ctx.get[App].run()
-    }
-  // Cleanup runs automatically:
-  // 1. App (no cleanup)
-  // 2. UserService (no cleanup)
-  // 3. Cache (evictor stopped, store cleared)
-  // 4. Database (pool closed)
-  // 5. Config (no cleanup)
-}
+@main def main(): Unit =
+  injected[App].run { _.run() }
+  // Cleanup runs automatically in reverse order:
+  // Cache (evictor stopped), Database (pool closed)
 ```
-
-### What's Happening
-
-1. **`Scope.global`** — The immortal root scope with no services
-2. **`.injected[Config]`** — Creates a child scope containing `Config`, returns `Scope.Closeable[Context[Config] :: TNil]`
-3. **`.injected[Database]`** — Creates another child scope; `Database` needs `Config`, which is found in the parent layer
-4. **`.run { ctx => ... }`** — Executes the block, then closes the scope (running all finalizers in reverse order)
 
 ---
 
 ## Core Concepts
 
-### The Scope Type
+### Scope
 
-A `Scope[Stack]` tracks available services at the type level:
-
-```scala
-// Type-level stack of context layers
-type MyStack = Context[Request] :: Context[Database & Config] :: TNil
-
-val scope: Scope[MyStack]
-
-scope.get[Database]  // ✓ Found in parent layer
-scope.get[Request]   // ✓ Found in current layer
-scope.get[Missing]   // ✗ Compile error: not in stack
-```
-
-The stack is a type-level list where each element is a `Context` layer. Services can be retrieved from any layer in the stack.
-
-### Scope API
+A `Scope[Stack]` manages resource lifecycle and tracks available services at the type level:
 
 ```scala
-// Scala 3
-trait Scope[Stack] {
-  type CurrentLayer    // The top layer's contents (e.g., Request)
-  type FullStack = Stack
-  type TailStack       // Everything below current layer
-  
-  def get[X](implicit ev: InStack[X, FullStack], nominal: IsNominalType[X]): X
-  def getAll: Context[CurrentLayer]
+sealed trait Scope[Stack] {
+  def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
-  
-  def injected[T](wires: Wire[?, ?]*): Scope.Closeable[Contextualize[T] :: Stack]
+  def child: Scope.Closeable[Stack]
+  def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
 }
 
-// Scala 2 (equivalent)
-trait Scope[Stack] {
-  def get[X](implicit ev: InStack[X, Stack], nominal: IsNominalType[X]): X
-  def getAll: Context[CurrentLayer]
-  def defer(finalizer: => Unit)(implicit scope: Scope[?]): Unit
-  
-  def injected[T](wires: Wire[?, ?]*): Scope.Closeable[Context[T] :: Stack]
+object Scope {
+  val global: Scope[TNil]               // Root scope, closes on JVM shutdown
+  type Any = Scope[?]                   // Use in constructors needing cleanup
 }
 ```
+
+The `InStack[T, Stack]` evidence is resolved at compile time, ensuring you can only `get` services that exist in the stack.
+
+**Key semantics:**
+- Finalizers run in **reverse order** of registration (LIFO)
+- Parent close **closes children first**, then runs own finalizers
+- `close()` is **idempotent** — safe to call multiple times
+
+**The global scope:**
+
+`Scope.global` never closes during normal execution — it finalizes via JVM shutdown hook. Use it for application-lifetime services:
+
+```scala
+injected[App](using Scope.global).run { _.run() }
+```
+
+For tests, create a child scope for deterministic cleanup:
+
+```scala
+val testScope = Scope.global.child
+try { /* test */ } finally { testScope.close() }
+```
+
+### The Type-Level Stack
+
+Each `injected[T]` call creates a child scope and pushes a layer onto the stack:
+
+```scala
+Scope.global                              // Scope[TNil]
+  .injected[Config]                       // Scope[Context[Config] :: TNil]
+  .injected[Database]                     // Scope[Context[Database] :: Context[Config] :: TNil]
+```
+
+Services can be retrieved from any layer in the stack. The stack type ensures at compile time that requested services exist.
 
 ### Scope.Closeable
 
-When you call `injected`, you get back a `Scope.Closeable` — a scope that can be explicitly closed:
+`injected` returns a `Scope.Closeable` — a scope that can be explicitly closed:
 
 ```scala
 trait Scope.Closeable[Stack] extends Scope[Stack] with AutoCloseable {
   def close(): Unit
-  
-  def run[B](f: Scope[FullStack] ?=> Context[CurrentLayer] => B): B = {
-    try f(using this)(getAll)
-    finally close()
-  }
+  def run[B](f: Context[CurrentLayer] => B): B
 }
 ```
 
-`Scope.global` is the root scope and is **not** closeable — it only finalizes via JVM shutdown hook.
-
-### Structured Scoping
-
-Scope uses **structured scoping** semantics (like structured concurrency):
-
-- **Parent-close closes children**: When a scope closes, it first closes all its children (in reverse order of creation), then runs its own finalizers.
-- **Child-close does not close parent**: Closing a child scope only affects that child and its descendants.
-- **Finalizers run LIFO**: Within a scope, finalizers run in reverse order of registration.
-- **`close()` is idempotent**: Calling close multiple times is safe.
-
-```scala
-val s1 = Scope.global.injected[Database]
-val s2 = s1.injected[Request]
-val s3 = s1.injected[Cache]  // Another child of s1
-
-s1.close()
-// 1. Closes s3 (created after s2, so closed first)
-// 2. Closes s2
-// 3. Runs s1's finalizers
-```
-
-### Thread Safety
-
-All `Scope` methods (`defer`, `get`, `injected`, `close`) are thread-safe. Multiple threads can safely:
-- Read services from the same scope
-- Register finalizers
-- Create child scopes
+The `run` method executes your code then closes the scope automatically.
 
 ---
 
-## Dependency Injection
+## Cleanup Patterns
 
-### Implicit Resolution from Stack
+Scope handles cleanup automatically for `AutoCloseable` types, or you can manage it manually with `defer`.
 
-The key feature: when you call `injected[T]`, Scope looks for `T`'s dependencies in the existing stack:
+### AutoCloseable (Automatic)
 
 ```scala
-class Handler(db: Database, req: Request)
-
-Scope.global
-  .injected[Database]     // Database has no deps (or simple ones)
-  .injected[Request]      // Request has no deps
-  .injected[Handler]      // Handler needs Database & Request — found in stack!
+class Database(config: Config) extends AutoCloseable {
+  val pool = ConnectionPool.create(config.dbUrl)
+  def close(): Unit = pool.close()
+}
+// Macro generates: scope.defer(instance.close())
 ```
 
-If dependencies are missing, you get a compile-time error with a helpful message.
-
-### Explicit Wires
-
-For complex cases or when you need to override the default construction, provide explicit wires:
+### Manual Cleanup with defer
 
 ```scala
-Scope.global
-  .injected[Database](
-    Wire.Shared { ctx =>
-      val db = Database.connect(sys.env("DB_URL"))
-      defer(db.close())  // Top-level defer function
-      Context(db)
+class Cache(config: Config)(using Scope.Any) {
+  private val store = new LRUCache(config.cacheSize)
+  private val evictor = new Thread(() => evictionLoop())
+  evictor.start()
+  
+  defer {
+    evictor.interrupt()
+    evictor.join()
+    store.clear()
+  }
+}
+// Macro passes scope, you handle cleanup
+```
+
+### Precedence
+
+| Constructor | Cleanup Strategy |
+|-------------|------------------|
+| `extends AutoCloseable`, no `Scope` param | Macro auto-generates `defer(_.close())` |
+| Takes `Scope.Any` (implicit or explicit) | You handle cleanup manually |
+| Both `AutoCloseable` AND takes `Scope` | You handle cleanup (Scope wins) |
+
+---
+
+## Request Scoping
+
+For request-scoped services, use `injected` with the implicit parent scope:
+
+```scala
+class App(userService: UserService)(using Scope.Any) {
+  def handleRequest(request: Request): Response =
+    injected[RequestHandler](
+      Wire.value(request)        // Inject the request value
+    ).run { handler =>
+      handler.handle()
     }
-  )
-  .injected[App]
-  .run { ctx => ctx.get[App].run() }
+    // RequestHandler and dependencies cleaned up here
+}
 ```
 
-### Batch Injection
+Each request gets its own child scope. The `UserService` from the parent scope is available; the `RequestHandler` is created fresh and cleaned up after.
 
-Inject multiple services into the same layer using intersection types. This is the preferred style when services at the same "level" of the dependency graph can be injected together:
+**Public vs. private dependencies:**
 
 ```scala
-// Inject all infrastructure at once
-Scope.global
-  .injected[Config]
-  .injected[Database & Cache & MessageQueue]  // All depend on Config
-  .injected[UserService & OrderService]        // All depend on DB/Cache
-  .injected[App]
+// Private: Cache is a hidden dependency of RequestHandler
+injected[RequestHandler](shared[Cache]).run { ... }
+
+// Public: Cache is visible in the scope stack
+injected[Cache].injected[RequestHandler].run { ... }
 ```
+
+---
+
+## Testing
+
+Swap implementations by providing different wires:
 
 ```scala
-// Scala 3 (match types auto-expand)
-Scope.global.injected[Config & Database & Cache]
-// = Scope[Context[Config] & Context[Database] & Context[Cache] :: TNil]
+// Production
+injected[UserService].run { svc =>
+  svc.getUser("123")
+}
 
-// Scala 2 (explicit Context wrapping)
-Scope.global.injected[Context[Config] & Context[Database] & Context[Cache]]
+// Test with mocks
+injected[UserService](
+  Wire.value(new MockDatabase()),
+  Wire.value(new MockCache())
+).run { svc =>
+  assert(svc.getUser("123") == expectedUser)
+}
 ```
 
-All services in a batch share the same layer — their finalizers run together when that layer closes.
+Or inject mock types directly:
 
-### Wireable for Interfaces
+```scala
+// MockDatabase and MockCache extend the traits
+injected[MockDatabase & MockCache]
+  .injected[UserService]
+  .run { ctx =>
+    val svc = ctx.get[UserService]
+    assert(svc.getUser("123") == expectedUser)
+  }
+```
 
-Traits can specify their default implementation via `Wireable`:
+---
+
+## Wireable for Traits
+
+Traits don't have constructors, so `injected[Database]` fails unless there's a `Wireable[Database]`:
 
 ```scala
 trait Database {
@@ -313,7 +311,7 @@ trait Database {
 }
 
 object Database {
-  given Wireable[Database] = Wireable.from[DatabaseImpl, Database]
+  given Wireable[Database] = Wireable.from[DatabaseImpl]
 }
 
 class DatabaseImpl(config: Config) extends Database with AutoCloseable {
@@ -321,230 +319,68 @@ class DatabaseImpl(config: Config) extends Database with AutoCloseable {
   def close(): Unit = ???
 }
 
-// Now this works:
-Scope.global
-  .injected[Config]
-  .injected[Database]  // Uses DatabaseImpl via Wireable
-  .run { ctx => 
-    val db: Database = ctx.get[Database]  // Returns as trait type
-  }
+// Now works:
+injected[App].run { _.run() }  // Uses DatabaseImpl via Wireable
 ```
 
-The `Wireable[Database]` produces a wire with output type `Database` (the trait), not `DatabaseImpl`.
+The `Wireable` trait:
+
+```scala
+trait Wireable[T] {
+  def wire: Wire[?, T]
+}
+
+object Wireable {
+  inline def from[Impl <: T, T]: Wireable[T]
+}
+```
+
+**Precedence:** Explicit wires in `injected` override `Wireable` in scope.
 
 ---
 
-## Lifecycle Management
+## Manual Wires
 
-### AutoCloseable
-
-If a service implements `AutoCloseable` and doesn't take an implicit `Scope`, the macro automatically registers cleanup:
+For complex construction logic, create wires directly:
 
 ```scala
-class Database(config: Config) extends AutoCloseable {
-  def close(): Unit = pool.close()
+// Scala 3
+val configWire: Wire.Shared[Any, Config] = Wire.Shared { ctx =>
+  Context(Config.load(sys.env("CONFIG_PATH")))
 }
 
-// The injected macro generates:
-// scope.defer(instance.close())
-```
+val dbWire: Wire.Shared[Config, Database] = Wire.Shared { ctx =>
+  val db = Database.connect(ctx.get[Config].dbUrl)
+  defer(db.close())
+  Context(db)
+}
 
-### Manual Cleanup
-
-For complex cleanup, take an implicit `Scope.Any` and use the top-level `defer` function:
-
-```scala
-class Cache(config: Config)(using Scope.Any) {
-  private val evictor = startEvictor()
-  defer {
-    evictor.stop()
-    evictor.awaitTermination()
-  }
+// Scala 2
+val dbWire: Wire.Shared[Config, Database] = Wire.Shared { implicit scope => ctx =>
+  val db = Database.connect(ctx.get[Config].dbUrl)
+  defer(db.close())
+  Context(db)
 }
 ```
 
-**Rule**: If your constructor takes `Scope`, you handle cleanup. The macro won't auto-register `close()` even if you're `AutoCloseable`.
-
-| Constructor | Cleanup Strategy |
-|-------------|------------------|
-| `AutoCloseable` (no `Scope` param) | Macro generates `scope.defer(_.close())` |
-| Takes implicit `Scope` | You handle cleanup manually |
-| `AutoCloseable` AND takes `Scope` | You handle cleanup manually |
-
-### The `run` Pattern
-
-The `run` method provides scoped execution with automatic cleanup:
+Use manual wires alongside macro-generated ones:
 
 ```scala
-Scope.global
-  .injected[Config]
-  .injected[Database]
-  .injected[App]
-  .run { ctx =>
-    // ctx: Context[App]
-    // Scope available implicitly for defer, nested injected, etc.
-    ctx.get[App].start()
-    ctx.get[App].awaitTermination()
-  }
-// ^ Scope closed here, all finalizers run
-```
-
-This is equivalent to:
-```scala
-val scope = Scope.global.injected[Config].injected[Database].injected[App]
-try {
-  val ctx = scope.getAll
-  ctx.get[App].start()
-  ctx.get[App].awaitTermination()
-} finally {
-  scope.close()
-}
-```
-
----
-
-## When Do You See Scope Types?
-
-### Global Application Graph: You Don't
-
-For the common case — a single application-wide dependency graph — users never interact with specific scope types:
-
-```scala
-// Your classes just take Scope.Any for defer access
-class Database(config: Config)(using Scope.Any) extends AutoCloseable { ... }
-class Cache(config: Config)(using Scope.Any) { defer { cleanup() } }
-class UserService(db: Database, cache: Cache) { ... }  // No scope needed
-
-// At the top level, you just chain injected calls
-Scope.global
-  .injected[Config]
-  .injected[Database & Cache]
-  .injected[UserService & App]
-  .run { ctx => ctx.get[App].run() }
-```
-
-The type-level stack is an **implementation detail** — the macro tracks it, but users don't see it.
-
-### Request Handling: Scoped Resources
-
-Where typed scopes shine is **request/session/resource scoping**:
-
-```scala
-object Scope {
-  type Any = Scope[?]                           // "I need a scope, don't care which"
-  type Required[Layer] = Scope[Layer :: ?]      // "I need these services available"
-  type Resource[X] = Scope[Context[X] :: ?]     // "I have access to managed resource X"
-}
-```
-
-**Example: HTTP Request Handler**
-
-```scala
-class Server(using Scope.Any) {
-  def handleRequest(request: Request): Response = {
-    // Create child scope with request injected
-    Scope.global.child
-      .injected[Request](Wire.value(request))
-      .injected[Transaction]
-      .injected[RequestHandler]
-      .run { ctx => ctx.get[RequestHandler].handle() }
-  }
-}
-
-// The handler receives a scope with Request available
-class RequestHandler(using scope: Scope.Resource[Request]) {
-  val request = scope.get[Request]  // Type-safe access to the request
-  // ...
-}
-```
-
-**Example: File Processing**
-
-```scala
-def processFile(using scope: Scope.Resource[FileHandle]): Unit = {
-  val file = scope.get[FileHandle]
-  // File is guaranteed to be open and managed by this scope
-  file.readLines().foreach(process)
-}
-
-// Caller provides the scoped resource
-Scope.global
-  .injected[FileHandle](Wire.Shared { _ =>
-    val fh = FileHandle.open("data.txt")
-    defer(fh.close())
-    Context(fh)
-  })
-  .run { _ => processFile }
-```
-
-### Type Aliases for Clarity
-
-For complex requirements, define type aliases:
-
-```scala
-// In your app
-type AppScope = Scope.Required[Context[Config & Database & Cache]]
-type RequestScope = Scope.Required[Context[Request & Transaction]]
-
-// In handler code
-def handle(using RequestScope): Response = { ... }
-```
-
-### Match Types (Scala 3)
-
-Scala 3 uses match types to simplify syntax:
-
-```scala
-// You write:
-scope.injected[Database & Config]
-
-// Match type expands to:
-Scope[Context[Database] & Context[Config] :: Stack]
-
-// The match type definition:
-type Contextualize[T] = T match {
-  case a & b => Contextualize[a] & Contextualize[b]
-  case t     => Context[t]
-}
-```
-
-In Scala 2, you write the expanded form directly.
-
-### Type Members
-
-Each `Scope[Stack]` has type members for convenience:
-
-```scala
-trait Scope[Stack] {
-  type CurrentLayer    // Contents of top layer
-  type FullStack = Stack
-  type TailStack       // Everything below current layer
-}
-
-// Example:
-val scope: Scope[Context[Request] :: Context[Database] :: TNil]
-// scope.CurrentLayer = Request
-// scope.FullStack = Context[Request] :: Context[Database] :: TNil
-// scope.TailStack = Context[Database] :: TNil
+injected[App](configWire, dbWire).run { _.run() }
 ```
 
 ---
 
 ## Compile-Time Errors
 
-Scope provides rich compile-time error messages with ASCII dependency graphs:
+Scope provides rich error messages with dependency graphs.
 
 **Missing dependency:**
-
-```scala
-Scope.global.injected[Database].injected[UserService]
-// UserService needs Cache, which isn't in the stack
-```
 
 ```
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
-  Missing dependency for UserService
+  Missing dependency: Cache
 
   Stack:
     → Database
@@ -554,7 +390,25 @@ Scope.global.injected[Database].injected[UserService]
     ✓ Database  — found in stack
     ✗ Cache     — missing
 
-  Hint: Add .injected[Cache] before .injected[UserService]
+  Hint: Either:
+    • .injected[Cache].injected[UserService]     — Cache visible in stack
+    • .injected[UserService](shared[Cache])      — Cache as private dependency
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+**Ambiguous provider:**
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Multiple providers for Config
+
+  Conflicting wires:
+    1. shared[Config] at MyApp.scala:15
+    2. Wire.value(...) at MyApp.scala:16
+
+  Hint: Remove duplicate wires or use distinct types
 
 ────────────────────────────────────────────────────────────────────────────────
 ```
@@ -581,77 +435,6 @@ Scope.global.injected[Database].injected[UserService]
 ────────────────────────────────────────────────────────────────────────────────
 ```
 
-**Color support:**
-
-Scope detects whether it's running in an interactive terminal and uses ANSI colors automatically. Colors are disabled in non-interactive environments (CI, build logs, IDE error panels).
-
----
-
-## Request Scoping
-
-For request-scoped services, create nested scopes:
-
-```scala
-class Server(using appScope: Scope.Required[Context[Database & Config]]) {
-  def handleRequest(request: Request): Response = {
-    appScope
-      .injected[Request](Wire.value(request))  // Inject the actual request
-      .injected[Transaction]                    // Transaction per request
-      .injected[RequestHandler]
-      .run { ctx =>
-        ctx.get[RequestHandler].handle()
-      }
-    // Transaction and Request cleaned up here
-  }
-}
-
-// Application startup
-Scope.global
-  .injected[Config]
-  .injected[Database]
-  .injected[Server]
-  .run { ctx =>
-    ctx.get[Server].start()
-  }
-```
-
-Each request gets its own scope with its own `Transaction`. The `Database` is shared from the parent scope.
-
----
-
-## Testing
-
-Testing is straightforward — just inject test implementations:
-
-```scala
-// Production
-Scope.global
-  .injected[RealDatabase & RealCache]
-  .injected[UserService]
-  .run { ctx => runApp(ctx.get[UserService]) }
-
-// Test — swap implementations
-Scope.global
-  .injected[MockDatabase & MockCache]
-  .injected[UserService]  // Same UserService, uses mocks
-  .run { ctx => 
-    val service = ctx.get[UserService]
-    assert(service.getUser("123") == expectedUser)
-  }
-```
-
-Or override specific services with explicit wires:
-
-```scala
-Scope.global
-  .injected[Database & Cache](
-    Wire.value(new MockDatabase()),
-    Wire.value(new MockCache())
-  )
-  .injected[UserService]
-  .run { ctx => /* test */ }
-```
-
 ---
 
 ## API Reference
@@ -659,47 +442,27 @@ Scope.global
 ### Scope
 
 ```scala
-// Scala 3
-trait Scope[Stack] {
-  type CurrentLayer
-  type FullStack = Stack
-  type TailStack
-  
-  def get[X](implicit ev: InStack[X, FullStack], nominal: IsNominalType[X]): X
-  def getAll: Context[CurrentLayer]
+sealed trait Scope[Stack] {
+  def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
-  
-  def injected[T](wires: Wire[?, ?]*): Scope.Closeable[Contextualize[T] :: Stack]
-}
-
-// Scala 2
-trait Scope[Stack] {
-  def get[X](implicit ev: InStack[X, Stack], nominal: IsNominalType[X]): X
-  def getAll: Context[CurrentLayer]
-  def defer(finalizer: => Unit): Unit
-  
-  def injected[T](wires: Wire[?, ?]*): Scope.Closeable[Context[T] :: Stack]
+  def child: Scope.Closeable[Stack]
+  def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
 }
 
 object Scope {
   val global: Scope[TNil]
   
-  // Type aliases for common patterns
-  type Any = Scope[?]                           // Scope-polymorphic
-  type Required[Layer] = Scope[Layer :: ?]      // Requires specific services
-  type Resource[X] = Scope[Context[X] :: ?]     // Access to managed resource X
+  type Any = Scope[?]                          // Scope-polymorphic
+  type Required[T] = Scope[Context[T] :: ?]    // Requires T in stack
   
   trait Closeable[Stack] extends Scope[Stack] with AutoCloseable {
     def close(): Unit
-    def run[B](f: Scope[FullStack] ?=> Context[CurrentLayer] => B): B
-  }
-  
-  // Scala 3 only
-  type Contextualize[T] = T match {
-    case a & b => Contextualize[a] & Contextualize[b]
-    case t     => Context[t]
+    def run[B](f: Scope[Stack] ?=> Context[CurrentLayer] => B): B
   }
 }
+
+// Type-level evidence that T exists somewhere in the Stack
+trait InStack[T, Stack]
 ```
 
 ### Wire
@@ -718,7 +481,6 @@ sealed trait Wire[-In, +Out] {
 object Wire {
   final case class Shared[-In, +Out](...) extends Wire[In, Out]
   final case class Unique[-In, +Out](...) extends Wire[In, Out]
-  
   def value[T](t: T)(implicit ev: IsNominalType[T]): Wire[Any, T]
 }
 ```
@@ -731,26 +493,18 @@ trait Wireable[T] {
 }
 
 object Wireable {
-  // Derive from concrete class Impl, providing as type T
   inline def from[Impl <: T, T]: Wireable[T]
 }
-```
-
-### Macros
-
-```scala
-inline def shared[T]: Wire[???, T]  // Uses Wireable[T] if available, else constructor
-inline def unique[T]: Wire[???, T]  // Uses Wireable[T] if available, else constructor
 ```
 
 ### Top-Level Functions
 
 ```scala
-def defer(finalizer: => Unit)(using Scope.Any): Unit  // Register cleanup on current scope
-def get[T](using Scope.Any, InStack[T, ?], IsNominalType[T]): T  // Get from stack
+inline def injected[T](wires: Wire[?,?]*)(using Scope.Any): Scope.Closeable[...]
+inline def shared[T]: Wire[???, T]
+inline def unique[T]: Wire[???, T]
+def defer(finalizer: => Unit)(using Scope.Any): Unit
 ```
-
-These are convenience functions that delegate to the implicit `Scope`, avoiding verbose `summon[Scope[?]].defer(...)` calls.
 
 ---
 
@@ -762,7 +516,6 @@ These are convenience functions that delegate to the implicit `Scope`, avoiding 
 | Lifecycle management | ✅ | ✅ | ✅ | ❌ |
 | Effect system required | ❌ | ✅ (ZIO) | ❌ | ❌ |
 | Type-level stack tracking | ✅ | ❌ | ❌ | ❌ |
-| Implicit dep resolution | ✅ | ❌ | ✅ | ❌ |
 | Async construction | ❌* | ✅ | ❌ | ❌ |
 | Scoped instances | ✅ | ✅ | ✅ | ❌ |
 
@@ -784,14 +537,10 @@ Scope depends on:
 
 ## Summary
 
-Scope provides compile-time verified dependency injection with a type-tracked service stack:
-
-- **`Scope[Stack]`** — Tracks available services at the type level
-- **`.injected[T]`** — Add a service, auto-wiring from the stack
+- **`injected[T]`** — Create child scope, wire dependencies from stack
+- **`injected[T](wires...)`** — Wire with explicit/private dependencies
 - **`.run { ctx => ... }`** — Execute with automatic cleanup
-- **`.get[T]`** — Retrieve any service from the stack
-- **`Scope.global`** — Immortal root scope
-- **`Scope.Required[Layer]`** — For polymorphic user code
-- **Structured scoping** — Parent-close closes children, LIFO finalizers
-
-The result: type-safe DI where dependencies are resolved from what's already in scope, with compile-time verification and automatic lifecycle management.
+- **`Scope.Any`** — Use in constructors needing `defer`
+- **`defer { ... }`** — Register cleanup on current scope
+- **`Wire.value(x)`** — Inject a specific value
+- **`Wireable[T]`** — Enable `injected[T]` for traits
