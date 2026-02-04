@@ -10,7 +10,7 @@ package object scope {
   def get[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T =
     scope.get[T]
 
-  def injectedValue[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[Context[T] :: ?] = {
+  def injectedValue[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
     val ctx        = Context(t)
     val finalizers = new Finalizers
     if (t.isInstanceOf[AutoCloseable]) {

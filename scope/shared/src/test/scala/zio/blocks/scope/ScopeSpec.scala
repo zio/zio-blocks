@@ -67,7 +67,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val config            = Config(true)
         val finalizers        = new Finalizers
         finalizers.add { cleaned = true }
-        val closeable = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         closeable.run { ctx =>
           blockRan = true
           assertTrue(ctx.get[Config] == config)
@@ -80,7 +80,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val config            = Config(true)
         val finalizers        = new Finalizers
         finalizers.add(closeCount += 1)
-        val closeable = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         closeable.close()
         closeable.close()
         closeable.close()
@@ -90,7 +90,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val parent: Scope.Any = Scope.global
         val config            = Config(true)
         val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         val retrieved         = closeable.get[Config]
         closeable.close()
         assertTrue(retrieved == config)
@@ -102,8 +102,8 @@ object ScopeSpec extends ZIOSpecDefault {
         val f1                = new Finalizers
         val f2                = new Finalizers
 
-        val scope1    = Scope.makeCloseable[TNil, Config](parent, Context(config), f1)
-        val scope2    = Scope.makeCloseable[Context[Config] :: TNil, Database](scope1, Context(db), f2)
+        val scope1    = Scope.makeCloseable[Config, TNil](parent, Context(config), f1)
+        val scope2    = Scope.makeCloseable[Database, Context[Config] :: TNil](scope1, Context(db), f2)
         val retrieved = scope2.get[Config]
 
         scope2.close()
@@ -114,7 +114,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val parent: Scope.Any = Scope.global
         val config            = Config(true)
         val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
 
         val result = try {
           closeable.asInstanceOf[Scope[Context[Database] :: TNil]].get[Database]
@@ -130,7 +130,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val parent: Scope.Any = Scope.global
         val config            = Config(true)
         val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         closeable.defer { cleaned = true }
         assertTrue(!cleaned)
         closeable.close()
@@ -141,7 +141,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val parent: Scope.Any = Scope.global
         val config            = Config(true)
         val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         closeable.close()
         closeable.defer { cleaned = true }
         assertTrue(!cleaned)
@@ -156,7 +156,7 @@ object ScopeSpec extends ZIOSpecDefault {
         finalizers.add(order += 1)
         finalizers.add(order += 2)
         finalizers.add(order += 3)
-        val closeable = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         closeable.close()
         assertTrue(order.toList == List(3, 2, 1))
       },
@@ -166,7 +166,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val config            = Config(true)
         val finalizers        = new Finalizers
         finalizers.add { cleaned = true }
-        val closeable = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
         try {
           closeable.run(_ => throw new RuntimeException("boom"))
         } catch {
@@ -179,7 +179,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val config            = Config(true)
         val finalizers        = new Finalizers
         finalizers.add(throw new RuntimeException("finalizer boom"))
-        val closeable = Scope.makeCloseable[TNil, Config](parent, Context(config), finalizers)
+        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
 
         val result = try {
           closeable.close()
@@ -228,10 +228,10 @@ object ScopeSpec extends ZIOSpecDefault {
         val f2                = new Finalizers
         val f3                = new Finalizers
 
-        val scope1 = Scope.makeCloseable[TNil, Config](parent, Context(config), f1)
-        val scope2 = Scope.makeCloseable[Context[Config] :: TNil, Database](scope1, Context(db), f2)
+        val scope1 = Scope.makeCloseable[Config, TNil](parent, Context(config), f1)
+        val scope2 = Scope.makeCloseable[Database, Context[Config] :: TNil](scope1, Context(db), f2)
         val scope3 =
-          Scope.makeCloseable[Context[Database] :: Context[Config] :: TNil, Cache](scope2, Context(cache), f3)
+          Scope.makeCloseable[Cache, Context[Database] :: Context[Config] :: TNil](scope2, Context(cache), f3)
 
         val retrievedConfig = scope3.get[Config]
         val retrievedDb     = scope3.get[Database]

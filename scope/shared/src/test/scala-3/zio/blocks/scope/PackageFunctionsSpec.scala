@@ -62,7 +62,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       val parent: Scope.Any = Scope.global
       val f                 = new Finalizers
       val config            = new Config
-      val s                 = Scope.makeCloseable[TNil, Config](parent, Context(config), f)
+      val s                 = Scope.makeCloseable[Config, TNil](parent, Context(config), f)
       {
         given Scope.Any = s
         defer { cleaned = true }
@@ -74,7 +74,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       val parent: Scope.Any = Scope.global
       val config            = new Config
       val f                 = new Finalizers
-      val s                 = Scope.makeCloseable[TNil, Config](parent, Context(config), f)
+      val s                 = Scope.makeCloseable[Config, TNil](parent, Context(config), f)
       val retrieved         = {
         given Scope.Has[Config] = s
         get[Config]

@@ -18,20 +18,18 @@ object Scope {
     def get[T](implicit ev: InStack[T, Stack], nom: IsNominalType[T]): T = self.getImpl(nom)
   }
 
-  trait Closeable[+Stack] extends Scope[Stack] with AutoCloseable {
+  trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
     def close(): Unit
 
-    def run[B](f: Context[CurrentLayer] => B): B
-
-    type CurrentLayer
+    def run[B](f: Context[Head] => B): B
   }
 
-  private[scope] def makeCloseable[S, C](
+  private[scope] def makeCloseable[T, S](
     parent: Scope[?],
-    context: Context[C],
+    context: Context[T],
     finalizers: Finalizers
-  ): Closeable[Context[C] :: S] { type CurrentLayer = C } =
-    new ScopeImpl[S, C](parent, context, finalizers)
+  ): Closeable[T, S] =
+    new ScopeImpl[T, S](parent, context, finalizers)
 
   private val globalInstance: GlobalScope = new GlobalScope
 

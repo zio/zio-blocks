@@ -18,18 +18,18 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       var cleaned           = false
       val parent: Scope.Any = Scope.global
       val f                 = new Finalizers
-      implicit val s: Scope.Any = Scope.makeCloseable[TNil, Config](parent, Context(Config(true)), f)
+      implicit val s: Scope.Any = Scope.makeCloseable[Config, TNil](parent, Context(Config(true)), f)
       defer { cleaned = true }
-      s.asInstanceOf[Scope.Closeable[_]].close()
+      s.asInstanceOf[Scope.Closeable[_, _]].close()
       assertTrue(cleaned)
     },
     test("get delegates to scope") {
       val parent: Scope.Any     = Scope.global
       val config                = Config(true)
       val f                     = new Finalizers
-      implicit val s: Scope.Has[Config] = Scope.makeCloseable[TNil, Config](parent, Context(config), f)
+      implicit val s: Scope.Has[Config] = Scope.makeCloseable[Config, TNil](parent, Context(config), f)
       val retrieved = get[Config]
-      s.asInstanceOf[Scope.Closeable[_]].close()
+      s.asInstanceOf[Scope.Closeable[_, _]].close()
       assertTrue(retrieved == config)
     },
     test("injectedValue creates closeable scope") {

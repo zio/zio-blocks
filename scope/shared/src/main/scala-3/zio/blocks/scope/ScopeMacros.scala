@@ -441,7 +441,7 @@ private[scope] object ScopeMacros {
   def injectedImpl[T: Type](
     wiresExpr: Expr[Seq[Wire[?, ?]]],
     scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[Context[T] :: ?]] = {
+  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[T]
@@ -508,7 +508,7 @@ private[scope] object ScopeMacros {
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean,
     scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[Context[T] :: ?]] = {
+  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
     import quotes.reflect.*
     val tpe = TypeRepr.of[T]
 
@@ -558,7 +558,7 @@ private[scope] object ScopeMacros {
     isAutoCloseable: Boolean,
     wiresExpr: Expr[Seq[Wire[?, ?]]],
     scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[Context[T] :: ?]] = {
+  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
     import quotes.reflect.*
     val tpe      = TypeRepr.of[T]
     val dep1Name = TypeRepr.of[D1].show
@@ -608,7 +608,7 @@ private[scope] object ScopeMacros {
     isAutoCloseable: Boolean,
     wiresExpr: Expr[Seq[Wire[?, ?]]],
     scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[Context[T] :: ?]] = {
+  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
     import quotes.reflect.*
     val tpe      = TypeRepr.of[T]
     val dep1Name = TypeRepr.of[D1].show

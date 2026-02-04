@@ -1,27 +1,26 @@
 package zio.blocks.scope.internal
 
 import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.{::, Scope}
+import zio.blocks.scope.Scope
 
-private[scope] final class ScopeImpl[S, C](
+private[scope] final class ScopeImpl[H, T](
   private val parent: Scope[?],
-  private val context: Context[C],
+  private val context: Context[H],
   private val finalizers: Finalizers
-) extends Scope.Closeable[Context[C] :: S] {
-  override type CurrentLayer = C
+) extends Scope.Closeable[H, T] {
 
   @volatile private var closed: Boolean = false
 
-  private[scope] def getImpl[T](nom: IsNominalType[T]): T =
-    context.getOption[T](nom) match {
+  private[scope] def getImpl[A](nom: IsNominalType[A]): A =
+    context.getOption[A](nom) match {
       case Some(value) => value
       case None        => getFromParent(parent, nom)
     }
 
-  private def getFromParent[T](scope: Scope[?], nom: IsNominalType[T]): T =
+  private def getFromParent[A](scope: Scope[?], nom: IsNominalType[A]): A =
     scope match {
       case p: ScopeImpl[?, ?] =>
-        p.context.getOption[T](nom) match {
+        p.context.getOption[A](nom) match {
           case Some(value) => value
           case None        => getFromParent(p.parent, nom)
         }
@@ -40,7 +39,7 @@ private[scope] final class ScopeImpl[S, C](
     }
   }
 
-  def run[B](f: Context[C] => B): B =
+  def run[B](f: Context[H] => B): B =
     try f(context)
     finally close()
 }
