@@ -5,60 +5,81 @@ title: "Scope"
 
 # ZIO Blocks Scope
 
-**Lightweight, compile-time verified dependency injection for Scala.**
+**Compile-time verified dependency injection with lifecycle safety for Scala.**
 
 ## What Is Scope?
 
-Scope is a minimalist dependency injection library that combines **service construction**, **lifecycle management**, and **type-safe dependency tracking** into a single abstraction. It leverages Scala's type system to track available services at compile time, ensuring your dependency graph is complete before your code runs.
+Scope is a minimalist dependency injection library that makes **lifecycle errors into compile-time errors**. Most DI libraries verify that your dependencies are wired correctly — Scope goes further by verifying that resources are used within their intended lifecycle.
+
+The key insight: **resources should be part of the scope's type**. A `Scope.Required[Database & Cache]` is a different type from `Scope.Required[Database]`. This means:
+
+- You can't access a resource that isn't in scope — compile error
+- You can't pass the wrong scope to a function — compile error  
+- You can't use a resource after its scope closes — compile error
+
+Traditional DI prevents "app won't start" errors. Scope prevents "3am production incident" errors.
 
 Scope supports both **Scala 2.13** and **Scala 3.x**. The core functionality is identical across versions.
-
-The core insight: a **scope** is both a lifecycle boundary AND a typed context of available services. By tracking the service stack at the type level, dependencies can be resolved implicitly from what's already in scope.
 
 ## Why Scope?
 
 ### The Problem
 
-Typical Scala applications end up with one of these approaches:
+Most DI solutions solve **construction correctness** — making sure dependencies exist:
 
-**Manual wiring** — correct but tedious:
 ```scala
-val config = new Config()
-val db = new Database(config)
-val cache = new Cache(config)
-val userService = new UserService(db, cache)
-val app = new App(userService)
-// ... and don't forget to close everything in reverse order
-```
-
-**Runtime DI frameworks** — convenient but opaque:
-```scala
-// Magic happens at runtime, errors at startup, hard to understand
+// Missing dependency? Runtime error at startup
 val injector = Guice.createInjector(new AppModule())
 val app = injector.getInstance(classOf[App])
 ```
 
-**ZIO ZLayer** — powerful but heavyweight:
+But the expensive bugs are **lifecycle errors** — using resources with the wrong scope:
+
 ```scala
-// Requires buying into ZIO's effect system
-val layer: ZLayer[Any, Nothing, App] = 
-  Config.live >>> (Database.live ++ Cache.live) >>> UserService.live >>> App.live
+def processRequest()(using appScope: Scope): Response = {
+  val requestScope = appScope.child
+  val tempFile = TempFile.create()
+  
+  // BUG: Registered on wrong scope! Temp files accumulate until app restart
+  appScope.defer(tempFile.delete())  // Should be requestScope
+  
+  // BUG: Passed wrong scope! Function uses closed scope
+  doWork(tempFile, requestScope)
+  requestScope.close()
+  finalize(requestScope)  // Runtime error or silent corruption
+}
 ```
+
+When scopes are untyped, all scopes look the same to the compiler. You rely on discipline and testing to catch these bugs.
 
 ### The Solution
 
-Scope gives you compile-time verification with fluent syntax:
+Scope makes resources part of the scope's type, so lifecycle errors become type errors:
 
 ```scala
-injected[App].run { app => app.run() }
+def processRequest()(using Scope.Any): Response = {
+  injected[TempFile](Wire.value(TempFile.create())).run { _ =>
+    // TempFile is in THIS scope's type — cleanup is automatic
+    doWork()  // Has access to TempFile
+  }
+  // TempFile cleaned up here
+  
+  finalize()  // Can NOT access TempFile — it's not in the type
+}
+
+def doWork()(using Scope.Required[TempFile]): Unit = {
+  get[TempFile].write(data)  // Compiler verified TempFile is available
+}
+
+def finalize()(using Scope.Required[TempFile]): Unit = { ... }
+// ^ Would NOT compile when called after TempFile scope closes!
 ```
 
-That's it. The macro inspects `App`'s constructor, discovers it needs `UserService`, which needs `Database` and `Cache`, which need `Config` — and wires everything up. If any dependency is missing, you get a compile error.
-
 **What you get:**
-- Compile-time errors if dependencies are missing
-- Automatic lifecycle management (structured scoping)
-- Implicit dependency resolution from available services
+- Compile-time errors if dependencies are missing (like other DI)
+- **Compile-time errors if resources are used outside their lifecycle** (unique to Scope)
+- Automatic cleanup in correct order
+- Type signatures document what resources a function needs
 - No reflection, no runtime surprises
 - Works with any effect system (or none)
 
@@ -68,8 +89,9 @@ Scope is deliberately **not**:
 
 - **An effect system**: Scope doesn't manage async, concurrency, or errors. Use ZIO, Cats Effect, or plain Scala for that.
 - **A configuration library**: Scope constructs objects; it doesn't read config files. Pair it with your preferred config library.
-- **A replacement for ZLayer**: If you're fully invested in ZIO, ZLayer offers tighter integration. Scope is for when you want DI without the effect system dependency.
 - **Runtime flexible**: The dependency graph is fixed at compile time. No runtime module swapping (use different builds for that).
+
+**Scope vs. ZIO ZLayer**: ZLayer is more powerful (async construction, error handling, resource finalization integrated with the effect system). Scope is lighter — it's the ZLayer capability-tracking pattern extracted into a standalone library without the effect system dependency. Use Scope when you want lifecycle safety without buying into a full effect system.
 
 ---
 
@@ -90,7 +112,7 @@ class App(db: Database) {
   injected[App].run { _.run() }
 ```
 
-The `injected[App]` macro recursively discovers and wires all dependencies.
+The `injected[App]` macro discovers that `App` needs `Database` needs `Config`, wires them up, runs your code, then cleans up in reverse order.
 
 ### With Lifecycle Management
 
