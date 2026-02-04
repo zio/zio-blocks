@@ -747,4 +747,8 @@ object Tuples {
         def separate(a: (A, B)): (A, B) = a
       }
   }
+
+  def combine[L, R](l: L, r: R)(implicit c: Combiner[L, R]): c.Out = c.combine(l, r)
+
+  def separate[A](a: A)(implicit s: Separator[A]): (s.Left, s.Right) = s.separate(a)
 }

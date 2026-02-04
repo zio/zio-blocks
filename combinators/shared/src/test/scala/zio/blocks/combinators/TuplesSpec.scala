@@ -8,58 +8,90 @@ object TuplesSpec extends ZIOSpecDefault {
     suite("Combiner")(
       suite("Unit identity")(
         test("combine((), a) returns a") {
-          val combiner    = implicitly[Tuples.Combiner[Unit, Int]]
-          val result: Any = combiner.combine((), 42)
-          assertTrue(result == 42)
+          val combiner             = implicitly[Tuples.Combiner[Unit, Int]]
+          val result: combiner.Out = combiner.combine((), 42)
+          assertTrue(result.asInstanceOf[Int] == 42)
         },
         test("combine(a, ()) returns a") {
-          val combiner    = implicitly[Tuples.Combiner[String, Unit]]
-          val result: Any = combiner.combine("hello", ())
-          assertTrue(result == "hello")
+          val combiner             = implicitly[Tuples.Combiner[String, Unit]]
+          val result: combiner.Out = combiner.combine("hello", ())
+          assertTrue(result.asInstanceOf[String] == "hello")
         }
       ),
       suite("Pair creation")(
         test("combine two non-tuple values into pair") {
-          val combiner    = implicitly[Tuples.Combiner[Int, String]]
-          val result: Any = combiner.combine(1, "a")
-          assertTrue(result == (1, "a"))
+          val combiner             = implicitly[Tuples.Combiner[Int, String]]
+          val result: combiner.Out = combiner.combine(1, "a")
+          assertTrue(result.asInstanceOf[(Int, String)] == (1, "a"))
         }
       ),
       suite("Tuple flattening")(
         test("combine tuple with value appends to tuple (arity 3)") {
-          val combiner    = implicitly[Tuples.Combiner[(Int, String), Boolean]]
-          val result: Any = combiner.combine((1, "a"), true)
-          assertTrue(result == (1, "a", true))
+          val combiner             = implicitly[Tuples.Combiner[(Int, String), Boolean]]
+          val result: combiner.Out = combiner.combine((1, "a"), true)
+          assertTrue(result.asInstanceOf[(Int, String, Boolean)] == (1, "a", true))
         },
         test("combine tuple with value (arity 5)") {
-          val combiner    = implicitly[Tuples.Combiner[(Int, String, Boolean, Double), Char]]
-          val result: Any = combiner.combine((1, "a", true, 2.0), 'x')
-          assertTrue(result == (1, "a", true, 2.0, 'x'))
+          val combiner             = implicitly[Tuples.Combiner[(Int, String, Boolean, Double), Char]]
+          val result: combiner.Out = combiner.combine((1, "a", true, 2.0), 'x')
+          assertTrue(result.asInstanceOf[(Int, String, Boolean, Double, Char)] == (1, "a", true, 2.0, 'x'))
         },
         test("combine tuple with value (arity 10)") {
           val combiner = implicitly[Tuples.Combiner[
             (Int, Int, Int, Int, Int, Int, Int, Int, Int),
             Int
           ]]
-          val result: Any = combiner.combine((1, 2, 3, 4, 5, 6, 7, 8, 9), 10)
-          assertTrue(result == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+          val result: combiner.Out = combiner.combine((1, 2, 3, 4, 5, 6, 7, 8, 9), 10)
+          assertTrue(
+            result.asInstanceOf[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+          )
         },
         test("combine tuple with value (arity 15)") {
           val combiner = implicitly[Tuples.Combiner[
             (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
             Int
           ]]
-          val result: Any = combiner.combine((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14), 15)
-          assertTrue(result == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+          val result: combiner.Out = combiner.combine((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14), 15)
+          assertTrue(
+            result.asInstanceOf[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)] == (1, 2,
+              3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+          )
         },
         test("combine tuple with value (arity 22)") {
           val combiner = implicitly[Tuples.Combiner[
             (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),
             Int
           ]]
-          val result: Any =
+          val result: combiner.Out =
             combiner.combine((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21), 22)
-          assertTrue(result == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22))
+          assertTrue(
+            result.asInstanceOf[
+              (
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int
+              )
+            ] == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+          )
         }
       )
     ),
@@ -86,18 +118,30 @@ object TuplesSpec extends ZIOSpecDefault {
     ),
     suite("Roundtrip")(
       test("separate(combine(a, b)) == (a, b) for non-tuple values") {
-        val combiner      = implicitly[Tuples.Combiner[Int, String]]
-        val separator     = implicitly[Tuples.Separator.WithTypes[(Int, String), Int, String]]
-        val combined: Any = combiner.combine(1, "a")
-        val separated     = separator.separate(combined.asInstanceOf[(Int, String)])
+        val combiner               = implicitly[Tuples.Combiner[Int, String]]
+        val separator              = implicitly[Tuples.Separator.WithTypes[(Int, String), Int, String]]
+        val combined: combiner.Out = combiner.combine(1, "a")
+        val separated              = separator.separate(combined.asInstanceOf[(Int, String)])
         assertTrue(separated == (1, "a"))
       },
       test("roundtrip with Unit identity") {
-        val combiner      = implicitly[Tuples.Combiner[Unit, Int]]
-        val separator     = implicitly[Tuples.Separator.WithTypes[Int, Unit, Int]]
-        val combined: Any = combiner.combine((), 42)
-        val separated     = separator.separate(combined.asInstanceOf[Int])
+        val combiner               = implicitly[Tuples.Combiner[Unit, Int]]
+        val separator              = implicitly[Tuples.Separator.WithTypes[Int, Unit, Int]]
+        val combined: combiner.Out = combiner.combine((), 42)
+        val separated              = separator.separate(combined.asInstanceOf[Int])
         assertTrue(separated == ((), 42))
+      }
+    ),
+    suite("Precise output types")(
+      test("combine tuple with value produces precise tuple type (arity 3)") {
+        val combiner             = implicitly[Tuples.Combiner[(Int, String), Boolean]]
+        val result: combiner.Out = combiner.combine((1, "a"), true)
+        assertTrue(result.asInstanceOf[(Int, String, Boolean)] == (1, "a", true))
+      },
+      test("combine two non-tuple values produces precise pair type") {
+        val combiner             = implicitly[Tuples.Combiner[Int, String]]
+        val result: combiner.Out = combiner.combine(1, "a")
+        assertTrue(result.asInstanceOf[(Int, String)] == (1, "a"))
       }
     )
   )
