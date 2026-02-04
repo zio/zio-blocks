@@ -360,15 +360,15 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minimum").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(0))),
-          fieldMap.get("maximum").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(100))),
+          fieldMap.get("minimum").exists(_.asInstanceOf[Json.Number].value == BigDecimal(0)),
+          fieldMap.get("maximum").exists(_.asInstanceOf[Json.Number].value == BigDecimal(100)),
           fieldMap
             .get("exclusiveMinimum")
-            .exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(-1))),
+            .exists(_.asInstanceOf[Json.Number].value == BigDecimal(-1)),
           fieldMap
             .get("exclusiveMaximum")
-            .exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(101))),
-          fieldMap.get("multipleOf").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal("0.5")))
+            .exists(_.asInstanceOf[Json.Number].value == BigDecimal(101)),
+          fieldMap.get("multipleOf").exists(_.asInstanceOf[Json.Number].value == BigDecimal("0.5"))
         )
       },
       test("string keywords serialize correctly") {
@@ -382,8 +382,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minLength").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(5))),
-          fieldMap.get("maxLength").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(100))),
+          fieldMap.get("minLength").exists(_.asInstanceOf[Json.Number].value == BigDecimal(5)),
+          fieldMap.get("maxLength").exists(_.asInstanceOf[Json.Number].value == BigDecimal(100)),
           fieldMap.get("pattern").contains(Json.String("^[a-z]+$")),
           fieldMap.get("format").contains(Json.String("email"))
         )
@@ -404,11 +404,11 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minItems").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(1))),
-          fieldMap.get("maxItems").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(10))),
+          fieldMap.get("minItems").exists(_.asInstanceOf[Json.Number].value == BigDecimal(1)),
+          fieldMap.get("maxItems").exists(_.asInstanceOf[Json.Number].value == BigDecimal(10)),
           fieldMap.get("uniqueItems").contains(Json.Boolean(true)),
-          fieldMap.get("minContains").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(2))),
-          fieldMap.get("maxContains").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(5))),
+          fieldMap.get("minContains").exists(_.asInstanceOf[Json.Number].value == BigDecimal(2)),
+          fieldMap.get("maxContains").exists(_.asInstanceOf[Json.Number].value == BigDecimal(5)),
           fieldMap.get("prefixItems").isDefined,
           fieldMap.get("items").isDefined,
           fieldMap.get("contains").isDefined,
@@ -432,8 +432,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minProperties").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(1))),
-          fieldMap.get("maxProperties").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(10))),
+          fieldMap.get("minProperties").exists(_.asInstanceOf[Json.Number].value == BigDecimal(1)),
+          fieldMap.get("maxProperties").exists(_.asInstanceOf[Json.Number].value == BigDecimal(10)),
           fieldMap.get("required").isDefined,
           fieldMap.get("properties").isDefined,
           fieldMap.get("patternProperties").isDefined,
