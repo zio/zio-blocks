@@ -288,6 +288,56 @@ class App(userService: UserService)(using appScope: Scope) {
 
 Each request gets its own scope. The `UserService` from the parent scope is available; the `RequestHandler` and any request-scoped dependencies are created fresh and cleaned up after.
 
+### Caution: Scope Confusion with Multiple Lifecycles
+
+When multiple scopes are in play, all have the same type (`Scope`), making it easy to use the wrong one:
+
+```scala
+def processUpload(file: UploadedFile)(using appScope: Scope): Result = {
+  // Request scope — socket lives for this request
+  val requestScope = appScope.child
+  val socket = Socket.connect(validationServiceUrl)
+  requestScope.defer(socket.close())
+  
+  // Operation scope — temp file lives only for validation
+  val opScope = requestScope.child
+  val tempFile = TempFile.create()
+  opScope.defer(tempFile.delete())
+  
+  // Write to temp file, validate via socket
+  tempFile.write(file.bytes)
+  val result = validate(socket, tempFile, opScope)
+  
+  opScope.close()  // Clean up temp file
+  
+  if (result.valid) {
+    // BUG: Using wrong scope! This should use requestScope, not opScope
+    // opScope is already closed, but this compiles fine
+    finalize(socket, opScope)  // Runtime error or undefined behavior
+  }
+  
+  requestScope.close()
+  result
+}
+
+def validate(socket: Socket, tempFile: TempFile, scope: Scope): ValidationResult = {
+  // BUG: Registering cleanup on wrong scope!
+  // tempFile cleanup should be on opScope, but we might pass requestScope
+  scope.defer(tempFile.delete())  // Compiles fine, wrong behavior
+  socket.send(tempFile.readAll())
+}
+
+def finalize(socket: Socket, scope: Scope): Unit = {
+  // Which scope is this? We can't tell from the type
+  scope.defer(socket.close())  // Might be wrong scope
+}
+```
+
+**The problem**: All scopes are `Scope` — the type system can't distinguish them. You must rely on discipline and testing to catch:
+- Passing a closed scope to a function
+- Registering cleanup on the wrong scope
+- Mixing up which resource belongs to which scope
+
 ---
 
 ## Testing

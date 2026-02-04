@@ -265,6 +265,57 @@ injected[RequestHandler](shared[Cache]).run { ... }
 injected[Cache].injected[RequestHandler].run { ... }
 ```
 
+### Type Safety with Multiple Lifecycles
+
+When multiple resources have different lifecycles, the type system ensures you can't mix them up:
+
+```scala
+def processUpload(file: UploadedFile)(using Scope.Any): Result = {
+  // Request scope — socket lives for this request
+  injected[Socket](Wire.value(Socket.connect(validationServiceUrl))).run { _ =>
+    // Socket is now in scope, cleanup automatic
+    
+    // Operation scope — temp file lives only for validation
+    injected[TempFile](Wire.value(TempFile.create())).run { _ =>
+      // TempFile is now in scope, cleanup automatic
+      
+      get[TempFile].write(file.bytes)
+      validate()  // Can access both Socket and TempFile
+    }
+    // TempFile cleaned up here
+    
+    if (validationPassed) {
+      finalize()  // Can access Socket but NOT TempFile — it's out of scope
+    }
+  }
+  // Socket cleaned up here
+}
+
+def validate()(using Scope.Required[Socket & TempFile]): ValidationResult = {
+  // Type guarantees both resources are available
+  get[Socket].send(get[TempFile].readAll())
+}
+
+def finalize()(using Scope.Required[Socket]): Unit = {
+  // Type guarantees Socket is available
+  // Can't accidentally require TempFile here — it would fail to compile
+  // at the call site where TempFile is out of scope
+  get[Socket].sendComplete()
+}
+
+// This would NOT compile:
+def badFinalize()(using Scope.Required[Socket & TempFile]): Unit = {
+  // ...
+}
+// Called from the outer scope where TempFile is gone:
+// badFinalize()  // ✗ Compile error: TempFile not in Stack
+```
+
+**The advantage**: Each scope has a distinct type based on its contents. The compiler prevents:
+- Accessing resources that aren't in scope (compile error on `get[TempFile]` after its scope closed)
+- Passing a scope that doesn't have required resources (compile error on call site)
+- Registering cleanup on the wrong scope (cleanup is always on the current scope via `defer`)
+
 ---
 
 ## Testing
