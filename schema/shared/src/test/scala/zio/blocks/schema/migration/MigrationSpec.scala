@@ -863,6 +863,354 @@ object MigrationSpec extends ZIOSpecDefault {
 
         assertTrue(result == Right(PersonV2(30L)))
       }
+    ),
+
+    suite("Error Branches")(
+      test("isEmpty on empty migration") {
+        val empty = DynamicMigration.empty
+        assertTrue(empty.isEmpty == true)
+      },
+
+      test("isEmpty on non-empty migration") {
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration.isEmpty == false)
+      },
+
+      test("Literal expression works in migration actions") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("b"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        assertTrue(migration(input).isRight)
+      },
+
+      test("addField on non-Record fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("dropField on non-Record fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.DropField(
+            DynamicOptic.root.field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("rename on non-Record fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.String("hello"))
+        val migration = DynamicMigration.single(
+          MigrationAction.Rename(DynamicOptic.root.field("old"), "new")
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("executeRename path not ending with Field") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.Rename(DynamicOptic.root, "newName")
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("join on non-Record fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.Join(
+            at = DynamicOptic.root.field("target"),
+            sourcePaths = Vector(DynamicOptic.root.field("source")),
+            combiner = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("executeJoin path not ending with Field") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.Join(
+            at = DynamicOptic.root,
+            sourcePaths = Vector(DynamicOptic.root.field("a")),
+            combiner = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("split on non-Record fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.Split(
+            at = DynamicOptic.root.field("source"),
+            targetPaths = Vector(DynamicOptic.root.field("target1")),
+            splitter = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("executeSplit path not ending with Field") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.Split(
+            at = DynamicOptic.root.field("source"),
+            targetPaths = Vector(DynamicOptic.root),
+            splitter = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("renameCase on non-Variant fails") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.RenameCase(DynamicOptic.root, "Old", "New")
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("transformCase on non-Variant fails") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("x"),
+                literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+              )
+            )
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("transformElements on non-Sequence fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("transformKeys on non-Map fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("transformValues on non-Map fails") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValues(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.Case mismatch fails") {
+        val input     = DynamicValue.Variant("CaseA", DynamicValue.Record.empty)
+        val migration = DynamicMigration.single(
+          MigrationAction.RenameCase(DynamicOptic.root, "CaseB", "CaseC")
+        )
+        val result = migration(input)
+        assertTrue(result == Right(input))
+      },
+
+      test("modifyAtPath Node.Case on non-Variant fails") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(DynamicOptic.root, Vector.empty)
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.Elements on non-Sequence fails") {
+        val input     = DynamicValue.Record("items" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("items"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.MapKeys on non-Map fails") {
+        val input     = DynamicValue.Record("data" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root.field("data"),
+            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.MapValues on non-Map fails") {
+        val input     = DynamicValue.Record("data" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValues(
+            DynamicOptic.root.field("data"),
+            literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.AtIndex out of bounds fails") {
+        val input = DynamicValue.Record(
+          "items" -> DynamicValue.Sequence(
+            Chunk(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("items"),
+            DynamicOptic.Node.AtIndex(10)
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.AtIndex on non-Sequence fails") {
+        val input = DynamicValue.Record("data" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("data"),
+            DynamicOptic.Node.AtIndex(0)
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.AtMapKey not found fails") {
+        val input = DynamicValue.Record(
+          "data" -> DynamicValue.Map(
+            Chunk(
+              (DynamicValue.Primitive(PrimitiveValue.String("key1")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            )
+          )
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("data"),
+            DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("missingKey")))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("modifyAtPath Node.AtMapKey on non-Map fails") {
+        val input = DynamicValue.Record("data" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("data"),
+            DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("nested field not found fails") {
+        val input =
+          DynamicValue.Record("outer" -> DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("outer").field("missing").field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("field operation on wrong record type") {
+        val input = DynamicValue.Record(
+          "outer" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("outer").field("inner").field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
+      test("sequence and map mixed operations fail gracefully") {
+        val input = DynamicValue.Record(
+          "items" -> DynamicValue.Sequence(
+            Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("items"),
+            DynamicOptic.Node.MapKeys
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      }
     )
   )
 }
