@@ -901,6 +901,1008 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(migration(value).isLeft)
+      },
+      test("AtMapKey navigates to map value") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val value = DynamicValue.Map(
+          Chunk(
+            (key, DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKey("a"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("AtMapKey fails when key not found") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKey("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("AtMapKey fails on non-map") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKey("a"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("AtIndices transforms multiple sequence elements") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atIndices(0, 2),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("AtIndices fails on out of bounds") {
+        val value = DynamicValue.Sequence(
+          Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atIndices(0, 10),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("AtIndices fails on non-sequence") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atIndices(0, 1),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("AtMapKeys transforms multiple map entries") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2))),
+            (DynamicValue.Primitive(PrimitiveValue.String("c")), DynamicValue.Primitive(PrimitiveValue.Int(3)))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKeys("a", "c"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("AtMapKeys fails when key not found") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKeys("a", "missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("AtMapKeys fails on non-map") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKeys("a"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("Elements transforms all sequence elements") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.elements,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("Elements fails on non-sequence") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.elements,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("MapKeys transforms all map keys") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapKeys,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("transformed"))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("MapKeys fails on non-map") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapKeys,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x"))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("MapValues transforms all map values") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapValues,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("MapValues fails on non-map") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapValues,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("Wrapped navigates through single-field record") {
+        val value = DynamicValue.Record(
+          Chunk("inner" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.wrapped,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(
+          result == Right(DynamicValue.Record(Chunk("inner" -> DynamicValue.Primitive(PrimitiveValue.Int(100)))))
+        )
+      },
+      test("Wrapped fails on non-single-field record") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.wrapped,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("nested path through AtMapKey") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("key"))
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              key,
+              DynamicValue.Record(
+                Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("test")))
+              )
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.RenameField(DynamicOptic.root.atKey("key"), "name", "newName")
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested path through AtIndices") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+            DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atIndices(0, 1).field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested path through AtMapKeys") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("a")),
+              DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKeys("a").field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested path through Elements") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.elements.field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested path through MapKeys") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Record(Chunk("id" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+              DynamicValue.Primitive(PrimitiveValue.String("value"))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapKeys.field("id"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested path through MapValues") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("key")),
+              DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapValues.field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested path through Wrapped") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "wrapper" -> DynamicValue.Record(
+              Chunk("inner" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("wrapper").wrapped,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested Case path navigation") {
+        val value = DynamicValue.Variant(
+          "Case1",
+          DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.caseOf("Case1").field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested Field path navigation through record") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "outer" -> DynamicValue.Record(
+              Chunk("inner" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("outer").field("inner"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("nested index path through sequence") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Sequence(
+              Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.at(0).at(0),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("Error aggregation in path navigation")(
+      test("AtIndices aggregates multiple errors when nested paths fail") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+            DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atIndices(0, 1).field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      },
+      test("AtMapKeys aggregates multiple errors when nested paths fail") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("a")),
+              DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            ),
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("b")),
+              DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKeys("a", "b").field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      },
+      test("Elements aggregates multiple errors when nested paths fail") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+            DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.elements.field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      },
+      test("MapKeys aggregates multiple errors when nested paths fail") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+              DynamicValue.Primitive(PrimitiveValue.String("v1"))
+            ),
+            (
+              DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(2)))),
+              DynamicValue.Primitive(PrimitiveValue.String("v2"))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapKeys.field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      },
+      test("MapValues aggregates multiple errors when nested paths fail") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("k1")),
+              DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            ),
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("k2")),
+              DynamicValue.Record(Chunk("wrong" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.mapValues.field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      },
+      test("AtIndices with out-of-bounds index returns error") {
+        val value = DynamicValue.Sequence(
+          Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atIndices(0, 10),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      },
+      test("AtMapKeys with missing key returns error") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("a")),
+              DynamicValue.Primitive(PrimitiveValue.Int(1))
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKeys("a", "missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("DynamicSchemaExpr additional coverage")(
+      test("StringConcat with non-string left operand fails") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.StringConcat(
+              DynamicSchemaExpr.Path(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("suffix")))
+            ),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("StringConcat with non-string right operand fails") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("prefix")))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.StringConcat(
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("prefix"))),
+              DynamicSchemaExpr.Path(DynamicOptic.root.field("missing"))
+            ),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("StringLength with non-string fails") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.StringLength(DynamicSchemaExpr.Path(DynamicOptic.root)),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("CoercePrimitive with non-primitive fails") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Record(Chunk("nested" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "String"),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("Arithmetic with non-primitive left operand fails") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Record(Chunk("nested" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Path(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+              DynamicSchemaExpr.ArithmeticOperator.Add
+            ),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("Arithmetic subtraction works") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(10)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Path(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
+              DynamicSchemaExpr.ArithmeticOperator.Subtract
+            ),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result == Right(DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(7))))))
+      },
+      test("Arithmetic multiplication works") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Path(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
+              DynamicSchemaExpr.ArithmeticOperator.Multiply
+            ),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result == Right(DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(15))))))
+      },
+      test("Logical AND with true values") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+          )
+        )
+        val expr = DynamicSchemaExpr.Logical(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.LogicalOperator.And
+        )
+        assertTrue(expr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Logical OR with false/true values") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Boolean(false)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+          )
+        )
+        val expr = DynamicSchemaExpr.Logical(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.LogicalOperator.Or
+        )
+        assertTrue(expr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Logical with non-boolean left operand fails") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+          )
+        )
+        val expr = DynamicSchemaExpr.Logical(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.LogicalOperator.And
+        )
+        assertTrue(expr.eval(value).isLeft)
+      },
+      test("Not with non-boolean fails") {
+        val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        val expr  = DynamicSchemaExpr.Not(DynamicSchemaExpr.Path(DynamicOptic.root))
+        assertTrue(expr.eval(value).isLeft)
+      },
+      test("Relational operators work correctly") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Int(5)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(10))
+          )
+        )
+        val ltExpr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.RelationalOperator.LessThan
+        )
+        val gtExpr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.RelationalOperator.GreaterThan
+        )
+        val leExpr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.RelationalOperator.LessThanOrEqual
+        )
+        val geExpr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual
+        )
+        val eqExpr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.RelationalOperator.Equal
+        )
+        val neExpr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("a")),
+          DynamicSchemaExpr.Path(DynamicOptic.root.field("b")),
+          DynamicSchemaExpr.RelationalOperator.NotEqual
+        )
+        assertTrue(
+          ltExpr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))) &&
+            gtExpr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))) &&
+            leExpr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))) &&
+            geExpr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))) &&
+            eqExpr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))) &&
+            neExpr.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+        )
+      },
+      test("StringConcat with valid strings works") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("Hello")))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.StringConcat(
+              DynamicSchemaExpr.Path(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" World")))
+            ),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(
+          result == Right(
+            DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World"))))
+          )
+        )
+      },
+      test("StringLength with valid string works") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("Hello")))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.StringLength(DynamicSchemaExpr.Path(DynamicOptic.root)),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result == Right(DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(5))))))
+      },
+      test("CoercePrimitive int to string works") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "String"),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(
+          result == Right(DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("42")))))
+        )
+      },
+      test("ResolvedDefault returns the resolved value") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val resolved = DynamicSchemaExpr.ResolvedDefault(DynamicValue.Primitive(PrimitiveValue.Int(999)))
+        assertTrue(resolved.eval(value) == Right(DynamicValue.Primitive(PrimitiveValue.Int(999))))
+      }
+    ),
+    suite("Wrapped path navigation edge cases")(
+      test("nested Wrapped path through single-field record succeeds") {
+        val value = DynamicValue.Record(
+          Chunk(
+            "outer" -> DynamicValue.Record(
+              Chunk(
+                "inner" -> DynamicValue.Record(
+                  Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+                )
+              )
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("outer").wrapped.field("value"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("Wrapped on empty record fails") {
+        val value     = DynamicValue.Record(Chunk.empty)
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.wrapped,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      },
+      test("Wrapped on primitive fails") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.wrapped,
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      }
+    ),
+    suite("AtMapKey path navigation edge cases")(
+      test("AtMapKey with nested path and modify succeeds") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val value = DynamicValue.Map(
+          Chunk(
+            (
+              key,
+              DynamicValue.Record(
+                Chunk(
+                  "nested" -> DynamicValue.Record(
+                    Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+                  )
+                )
+              )
+            )
+          )
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKey("k").field("nested").field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        val result = migration(value)
+        assertTrue(result.isRight)
+      },
+      test("AtMapKey on sequence fails") {
+        val value     = DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.atKey("k"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      }
+    ),
+    suite("Case path navigation edge cases")(
+      test("Case navigation with mismatched case name returns unchanged value") {
+        val value = DynamicValue.Variant(
+          "Case1",
+          DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.caseOf("Case2").field("x"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        // When case doesn't match, value is returned unchanged (no-op)
+        assertTrue(migration(value) == Right(value))
+      },
+      test("Case navigation on non-variant fails") {
+        val value     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.caseOf("Case1"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            DynamicSchemaExpr.DefaultValue
+          )
+        )
+        assertTrue(migration(value).isLeft)
+      }
+    ),
+    suite("navigateDynamicValue coverage")(
+      test("navigateDynamicValue through Field returns correct value") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.field("x")).eval(value)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("navigateDynamicValue through missing Field fails") {
+        val value = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.field("missing")).eval(value)
+        assertTrue(result.isLeft)
+      },
+      test("navigateDynamicValue through Case returns correct value") {
+        val value = DynamicValue.Variant(
+          "Case1",
+          DynamicValue.Primitive(PrimitiveValue.Int(42))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.caseOf("Case1")).eval(value)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("navigateDynamicValue through mismatched Case returns None") {
+        val value = DynamicValue.Variant(
+          "Case1",
+          DynamicValue.Primitive(PrimitiveValue.Int(42))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.caseOf("Case2")).eval(value)
+        assertTrue(result.isLeft)
+      },
+      test("navigateDynamicValue through AtIndex returns correct element") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.at(1)).eval(value)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(2))))
+      },
+      test("navigateDynamicValue through out-of-bounds AtIndex fails") {
+        val value = DynamicValue.Sequence(
+          Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.at(10)).eval(value)
+        assertTrue(result.isLeft)
+      },
+      test("navigateDynamicValue through AtMapKey returns correct value") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val value = DynamicValue.Map(
+          Chunk((key, DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.atKey("k")).eval(value)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("navigateDynamicValue through missing AtMapKey fails") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val value = DynamicValue.Map(
+          Chunk((key, DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val result = DynamicSchemaExpr.Path(DynamicOptic.root.atKey("missing")).eval(value)
+        assertTrue(result.isLeft)
       }
     )
   )
