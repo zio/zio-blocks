@@ -241,7 +241,7 @@ object TypeIdSpec extends ZIOSpecDefault {
         assertTrue(
           TypeIdPrinter.render(TypeRepr.Constant.IntConst(42)) == "42",
           TypeIdPrinter.render(TypeRepr.Constant.LongConst(100L)) == "100L",
-          TypeIdPrinter.render(TypeRepr.Constant.FloatConst(3.14f)) == "3.14f",
+          TypeIdPrinter.render(TypeRepr.Constant.FloatConst(4.5f)) == "4.5f",
           TypeIdPrinter.render(TypeRepr.Constant.DoubleConst(2.718)) == "2.718",
           TypeIdPrinter.render(TypeRepr.Constant.BooleanConst(true)) == "true",
           TypeIdPrinter.render(TypeRepr.Constant.BooleanConst(false)) == "false",
