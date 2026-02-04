@@ -35,7 +35,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "golemPublishLocal",
-  """set ThisBuild / version := "0.0.0-SNAPSHOT"; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; zioGolemSbt/publishLocal"""
+  """++3.3.7!; set ThisBuild / version := "0.0.0-SNAPSHOT"; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; ++2.12.20!; set ThisBuild / version := "0.0.0-SNAPSHOT"; zioGolemSbt/publishLocal"""
 )
 addCommandAlias(
   "testJVM",
@@ -184,7 +184,15 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq(
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
-    })
+    }),
+    Compile / doc / skip := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
+    Compile / doc / sources := {
+      if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Nil
+      else (Compile / doc / sources).value
+    },
+    Compile / packageDoc / publishArtifact := !CrossVersion
+      .partialVersion(scalaVersion.value)
+      .exists(_._1 == 3)
   )
   .jsSettings(
     libraryDependencies ++= Seq(
@@ -198,7 +206,15 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq(
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
-    })
+    }),
+    Compile / doc / skip := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
+    Compile / doc / sources := {
+      if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Nil
+      else (Compile / doc / sources).value
+    },
+    Compile / packageDoc / publishArtifact := !CrossVersion
+      .partialVersion(scalaVersion.value)
+      .exists(_._1 == 3)
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
