@@ -148,6 +148,22 @@ class App(userService: UserService) {
   // Cache (evictor stopped), Database (pool closed)
 ```
 
+**Scala 2 equivalent:**
+
+```scala
+// Scala 2 — use implicit parameters instead of `using`
+class Cache(config: Config)(implicit scope: Scope.Any) {
+  private val evictor = startEvictorThread()
+  defer {
+    evictor.interrupt()
+    evictor.join()
+  }
+}
+
+def main(): Unit =
+  injected[App].run { _.run() }(Scope.global)
+```
+
 ---
 
 ## Core Concepts
@@ -327,11 +343,21 @@ def finalize()(using Scope.Has[Socket]): Unit = {
 }
 
 // This would NOT compile:
-def badFinalize()(using Scope.Has[Socket & TempFile]): Unit = {
-  // ...
-}
+def badFinalize()(using Scope.Has[Socket & TempFile]): Unit = { ... }
 // Called from the outer scope where TempFile is gone:
 // badFinalize()  // ✗ Compile error: TempFile not in Stack
+```
+
+**Scala 2 equivalent:**
+
+```scala
+def validate()(implicit scope: Scope.Has[Socket with TempFile]): ValidationResult = {
+  get[Socket].send(get[TempFile].readAll())
+}
+
+def finalize()(implicit scope: Scope.Has[Socket]): Unit = {
+  get[Socket].sendComplete()
+}
 ```
 
 **The advantage**: Each scope has a distinct type based on its contents. The compiler prevents:
@@ -414,21 +440,42 @@ object Wireable {
 
 ## Manual Wires
 
-For complex construction logic, create wires directly:
+For complex construction logic, create wires directly instead of relying on macro derivation.
+
+### Wire.Shared vs Wire.Unique
+
+| Type | Behavior | Use Case |
+|------|----------|----------|
+| `Wire.Shared[In, Out]` | One instance per `injected` call | Database pools, caches, configs |
+| `Wire.Unique[In, Out]` | Fresh instance each time needed | Transactions, request handlers |
+
+### Creating Manual Wires
 
 ```scala
-// Scala 3
+// Scala 3 — scope available via context function
 val configWire: Wire.Shared[Any, Config] = Wire.Shared { ctx =>
   Context(Config.load(sys.env("CONFIG_PATH")))
 }
 
 val dbWire: Wire.Shared[Config, Database] = Wire.Shared { ctx =>
   val db = Database.connect(ctx.get[Config].dbUrl)
-  defer(db.close())
+  defer(db.close())  // Register cleanup
   Context(db)
 }
 
-// Scala 2
+// Wire that produces multiple services
+val infraWire: Wire.Shared[Config, Database & Cache] = Wire.Shared { ctx =>
+  val config = ctx.get[Config]
+  val db = Database.connect(config.dbUrl)
+  val cache = Cache.create(config.cacheSize)
+  defer(db.close())
+  defer(cache.close())
+  Context(db, cache)
+}
+```
+
+```scala
+// Scala 2 — scope is an explicit implicit parameter
 val dbWire: Wire.Shared[Config, Database] = Wire.Shared { implicit scope => ctx =>
   val db = Database.connect(ctx.get[Config].dbUrl)
   defer(db.close())
@@ -436,10 +483,32 @@ val dbWire: Wire.Shared[Config, Database] = Wire.Shared { implicit scope => ctx 
 }
 ```
 
-Use manual wires alongside macro-generated ones:
+### Using Manual Wires
+
+Pass manual wires to `injected` alongside or instead of macro-generated ones:
 
 ```scala
+// Mix manual and derived wires
 injected[App](configWire, dbWire).run { _.run() }
+
+// Override a derived wire with a manual one
+injected[App](
+  Wire.Shared[Any, Config] { _ => Context(Config(debug = true)) }  // Custom config
+).run { _.run() }
+```
+
+### Wire.value for Injecting Existing Values
+
+Use `Wire.value` to inject a pre-existing value:
+
+```scala
+def handleRequest(request: Request)(using Scope.Any): Response =
+  injected[RequestHandler](
+    Wire.value(request),           // Inject the request
+    Wire.value(Transaction.begin()) // Inject a fresh transaction
+  ).run { handler =>
+    handler.handle()
+  }
 ```
 
 ---
