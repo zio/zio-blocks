@@ -9,7 +9,7 @@ fi
 cd "$(dirname "$0")/../../.."
 
 echo "[websearch-summary-local-repl] 1) Build Scala.js"
-( sbt -batch -no-colors -Dsbt.supershell=false "++3.3.7!" "zioGolemExamplesJS/fastLinkJS" )
+( sbt -batch -no-colors -Dsbt.supershell=false "++3.3.7!" "zioGolemExamples/fastLinkJS" )
 
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"

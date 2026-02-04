@@ -24,7 +24,7 @@ inThisBuild(
 )
 
 Global / excludeLintKeys ++= Set(
-  zioGolemExamplesJS / testFrameworks,
+  zioGolemExamples / testFrameworks,
   zioGolemQuickstartJS / testFrameworks
 )
 
@@ -92,8 +92,7 @@ lazy val root = project
     zioGolemCore.js,
     zioGolemMacros,
     zioGolemTools,
-    zioGolemExamples.jvm,
-    zioGolemExamples.js,
+    zioGolemExamples,
     zioGolemQuickstart.js,
     zioGolemQuickstart.jvm,
     zioGolemSbt
@@ -546,42 +545,28 @@ lazy val zioGolemTools = project
   )
   .dependsOn(zioGolemModel.jvm, zioGolemMacros)
 
-lazy val zioGolemExamples = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Full)
+lazy val zioGolemExamples = project
   .in(file("golem/examples"))
-  .settings(stdSettings("zio-golem-examples"))
-  .settings(crossProjectSettings)
+  .settings(stdSettings("zio-golem-examples-js"))
+  .settings(jsSettings)
   .settings(
-    publish / skip := true
-  )
-  .dependsOn(schema)
-  .jsSettings(jsSettings)
-  .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
-  .jvmConfigure(_.dependsOn(zioGolemCoreJVM, zioGolemMacros, zioGolemTools))
-
-lazy val zioGolemExamplesJS = zioGolemExamples.js
-  .settings(
-    name                            := "zio-golem-examples-js",
+    name                            := "zio-golem-examples",
+    publish / skip                  := true,
     scalaJSUseMainModuleInitializer := false,
     golemBasePackage                := Some("golem.examples"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     Test / test := {
       Keys.streams.value.log.info(
-        "Skipping zioGolemExamplesJS tests (requires golem runtime). Run `golem/examples/agent2agent-local.sh` instead."
+        "Skipping zioGolemExamples tests (requires golem runtime). Run `golem/examples/agent2agent-local.sh` instead."
       )
     },
     Test / testOnly       := (Test / test).value,
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil
   )
-  .enablePlugins(golem.sbt.GolemPlugin)
-
-lazy val zioGolemExamplesJVM = zioGolemExamples.jvm
-  .settings(
-    name                                   := "zio-golem-examples",
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test
-  )
+  .dependsOn(schema.js, zioGolemCoreJS, zioGolemMacros)
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, golem.sbt.GolemPlugin)
 
 // ---------------------------------------------------------------------------
 // Quickstart (in-repo) - crossProject: shared traits, JS impls, JVM typed client example

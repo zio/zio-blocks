@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
 echo "[agent2agent-local] 1) Build Scala.js"
-( sbt -batch -no-colors -Dsbt.supershell=false "++3.3.7!" "zioGolemExamplesJS/fastLinkJS" )
+( sbt -batch -no-colors -Dsbt.supershell=false "++3.3.7!" "zioGolemExamples/fastLinkJS" )
 
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
