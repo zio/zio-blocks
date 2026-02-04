@@ -77,4 +77,10 @@ object OpticCheck {
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered an error at ${prefix.toScalaString}: ${error.message}"
   }
+
+  case class DynamicConversionError(error: String) extends Error {
+    def full: DynamicOptic   = DynamicOptic.root
+    def prefix: DynamicOptic = DynamicOptic.root
+    def message: String      = s"Dynamic value conversion error: $error"
+  }
 }

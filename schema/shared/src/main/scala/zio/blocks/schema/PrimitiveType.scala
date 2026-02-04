@@ -17,6 +17,34 @@ sealed trait PrimitiveType[A] {
   def validation: Validation[A]
 }
 
+/**
+ * Sub-trait of PrimitiveType for numeric types that support arithmetic
+ * operations. Provides access to the Scala Numeric type class for the
+ * underlying type.
+ *
+ * This trait is sealed within the PrimitiveType hierarchy - all implementations
+ * are the numeric case classes (Byte, Short, Int, Long, Float, Double, BigInt,
+ * BigDecimal).
+ */
+sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
+  def numeric: Numeric[A]
+
+  /**
+   * Returns a Schema for this numeric primitive type.
+   */
+  def schema: Schema[A] = new Schema(
+    new Reflect.Primitive(
+      this,
+      typeId,
+      binding,
+      Doc.Empty,
+      Vector.empty,
+      None,
+      Seq.empty
+    )
+  )
+}
+
 object PrimitiveType {
   case object Unit extends PrimitiveType[scala.Unit] {
     def validation: Validation[scala.Unit] = Validation.None
@@ -51,7 +79,9 @@ object PrimitiveType {
       }
   }
 
-  case class Byte(validation: Validation[scala.Byte]) extends PrimitiveType[scala.Byte] {
+  case class Byte(validation: Validation[scala.Byte]) extends NumericPrimitiveType[scala.Byte] {
+    def numeric: Numeric[scala.Byte] = implicitly[Numeric[scala.Byte]]
+
     def toDynamicValue(value: scala.Byte): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Byte(value))
 
     def typeId: TypeId[scala.Byte] = TypeId.byte
@@ -66,7 +96,9 @@ object PrimitiveType {
       }
   }
 
-  case class Short(validation: Validation[scala.Short]) extends PrimitiveType[scala.Short] {
+  case class Short(validation: Validation[scala.Short]) extends NumericPrimitiveType[scala.Short] {
+    def numeric: Numeric[scala.Short] = implicitly[Numeric[scala.Short]]
+
     def toDynamicValue(value: scala.Short): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Short(value))
 
     def typeId: TypeId[scala.Short] = TypeId.short
@@ -81,7 +113,9 @@ object PrimitiveType {
       }
   }
 
-  case class Int(validation: Validation[scala.Int]) extends PrimitiveType[scala.Int] {
+  case class Int(validation: Validation[scala.Int]) extends NumericPrimitiveType[scala.Int] {
+    def numeric: Numeric[scala.Int] = implicitly[Numeric[scala.Int]]
+
     def toDynamicValue(value: scala.Int): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Int(value))
 
     def typeId: TypeId[scala.Int] = TypeId.int
@@ -96,7 +130,9 @@ object PrimitiveType {
       }
   }
 
-  case class Long(validation: Validation[scala.Long]) extends PrimitiveType[scala.Long] {
+  case class Long(validation: Validation[scala.Long]) extends NumericPrimitiveType[scala.Long] {
+    def numeric: Numeric[scala.Long] = implicitly[Numeric[scala.Long]]
+
     def toDynamicValue(value: scala.Long): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Long(value))
 
     def typeId: TypeId[scala.Long] = TypeId.long
@@ -111,7 +147,9 @@ object PrimitiveType {
       }
   }
 
-  case class Float(validation: Validation[scala.Float]) extends PrimitiveType[scala.Float] {
+  case class Float(validation: Validation[scala.Float]) extends NumericPrimitiveType[scala.Float] {
+    def numeric: Numeric[scala.Float] = implicitly[Numeric[scala.Float]]
+
     def toDynamicValue(value: scala.Float): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Float(value))
 
     def typeId: TypeId[scala.Float] = TypeId.float
@@ -126,7 +164,9 @@ object PrimitiveType {
       }
   }
 
-  case class Double(validation: Validation[scala.Double]) extends PrimitiveType[scala.Double] {
+  case class Double(validation: Validation[scala.Double]) extends NumericPrimitiveType[scala.Double] {
+    def numeric: Numeric[scala.Double] = implicitly[Numeric[scala.Double]]
+
     def toDynamicValue(value: scala.Double): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Double(value))
 
     def typeId: TypeId[scala.Double] = TypeId.double
@@ -172,7 +212,9 @@ object PrimitiveType {
       }
   }
 
-  case class BigInt(validation: Validation[scala.BigInt]) extends PrimitiveType[scala.BigInt] {
+  case class BigInt(validation: Validation[scala.BigInt]) extends NumericPrimitiveType[scala.BigInt] {
+    def numeric: Numeric[scala.BigInt] = implicitly[Numeric[scala.BigInt]]
+
     def toDynamicValue(value: scala.BigInt): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.BigInt(value))
 
     def typeId: TypeId[scala.BigInt] = TypeId.bigInt
@@ -187,7 +229,9 @@ object PrimitiveType {
       }
   }
 
-  case class BigDecimal(validation: Validation[scala.BigDecimal]) extends PrimitiveType[scala.BigDecimal] {
+  case class BigDecimal(validation: Validation[scala.BigDecimal]) extends NumericPrimitiveType[scala.BigDecimal] {
+    def numeric: Numeric[scala.BigDecimal] = implicitly[Numeric[scala.BigDecimal]]
+
     def toDynamicValue(value: scala.BigDecimal): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(value))
 
