@@ -46,7 +46,7 @@ LLM chat prerequisites:
 - Provide the LLM provider WASM dependency in the component definition (examples use
   `golem.yaml` + `.golem/components-js/scala-examples/golem.yaml`). For example:
   `dependencies: [{ type: wasm, url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0/golem_llm_ollama.wasm }]`.
-- Configure one provider env var:
+- Configure one provider env var (for local builtin, set it on the Golem server process):
   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`,
   `GOLEM_OLLAMA_BASE_URL`, or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_REGION`.
 

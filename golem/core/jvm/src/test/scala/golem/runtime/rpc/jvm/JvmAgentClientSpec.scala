@@ -30,6 +30,27 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
   private def agentType[T](traitClass: Class[T], typeName: String): AgentType[T, Unit] =
     AgentType(traitClass.getName, typeName, ConstructorType(GolemSchema.unitGolemSchema), Nil)
 
+  private def method(name: String): AgentMethod[DemoAgent, Unit, Unit] =
+    methodFor[DemoAgent](name)
+
+  private def methodFor[Trait](name: String): AgentMethod[Trait, Unit, Unit] = {
+    val methodMeta = MethodMetadata(
+      name = name,
+      description = None,
+      prompt = None,
+      mode = None,
+      input = StructuredSchema.Tuple(Nil),
+      output = StructuredSchema.Tuple(Nil)
+    )
+    AgentMethod[Trait, Unit, Unit](
+      metadata = methodMeta,
+      functionName = s"demo.$name",
+      inputSchema = GolemSchema.unitGolemSchema,
+      outputSchema = GolemSchema.unitGolemSchema,
+      invocation = MethodInvocation.Awaitable
+    )
+  }
+
   test("connect throws when not configured") {
     val ex = intercept[IllegalStateException] {
       JvmAgentClient.connect[FutureAgent](agentType(classOf[FutureAgent], "FutureAgent"), ())
@@ -48,7 +69,13 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
 
   test("non-Future methods are rejected") {
     JvmAgentClient.configure(JvmAgentClientConfig(component = "demo"))
-    val proxy = JvmAgentClient.connect[SyncAgent](agentType(classOf[SyncAgent], "SyncAgent"), ())
+    val aType: AgentType[SyncAgent, Unit] = AgentType(
+      traitClassName = classOf[SyncAgent].getName,
+      typeName = "SyncAgent",
+      constructor = ConstructorType(GolemSchema.unitGolemSchema),
+      methods = List(methodFor[SyncAgent]("ping"))
+    )
+    val proxy = JvmAgentClient.connect[SyncAgent](aType, ())
 
     intercept[UnsupportedOperationException] {
       proxy.ping()
@@ -126,7 +153,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("badArg"))
     )
 
     JvmAgentClient.configure(JvmAgentClientConfig(component = "demo"))
@@ -141,7 +168,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("ping"), method("badArg"))
     )
 
     JvmAgentClient.configure(
@@ -163,7 +190,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("ping"))
     )
 
     JvmAgentClient.configure(
@@ -187,7 +214,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("ping"))
     )
 
     JvmAgentClient.configure(
@@ -211,7 +238,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("ping"))
     )
 
     JvmAgentClient.configure(
@@ -235,7 +262,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("ping"))
     )
 
     JvmAgentClient.configure(
@@ -259,7 +286,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
       constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
+      methods = List(method("ping"))
     )
 
     JvmAgentClient.configure(
