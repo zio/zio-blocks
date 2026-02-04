@@ -818,7 +818,7 @@ object Json {
       }
   }
 
-  private def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
+  private[this] def fromPrimitiveValue(pv: PrimitiveValue): Json = pv match {
     case PrimitiveValue.Unit              => Object.empty
     case v: PrimitiveValue.Boolean        => Boolean(v.value)
     case v: PrimitiveValue.Byte           => new Number(v.value.toString)
@@ -1043,7 +1043,11 @@ object Json {
     fromKVUnsafe(paths.flatMap(p => json.get(p).toVector.map(v => (p, v))))
   }
 
-  private def partitionImpl(json: Json, path: DynamicOptic, p: (DynamicOptic, Json) => scala.Boolean): (Json, Json) =
+  private def partitionImpl(
+    json: Json,
+    path: DynamicOptic,
+    p: (DynamicOptic, Json) => scala.Boolean
+  ): (Json, Json) =
     json match {
       case obj: Object =>
         val matching    = ChunkBuilder.make[(java.lang.String, Json)]()
@@ -1274,7 +1278,7 @@ object Json {
     kvs.foldLeft[Json](Null) { case (acc, (path, value)) => setOrCreatePath(acc, path, value) }
   }
 
-  private def setOrCreatePath(json: Json, path: DynamicOptic, value: Json): Json = {
+  private[this] def setOrCreatePath(json: Json, path: DynamicOptic, value: Json): Json = {
     val nodes = path.nodes
     if (nodes.isEmpty) return value
 
@@ -1469,7 +1473,7 @@ object Json {
   private def modifyAtPath(json: Json, path: DynamicOptic, f: Json => Json): Option[Json] =
     modifyAtPathRecursive(json, path.nodes, 0, f)
 
-  private def modifyAtPathRecursive(
+  private[this] def modifyAtPathRecursive(
     json: Json,
     nodes: IndexedSeq[DynamicOptic.Node],
     nodeIdx: Int,
@@ -1615,7 +1619,7 @@ object Json {
     pf: PartialFunction[Json, Json]
   ): Either[SchemaError, Json] = modifyAtPathOrFailRecursive(json, path.nodes, 0, pf)
 
-  private def modifyAtPathOrFailRecursive(
+  private[this] def modifyAtPathOrFailRecursive(
     json: Json,
     nodes: IndexedSeq[DynamicOptic.Node],
     nodeIdx: Int,
@@ -1714,7 +1718,7 @@ object Json {
     deleteAtPathRecursive(json, nodes, 0)
   }
 
-  private def deleteAtPathRecursive(json: Json, nodes: IndexedSeq[DynamicOptic.Node], idx: Int): Option[Json] = {
+  private[this] def deleteAtPathRecursive(json: Json, nodes: IndexedSeq[DynamicOptic.Node], idx: Int): Option[Json] = {
     val isLast = idx == nodes.length - 1
     nodes(idx) match {
       case field: DynamicOptic.Node.Field =>
@@ -1787,13 +1791,13 @@ object Json {
    * Inserts a value at the given path, returning Some(modified) or None if the
    * path already exists.
    */
-  private[json] def insertAtPath(json: Json, path: DynamicOptic, value: Json): Option[Json] = {
+  private def insertAtPath(json: Json, path: DynamicOptic, value: Json): Option[Json] = {
     val nodes = path.nodes
     if (nodes.isEmpty) return None // Can't insert at root
     insertAtPathRecursive(json, nodes, 0, value)
   }
 
-  private def insertAtPathRecursive(
+  private[this] def insertAtPathRecursive(
     json: Json,
     nodes: IndexedSeq[DynamicOptic.Node],
     nodeIdx: Int,
@@ -1856,13 +1860,13 @@ object Json {
    * Inserts a value at the given path, returning Left with error if the path
    * already exists or the parent doesn't exist.
    */
-  private[json] def insertAtPathOrFail(json: Json, path: DynamicOptic, value: Json): Either[SchemaError, Json] = {
+  private def insertAtPathOrFail(json: Json, path: DynamicOptic, value: Json): Either[SchemaError, Json] = {
     val nodes = path.nodes
     if (nodes.isEmpty) return Left(SchemaError("Cannot insert at root path"))
     insertAtPathOrFailRecursive(json, nodes, 0, value)
   }
 
-  private def insertAtPathOrFailRecursive(
+  private[this] def insertAtPathOrFailRecursive(
     json: Json,
     nodes: IndexedSeq[DynamicOptic.Node],
     nodeIdx: Int,
