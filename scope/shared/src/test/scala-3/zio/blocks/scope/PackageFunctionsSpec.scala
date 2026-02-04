@@ -56,7 +56,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     given Wireable.Typed[Config, DatabaseTrait] = new Wireable[DatabaseTrait] {
       type In = Config
       def wire: Wire[Config, DatabaseTrait] = Wire.Shared[Config, DatabaseTrait] {
-        val config = get[Config]
+        val config = $[Config]
         val impl   = new DatabaseImpl(config)
         defer(impl.close())
         Context[DatabaseTrait](impl)
@@ -74,11 +74,11 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       closeable.close()
       assertTrue(cleaned)
     },
-    test("get retrieves from scope") {
+    test("$ retrieves from scope") {
       val config              = new Config
       val closeable           = Scope.makeCloseable[Config, TNil](Scope.global, Context(config), new Finalizers)
       given Scope.Has[Config] = closeable
-      val retrieved           = get[Config]
+      val retrieved           = $[Config]
       closeable.close()
       assertTrue(retrieved eq config)
     },
@@ -189,7 +189,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         assertTrue(instance.closed)
       }
     ),
-    suite("injected[T]")(
+    suite("top-level injected[T]")(
       test("creates scope for no-arg class") {
         given Scope.Any = Scope.global
         val closeable   = injected[Config]()
@@ -204,32 +204,13 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         closeable.close()
         assertTrue(svc != null)
       },
-      test("handles AutoCloseable") {
+      test("handles AutoCloseable cleanup") {
         given Scope.Any = Scope.global
         val closeable   = injected[CloseableConfig]()
         val instance    = closeable.get[CloseableConfig]
         assertTrue(!instance.closed)
         closeable.close()
         assertTrue(instance.closed)
-      },
-      test("close cleans up AutoCloseable") {
-        given Scope.Any = Scope.global
-        val closeable   = injected[CloseableConfig]()
-        val instance    = closeable.get[CloseableConfig]
-        assertTrue(!instance.closed)
-        closeable.close()
-        assertTrue(instance.closed)
-      },
-      test("uses Wireable when available") {
-        val wire                = shared[DatabaseTrait]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
-        given Scope.Has[Config] = scope
-        val ctx                 = wire.construct
-        val db                  = ctx.get[DatabaseTrait]
-        assertTrue(db.query().contains("querying"))
       }
     ),
     suite("Wireable.from")(

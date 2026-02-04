@@ -7,7 +7,7 @@ package object scope {
   def defer(finalizer: => Unit)(using scope: Scope.Any): Unit =
     scope.defer(finalizer)
 
-  def get[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T =
+  def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T =
     scope.get[T]
 
   def injectedValue[T](t: T)(using scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
