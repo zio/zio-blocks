@@ -1,0 +1,28 @@
+1
+00:00:00,000 --> 00:00:05,300
+ZIO Blocks • Schema Migration System
+
+2
+00:00:05,300 --> 00:00:18,600
+Type-safe selectors → DynamicOptic
+.when / .each / .wrapped / .at / .atKey …
+
+3
+00:00:18,600 --> 00:00:31,900
+Pure, serializable migrations:
+DynamicMigration + MigrationAction
+
+4
+00:00:31,900 --> 00:00:45,200
+Validation: Join/Split simulate field changes
+Serialization: JSON roundtrip tests pass
+
+5
+00:00:45,200 --> 00:00:62,500
+Apply • compose • reverse
+with path-aware errors
+
+6
+00:00:62,500 --> 00:00:72,500
+Green build:
+schemaJVM/test + schemaJS/test (1210 tests)

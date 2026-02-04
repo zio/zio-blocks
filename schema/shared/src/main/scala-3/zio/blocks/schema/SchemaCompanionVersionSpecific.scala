@@ -1474,7 +1474,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       }
     }
     
-    val tpeName = toExpr(structuralTypeName[A](tpe))
+    val typeName = Expr(tpe.show.replaceAll("\\s+", " ").take(100))
     val fieldsVec = Expr.ofSeq(fieldExprs)
     val usedRegs = Expr(fields.length.toLong)
     
@@ -1482,7 +1482,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Record[Binding, A](
           fields = Vector($fieldsVec*),
-          typeName = $tpeName,
+          typeId = zio.blocks.typeid.TypeId.nominal[A]($typeName, zio.blocks.typeid.Owner.fromPackagePath("structural")),
           recordBinding = new Binding.Record(
             constructor = new StructuralConstructor[A] {
               def usedRegisters: RegisterOffset = $usedRegs
@@ -1527,7 +1527,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       fail(s"Structural enum '${tpe.show}' has no union members.")
     }
     
-    val tpeName = toExpr(structuralTypeName[A](tpe))
+    val typeName = Expr(tpe.show.replaceAll("\\s+", " ").take(100))
     
     // Build case Terms using the same pattern as deriveSchemaForSealedTraitOrAbstractClassOrUnion
     val caseTermExprs = Varargs(cases.map { case (tag, caseTpe, fields) =>
@@ -1550,7 +1550,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             val fieldTerms = flds.map { case (n, s) => s.reflect.asTerm[ct](n) }
             new Reflect.Record[Binding, ct](
               fields = fieldTerms.toVector,
-              typeName = TypeName(Namespace(Nil), $caseTpeName),
+              typeId = zio.blocks.typeid.TypeId.nominal[ct]($caseTpeName, zio.blocks.typeid.Owner.fromPackagePath("structural")),
               recordBinding = new Binding.Record(
                 constructor = new StructuralConstructor[ct] {
                   def usedRegisters: RegisterOffset = $usedRegs
@@ -1579,7 +1579,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Variant[Binding, A](
           cases = Vector($caseTermExprs*),
-          typeName = $tpeName,
+          typeId = zio.blocks.typeid.TypeId.nominal[A]($typeName, zio.blocks.typeid.Owner.fromPackagePath("structural")),
           variantBinding = new Binding.Variant(
             discriminator = new Discriminator[A] {
               def discriminate(a: A): Int = {
@@ -1592,10 +1592,5 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         )
       )
     }
-  }
-
-  private def structuralTypeName[A: Type](tpe: TypeRepr): TypeName[A] = {
-    val name = tpe.show.replaceAll("\\s+", " ").take(100) // Readable representation
-    TypeName[A](Namespace(List("structural")), name)
   }
 }

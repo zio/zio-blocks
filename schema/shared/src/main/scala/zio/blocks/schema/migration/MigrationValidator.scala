@@ -134,13 +134,13 @@ object MigrationValidator {
               val isOptional = r.fields.map { term =>
                 term.name -> term.value.isOption
               }.toMap
-              SchemaStructure.Record(r.typeName.name, fields, isOptional)
+              SchemaStructure.Record(r.typeId.name, fields, isOptional)
 
             case v: Reflect.Variant[F, A @unchecked] =>
               val cases = v.cases.map { term =>
                 term.name -> extractFromReflect(term.value)
               }.toMap
-              SchemaStructure.Variant(v.typeName.name, cases)
+              SchemaStructure.Variant(v.typeId.name, cases)
 
             case s: Reflect.Sequence[F @unchecked, _, _] =>
               SchemaStructure.Sequence(extractFromReflect(s.element))

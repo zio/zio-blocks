@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
 /**
@@ -168,9 +169,9 @@ object DynamicMigration {
             Left(MigrationError.single(MigrationError.PathNavigationFailed(at, "Not all source paths exist")))
           } else {
             // Create a temporary record with the source values for the combiner
-            val tempRecord = DynamicValue.Record(
+            val tempRecord = DynamicValue.Record(Chunk.from(
               sourceValues.zipWithIndex.map { case (v, i) => (s"_$i", v) }
-            )
+            ))
             combiner.eval(tempRecord).left.map(wrapExprError(at, "Join")).map { combined =>
               // Remove source fields and add combined field
               val sourceFieldNames = sourcePaths
@@ -527,11 +528,11 @@ object DynamicMigration {
             case DynamicValue.Record(fields) if fields.length == 1 =>
               if (isLast) {
                 modify(value, fields.head._2).map { newValue =>
-                  DynamicValue.Record(Vector((fields.head._1, newValue)))
+                  DynamicValue.Record(fields.head._1 -> newValue)
                 }
               } else {
-                modifyAtPathWithParentContextRec(fields.head._2, path, idx + 1)(modify).map { newValue =>
-                  DynamicValue.Record(Vector((fields.head._1, newValue)))
+              modifyAtPathWithParentContextRec(fields.head._2, path, idx + 1)(modify).map { newValue =>
+                  DynamicValue.Record(fields.head._1 -> newValue)
                 }
               }
             case other =>
@@ -661,7 +662,7 @@ object DynamicMigration {
           value match {
             case DynamicValue.Record(fields) if fields.length == 1 =>
               modifyAtPathRec(fields.head._2, path, idx + 1)(modify).map { newValue =>
-                DynamicValue.Record(Vector((fields.head._1, newValue)))
+                DynamicValue.Record(fields.head._1 -> newValue)
               }
             case other =>
               Left(
