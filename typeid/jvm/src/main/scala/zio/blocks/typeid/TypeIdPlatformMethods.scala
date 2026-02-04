@@ -269,7 +269,7 @@ private[typeid] object TypeIdPlatformMethods {
         case Owner.Term(name)    => (name, true)
         case Owner.Type(name)    => (name, true)
       }
-      val sb = new StringBuilder
+      val sb = new java.lang.StringBuilder
       parts.zipWithIndex.foreach { case ((name, _), idx) =>
         if (idx > 0) {
           val prevWasTermOrType = parts(idx - 1)._2
