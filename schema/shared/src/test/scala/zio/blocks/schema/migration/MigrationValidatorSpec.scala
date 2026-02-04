@@ -1,16 +1,16 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.*
-import zio.blocks.schema.migration.MigrationAction.*
-import zio.test.*
+import zio.blocks.schema._
+import zio.blocks.schema.migration.MigrationAction._
+import zio.test._
 
 object MigrationValidatorSpec extends ZIOSpecDefault {
 
   final case class A(a: Int)
-  object A { given Schema[A] = Schema.derived[A] }
+  object A { implicit val schema: Schema[A] = Schema.derived[A] }
 
   final case class B(a: Int, b: Int = 1)
-  object B { given Schema[B] = Schema.derived[B] }
+  object B { implicit val schema: Schema[B] = Schema.derived[B] }
 
   override def spec =
     suite("MigrationValidator")(
@@ -22,7 +22,7 @@ object MigrationValidatorSpec extends ZIOSpecDefault {
           )
         )
 
-        val out = MigrationValidator.validate(prog, summon[Schema[A]], summon[Schema[B]])
+        val out = MigrationValidator.validate(prog, implicitly[Schema[A]], implicitly[Schema[B]])
         assertTrue(out.isLeft)
       }
     )

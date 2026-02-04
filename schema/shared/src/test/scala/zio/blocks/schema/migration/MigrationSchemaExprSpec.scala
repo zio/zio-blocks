@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{Schema, SchemaExpr}
-import zio.test.*
+import zio.test._
 
 object MigrationSchemaExprSpec extends ZIOSpecDefault {
 

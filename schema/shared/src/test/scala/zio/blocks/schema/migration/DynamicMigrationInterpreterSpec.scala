@@ -1,8 +1,8 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaExpr}
-import zio.blocks.schema.migration.MigrationAction.*
-import zio.test.*
+import zio.blocks.schema.migration.MigrationAction._
+import zio.test._
 
 object DynamicMigrationInterpreterSpec extends ZIOSpecDefault {
 

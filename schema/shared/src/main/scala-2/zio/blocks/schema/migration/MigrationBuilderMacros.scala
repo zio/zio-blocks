@@ -93,7 +93,7 @@ private[migration] object MigrationBuilderMacros {
   )(steps: List[Step], ctx: String): String =
     steps.lastOption match {
       case Some(Step.Field(n)) => n
-      case other =>
+      case other               =>
         abort(c, s"$ctx: selector must end in a field, got: $other")
     }
 
@@ -116,7 +116,7 @@ private[migration] object MigrationBuilderMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val self = c.prefix
+    val self              = c.prefix
     val (steps, fieldTpe) =
       selectorToSteps(c)(target.asInstanceOf[c.Expr[Any => Any]])
     requireEndsInField(c)(steps, "addField(target)")
@@ -167,7 +167,7 @@ private[migration] object MigrationBuilderMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val self = c.prefix
+    val self              = c.prefix
     val (steps, fieldTpe) =
       selectorToSteps(c)(source.asInstanceOf[c.Expr[Any => Any]])
     requireEndsInField(c)(steps, "dropField(source)")
@@ -218,7 +218,7 @@ private[migration] object MigrationBuilderMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val self = c.prefix
+    val self           = c.prefix
     val (fromSteps, _) =
       selectorToSteps(c)(from.asInstanceOf[c.Expr[Any => Any]])
     val (toSteps, _) =
@@ -249,7 +249,7 @@ private[migration] object MigrationBuilderMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
 
-    val self = c.prefix
+    val self           = c.prefix
     val (fromSteps, _) =
       selectorToSteps(c)(from.asInstanceOf[c.Expr[Any => Any]])
     val (toSteps, _) =
@@ -444,46 +444,44 @@ private[migration] object MigrationBuilderMacros {
   // transformCaseAt
   // ----------------------------
 
-def transformCaseAtImpl[
-  A: c.WeakTypeTag,
-  B: c.WeakTypeTag,
-  CaseA: c.WeakTypeTag,
-  CaseB: c.WeakTypeTag
-](
-  c: blackbox.Context
-)(
-  at: c.Expr[A => CaseA]
-)(
-  caseMigration: c.Expr[MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]]
-): c.Expr[MigrationBuilder[A, B]] = {
-  import c.universe._
+  def transformCaseAtImpl[
+    A: c.WeakTypeTag,
+    B: c.WeakTypeTag,
+    CaseA: c.WeakTypeTag,
+    CaseB: c.WeakTypeTag
+  ](
+    c: blackbox.Context
+  )(
+    at: c.Expr[A => CaseA]
+  )(
+    caseMigration: c.Expr[MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
 
-  val self       = c.prefix
-  val (steps, _) = selectorToSteps(c)(at.asInstanceOf[c.Expr[Any => Any]])
-  val atDyn      = stepsToDynamicOpticTree(c)(steps)
+    val self       = c.prefix
+    val (steps, _) = selectorToSteps(c)(at.asInstanceOf[c.Expr[Any => Any]])
+    val atDyn      = stepsToDynamicOpticTree(c)(steps)
 
-  val caseATpe = weakTypeOf[CaseA]
-  val caseBTpe = weakTypeOf[CaseB]
+    val caseATpe = weakTypeOf[CaseA]
+    val caseBTpe = weakTypeOf[CaseB]
 
-  // Summon Schema[CaseA] and Schema[CaseB] from implicits at call site
-  val saTree = c.inferImplicitValue(appliedType(typeOf[Schema[_]].typeConstructor, caseATpe), silent = true)
-  if (saTree == EmptyTree)
-    c.abort(c.enclosingPosition, s"Could not find implicit Schema[$caseATpe] for transformCaseAt")
+    // Summon Schema[CaseA] and Schema[CaseB] from implicits at call site
+    val saTree = c.inferImplicitValue(appliedType(typeOf[Schema[_]].typeConstructor, caseATpe), silent = true)
+    if (saTree == EmptyTree)
+      c.abort(c.enclosingPosition, s"Could not find implicit Schema[$caseATpe] for transformCaseAt")
 
-  val sbTree = c.inferImplicitValue(appliedType(typeOf[Schema[_]].typeConstructor, caseBTpe), silent = true)
-  if (sbTree == EmptyTree)
-    c.abort(c.enclosingPosition, s"Could not find implicit Schema[$caseBTpe] for transformCaseAt")
+    val sbTree = c.inferImplicitValue(appliedType(typeOf[Schema[_]].typeConstructor, caseBTpe), silent = true)
+    if (sbTree == EmptyTree)
+      c.abort(c.enclosingPosition, s"Could not find implicit Schema[$caseBTpe] for transformCaseAt")
 
-  val nested =
-    q"${caseMigration.tree}(new _root_.zio.blocks.schema.migration.MigrationBuilder[$caseATpe, $caseBTpe]($saTree, $sbTree, _root_.scala.Vector.empty))"
+    val nested =
+      q"${caseMigration.tree}(new _root_.zio.blocks.schema.migration.MigrationBuilder[$caseATpe, $caseBTpe]($saTree, $sbTree, _root_.scala.Vector.empty))"
 
-  val action =
-    q"_root_.zio.blocks.schema.migration.MigrationAction.TransformCase(at = $atDyn, actions = $nested.actions)"
+    val action =
+      q"_root_.zio.blocks.schema.migration.MigrationAction.TransformCase(at = $atDyn, actions = $nested.actions)"
 
-  c.Expr[MigrationBuilder[A, B]](q"$self.copyAppended($action)")
-}
-
-
+    c.Expr[MigrationBuilder[A, B]](q"$self.copyAppended($action)")
+  }
 
   // ----------------------------
   // transformElements / keys / values

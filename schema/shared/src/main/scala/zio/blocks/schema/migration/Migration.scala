@@ -17,30 +17,29 @@ final class Migration[A, B] private (
   private val targetSchema: Schema[tsb.StructuralType] =
     targetSchemaAny.asInstanceOf[Schema[tsb.StructuralType]]
 
-  def apply(value: A)(
-    implicit
+  def apply(value: A)(implicit
     asA: As[A, tsa.StructuralType],
     asB: As[B, tsb.StructuralType]
   ): Either[MigrationError, B] =
     for {
       aStruct <- asA
-        .into(value)
-        .left
-        .map(e => MigrationError.InvalidOp("IntoStructural", e.toString))
+                   .into(value)
+                   .left
+                   .map(e => MigrationError.InvalidOp("IntoStructural", e.toString))
 
       dynA = sourceSchema.toDynamicValue(aStruct)
 
       dynB <- DynamicMigrationInterpreter(program, dynA)
 
       bStruct <- targetSchema
-        .fromDynamicValue(dynB)
-        .left
-        .map(err => MigrationError.InvalidOp("DecodeStructural", err.toString))
+                   .fromDynamicValue(dynB)
+                   .left
+                   .map(err => MigrationError.InvalidOp("DecodeStructural", err.toString))
 
       outB <- asB
-        .from(bStruct)
-        .left
-        .map(e => MigrationError.InvalidOp("FromStructural", e.toString))
+                .from(bStruct)
+                .left
+                .map(e => MigrationError.InvalidOp("FromStructural", e.toString))
     } yield outB
 
   def reverse: Migration[B, A] =
@@ -54,8 +53,7 @@ final class Migration[A, B] private (
 
 object Migration {
 
-  def fromProgram[A, B](program: DynamicMigration)(
-    implicit
+  def fromProgram[A, B](program: DynamicMigration)(implicit
     sa: Schema[A],
     sb: Schema[B],
     tsa: ToStructural[A],
@@ -69,8 +67,7 @@ object Migration {
       sb.structural
     )
 
-  def id[A](
-    implicit
+  def id[A](implicit
     s: Schema[A],
     ts: ToStructural[A]
   ): Migration[A, A] =

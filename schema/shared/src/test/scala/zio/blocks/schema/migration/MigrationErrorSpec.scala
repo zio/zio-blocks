@@ -1,8 +1,8 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, DynamicValue}
-import zio.blocks.schema.migration.MigrationAction.*
-import zio.test.*
+import zio.blocks.schema.migration.MigrationAction._
+import zio.test._
 
 object MigrationErrorSpec extends ZIOSpecDefault {
 
@@ -18,7 +18,9 @@ object MigrationErrorSpec extends ZIOSpecDefault {
 
         val out = DynamicMigrationInterpreter(mig, dv)
 
-        assertTrue(out == Left(MigrationError.MissingPath(DynamicOptic.root.field("nope"))))
+        assertTrue(
+          out == Left(MigrationError.MissingPath(DynamicOptic.root.field("nope")))
+        )
       }
     )
 }

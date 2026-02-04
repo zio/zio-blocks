@@ -1,6 +1,5 @@
 package zio.blocks.schema.migration
 
-
 import scala.language.experimental.macros
 import zio.blocks.schema.{Schema, SchemaExpr, ToStructural}
 import zio.blocks.schema.DynamicOptic
@@ -76,13 +75,10 @@ final class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.renameCaseAtImpl[A, B]
 
   def transformCaseAt[CaseA, CaseB](
-  at: A => CaseA
+    at: A => CaseA
   )(
     caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
-  ): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacros.transformCaseAtImpl[A, B, CaseA, CaseB]
-
-
+  ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformCaseAtImpl[A, B, CaseA, CaseB]
 
   def transformCase[CaseA, CaseB](
     caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
