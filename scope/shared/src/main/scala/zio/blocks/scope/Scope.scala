@@ -12,7 +12,7 @@ sealed trait Scope[+Stack] {
 object Scope {
   type Any = Scope[?]
 
-  type Has[+T] = Scope[Context[T] :: ?]
+  type Has[+T] = Scope[Context[T] :: scala.Any]
 
   implicit final class ScopeOps[Stack](private val self: Scope[Stack]) extends AnyVal {
     def get[T](implicit ev: InStack[T, Stack], nom: IsNominalType[T]): T = self.getImpl(nom)

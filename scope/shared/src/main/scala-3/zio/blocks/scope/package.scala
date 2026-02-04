@@ -19,9 +19,9 @@ package object scope {
     Scope.makeCloseable(scope, ctx, finalizers)
   }
 
-  inline def shared[T]: Wire.Shared[?, T] = ${ ScopeMacros.sharedImpl[T] }
+  transparent inline def shared[T]: Wire.Shared[?, T] = ${ ScopeMacros.sharedImpl[T] }
 
-  inline def unique[T]: Wire.Unique[?, T] = ${ ScopeMacros.uniqueImpl[T] }
+  transparent inline def unique[T]: Wire.Unique[?, T] = ${ ScopeMacros.uniqueImpl[T] }
 
   inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }

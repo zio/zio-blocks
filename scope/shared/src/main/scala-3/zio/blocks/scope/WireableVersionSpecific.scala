@@ -5,23 +5,25 @@ import scala.quoted.*
 import scala.compiletime.summonInline
 
 private[scope] trait WireableVersionSpecific {
-  inline def from[Impl <: T, T]: Wireable[T] = ${ WireableMacros.fromImpl[Impl, T] }
+
+  transparent inline def from[T]: Wireable[T] = ${ WireableMacros.fromImpl[T] }
 }
 
 private[scope] object WireableMacros {
-  def fromImpl[Impl <: T: Type, T: Type](using Quotes): Expr[Wireable[T]] = {
+
+  def fromImpl[T: Type](using Quotes): Expr[Wireable[T]] = {
     import quotes.reflect.*
 
-    val implTpe = TypeRepr.of[Impl]
-    val implSym = implTpe.typeSymbol
+    val tpe = TypeRepr.of[T]
+    val sym = tpe.typeSymbol
 
-    if (!implSym.isClassDef) {
-      report.errorAndAbort(s"${implTpe.show} is not a class")
+    if (!sym.isClassDef) {
+      report.errorAndAbort(s"${tpe.show} is not a class")
     }
 
-    val ctor = implSym.primaryConstructor
+    val ctor = sym.primaryConstructor
     if (ctor == Symbol.noSymbol) {
-      report.errorAndAbort(s"${implTpe.show} has no primary constructor")
+      report.errorAndAbort(s"${tpe.show} has no primary constructor")
     }
 
     val paramLists = ctor.paramSymss
@@ -30,205 +32,231 @@ private[scope] object WireableMacros {
       params.headOption.forall(p => !p.flags.is(Flags.Given) && !p.flags.is(Flags.Implicit))
     }
 
-    val allRegularParams = regularParams.flatten
+    val allRegularParams  = regularParams.flatten
+    val allImplicitParams = implicitParams.flatten
 
-    val hasScopeParam = implicitParams.flatten.exists { param =>
-      val paramType = implTpe.memberType(param)
+    val regularDepTypes = allRegularParams.map(param => tpe.memberType(param))
+
+    val scopeHasTypes = allImplicitParams.flatMap { param =>
+      val paramType = tpe.memberType(param)
+      extractScopeHasType(paramType)
+    }
+
+    val hasScopeParam = allImplicitParams.exists { param =>
+      val paramType = tpe.memberType(param)
       paramType <:< TypeRepr.of[Scope.Any]
     }
 
-    val isAutoCloseable = implTpe <:< TypeRepr.of[AutoCloseable]
+    val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
 
-    val depTypes = allRegularParams.map { param =>
-      implTpe.memberType(param)
-    }
+    val allDepTypes = regularDepTypes ++ scopeHasTypes
 
-    depTypes match {
+    allDepTypes match {
       case Nil =>
-        generateWireable0[Impl, T](hasScopeParam, isAutoCloseable)
+        generateWireable0[T](hasScopeParam, isAutoCloseable)
       case List(dep1Tpe) =>
         dep1Tpe.asType match {
           case '[d1] =>
-            generateWireable1[Impl, T, d1](hasScopeParam, isAutoCloseable)
+            generateWireable1[T, d1](hasScopeParam, isAutoCloseable)
         }
       case List(dep1Tpe, dep2Tpe) =>
         (dep1Tpe.asType, dep2Tpe.asType) match {
           case ('[d1], '[d2]) =>
-            generateWireable2[Impl, T, d1, d2](hasScopeParam, isAutoCloseable)
+            generateWireable2[T, d1, d2](hasScopeParam, isAutoCloseable)
         }
       case _ =>
-        report.errorAndAbort(s"Wireable.from supports up to 2 constructor parameters, got ${depTypes.length}")
+        report.errorAndAbort(s"Wireable.from supports up to 2 dependencies, got ${allDepTypes.length}")
     }
   }
 
-  private def generateWireable0[Impl: Type, T: Type](
+  private def extractScopeHasType(using Quotes)(tpe: quotes.reflect.TypeRepr): Option[quotes.reflect.TypeRepr] = {
+    import quotes.reflect.*
+    val scopeTypeRepr = TypeRepr.of[Scope[?]]
+    if (tpe <:< scopeTypeRepr && !(tpe <:< TypeRepr.of[Scope[TNil]])) {
+      tpe match {
+        case AppliedType(_, List(stackType)) =>
+          stackType match {
+            case AppliedType(cons, List(contextType, _)) if cons.typeSymbol.name == "::" =>
+              contextType match {
+                case AppliedType(_, List(innerType)) =>
+                  if (innerType =:= TypeRepr.of[scala.Any]) None
+                  else Some(innerType)
+                case _ => None
+              }
+            case _ => None
+          }
+        case _ => None
+      }
+    } else {
+      None
+    }
+  }
+
+  private def generateWireable0[T: Type](
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean
   )(using Quotes): Expr[Wireable[T]] = {
     import quotes.reflect.*
 
-    val implTpe = TypeRepr.of[Impl]
+    val tpe = TypeRepr.of[T]
 
     if (hasScopeParam) {
       '{
         new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[Any, T] { (scope: Scope.Any) => (_: Context[Any]) =>
+          type In = Any
+          def wire: Wire[Any, T] = Wire.Shared[Any, T] {
+            val scope    = summon[Scope.Has[Any]]
             val instance = ${
-              val ctorSym  = implTpe.typeSymbol.primaryConstructor
-              val ctor     = Select(New(TypeTree.of[Impl]), ctorSym)
+              val ctorSym  = tpe.typeSymbol.primaryConstructor
+              val ctor     = Select(New(TypeTree.of[T]), ctorSym)
               val scopeRef = '{ scope }.asTerm
-              Apply(Apply(ctor, Nil), List(scopeRef)).asExprOf[Impl]
+              Apply(Apply(ctor, Nil), List(scopeRef)).asExprOf[T]
             }
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
+            Context[T](instance)(using summonInline[IsNominalType[T]])
           }
         }
       }
     } else if (isAutoCloseable) {
       '{
         new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[Any, T] { (scope: Scope.Any) => (_: Context[Any]) =>
+          type In = Any
+          def wire: Wire[Any, T] = Wire.Shared[Any, T] {
+            val scope    = summon[Scope.Has[Any]]
             val instance = ${
-              val ctorSym = implTpe.typeSymbol.primaryConstructor
-              val ctor    = Select(New(TypeTree.of[Impl]), ctorSym)
-              Apply(ctor, Nil).asExprOf[Impl]
+              val ctorSym = tpe.typeSymbol.primaryConstructor
+              val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+              Apply(ctor, Nil).asExprOf[T]
             }
             scope.defer(instance.asInstanceOf[AutoCloseable].close())
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
+            Context[T](instance)(using summonInline[IsNominalType[T]])
           }
         }
       }
     } else {
       '{
         new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[Any, T] { (_: Scope.Any) => (_: Context[Any]) =>
+          type In = Any
+          def wire: Wire[Any, T] = Wire.Shared[Any, T] {
             val instance = ${
-              val ctorSym = implTpe.typeSymbol.primaryConstructor
-              val ctor    = Select(New(TypeTree.of[Impl]), ctorSym)
-              Apply(ctor, Nil).asExprOf[Impl]
+              val ctorSym = tpe.typeSymbol.primaryConstructor
+              val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+              Apply(ctor, Nil).asExprOf[T]
             }
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
+            Context[T](instance)(using summonInline[IsNominalType[T]])
           }
         }
       }
     }
   }
 
-  private def generateWireable1[Impl: Type, T: Type, D1: Type](
+  private def generateWireable1[T: Type, D1: Type](
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean
   )(using Quotes): Expr[Wireable[T]] = {
     import quotes.reflect.*
 
-    val implTpe = TypeRepr.of[Impl]
+    val tpe = TypeRepr.of[T]
 
-    if (hasScopeParam) {
-      '{
-        new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[D1, T] { (scope: Scope.Any) => (ctx: Context[D1]) =>
-            val arg1     = ctx.get[D1](using summonInline[IsNominalType[D1]])
-            val instance = ${
-              val ctorSym  = implTpe.typeSymbol.primaryConstructor
-              val ctor     = Select(New(TypeTree.of[Impl]), ctorSym)
-              val arg1Ref  = '{ arg1 }.asTerm
-              val scopeRef = '{ scope }.asTerm
-              Apply(Apply(ctor, List(arg1Ref)), List(scopeRef)).asExprOf[Impl]
+    '{
+      new Wireable[T] {
+        type In = D1
+
+        def wire: Wire[D1, T] = Wire.Shared[D1, T] {
+          val scope = summon[Scope.Has[D1]]
+          val arg1  = scope.get[D1]
+          ${
+            if (hasScopeParam) {
+              '{
+                val instance = ${
+                  val ctorSym  = tpe.typeSymbol.primaryConstructor
+                  val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                  val arg1Ref  = '{ arg1 }.asTerm
+                  val scopeRef = '{ scope }.asTerm
+                  Apply(Apply(ctor, List(arg1Ref)), List(scopeRef)).asExprOf[T]
+                }
+                Context[T](instance)(using summonInline[IsNominalType[T]])
+              }
+            } else if (isAutoCloseable) {
+              '{
+                val instance = ${
+                  val ctorSym = tpe.typeSymbol.primaryConstructor
+                  val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                  val arg1Ref = '{ arg1 }.asTerm
+                  Apply(ctor, List(arg1Ref)).asExprOf[T]
+                }
+                scope.defer(instance.asInstanceOf[AutoCloseable].close())
+                Context[T](instance)(using summonInline[IsNominalType[T]])
+              }
+            } else {
+              '{
+                val instance = ${
+                  val ctorSym = tpe.typeSymbol.primaryConstructor
+                  val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                  val arg1Ref = '{ arg1 }.asTerm
+                  Apply(ctor, List(arg1Ref)).asExprOf[T]
+                }
+                Context[T](instance)(using summonInline[IsNominalType[T]])
+              }
             }
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
-          }
-        }
-      }
-    } else if (isAutoCloseable) {
-      '{
-        new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[D1, T] { (scope: Scope.Any) => (ctx: Context[D1]) =>
-            val arg1     = ctx.get[D1](using summonInline[IsNominalType[D1]])
-            val instance = ${
-              val ctorSym = implTpe.typeSymbol.primaryConstructor
-              val ctor    = Select(New(TypeTree.of[Impl]), ctorSym)
-              val arg1Ref = '{ arg1 }.asTerm
-              Apply(ctor, List(arg1Ref)).asExprOf[Impl]
-            }
-            scope.defer(instance.asInstanceOf[AutoCloseable].close())
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
-          }
-        }
-      }
-    } else {
-      '{
-        new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[D1, T] { (_: Scope.Any) => (ctx: Context[D1]) =>
-            val arg1     = ctx.get[D1](using summonInline[IsNominalType[D1]])
-            val instance = ${
-              val ctorSym = implTpe.typeSymbol.primaryConstructor
-              val ctor    = Select(New(TypeTree.of[Impl]), ctorSym)
-              val arg1Ref = '{ arg1 }.asTerm
-              Apply(ctor, List(arg1Ref)).asExprOf[Impl]
-            }
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
           }
         }
       }
     }
   }
 
-  private def generateWireable2[Impl: Type, T: Type, D1: Type, D2: Type](
+  private def generateWireable2[T: Type, D1: Type, D2: Type](
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean
   )(using Quotes): Expr[Wireable[T]] = {
     import quotes.reflect.*
 
-    val implTpe = TypeRepr.of[Impl]
+    val tpe = TypeRepr.of[T]
 
-    if (hasScopeParam) {
-      '{
-        new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[D1 & D2, T] { (scope: Scope.Any) => (ctx: Context[D1 & D2]) =>
-            val arg1     = ctx.get[D1](using summonInline[IsNominalType[D1]])
-            val arg2     = ctx.get[D2](using summonInline[IsNominalType[D2]])
-            val instance = ${
-              val ctorSym  = implTpe.typeSymbol.primaryConstructor
-              val ctor     = Select(New(TypeTree.of[Impl]), ctorSym)
-              val arg1Ref  = '{ arg1 }.asTerm
-              val arg2Ref  = '{ arg2 }.asTerm
-              val scopeRef = '{ scope }.asTerm
-              Apply(Apply(ctor, List(arg1Ref, arg2Ref)), List(scopeRef)).asExprOf[Impl]
+    '{
+      new Wireable[T] {
+        type In = D1 & D2
+
+        def wire: Wire[D1 & D2, T] = Wire.Shared[D1 & D2, T] {
+          val scope = summon[Scope.Has[D1 & D2]]
+          val arg1  = scope.get[D1]
+          val arg2  = scope.get[D2]
+          ${
+            if (hasScopeParam) {
+              '{
+                val instance = ${
+                  val ctorSym  = tpe.typeSymbol.primaryConstructor
+                  val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                  val arg1Ref  = '{ arg1 }.asTerm
+                  val arg2Ref  = '{ arg2 }.asTerm
+                  val scopeRef = '{ scope }.asTerm
+                  Apply(Apply(ctor, List(arg1Ref, arg2Ref)), List(scopeRef)).asExprOf[T]
+                }
+                Context[T](instance)(using summonInline[IsNominalType[T]])
+              }
+            } else if (isAutoCloseable) {
+              '{
+                val instance = ${
+                  val ctorSym = tpe.typeSymbol.primaryConstructor
+                  val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                  val arg1Ref = '{ arg1 }.asTerm
+                  val arg2Ref = '{ arg2 }.asTerm
+                  Apply(ctor, List(arg1Ref, arg2Ref)).asExprOf[T]
+                }
+                scope.defer(instance.asInstanceOf[AutoCloseable].close())
+                Context[T](instance)(using summonInline[IsNominalType[T]])
+              }
+            } else {
+              '{
+                val instance = ${
+                  val ctorSym = tpe.typeSymbol.primaryConstructor
+                  val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                  val arg1Ref = '{ arg1 }.asTerm
+                  val arg2Ref = '{ arg2 }.asTerm
+                  Apply(ctor, List(arg1Ref, arg2Ref)).asExprOf[T]
+                }
+                Context[T](instance)(using summonInline[IsNominalType[T]])
+              }
             }
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
-          }
-        }
-      }
-    } else if (isAutoCloseable) {
-      '{
-        new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[D1 & D2, T] { (scope: Scope.Any) => (ctx: Context[D1 & D2]) =>
-            val arg1     = ctx.get[D1](using summonInline[IsNominalType[D1]])
-            val arg2     = ctx.get[D2](using summonInline[IsNominalType[D2]])
-            val instance = ${
-              val ctorSym = implTpe.typeSymbol.primaryConstructor
-              val ctor    = Select(New(TypeTree.of[Impl]), ctorSym)
-              val arg1Ref = '{ arg1 }.asTerm
-              val arg2Ref = '{ arg2 }.asTerm
-              Apply(ctor, List(arg1Ref, arg2Ref)).asExprOf[Impl]
-            }
-            scope.defer(instance.asInstanceOf[AutoCloseable].close())
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
-          }
-        }
-      }
-    } else {
-      '{
-        new Wireable[T] {
-          def wire: Wire[?, T] = Wire.Shared[D1 & D2, T] { (_: Scope.Any) => (ctx: Context[D1 & D2]) =>
-            val arg1     = ctx.get[D1](using summonInline[IsNominalType[D1]])
-            val arg2     = ctx.get[D2](using summonInline[IsNominalType[D2]])
-            val instance = ${
-              val ctorSym = implTpe.typeSymbol.primaryConstructor
-              val ctor    = Select(New(TypeTree.of[Impl]), ctorSym)
-              val arg1Ref = '{ arg1 }.asTerm
-              val arg2Ref = '{ arg2 }.asTerm
-              Apply(ctor, List(arg1Ref, arg2Ref)).asExprOf[Impl]
-            }
-            Context[T](instance.asInstanceOf[T])(using summonInline[IsNominalType[T]])
           }
         }
       }

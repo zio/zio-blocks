@@ -1,7 +1,12 @@
 package zio.blocks.scope
 
-trait Wireable[T] {
-  def wire: Wire[?, T]
+trait Wireable[+Out] {
+  type In
+
+  def wire: Wire[In, Out]
 }
 
-object Wireable extends WireableVersionSpecific
+object Wireable extends WireableVersionSpecific {
+
+  type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
+}

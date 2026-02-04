@@ -180,9 +180,9 @@ sealed trait Scope[+Stack] {
 }
 
 object Scope {
-  val global: Scope[TNil]               // Root scope, closes on JVM shutdown
-  type Any = Scope[?]                   // Use in constructors needing cleanup
-  type Has[+T] = Scope[Context[T] :: ?] // Scope that has T available
+  val global: Scope[TNil]                 // Root scope, closes on JVM shutdown
+  type Any = Scope[?]                     // Use in constructors needing cleanup
+  type Has[+T] = Scope[Context[T] :: Any] // Scope that has T available
 }
 ```
 
@@ -611,7 +611,15 @@ trait InStack[-T, +Stack]
 ```scala
 // Scala 3
 sealed trait Wire[-In, +Out] {
-  def construct: Scope[?] ?=> Context[In] => Context[Out]
+  def construct: Scope[In] ?=> Context[Out]
+
+  def isShared: Boolean
+
+  def isUnique: Boolean
+
+  def shared: Wire.Shared[In, Out]
+
+  def unique: Wire.Unique[In, Out]
 }
 
 // Scala 2
@@ -620,8 +628,8 @@ sealed trait Wire[-In, +Out] {
 }
 
 object Wire {
-  final case class Shared[-In, +Out](...) extends Wire[In, Out]
-  final case class Unique[-In, +Out](...) extends Wire[In, Out]
+  final case class Shared[-In, +Out](construct: Scope[In] ?=> Context[Out]) extends Wire[In, Out]
+  final case class Unique[-In, +Out](construct: Scope[In] ?=> Context[Out]) extends Wire[In, Out]
   def value[T](t: T)(implicit ev: IsNominalType[T]): Wire[Any, T]
 }
 ```
@@ -629,12 +637,20 @@ object Wire {
 ### Wireable
 
 ```scala
-trait Wireable[T] {
-  def wire: Wire[?, T]
+trait Wireable[+Out] {
+  type In
+
+  def wire: Wire[In, +Out]
 }
 
 object Wireable {
-  inline def from[Impl <: T, T]: Wireable[T]
+  type Typed[In0, +Out] = Wireable[Out] {
+    type In = In0
+  }
+
+  // Scala 3
+  // How do we adjust the `In` type param in Scala 2???
+  transparent inline def from[T]: Wireable.Typed[?, T]
 }
 ```
 
