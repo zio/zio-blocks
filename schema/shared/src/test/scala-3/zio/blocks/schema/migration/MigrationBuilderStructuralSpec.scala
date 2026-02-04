@@ -49,13 +49,13 @@ object MigrationBuilderStructuralSpec extends ZIOSpecDefault {
           for {
             dynA <- Right(Schema[PersonV1].toDynamicValue(PersonV1("Ada", 42)))
             plan <- planned.toRight(
-              MigrationError.InvalidOp("Plan", s"No migration found from $v1 to $v2")
-            )
+                      MigrationError.InvalidOp("Plan", s"No migration found from $v1 to $v2")
+                    )
             dynB <- DynamicMigrationInterpreter(plan, dynA)
             outB <- Schema[Person]
-              .fromDynamicValue(dynB)
-              .left
-              .map(err => MigrationError.InvalidOp("Decode", err.toString))
+                      .fromDynamicValue(dynB)
+                      .left
+                      .map(err => MigrationError.InvalidOp("Decode", err.toString))
           } yield outB
 
         assertTrue(planned.isDefined) &&

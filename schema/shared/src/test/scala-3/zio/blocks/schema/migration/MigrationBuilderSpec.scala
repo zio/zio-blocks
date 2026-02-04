@@ -45,9 +45,9 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             dynA <- Right(Schema[PersonV1].toDynamicValue(PersonV1("Ada", 42)))
             dynB <- DynamicMigrationInterpreter(prog, dynA)
             outB <- Schema[PersonV2]
-              .fromDynamicValue(dynB)
-              .left
-              .map(err => MigrationError.InvalidOp("Decode", err.toString))
+                      .fromDynamicValue(dynB)
+                      .left
+                      .map(err => MigrationError.InvalidOp("Decode", err.toString))
           } yield outB
 
         assertTrue(out == Right(PersonV2(fullName = "Ada", country = "DZ")))

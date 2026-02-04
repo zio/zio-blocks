@@ -1,55 +1,52 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{As, Schema, ToStructural}
+import zio.blocks.schema._
 
 final class Migration[A, B] private (
   val program: DynamicMigration,
   val tsa: ToStructural[A],
   val tsb: ToStructural[B],
-  val sourceSchema: Schema[tsa.StructuralType],
-  val targetSchema: Schema[tsb.StructuralType]
+  private val sourceSchemaAny: Schema[_],
+  private val targetSchemaAny: Schema[_]
 ) { self =>
 
-  def andThen[C](that: Migration[B, C]): Migration[A, C] =
-    new Migration(
-      self.program ++ that.program,
-      self.tsa,
-      that.tsb,
-      self.sourceSchema,
-      that.targetSchema
-    )
+  // Re-type the schemas using the constructor params tsa/tsb
+  private val sourceSchema: Schema[tsa.StructuralType] =
+    sourceSchemaAny.asInstanceOf[Schema[tsa.StructuralType]]
 
-  def ++[C](that: Migration[B, C]): Migration[A, C] = andThen(that)
+  private val targetSchema: Schema[tsb.StructuralType] =
+    targetSchemaAny.asInstanceOf[Schema[tsb.StructuralType]]
 
-  def apply(value: A)(using
+  def apply(value: A)(
+    implicit
     asA: As[A, tsa.StructuralType],
     asB: As[B, tsb.StructuralType]
   ): Either[MigrationError, B] =
     for {
       aStruct <- asA
-                   .into(value)
-                   .left
-                   .map(e => MigrationError.InvalidOp("IntoStructural", e.toString))
+        .into(value)
+        .left
+        .map(e => MigrationError.InvalidOp("IntoStructural", e.toString))
 
       dynA = sourceSchema.toDynamicValue(aStruct)
 
       dynB <- DynamicMigrationInterpreter(program, dynA)
 
       bStruct <- targetSchema
-                   .fromDynamicValue(dynB)
-                   .left
-                   .map(err => MigrationError.InvalidOp("DecodeStructural", err.toString))
+        .fromDynamicValue(dynB)
+        .left
+        .map(err => MigrationError.InvalidOp("DecodeStructural", err.toString))
 
       outB <- asB
-                .from(bStruct)
-                .left
-                .map(e => MigrationError.InvalidOp("FromStructural", e.toString))
+        .from(bStruct)
+        .left
+        .map(e => MigrationError.InvalidOp("FromStructural", e.toString))
     } yield outB
 
   def reverse: Migration[B, A] =
-    Migration.fromProgram[B, A](program.reverse)(using
-      targetSchema.asInstanceOf[Schema[B]],
-      sourceSchema.asInstanceOf[Schema[A]],
+    Migration.fromProgram[B, A](program.reverse)(
+      targetSchemaAny.asInstanceOf[Schema[B]],
+      sourceSchemaAny.asInstanceOf[Schema[A]],
       tsb.asInstanceOf[ToStructural[B]],
       tsa.asInstanceOf[ToStructural[A]]
     )
@@ -57,14 +54,25 @@ final class Migration[A, B] private (
 
 object Migration {
 
-  def fromProgram[A, B](program: DynamicMigration)(using
+  def fromProgram[A, B](program: DynamicMigration)(
+    implicit
     sa: Schema[A],
     sb: Schema[B],
     tsa: ToStructural[A],
     tsb: ToStructural[B]
   ): Migration[A, B] =
-    new Migration[A, B](program, tsa, tsb, sa.structural, sb.structural)
+    new Migration[A, B](
+      program,
+      tsa,
+      tsb,
+      sa.structural,
+      sb.structural
+    )
 
-  def id[A](using s: Schema[A], ts: ToStructural[A]): Migration[A, A] =
+  def id[A](
+    implicit
+    s: Schema[A],
+    ts: ToStructural[A]
+  ): Migration[A, A] =
     fromProgram[A, A](DynamicMigration.id)
 }

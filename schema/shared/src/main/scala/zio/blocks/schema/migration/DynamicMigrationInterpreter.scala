@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import scala.collection.immutable.Vector
 import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
-import zio.blocks.schema.migration.MigrationAction.*
+import zio.blocks.schema.migration.MigrationAction._
 import zio.blocks.chunk.Chunk
 
 object DynamicMigrationInterpreter {

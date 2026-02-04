@@ -29,7 +29,7 @@ object DynamicMigrationLawsSpec extends ZIOSpecDefault {
           )
         )
 
-        val left = (a ++ b) ++ c
+        val left  = (a ++ b) ++ c
         val right = a ++ (b ++ c)
 
         assertTrue(left.actions == right.actions)
