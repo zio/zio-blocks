@@ -1107,7 +1107,7 @@ object Optional {
 
     override def toString: String = {
       if (bindings eq null) init()
-      val sb  = new StringBuilder
+      val sb  = new java.lang.StringBuilder
       val len = bindings.length
       var idx = 0
       while (idx < len) {
@@ -2481,7 +2481,7 @@ object Traversal {
 
     override def toString: String = {
       if (bindings eq null) init()
-      val sb  = new StringBuilder
+      val sb  = new java.lang.StringBuilder
       val len = bindings.length
       var idx = 0
       while (idx < len) {

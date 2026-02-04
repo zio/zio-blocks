@@ -41,7 +41,7 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.DynamicPatchOp]) {
   override def toString: String =
     if (ops.isEmpty) "DynamicPatch {}"
     else {
-      val sb = new lang.StringBuilder("DynamicPatch {\n")
+      val sb = new java.lang.StringBuilder("DynamicPatch {\n")
       ops.foreach(op => DynamicPatch.renderOp(sb, op, "  "))
       sb.append('}').toString
     }

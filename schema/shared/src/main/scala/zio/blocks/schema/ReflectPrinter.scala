@@ -103,14 +103,14 @@ private[schema] object ReflectPrinter {
     if (record.fields.isEmpty) {
       s"record ${sdlTypeName(record.typeId)} {}"
     } else {
-      val sb = new StringBuilder
+      val sb = new java.lang.StringBuilder
       sb.append("record ").append(sdlTypeName(record.typeId)).append(" {\n")
       val newVisited = visited + record
       record.fields.foreachElem { field =>
         val fieldStr = printTermImpl(field, indent = 2, newVisited)
         sb.append(fieldStr).append('\n')
       }
-      sb.append("}")
+      sb.append('}')
       sb.toString
     }
 
@@ -125,14 +125,14 @@ private[schema] object ReflectPrinter {
     if (variant.cases.isEmpty) {
       s"variant ${sdlTypeName(variant.typeId)} {}"
     } else {
-      val sb = new StringBuilder
+      val sb = new java.lang.StringBuilder
       sb.append("variant ").append(sdlTypeName(variant.typeId)).append(" {\n")
       val newVisited = visited + variant
       variant.cases.foreachElem { case_ =>
         val caseStr = printVariantCaseImpl(case_, indent = 2, newVisited)
         sb.append(caseStr).append('\n')
       }
-      sb.append("}")
+      sb.append('}')
       sb.toString
     }
 
@@ -147,7 +147,7 @@ private[schema] object ReflectPrinter {
     val newVisited = visited + seq
     val elementStr = printReflectImpl(seq.element, indent = 0, isInline = true, newVisited)
     if (needsMultilineForElement(seq.element)) {
-      val sb = new StringBuilder
+      val sb = new java.lang.StringBuilder
       sb.append("sequence ").append(seq.typeId.name).append("[\n")
       sb.append(elementStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
       sb.append("\n]")
@@ -170,7 +170,7 @@ private[schema] object ReflectPrinter {
     val valueStr   = printReflectImpl(map.value, indent = 0, isInline = true, newVisited)
 
     if (needsMultilineForElement(map.key) || needsMultilineForElement(map.value)) {
-      val sb = new StringBuilder
+      val sb = new java.lang.StringBuilder
       sb.append("map ").append(map.typeId.name).append("[\n")
       if (needsMultilineForElement(map.key)) {
         sb.append(keyStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
@@ -201,7 +201,7 @@ private[schema] object ReflectPrinter {
     val newVisited = visited + wrapper
     val wrappedStr = printReflectImpl(wrapper.wrapped, indent = 0, isInline = true, newVisited)
     if (needsMultilineForElement(wrapper.wrapped)) {
-      val sb = new StringBuilder
+      val sb = new java.lang.StringBuilder
       sb.append("wrapper ").append(sdlTypeName(wrapper.typeId)).append("(\n")
       sb.append(wrappedStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
       sb.append("\n)")
@@ -255,7 +255,7 @@ private[schema] object ReflectPrinter {
 
       case Some(record) =>
         // Multi-field case or complex single field
-        val sb = new StringBuilder
+        val sb = new java.lang.StringBuilder
         sb.append(indentString(indent)).append("| ").append(case_.name).append("(\n")
         record.fields.foreachElem { field =>
           val fieldStr = printTermImpl(field, indent + 4, visited)

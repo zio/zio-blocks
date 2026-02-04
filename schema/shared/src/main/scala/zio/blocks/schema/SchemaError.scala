@@ -137,11 +137,22 @@ object SchemaError {
     override def message: String =
       cause match {
         case Some(causeErr) =>
-          val causeMessages =
-            if (causeErr.errors.isEmpty) " <no further details>"
-            else if (causeErr.errors.length == 1) s"  Caused by: ${causeErr.errors.head.message}"
-            else "Caused by:\n" + causeErr.errors.map(e => s"  - ${e.message}").mkString("\n")
-          s"$details\n$causeMessages"
+          val sb = new java.lang.StringBuilder(details)
+          sb.append('\n')
+          if (causeErr.errors.isEmpty) sb.append("<no further details>")
+          else if (causeErr.errors.length == 1) {
+            sb.append("  Caused by: ")
+            sb.append(causeErr.errors.head.message)
+          } else {
+            sb.append("  Caused by:\n")
+            val start = sb.length
+            causeErr.errors.foreach { e =>
+              if (sb.length > start) sb.append('\n')
+              sb.append("  - ")
+              sb.append(e.message)
+            }
+          }
+          sb.toString
         case None => details
       }
   }
