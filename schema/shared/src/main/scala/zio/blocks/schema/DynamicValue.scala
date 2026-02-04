@@ -2065,15 +2065,15 @@ object DynamicValue {
         if (fields.isEmpty) {
           "{}"
         } else {
-          val sb = new StringBuilder
+          val sb = new java.lang.StringBuilder
           sb.append("{\n")
           fields.zipWithIndex.foreach { case ((name, value), idx) =>
             sb.append(indentStr).append("  ").append(escapeFieldName(name)).append(": ")
             sb.append(toEjson(value, indent + 1))
-            if (idx < fields.length - 1) sb.append(",")
-            sb.append("\n")
+            if (idx < fields.length - 1) sb.append(',')
+            sb.append('\n')
           }
-          sb.append(indentStr).append("}")
+          sb.append(indentStr).append('}')
           sb.toString
         }
 
@@ -2089,15 +2089,15 @@ object DynamicValue {
           // Only inline single-element sequences if the element is a primitive
           "[" + toEjson(elements(0), indent) + "]"
         } else {
-          val sb = new StringBuilder
+          val sb = new java.lang.StringBuilder
           sb.append("[\n")
           elements.zipWithIndex.foreach { case (elem, idx) =>
             sb.append(indentStr).append("  ")
             sb.append(toEjson(elem, indent + 1))
-            if (idx < elements.length - 1) sb.append(",")
-            sb.append("\n")
+            if (idx < elements.length - 1) sb.append(',')
+            sb.append('\n')
           }
-          sb.append(indentStr).append("]")
+          sb.append(indentStr).append(']')
           sb.toString
         }
 
@@ -2105,7 +2105,7 @@ object DynamicValue {
         if (entries.isEmpty) {
           "{}"
         } else {
-          val sb = new StringBuilder
+          val sb = new java.lang.StringBuilder
           sb.append("{\n")
           entries.zipWithIndex.foreach { case ((key, value), idx) =>
             sb.append(indentStr).append("  ")
@@ -2118,10 +2118,10 @@ object DynamicValue {
             }
             sb.append(": ")
             sb.append(toEjson(value, indent + 1))
-            if (idx < entries.length - 1) sb.append(",")
-            sb.append("\n")
+            if (idx < entries.length - 1) sb.append(',')
+            sb.append('\n')
           }
-          sb.append(indentStr).append("}")
+          sb.append(indentStr).append('}')
           sb.toString
         }
 
@@ -2261,7 +2261,7 @@ object DynamicValue {
    * Quote a string for JSON/EJSON output, escaping special characters.
    */
   private def quote(s: String): String = {
-    val sb = new StringBuilder
+    val sb = new java.lang.StringBuilder
     sb.append('"')
     var i = 0
     while (i < s.length) {
