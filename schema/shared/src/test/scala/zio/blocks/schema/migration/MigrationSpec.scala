@@ -1406,6 +1406,393 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         assertTrue(migration(input) == Right(DynamicValue.Map(Chunk.empty)))
       }
+    ),
+
+    suite("Action Reversals")(
+      test("reverse of AddField is DropField") {
+        val action = MigrationAction.AddField(
+          DynamicOptic.root.field("x"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.DropField])
+      },
+
+      test("reverse of DropField is AddField") {
+        val action = MigrationAction.DropField(
+          DynamicOptic.root.field("x"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.AddField])
+      },
+
+      test("reverse of Rename swaps from and to") {
+        val action   = MigrationAction.Rename(DynamicOptic.root.field("old"), "new")
+        val reversed = action.reverse.asInstanceOf[MigrationAction.Rename]
+        assertTrue(reversed.to == "old" && reversed.from == "new")
+      },
+
+      test("reverse of TransformValue is TransformValue") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformValue])
+      },
+
+      test("reverse of Mandate is Optionalize") {
+        val action = MigrationAction.Mandate(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Optionalize])
+      },
+
+      test("reverse of Optionalize is Mandate") {
+        val action = MigrationAction.Optionalize(DynamicOptic.root)
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Mandate])
+      },
+
+      test("reverse of RenameCase swaps from and to") {
+        val action   = MigrationAction.RenameCase(DynamicOptic.root, "Old", "New")
+        val reversed = action.reverse.asInstanceOf[MigrationAction.RenameCase]
+        assertTrue(reversed.from == "New" && reversed.to == "Old")
+      },
+
+      test("reverse of ChangeType is ChangeType") {
+        val action = MigrationAction.ChangeType(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Long(1L)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.ChangeType])
+      },
+
+      test("reverse of TransformElements is TransformElements") {
+        val action = MigrationAction.TransformElements(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformElements])
+      },
+
+      test("reverse of TransformKeys is TransformKeys") {
+        val action = MigrationAction.TransformKeys(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformKeys])
+      },
+
+      test("reverse of TransformValues is TransformValues") {
+        val action = MigrationAction.TransformValues(
+          DynamicOptic.root,
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformValues])
+      },
+
+      test("reverse of TransformCase reverses inner actions") {
+        val innerAction = MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
+        val action      = MigrationAction.TransformCase(DynamicOptic.root, Vector(innerAction))
+        val reversed    = action.reverse.asInstanceOf[MigrationAction.TransformCase]
+        assertTrue(reversed.actions.nonEmpty)
+      },
+
+      test("reverse of Join is Split") {
+        val action = MigrationAction.Join(
+          DynamicOptic.root.field("target"),
+          Vector(DynamicOptic.root.field("source")),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Split])
+      },
+
+      test("reverse of Split is Join") {
+        val action = MigrationAction.Split(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("target")),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Join])
+      }
+    ),
+
+    suite("Varargs Constructor")(
+      test("DynamicMigration.apply with single action") {
+        val action = MigrationAction.AddField(
+          DynamicOptic.root.field("x"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val migration = DynamicMigration(action)
+        assertTrue(migration.size == 1)
+      },
+
+      test("DynamicMigration.apply with multiple actions") {
+        val action1 = MigrationAction.AddField(
+          DynamicOptic.root.field("x"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val action2 = MigrationAction.AddField(
+          DynamicOptic.root.field("y"),
+          literal(DynamicValue.Primitive(PrimitiveValue.String("a")))
+        )
+        val migration = DynamicMigration(action1, action2)
+        assertTrue(migration.size == 2)
+      },
+
+      test("DynamicMigration.apply with three actions") {
+        val action1 = MigrationAction.AddField(
+          DynamicOptic.root.field("a"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val action2 = MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
+        val action3 = MigrationAction.AddField(
+          DynamicOptic.root.field("c"),
+          literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+        val migration = DynamicMigration(action1, action2, action3)
+        assertTrue(migration.size == 3)
+      },
+
+      test("DynamicMigration.apply with varargs executes all actions") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration(
+          MigrationAction.Rename(DynamicOptic.root.field("a"), "b"),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("c"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        val expected = DynamicValue.Record(
+          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          "c" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+        )
+        assertTrue(migration(input) == Right(expected))
+      }
+    ),
+
+    suite("modifyAtPath Node Types")(
+      test("modifyAtPath with Node.Field navigates record") {
+        val input = DynamicValue.Record(
+          "x" -> DynamicValue.Primitive(PrimitiveValue.Int(10))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(20)))
+          )
+        )
+        val expected = DynamicValue.Record(
+          "x" -> DynamicValue.Primitive(PrimitiveValue.Int(20))
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath with Node.Case navigates variant") {
+        val input = DynamicValue.Variant(
+          "MyCase",
+          DynamicValue.Record("x" -> DynamicValue.Primitive(PrimitiveValue.Int(10)))
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Case("MyCase"),
+            DynamicOptic.Node.Field("x")
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(20)))
+          )
+        )
+        val expected = DynamicValue.Variant(
+          "MyCase",
+          DynamicValue.Record("x" -> DynamicValue.Primitive(PrimitiveValue.Int(20)))
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath with Node.Elements modifies sequence elements") {
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
+        val optic     = DynamicOptic(Vector(DynamicOptic.Node.Elements))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+          )
+        )
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(99)),
+            DynamicValue.Primitive(PrimitiveValue.Int(99))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath with Node.MapKeys modifies map keys") {
+        val input = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("k1")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val optic     = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("newKey")))
+          )
+        )
+        val expected = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("newKey")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath with Node.MapValues modifies map values") {
+        val input = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("k")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        val optic     = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+          )
+        )
+        val expected = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("k")), DynamicValue.Primitive(PrimitiveValue.Int(99)))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath with Node.AtIndex navigates by index") {
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(10)),
+            DynamicValue.Primitive(PrimitiveValue.Int(20)),
+            DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        val optic     = DynamicOptic(Vector(DynamicOptic.Node.AtIndex(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+          )
+        )
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(10)),
+            DynamicValue.Primitive(PrimitiveValue.Int(99)),
+            DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath with Node.AtMapKey navigates map by key") {
+        val input = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("key1")), DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            (DynamicValue.Primitive(PrimitiveValue.String("key2")), DynamicValue.Primitive(PrimitiveValue.Int(200)))
+          )
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key1")))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(999)))
+          )
+        )
+        val expected = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("key1")), DynamicValue.Primitive(PrimitiveValue.Int(999))),
+            (DynamicValue.Primitive(PrimitiveValue.String("key2")), DynamicValue.Primitive(PrimitiveValue.Int(200)))
+          )
+        )
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("modifyAtPath Node.Case mismatch returns unchanged") {
+        val input     = DynamicValue.Variant("CaseA", DynamicValue.Record.empty)
+        val optic     = DynamicOptic(Vector(DynamicOptic.Node.Case("CaseB")))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          )
+        )
+        assertTrue(migration(input) == Left(SchemaError.caseNotFound(optic, "CaseB")))
+      }
+    ),
+
+    suite("Mandate and Optionalize Edge Cases")(
+      test("mandate with non-Option value uses it directly") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.Mandate(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
+        )
+        assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+
+      test("optionalize then mandate round-trips") {
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("test"))
+        val opt    = DynamicMigration.single(MigrationAction.Optionalize(DynamicOptic.root))
+        val mand   = opt.reverse
+        val result = opt(input).flatMap(mand(_))
+        assertTrue(result == Right(input))
+      }
+    ),
+
+    suite("Reverse Composition")(
+      test("double reverse preserves actions") {
+        val migration = DynamicMigration(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("x"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          ),
+          MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
+        )
+        assertTrue(migration.reverse.reverse.actions == migration.actions)
+      },
+
+      test("reverse with multiple actions maintains order") {
+        val actions = Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("a"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          ),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("b"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          ),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("c"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+          )
+        )
+        val migration = DynamicMigration(actions: _*)
+        val reversed  = migration.reverse
+        assertTrue(reversed.size == 3)
+      }
     )
   )
 }
