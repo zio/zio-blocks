@@ -3,6 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
+import zio.blocks.typeid.TypeId
 
 /**
  * Schema instances for migration types, enabling serialization/deserialization
@@ -13,8 +14,6 @@ import zio.blocks.schema.binding.RegisterOffset._
  */
 object MigrationSchemas {
 
-  private val migrationPkg = List("zio", "blocks", "schema", "migration")
-
   // ==================== DynamicSchemaExpr Schemas ====================
 
   implicit lazy val literalSchema: Schema[DynamicSchemaExpr.Literal] = new Schema(
@@ -22,7 +21,7 @@ object MigrationSchemas {
       fields = Vector(
         Schema[DynamicValue].reflect.asTerm("value")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "Literal"),
+      typeId = TypeId.of[DynamicSchemaExpr.Literal],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.Literal] {
           def usedRegisters: RegisterOffset                                           = 1
@@ -43,7 +42,7 @@ object MigrationSchemas {
       fields = Vector(
         Schema[DynamicOptic].reflect.asTerm("optic")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "Path"),
+      typeId = TypeId.of[DynamicSchemaExpr.Path],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.Path] {
           def usedRegisters: RegisterOffset                                        = 1
@@ -62,7 +61,7 @@ object MigrationSchemas {
   implicit lazy val defaultValueExprSchema: Schema[DynamicSchemaExpr.DefaultValue.type] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicSchemaExpr.DefaultValue.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "DefaultValue"),
+      typeId = TypeId.of[DynamicSchemaExpr.DefaultValue.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[DynamicSchemaExpr.DefaultValue.type](DynamicSchemaExpr.DefaultValue),
         deconstructor = new ConstantDeconstructor[DynamicSchemaExpr.DefaultValue.type]
@@ -75,7 +74,7 @@ object MigrationSchemas {
       fields = Vector(
         Schema[DynamicValue].reflect.asTerm("value")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "ResolvedDefault"),
+      typeId = TypeId.of[DynamicSchemaExpr.ResolvedDefault],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.ResolvedDefault] {
           def usedRegisters: RegisterOffset                                                   = 1
@@ -96,7 +95,7 @@ object MigrationSchemas {
       fields = Vector(
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("expr")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "Not"),
+      typeId = TypeId.of[DynamicSchemaExpr.Not],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.Not] {
           def usedRegisters: RegisterOffset                                      = 1
@@ -115,7 +114,7 @@ object MigrationSchemas {
   implicit lazy val logicalOperatorAndSchema: Schema[DynamicSchemaExpr.LogicalOperator.And.type] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicSchemaExpr.LogicalOperator.And.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "LogicalOperator")), "And"),
+        typeId = TypeId.of[DynamicSchemaExpr.LogicalOperator.And.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor(DynamicSchemaExpr.LogicalOperator.And),
         deconstructor = new ConstantDeconstructor
@@ -126,7 +125,7 @@ object MigrationSchemas {
   implicit lazy val logicalOperatorOrSchema: Schema[DynamicSchemaExpr.LogicalOperator.Or.type] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicSchemaExpr.LogicalOperator.Or.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "LogicalOperator")), "Or"),
+        typeId = TypeId.of[DynamicSchemaExpr.LogicalOperator.Or.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor(DynamicSchemaExpr.LogicalOperator.Or),
         deconstructor = new ConstantDeconstructor
@@ -140,7 +139,7 @@ object MigrationSchemas {
         logicalOperatorAndSchema.reflect.asTerm("And"),
         logicalOperatorOrSchema.reflect.asTerm("Or")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "LogicalOperator"),
+      typeId = TypeId.of[DynamicSchemaExpr.LogicalOperator],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[DynamicSchemaExpr.LogicalOperator] {
           def discriminate(a: DynamicSchemaExpr.LogicalOperator): Int = a match {
@@ -173,7 +172,7 @@ object MigrationSchemas {
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("right"),
         logicalOperatorSchema.reflect.asTerm("operator")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "Logical"),
+      typeId = TypeId.of[DynamicSchemaExpr.Logical],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.Logical] {
           def usedRegisters: RegisterOffset                                          = 3
@@ -202,7 +201,7 @@ object MigrationSchemas {
     val ltSchema: Schema[LessThan.type] = new Schema(
       reflect = new Reflect.Record[Binding, LessThan.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "RelationalOperator")), "LessThan"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator.LessThan.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(LessThan),
           deconstructor = new ConstantDeconstructor
@@ -213,7 +212,7 @@ object MigrationSchemas {
     val lteSchema: Schema[LessThanOrEqual.type] = new Schema(
       reflect = new Reflect.Record[Binding, LessThanOrEqual.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "RelationalOperator")), "LessThanOrEqual"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator.LessThanOrEqual.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(LessThanOrEqual),
           deconstructor = new ConstantDeconstructor
@@ -224,7 +223,7 @@ object MigrationSchemas {
     val gtSchema: Schema[GreaterThan.type] = new Schema(
       reflect = new Reflect.Record[Binding, GreaterThan.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "RelationalOperator")), "GreaterThan"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator.GreaterThan.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(GreaterThan),
           deconstructor = new ConstantDeconstructor
@@ -235,7 +234,7 @@ object MigrationSchemas {
     val gteSchema: Schema[GreaterThanOrEqual.type] = new Schema(
       reflect = new Reflect.Record[Binding, GreaterThanOrEqual.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "RelationalOperator")), "GreaterThanOrEqual"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(GreaterThanOrEqual),
           deconstructor = new ConstantDeconstructor
@@ -246,7 +245,7 @@ object MigrationSchemas {
     val eqSchema: Schema[Equal.type] = new Schema(
       reflect = new Reflect.Record[Binding, Equal.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "RelationalOperator")), "Equal"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator.Equal.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(Equal),
           deconstructor = new ConstantDeconstructor
@@ -257,7 +256,7 @@ object MigrationSchemas {
     val neqSchema: Schema[NotEqual.type] = new Schema(
       reflect = new Reflect.Record[Binding, NotEqual.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "RelationalOperator")), "NotEqual"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator.NotEqual.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(NotEqual),
           deconstructor = new ConstantDeconstructor
@@ -275,7 +274,7 @@ object MigrationSchemas {
           eqSchema.reflect.asTerm("Equal"),
           neqSchema.reflect.asTerm("NotEqual")
         ),
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "RelationalOperator"),
+        typeId = TypeId.of[DynamicSchemaExpr.RelationalOperator],
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[DynamicSchemaExpr.RelationalOperator] {
             def discriminate(a: DynamicSchemaExpr.RelationalOperator): Int = a match {
@@ -337,7 +336,7 @@ object MigrationSchemas {
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("right"),
         relationalOperatorSchema.reflect.asTerm("operator")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "Relational"),
+      typeId = TypeId.of[DynamicSchemaExpr.Relational],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.Relational] {
           def usedRegisters: RegisterOffset                                             = 3
@@ -366,7 +365,7 @@ object MigrationSchemas {
     val addSchema: Schema[Add.type] = new Schema(
       reflect = new Reflect.Record[Binding, Add.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "ArithmeticOperator")), "Add"),
+        typeId = TypeId.of[DynamicSchemaExpr.ArithmeticOperator.Add.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(Add),
           deconstructor = new ConstantDeconstructor
@@ -377,7 +376,7 @@ object MigrationSchemas {
     val subSchema: Schema[Subtract.type] = new Schema(
       reflect = new Reflect.Record[Binding, Subtract.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "ArithmeticOperator")), "Subtract"),
+        typeId = TypeId.of[DynamicSchemaExpr.ArithmeticOperator.Subtract.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(Subtract),
           deconstructor = new ConstantDeconstructor
@@ -388,7 +387,7 @@ object MigrationSchemas {
     val mulSchema: Schema[Multiply.type] = new Schema(
       reflect = new Reflect.Record[Binding, Multiply.type](
         fields = Vector.empty,
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr", "ArithmeticOperator")), "Multiply"),
+        typeId = TypeId.of[DynamicSchemaExpr.ArithmeticOperator.Multiply.type],
         recordBinding = new Binding.Record(
           constructor = new ConstantConstructor(Multiply),
           deconstructor = new ConstantDeconstructor
@@ -403,7 +402,7 @@ object MigrationSchemas {
           subSchema.reflect.asTerm("Subtract"),
           mulSchema.reflect.asTerm("Multiply")
         ),
-        typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "ArithmeticOperator"),
+        typeId = TypeId.of[DynamicSchemaExpr.ArithmeticOperator],
         variantBinding = new Binding.Variant(
           discriminator = new Discriminator[DynamicSchemaExpr.ArithmeticOperator] {
             def discriminate(a: DynamicSchemaExpr.ArithmeticOperator): Int = a match {
@@ -444,7 +443,7 @@ object MigrationSchemas {
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("right"),
         arithmeticOperatorSchema.reflect.asTerm("operator")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "Arithmetic"),
+      typeId = TypeId.of[DynamicSchemaExpr.Arithmetic],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.Arithmetic] {
           def usedRegisters: RegisterOffset                                             = 3
@@ -473,7 +472,7 @@ object MigrationSchemas {
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("left"),
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("right")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "StringConcat"),
+      typeId = TypeId.of[DynamicSchemaExpr.StringConcat],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.StringConcat] {
           def usedRegisters: RegisterOffset                                               = 2
@@ -499,7 +498,7 @@ object MigrationSchemas {
       fields = Vector(
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("expr")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "StringLength"),
+      typeId = TypeId.of[DynamicSchemaExpr.StringLength],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.StringLength] {
           def usedRegisters: RegisterOffset                                               = 1
@@ -521,7 +520,7 @@ object MigrationSchemas {
         new Reflect.Deferred(() => dynamicSchemaExprSchema.reflect).asTerm("expr"),
         Schema[String].reflect.asTerm("targetType")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "CoercePrimitive"),
+      typeId = TypeId.of[DynamicSchemaExpr.CoercePrimitive],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicSchemaExpr.CoercePrimitive] {
           def usedRegisters: RegisterOffset                                                  = 2
@@ -558,7 +557,7 @@ object MigrationSchemas {
         stringLengthSchema.reflect.asTerm("StringLength"),
         coercePrimitiveSchema.reflect.asTerm("CoercePrimitive")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("DynamicSchemaExpr")), "DynamicSchemaExpr"),
+      typeId = TypeId.of[DynamicSchemaExpr],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[DynamicSchemaExpr] {
           def discriminate(a: DynamicSchemaExpr): Int = a match {
@@ -656,7 +655,7 @@ object MigrationSchemas {
         Schema[String].reflect.asTerm("name"),
         dynamicSchemaExprSchema.reflect.asTerm("default")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "AddField"),
+      typeId = TypeId.of[MigrationAction.AddField],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.AddField] {
           def usedRegisters: RegisterOffset                                        = 3
@@ -686,7 +685,7 @@ object MigrationSchemas {
         Schema[String].reflect.asTerm("name"),
         dynamicSchemaExprSchema.reflect.asTerm("defaultForReverse")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "DropField"),
+      typeId = TypeId.of[MigrationAction.DropField],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.DropField] {
           def usedRegisters: RegisterOffset                                         = 3
@@ -716,7 +715,7 @@ object MigrationSchemas {
         Schema[String].reflect.asTerm("from"),
         Schema[String].reflect.asTerm("to")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "RenameField"),
+      typeId = TypeId.of[MigrationAction.RenameField],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.RenameField] {
           def usedRegisters: RegisterOffset                                           = 3
@@ -746,7 +745,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("transform"),
         dynamicSchemaExprSchema.reflect.asTerm("reverseTransform")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "TransformValue"),
+      typeId = TypeId.of[MigrationAction.TransformValue],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformValue] {
           def usedRegisters: RegisterOffset                                             = 3
@@ -775,7 +774,7 @@ object MigrationSchemas {
         Schema[DynamicOptic].reflect.asTerm("at"),
         dynamicSchemaExprSchema.reflect.asTerm("default")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "Mandate"),
+      typeId = TypeId.of[MigrationAction.Mandate],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Mandate] {
           def usedRegisters: RegisterOffset                                       = 2
@@ -801,7 +800,7 @@ object MigrationSchemas {
       fields = Vector(
         Schema[DynamicOptic].reflect.asTerm("at")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "Optionalize"),
+      typeId = TypeId.of[MigrationAction.Optionalize],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Optionalize] {
           def usedRegisters: RegisterOffset                                          = 1
@@ -824,7 +823,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("converter"),
         dynamicSchemaExprSchema.reflect.asTerm("reverseConverter")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "ChangeType"),
+      typeId = TypeId.of[MigrationAction.ChangeType],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.ChangeType] {
           def usedRegisters: RegisterOffset                                          = 3
@@ -855,7 +854,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("combiner"),
         dynamicSchemaExprSchema.reflect.asTerm("splitter")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "Join"),
+      typeId = TypeId.of[MigrationAction.Join],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Join] {
           def usedRegisters: RegisterOffset                                    = 4
@@ -888,7 +887,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("splitter"),
         dynamicSchemaExprSchema.reflect.asTerm("combiner")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "Split"),
+      typeId = TypeId.of[MigrationAction.Split],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.Split] {
           def usedRegisters: RegisterOffset                                     = 4
@@ -920,7 +919,7 @@ object MigrationSchemas {
         Schema[String].reflect.asTerm("from"),
         Schema[String].reflect.asTerm("to")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "RenameCase"),
+      typeId = TypeId.of[MigrationAction.RenameCase],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.RenameCase] {
           def usedRegisters: RegisterOffset                                          = 3
@@ -950,7 +949,7 @@ object MigrationSchemas {
         Schema[String].reflect.asTerm("caseName"),
         new Reflect.Deferred(() => Schema[Vector[MigrationAction]].reflect).asTerm("actions")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "TransformCase"),
+      typeId = TypeId.of[MigrationAction.TransformCase],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformCase] {
           def usedRegisters: RegisterOffset                                             = 3
@@ -980,7 +979,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("transform"),
         dynamicSchemaExprSchema.reflect.asTerm("reverseTransform")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "TransformElements"),
+      typeId = TypeId.of[MigrationAction.TransformElements],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformElements] {
           def usedRegisters: RegisterOffset                                                = 3
@@ -1010,7 +1009,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("transform"),
         dynamicSchemaExprSchema.reflect.asTerm("reverseTransform")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "TransformKeys"),
+      typeId = TypeId.of[MigrationAction.TransformKeys],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformKeys] {
           def usedRegisters: RegisterOffset                                              = 3
@@ -1040,7 +1039,7 @@ object MigrationSchemas {
         dynamicSchemaExprSchema.reflect.asTerm("transform"),
         dynamicSchemaExprSchema.reflect.asTerm("reverseTransform")
       ),
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "TransformValues"),
+      typeId = TypeId.of[MigrationAction.TransformValues],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MigrationAction.TransformValues] {
           def usedRegisters: RegisterOffset                                                = 3
@@ -1066,7 +1065,7 @@ object MigrationSchemas {
   implicit lazy val identityActionSchema: Schema[MigrationAction.Identity.type] = new Schema(
     reflect = new Reflect.Record[Binding, MigrationAction.Identity.type](
       fields = Vector.empty,
-      typeName = TypeName(Namespace(migrationPkg, List("MigrationAction")), "Identity"),
+      typeId = TypeId.of[MigrationAction.Identity.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor(MigrationAction.Identity),
         deconstructor = new ConstantDeconstructor
@@ -1094,7 +1093,7 @@ object MigrationSchemas {
         transformValuesSchema.reflect.asTerm("TransformValues"),
         identityActionSchema.reflect.asTerm("Identity")
       ),
-      typeName = TypeName(Namespace(migrationPkg), "MigrationAction"),
+      typeId = TypeId.of[MigrationAction],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[MigrationAction] {
           def discriminate(a: MigrationAction): Int = a match {
@@ -1219,7 +1218,7 @@ object MigrationSchemas {
       fields = Vector(
         Schema[Vector[MigrationAction]].reflect.asTerm("actions")
       ),
-      typeName = TypeName(Namespace(migrationPkg), "DynamicMigration"),
+      typeId = TypeId.of[DynamicMigration],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicMigration] {
           def usedRegisters: RegisterOffset                                    = 1
