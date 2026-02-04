@@ -211,9 +211,6 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
     suite("MigrationBuilder")(
       test("builder with rename and add field creates valid migration") {
-        import UserV1._
-        import UserV2._
-
         val migration = Migration
           .builder[UserV1, UserV2]
           .renameField(_.name, _.fullName)
@@ -229,9 +226,6 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
       test("builder with drop field creates valid migration") {
-        import UserV2._
-        import UserV1._
-
         val migration = Migration
           .builder[UserV2, UserV1]
           .renameField(_.fullName, _.name)
@@ -247,9 +241,6 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
       test("builder migration can be reversed") {
-        import UserV1._
-        import UserV2._
-
         val forward = Migration
           .builder[UserV1, UserV2]
           .renameField(_.name, _.fullName)
@@ -266,9 +257,6 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
       test("builder with auto-mapped fields only needs new field") {
-        import Point2D._
-        import Point2DWithZ._
-
         // x and y are auto-mapped (same name), only need to add z
         val migration = Migration
           .builder[Point2D, Point2DWithZ]
@@ -284,9 +272,6 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
       test("builder tracks actions correctly") {
-        import UserV1._
-        import UserV2._
-
         val migration = Migration
           .builder[UserV1, UserV2]
           .renameField(_.name, _.fullName)
