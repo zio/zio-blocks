@@ -359,6 +359,46 @@ object TypeIdMacros {
     import c.universe._
 
     tpe match {
+      case RefinedType(parents, decls) =>
+        // Structural/refinement type (e.g., { def name: String; def age: Int })
+        val structuralMembers = decls.toList.collect {
+          case m: MethodSymbol if m.paramLists.flatten.isEmpty && !m.isConstructor && m.isPublic =>
+            val memberName   = m.name.decodedName.toString
+            val memberType   = m.returnType.asSeenFrom(tpe, tpe.typeSymbol)
+            val memberRepr   = buildTypeReprFromType(c)(memberType)
+            val hasParamList = m.paramLists.nonEmpty
+            if (hasParamList) {
+              // Parameterless def (e.g., def foo: Int)
+              q"_root_.zio.blocks.typeid.Member.Def($memberName, _root_.scala.Nil, _root_.scala.Nil, $memberRepr)"
+            } else {
+              // Val-like member
+              q"_root_.zio.blocks.typeid.Member.Val($memberName, $memberRepr)"
+            }
+        }
+
+        // Build parent type reprs, filtering out AnyRef/Any/Object
+        val meaningfulParents = parents.filterNot { p =>
+          val fullName = p.typeSymbol.fullName
+          fullName == "scala.Any" || fullName == "scala.AnyRef" || fullName == "java.lang.Object"
+        }
+        val parentReprs = if (meaningfulParents.nonEmpty) {
+          meaningfulParents.map(buildTypeReprFromType(c)(_))
+        } else {
+          val anyRefName = "AnyRef"
+          val scalaPkg   = "scala"
+          List(
+            q"""_root_.zio.blocks.typeid.TypeRepr.Ref(
+              _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.AnyRef](
+                $anyRefName,
+                _root_.zio.blocks.typeid.Owner(_root_.scala.List(_root_.zio.blocks.typeid.Owner.Package($scalaPkg))),
+                _root_.scala.Nil
+              )
+            )"""
+          )
+        }
+
+        q"_root_.zio.blocks.typeid.TypeRepr.Structural(_root_.scala.List(..$parentReprs), _root_.scala.List(..$structuralMembers))"
+
       case TypeRef(_, sym, args) if args.nonEmpty =>
         // Applied type (e.g., List[Int], Map[String, Int])
         val tyconRepr = buildTypeReprFromSymbol(c)(sym)

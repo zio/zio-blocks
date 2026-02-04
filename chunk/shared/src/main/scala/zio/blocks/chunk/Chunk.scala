@@ -21,7 +21,7 @@ import java.nio.charset.Charset
 import java.util
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.tailrec
-import scala.collection.immutable.{IndexedSeq, IndexedSeqOps, StrictOptimizedSeqOps}
+import scala.collection.immutable.{ArraySeq, IndexedSeq, IndexedSeqOps, StrictOptimizedSeqOps, VectorBuilder}
 import scala.collection.{IterableFactoryDefaults, IterableOnce, SeqFactory, StrictOptimizedSeqFactory, mutable}
 import scala.language.implicitConversions
 import scala.reflect.{ClassTag, classTag}
@@ -57,15 +57,18 @@ trait ChunkLike[+A]
     with StrictOptimizedSeqOps[A, Chunk, Chunk[A]]
     with IterableFactoryDefaults[A, Chunk] { self: Chunk[A] =>
 
-  override final def appended[A1 >: A](a1: A1): Chunk[A1] = append(a1)
-
-  override final def prepended[A1 >: A](a1: A1): Chunk[A1] = prepend(a1)
-
   /**
-   * Returns a filtered, mapped subset of the elements of this `Chunk`.
+   * Copies elements from this chunk into the specified destination array.
+   *
+   * @param dest
+   *   the destination array into which elements will be copied
+   * @param destPos
+   *   the starting position in the destination array
+   * @param length
+   *   the maximum number of elements to copy
+   * @return
+   *   the number of elements successfully copied into the destination array
    */
-  override def collect[B](pf: PartialFunction[A, B]): Chunk[B] = collectChunk(pf)
-
   override def copyToArray[B >: A](dest: Array[B], destPos: Int, length: Int): Int = {
     val n = Math.max(Math.min(Math.min(length, self.length), dest.length - destPos), 0)
     if (n > 0) toArray(0, dest, destPos, n)
@@ -77,15 +80,32 @@ trait ChunkLike[+A]
    * the specified function.
    */
   override final def flatMap[B](f: A => IterableOnce[B]): Chunk[B] = {
-    val iterator = chunkIterator
-    val builder  = ChunkBuilder.make[B]()
-    val len      = iterator.length
-    var idx      = 0
+    var chunks: List[Chunk[B]]   = Nil
+    implicit var ct: ClassTag[B] = null.asInstanceOf[ClassTag[B]]
+    val len                      = length
+    var offset, idx              = 0
     while (idx < len) {
-      builder.addAll(f(iterator.nextAt(idx)))
+      val chunk = Chunk.from(f(apply(idx)))
+      val bsLen = chunk.length
+      if (bsLen > 0) {
+        if (ct eq null) ct = Chunk.classTagOf(chunk)
+        chunks = new ::(chunk, chunks)
+        offset += bsLen
+      }
       idx += 1
     }
-    builder.result()
+    if (ct eq null) Chunk.empty
+    else {
+      val bs = new Array[B](offset)
+      while (chunks ne Nil) {
+        val chunk = chunks.head
+        val bsLen = chunk.length
+        offset -= bsLen
+        chunk.toArray(0, bs, offset, bsLen)
+        chunks = chunks.tail
+      }
+      Chunk.fromArray(bs)
+    }
   }
 
   /**
@@ -227,8 +247,12 @@ object ChunkBuilder {
 
     override private[chunk] def resultUnsafe(): Chunk[A] =
       if (array eq null) Chunk.empty
-      else if (len == array.length) Chunk.fromArray(array)
-      else Chunk.fromArray(Array.copyOf(array, len))
+      else {
+        Chunk.fromArray(
+          if (len == array.length) array
+          else Array.copyOf(array, len)
+        )
+      }
 
     override def sizeHint(capacityHint: SInt): Unit = hint = capacityHint
 
@@ -335,7 +359,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -383,7 +407,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -432,7 +456,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -480,7 +504,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -528,7 +552,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -576,7 +600,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -624,7 +648,7 @@ object ChunkBuilder {
           val len1   = this.len
           val newLen = len1 + len2
           if (newLen > array.length) array = util.Arrays.copyOf(array, newLen)
-          that.toArray(0, array)
+          that.toArray(0, array, len1, len2)
           this.len = newLen
         }
         this
@@ -664,11 +688,6 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
     case iterable: Iterable[A] => Chunk.fromIterable(iterable)
     case iterableOnce          => Chunk.fromIterator(iterableOnce.iterator)
   }
-
-  final protected def fromArraySeq[A](seq: mutable.ArraySeq[A]): Chunk[A] = {
-    val arr = seq.array
-    Chunk.fromArray(Array.copyAs(arr, arr.length)(seq.elemTag)).asInstanceOf[Chunk[A]]
-  }
 }
 
 /**
@@ -697,7 +716,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     if (that.isEmpty) return self
     if (self.isInstanceOf[Chunk.AppendN[_]]) {
       val appendN = self.asInstanceOf[Chunk.AppendN[A1]]
-      val chunk   = Chunk.fromArray(Array.copyOf(appendN.buffer, appendN.bufferUsed).asInstanceOf[Array[A1]])
+      val chunk   = Chunk.fromArray(appendN.buffer.asInstanceOf[Array[A1]]).take(appendN.bufferUsed)
       return appendN.start ++ chunk ++ that
     }
     if (that.isInstanceOf[Chunk.PrependN[_]]) {
@@ -729,7 +748,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Returns the concatenation of this chunk with the specified chunk.
    */
-  final def ++[A1 >: A](that: NonEmptyChunk[A1]): NonEmptyChunk[A1] = that.prepend(self)
+  final def ++[A1 >: A](that: NonEmptyChunk[A1]): NonEmptyChunk[A1] = NonEmptyChunk.nonEmpty(this ++ that.chunk)
 
   /**
    * Returns the bitwise AND of this chunk and the specified chunk.
@@ -860,9 +879,22 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Transforms all elements of the chunk for as long as the specified partial
    * function is defined.
    */
-  def collectWhile[B](pf: PartialFunction[A, B]): Chunk[B] =
-    if (isEmpty) Chunk.empty
-    else materialize.collectWhile(pf)
+  def collectWhile[B](pf: PartialFunction[A, B]): Chunk[B] = {
+    val len     = length
+    val builder = ChunkBuilder.make[B]()
+    var idx     = 0
+    var a       = null.asInstanceOf[A]
+    while (
+      idx < len && {
+        a = apply(idx)
+        pf.isDefinedAt(a)
+      }
+    ) {
+      builder.addOne(pf.apply(a))
+      idx += 1
+    }
+    builder.result()
+  }
 
   /**
    * Determines whether this chunk and the specified chunk have the same length
@@ -873,11 +905,9 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     val len = length
     if (len != that.length) false
     else {
-      val leftIterator  = chunkIterator
-      val rightIterator = that.chunkIterator
-      var idx           = 0
+      var idx = 0
       while (idx < len) {
-        if (f(leftIterator.nextAt(idx), rightIterator.nextAt(idx))) idx += 1
+        if (f(apply(idx), that(idx))) idx += 1
         else return false
       }
       true
@@ -888,13 +918,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Deduplicates adjacent elements that are identical.
    */
   def dedupe: Chunk[A] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    val builder  = ChunkBuilder.make[A](len)
-    var lastA    = null.asInstanceOf[A]
-    var idx      = 0
+    val len     = length
+    val builder = ChunkBuilder.make[A](len)
+    var lastA   = null.asInstanceOf[A]
+    var idx     = 0
     while (idx < len) {
-      val a = iterator.nextAt(idx)
+      val a = apply(idx)
       if (a != lastA) builder.addOne(a)
       lastA = a
       idx += 1
@@ -967,11 +996,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Drops all elements until the predicate returns true.
    */
   def dropUntil(f: A => Boolean): Chunk[A] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len = length
+    var idx = 0
     while (idx < len) {
-      val a = iterator.nextAt(idx)
+      val a = apply(idx)
       idx += 1
       if (f(a)) return drop(idx)
     }
@@ -982,11 +1010,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Drops all elements so long as the predicate returns true.
    */
   override def dropWhile(f: A => Boolean): Chunk[A] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len = length
+    var idx = 0
     while (idx < len) {
-      if (f(iterator.nextAt(idx))) idx += 1
+      if (f(apply(idx))) idx += 1
       else return drop(idx)
     }
     Chunk.empty
@@ -1002,11 +1029,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * this chunk.
    */
   override final def exists(f: A => Boolean): Boolean = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len = length
+    var idx = 0
     while (idx < len) {
-      if (f(iterator.nextAt(idx))) return true
+      if (f(apply(idx))) return true
       idx += 1
     }
     false
@@ -1016,12 +1042,11 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Returns a filtered subset of this chunk.
    */
   override def filter(f: A => Boolean): Chunk[A] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    val builder  = ChunkBuilder.make[A]()
-    var idx      = 0
+    val len     = length
+    val builder = ChunkBuilder.make[A]()
+    var idx     = 0
     while (idx < len) {
-      val a = iterator.nextAt(idx)
+      val a = apply(idx)
       if (f(a)) builder.addOne(a)
       idx += 1
     }
@@ -1032,11 +1057,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Returns the first element that satisfies the predicate.
    */
   override final def find(f: A => Boolean): Option[A] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len = length
+    var idx = 0
     while (idx < len) {
-      val a = iterator.nextAt(idx)
+      val a = apply(idx)
       if (f(a)) return new Some(a)
       idx += 1
     }
@@ -1052,12 +1076,11 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Folds over the elements in this chunk from the left.
    */
   override def foldLeft[S](s0: S)(f: (S, A) => S): S = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
-    var s        = s0
+    val len = length
+    var idx = 0
+    var s   = s0
     while (idx < len) {
-      s = f(s, iterator.nextAt(idx))
+      s = f(s, apply(idx))
       idx += 1
     }
     s
@@ -1067,10 +1090,11 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Folds over the elements in this chunk from the right.
    */
   override def foldRight[S](s0: S)(f: (A, S) => S): S = {
-    val iterator = reverseIterator
-    var s        = s0
-    while (iterator.hasNext) {
-      s = f(iterator.next(), s)
+    var s   = s0
+    var idx = length
+    while (idx > 0) {
+      idx -= 1
+      s = f(apply(idx), s)
     }
     s
   }
@@ -1080,12 +1104,11 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * when the condition is not fulfilled.
    */
   final def foldWhile[S](s0: S)(pred: S => Boolean)(f: (S, A) => S): S = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
-    var s        = s0
+    var s   = s0
+    val len = length
+    var idx = 0
     while (pred(s) && idx < len) {
-      s = f(s, iterator.nextAt(idx))
+      s = f(s, apply(idx))
       idx += 1
     }
     s
@@ -1095,11 +1118,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Determines whether a predicate is satisfied for all elements of this chunk.
    */
   override final def forall(f: A => Boolean): Boolean = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len = length
+    var idx = 0
     while (idx < len) {
-      if (f(iterator.nextAt(idx))) idx += 1
+      if (f(apply(idx))) idx += 1
       else return false
     }
     true
@@ -1114,25 +1136,24 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * or iterating over the elements of the chunk in lower level, performance
    * sensitive code unless you really only need the first element of the chunk.
    */
-  override def head: A = self(0)
+  override def head: A = apply(0)
 
   /**
    * Returns the first element of this chunk if it exists.
    */
   override final def headOption: Option[A] =
     if (length == 0) None
-    else new Some(self(0))
+    else new Some(apply(0))
 
   /**
    * Returns the first index for which the given predicate is satisfied after or
    * at some given index.
    */
   override final def indexWhere(f: A => Boolean, from: Int): Int = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = Math.max(from, 0)
+    val len = length
+    var idx = Math.max(from, 0)
     while (idx < len) {
-      if (f(iterator.nextAt(idx))) return idx
+      if (f(apply(idx))) return idx
       idx += 1
     }
     -1
@@ -1154,7 +1175,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   override final def lastOption: Option[A] = {
     val len = length
     if (len == 0) None
-    else new Some(self(len - 1))
+    else new Some(apply(len - 1))
   }
 
   /**
@@ -1166,13 +1187,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Statefully maps over the chunk, producing new elements of type `B`.
    */
   final def mapAccum[S, B](s0: S)(f: (S, A) => (S, B)): (S, Chunk[B]) = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    val builder  = ChunkBuilder.make[B](len)
-    var s        = s0
-    var idx      = 0
+    val len     = length
+    val builder = ChunkBuilder.make[B](len)
+    var s       = s0
+    var idx     = 0
     while (idx < len) {
-      val tuple = f(s, iterator.nextAt(idx))
+      val tuple = f(s, apply(idx))
       s = tuple._1
       builder.addOne(tuple._2)
       idx += 1
@@ -1184,9 +1204,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Materializes a chunk into a chunk backed by an array. This method can
    * improve the performance of bulk operations.
    */
-  def materialize[A1 >: A]: Chunk[A1] =
-    if (isEmpty) Chunk.empty
-    else Chunk.fromArray(toArray(using Chunk.classTagOf(self)))
+  def materialize[A1 >: A]: Chunk[A1] = {
+    implicit val ct: ClassTag[A] = Chunk.classTagOf(self)
+    Chunk.fromArray(toArray)
+  }
 
   /**
    * Runs `fn` if a `chunk` is not empty or returns default value
@@ -1200,13 +1221,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * function.
    */
   override final def partitionMap[B, C](f: A => Either[B, C]): (Chunk[B], Chunk[C]) = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    val bs       = ChunkBuilder.make[B](len >> 1)
-    val cs       = ChunkBuilder.make[C](len >> 1)
-    var idx      = 0
+    val len = length
+    val bs  = ChunkBuilder.make[B](len >> 1)
+    val cs  = ChunkBuilder.make[C](len >> 1)
+    var idx = 0
     while (idx < len) {
-      f(iterator.nextAt(idx)) match {
+      f(apply(idx)) match {
         case Left(b)  => bs.addOne(b)
         case Right(c) => cs.addOne(c)
       }
@@ -1249,7 +1269,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     val len       = length
     val quotient  = len / n
     val remainder = len % n
-    val iterator  = chunkIterator
     var idx       = 0
     val chunks    = ChunkBuilder.make[Chunk[A]](n)
     var remIdx    = 0
@@ -1257,7 +1276,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
       val chunk   = ChunkBuilder.make[A](quotient)
       var quotIdx = 0
       while (quotIdx <= quotient) {
-        chunk.addOne(iterator.nextAt(idx))
+        chunk.addOne(apply(idx))
         idx += 1
         quotIdx += 1
       }
@@ -1269,7 +1288,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
         val chunk   = ChunkBuilder.make[A](quotient)
         var quotIdx = 0
         while (quotIdx < quotient) {
-          chunk.addOne(iterator.nextAt(idx))
+          chunk.addOne(apply(idx))
           idx += 1
           quotIdx += 1
         }
@@ -1289,12 +1308,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Splits this chunk on the first element that matches this predicate.
    */
   final def splitWhere(f: A => Boolean): (Chunk[A], Chunk[A]) = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len = length
+    var idx = 0
     while (idx < len) {
-      val a = iterator.nextAt(idx)
-      if (f(a)) return (take(idx), drop(idx))
+      if (f(apply(idx))) return (take(idx), drop(idx))
       else idx += 1
     }
     (self, Chunk.empty)
@@ -1354,55 +1371,74 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Takes all elements so long as the predicate returns true.
    */
   override def takeWhile(f: A => Boolean): Chunk[A] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
-    while (idx < len && f(iterator.nextAt(idx))) idx += 1
+    val len = length
+    var idx = 0
+    while (idx < len && f(apply(idx))) idx += 1
     take(idx)
   }
 
   /**
    * Converts the chunk into an array.
    */
-  override def toArray[A1 >: A: ClassTag]: Array[A1] =
-    try {
-      val dest = new Array[A1](length)
-      toArray(0, dest)
-      dest
-    } catch {
+  override def toArray[A1 >: A: ClassTag]: Array[A1] = {
+    val len    = length
+    var result = new Array[A1](len)
+    try toArray(0, result, 0, len)
+    catch {
       case _: ClassCastException =>
-        val dest = new Array[AnyRef](length).asInstanceOf[Array[A1]]
-        toArray(0, dest)
-        dest
+        result = new Array[AnyRef](len).asInstanceOf[Array[A1]]
+        toArray(0, result, 0, len)
     }
+    result
+  }
 
   /**
    * Renders this chunk of bits as a binary string.
    */
   final def toBinaryString(implicit ev: A <:< Boolean): String = {
-    val builder  = new java.lang.StringBuilder(length)
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val len     = length
+    val builder = new java.lang.StringBuilder(len)
+    var idx     = 0
     while (idx < len) {
-      builder.append(if (iterator.nextAt(idx)) '1' else '0')
+      builder.append(if (apply(idx)) '1' else '0')
       idx += 1
     }
     builder.toString
   }
 
-  override final def toList: List[A] = fromBuilder(List.newBuilder[A])
+  override final def toList: List[A] = {
+    var list: List[A] = Nil
+    var idx           = length
+    while (idx > 0) {
+      idx -= 1
+      list = new ::(apply(idx), list)
+    }
+    list
+  }
 
-  override final def toVector: Vector[A] = fromBuilder(Vector.newBuilder[A])
+  override final def toVector: Vector[A] = this match {
+    case vc: Chunk.VectorChunk[_] => vc.vector
+    case _                        =>
+      val len = length
+      if (len == 0) Vector.empty
+      else {
+        val builder = new VectorBuilder[A]
+        var idx     = 0
+        while (idx < len) {
+          builder.addOne(apply(idx))
+          idx += 1
+        }
+        builder.result()
+      }
+  }
 
   override final def toString: String = {
-    val builder  = new java.lang.StringBuilder("Chunk(")
-    val iterator = chunkIterator
-    val len      = iterator.length
-    var idx      = 0
+    val builder = new java.lang.StringBuilder("Chunk(")
+    val len     = length
+    var idx     = 0
     while (idx < len) {
       if (idx > 0) builder.append(',')
-      builder.append(iterator.nextAt(idx))
+      builder.append(apply(idx))
       idx += 1
     }
     builder.append(')').toString
@@ -1436,21 +1472,19 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     val maxLen = Math.max(len1, len2)
     if (maxLen == 0) Chunk.empty
     else {
-      val builder       = ChunkBuilder.make[C](maxLen)
-      val leftIterator  = chunkIterator
-      val rightIterator = that.chunkIterator
-      val minLen        = Math.min(len1, len2)
-      var idx           = 0
+      val builder = ChunkBuilder.make[C](maxLen)
+      val minLen  = Math.min(len1, len2)
+      var idx     = 0
       while (idx < minLen) {
-        builder.addOne(both(leftIterator.nextAt(idx), rightIterator.nextAt(idx)))
+        builder.addOne(both(apply(idx), that(idx)))
         idx += 1
       }
       while (idx < len1) {
-        builder.addOne(left(leftIterator.nextAt(idx)))
+        builder.addOne(left(apply(idx)))
         idx += 1
       }
       while (idx < len2) {
-        builder.addOne(right(rightIterator.nextAt(idx)))
+        builder.addOne(right(that(idx)))
         idx += 1
       }
       builder.resultUnsafe()
@@ -1464,12 +1498,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     val minLen = Math.min(length, that.length)
     if (minLen == 0) Chunk.empty
     else {
-      val leftIterator  = chunkIterator
-      val rightIterator = that.chunkIterator
-      var idx           = 0
-      val builder       = ChunkBuilder.make[C](minLen)
+      var idx     = 0
+      val builder = ChunkBuilder.make[C](minLen)
       while (idx < minLen) {
-        builder.addOne(f(leftIterator.nextAt(idx), rightIterator.nextAt(idx)))
+        builder.addOne(f(apply(idx), that(idx)))
         idx += 1
       }
       builder.resultUnsafe()
@@ -1481,29 +1513,24 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * index value.
    */
   final def zipWithIndexFrom(indexOffset: Int): Chunk[(A, Int)] = {
-    val iterator  = chunkIterator
-    val len       = iterator.length
+    val len       = length
     val builder   = ChunkBuilder.make[(A, Int)](len)
     var offsetIdx = indexOffset
     var idx       = 0
     while (idx < len) {
-      builder.addOne((iterator.nextAt(idx), offsetIdx))
+      builder.addOne((apply(idx), offsetIdx))
       idx += 1
       offsetIdx += 1
     }
     builder.resultUnsafe()
   }
 
-  // noinspection AccessorLikeMethodIsUnit
-  protected[chunk] final def toArray[A1 >: A](n: Int, dest: Array[A1]): Unit = toArray(0, dest, n, length)
-
-  protected[chunk] def toArray[A1 >: A](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit =
-    if (!isEmpty) materialize.toArray(srcPos, dest, destPos, length)
+  protected[chunk] def toArray[A1 >: A](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit
 
   /**
    * Appends an element to the chunk.
    */
-  protected def append[A1 >: A](a1: A1): Chunk[A1] = {
+  override def appended[A1 >: A](a1: A1): Chunk[A1] = {
     val buffer = new Array[AnyRef](Chunk.BufferSize)
     buffer(0) = a1.asInstanceOf[AnyRef]
     new Chunk.AppendN(
@@ -1518,11 +1545,19 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   }
 
   /**
-   * Returns a filtered, mapped subset of the elements of this chunk.
+   * Returns a filtered, mapped subset of the elements of this `Chunk`.
    */
-  protected def collectChunk[B](pf: PartialFunction[A, B]): Chunk[B] =
-    if (isEmpty) Chunk.empty
-    else materialize.collectChunk(pf)
+  override def collect[B](pf: PartialFunction[A, B]): Chunk[B] = {
+    val len     = length
+    val builder = ChunkBuilder.make[B]()
+    var idx     = 0
+    while (idx < len) {
+      val a = apply(idx)
+      if (pf.isDefinedAt(a)) builder.addOne(pf.apply(a))
+      idx += 1
+    }
+    builder.resultUnsafe()
+  }
 
   protected def concatDepth: Int = 0
 
@@ -1534,12 +1569,11 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Returns a chunk with the elements mapped by the specified function.
    */
   protected def mapChunk[B](f: A => B): Chunk[B] = {
-    val iterator = chunkIterator
-    val len      = iterator.length
-    val builder  = ChunkBuilder.make[B](len)
-    var idx      = 0
+    val len     = length
+    val builder = ChunkBuilder.make[B](len)
+    var idx     = 0
     while (idx < len) {
-      builder.addOne(f(iterator.nextAt(idx)))
+      builder.addOne(f(apply(idx)))
       idx += 1
     }
     builder.resultUnsafe()
@@ -1548,7 +1582,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Prepends an element to the chunk.
    */
-  protected def prepend[A1 >: A](a1: A1): Chunk[A1] = {
+  override def prepended[A1 >: A](a1: A1): Chunk[A1] = {
     val buffer = new Array[AnyRef](Chunk.BufferSize)
     buffer(Chunk.BufferSize - 1) = a1.asInstanceOf[AnyRef]
     new Chunk.PrependN(
@@ -1585,18 +1619,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
         new AtomicInteger(1)
       )
     }
-
-  private def fromBuilder[A1 >: A, B[_]](builder: mutable.Builder[A1, B[A1]]): B[A1] = {
-    val chunk = materialize
-    val len   = chunk.length
-    builder.sizeHint(len)
-    var idx = 0
-    while (idx < len) {
-      builder.addOne(chunk(idx))
-      idx += 1
-    }
-    builder.result()
-  }
 }
 
 object Chunk extends ChunkFactory with ChunkPlatformSpecific {
@@ -1764,16 +1786,27 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   /**
    * Returns a chunk backed by an iterable.
    */
-  def fromIterable[A](it: Iterable[A]): Chunk[A] =
-    if (it.isEmpty) Chunk.empty
+  def fromIterable[A](it: Iterable[A]): Chunk[A] = {
+    val len = it.size
+    if (len == 0) Chunk.empty
     else {
       it match {
-        case chunk: Chunk[A]             => chunk
-        case vector: Vector[A]           => new VectorChunk(vector)
-        case arrSeq: mutable.ArraySeq[_] => fromArraySeq(arrSeq.asInstanceOf[mutable.ArraySeq[A]])
-        case iterable                    => fromIterator(iterable.iterator)
+        case chunk: Chunk[A]     => chunk
+        case vector: Vector[A]   => new VectorChunk(vector)
+        case arrSeq: ArraySeq[_] =>
+          val arr                      = arrSeq.unsafeArray
+          implicit val ct: ClassTag[A] = ClassTag(arr.getClass.getComponentType)
+          Chunk.fromArray(Array.copyAs(arr, arr.length)).asInstanceOf[Chunk[A]]
+        case arrSeq: mutable.ArraySeq[_] =>
+          val arr = arrSeq.array
+          Chunk.fromArray(Array.copyAs(arr, arr.length)(arrSeq.elemTag)).asInstanceOf[Chunk[A]]
+        case iterable =>
+          val builder = ChunkBuilder.make[A](len)
+          builder.addAll(iterable.iterator)
+          builder.resultUnsafe()
       }
     }
+  }
 
   /**
    * Creates a chunk from an iterator.
@@ -1842,11 +1875,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    * Returns a singleton chunk, eagerly evaluated.
    */
   def single[A](a: A): Chunk[A] = new Singleton(a)
-
-  /**
-   * Alias for [[Chunk.single]].
-   */
-  def succeed[A](a: A): Chunk[A] = new Singleton(a)
 
   /**
    * Constructs a `Chunk` by repeatedly applying the function `f` as long as it
@@ -1934,14 +1962,14 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     val length: Int = start.length + bufferUsed
 
-    override def append[A1 >: A](a1: A1): Chunk[A1] =
+    override def appended[A1 >: A](a1: A1): Chunk[A1] =
       if (bufferUsed < buffer.length && chain.compareAndSet(bufferUsed, bufferUsed + 1)) {
         buffer(bufferUsed) = a1.asInstanceOf[AnyRef]
         new AppendN(start, buffer, bufferUsed + 1, chain)
       } else {
         val buffer = new Array[AnyRef](BufferSize)
         buffer(0) = a1.asInstanceOf[AnyRef]
-        val chunk = Chunk.fromArray(Array.copyOf(self.buffer.asInstanceOf[Array[A1]], bufferUsed))
+        val chunk = Chunk.fromArray(self.buffer.asInstanceOf[Array[A1]]).take(bufferUsed)
         new AppendN(start ++ chunk, buffer, 1, new AtomicInteger(1))
       }
 
@@ -1974,7 +2002,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     val length: Int = end.length + bufferUsed
 
-    override def prepend[A1 >: A](a1: A1): Chunk[A1] =
+    override def prepended[A1 >: A](a1: A1): Chunk[A1] =
       if (bufferUsed < buffer.length && chain.compareAndSet(bufferUsed, bufferUsed + 1)) {
         buffer(BufferSize - bufferUsed - 1) = a1.asInstanceOf[AnyRef]
         new PrependN(end, buffer, bufferUsed + 1, chain)
@@ -2080,7 +2108,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       right.foreach(f)
     }
 
-    override def iterator: Iterator[A] = left.iterator ++ right.iterator
+    override def iterator: Iterator[A] = left.iterator.concat(right.iterator)
 
     override def toArray[A1 >: A](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit = {
       val n = Math.max(Math.min(Math.min(length, left.length - srcPos), dest.length - destPos), 0)
@@ -2145,7 +2173,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       chunk.toArray(srcPos + offset, dest, destPos, Math.min(length, this.length - srcPos))
   }
 
-  private final class VectorChunk[A](private val vector: Vector[A]) extends Chunk[A] {
+  private final class VectorChunk[A](val vector: Vector[A]) extends Chunk[A] {
     def chunkIterator: ChunkIterator[A] = ChunkIterator.fromVector(vector)
 
     implicit val classTag: ClassTag[A] = Tags.fromValue(vector(0))
@@ -2318,7 +2346,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     override def apply(n: Int): Boolean = {
       val bitIndex = n + minBitIndex
-      (bytes(bitIndex >> bitsLog2) & (1 << (bits - 1 - (bitIndex & bits - 1)))) != 0
+      val bitsM1   = bits - 1
+      (bytes(bitIndex >> bitsLog2) & (1 << (bitsM1 - (bitIndex & bitsM1)))) != 0
     }
 
     override protected def elementAt(n: Int): Byte = bytes(n)
@@ -2443,7 +2472,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     override def apply(n: Int): Boolean = {
       val bitIndex = n + minBitIndex
-      (elementAt(bitIndex >> bitsLog2) & (1 << (bits - 1 - (bitIndex & bits - 1)))) != 0
+      val bitsM1   = bits - 1
+      (elementAt(bitIndex >> bitsLog2) & (1 << (bitsM1 - (bitIndex & bitsM1)))) != 0
     }
 
     override protected def newBitChunk(chunk: Chunk[Int], min: Int, max: Int): BitChunk[Int] =
@@ -2518,7 +2548,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     def apply(n: Int): Boolean = {
       val bitIndex = n + minBitIndex
-      (elementAt(bitIndex >> bitsLog2) & (1L << (bits - 1 - (bitIndex & bits - 1)))) != 0
+      val bitsM1   = bits - 1
+      (elementAt(bitIndex >> bitsLog2) & (1L << (bitsM1 - (bitIndex & bitsM1)))) != 0
     }
 
     override protected def newBitChunk(longs: Chunk[Long], min: Int, max: Int): BitChunk[Long] =
@@ -2661,7 +2692,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     def hasNextAt(index: Int): Boolean = index < length
 
-    def nextAt(index: Int): T = self(index)
+    def nextAt(index: Int): T = apply(index)
 
     def sliceIterator(offset: Int, length: Int): ChunkIterator[T] =
       if (offset < 0 && offset >= this.length) self
@@ -2691,6 +2722,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     override def materialize[A1]: Chunk[A1] = Empty
 
     override def toArray[A1: ClassTag]: Array[A1] = Array.empty
+
+    protected[chunk] def toArray[A1 >: Nothing](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit = ()
   }
 
   private sealed abstract class Arr[A] extends Chunk[A] with Serializable { self =>
@@ -2703,11 +2736,14 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       val len     = arr.length
       val builder = ChunkBuilder.make[B]()
       var idx     = 0
-      var done    = false
-      while (!done && idx < len) {
-        val a = arr(idx)
-        if (pf.isDefinedAt(a)) builder.addOne(pf.apply(a))
-        else done = true
+      var a       = null.asInstanceOf[A]
+      while (
+        idx < len && {
+          a = arr(idx)
+          pf.isDefinedAt(a)
+        }
+      ) {
+        builder.addOne(pf.apply(a))
         idx += 1
       }
       builder.resultUnsafe()
@@ -2778,7 +2814,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     override protected[chunk] def toArray[A1 >: A](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit =
       Array.copy(array, srcPos, dest, destPos, length)
 
-    override protected def collectChunk[B](pf: PartialFunction[A, B]): Chunk[B] = {
+    override def collect[B](pf: PartialFunction[A, B]): Chunk[B] = {
       val arr     = array
       val len     = arr.length
       val builder = ChunkBuilder.make[B]()
@@ -3515,7 +3551,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
  * `NonEmptyChunk`. Operations on `NonEmptyChunk` which could potentially return
  * an empty chunk will return a `Chunk` instead.
  */
-final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Serializable { self =>
+final class NonEmptyChunk[+A] private (private[chunk] val chunk: Chunk[A]) extends Serializable { self =>
   import NonEmptyChunk.nonEmpty
 
   /**
@@ -3531,12 +3567,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Seri
   /**
    * Appends the specified `Chunk` to the end of this `NonEmptyChunk`.
    */
-  def ++[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1] = append(that)
-
-  /**
-   * A named alias for `++`.
-   */
-  def append[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1] = nonEmpty(chunk ++ that)
+  def ++[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1] = nonEmpty(chunk ++ that)
 
   /**
    * Appends a single element to the end of this `NonEmptyChunk`.
@@ -3655,11 +3686,6 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Seri
   def materialize[A1 >: A]: NonEmptyChunk[A1] = nonEmpty(chunk.materialize)
 
   /**
-   * Prepends the specified `Chunk` to the beginning of this `NonEmptyChunk`.
-   */
-  def prepend[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1] = nonEmpty(that ++ chunk)
-
-  /**
    * Prepends a single element to the beginning of this `NonEmptyChunk`.
    */
   def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] = nonEmpty(a +: chunk)
@@ -3672,12 +3698,15 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Seri
    * function `reduce` to combine the `B` value with each other `A` value.
    */
   def reduceMapLeft[B](map: A => B)(reduce: (B, A) => B): B = {
-    val iterator = chunk.iterator
-    var b        = null.asInstanceOf[B]
-    while (iterator.hasNext) {
-      val a = iterator.next()
+    var b   = null.asInstanceOf[B]
+    val as  = chunk
+    val len = as.length
+    var idx = 0
+    while (idx < len) {
+      val a = as.apply(idx)
       if (b == null) b = map(a)
       else b = reduce(b, a)
+      idx += 1
     }
     b
   }
@@ -3688,10 +3717,14 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Seri
    * function `reduce` to combine the `B` value with each other `A` value.
    */
   def reduceMapRight[B](map: A => B)(reduce: (A, B) => B): B = {
-    val iterator = chunk.reverseIterator
-    var b        = null.asInstanceOf[B]
-    while (iterator.hasNext) {
-      val a = iterator.next()
+    var b   = null.asInstanceOf[B]
+    val as  = chunk
+    var idx = as.length
+    while ({
+      idx -= 1
+      idx >= 0
+    }) {
+      val a = as.apply(idx)
       if (b == null) b = map(a)
       else b = reduce(a, b)
     }

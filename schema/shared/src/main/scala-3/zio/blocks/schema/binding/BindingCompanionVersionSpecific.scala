@@ -494,8 +494,8 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         case '[b] =>
           '{
             Binding.Wrapper[A, b](
-              wrap = (b: b) => Right(b.asInstanceOf[A]),
-              unwrap = (a: A) => Right(a.asInstanceOf[b])
+              wrap = (b: b) => b.asInstanceOf[A],
+              unwrap = (a: A) => a.asInstanceOf[b]
             )
           }
       }
@@ -545,12 +545,15 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
           (underlyingTpe.asType, errorType.asType) match {
             case ('[b], '[e]) =>
-              val wrapExpr: Expr[b => Either[SchemaError, A]] =
+              val wrapExpr: Expr[b => A] =
                 if (isSchemaError) {
                   '{ (underlying: b) =>
                     ${
                       Apply(Select(Ref(companion), method), List('underlying.asTerm)).asExpr
                         .asInstanceOf[Expr[Either[SchemaError, A]]]
+                    } match {
+                      case Right(a)  => a
+                      case Left(err) => throw err
                     }
                   }
                 } else {
@@ -559,19 +562,19 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                       Apply(Select(Ref(companion), method), List('underlying.asTerm)).asExpr
                         .asInstanceOf[Expr[Either[e, A]]]
                     } match {
-                      case Right(a)  => Right(a)
-                      case Left(err) => Left(SchemaError.validationFailed(err.toString))
+                      case Right(a)  => a
+                      case Left(err) => throw SchemaError.validationFailed(err.toString)
                     }
                   }
                 }
 
-              val unwrapExpr: Expr[A => Either[SchemaError, b]] = unwrapMethod match {
+              val unwrapExpr: Expr[A => b] = unwrapMethod match {
                 case Some(m) =>
                   '{ (a: A) =>
-                    Right(${ Apply(Select(Ref(companion), m), List('a.asTerm)).asExpr.asInstanceOf[Expr[b]] })
+                    ${ Apply(Select(Ref(companion), m), List('a.asTerm)).asExpr.asInstanceOf[Expr[b]] }
                   }
                 case None =>
-                  '{ (a: A) => Right(a.asInstanceOf[b]) }
+                  '{ (a: A) => a.asInstanceOf[b] }
               }
 
               '{ Binding.Wrapper[A, b](wrap = $wrapExpr, unwrap = $unwrapExpr) }
@@ -582,8 +585,8 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
             case '[b] =>
               '{
                 Binding.Wrapper[A, b](
-                  wrap = (b: b) => Right(b.asInstanceOf[A]),
-                  unwrap = (a: A) => Right(a.asInstanceOf[b])
+                  wrap = (b: b) => b.asInstanceOf[A],
+                  unwrap = (a: A) => a.asInstanceOf[b]
                 )
               }
           }
@@ -604,7 +607,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
     underlyingTpe.asType match {
       case '[b] =>
-        val wrapExpr: Expr[b => Either[SchemaError, A]] = wrapMethod match {
+        val wrapExpr: Expr[b => A] = wrapMethod match {
           case Some(m) =>
             val mTpe = companion.symbol.typeRef.memberType(m)
             mTpe match {
@@ -617,6 +620,9 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                         ${
                           Apply(Select(companion, m), List('underlying.asTerm)).asExpr
                             .asInstanceOf[Expr[Either[SchemaError, A]]]
+                        } match {
+                          case Right(a)  => a
+                          case Left(err) => throw err
                         }
                       }
                     } else {
@@ -625,26 +631,26 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                           Apply(Select(companion, m), List('underlying.asTerm)).asExpr
                             .asInstanceOf[Expr[Either[e, A]]]
                         } match {
-                          case Right(a)  => Right(a)
-                          case Left(err) => Left(SchemaError.validationFailed(err.toString))
+                          case Right(a)  => a
+                          case Left(err) => throw SchemaError.validationFailed(err.toString)
                         }
                       }
                     }
                 }
               case _ =>
                 '{ (underlying: b) =>
-                  Right(${ Apply(Select(companion, m), List('underlying.asTerm)).asExpr.asInstanceOf[Expr[A]] })
+                  ${ Apply(Select(companion, m), List('underlying.asTerm)).asExpr.asInstanceOf[Expr[A]] }
                 }
             }
           case None =>
-            '{ (underlying: b) => Right(underlying.asInstanceOf[A]) }
+            '{ (underlying: b) => underlying.asInstanceOf[A] }
         }
 
-        val unwrapExpr: Expr[A => Either[SchemaError, b]] = unwrapMethod match {
+        val unwrapExpr: Expr[A => b] = unwrapMethod match {
           case Some(m) =>
-            '{ (a: A) => Right(${ Apply(Select(companion, m), List('a.asTerm)).asExpr.asInstanceOf[Expr[b]] }) }
+            '{ (a: A) => ${ Apply(Select(companion, m), List('a.asTerm)).asExpr.asInstanceOf[Expr[b]] } }
           case None =>
-            '{ (a: A) => Right(a.asInstanceOf[b]) }
+            '{ (a: A) => a.asInstanceOf[b] }
         }
 
         '{ Binding.Wrapper[A, b](wrap = $wrapExpr, unwrap = $unwrapExpr) }
@@ -659,12 +665,15 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
     (info.underlyingType.asType, info.errorType.asType) match {
       case ('[b], '[e]) =>
-        val wrapExpr: Expr[b => Either[SchemaError, A]] =
+        val wrapExpr: Expr[b => A] =
           if (isSchemaError) {
             '{ (underlying: b) =>
               ${
                 Apply(Select(info.companionRef, info.applyMethod), List('underlying.asTerm)).asExpr
                   .asInstanceOf[Expr[Either[SchemaError, A]]]
+              } match {
+                case Right(a)  => a
+                case Left(err) => throw err
               }
             }
           } else {
@@ -673,16 +682,16 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                 Apply(Select(info.companionRef, info.applyMethod), List('underlying.asTerm)).asExpr
                   .asInstanceOf[Expr[Either[e, A]]]
               } match {
-                case Right(a)  => Right(a)
-                case Left(err) => Left(SchemaError.validationFailed(err.toString))
+                case Right(a)  => a
+                case Left(err) => throw SchemaError.validationFailed(err.toString)
               }
             }
           }
 
-        val fieldName                                     = info.unwrapFieldName
-        val fieldSymbol                                   = tpe.typeSymbol.fieldMember(fieldName)
-        val unwrapExpr: Expr[A => Either[SchemaError, b]] = '{ (a: A) =>
-          Right(${ Select('a.asTerm, fieldSymbol).asExpr.asInstanceOf[Expr[b]] })
+        val fieldName                = info.unwrapFieldName
+        val fieldSymbol              = tpe.typeSymbol.fieldMember(fieldName)
+        val unwrapExpr: Expr[A => b] = '{ (a: A) =>
+          ${ Select('a.asTerm, fieldSymbol).asExpr.asInstanceOf[Expr[b]] }
         }
 
         '{ Binding.Wrapper[A, b](wrap = $wrapExpr, unwrap = $unwrapExpr) }
@@ -1347,7 +1356,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       if (occurrences.size > 1) {
         val types = occurrences.map(_._2.show).distinct
         if (types.size > 1) {
-          fail(s"Conflicting types for member '$name' in intersection: ${types.mkString(", ")}")
+          fail(s"Conflicting types for member '$name' in structural type: ${types.mkString(", ")}")
         }
       }
     }

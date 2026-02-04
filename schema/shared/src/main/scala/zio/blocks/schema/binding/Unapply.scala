@@ -3,8 +3,8 @@ package zio.blocks.schema.binding
 /**
  * Type class that witnesses that a type `X` is an applied sequence type `C[A]`.
  *
- * This is used for Scala 2 compatibility when looking up sequence bindings in a
- * TypeRegistry, since Scala 2 cannot express higher-kinded type parameters
+ * This is used for Scala 2 compatibility when resolving sequence bindings in a
+ * BindingResolver, since Scala 2 cannot express higher-kinded type parameters
  * directly in implicit parameters.
  *
  * @tparam X
@@ -79,8 +79,8 @@ trait UnapplySeqLowPriority {
 /**
  * Type class that witnesses that a type `X` is an applied map type `M[K, V]`.
  *
- * This is used for Scala 2 compatibility when looking up map bindings in a
- * TypeRegistry, since Scala 2 cannot express higher-kinded type parameters
+ * This is used for Scala 2 compatibility when resolving map bindings in a
+ * BindingResolver, since Scala 2 cannot express higher-kinded type parameters
  * directly in implicit parameters.
  *
  * @tparam X

@@ -1698,7 +1698,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("record with an `AnyVal` field that uses a custom schema") {
         roundTrip(Counter(PosInt.applyUnsafe(1)), """{"value":1}""") &&
-        decodeError[Counter]("""{"value":-1}""", "Expected positive value at: .value")
+        decodeError[Counter]("""{"value":-1}""", "Expected positive value at: .value.wrapped")
       },
       test("record with fields that have default values and custom codecs") {
         val codec1 = Schema[Record6]
@@ -2747,7 +2747,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip[UserId](UserId(1234567890123456789L), "1234567890123456789") &&
         roundTrip[Email](Email("john@gmail.com"), "\"john@gmail.com\"") &&
         decodeError[Email]("john@gmail.com", "expected '\"' at: .wrapped") &&
-        decodeError[Email]("\"john&gmail.com\"", "expected e-mail at: .") &&
+        decodeError[Email]("\"john&gmail.com\"", "expected e-mail at: .wrapped") &&
         decodeError[Email]("\"john@gmail.com", "unexpected end of input at: .wrapped")
       },
       test("as a record field") {
@@ -2770,7 +2770,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           """{"1234567890123456789":"backup@gmail.com"}"""
         ) &&
         decodeError[Map[Email, UserId]]("""{john@gmail.com:123}""", "expected '\"' at: .at(0).wrapped") &&
-        decodeError[Map[Email, UserId]]("""{"backup&gmail.com":123}""", "expected e-mail at: .at(0)") &&
+        decodeError[Map[Email, UserId]]("""{"backup&gmail.com":123}""", "expected e-mail at: .at(0).wrapped") &&
         decodeError[Map[Email, UserId]]("""{"backup@gmail.com":123""", "unexpected end of input at: .")
       }
     ),
@@ -3095,10 +3095,10 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
     implicit lazy val typeId: TypeId[Email] = TypeId.of[Email]
     implicit lazy val schema: Schema[Email] =
-      Schema[String].transformOrFail[Email](
+      Schema[String].transform[Email](
         {
-          case x @ EmailRegex(_*) => new Right(new Email(x))
-          case _                  => new Left(SchemaError.validationFailed("expected e-mail"))
+          case x @ EmailRegex(_*) => new Email(x)
+          case _                  => throw SchemaError.validationFailed("expected e-mail")
         },
         _.value
       )
@@ -3396,7 +3396,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
     implicit lazy val typeId: TypeId[PosInt] = TypeId.of[PosInt]
     implicit lazy val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value)
+      Schema[Int].transform[PosInt](PosInt.applyUnsafe, _.value)
   }
 
   case class Counter(value: PosInt)

@@ -56,19 +56,19 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
       decodeError[Planet](
         """{"name":"","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
-        "Validation Failed at: .name"
+        "Validation Failed at: .name.wrapped"
       ) &&
       decodeError[Planet](
         """{"name":"Earth","mass":-5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
-        "Validation Failed at: .mass"
+        "Validation Failed at: .mass.wrapped"
       ) &&
       decodeError[Planet](
         """{"name":"Earth","mass":5.97E24,"radius":-6378000.0,"distanceFromSun":1.5E15}""",
-        "Validation Failed at: .radius"
+        "Validation Failed at: .radius.wrapped"
       ) &&
       decodeError[Planet](
         """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":-1.5E15}""",
-        "Validation Failed at: .distanceFromSun.when[Some].value"
+        "Validation Failed at: .distanceFromSun.when[Some].value.wrapped"
       )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
@@ -169,7 +169,14 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
     typeId: TypeId[B]
   ): Schema[B] =
     Schema[A]
-      .transformOrFail(a => newType.make(a).left.map(SchemaError.validationFailed), newType.unwrap)
+      .transform(
+        a =>
+          newType.make(a) match {
+            case Right(b)  => b
+            case Left(err) => throw SchemaError.validationFailed(err)
+          },
+        newType.unwrap
+      )
 
   inline given subTypeSchema[A, B <: A](using
     subType: Subtype.WithType[A, B],
@@ -177,7 +184,14 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
     typeId: TypeId[B]
   ): Schema[B] =
     Schema[A]
-      .transformOrFail(a => subType.make(a).left.map(SchemaError.validationFailed), _.asInstanceOf[A])
+      .transform(
+        a =>
+          subType.make(a) match {
+            case Right(b)  => b
+            case Left(err) => throw SchemaError.validationFailed(err)
+          },
+        _.asInstanceOf[A]
+      )
 
   private val neotypeSupportOwner: Owner = Owner.fromPackagePath("zio.blocks.schema").term("NeotypeSupportSpec")
 

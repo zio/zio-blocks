@@ -231,8 +231,8 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 84, // Lowered from 87 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 80  // Lowered from 83 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 88,
+    coverageMinimumBranchTotal := 85
   )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
@@ -302,7 +302,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.2.1",
+      "org.mongodb" % "bson"         % "5.6.3",
       "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {

@@ -735,9 +735,10 @@ object Optional {
               return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
           case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-            wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
-              case Right(unwrapped) => x = unwrapped
-              case Left(error)      =>
+            try {
+              x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            } catch {
+              case error: SchemaError =>
                 val wrappingError = new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error)
                 return new Some(new OpticCheck(new ::(wrappingError, Nil)))
             }
@@ -811,9 +812,10 @@ object Optional {
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) return None
           case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-            wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
-              case Right(unwrapped) => x = unwrapped
-              case Left(_)          => return None
+            try {
+              x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            } catch {
+              case _: SchemaError => return None
             }
           case atBinding: AtBinding[Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
@@ -930,16 +932,18 @@ object Optional {
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
-            case Right(unwrapped) => unwrapped
-            case Left(error)      => throw toOpticCheckBuilder(idx, error)
-          }
-          wrapperBinding.wrap({
-            if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
-            else modifyRecursive(registers, idx + 1, x1, f)
-          }.asInstanceOf[Wrapped]) match {
-            case Right(right) => right
-            case Left(error)  => throw toOpticCheckBuilder(idx, error)
+          val x1 =
+            try wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            catch {
+              case error: SchemaError => throw toOpticCheckBuilder(idx, error)
+            }
+          try
+            wrapperBinding.wrap({
+              if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+              else modifyRecursive(registers, idx + 1, x1, f)
+            }.asInstanceOf[Wrapped])
+          catch {
+            case error: SchemaError => throw toOpticCheckBuilder(idx, error)
           }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
@@ -1421,10 +1425,11 @@ object Traversal {
             errors.addOne(new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), x))
           } else if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
-            case Right(x1) =>
-              if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
-            case Left(error) =>
+          try {
+            val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
+          } catch {
+            case error: SchemaError =>
               errors.addOne(new OpticCheck.WrappingError(toDynamic, toDynamic(idx), error))
           }
         case atBinding: AtBinding[Col] @scala.unchecked =>
@@ -1543,11 +1548,12 @@ object Traversal {
           else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
           else foldRecursive(registers, idx + 1, x1, zero, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
-            case Right(x1) =>
-              if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
-              else foldRecursive(registers, idx + 1, x1, zero, f)
-            case Left(_) => zero
+          try {
+            val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+            else foldRecursive(registers, idx + 1, x1, zero, f)
+          } catch {
+            case _: SchemaError => zero
           }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
@@ -2095,16 +2101,18 @@ object Traversal {
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
         case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping]) match {
-            case Right(unwrapped) => unwrapped
-            case Left(error)      => throw toOpticCheckBuilder(idx, error)
-          }
-          wrapperBinding.wrap({
-            if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
-            else modifyRecursive(registers, idx + 1, x1, f)
-          }.asInstanceOf[Wrapped]) match {
-            case Right(right) => right
-            case Left(error)  => throw toOpticCheckBuilder(idx, error)
+          val x1 =
+            try wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+            catch {
+              case error: SchemaError => throw toOpticCheckBuilder(idx, error)
+            }
+          try
+            wrapperBinding.wrap({
+              if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+              else modifyRecursive(registers, idx + 1, x1, f)
+            }.asInstanceOf[Wrapped])
+          catch {
+            case error: SchemaError => throw toOpticCheckBuilder(idx, error)
           }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
@@ -2577,8 +2585,8 @@ private[schema] case class AtKeysBinding[K, M[_, _]](
 ) extends OpticBinding
 
 private[schema] case class WrappedBinding[A, B](
-  wrap: B => Either[SchemaError, A],
-  unwrap: A => Either[SchemaError, B]
+  wrap: B => A,
+  unwrap: A => B
 ) extends OpticBinding
 
 private[schema] case class OpticCheckBuilder(toOpticCheck: () => OpticCheck) extends Exception with NoStackTrace

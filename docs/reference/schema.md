@@ -578,16 +578,15 @@ Here is an example of adding modifiers to a schema:
 
 ## Wrapper Types
 
-ZIO Blocks provides convenient methods for creating schemas for wrapper types, such as newtypes, opaque types and value classes. These methods are `transform` and `transformOrFail`, which allow defining schemas for types that wrap an underlying type:
+ZIO Blocks provides the `transform` method for creating schemas for wrapper types, such as newtypes, opaque types and value classes:
 
 ```scala
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def transform[B](to: A => B, from: B => A): Schema[B]                              = ???
-  def transformOrFail[B](to: A => Either[SchemaError, B], from: B => A): Schema[B]   = ???
+  def transform[B](to: A => B, from: B => A): Schema[B] = ???
 }
 ```
 
-The `transformOrFail` method is used for types where the transformation may fail (e.g., validation), while `transform` is used for total transformations that never fail. 
+The `transform` method allows you to define transformations that can fail by throwing `SchemaError` exceptions. Use it for both simple wrapper types and types with validation requirements. 
 
 Here are examples of both:
 
@@ -601,10 +600,10 @@ object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
   
   implicit val schema: Schema[Email] = Schema[String]
-    .transformOrFail(
+    .transform(
       {
-        case x @ EmailRegex(_*) => Right(Email(x))
-        case _                  => Left(SchemaError.validationFailed("Invalid email format"))
+        case x @ EmailRegex(_*) => Email(x)
+        case _                  => throw SchemaError.validationFailed("Invalid email format")
       },
       _.value
     )

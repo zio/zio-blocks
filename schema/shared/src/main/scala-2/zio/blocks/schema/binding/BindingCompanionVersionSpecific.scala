@@ -153,7 +153,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       case (name, occurrences) if occurrences.size > 1 =>
         val types = occurrences.map(_._2).distinct
         if (types.size > 1 && !types.tail.forall(_ =:= types.head)) {
-          fail(s"Conflicting types for member '$name' in intersection: ${types.map(_.toString).mkString(", ")}")
+          fail(s"Conflicting types for member '$name' in structural type: ${types.map(_.toString).mkString(", ")}")
         }
       case _ => // single occurrence, no conflict possible
     }
@@ -497,20 +497,21 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     val wrapTree =
       if (isSchemaError) {
         q"""
-        (underlying: $underlyingType) => $companion.$applyMethod(underlying)
+        (underlying: $underlyingType) => $companion.$applyMethod(underlying) match {
+          case _root_.scala.Right(a)  => a
+          case _root_.scala.Left(err) => throw err
+        }
         """
       } else {
         q"""
         (underlying: $underlyingType) => $companion.$applyMethod(underlying) match {
-          case _root_.scala.Right(a)  => _root_.scala.Right(a)
-          case _root_.scala.Left(err) => _root_.scala.Left(
-            _root_.zio.blocks.schema.SchemaError.validationFailed(err.toString)
-          )
+          case _root_.scala.Right(a)  => a
+          case _root_.scala.Left(err) => throw _root_.zio.blocks.schema.SchemaError.validationFailed(err.toString)
         }
         """
       }
 
-    val unwrapTree = q"""(a: $tpe) => _root_.scala.Right(a.$fieldName)"""
+    val unwrapTree = q"""(a: $tpe) => a.$fieldName"""
 
     c.Expr[Any](
       q"""
@@ -532,19 +533,19 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     val wrapTree =
       if (wrapMethod != NoSymbol) {
         q"""
-        (underlying: $underlyingType) => _root_.scala.Right($companion.wrap(underlying))
+        (underlying: $underlyingType) => $companion.wrap(underlying)
         """
       } else {
         q"""
-        (underlying: $underlyingType) => _root_.scala.Right(underlying.asInstanceOf[$tpe])
+        (underlying: $underlyingType) => underlying.asInstanceOf[$tpe]
         """
       }
 
     val unwrapTree =
       if (unwrapMethod != NoSymbol) {
-        q"""(a: $tpe) => _root_.scala.Right($companion.unwrap(a))"""
+        q"""(a: $tpe) => $companion.unwrap(a)"""
       } else {
-        q"""(a: $tpe) => _root_.scala.Right(a.asInstanceOf[$underlyingType])"""
+        q"""(a: $tpe) => a.asInstanceOf[$underlyingType]"""
       }
 
     c.Expr[Any](

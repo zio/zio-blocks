@@ -46,6 +46,63 @@ private object SchemaCompanionVersionSpecific {
     def isNonAbstractScalaClass(tpe: Type): Boolean =
       tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
 
+    def isStructuralType(tpe: Type): Boolean = {
+      val dealiased = tpe.dealias
+      dealiased match {
+        case RefinedType(parents, decls) =>
+          val hasOwnDecls = decls.exists {
+            case m: MethodSymbol => m.paramLists.flatten.isEmpty && !m.isConstructor
+            case _               => false
+          }
+          val hasStructuralParent = parents.exists(p =>
+            !(p =:= typeOf[AnyRef] || p =:= typeOf[Any] || p =:= typeOf[Object]) && isStructuralType(p)
+          )
+          hasOwnDecls || hasStructuralParent
+        case _ => false
+      }
+    }
+
+    def getStructuralMembers(tpe: Type): List[(String, Type)] = {
+      def collectMembers(t: Type): List[(String, Type)] = {
+        val dealiased = t.dealias
+        dealiased match {
+          case RefinedType(parents, decls) =>
+            val memberDecls = decls.toList.collect {
+              case m: MethodSymbol if m.paramLists.flatten.isEmpty && !m.isConstructor =>
+                (m.name.decodedName.toString, m.returnType.asSeenFrom(t, t.typeSymbol))
+            }
+            val parentMembers = parents.flatMap(collectMembers)
+            memberDecls ++ parentMembers
+          case _ => Nil
+        }
+      }
+
+      val members = collectMembers(tpe)
+      val grouped = members.groupBy(_._1)
+      grouped.foreach {
+        case (name, occurrences) if occurrences.size > 1 =>
+          val types = occurrences.map(_._2).distinct
+          if (types.size > 1 && !types.tail.forall(_ =:= types.head)) {
+            fail(s"Conflicting types for member '$name' in intersection: ${types.map(_.toString).mkString(", ")}")
+          }
+        case _ =>
+      }
+      grouped.map(_._2.head).toList.sortBy(_._1)
+    }
+
+    def structuralRegisterKind(tpe: Type): String = {
+      val dealiased = dealiasOnDemand(tpe)
+      if (dealiased =:= definitions.BooleanTpe) "boolean"
+      else if (dealiased =:= definitions.ByteTpe) "byte"
+      else if (dealiased =:= definitions.ShortTpe) "short"
+      else if (dealiased =:= definitions.IntTpe) "int"
+      else if (dealiased =:= definitions.LongTpe) "long"
+      else if (dealiased =:= definitions.FloatTpe) "float"
+      else if (dealiased =:= definitions.DoubleTpe) "double"
+      else if (dealiased =:= definitions.CharTpe) "char"
+      else "object"
+    }
+
     def isJavaTime(tpe: Type): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
       (tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount])
 
@@ -586,6 +643,8 @@ private object SchemaCompanionVersionSpecific {
           q"implicit val $name: $schemaTpe = new Schema($underlyingSchema.reflect.typeId(_root_.zio.blocks.typeid.TypeId.of[$tpe].asInstanceOf[_root_.zio.blocks.typeid.TypeId[$sTpe]])).asInstanceOf[Schema[$tpe]]"
         }
         ref
+      } else if (isStructuralType(tpe)) {
+        deriveSchemaForStructuralType(tpe)
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else cannotDeriveSchema(tpe)
@@ -626,6 +685,173 @@ private object SchemaCompanionVersionSpecific {
               modifiers = ${modifiers(tpe)},
             )
           )"""
+    }
+
+    def deriveSchemaForStructuralType(tpe: Type): Tree = {
+      if (!zio.blocks.schema.Platform.supportsReflection) {
+        fail(
+          s"""Cannot derive Schema for structural type '$tpe' on ${zio.blocks.schema.Platform.name}.
+             |
+             |Structural types require reflection which is only available on JVM.
+             |
+             |Consider using a case class instead.""".stripMargin
+        )
+      }
+
+      val members = getStructuralMembers(tpe)
+
+      if (members.isEmpty) {
+        q"""new Schema(
+              reflect = new Reflect.Record[Binding, $tpe](
+                fields = _root_.scala.Vector.empty,
+                typeId = zio.blocks.typeid.TypeId.of[$tpe],
+                recordBinding = new Binding.Record(
+                  constructor = new Constructor[$tpe] {
+                    def usedRegisters: RegisterOffset = RegisterOffset.Zero
+
+                    def construct(in: Registers, offset: RegisterOffset): $tpe = {
+                      val emptyInstance = new Object {}
+                      emptyInstance.asInstanceOf[$tpe]
+                    }
+                  },
+                  deconstructor = new Deconstructor[$tpe] {
+                    def usedRegisters: RegisterOffset = RegisterOffset.Zero
+
+                    def deconstruct(out: Registers, offset: RegisterOffset, in: $tpe): _root_.scala.Unit = ()
+                  }
+                )
+              )
+            )"""
+      } else {
+        case class StructuralFieldInfo(name: String, tpe: Type, kind: String, fieldOffset: Long)
+
+        def offsetDelta(registerType: String): Long = registerType match {
+          case "boolean" => 0x100000000L
+          case "byte"    => 0x100000000L
+          case "short"   => 0x200000000L
+          case "int"     => 0x400000000L
+          case "long"    => 0x800000000L
+          case "float"   => 0x400000000L
+          case "double"  => 0x800000000L
+          case "char"    => 0x200000000L
+          case "object"  => 1L
+        }
+
+        var currentOffset: Long = 0L
+        val fields              = members.map { case (name, memberTpe) =>
+          val kind        = structuralRegisterKind(memberTpe)
+          val fieldOffset = currentOffset
+          currentOffset += offsetDelta(kind)
+          StructuralFieldInfo(name, memberTpe, kind, fieldOffset)
+        }
+        val usedRegistersLong = currentOffset
+
+        val fieldTerms = fields.map { f =>
+          val fieldName = f.name
+          val schema    = findImplicitOrDeriveSchema(f.tpe)
+          q"$schema.reflect.asTerm[$tpe]($fieldName)"
+        }
+
+        val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
+          val fieldName  = TermName(f.name)
+          val fieldTpe   = f.tpe
+          val idxLiteral = Literal(Constant(idx))
+          q"def $fieldName: $fieldTpe = values($idxLiteral).asInstanceOf[$fieldTpe]"
+        }
+
+        val valueReads = fields.map { f =>
+          val offsetLit = Literal(Constant(f.fieldOffset))
+          f.kind match {
+            case "boolean" => q"in.getBoolean(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "byte"    => q"in.getByte(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "short"   => q"in.getShort(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "int"     => q"in.getInt(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "long"    => q"in.getLong(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "float"   => q"in.getFloat(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "double"  => q"in.getDouble(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case "char"    => q"in.getChar(offset + $offsetLit).asInstanceOf[AnyRef]"
+            case _         => q"in.getObject(offset + $offsetLit)"
+          }
+        }
+
+        val deconstructStatements = fields.map { f =>
+          val fieldNameStr = f.name
+          val offsetLit    = Literal(Constant(f.fieldOffset))
+          f.kind match {
+            case "boolean" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setBoolean(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Boolean].booleanValue)
+              """
+            case "byte" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setByte(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Byte].byteValue)
+              """
+            case "short" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setShort(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Short].shortValue)
+              """
+            case "int" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setInt(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Integer].intValue)
+              """
+            case "long" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setLong(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Long].longValue)
+              """
+            case "float" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setFloat(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Float].floatValue)
+              """
+            case "double" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setDouble(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Double].doubleValue)
+              """
+            case "char" =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setChar(offset + $offsetLit, method.invoke(in).asInstanceOf[java.lang.Character].charValue)
+              """
+            case _ =>
+              q"""
+              val method = in.getClass.getMethod($fieldNameStr)
+              out.setObject(offset + $offsetLit, method.invoke(in))
+              """
+          }
+        }
+
+        val usedRegistersLit = Literal(Constant(usedRegistersLong))
+
+        q"""new Schema(
+              reflect = new Reflect.Record[Binding, $tpe](
+                fields = _root_.scala.Vector(..$fieldTerms),
+                typeId = zio.blocks.typeid.TypeId.of[$tpe],
+                recordBinding = new Binding.Record(
+                  constructor = new Constructor[$tpe] {
+                    def usedRegisters: RegisterOffset = $usedRegistersLit
+
+                    def construct(in: Registers, offset: RegisterOffset): $tpe = {
+                      val values: Array[AnyRef] = Array(..$valueReads)
+                      new { ..$methodDefs }.asInstanceOf[$tpe]
+                    }
+                  },
+                  deconstructor = new Deconstructor[$tpe] {
+                    def usedRegisters: RegisterOffset = $usedRegistersLit
+
+                    def deconstruct(out: Registers, offset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
+                      ..$deconstructStatements
+                    }
+                  }
+                )
+              )
+            )"""
+      }
     }
 
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {

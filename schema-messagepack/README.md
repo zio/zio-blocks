@@ -129,7 +129,6 @@ This module is implemented in pure Scala with no platform-specific dependencies,
 
 - JVM
 - Scala.js
-- Scala Native
 
 ## More Information
 
