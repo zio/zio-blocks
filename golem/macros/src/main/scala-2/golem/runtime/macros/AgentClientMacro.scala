@@ -120,7 +120,7 @@ object AgentClientMacroImpl {
 
     val methodName    = method.name.toString
     val agentTypeName = agentTypeNameOrDefault(c)(traitType.typeSymbol)
-    val functionName  = s"$agentTypeName.{${kebabCase(methodName)}}"
+    val functionName  = s"$agentTypeName.{$methodName}"
     val metadataExpr  = methodMetadata(c)(method)
 
     val params                       = extractParameters(c)(method)
@@ -410,19 +410,6 @@ object AgentClientMacroImpl {
           }
       }
     """
-  }
-
-  private def kebabCase(name: String): String = {
-    val builder = new StringBuilder
-    name.zipWithIndex.foreach { case (ch, idx) =>
-      if (ch.isUpper) {
-        if (idx != 0) builder.append('-')
-        builder.append(ch.toLower)
-      } else {
-        builder.append(ch)
-      }
-    }
-    builder.toString
   }
 
   private sealed trait ParamAccessMode

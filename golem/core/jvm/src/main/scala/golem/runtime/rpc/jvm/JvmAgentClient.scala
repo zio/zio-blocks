@@ -78,10 +78,10 @@ object JvmAgentClient {
         }
 
       // Convert scala method name to WIT function id:
-      // full id: "<component>/<agent-type>.{<kebab-method>}"
+      // full id: "<component>/<agent-type>.{<method>}"
       val methodPlanFn =
         agentType.methods.collectFirst { case p if p.metadata.name == name => p.functionName }
-          .getOrElse(s"${agentType.typeName}.{${kebab(name)}}")
+          .getOrElse(throw new IllegalStateException(s"Method definition for $name not found"))
       val fn = s"${cfg.component}/$methodPlanFn"
 
       // Render args as wave literals for golem-cli
@@ -111,28 +111,11 @@ object JvmAgentClient {
             GolemCliProcess.run(new java.io.File("."), cmd)
           }
 
-          def isTypeNotFound(err: String): Boolean =
-            err.contains("Agent type not found") || err.contains("Failed to parse agent name")
-
           val primary = runInvoke(agentId, fn)
-          val out     =
-            primary match {
-              case Right(ok) => ok
-              case Left(err) =>
-                val typeName  = agentType.typeName
-                val kebabType = kebab(typeName)
-                if (kebabType != typeName && isTypeNotFound(err)) {
-                  val ctorPart   = agentId.stripPrefix(s"${cfg.component}/$typeName")
-                  val fallbackId = s"${cfg.component}/$kebabType$ctorPart"
-                  val fallbackFn = s"${cfg.component}/$kebabType.{${kebab(name)}}"
-                  runInvoke(fallbackId, fallbackFn) match {
-                    case Right(ok) => ok
-                    case Left(_)   => throw new RuntimeException(err)
-                  }
-                } else {
-                  throw new RuntimeException(err)
-                }
-            }
+          val out     = primary match {
+            case Right(ok) => ok
+            case Left(err) => throw new RuntimeException(err)
+          }
 
           val wave = WaveTextCodec.parseLastWaveResult(out).getOrElse {
             throw new RuntimeException(s"Could not find WAVE result in golem-cli output:\n$out")
@@ -144,7 +127,5 @@ object JvmAgentClient {
       fut.asInstanceOf[AnyRef]
     }
 
-    private def kebab(s: String): String =
-      s.replaceAll("([a-z0-9])([A-Z])", "$1-$2").toLowerCase
   }
 }

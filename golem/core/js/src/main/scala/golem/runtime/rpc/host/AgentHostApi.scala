@@ -82,10 +82,10 @@ private[golem] object AgentHostApi {
   private def invokeGetAgentsNext(handle: GetAgentsHandle): js.UndefOr[js.Array[AgentMetadata]] = {
     val dynamicHandle = handle.asInstanceOf[js.Dynamic]
     val camelCase     = dynamicHandle.selectDynamic("getNext")
-    val kebabCase     = dynamicHandle.selectDynamic("get-next")
+    val dashedCase    = dynamicHandle.selectDynamic("get-next")
     val fn            =
       if (!js.isUndefined(camelCase) && camelCase != null) camelCase
-      else if (!js.isUndefined(kebabCase) && kebabCase != null) kebabCase
+      else if (!js.isUndefined(dashedCase) && dashedCase != null) dashedCase
       else {
         val protoObj   = js.Object.getPrototypeOf(dynamicHandle.asInstanceOf[js.Object]).asInstanceOf[js.Object]
         val protoKeys  = js.Object.keys(protoObj).toList.mkString(",")

@@ -136,27 +136,6 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
     }
   }
 
-  test("method name fallback uses kebab-case") {
-    val aType: AgentType[DemoAgent, Unit] = AgentType(
-      traitClassName = classOf[DemoAgent].getName,
-      typeName = "DemoAgent",
-      constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
-    )
-
-    JvmAgentClient.configure(
-      JvmAgentClientConfig(
-        component = "demo",
-        golemCli = "sh",
-        golemCliFlags = Vector("-c", "printf 'Invocation results in WAVE format:\\n - \"ok\"'")
-      )
-    )
-
-    val proxy  = JvmAgentClient.connect[DemoAgent](aType, ())
-    val result = Await.result(proxy.lookupThing("x", 1), 2.seconds)
-    result.shouldBe("ok")
-  }
-
   test("unsupported argument types are rejected before invoking CLI") {
     val aType: AgentType[DemoAgent, Unit] = AgentType(
       traitClassName = classOf[DemoAgent].getName,
@@ -179,7 +158,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
     }
   }
 
-  test("fallback to kebab-case when agent type not found") {
+  test("agent type errors are surfaced") {
     val aType: AgentType[DemoAgent, Unit] = AgentType(
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
@@ -203,7 +182,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
     ex.getMessage.should(include("Agent type not found"))
   }
 
-  test("fallback handles agent parse errors") {
+  test("agent parse errors are surfaced") {
     val aType: AgentType[DemoAgent, Unit] = AgentType(
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",
@@ -227,38 +206,7 @@ class JvmAgentClientSpec extends AnyFunSuite with Matchers {
     ex.getMessage.should(include("Failed to parse agent name"))
   }
 
-  test("fallback succeeds when kebab-case agent exists") {
-    val aType: AgentType[DemoAgent, Unit] = AgentType(
-      traitClassName = classOf[DemoAgent].getName,
-      typeName = "DemoAgent",
-      constructor = ConstructorType(GolemSchema.unitGolemSchema),
-      methods = Nil
-    )
-
-    val script =
-      """if echo "$@" | grep -q "demo-agent"; then
-        |  printf 'Invocation results in WAVE format:\n - "ok"'
-        |  exit 0
-        |else
-        |  echo 'Agent type not found'
-        |  exit 1
-        |fi
-        |""".stripMargin
-
-    JvmAgentClient.configure(
-      JvmAgentClientConfig(
-        component = "demo",
-        golemCli = "sh",
-        golemCliFlags = Vector("-c", script)
-      )
-    )
-
-    val proxy  = JvmAgentClient.connect[DemoAgent](aType, ())
-    val result = Await.result(proxy.ping(), 2.seconds)
-    result.shouldBe("ok")
-  }
-
-  test("non-type errors do not trigger fallback") {
+  test("non-type errors are surfaced") {
     val aType: AgentType[DemoAgent, Unit] = AgentType(
       traitClassName = classOf[DemoAgent].getName,
       typeName = "DemoAgent",

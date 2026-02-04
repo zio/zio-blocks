@@ -135,8 +135,7 @@ object AgentClientMacro {
 
     val metadataExpr = methodMetadata(method)
     val agentType    = agentTypeNameOrDefault(method.owner)
-    val kebabName    = kebabCase(method.name)
-    val functionName = Expr(s"$agentType.{$kebabName}")
+    val functionName = Expr(s"$agentType.{${method.name}}")
 
     val parameters                   = extractParameters(method)
     val accessMode                   = methodAccess(parameters)
@@ -337,19 +336,6 @@ object AgentClientMacro {
       case other =>
         report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
     }
-  }
-
-  private def kebabCase(name: String): String = {
-    val builder = new StringBuilder
-    name.zipWithIndex.foreach { case (ch, idx) =>
-      if (ch.isUpper) {
-        if (idx != 0) builder.append('-')
-        builder.append(ch.toLower)
-      } else {
-        builder.append(ch)
-      }
-    }
-    builder.toString
   }
 
   private def summonSchema[A: Type](methodName: String, position: String)(using Quotes): Expr[GolemSchema[A]] =
