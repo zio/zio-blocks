@@ -1070,6 +1070,15 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(migration(input).isRight)
       },
 
+      test("Non-Literal expression fails in migration actions") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val optic     = SchemaExpr.Optic[DynamicValue, DynamicValue](DynamicOptic.root, Schema[DynamicValue])
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(DynamicOptic.root.field("a"), optic)
+        )
+        assertTrue(migration(input).isLeft)
+      },
+
       test("addField on non-Record fails") {
         val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val migration = DynamicMigration.single(
