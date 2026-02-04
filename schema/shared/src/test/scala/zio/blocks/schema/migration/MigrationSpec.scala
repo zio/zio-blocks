@@ -2134,6 +2134,150 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         val reversed = action.reverse
         assertTrue(reversed.isInstanceOf[MigrationAction.JoinExpr])
+      },
+      test("SplitExpr reverse with combineExpr uses provided expression") {
+        val combineExpr = MigrationExpr.StringConcat(
+          MigrationExpr.FieldRef(DynamicOptic.root.field("a")),
+          MigrationExpr.FieldRef(DynamicOptic.root.field("b"))
+        )
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("combined"),
+          Vector(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
+          Vector(
+            MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("first"))),
+            MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("second")))
+          ),
+          Some(combineExpr)
+        )
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.JoinExpr])
+      }
+    ),
+    suite("Additional arithmetic and conversion coverage")(
+      test("Arithmetic Multiply with Long") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(100L))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(5L))),
+          MigrationExpr.ArithmeticOp.Multiply
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(500L))))
+      },
+      test("Arithmetic Subtract with Double") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(10.5))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.5))),
+          MigrationExpr.ArithmeticOp.Subtract
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(7.0))))
+      },
+      test("Arithmetic Add with Float") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(1.5f))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(2.5f))),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(4.0f))))
+      },
+      test("Arithmetic with BigDecimal fails gracefully") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(100)))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(4)))),
+          MigrationExpr.ArithmeticOp.Divide
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Arithmetic with BigInt fails gracefully") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1000)))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(234)))),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Convert ToInt from Long") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(42L))),
+          MigrationExpr.PrimitiveTargetType.ToInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("Convert ToDouble from Long") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(100L))),
+          MigrationExpr.PrimitiveTargetType.ToDouble
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(100.0))))
+      },
+      test("Convert ToBigDecimal from Int") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(42)))))
+      },
+      test("Convert ToLong from Double") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(99.9))),
+          MigrationExpr.PrimitiveTargetType.ToLong
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(99L))))
+      },
+      test("Convert ToBigInt from String") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("12345"))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345)))))
+      },
+      test("Convert ToFloat from String") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("3.14"))),
+          MigrationExpr.PrimitiveTargetType.ToFloat
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(3.14f))))
+      },
+      test("Convert ToBoolean from 0") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+      },
+      test("Convert ToBoolean from false string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("false"))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+      },
+      test("Convert ToString works with Short") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(123))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("123"))))
+      },
+      test("Convert ToString works with Byte") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(42))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("42"))))
       }
     )
   )
