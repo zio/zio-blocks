@@ -862,6 +862,112 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
 
         assertTrue(result == Right(PersonV2(30L)))
+      },
+
+      test("changeFieldType selector syntax") {
+        case class PersonV1(score: Int)
+        case class PersonV2(score: String)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .changeFieldType(_.score, _.score, literal(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+          .build
+
+        val input  = PersonV1(42)
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("42")))
+      },
+
+      test("mandateField builder creates correct action") {
+        case class PersonV1(age: Option[Int])
+        case class PersonV2(age: Int)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .mandateField(_.age, _.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .buildPartial
+
+        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.Mandate])
+      },
+
+      test("optionalizeField builder creates correct action") {
+        case class PersonV1(age: Int)
+        case class PersonV2(age: Option[Int])
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .optionalizeField(_.age, _.age)
+          .buildPartial
+
+        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.Optionalize])
+      },
+
+      test("transformElements builder creates correct action") {
+        case class Container(items: List[Int])
+
+        implicit val schema: Schema[Container] = Schema.derived[Container]
+
+        val migration = Migration
+          .newBuilder[Container, Container]
+          .transformElements(_.items, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .buildPartial
+
+        assertTrue(
+          migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformElements]
+        )
+      },
+
+      test("transformKeys builder creates correct action") {
+        case class Container(data: Map[String, Int])
+
+        implicit val schema: Schema[Container] = Schema.derived[Container]
+
+        val migration = Migration
+          .newBuilder[Container, Container]
+          .transformKeys(_.data, literal(DynamicValue.Primitive(PrimitiveValue.String("key"))))
+          .buildPartial
+
+        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformKeys])
+      },
+
+      test("transformValues builder creates correct action") {
+        case class Container(data: Map[String, Int])
+
+        implicit val schema: Schema[Container] = Schema.derived[Container]
+
+        val migration = Migration
+          .newBuilder[Container, Container]
+          .transformValues(_.data, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .buildPartial
+
+        assertTrue(
+          migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformValues]
+        )
+      },
+
+      test("renameCase builder creates correct action") {
+        sealed trait Status
+        case object Active  extends Status
+        case object Pending extends Status
+
+        implicit val schema: Schema[Status] = Schema.derived[Status]
+
+        val migration = Migration
+          .newBuilder[Status, Status]
+          .renameCase("Active", "Enabled")
+          .buildPartial
+
+        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.RenameCase])
       }
     ),
 
