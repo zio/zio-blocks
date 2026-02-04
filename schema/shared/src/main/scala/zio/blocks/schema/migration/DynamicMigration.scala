@@ -117,6 +117,9 @@ private[migration] object ActionExecutor {
       case TransformValue(at, newValue) =>
         executeTransformValue(at, newValue, value)
 
+      case TransformValueExpr(at, expr, _) =>
+        executeTransformValueExpr(at, expr, value)
+
       case Mandate(at, default) =>
         executeMandate(at, default, value)
 
@@ -126,11 +129,20 @@ private[migration] object ActionExecutor {
       case Join(at, sourcePaths, combinedValue) =>
         executeJoin(at, sourcePaths, combinedValue, value)
 
+      case JoinExpr(at, sourcePaths, combineExpr, _) =>
+        executeJoinExpr(at, sourcePaths, combineExpr, value)
+
       case Split(_, targetPaths, splitValue) =>
         executeSplit(targetPaths, splitValue, value)
 
+      case SplitExpr(_, targetPaths, splitExprs, _) =>
+        executeSplitExpr(targetPaths, splitExprs, value)
+
       case ChangeType(at, convertedValue) =>
         executeChangeType(at, convertedValue, value)
+
+      case ChangeTypeExpr(at, convertExpr, _) =>
+        executeChangeTypeExpr(at, convertExpr, value)
 
       case RenameCase(at, from, to) =>
         executeRenameCase(at, from, to, value)
@@ -222,12 +234,30 @@ private[migration] object ActionExecutor {
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value, at)(_ => Right(newValue))
 
+  private def executeTransformValueExpr(
+    at: DynamicOptic,
+    expr: MigrationExpr,
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    modifyAt(at, value, at) { current =>
+      expr.eval(current).left.map(err => SchemaError.message(err, at))
+    }
+
   private def executeChangeType(
     at: DynamicOptic,
     convertedValue: DynamicValue,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value, at)(_ => Right(convertedValue))
+
+  private def executeChangeTypeExpr(
+    at: DynamicOptic,
+    convertExpr: MigrationExpr,
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    modifyAt(at, value, at) { current =>
+      convertExpr.eval(current).left.map(err => SchemaError.message(err, at))
+    }
 
   private def executeMandate(
     at: DynamicOptic,
@@ -265,6 +295,31 @@ private[migration] object ActionExecutor {
     }
   }
 
+  private def executeJoinExpr(
+    at: DynamicOptic,
+    @annotation.unused sourcePaths: Vector[DynamicOptic],
+    combineExpr: MigrationExpr,
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] = {
+    val parentPath = DynamicOptic(at.nodes.dropRight(1))
+    val fieldName  = at.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) => name
+      case _                                   => return Left(SchemaError.message("JoinExpr target path must end with a Field node", at))
+    }
+    // Evaluate the combine expression against the full input value
+    combineExpr.eval(value) match {
+      case Right(combinedValue) =>
+        modifyAt(parentPath, value, at) {
+          case DynamicValue.Record(fields) =>
+            Right(DynamicValue.Record(fields :+ (fieldName -> combinedValue)))
+          case other =>
+            Left(SchemaError.message(s"Expected Record, got ${other.valueType}", at))
+        }
+      case Left(err) =>
+        Left(SchemaError.message(err, at))
+    }
+  }
+
   private def executeSplit(
     targetPaths: Vector[DynamicOptic],
     splitValue: DynamicValue,
@@ -286,6 +341,43 @@ private[migration] object ActionExecutor {
         }
       case (left, _) => left
     }
+
+  private def executeSplitExpr(
+    targetPaths: Vector[DynamicOptic],
+    splitExprs: Vector[MigrationExpr],
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] = {
+    if (targetPaths.length != splitExprs.length) {
+      return Left(
+        SchemaError.message(
+          s"SplitExpr: targetPaths (${targetPaths.length}) and splitExprs (${splitExprs.length}) must have same length",
+          DynamicOptic.root
+        )
+      )
+    }
+    targetPaths.zip(splitExprs).foldLeft[Either[SchemaError, DynamicValue]](Right(value)) {
+      case (Right(current), (targetPath, splitExpr)) =>
+        val parentPath = DynamicOptic(targetPath.nodes.dropRight(1))
+        targetPath.nodes.lastOption match {
+          case Some(DynamicOptic.Node.Field(fieldName)) =>
+            // Evaluate the split expression against the full input value
+            splitExpr.eval(value) match {
+              case Right(splitValue) =>
+                modifyAt(parentPath, current, targetPath) {
+                  case DynamicValue.Record(fields) =>
+                    Right(DynamicValue.Record(fields :+ (fieldName -> splitValue)))
+                  case other =>
+                    Left(SchemaError.message(s"Expected Record, got ${other.valueType}", targetPath))
+                }
+              case Left(err) =>
+                Left(SchemaError.message(err, targetPath))
+            }
+          case _ =>
+            Left(SchemaError.message("SplitExpr target path must end with a Field node", targetPath))
+        }
+      case (left, _) => left
+    }
+  }
 
   // ==================== Enum Action Execution ====================
 

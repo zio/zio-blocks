@@ -109,6 +109,26 @@ object MigrationAction {
   }
 
   /**
+   * Transform a value at a path using an expression. The expression is
+   * evaluated at migration time against the input value.
+   *
+   * @param at
+   *   The path to the value to transform
+   * @param expr
+   *   The expression that computes the new value
+   * @param reverseExpr
+   *   Optional expression for computing the reverse transformation
+   */
+  final case class TransformValueExpr(
+    at: DynamicOptic,
+    expr: MigrationExpr,
+    reverseExpr: Option[MigrationExpr] = None
+  ) extends MigrationAction {
+    override def reverse: MigrationAction =
+      TransformValueExpr(at, reverseExpr.getOrElse(expr), Some(expr))
+  }
+
+  /**
    * Convert an optional field to a required field.
    *
    * @param at
@@ -154,6 +174,31 @@ object MigrationAction {
   }
 
   /**
+   * Join multiple fields into a single field using an expression.
+   *
+   * @param at
+   *   The path to the target location for the joined value
+   * @param sourcePaths
+   *   The paths to the source values to join
+   * @param combineExpr
+   *   Expression that computes the combined value from the input
+   * @param splitExprs
+   *   Optional expressions for splitting back (for reverse migration)
+   */
+  final case class JoinExpr(
+    at: DynamicOptic,
+    sourcePaths: Vector[DynamicOptic],
+    combineExpr: MigrationExpr,
+    splitExprs: Option[Vector[MigrationExpr]] = None
+  ) extends MigrationAction {
+    override def reverse: MigrationAction =
+      splitExprs match {
+        case Some(exprs) => SplitExpr(at, sourcePaths, exprs, Some(combineExpr))
+        case None        => SplitExpr(at, sourcePaths, sourcePaths.map(p => MigrationExpr.FieldRef(p)), Some(combineExpr))
+      }
+  }
+
+  /**
    * Split a single field into multiple fields.
    *
    * @param at
@@ -172,6 +217,31 @@ object MigrationAction {
   }
 
   /**
+   * Split a single field into multiple fields using expressions.
+   *
+   * @param at
+   *   The path to the source value to split
+   * @param targetPaths
+   *   The paths to the target locations
+   * @param splitExprs
+   *   Expressions that compute each target value from the input
+   * @param combineExpr
+   *   Optional expression for joining back (for reverse migration)
+   */
+  final case class SplitExpr(
+    at: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitExprs: Vector[MigrationExpr],
+    combineExpr: Option[MigrationExpr] = None
+  ) extends MigrationAction {
+    override def reverse: MigrationAction =
+      combineExpr match {
+        case Some(expr) => JoinExpr(at, targetPaths, expr, Some(splitExprs))
+        case None       => JoinExpr(at, targetPaths, MigrationExpr.FieldRef(at), Some(splitExprs))
+      }
+  }
+
+  /**
    * Change the type of a value at a path (primitive-to-primitive only).
    *
    * @param at
@@ -184,6 +254,25 @@ object MigrationAction {
     convertedValue: DynamicValue
   ) extends MigrationAction {
     override def reverse: MigrationAction = ChangeType(at, convertedValue)
+  }
+
+  /**
+   * Change the type of a value at a path using an expression.
+   *
+   * @param at
+   *   The path to the value
+   * @param convertExpr
+   *   Expression that converts the value (typically MigrationExpr.Convert)
+   * @param reverseExpr
+   *   Optional expression for converting back (for reverse migration)
+   */
+  final case class ChangeTypeExpr(
+    at: DynamicOptic,
+    convertExpr: MigrationExpr,
+    reverseExpr: Option[MigrationExpr] = None
+  ) extends MigrationAction {
+    override def reverse: MigrationAction =
+      ChangeTypeExpr(at, reverseExpr.getOrElse(convertExpr), Some(convertExpr))
   }
 
   // ==================== Enum Actions ====================

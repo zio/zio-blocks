@@ -111,6 +111,33 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     )
   }
 
+  /**
+   * Transform a field's value using a serializable expression.
+   *
+   * This method provides full expression support for field transformations,
+   * allowing for serializable migrations that can compute new values
+   * dynamically.
+   *
+   * @param at
+   *   Selector for the field to transform
+   * @param expr
+   *   The expression that computes the new value
+   * @param reverseExpr
+   *   Optional expression for reverse migration
+   */
+  inline def transformFieldExpr[T](
+    inline at: A => T,
+    expr: MigrationExpr,
+    reverseExpr: Option[MigrationExpr] = None
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+    val path = SelectorMacros.toPath[A, T](at)
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformValueExpr(path, expr, reverseExpr)
+    )
+  }
+
   /** Transform a field with a literal new value. Tracks field at type level. */
   transparent inline def transformFieldLiteral[T](
     inline at: A => T,
@@ -150,16 +177,61 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
 
   /** Change the type of a field (primitive-to-primitive). */
   inline def changeFieldType[T, U](
-    @scala.annotation.unused inline source: A => T,
-    @scala.annotation.unused inline target: B => U,
+    inline source: A => T,
+    inline target: B => U,
     @scala.annotation.unused converter: T => U
   )(using
     @scala.annotation.unused fromSchema: Schema[T],
     @scala.annotation.unused toSchema: Schema[U]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
-    // For serializable migrations, use transformFieldLiteral with a pre-computed value
-    // This method is a placeholder - users should use changeFieldTypeLiteral
-    new MigrationBuilder(sourceSchema, targetSchema, actions)
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+    // For serializable migrations, we rename the field (if names differ)
+    // and the type conversion happens implicitly via schema compatibility
+    val fromPath      = SelectorMacros.toPath[A, T](source)
+    val toFieldName   = SelectorMacros.extractFieldName[B, U](target)
+    val fromFieldName = fromPath.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) => name
+      case _                                   => toFieldName
+    }
+    if (fromFieldName != toFieldName) {
+      new MigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        actions :+ MigrationAction.Rename(fromPath, toFieldName)
+      )
+    } else {
+      // Same field name, no action needed for rename
+      new MigrationBuilder(sourceSchema, targetSchema, actions)
+    }
+  }
+
+  /**
+   * Change the type of a field using a serializable expression.
+   *
+   * This method provides full control over type conversions using
+   * MigrationExpr, enabling serializable migrations for primitive-to-primitive
+   * type changes.
+   *
+   * @param at
+   *   Selector for the field to convert
+   * @param targetType
+   *   The target primitive type
+   * @param reverseType
+   *   Optional target type for reverse migration
+   */
+  inline def changeFieldTypeExpr[T](
+    inline at: A => T,
+    targetType: MigrationExpr.PrimitiveTargetType,
+    reverseType: Option[MigrationExpr.PrimitiveTargetType] = None
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+    val path        = SelectorMacros.toPath[A, T](at)
+    val convertExpr = MigrationExpr.Convert(MigrationExpr.FieldRef(DynamicOptic.root), targetType)
+    val reverseExpr = reverseType.map(rt => MigrationExpr.Convert(MigrationExpr.FieldRef(DynamicOptic.root), rt))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.ChangeTypeExpr(path, convertExpr, reverseExpr)
+    )
+  }
 
   /** Rename an enum case. */
   def renameCase(
@@ -243,6 +315,65 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
       sourceSchema,
       targetSchema,
       actions :+ MigrationAction.TransformValues(path, builtInner.actions)
+    )
+  }
+
+  /**
+   * Join multiple source fields into a single target field using an expression.
+   *
+   * The expression is evaluated at migration time against the full input
+   * record, allowing it to reference and combine values from multiple source
+   * fields.
+   *
+   * @param target
+   *   Selector for the target field
+   * @param sourcePaths
+   *   Paths to the source fields to join
+   * @param combineExpr
+   *   Expression that computes the combined value
+   * @param splitExprs
+   *   Optional expressions for reverse migration (splitting back)
+   */
+  inline def joinFields[T](
+    inline target: B => T,
+    sourcePaths: Vector[DynamicOptic],
+    combineExpr: MigrationExpr,
+    splitExprs: Option[Vector[MigrationExpr]] = None
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+    val targetPath = SelectorMacros.toPath[B, T](target)
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.JoinExpr(targetPath, sourcePaths, combineExpr, splitExprs)
+    )
+  }
+
+  /**
+   * Split a source field into multiple target fields using expressions.
+   *
+   * Each expression is evaluated at migration time against the full input
+   * record, computing the value for each target field.
+   *
+   * @param source
+   *   Selector for the source field
+   * @param targetPaths
+   *   Paths to the target fields
+   * @param splitExprs
+   *   Expressions that compute each target value
+   * @param combineExpr
+   *   Optional expression for reverse migration (joining back)
+   */
+  inline def splitField[T](
+    inline source: A => T,
+    targetPaths: Vector[DynamicOptic],
+    splitExprs: Vector[MigrationExpr],
+    combineExpr: Option[MigrationExpr] = None
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+    val sourcePath = SelectorMacros.toPath[A, T](source)
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.SplitExpr(sourcePath, targetPaths, splitExprs, combineExpr)
     )
   }
 

@@ -45,6 +45,48 @@ final class MigrationBuilder[A, B](
   def optionalizeField[T](source: A => T, target: B => Option[T]): MigrationBuilder[A, B] =
     macro MigrationBuilderMacros.optionalizeFieldImpl[A, B, T]
 
+  /**
+   * Transform a field's value using a serializable expression.
+   *
+   * @param at The path to the field to transform
+   * @param expr The expression that computes the new value
+   * @param reverseExpr Optional expression for reverse migration
+   */
+  def transformFieldExpr(at: DynamicOptic, expr: MigrationExpr, reverseExpr: Option[MigrationExpr] = None): MigrationBuilder[A, B] =
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformValueExpr(at, expr, reverseExpr))
+
+  /**
+   * Change the type of a field using a serializable expression.
+   *
+   * @param at The path to the field to convert
+   * @param convertExpr Expression that converts the value
+   * @param reverseExpr Optional expression for reverse migration
+   */
+  def changeFieldTypeExpr(at: DynamicOptic, convertExpr: MigrationExpr, reverseExpr: Option[MigrationExpr] = None): MigrationBuilder[A, B] =
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.ChangeTypeExpr(at, convertExpr, reverseExpr))
+
+  /**
+   * Join multiple source fields into a single target field using an expression.
+   *
+   * @param target The path to the target field
+   * @param sourcePaths Paths to the source fields to join
+   * @param combineExpr Expression that computes the combined value
+   * @param splitExprs Optional expressions for reverse migration
+   */
+  def joinFields(target: DynamicOptic, sourcePaths: Vector[DynamicOptic], combineExpr: MigrationExpr, splitExprs: Option[Vector[MigrationExpr]] = None): MigrationBuilder[A, B] =
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.JoinExpr(target, sourcePaths, combineExpr, splitExprs))
+
+  /**
+   * Split a source field into multiple target fields using expressions.
+   *
+   * @param source The path to the source field
+   * @param targetPaths Paths to the target fields
+   * @param splitExprs Expressions that compute each target value
+   * @param combineExpr Optional expression for reverse migration
+   */
+  def splitField(source: DynamicOptic, targetPaths: Vector[DynamicOptic], splitExprs: Vector[MigrationExpr], combineExpr: Option[MigrationExpr] = None): MigrationBuilder[A, B] =
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.SplitExpr(source, targetPaths, splitExprs, combineExpr))
+
   /** Rename an enum case. */
   def renameCase(from: String, to: String): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to))

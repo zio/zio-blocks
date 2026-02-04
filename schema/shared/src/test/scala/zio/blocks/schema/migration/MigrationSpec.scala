@@ -1491,6 +1491,429 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(result.isLeft)
       }
+    ),
+    suite("MigrationExpr")(
+      test("Literal evaluates to its value") {
+        val expr   = MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        val input  = DynamicValue.Record(Chunk.empty)
+        val result = expr.eval(input)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("FieldRef extracts field from record") {
+        val expr   = MigrationExpr.FieldRef(DynamicOptic.root.field("name"))
+        val input  = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("test"))))
+        val result = expr.eval(input)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("test"))))
+      },
+      test("FieldRef fails on missing field") {
+        val expr   = MigrationExpr.FieldRef(DynamicOptic.root.field("missing"))
+        val input  = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("test"))))
+        val result = expr.eval(input)
+        assertTrue(result.isLeft)
+      },
+      test("StringConcat concatenates strings") {
+        val expr = MigrationExpr.StringConcat(
+          MigrationExpr.FieldRef(DynamicOptic.root.field("first")),
+          MigrationExpr.FieldRef(DynamicOptic.root.field("last"))
+        )
+        val input = DynamicValue.Record(
+          Chunk(
+            "first" -> DynamicValue.Primitive(PrimitiveValue.String("Hello")),
+            "last"  -> DynamicValue.Primitive(PrimitiveValue.String("World"))
+          )
+        )
+        val result = expr.eval(input)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("HelloWorld"))))
+      },
+      test("Arithmetic Add works with integers") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(15))))
+      },
+      test("Arithmetic Subtract works with integers") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
+          MigrationExpr.ArithmeticOp.Subtract
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(7))))
+      },
+      test("Arithmetic Multiply works with doubles") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(2.5))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(4.0))),
+          MigrationExpr.ArithmeticOp.Multiply
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(10.0))))
+      },
+      test("Arithmetic Divide works with longs") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(20L))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(4L))),
+          MigrationExpr.ArithmeticOp.Divide
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(5L))))
+      },
+      test("Arithmetic Divide by zero fails for integers") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))),
+          MigrationExpr.ArithmeticOp.Divide
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Arithmetic works with floats") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(3.0f))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(2.0f))),
+          MigrationExpr.ArithmeticOp.Multiply
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(6.0f))))
+      },
+      test("Convert ToString converts int to string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+      },
+      test("Convert ToInt converts string to int") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("123"))),
+          MigrationExpr.PrimitiveTargetType.ToInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(123))))
+      },
+      test("Convert ToInt fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("abc"))),
+          MigrationExpr.PrimitiveTargetType.ToInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Convert ToLong converts various types") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          MigrationExpr.PrimitiveTargetType.ToLong
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
+      },
+      test("Convert ToDouble converts various types") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          MigrationExpr.PrimitiveTargetType.ToDouble
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(42.0))))
+      },
+      test("Convert ToFloat converts from double") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14))),
+          MigrationExpr.PrimitiveTargetType.ToFloat
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(
+          result
+            .map(_.asInstanceOf[DynamicValue.Primitive].value.asInstanceOf[PrimitiveValue.Float].value)
+            .map(f => Math.abs(f - 3.14f) < 0.01f) == Right(true)
+        )
+      },
+      test("Convert ToBoolean converts string true") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("true"))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Convert ToBoolean converts int to boolean") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+      },
+      test("Convert ToBigInt converts from long") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(12345678901L))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345678901L)))))
+      },
+      test("Convert ToBigDecimal converts from float") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(3.14f))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isRight)
+      },
+      test("Conditional returns ifTrue when condition is true") {
+        val expr = MigrationExpr.Conditional(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("yes"))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("no")))
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("yes"))))
+      },
+      test("Conditional returns ifFalse when condition is false") {
+        val expr = MigrationExpr.Conditional(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("yes"))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("no")))
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("no"))))
+      },
+      test("Compare Eq returns true for equal values") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.CompareOp.Eq
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Compare Ne returns true for unequal values") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
+          MigrationExpr.CompareOp.Ne
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Compare Lt returns true when left < right") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.CompareOp.Lt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Compare Le returns true when left <= right") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.CompareOp.Le
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Compare Gt returns true when left > right") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(7))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.CompareOp.Gt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Compare Ge returns true when left >= right") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          MigrationExpr.CompareOp.Ge
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DefaultValue returns fallback") {
+        val expr   = MigrationExpr.DefaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+      },
+      test("DSL + operator creates Add arithmetic") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(4)))
+        val expr   = a + b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(7))))
+      },
+      test("DSL ++ operator creates StringConcat") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.String("Hello")))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.String("World")))
+        val expr   = a ++ b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("HelloWorld"))))
+      },
+      test("FieldRef fails when path expects Record but gets Primitive") {
+        val expr   = MigrationExpr.FieldRef(DynamicOptic.root.field("name"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val result = expr.eval(input)
+        assertTrue(result.isLeft)
+      },
+      test("Arithmetic fails with non-primitive values") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Convert fails with non-primitive input") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.PrimitiveTargetType.ToInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("Expression-based MigrationActions")(
+      test("TransformValueExpr evaluates expression") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.FieldRef(DynamicOptic.root),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        val action    = MigrationAction.TransformValueExpr(DynamicOptic.root.field("value"), expr)
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(5))))
+        val result    = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "value").map(_._2) == Some(
+            DynamicValue.Primitive(PrimitiveValue.Int(15))
+          )
+        )
+      },
+      test("TransformValueExpr reverse swaps expressions") {
+        val expr        = MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val reverseExpr = MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        val action      = MigrationAction.TransformValueExpr(DynamicOptic.root.field("x"), expr, Some(reverseExpr))
+        val reversed    = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.TransformValueExpr])
+      },
+      test("ChangeTypeExpr converts field type") {
+        val expr =
+          MigrationExpr.Convert(MigrationExpr.FieldRef(DynamicOptic.root), MigrationExpr.PrimitiveTargetType.ToString)
+        val action    = MigrationAction.ChangeTypeExpr(DynamicOptic.root.field("value"), expr)
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        val result    = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "value").map(_._2) == Some(
+            DynamicValue.Primitive(PrimitiveValue.String("42"))
+          )
+        )
+      },
+      test("JoinExpr combines fields using expression") {
+        val combineExpr = MigrationExpr.StringConcat(
+          MigrationExpr.FieldRef(DynamicOptic.root.field("first")),
+          MigrationExpr.StringConcat(
+            MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+            MigrationExpr.FieldRef(DynamicOptic.root.field("last"))
+          )
+        )
+        val action = MigrationAction.JoinExpr(
+          DynamicOptic.root.field("fullName"),
+          Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+          combineExpr
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "first" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "last"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.exists {
+            case ("fullName", DynamicValue.Primitive(PrimitiveValue.String("John Doe"))) => true
+            case _                                                                       => false
+          }
+        )
+      },
+      test("JoinExpr fails when path doesn't end with Field") {
+        val action    = MigrationAction.JoinExpr(DynamicOptic.root, Vector.empty, MigrationExpr.Literal(DynamicValue.Null))
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk.empty)
+        val result    = migration(input)
+        assertTrue(result.isLeft)
+      },
+      test("SplitExpr splits field using expressions") {
+        val firstExpr = MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("John")))
+        val lastExpr  = MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("Doe")))
+        val action    = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("fullName"),
+          Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+          Vector(firstExpr, lastExpr)
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk("fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe")))
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.exists(_._1 == "first"),
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.exists(_._1 == "last")
+        )
+      },
+      test("SplitExpr fails when targetPaths and splitExprs have different lengths") {
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
+          Vector(MigrationExpr.Literal(DynamicValue.Null))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("source" -> DynamicValue.Primitive(PrimitiveValue.String("x"))))
+        val result    = migration(input)
+        assertTrue(result.isLeft)
+      },
+      test("SplitExpr fails when target path doesn't end with Field") {
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root),
+          Vector(MigrationExpr.Literal(DynamicValue.Null))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("source" -> DynamicValue.Primitive(PrimitiveValue.String("x"))))
+        val result    = migration(input)
+        assertTrue(result.isLeft)
+      },
+      test("JoinExpr reverse is SplitExpr") {
+        val action = MigrationAction.JoinExpr(
+          DynamicOptic.root.field("combined"),
+          Vector(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
+          MigrationExpr.Literal(DynamicValue.Null)
+        )
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.SplitExpr])
+      },
+      test("SplitExpr reverse is JoinExpr") {
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("a")),
+          Vector(MigrationExpr.Literal(DynamicValue.Null))
+        )
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.JoinExpr])
+      }
     )
   )
 }
