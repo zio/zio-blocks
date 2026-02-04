@@ -1817,6 +1817,104 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         val result = expr.eval(DynamicValue.Null)
         assertTrue(result.isLeft)
+      },
+      test("DSL * operator creates Multiply arithmetic") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(4)))
+        val expr   = a * b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(12))))
+      },
+      test("DSL / operator creates Divide arithmetic") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(12)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(4)))
+        val expr   = a / b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(3))))
+      },
+      test("DSL < operator creates Lt comparison") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val expr   = a < b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL <= operator creates Le comparison") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val expr   = a <= b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL > operator creates Gt comparison") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val expr   = a > b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL >= operator creates Ge comparison") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val expr   = a >= b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL toLong creates ToLong conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))).toLong
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
+      },
+      test("DSL toFloat creates ToFloat conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))).toFloat
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(42.0f))))
+      },
+      test("DSL toDouble creates ToDouble conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))).toDouble
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Double(42.0))))
+      },
+      test("DSL toBigInt creates ToBigInt conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Long(1234567890123L))).toBigInt
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1234567890123L)))))
+      },
+      test("DSL toBigDecimal creates ToBigDecimal conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14))).toBigDecimal
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3.14)))))
+      },
+      test("DSL toBoolean creates ToBoolean conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))).toBoolean
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("DSL asString creates ToString conversion") {
+        import MigrationExpr._
+        val expr   = Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))).asString
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+      },
+      test("DSL - operator creates Subtract arithmetic") {
+        import MigrationExpr._
+        val a      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)))
+        val b      = Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val expr   = a - b
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(7))))
       }
     ),
     suite("Expression-based MigrationActions")(
