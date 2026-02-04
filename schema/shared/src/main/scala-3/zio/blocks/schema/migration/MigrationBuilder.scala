@@ -24,53 +24,72 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
   private[migration] val actions: Vector[MigrationAction]
 ) {
 
-  /** Add a new field to the target with a default value. */
-  inline def addField[T](
+  /**
+   * Add a new field to the target with a default value. Tracks field at type
+   * level.
+   */
+  transparent inline def addField[T](
     inline target: B => T,
     default: T
-  )(using targetFieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path           = SelectorMacros.toPath[B, T](target)
-    val dynamicDefault = targetFieldSchema.toDynamicValue(default)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.AddField(path, dynamicDefault))
-  }
+  )(using targetFieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, ?] =
+    ${
+      MigrationBuilderMacros.addFieldImpl[A, B, SourceHandled, TargetProvided, T](
+        'this,
+        'target,
+        'default,
+        'targetFieldSchema
+      )
+    }
 
-  /** Add a new field to the target with a DynamicValue default. */
-  inline def addFieldDynamic(
+  /**
+   * Add a new field to the target with a DynamicValue default. Tracks field at
+   * type level.
+   */
+  transparent inline def addFieldDynamic(
     inline target: B => Any,
     default: DynamicValue
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[B, Any](target)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.AddField(path, default))
-  }
+  ): MigrationBuilder[A, B, SourceHandled, ?] =
+    ${ MigrationBuilderMacros.addFieldDynamicImpl[A, B, SourceHandled, TargetProvided]('this, 'target, 'default) }
 
-  /** Drop a field from the source. */
-  inline def dropField[T](
+  /** Drop a field from the source. Tracks field at type level. */
+  transparent inline def dropField[T](
     inline source: A => T,
     defaultForReverse: T
-  )(using sourceFieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path           = SelectorMacros.toPath[A, T](source)
-    val dynamicDefault = sourceFieldSchema.toDynamicValue(defaultForReverse)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.DropField(path, dynamicDefault))
-  }
+  )(using sourceFieldSchema: Schema[T]): MigrationBuilder[A, B, ?, TargetProvided] =
+    ${
+      MigrationBuilderMacros.dropFieldImpl[A, B, SourceHandled, TargetProvided, T](
+        'this,
+        'source,
+        'defaultForReverse,
+        'sourceFieldSchema
+      )
+    }
 
-  /** Drop a field from the source with a DynamicValue for reverse. */
-  inline def dropFieldDynamic(
+  /**
+   * Drop a field from the source with a DynamicValue for reverse. Tracks field
+   * at type level.
+   */
+  transparent inline def dropFieldDynamic(
     inline source: A => Any,
     defaultForReverse: DynamicValue
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, Any](source)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.DropField(path, defaultForReverse))
-  }
+  ): MigrationBuilder[A, B, ?, TargetProvided] =
+    ${
+      MigrationBuilderMacros.dropFieldDynamicImpl[A, B, SourceHandled, TargetProvided](
+        'this,
+        'source,
+        'defaultForReverse
+      )
+    }
 
-  /** Rename a field from source name to target name. */
-  inline def renameField(
+  /**
+   * Rename a field from source name to target name. Tracks both fields at type
+   * level.
+   */
+  transparent inline def renameField(
     inline from: A => Any,
     inline to: B => Any
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val fromPath    = SelectorMacros.toPath[A, Any](from)
-    val toFieldName = SelectorMacros.extractFieldName[B, Any](to)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Rename(fromPath, toFieldName))
-  }
+  ): MigrationBuilder[A, B, ?, ?] =
+    ${ MigrationBuilderMacros.renameFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'from, 'to) }
 
   /** Transform a field's value (simplified - just renames the field). */
   inline def transformField[T, U](
@@ -92,35 +111,42 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     )
   }
 
-  /** Transform a field with a literal new value. */
-  inline def transformFieldLiteral[T](
+  /** Transform a field with a literal new value. Tracks field at type level. */
+  transparent inline def transformFieldLiteral[T](
     inline at: A => T,
     newValue: T
-  )(using fieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path         = SelectorMacros.toPath[A, T](at)
-    val dynamicValue = fieldSchema.toDynamicValue(newValue)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformValue(path, dynamicValue))
-  }
+  )(using fieldSchema: Schema[T]): MigrationBuilder[A, B, ?, TargetProvided] =
+    ${
+      MigrationBuilderMacros.transformFieldLiteralImpl[A, B, SourceHandled, TargetProvided, T](
+        'this,
+        'at,
+        'newValue,
+        'fieldSchema
+      )
+    }
 
-  /** Convert an optional field to required. */
-  inline def mandateField[T](
+  /** Convert an optional field to required. Tracks field at type level. */
+  transparent inline def mandateField[T](
     inline source: A => Option[T],
-    @scala.annotation.unused inline target: B => T,
+    inline target: B => T,
     default: T
-  )(using fieldSchema: Schema[T]): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path           = SelectorMacros.toPath[A, Option[T]](source)
-    val dynamicDefault = fieldSchema.toDynamicValue(default)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Mandate(path, dynamicDefault))
-  }
+  )(using fieldSchema: Schema[T]): MigrationBuilder[A, B, ?, TargetProvided] =
+    ${
+      MigrationBuilderMacros.mandateFieldImpl[A, B, SourceHandled, TargetProvided, T](
+        'this,
+        'source,
+        'target,
+        'default,
+        'fieldSchema
+      )
+    }
 
-  /** Convert a required field to optional. */
-  inline def optionalizeField[T](
+  /** Convert a required field to optional. Tracks field at type level. */
+  transparent inline def optionalizeField[T](
     inline source: A => T,
-    @scala.annotation.unused inline target: B => Option[T]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val path = SelectorMacros.toPath[A, T](source)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.Optionalize(path))
-  }
+    inline target: B => Option[T]
+  ): MigrationBuilder[A, B, ?, TargetProvided] =
+    ${ MigrationBuilderMacros.optionalizeFieldImpl[A, B, SourceHandled, TargetProvided, T]('this, 'source, 'target) }
 
   /** Change the type of a field (primitive-to-primitive). */
   inline def changeFieldType[T, U](
@@ -220,11 +246,27 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
     )
   }
 
-  /** Build the migration with validation (compile-time where possible). */
-  def build: Migration[A, B] =
+  /**
+   * Build the migration with compile-time validation.
+   *
+   * This method requires evidence that the migration is complete:
+   *   - All source fields are handled (renamed, dropped, transformed) or
+   *     auto-mapped
+   *   - All target fields are provided (added, renamed to) or auto-mapped
+   *
+   * If the migration is incomplete, a compile-time error will be generated
+   * listing which fields need attention.
+   */
+  inline def build(using MigrationComplete[A, B, SourceHandled, TargetProvided]): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
-  /** Build the migration without validation. */
+  /**
+   * Build the migration without validation.
+   *
+   * Use this for partial migrations or when compile-time validation is not
+   * needed. The migration may fail at runtime if source/target structures don't
+   * match.
+   */
   def buildPartial: Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 }
