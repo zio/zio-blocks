@@ -10,10 +10,23 @@ import zio.blocks.schema.binding.RegisterOffset._
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
+
+  /**
+   * Derive a schema for a structural type. Structural types are compile-time-only types
+   * that do not require runtime representations:
+   * - Records: `{ val name: String; val age: Int }`
+   * - Enums: `Type1 | Type2` where each type has a `type Tag = "CaseName"` member
+   *
+   * These schemas work with DynamicValue at runtime but provide compile-time type safety.
+   * Used primarily for schema migration where old versions exist only as structural types.
+   */
+  inline def structural[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.structural }
 }
 
 private object SchemaCompanionVersionSpecificImpl {
   def derived[A: Type](using Quotes): Expr[Schema[A]] = new SchemaCompanionVersionSpecificImpl().derived[A]
+  
+  def structural[A: Type](using Quotes): Expr[Schema[A]] = new SchemaCompanionVersionSpecificImpl().structural[A]
 
   private implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
@@ -1389,5 +1402,200 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
+  }
+
+  /**
+   * Derive a schema for a structural type. Handles:
+   * - Refinement types (structural records): `{ val name: String; val age: Int }`
+   * - Union types (structural enums): `Type1 | Type2` where types have `type Tag = "CaseName"`
+   */
+  def structural[A: Type]: Expr[Schema[A]] = {
+    val aTpe = TypeRepr.of[A].dealias
+    
+    if (isUnion(aTpe)) {
+      // Structural enum: union of structural record types with Tag members
+      deriveStructuralVariant[A](aTpe)
+    } else if (isRefinementType(aTpe)) {
+      // Structural record
+      deriveStructuralRecord[A](aTpe)
+    } else {
+      // Fall back to regular derivation for compatible types
+      derived[A]
+    }
+  }
+
+  private def isRefinementType(tpe: TypeRepr): Boolean = tpe match {
+    case Refinement(_, _, _) => true
+    case _                   => false
+  }
+
+  private case class StructuralField(name: String, tpe: TypeRepr)
+
+  private def extractRefinementFields(tpe: TypeRepr): List[StructuralField] = {
+    def collectFields(t: TypeRepr): List[StructuralField] = t match {
+      case Refinement(parent, name, info) =>
+        val parentFields = collectFields(parent)
+        info match {
+          case TypeBounds(_, _) => parentFields // Skip type members like `type Tag = "..."`
+          case _ => 
+            // It's a val/def member - extract as a field
+            parentFields :+ StructuralField(name, info.widen)
+        }
+      case _ => Nil
+    }
+    collectFields(tpe).sortBy(_.name)
+  }
+
+  private def extractTagFromRefinement(tpe: TypeRepr): Option[String] = {
+    def findTag(t: TypeRepr): Option[String] = t match {
+      case Refinement(_, "Tag", TypeBounds(ConstantType(StringConstant(tagName)), ConstantType(StringConstant(_)))) =>
+        Some(tagName)
+      case Refinement(_, "Tag", ConstantType(StringConstant(tagName))) =>
+        Some(tagName)
+      case Refinement(inner, _, _) =>
+        findTag(inner)
+      case _ => None
+    }
+    findTag(tpe)
+  }
+
+  private def deriveStructuralRecord[A: Type](tpe: TypeRepr): Expr[Schema[A]] = {
+    val fields = extractRefinementFields(tpe)
+    if (fields.isEmpty) {
+      fail(s"Structural type '${tpe.show}' has no val/def members. Expected `{ val field: Type; ... }`.")
+    }
+    
+    val fieldExprs: List[Expr[SchemaTerm[Binding, A, ?]]] = fields.map { field =>
+      field.tpe.asType match {
+        case '[ft] =>
+          val fieldSchema = findImplicitOrDeriveSchema[ft](field.tpe)
+          val fieldName   = Expr(field.name)
+          '{ $fieldSchema.reflect.asTerm[A]($fieldName) }
+      }
+    }
+    
+    val tpeName = toExpr(structuralTypeName[A](tpe))
+    val fieldsVec = Expr.ofSeq(fieldExprs)
+    val usedRegs = Expr(fields.length.toLong)
+    
+    '{
+      new Schema(
+        reflect = new Reflect.Record[Binding, A](
+          fields = Vector($fieldsVec*),
+          typeName = $tpeName,
+          recordBinding = new Binding.Record(
+            constructor = new StructuralConstructor[A] {
+              def usedRegisters: RegisterOffset = $usedRegs
+              
+              def construct(in: Registers, offset: RegisterOffset): A = {
+                // Structural types don't have runtime representations
+                // This constructor exists for type safety but throws if actually invoked
+                throw new UnsupportedOperationException(
+                  "Structural types cannot be constructed at runtime. Use DynamicValue instead."
+                )
+              }
+            },
+            deconstructor = new StructuralDeconstructor[A] {
+              def usedRegisters: RegisterOffset = $usedRegs
+              
+              def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit = {
+                // Structural types don't have runtime representations
+                throw new UnsupportedOperationException(
+                  "Structural types cannot be deconstructed at runtime. Use DynamicValue instead."
+                )
+              }
+            }
+          )
+        )
+      )
+    }
+  }
+
+  private def deriveStructuralVariant[A: Type](tpe: TypeRepr): Expr[Schema[A]] = {
+    val unionTypes = allUnionTypes(tpe)
+    
+    // Extract cases: each union member must be a refinement type with a Tag member
+    val cases: List[(String, TypeRepr, List[StructuralField])] = unionTypes.map { caseTpe =>
+      val tag = extractTagFromRefinement(caseTpe).getOrElse {
+        fail(s"Structural enum case '${caseTpe.show}' must have a `type Tag = \"CaseName\"` member.")
+      }
+      val fields = extractRefinementFields(caseTpe)
+      (tag, caseTpe, fields)
+    }
+    
+    if (cases.isEmpty) {
+      fail(s"Structural enum '${tpe.show}' has no union members.")
+    }
+    
+    val tpeName = toExpr(structuralTypeName[A](tpe))
+    
+    // Build case Terms using the same pattern as deriveSchemaForSealedTraitOrAbstractClassOrUnion
+    val caseTermExprs = Varargs(cases.map { case (tag, caseTpe, fields) =>
+      caseTpe.asType match {
+        case '[ct] =>
+          val fieldSchemas: List[Expr[(String, Schema[?])]] = fields.map { field =>
+            field.tpe.asType match {
+              case '[ft] =>
+                val fieldSchema = findImplicitOrDeriveSchema[ft](field.tpe)
+                val fieldName = Expr(field.name)
+                '{ ($fieldName, $fieldSchema) }
+            }
+          }
+          val caseTpeName = Expr(tag)
+          val usedRegs = Expr(fields.length.toLong)
+          val fieldsSeq = Expr.ofSeq(fieldSchemas)
+          
+          ('{
+            val flds = $fieldsSeq
+            val fieldTerms = flds.map { case (n, s) => s.reflect.asTerm[ct](n) }
+            new Reflect.Record[Binding, ct](
+              fields = fieldTerms.toVector,
+              typeName = TypeName(Namespace(Nil), $caseTpeName),
+              recordBinding = new Binding.Record(
+                constructor = new StructuralConstructor[ct] {
+                  def usedRegisters: RegisterOffset = $usedRegs
+                  def construct(in: Registers, offset: RegisterOffset): ct = 
+                    throw new UnsupportedOperationException("Structural types cannot be constructed at runtime.")
+                },
+                deconstructor = new StructuralDeconstructor[ct] {
+                  def usedRegisters: RegisterOffset = $usedRegs
+                  def deconstruct(out: Registers, offset: RegisterOffset, in: ct): Unit =
+                    throw new UnsupportedOperationException("Structural types cannot be deconstructed at runtime.")
+                }
+              )
+            ).asTerm[A]($caseTpeName)
+          }).asInstanceOf[Expr[SchemaTerm[Binding, A, ? <: A]]]
+      }
+    })
+    
+    val matcherExprs = Varargs(cases.map { case (_, caseTpe, _) =>
+      caseTpe.asType match {
+        case '[ct] =>
+          '{ new StructuralMatcher[ct] }.asInstanceOf[Expr[Matcher[? <: A]]]
+      }
+    })
+    
+    '{
+      new Schema(
+        reflect = new Reflect.Variant[Binding, A](
+          cases = Vector($caseTermExprs*),
+          typeName = $tpeName,
+          variantBinding = new Binding.Variant(
+            discriminator = new Discriminator[A] {
+              def discriminate(a: A): Int = {
+                // Runtime discrimination not supported for structural types
+                throw new UnsupportedOperationException("Structural types cannot be discriminated at runtime.")
+              }
+            },
+            matchers = Matchers($matcherExprs*)
+          )
+        )
+      )
+    }
+  }
+
+  private def structuralTypeName[A: Type](tpe: TypeRepr): TypeName[A] = {
+    val name = tpe.show.replaceAll("\\s+", " ").take(100) // Readable representation
+    TypeName[A](Namespace(List("structural")), name)
   }
 }
