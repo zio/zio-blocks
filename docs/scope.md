@@ -138,7 +138,6 @@ A `Scope[Stack]` manages resource lifecycle and tracks available services at the
 sealed trait Scope[Stack] {
   def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
-  def child: Scope.Closeable[Stack]
   def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
 }
 
@@ -445,7 +444,6 @@ Scope provides rich error messages with dependency graphs.
 sealed trait Scope[Stack] {
   def get[T](using InStack[T, Stack], IsNominalType[T]): T
   def defer(finalizer: => Unit): Unit
-  def child: Scope.Closeable[Stack]
   def injected[T](wires: Wire[?,?]*): Scope.Closeable[Context[T] :: Stack]
 }
 
