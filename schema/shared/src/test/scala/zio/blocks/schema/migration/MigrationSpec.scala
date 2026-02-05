@@ -2438,6 +2438,102 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         val result = expr.eval(DynamicValue.Null)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(2.5f))))
+      },
+      test("Convert ToBigInt from Short") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(42))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(42)))))
+      },
+      test("Convert ToBigInt from Byte") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(7))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(7)))))
+      },
+      test("Convert ToBigInt from Int") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(123))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(123)))))
+      },
+      test("Convert ToBigDecimal from Short") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(50))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(50)))))
+      },
+      test("Convert ToBigDecimal from Byte") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(8))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(8)))))
+      },
+      test("Convert ToBigDecimal from Long") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(999L))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(999)))))
+      },
+      test("Convert ToBigDecimal from BigInt") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(12345)))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(12345)))))
+      },
+      test("Convert ToInt fails for invalid Boolean") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+          MigrationExpr.PrimitiveTargetType.ToInt
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Convert ToDouble fails for invalid Char") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Char('x'))),
+          MigrationExpr.PrimitiveTargetType.ToDouble
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Convert ToBoolean from Long fails") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(1L))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
+      test("Convert ToLong from Int") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          MigrationExpr.PrimitiveTargetType.ToLong
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
+      },
+      test("Convert ToBigDecimal from String") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("123.456"))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("123.456")))))
       }
     )
   )
