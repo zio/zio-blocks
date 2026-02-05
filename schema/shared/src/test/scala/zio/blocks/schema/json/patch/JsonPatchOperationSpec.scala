@@ -54,7 +54,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
     },
     test("Set works on Json.Number") {
       val original = Json.Number(123)
-      val newValue = Json.Number("456.789")
+      val newValue = Json.Number(456.789)
       val patch    = JsonPatch.root(Op.Set(newValue))
       val result   = patch.apply(original, PatchMode.Strict)
       assertTrue(result == Right(newValue))
@@ -94,37 +94,37 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       val original = Json.Number(5)
       val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(3))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("8")))
+      assertTrue(result == Right(Json.Number(8)))
     },
     test("NumberDelta with negative delta (10 - 3 = 7)") {
       val original = Json.Number(10)
       val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(-3))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("7")))
+      assertTrue(result == Right(Json.Number(7)))
     },
     test("NumberDelta with zero delta (value unchanged)") {
       val original = Json.Number(42)
       val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(0))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("42")))
+      assertTrue(result == Right(Json.Number(42)))
     },
     test("NumberDelta with decimal delta (1.5 + 0.5 = 2.0)") {
-      val original = Json.Number("1.5")
+      val original = Json.Number(1.5)
       val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal("0.5"))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("2.0")))
+      assertTrue(result == Right(Json.Number(2.0)))
     },
     test("NumberDelta with large values") {
-      val original = Json.Number("999999999999999999")
+      val original = Json.Number(999999999999999999L)
       val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("1000000000000000000")))
+      assertTrue(result == Right(Json.Number(1000000000000000000L)))
     },
     test("NumberDelta with high precision decimals") {
-      val original = Json.Number("0.123456789")
+      val original = Json.Number(0.123456789)
       val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal("0.000000001"))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("0.123456790")))
+      assertTrue(result == Right(Json.Number(0.123456790)))
     }
   )
 
@@ -325,7 +325,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
         Op.ArrayEdit(Vector(ArrayOp.Modify(1, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(5))))))
       )
       val result = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Array(Json.Number(10), Json.Number("25"), Json.Number(30))))
+      assertTrue(result == Right(Json.Array(Json.Number(10), Json.Number(25), Json.Number(30))))
     }
   )
 
@@ -403,7 +403,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
         )
       )
       val result = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Object("count" -> Json.Number("15"))))
+      assertTrue(result == Right(Json.Object("count" -> Json.Number(15))))
     },
     test("Modify nested object") {
       val original = Json.Object(
@@ -488,7 +488,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
           Json.Object(
             "level1" -> Json.Object(
               "level2" -> Json.Object(
-                "level3" -> Json.Number("150")
+                "level3" -> Json.Number(150)
               )
             )
           )
@@ -752,7 +752,7 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       val path     = DynamicOptic.root.elements
       val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(10))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Array(Json.Number("11"), Json.Number("12"), Json.Number("13"))))
+      assertTrue(result == Right(Json.Array(Json.Number(11), Json.Number(12), Json.Number(13))))
     },
     test("Elements navigation on empty array succeeds in Lenient mode") {
       val original = Json.Array.empty
@@ -780,9 +780,9 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       assertTrue(
         result == Right(
           Json.Array(
-            Json.Object("value" -> Json.Number("11")),
-            Json.Object("value" -> Json.Number("12")),
-            Json.Object("value" -> Json.Number("13"))
+            Json.Object("value" -> Json.Number(11)),
+            Json.Object("value" -> Json.Number(12)),
+            Json.Object("value" -> Json.Number(13))
           )
         )
       )
@@ -799,14 +799,14 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       val path     = DynamicOptic.root.elements
       val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
       val result   = patch.apply(original, PatchMode.Lenient)
-      assertTrue(result == Right(Json.Array(Json.Number("2"), Json.String("not a number"), Json.Number("4"))))
+      assertTrue(result == Right(Json.Array(Json.Number(2), Json.String("not a number"), Json.Number(4))))
     },
     test("applyToAllElements keeps original on error in Clobber mode") {
       val original = Json.Array(Json.Number(1), Json.String("not a number"), Json.Number(3))
       val path     = DynamicOptic.root.elements
       val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
       val result   = patch.apply(original, PatchMode.Clobber)
-      assertTrue(result == Right(Json.Array(Json.Number("2"), Json.String("not a number"), Json.Number("4"))))
+      assertTrue(result == Right(Json.Array(Json.Number(2), Json.String("not a number"), Json.Number(4))))
     },
     test("navigateAllElements keeps original on error in Lenient mode") {
       val original = Json.Array(
@@ -853,8 +853,8 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       assertTrue(
         result == Right(
           Json.Array(
-            Json.Object("outer" -> Json.Object("inner" -> Json.Number("101"))),
-            Json.Object("outer" -> Json.Object("inner" -> Json.Number("102")))
+            Json.Object("outer" -> Json.Object("inner" -> Json.Number(101))),
+            Json.Object("outer" -> Json.Object("inner" -> Json.Number(102)))
           )
         )
       )
@@ -876,14 +876,14 @@ object JsonPatchOperationSpec extends SchemaBaseSpec {
       val path     = DynamicOptic.root.wrapped.field("value")
       val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(8))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Object("value" -> Json.Number("50"))))
+      assertTrue(result == Right(Json.Object("value" -> Json.Number(50))))
     },
     test("Wrapped navigation with NumberDelta") {
       val original = Json.Number(10)
       val path     = DynamicOptic.root.wrapped
       val patch    = JsonPatch(path, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(5))))
       val result   = patch.apply(original, PatchMode.Strict)
-      assertTrue(result == Right(Json.Number("15")))
+      assertTrue(result == Right(Json.Number(15)))
     }
   )
 

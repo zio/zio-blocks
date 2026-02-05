@@ -97,7 +97,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array append") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(Json.Number("1"), Json.Number("2")))))
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(Json.Number(1), Json.Number(2)))))
       )
       assertTrue(
         patch.toString ==
@@ -110,7 +110,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array insert") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(1, Chunk(Json.Number("42"), Json.Number("43")))))
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(1, Chunk(Json.Number(42), Json.Number(43)))))
       )
       assertTrue(
         patch.toString ==
@@ -147,7 +147,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array modify with set") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Set(Json.Number("99")))))
+        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Set(Json.Number(99)))))
       )
       assertTrue(
         patch.toString ==
@@ -219,8 +219,8 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
       )
     },
     test("renders diff-generated patch for number change") {
-      val source = Json.Number("10")
-      val target = Json.Number("15")
+      val source = Json.Number(10)
+      val target = Json.Number(15)
       val patch  = JsonPatch.diff(source, target)
       assertTrue(
         patch.toString ==
@@ -230,8 +230,8 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
       )
     },
     test("renders diff-generated patch for object field changes") {
-      val source = Json.Object(Chunk("name" -> Json.String("Alice"), "age" -> Json.Number("30")))
-      val target = Json.Object(Chunk("name" -> Json.String("Bob"), "age" -> Json.Number("30")))
+      val source = Json.Object(Chunk("name" -> Json.String("Alice"), "age" -> Json.Number(30)))
+      val target = Json.Object(Chunk("name" -> Json.String("Bob"), "age" -> Json.Number(30)))
       val patch  = JsonPatch.diff(source, target)
       assertTrue(
         patch.toString ==
@@ -243,8 +243,8 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
       )
     },
     test("renders diff-generated patch for array changes") {
-      val source = Json.Array(Chunk(Json.Number("1"), Json.Number("2"), Json.Number("3")))
-      val target = Json.Array(Chunk(Json.Number("1"), Json.Number("2"), Json.Number("3"), Json.Number("4")))
+      val source = Json.Array(Chunk(Json.Number(1), Json.Number(2), Json.Number(3)))
+      val target = Json.Array(Chunk(Json.Number(1), Json.Number(2), Json.Number(3), Json.Number(4)))
       val patch  = JsonPatch.diff(source, target)
       assertTrue(
         patch.toString ==
@@ -264,7 +264,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
       )
     },
     test("renders nested operation") {
-      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(Json.Number("42")))
+      val innerPatch = JsonPatch.root(JsonPatch.Op.Set(Json.Number(42)))
       val patch      = JsonPatch.root(JsonPatch.Op.Nested(innerPatch))
       assertTrue(
         patch.toString ==
@@ -282,7 +282,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
         Vector(
           JsonPatch.JsonPatchOp(
             DynamicOptic.root.field("items").at(0),
-            JsonPatch.Op.Set(Json.Number("1"))
+            JsonPatch.Op.Set(Json.Number(1))
           )
         )
       )
@@ -314,7 +314,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
         Vector(
           JsonPatch.JsonPatchOp(
             DynamicOptic.root.at(0).at(1),
-            JsonPatch.Op.Set(Json.Number("42"))
+            JsonPatch.Op.Set(Json.Number(42))
           )
         )
       )

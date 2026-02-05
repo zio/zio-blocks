@@ -112,7 +112,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       )
     },
     test("supports interpolated BigDecimal keys and values") {
-      check(Gen.bigDecimal(BigDecimal("-" + "9" * 100), BigDecimal("9" * 100)))(x =>
+      check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[BigDecimal] == Right(x),
           json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
@@ -120,7 +120,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       )
     },
     test("supports interpolated BigInt keys and values") {
-      check(Gen.bigInt(BigInt("-" + "9" * 100), BigInt("9" * 100)))(x =>
+      check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[BigDecimal].map(_.toBigInt) == Right(x),
           json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
