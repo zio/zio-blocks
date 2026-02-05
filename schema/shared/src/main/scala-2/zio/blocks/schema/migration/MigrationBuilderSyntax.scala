@@ -4,8 +4,8 @@ import scala.reflect.macros.whitebox
 import zio.blocks.schema.SchemaExpr
 
 /**
- * Macro implementations for MigrationBuilder methods.
- * Each macro returns a refined type that accumulates field names in the type parameters.
+ * Macro implementations for MigrationBuilder methods. Each macro returns a
+ * refined type that accumulates field names in the type parameters.
  */
 object MigrationBuilderMacros {
 
@@ -27,7 +27,8 @@ object MigrationBuilderMacros {
   }
 
   /**
-   * Create a FieldName[fieldName] type wrapped in a refined type with the current type.
+   * Create a FieldName[fieldName] type wrapped in a refined type with the
+   * current type.
    */
   private def createRefinedType(c: whitebox.Context)(currentType: c.Type, fieldName: String): c.Type = {
     import c.universe._
@@ -199,7 +200,9 @@ object MigrationBuilderMacros {
     }"""
   }
 
-  def optionalizeFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](c: whitebox.Context)(
+  def optionalizeFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](
+    c: whitebox.Context
+  )(
     source: c.Expr[A => Any],
     target: c.Expr[B => Option[_]]
   ): c.Tree = {
@@ -230,7 +233,9 @@ object MigrationBuilderMacros {
     }"""
   }
 
-  def changeFieldTypeImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](c: whitebox.Context)(
+  def changeFieldTypeImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](
+    c: whitebox.Context
+  )(
     source: c.Expr[A => Any],
     target: c.Expr[B => Any],
     converter: c.Expr[SchemaExpr[_, _]]
@@ -265,7 +270,9 @@ object MigrationBuilderMacros {
     }"""
   }
 
-  def transformElementsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](c: whitebox.Context)(
+  def transformElementsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](
+    c: whitebox.Context
+  )(
     at: c.Expr[A => Iterable[_]],
     transform: c.Expr[SchemaExpr[_, _]]
   ): c.Tree = {
@@ -317,7 +324,9 @@ object MigrationBuilderMacros {
     }"""
   }
 
-  def transformValuesImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](c: whitebox.Context)(
+  def transformValuesImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, SH: c.WeakTypeTag, TP: c.WeakTypeTag](
+    c: whitebox.Context
+  )(
     at: c.Expr[A => Map[_, _]],
     transform: c.Expr[SchemaExpr[_, _]]
   ): c.Tree = {
