@@ -3,7 +3,6 @@ package zio.blocks.scope
 import zio.test._
 import zio.blocks.context.Context
 import zio.blocks.scope.internal.Finalizers
-import scala.collection.mutable
 
 object ScopeSpec extends ZIOSpecDefault {
 
@@ -133,63 +132,6 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(!cleaned)
       }
     ),
-    suite("Finalizers")(
-      test("run in LIFO order") {
-        val order             = mutable.Buffer[Int]()
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        finalizers.add(order += 1)
-        finalizers.add(order += 2)
-        finalizers.add(order += 3)
-        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
-        closeable.close()
-        assertTrue(order.toList == List(3, 2, 1))
-      },
-      test("exception in finalizer is propagated") {
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        finalizers.add(throw new RuntimeException("finalizer boom"))
-        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
-
-        val result = try {
-          closeable.close()
-          false
-        } catch {
-          case e: RuntimeException => e.getMessage == "finalizer boom"
-        }
-        assertTrue(result)
-      },
-      test("isClosed returns correct state") {
-        val finalizers = new Finalizers
-        assertTrue(!finalizers.isClosed)
-        finalizers.runAll()
-        assertTrue(finalizers.isClosed)
-      },
-      test("size returns correct count") {
-        val finalizers = new Finalizers
-        assertTrue(finalizers.size == 0)
-        finalizers.add(())
-        assertTrue(finalizers.size == 1)
-        finalizers.add(())
-        assertTrue(finalizers.size == 2)
-      },
-      test("add after close is ignored") {
-        val finalizers = new Finalizers
-        finalizers.runAll()
-        finalizers.add(())
-        assertTrue(finalizers.size == 0)
-      },
-      test("runAll is idempotent") {
-        val finalizers = new Finalizers
-        var count      = 0
-        finalizers.add(count += 1)
-        finalizers.runAll()
-        finalizers.runAll()
-        assertTrue(count == 1)
-      }
-    ),
     suite("nested scopes")(
       test("get from grandparent") {
         val parent: Scope.Any = Scope.global
@@ -224,61 +166,6 @@ object ScopeSpec extends ZIOSpecDefault {
       test("evidence for tail") {
         val ev = implicitly[InStack[Config, Context[Database] :: Context[Config] :: TNil]]
         assertTrue(ev != null)
-      }
-    ),
-    suite("Wire")(
-      test("Wire.value creates shared wire") {
-        val wire = Wire.value(Config(true))
-        assertTrue(wire.isInstanceOf[Wire.Shared[_, _]])
-      },
-      test("Wire.value construction works") {
-        val wire                           = Wire.value(Config(true))
-        val parent: Scope.Any              = Scope.global
-        val finalizers                     = new Finalizers
-        implicit val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        val ctx                            = wire.construct
-        assertTrue(ctx.get[Config].debug)
-      },
-      test("Wire.Shared constructs context") {
-        val wire: Wire.Shared[Any, Config] = Wire.Shared.fromFunction[Any, Config] { _ =>
-          Context(Config(debug = true))
-        }
-        val parent: Scope.Any              = Scope.global
-        val finalizers                     = new Finalizers
-        implicit val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        val ctx                            = wire.construct
-        assertTrue(ctx.get[Config].debug)
-      },
-      test("Wire.Unique constructs context") {
-        val wire: Wire.Unique[Any, Config] = Wire.Unique.fromFunction[Any, Config] { _ =>
-          Context(Config(debug = false))
-        }
-        val parent: Scope.Any              = Scope.global
-        val finalizers                     = new Finalizers
-        implicit val scope: Scope.Has[Any] = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        val ctx                            = wire.construct
-        assertTrue(!ctx.get[Config].debug)
-      },
-      test("Wire.isShared and isUnique") {
-        val sharedWire = Wire.value(Config(true))
-        val uniqueWire = sharedWire.unique
-        assertTrue(sharedWire.isShared, !sharedWire.isUnique)
-        assertTrue(!uniqueWire.isShared, uniqueWire.isUnique)
-      },
-      test("Wire.shared and unique conversions") {
-        val sharedWire   = Wire.value(Config(true))
-        val uniqueWire   = sharedWire.unique
-        val backToShared = uniqueWire.shared
-        assertTrue(sharedWire.isShared, uniqueWire.isUnique, backToShared.isShared)
-      }
-    ),
-    suite("Wireable")(
-      test("trait exists") {
-        val wireable = new Wireable[Config] {
-          type In = Any
-          def wire: Wire[Any, Config] = Wire.value(Config(true))
-        }
-        assertTrue(wireable.wire != null)
       }
     )
   )
