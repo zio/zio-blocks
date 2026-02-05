@@ -5,7 +5,7 @@ import zio.test._
 // === Mock types for testing ===
 
 class InputStream {
-  def read(): Int                = 42
+  def read(): Int                 = 42
   def readAllBytes(): Array[Byte] = Array(1, 2, 3)
 }
 
@@ -13,8 +13,8 @@ class Request(val body: InputStream)
 
 class Response(val data: String)
 object Response {
-  def ok(s: String): Response        = new Response(s)
-  given SafeData[Response]           = new SafeData[Response] {}
+  def ok(s: String): Response = new Response(s)
+  given SafeData[Response]    = new SafeData[Response] {}
 }
 
 object ScopedTaggingSpec extends ZIOSpecDefault {

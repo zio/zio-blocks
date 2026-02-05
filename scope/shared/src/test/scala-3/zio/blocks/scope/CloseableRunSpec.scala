@@ -64,7 +64,7 @@ object CloseableRunSpec extends ZIOSpecDefault {
       val reportedErrors                         = ArrayBuffer.empty[Chunk[Throwable]]
       val testReporter: Chunk[Throwable] => Unit = (errors: Chunk[Throwable]) => { reportedErrors += errors; () }
       finalizers.add(throw new RuntimeException("finalizer error"))
-      val closeable = new ScopeImplScala3[Config, TNil](parent, Context(config), finalizers, testReporter)
+      val closeable = new ScopeImplScala3[Config, TNil, parent.Tag](parent, Context(config), finalizers, testReporter)
 
       val result = closeable.run(42)
 

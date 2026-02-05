@@ -15,6 +15,19 @@ private[scope] trait ScopeVersionSpecific[+Stack] { self: Scope[Stack] =>
 private[scope] trait CloseableVersionSpecific[+Head, +Tail] { self: Scope.Closeable[Head, Tail] =>
 
   /**
+   * The head service of this scope, tagged with the scope's identity.
+   *
+   * Use the `$` operator to access methods on the underlying value:
+   * {{{
+   * closeable.value $ (_.method())
+   * }}}
+   *
+   * @return
+   *   The head service tagged with this scope's Tag
+   */
+  def value: Head @@ self.Tag
+
+  /**
    * Executes the given function with this scope, then closes the scope.
    *
    * Finalizer errors are silently discarded. Use `runWithErrors` if you need to
@@ -35,5 +48,5 @@ private[scope] object ScopeFactory {
     context: Context[T],
     finalizers: Finalizers
   ): Scope.Closeable[T, S] =
-    new ScopeImplScala3[T, S](parent, context, finalizers)
+    new ScopeImplScala3[T, S, parent.Tag](parent, context, finalizers)
 }
