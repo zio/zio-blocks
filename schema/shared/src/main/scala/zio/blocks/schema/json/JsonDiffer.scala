@@ -55,8 +55,8 @@ object JsonDiffer {
    * represent the change.
    */
   private def diffNumber(oldNum: Json.Number, newNum: Json.Number): JsonPatch = {
-    val oldVal = BigDecimal(oldNum.value)
-    val newVal = BigDecimal(newNum.value)
+    val oldVal = oldNum.value
+    val newVal = newNum.value
     val delta  = newVal - oldVal
     JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(delta)))
   }

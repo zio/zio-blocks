@@ -325,16 +325,8 @@ object JsonPatch {
   ): Either[SchemaError, Json] = op match {
     case PrimitiveOp.NumberDelta(delta) =>
       value match {
-        case Json.Number(numStr) =>
-          try {
-            val current = BigDecimal(numStr)
-            val result  = current + delta
-            new Right(new Json.Number(result.toString))
-          } catch {
-            case _: NumberFormatException =>
-              new Left(SchemaError.expectationMismatch(trace, s"Invalid number format: $numStr"))
-          }
-        case _ => new Left(SchemaError.expectationMismatch(trace, s"Expected Number but got ${value.jsonType}"))
+        case Json.Number(current) => new Right(new Json.Number(current + delta))
+        case _                    => new Left(SchemaError.expectationMismatch(trace, s"Expected Number but got ${value.jsonType}"))
       }
     case PrimitiveOp.StringEdit(ops) =>
       value match {

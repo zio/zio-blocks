@@ -105,7 +105,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("ArrayOp.Insert serializes") {
       roundTrip(
         ArrayOp.Insert(1, Chunk(Json.Number(42), Json.String("test"))): ArrayOp,
-        """{"Insert":{"index":1,"values":[{"Number":{"value":"42"}},{"String":{"value":"test"}}]}}"""
+        """{"Insert":{"index":1,"values":[{"Number":{"value":42}},{"String":{"value":"test"}}]}}"""
       )
     },
     test("ArrayOp.Append serializes") {
@@ -123,7 +123,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("ArrayOp.Modify with Set operation") {
       roundTrip(
         ArrayOp.Modify(0, Op.Set(Json.Number(100))): ArrayOp,
-        """{"Modify":{"index":0,"op":{"Set":{"value":{"Number":{"value":"100"}}}}}}"""
+        """{"Modify":{"index":0,"op":{"Set":{"value":{"Number":{"value":100}}}}}}"""
       )
     },
     test("ArrayOp.Modify with nested PrimitiveDelta") {
@@ -154,7 +154,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       roundTrip(
         ObjectOp.Modify("counter", innerPatch): ObjectOp,
         // Empty path serializes as empty object
-        """{"Modify":{"key":"counter","patch":{"ops":[{"path":{},"operation":{"Set":{"value":{"Number":{"value":"42"}}}}}]}}}"""
+        """{"Modify":{"key":"counter","patch":{"ops":[{"path":{},"operation":{"Set":{"value":{"Number":{"value":42}}}}}]}}}"""
       )
     },
     test("ObjectOp with unicode keys") {
@@ -177,7 +177,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("Op.Set with complex object") {
       roundTrip(
         Op.Set(Json.Object("a" -> Json.Number(1), "b" -> Json.Array(Json.Boolean(true)))): Op,
-        """{"Set":{"value":{"Object":{"value":[["a",{"Number":{"value":"1"}}],["b",{"Array":{"value":[{"Boolean":{"value":true}}]}}]]}}}}"""
+        """{"Set":{"value":{"Object":{"value":[["a",{"Number":{"value":1}}],["b",{"Array":{"value":[{"Boolean":{"value":true}}]}}]]}}}}"""
       )
     },
     test("Op.PrimitiveDelta with NumberDelta") {
@@ -200,7 +200,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
             ArrayOp.Delete(0, 1)
           )
         ): Op,
-        """{"ArrayEdit":{"ops":[{"Append":{"values":[{"Number":{"value":"1"}}]}},{"Delete":{"index":0,"count":1}}]}}"""
+        """{"ArrayEdit":{"ops":[{"Append":{"values":[{"Number":{"value":1}}]}},{"Delete":{"index":0,"count":1}}]}}"""
       )
     },
     test("Op.ObjectEdit serializes") {
@@ -211,7 +211,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
             ObjectOp.Remove("y")
           )
         ): Op,
-        """{"ObjectEdit":{"ops":[{"Add":{"key":"x","value":{"Number":{"value":"10"}}}},{"Remove":{"key":"y"}}]}}"""
+        """{"ObjectEdit":{"ops":[{"Add":{"key":"x","value":{"Number":{"value":10}}}},{"Remove":{"key":"y"}}]}}"""
       )
     },
     test("Op.Nested serializes") {
@@ -231,7 +231,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       roundTrip(
         JsonPatchOp(DynamicOptic.root, Op.Set(Json.Number(42))),
         // Empty path serializes as empty object
-        """{"path":{},"operation":{"Set":{"value":{"Number":{"value":"42"}}}}}"""
+        """{"path":{},"operation":{"Set":{"value":{"Number":{"value":42}}}}}"""
       )
     },
     test("JsonPatchOp with single field path") {
@@ -311,7 +311,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       // Empty paths serialize as empty objects
       roundTrip(
         level1,
-        """{"ops":[{"path":{},"operation":{"Nested":{"patch":{"ops":[{"path":{},"operation":{"Nested":{"patch":{"ops":[{"path":{},"operation":{"Set":{"value":{"Number":{"value":"42"}}}}}]}}}}]}}}}]}"""
+        """{"ops":[{"path":{},"operation":{"Nested":{"patch":{"ops":[{"path":{},"operation":{"Nested":{"patch":{"ops":[{"path":{},"operation":{"Set":{"value":{"Number":{"value":42}}}}}]}}}}]}}}}]}"""
       )
     },
     test("ObjectOp.Modify with deeply nested patches") {
@@ -329,7 +329,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       // Empty paths serialize as empty objects
       roundTrip(
         ObjectOp.Modify("outer", innerPatch): ObjectOp,
-        """{"Modify":{"key":"outer","patch":{"ops":[{"path":{},"operation":{"ObjectEdit":{"ops":[{"Add":{"key":"nested","value":{"Object":{"value":[["a",{"Number":{"value":"1"}}]]}}}},{"Modify":{"key":"other","patch":{"ops":[{"path":{},"operation":{"Set":{"value":{"String":{"value":"deep"}}}}}]}}}]}}}]}}}"""
+        """{"Modify":{"key":"outer","patch":{"ops":[{"path":{},"operation":{"ObjectEdit":{"ops":[{"Add":{"key":"nested","value":{"Object":{"value":[["a",{"Number":{"value":1}}]]}}}},{"Modify":{"key":"other","patch":{"ops":[{"path":{},"operation":{"Set":{"value":{"String":{"value":"deep"}}}}}]}}}]}}}]}}}"""
       )
     },
     test("ArrayOp.Modify containing ObjectEdit containing ArrayEdit") {

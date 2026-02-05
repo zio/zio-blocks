@@ -68,6 +68,8 @@ lazy val root = project
     typeid.js,
     context.jvm,
     context.js,
+    scope.jvm,
+    scope.js,
     schema.jvm,
     schema.js,
     `schema-avro`,
@@ -143,6 +145,37 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
     }),
     coverageMinimumStmtTotal   := 75,
     coverageMinimumBranchTotal := 45
+  )
+
+lazy val scope = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(context, chunk)
+  .settings(stdSettings("zio-blocks-scope"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.scope"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 100,
+    coverageMinimumBranchTotal := 100,
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/scope/.*",
+      ".*scala-3/zio/blocks/scope/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
