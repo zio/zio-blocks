@@ -2,8 +2,10 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
+// Phantom type wrapper to preserve literal string types through macro expansion.
+// Direct use of ConstantType with .asType causes literal types to widen to String.
+// By wrapping in FieldName[N], the type argument is preserved when using appliedTo.
 sealed trait FieldName[N <: String & Singleton]
-type AddField[T, F <: String & Singleton] = T & FieldName[F]
 
 final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   val sourceSchema: Schema[A],
