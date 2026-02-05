@@ -226,14 +226,7 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
 
   override def hashCode(): Int = TypeId.structuralHash(this)
 
-  override def toString: String = {
-    val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr  =
-      if (aliasedTo.isDefined) "alias"
-      else if (representation.isDefined) "opaque"
-      else "nominal"
-    s"TypeId.$kindStr($fullName$paramStr)"
-  }
+  override def toString: String = TypeIdPrinter.render(this)
 }
 
 object TypeId extends TypeIdInstances with TypeIdLowPriority {

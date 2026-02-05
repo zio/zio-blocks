@@ -770,27 +770,27 @@ object JsonSchema {
       const.foreach(v => fields += ("const" -> v))
 
       // Validation vocabulary (Numeric)
-      multipleOf.foreach(v => fields += ("multipleOf" -> Json.Number(v.value.toString)))
-      maximum.foreach(v => fields += ("maximum" -> Json.Number(v.toString)))
-      exclusiveMaximum.foreach(v => fields += ("exclusiveMaximum" -> Json.Number(v.toString)))
-      minimum.foreach(v => fields += ("minimum" -> Json.Number(v.toString)))
-      exclusiveMinimum.foreach(v => fields += ("exclusiveMinimum" -> Json.Number(v.toString)))
+      multipleOf.foreach(v => fields += ("multipleOf" -> Json.Number(v.value)))
+      maximum.foreach(v => fields += ("maximum" -> Json.Number(v)))
+      exclusiveMaximum.foreach(v => fields += ("exclusiveMaximum" -> Json.Number(v)))
+      minimum.foreach(v => fields += ("minimum" -> Json.Number(v)))
+      exclusiveMinimum.foreach(v => fields += ("exclusiveMinimum" -> Json.Number(v)))
 
       // Validation vocabulary (String)
-      minLength.foreach(v => fields += ("minLength" -> Json.Number(v.value.toString)))
-      maxLength.foreach(v => fields += ("maxLength" -> Json.Number(v.value.toString)))
+      minLength.foreach(v => fields += ("minLength" -> Json.Number(v.value)))
+      maxLength.foreach(v => fields += ("maxLength" -> Json.Number(v.value)))
       pattern.foreach(v => fields += ("pattern" -> Json.String(v.value)))
 
       // Validation vocabulary (Array)
-      minItems.foreach(v => fields += ("minItems" -> Json.Number(v.value.toString)))
-      maxItems.foreach(v => fields += ("maxItems" -> Json.Number(v.value.toString)))
+      minItems.foreach(v => fields += ("minItems" -> Json.Number(v.value)))
+      maxItems.foreach(v => fields += ("maxItems" -> Json.Number(v.value)))
       uniqueItems.foreach(v => fields += ("uniqueItems" -> Json.Boolean(v)))
-      minContains.foreach(v => fields += ("minContains" -> Json.Number(v.value.toString)))
-      maxContains.foreach(v => fields += ("maxContains" -> Json.Number(v.value.toString)))
+      minContains.foreach(v => fields += ("minContains" -> Json.Number(v.value)))
+      maxContains.foreach(v => fields += ("maxContains" -> Json.Number(v.value)))
 
       // Validation vocabulary (Object)
-      minProperties.foreach(v => fields += ("minProperties" -> Json.Number(v.value.toString)))
-      maxProperties.foreach(v => fields += ("maxProperties" -> Json.Number(v.value.toString)))
+      minProperties.foreach(v => fields += ("minProperties" -> Json.Number(v.value)))
+      maxProperties.foreach(v => fields += ("maxProperties" -> Json.Number(v.value)))
       required.foreach(v => fields += ("required" -> Json.Array(v.toSeq.map(Json.String(_)): _*)))
       dependentRequired.foreach { d =>
         val depsObj = Json.Object(Chunk.from(d.map { case (name, reqs) =>
@@ -874,7 +874,7 @@ object JsonSchema {
           case _: Json.Boolean => schemaType.contains(JsonSchemaType.Boolean)
           case _: Json.String  => schemaType.contains(JsonSchemaType.String)
           case n: Json.Number  =>
-            val isInt = n.toBigDecimalOption.exists(bd => bd.isWhole)
+            val isInt = n.value.isWhole
             schemaType.contains(JsonSchemaType.Number) || (isInt && schemaType.contains(JsonSchemaType.Integer))
           case _: Json.Array  => schemaType.contains(JsonSchemaType.Array)
           case _: Json.Object => schemaType.contains(JsonSchemaType.Object)
@@ -905,26 +905,25 @@ object JsonSchema {
       // Numeric validations
       json match {
         case n: Json.Number =>
-          n.toBigDecimalOption.foreach { value =>
-            minimum.foreach { min =>
-              if (value < min) addError(s"Value $value is less than minimum $min")
-            }
-            maximum.foreach { max =>
-              if (value > max) addError(s"Value $value is greater than maximum $max")
-            }
-            exclusiveMinimum.foreach { min =>
-              if (value <= min) addError(s"Value $value is not greater than exclusiveMinimum $min")
-            }
-            exclusiveMaximum.foreach { max =>
-              if (value >= max) addError(s"Value $value is not less than exclusiveMaximum $max")
-            }
-            multipleOf.foreach { m =>
-              try {
-                if (value % m.value != 0) addError(s"Value $value is not a multiple of ${m.value}")
-              } catch {
-                case _: ArithmeticException =>
-                  addError(s"Value $value cannot be checked against multipleOf ${m.value}")
-              }
+          val value = n.value
+          minimum.foreach { min =>
+            if (value < min) addError(s"Value $value is less than minimum $min")
+          }
+          maximum.foreach { max =>
+            if (value > max) addError(s"Value $value is greater than maximum $max")
+          }
+          exclusiveMinimum.foreach { min =>
+            if (value <= min) addError(s"Value $value is not greater than exclusiveMinimum $min")
+          }
+          exclusiveMaximum.foreach { max =>
+            if (value >= max) addError(s"Value $value is not less than exclusiveMaximum $max")
+          }
+          multipleOf.foreach { m =>
+            try {
+              if (value % m.value != 0) addError(s"Value $value is not a multiple of ${m.value}")
+            } catch {
+              case _: ArithmeticException =>
+                addError(s"Value $value cannot be checked against multipleOf ${m.value}")
             }
           }
         case _ => ()
@@ -1380,7 +1379,7 @@ object JsonSchema {
       fieldMap.get(key).collect { case b: Json.Boolean => b.value }
 
     def getNumber(key: String): Option[BigDecimal] =
-      fieldMap.get(key).collect { case n: Json.Number => n.toBigDecimalOption }.flatten
+      fieldMap.get(key).collect { case n: Json.Number => n.value }
 
     def getNonNegativeInt(key: String): Option[NonNegativeInt] =
       getNumber(key).flatMap(n => NonNegativeInt(n.toInt))

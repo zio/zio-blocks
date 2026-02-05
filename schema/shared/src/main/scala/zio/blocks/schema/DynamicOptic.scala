@@ -34,7 +34,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
   override lazy val toString: String = {
-    val sb  = new StringBuilder
+    val sb  = new java.lang.StringBuilder
     val len = nodes.length
     var idx = 0
     while (idx < len) {
@@ -73,7 +73,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
       }
       idx += 1
     }
-    if (sb.isEmpty) "."
+    if (sb.length == 0) "."
     else sb.toString
   }
 
@@ -84,7 +84,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
    * interpolator syntax.
    */
   lazy val toScalaString: String = {
-    val sb  = new StringBuilder
+    val sb  = new java.lang.StringBuilder
     val len = nodes.length
     var idx = 0
     while (idx < len) {
@@ -123,11 +123,11 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
       }
       idx += 1
     }
-    if (sb.isEmpty) "."
+    if (sb.length == 0) "."
     else sb.toString
   }
 
-  private def renderDynamicValue(sb: StringBuilder, value: DynamicValue): Unit =
+  private def renderDynamicValue(sb: java.lang.StringBuilder, value: DynamicValue): Unit =
     value match {
       case DynamicValue.Primitive(pv) =>
         pv match {
