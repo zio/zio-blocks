@@ -320,8 +320,10 @@ object Person {
 // Create a DynamicSchema for validation
 val dynamicSchema: DynamicSchema = Schema[Person].toDynamicSchema
 
+import zio.blocks.chunk.Chunk
+
 // Create a DynamicValue to validate
-val value = DynamicValue.Record(Vector(
+val value = DynamicValue.Record(Chunk(
   "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
   "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
 ))
@@ -345,7 +347,7 @@ val dynamicSchema: DynamicSchema = Schema[Person].toDynamicSchema
 val validatingSchema: Schema[DynamicValue] = dynamicSchema.toSchema
 
 // Now any decoding through this schema will validate structure
-val invalidValue = DynamicValue.Record(Vector(
+val invalidValue = DynamicValue.Record(Chunk(
   "name" -> DynamicValue.Primitive(PrimitiveValue.Int(42))  // wrong type!
 ))
 
