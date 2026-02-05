@@ -4,15 +4,15 @@ import scala.quoted.*
 
 object MigrationValidationMacros {
 
-  def validateMigration[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](using
+  def validateMigration[A: Type, B: Type, SH: Type, TP: Type](using
     Quotes
   ): Expr[MigrationComplete[A, B, SH, TP]] = {
     import quotes.reflect.*
 
     val sourceFields   = extractFieldNames[A]
     val targetFields   = extractFieldNames[B]
-    val handledFields  = extractTupleElements[SH]
-    val providedFields = extractTupleElements[TP]
+    val handledFields  = extractIntersectionElements[SH]
+    val providedFields = extractIntersectionElements[TP]
 
     val autoMapped = computeAutoMapped[A, B](sourceFields, targetFields)
 
@@ -55,47 +55,20 @@ object MigrationValidationMacros {
     }
   }
 
-  private def extractTupleElements[T <: Tuple: Type](using Quotes): Set[String] = {
+  private def extractIntersectionElements[T: Type](using Quotes): Set[String] = {
     import quotes.reflect.*
 
     def extract(tpe: TypeRepr): Set[String] = {
       val dealiased = tpe.dealias
       dealiased match {
-        case AppliedType(tycon, List(left, right))
-            if tycon.typeSymbol.fullName == "scala.Tuple$package.Concat" ||
-              tycon.typeSymbol.name == "Concat" =>
-          extract(left) ++ extract(right)
-
-        case AppliedType(tycon, args)
-            if tycon.typeSymbol.fullName == "scala.Tuple$package.*:" ||
-              tycon.typeSymbol.name == "*:" =>
-          args match {
-            case head :: tail :: Nil =>
-              val headName = head.dealias match {
-                case ConstantType(StringConstant(s)) => Set(s)
-                case _                               => Set.empty[String]
-              }
-              headName ++ extract(tail)
-            case _ => Set.empty
-          }
-
-        case tpe
-            if tpe.typeSymbol.fullName == "scala.EmptyTuple" ||
-              tpe.typeSymbol.fullName == "scala.Tuple$package.EmptyTuple" ||
-              tpe.typeSymbol.name == "EmptyTuple" ||
-              tpe =:= TypeRepr.of[EmptyTuple] =>
-          Set.empty
-
-        case AppliedType(tycon, args) if tycon.typeSymbol.fullName.startsWith("scala.Tuple") =>
-          args.flatMap { arg =>
-            arg.dealias match {
-              case ConstantType(StringConstant(s)) => Some(s)
-              case _                               => None
-            }
-          }.toSet
-
-        case _ =>
-          Set.empty
+        case AndType(left, right) => extract(left) ++ extract(right)
+        case ConstantType(StringConstant(s)) => Set(s)
+        case t if t =:= TypeRepr.of[Any] => Set.empty
+        case AppliedType(tycon, List(field)) if tycon.typeSymbol.name == "FieldName" =>
+          extract(field)
+        case AppliedType(tycon, List(base, field)) if tycon.typeSymbol.name == "AddField" =>
+          extract(base) ++ extract(field)
+        case _ => Set.empty
       }
     }
 

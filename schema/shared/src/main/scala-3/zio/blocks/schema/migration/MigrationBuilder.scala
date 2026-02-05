@@ -2,7 +2,10 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
-final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tuple](
+sealed trait FieldName[N <: String & Singleton]
+type AddField[T, F <: String & Singleton] = T & FieldName[F]
+
+final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   val sourceSchema: Schema[A],
   val targetSchema: Schema[B],
   private[migration] val actions: Vector[MigrationAction]
@@ -59,12 +62,12 @@ final class MigrationBuilder[A, B, SourceHandled <: Tuple, TargetProvided <: Tup
   def transformCase[CaseA, CaseB](
     caseName: String
   )(
-    caseMigration: MigrationBuilder[CaseA, CaseB, EmptyTuple, EmptyTuple] => MigrationBuilder[CaseA, CaseB, ?, ?]
+    caseMigration: MigrationBuilder[CaseA, CaseB, Any, Any] => MigrationBuilder[CaseA, CaseB, ?, ?]
   )(using
     caseSourceSchema: Schema[CaseA],
     caseTargetSchema: Schema[CaseB]
   ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val innerBuilder = new MigrationBuilder[CaseA, CaseB, EmptyTuple, EmptyTuple](
+    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any, Any](
       caseSourceSchema,
       caseTargetSchema,
       Vector.empty
@@ -114,19 +117,19 @@ object MigrationBuilder {
   def apply[A, B](using
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
-  ): MigrationBuilder[A, B, EmptyTuple, EmptyTuple] =
+  ): MigrationBuilder[A, B, Any, Any] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
 }
 
-trait MigrationComplete[-A, -B, -SourceHandled <: Tuple, -TargetProvided <: Tuple]
+trait MigrationComplete[-A, -B, -SourceHandled, -TargetProvided]
 
 object MigrationComplete {
-  private[migration] def unsafeCreate[A, B, SH <: Tuple, TP <: Tuple]: MigrationComplete[A, B, SH, TP] =
+  private[migration] def unsafeCreate[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
     instance.asInstanceOf[MigrationComplete[A, B, SH, TP]]
 
-  private val instance: MigrationComplete[Any, Any, Tuple, Tuple] =
-    new MigrationComplete[Any, Any, Tuple, Tuple] {}
+  private val instance: MigrationComplete[Any, Any, Any, Any] =
+    new MigrationComplete[Any, Any, Any, Any] {}
 
-  inline given derive[A, B, SH <: Tuple, TP <: Tuple]: MigrationComplete[A, B, SH, TP] =
+  inline given derive[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
     ${ MigrationValidationMacros.validateMigration[A, B, SH, TP] }
 }

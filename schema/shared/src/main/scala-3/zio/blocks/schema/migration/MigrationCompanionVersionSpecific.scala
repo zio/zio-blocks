@@ -6,6 +6,6 @@ trait MigrationCompanionVersionSpecific {
   def newBuilder[A, B](using
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
-  ): MigrationBuilder[A, B, EmptyTuple, EmptyTuple] =
+  ): MigrationBuilder[A, B, Any, Any] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
 }
