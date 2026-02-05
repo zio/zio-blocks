@@ -673,7 +673,11 @@ private[golem] object AgentCompanionMacro {
     val baseSym =
       Symbol.newVal(Symbol.spliceOwner, "$agent", traitRepr, Flags.EmptyFlags, Symbol.noSymbol)
     val baseVal = ValDef(baseSym, Some('{ AgentClient.bind[Trait]($resolvedRef) }.asTerm))
-    val baseRef = Ref(baseSym).asExprOf[js.Dynamic]
+    val baseDynSym =
+      Symbol.newVal(Symbol.spliceOwner, "$agentDyn", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val baseDynVal =
+      ValDef(baseDynSym, Some('{ ${ Ref(baseSym).asExprOf[Trait] }.asInstanceOf[js.Dynamic] }.asTerm))
+    val baseRef = Ref(baseDynSym).asExprOf[js.Dynamic]
 
     val triggerSym = Symbol.newVal(Symbol.spliceOwner, "$trigger", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
     val triggerVal = ValDef(triggerSym, Some('{ js.Dynamic.literal() }.asTerm))
@@ -859,7 +863,7 @@ private[golem] object AgentCompanionMacro {
       case '[t] =>
         val casted = Typed(baseRef.asTerm, Inferred(refinedType)).asExprOf[t]
         Block(
-          resolvedVal :: baseVal :: triggerVal :: scheduleVal :: (triggerUpdates ++ scheduleUpdates :+ attachTrigger :+ attachSchedule),
+          resolvedVal :: baseVal :: baseDynVal :: triggerVal :: scheduleVal :: (triggerUpdates ++ scheduleUpdates :+ attachTrigger :+ attachSchedule),
           casted.asTerm
         ).asExprOf[t]
     }

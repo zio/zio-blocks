@@ -228,13 +228,18 @@ object BuildHelper {
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
     // Scala.js 3.7.4 compiler fails on virtualfile: URIs during JS builds.
-    scalaVersion             := Scala33,
+    scalaVersion := {
+      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
+        case Some((3, _)) => Scala33
+        case _            => (ThisBuild / scalaVersion).value
+      }
+    },
     crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),
     coverageEnabled          := false,
     Test / parallelExecution := false,
     Test / fork              := false,
-    // Avoid mixing Scala 3.7.x JVM classpath with Scala.js 3.3.x builds.
-    Compile / skip           := (ThisBuild / scalaVersion).value == Scala3,
-    Test / skip              := (ThisBuild / scalaVersion).value == Scala3
+    // Skip JS projects only when running Scala 3.7.4.
+    Compile / skip := (ThisBuild / scalaVersion).value == Scala3,
+    Test / skip    := (ThisBuild / scalaVersion).value == Scala3
   )
 }
