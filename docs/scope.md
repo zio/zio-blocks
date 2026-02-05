@@ -979,7 +979,7 @@ The `$[T]` function returns a scoped value `T @@ scope.Tag` that prevents resour
 **Scala 3:**
 
 ```scala
-opaque infix type @@[+A, S] = A
+opaque infix type @@[+A, +S] = A
 
 object @@ {
   inline def scoped[A, S](a: A): A @@ S
@@ -990,7 +990,7 @@ object @@ {
     
     // For-comprehension support
     inline def map[B](inline f: A => B): B @@ S
-    inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S | T)
+    inline def flatMap[B, T >: S](inline f: A => B @@ T): B @@ T
   }
 }
 
@@ -1007,11 +1007,11 @@ type @@[+A, S] = ScopedModule.instance.@@[A, S]
 implicit class ScopedOps[A, S](scoped: A @@ S) {
   def $[B](f: A => B)(implicit scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out
   def map[B](f: A => B): B @@ S
-  def flatMap[B, T](f: A => B @@ T): B @@ T  // Propagates inner scope tag
+  def flatMap[B, T >: S](f: A => B @@ T): B @@ T
 }
 ```
 
-The `$` operator behavior is identical in both versions: returns raw `B` for `Unscoped` types, `B @@ S` for resources. The only difference is `flatMap` propagates the inner tag `T` in Scala 2 (vs union type `S | T` in Scala 3).
+The behavior is identical in both Scala 2 and Scala 3. The `@@` type is covariant in its scope parameter, so parent-scoped values can be used in child scopes.
 
 ---
 

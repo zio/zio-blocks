@@ -22,7 +22,7 @@ import scala.util.NotGiven
  *   stream $ (_.read())  // Works, returns Int (unscoped, since Int is Unscoped)
  *   }}}
  */
-opaque infix type @@[+A, S] = A
+opaque infix type @@[+A, +S] = A
 
 object @@ {
 
@@ -71,14 +71,14 @@ object @@ {
       f(scoped)
 
     /**
-     * FlatMaps over a scoped value, combining tags via union.
+     * FlatMaps over a scoped value, widening to the outer scope.
      *
      * @param f
      *   Function returning a scoped result
      * @return
-     *   Result with union tag `S | T`
+     *   Result with the wider tag T
      */
-    inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S | T) =
+    inline def flatMap[B, T >: S](inline f: A => B @@ T): B @@ T =
       f(scoped)
 
     /** Extracts the first element of a scoped tuple. */

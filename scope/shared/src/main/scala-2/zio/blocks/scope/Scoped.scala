@@ -13,7 +13,7 @@ import scala.language.implicitConversions
  * scope capability.
  */
 private[scope] sealed trait ScopedModule {
-  type @@[+A, S]
+  type @@[+A, +S]
 
   def scoped[A, S](a: A): A @@ S
   private[scope] def unscoped[A, S](scoped: A @@ S): A
@@ -21,9 +21,9 @@ private[scope] sealed trait ScopedModule {
 
 private[scope] object ScopedModule {
   val instance: ScopedModule = new ScopedModule {
-    type @@[+A, S] = A
+    type @@[+A, +S] = A
 
-    def scoped[A, S](a: A): A @@ S                     = a
+    def scoped[A, S](a: A): A @@ S                       = a
     private[scope] def unscoped[A, S](scoped: A @@ S): A = scoped
   }
 }
@@ -174,18 +174,14 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
     @@.scoped(f(@@.unscoped(scoped)))
 
   /**
-   * FlatMaps over a scoped value, combining tags.
-   *
-   * The result is scoped with the inner tag `T`. Since child scope tags are
-   * supertypes of parent tags (via union in Scala 3), this propagates the
-   * more restrictive (innermost) scope, which is the correct behavior.
+   * FlatMaps over a scoped value, widening to the outer scope.
    *
    * @param f
    *   Function returning a scoped result
    * @return
-   *   Result with the inner tag T
+   *   Result with the wider tag T
    */
-  def flatMap[B, T](f: A => B @@ T): B @@ T =
+  def flatMap[B, T >: S](f: A => B @@ T): B @@ T =
     f(@@.unscoped(scoped))
 
   /** Extracts the first element of a scoped tuple. */
