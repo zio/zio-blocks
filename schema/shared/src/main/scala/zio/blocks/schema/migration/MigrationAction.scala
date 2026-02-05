@@ -6,8 +6,8 @@ import zio.blocks.schema.{DynamicOptic, SchemaExpr}
  * Algebraic data type representing a single structural transformation step
  * within a migration.
  *
- * Each action operates at a specific path (`at`) within a DynamicValue tree
- * and carries explicit lossy/reversibility markers. Actions are applied
+ * Each action operates at a specific path (`at`) within a DynamicValue tree and
+ * carries explicit lossy/reversibility markers. Actions are applied
  * sequentially by [[DynamicMigration]].
  *
  * Lossy actions (those that destroy information) have `lossy = true` and
@@ -20,8 +20,8 @@ sealed trait MigrationAction {
   def at: DynamicOptic
 
   /**
-   * The reverse action that undoes this transformation, if one exists.
-   * Returns `None` for lossy/irreversible actions.
+   * The reverse action that undoes this transformation, if one exists. Returns
+   * `None` for lossy/irreversible actions.
    */
   def reverse: Option[MigrationAction]
 
@@ -56,8 +56,8 @@ object MigrationAction {
    * Drops a field from a record at the specified path.
    *
    * @param reverseDefault
-   *   If provided, the reverse action re-adds the field with this default.
-   *   If `None`, the action is lossy (data is lost and cannot be recovered).
+   *   If provided, the reverse action re-adds the field with this default. If
+   *   `None`, the action is lossy (data is lost and cannot be recovered).
    */
   final case class DropField(
     at: DynamicOptic,
@@ -105,8 +105,8 @@ object MigrationAction {
   }
 
   /**
-   * Converts an optional field to a mandatory field. The value at `at` must
-   * be an `Option`-like variant (Some/None). If the value is None, the
+   * Converts an optional field to a mandatory field. The value at `at` must be
+   * an `Option`-like variant (Some/None). If the value is None, the
    * `defaultExpr` provides the replacement value.
    *
    * Reverse: `Optionalize`.
@@ -128,13 +128,12 @@ object MigrationAction {
   final case class Optionalize(
     at: DynamicOptic
   ) extends MigrationAction {
-    def reverse: Option[MigrationAction] = {
+    def reverse: Option[MigrationAction] =
       // When reversing optionalize, we mandate with a dummy default
       // that will never actually be used (the value is always Some after optionalizing).
       // We use SchemaExpr.Literal with DynamicValue.Null as a sentinel that the
       // execution engine treats specially: "use the existing value".
       None // Conservative: mark as lossy since we can't provide a proper default
-    }
     def lossy: Boolean = true
   }
 
@@ -176,7 +175,9 @@ object MigrationAction {
     targetShape: SchemaShape
   ) extends MigrationAction {
     def reverse: Option[MigrationAction] =
-      inverseSplitter.map(inv => Split(at, sourcePaths, inv, inverseJoiner = Some(combiner), targetShapes = Vector.empty))
+      inverseSplitter.map(inv =>
+        Split(at, sourcePaths, inv, inverseJoiner = Some(combiner), targetShapes = Vector.empty)
+      )
     def lossy: Boolean = inverseSplitter.isEmpty
   }
 
@@ -190,7 +191,8 @@ object MigrationAction {
    * @param inverseJoiner
    *   Optional inverse. If `None`, the action is lossy.
    * @param targetShapes
-   *   One per target path, explicit shapes set by MigrationBuilder (for validation)
+   *   One per target path, explicit shapes set by MigrationBuilder (for
+   *   validation)
    */
   final case class Split(
     at: DynamicOptic,
@@ -200,7 +202,9 @@ object MigrationAction {
     targetShapes: Vector[SchemaShape]
   ) extends MigrationAction {
     def reverse: Option[MigrationAction] =
-      inverseJoiner.map(inv => Join(at, targetPaths, inv, inverseSplitter = Some(splitter), targetShape = SchemaShape.Dyn))
+      inverseJoiner.map(inv =>
+        Join(at, targetPaths, inv, inverseSplitter = Some(splitter), targetShape = SchemaShape.Dyn)
+      )
     def lossy: Boolean = inverseJoiner.isEmpty
   }
 
@@ -297,7 +301,9 @@ object MigrationAction {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  /** Extracts the parent path from a DynamicOptic (all nodes except the last). */
+  /**
+   * Extracts the parent path from a DynamicOptic (all nodes except the last).
+   */
   private[migration] def parentPath(optic: DynamicOptic): DynamicOptic =
     if (optic.nodes.isEmpty) optic
     else new DynamicOptic(optic.nodes.init)

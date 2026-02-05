@@ -6,14 +6,14 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
 /**
- * Hand-written `Schema` instances for migration types, enabling
- * serialization and self-description of migrations.
+ * Hand-written `Schema` instances for migration types, enabling serialization
+ * and self-description of migrations.
  *
  * `MigrationMetadata` and `DynamicMigration` are fully serializable.
- * `MigrationAction` is serialized structurally — action type, paths,
- * and lossy flag are preserved. `SchemaExpr` fields within actions
- * are serialized as their DynamicValue representation when possible
- * (Literal values) or as opaque markers when not (closures).
+ * `MigrationAction` is serialized structurally — action type, paths, and lossy
+ * flag are preserved. `SchemaExpr` fields within actions are serialized as
+ * their DynamicValue representation when possible (Literal values) or as opaque
+ * markers when not (closures).
  */
 object MigrationSchemas {
 
@@ -61,7 +61,10 @@ object MigrationSchemas {
 
   // ── MigrationError ─────────────────────────────────────────────────
 
-  /** Schema for MigrationError — captures message and path; omits cause/action for simplicity. */
+  /**
+   * Schema for MigrationError — captures message and path; omits cause/action
+   * for simplicity.
+   */
   implicit lazy val migrationErrorSchema: Schema[MigrationError] = {
     implicit val dynamicOpticSchema: Schema[DynamicOptic] = DynamicOptic.schema
     new Schema(
@@ -116,7 +119,8 @@ object MigrationSchemas {
    *   - "type": String (action class name)
    *   - "at": DynamicValue (the DynamicOptic path)
    *   - "lossy": Boolean
-   *   - action-specific fields (newName for Rename, caseName for RenameCase, etc.)
+   *   - action-specific fields (newName for Rename, caseName for RenameCase,
+   *     etc.)
    *
    * `SchemaExpr` fields are serialized as opaque DynamicValue.Null markers
    * since SchemaExpr contains closures that cannot be serialized generically.
@@ -124,29 +128,36 @@ object MigrationSchemas {
    */
   implicit lazy val migrationActionSchema: Schema[MigrationAction] = {
     implicit val dynamicOpticSchema: Schema[DynamicOptic] = DynamicOptic.schema
-    val opticSchema = dynamicOpticSchema
+    val opticSchema                                       = dynamicOpticSchema
 
     Schema[DynamicValue].transform(
       // fromDynamic: DynamicValue → MigrationAction
-      { dv =>
+      dv =>
         dv match {
           case DynamicValue.Record(fields) =>
             val fieldMap = fields.iterator.map(kv => (kv._1, kv._2)).toMap
-            val typeName = fieldMap.get("type").flatMap {
-              case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
-              case _                                                => None
-            }.getOrElse(throw SchemaError.missingField(Nil, "type"))
+            val typeName = fieldMap
+              .get("type")
+              .flatMap {
+                case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
+                case _                                                => None
+              }
+              .getOrElse(throw SchemaError.missingField(Nil, "type"))
 
             def readOptic(name: String): DynamicOptic =
-              fieldMap.get(name)
+              fieldMap
+                .get(name)
                 .flatMap(opticSchema.fromDynamicValue(_).toOption)
                 .getOrElse(throw SchemaError.missingField(Nil, name))
 
             def readString(name: String): String =
-              fieldMap.get(name).flatMap {
-                case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
-                case _                                                => None
-              }.getOrElse(throw SchemaError.missingField(Nil, name))
+              fieldMap
+                .get(name)
+                .flatMap {
+                  case DynamicValue.Primitive(PrimitiveValue.String(s)) => Some(s)
+                  case _                                                => None
+                }
+                .getOrElse(throw SchemaError.missingField(Nil, name))
 
             typeName match {
               case "Rename" =>
@@ -156,7 +167,7 @@ object MigrationSchemas {
               case "AddField" =>
                 // AddField requires a SchemaExpr — use a placeholder Literal with DynamicValue
                 val defaultDv = fieldMap.getOrElse("defaultValue", DynamicValue.Null)
-                val expr = SchemaExpr.Literal[Any, Any](
+                val expr      = SchemaExpr.Literal[Any, Any](
                   defaultDv,
                   Schema[DynamicValue].asInstanceOf[Schema[Any]]
                 )
@@ -165,15 +176,15 @@ object MigrationSchemas {
                 MigrationAction.Optionalize(readOptic("at"))
               case "Mandate" =>
                 val defaultDv = fieldMap.getOrElse("defaultValue", DynamicValue.Null)
-                val expr = SchemaExpr.Literal[Any, Any](
+                val expr      = SchemaExpr.Literal[Any, Any](
                   defaultDv,
                   Schema[DynamicValue].asInstanceOf[Schema[Any]]
                 )
                 MigrationAction.Mandate(readOptic("at"), expr)
               case "RenameCase" =>
                 MigrationAction.RenameCase(readOptic("at"), readString("fromName"), readString("toName"))
-              case "TransformValue" | "ChangeType" | "TransformElements" |
-                   "TransformKeys" | "TransformValues" | "Join" | "Split" | "TransformCase" =>
+              case "TransformValue" | "ChangeType" | "TransformElements" | "TransformKeys" | "TransformValues" |
+                  "Join" | "Split" | "TransformCase" =>
                 // These actions contain SchemaExpr closures; deserialization is limited
                 throw SchemaError.conversionFailed(
                   Nil,
@@ -184,8 +195,7 @@ object MigrationSchemas {
             }
           case _ =>
             throw SchemaError.expectationMismatch(Nil, "Expected a Record for MigrationAction")
-        }
-      },
+        },
       // toDynamic: MigrationAction → DynamicValue
       { action =>
         import zio.blocks.chunk.Chunk
@@ -201,111 +211,145 @@ object MigrationSchemas {
 
         action match {
           case MigrationAction.Rename(at, newName) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("Rename")),
-              ("at", opticDv(at)),
-              ("newName", strDv(newName)),
-              ("lossy", boolDv(false))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("Rename")),
+                ("at", opticDv(at)),
+                ("newName", strDv(newName)),
+                ("lossy", boolDv(false))
+              )
+            )
           case MigrationAction.DropField(at, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("DropField")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("DropField")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.AddField(at, defaultExpr) =>
             val defaultDv = defaultExpr match {
               case lit: SchemaExpr.Literal[_, _] =>
                 lit.schema.asInstanceOf[Schema[Any]].toDynamicValue(lit.value)
               case _ => DynamicValue.Null
             }
-            DynamicValue.Record(Chunk(
-              ("type", strDv("AddField")),
-              ("at", opticDv(at)),
-              ("defaultValue", defaultDv),
-              ("lossy", boolDv(false))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("AddField")),
+                ("at", opticDv(at)),
+                ("defaultValue", defaultDv),
+                ("lossy", boolDv(false))
+              )
+            )
           case MigrationAction.Optionalize(at) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("Optionalize")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(false))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("Optionalize")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(false))
+              )
+            )
           case MigrationAction.Mandate(at, defaultExpr) =>
             val defaultDv = defaultExpr match {
               case lit: SchemaExpr.Literal[_, _] =>
                 lit.schema.asInstanceOf[Schema[Any]].toDynamicValue(lit.value)
               case _ => DynamicValue.Null
             }
-            DynamicValue.Record(Chunk(
-              ("type", strDv("Mandate")),
-              ("at", opticDv(at)),
-              ("defaultValue", defaultDv),
-              ("lossy", boolDv(false))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("Mandate")),
+                ("at", opticDv(at)),
+                ("defaultValue", defaultDv),
+                ("lossy", boolDv(false))
+              )
+            )
           case MigrationAction.RenameCase(at, fromName, toName) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("RenameCase")),
-              ("at", opticDv(at)),
-              ("fromName", strDv(fromName)),
-              ("toName", strDv(toName)),
-              ("lossy", boolDv(false))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("RenameCase")),
+                ("at", opticDv(at)),
+                ("fromName", strDv(fromName)),
+                ("toName", strDv(toName)),
+                ("lossy", boolDv(false))
+              )
+            )
           case MigrationAction.TransformValue(at, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("TransformValue")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("TransformValue")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.ChangeType(at, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("ChangeType")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("ChangeType")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.TransformElements(at, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("TransformElements")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("TransformElements")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.TransformKeys(at, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("TransformKeys")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("TransformKeys")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.TransformValues(at, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("TransformValues")),
-              ("at", opticDv(at)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("TransformValues")),
+                ("at", opticDv(at)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.TransformCase(at, caseName, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("TransformCase")),
-              ("at", opticDv(at)),
-              ("caseName", strDv(caseName)),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("TransformCase")),
+                ("at", opticDv(at)),
+                ("caseName", strDv(caseName)),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.Join(at, sourcePaths, _, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("Join")),
-              ("at", opticDv(at)),
-              ("sourcePaths", DynamicValue.Sequence(
-                zio.blocks.chunk.Chunk.fromIterable(sourcePaths.map(opticDv))
-              )),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("Join")),
+                ("at", opticDv(at)),
+                (
+                  "sourcePaths",
+                  DynamicValue.Sequence(
+                    zio.blocks.chunk.Chunk.fromIterable(sourcePaths.map(opticDv))
+                  )
+                ),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
           case MigrationAction.Split(at, targetPaths, _, _, _) =>
-            DynamicValue.Record(Chunk(
-              ("type", strDv("Split")),
-              ("at", opticDv(at)),
-              ("targetPaths", DynamicValue.Sequence(
-                zio.blocks.chunk.Chunk.fromIterable(targetPaths.map(opticDv))
-              )),
-              ("lossy", boolDv(action.lossy))
-            ))
+            DynamicValue.Record(
+              Chunk(
+                ("type", strDv("Split")),
+                ("at", opticDv(at)),
+                (
+                  "targetPaths",
+                  DynamicValue.Sequence(
+                    zio.blocks.chunk.Chunk.fromIterable(targetPaths.map(opticDv))
+                  )
+                ),
+                ("lossy", boolDv(action.lossy))
+              )
+            )
         }
       }
     )
@@ -320,11 +364,11 @@ object MigrationSchemas {
 
     Schema[DynamicValue].transform(
       // fromDynamic
-      { dv =>
+      dv =>
         dv match {
           case DynamicValue.Record(fields) =>
             val fieldMap = fields.iterator.map(kv => (kv._1, kv._2)).toMap
-            val actions = fieldMap.get("actions") match {
+            val actions  = fieldMap.get("actions") match {
               case Some(DynamicValue.Sequence(elems)) =>
                 elems.iterator.map { elem =>
                   actionSchema.fromDynamicValue(elem).fold(e => throw e, identity)
@@ -337,23 +381,28 @@ object MigrationSchemas {
                   s"Expected Sequence for 'actions', got ${other.valueType}"
                 )
             }
-            val metadata = fieldMap.get("metadata")
+            val metadata = fieldMap
+              .get("metadata")
               .flatMap(metaSchema.fromDynamicValue(_).toOption)
               .getOrElse(MigrationMetadata.empty)
             DynamicMigration(actions, metadata)
           case _ =>
             throw SchemaError.expectationMismatch(Nil, "Expected a Record for DynamicMigration")
-        }
-      },
+        },
       // toDynamic
       { dm =>
         import zio.blocks.chunk.Chunk
-        DynamicValue.Record(Chunk(
-          ("actions", DynamicValue.Sequence(
-            Chunk.fromIterable(dm.actions.map(actionSchema.toDynamicValue))
-          )),
-          ("metadata", metaSchema.toDynamicValue(dm.metadata))
-        ))
+        DynamicValue.Record(
+          Chunk(
+            (
+              "actions",
+              DynamicValue.Sequence(
+                Chunk.fromIterable(dm.actions.map(actionSchema.toDynamicValue))
+              )
+            ),
+            ("metadata", metaSchema.toDynamicValue(dm.metadata))
+          )
+        )
       }
     )
   }

@@ -117,18 +117,18 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
   private val typedMigrationSuite = suite("Typed Migration")(
     test("Migration.identity passes values through unchanged") {
       val migration = Migration.identity[PersonV1]
-      val person = PersonV1("Alice", 30)
-      val result = migration.apply(person)
+      val person    = PersonV1("Alice", 30)
+      val result    = migration.apply(person)
       assertTrue(
         result.isRight,
         result.toOption.get == person
       )
     },
     test("typed migration composition works") {
-      val m1 = Migration.identity[PersonV1]
-      val m2 = Migration.identity[PersonV1]
+      val m1       = Migration.identity[PersonV1]
+      val m2       = Migration.identity[PersonV1]
       val composed = m1 ++ m2
-      val result = composed.apply(PersonV1("Alice", 30))
+      val result   = composed.apply(PersonV1("Alice", 30))
       assertTrue(result.isRight)
     },
     test("composeStrict rejects lossy right-hand migration") {

@@ -41,7 +41,8 @@ final class MigrationBuilder[A, B] private[migration] (
   }
 
   /**
-   * Drops a field at the specified path. The action is lossy (no reverse default).
+   * Drops a field at the specified path. The action is lossy (no reverse
+   * default).
    */
   def dropFieldAt(path: DynamicOptic): MigrationBuilder[A, B] =
     appendAction(MigrationAction.DropField(path, reverseDefault = None))
@@ -98,7 +99,8 @@ final class MigrationBuilder[A, B] private[migration] (
   // ── Optional/Mandate ────────────────────────────────────────────────
 
   /**
-   * Converts an optional field to mandatory, using the given default for None values.
+   * Converts an optional field to mandatory, using the given default for None
+   * values.
    */
   def mandateAt[T](path: DynamicOptic, default: T)(implicit s: Schema[T]): MigrationBuilder[A, B] = {
     val expr = SchemaExpr.Literal[Any, Any](default.asInstanceOf[Any], s.asInstanceOf[Schema[Any]])
@@ -241,9 +243,9 @@ final class MigrationBuilder[A, B] private[migration] (
    * Validates and builds the migration.
    *
    * Performs full validation using SchemaShape symbolic execution:
-   * 1. Extracts source and target shapes from their Reflect trees
-   * 2. Symbolically applies all actions to transform the source shape
-   * 3. Compares the transformed shape against the target shape
+   *   1. Extracts source and target shapes from their Reflect trees
+   *   2. Symbolically applies all actions to transform the source shape
+   *   3. Compares the transformed shape against the target shape
    *
    * @param wrapTransparent
    *   If `true`, Wrap(x) is considered equivalent to x during shape comparison
@@ -285,8 +287,8 @@ final class MigrationBuilder[A, B] private[migration] (
 
   /**
    * Builds the migration with partial validation. Skips the shape comparison
-   * step but still validates individual actions (e.g., renaming a field
-   * that doesn't exist).
+   * step but still validates individual actions (e.g., renaming a field that
+   * doesn't exist).
    */
   def buildPartial: Migration[A, B] = {
     val sourceShape = SchemaShape.fromReflect(sourceSchema.reflect)
@@ -314,8 +316,8 @@ final class MigrationBuilder[A, B] private[migration] (
   }
 
   /**
-   * Builds the migration and immediately applies it to a sample value.
-   * Useful for testing and REPL exploration.
+   * Builds the migration and immediately applies it to a sample value. Useful
+   * for testing and REPL exploration.
    */
   def dryRun(sample: A): Either[MigrationError, B] = build().apply(sample)
 
