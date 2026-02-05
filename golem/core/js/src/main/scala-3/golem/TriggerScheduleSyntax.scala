@@ -1,11 +1,5 @@
 package golem
 
-/**
- * Scala 3 IDE-friendly accessors for trigger/schedule.
- *
- * These are implemented as macros so IntelliJ can see a concrete structural type
- * for the returned trigger/schedule objects (instead of Dynamic).
- */
 object TriggerScheduleSyntax {
   type TriggerOps[Trait]  = Selectable
   type ScheduleOps[Trait] = Selectable

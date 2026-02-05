@@ -214,7 +214,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     }),
-    Compile / doc / skip := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
+    Compile / doc / skip    := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
     Compile / doc / sources := {
       if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Nil
       else (Compile / doc / sources).value
@@ -236,7 +236,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     }),
-    Compile / doc / skip := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
+    Compile / doc / skip    := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
     Compile / doc / sources := {
       if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Nil
       else (Compile / doc / sources).value
@@ -437,13 +437,13 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    scalaVersion              := "3.7.4",
+    scalaVersion               := "3.7.4",
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    Compile / skip := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
-    Test / skip    := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
+    Compile / skip             := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
+    Test / skip                := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
   )
   .jsSettings(jsSettings)
 
@@ -481,8 +481,8 @@ lazy val benchmarks = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 30,
     coverageMinimumBranchTotal := 42,
-    Compile / skip := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
-    Test / skip    := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
+    Compile / skip             := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
+    Test / skip                := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
   )
 
 // ---------------------------------------------------------------------------

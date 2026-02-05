@@ -83,6 +83,9 @@ object AgentClientMacro {
     import quotes.reflect.*
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name
+        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
+        .toLowerCase
 
     def extractTypeName(args: List[Term]): Option[String] =
       args.collectFirst {

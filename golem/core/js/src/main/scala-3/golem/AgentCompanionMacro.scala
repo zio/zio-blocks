@@ -15,7 +15,7 @@ import scala.scalajs.js
  * dependency.
  */
 private[golem] object AgentCompanionMacro {
-  def getImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[?] = {
+  def getImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val got      = TypeRepr.of[In]
@@ -36,7 +36,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[?] = {
+  def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val got      = TypeRepr.of[In]
@@ -58,7 +58,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getUnitImpl[Trait: Type](using Quotes): Expr[?] = {
+  def getUnitImpl[Trait: Type](using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     if !(expected =:= TypeRepr.of[Unit]) then
@@ -76,7 +76,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getPhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[?] = {
+  def getPhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     if !(expected =:= TypeRepr.of[Unit]) then
@@ -95,7 +95,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[?] = {
+  def getTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple2[A1, A2]]
@@ -119,7 +119,7 @@ private[golem] object AgentCompanionMacro {
     a1: Expr[A1],
     a2: Expr[A2],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple2[A1, A2]]
@@ -144,7 +144,7 @@ private[golem] object AgentCompanionMacro {
 
   def getTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](a1: Expr[A1], a2: Expr[A2], a3: Expr[A3])(using
     Quotes
-  ): Expr[?] = {
+  ): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
@@ -169,7 +169,7 @@ private[golem] object AgentCompanionMacro {
     a2: Expr[A2],
     a3: Expr[A3],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
@@ -197,7 +197,7 @@ private[golem] object AgentCompanionMacro {
     a2: Expr[A2],
     a3: Expr[A3],
     a4: Expr[A4]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
@@ -223,7 +223,7 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     a4: Expr[A4],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
@@ -252,7 +252,7 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     a4: Expr[A4],
     a5: Expr[A5]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
@@ -281,7 +281,7 @@ private[golem] object AgentCompanionMacro {
     a4: Expr[A4],
     a5: Expr[A5],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
@@ -318,7 +318,7 @@ private[golem] object AgentCompanionMacro {
 
   private def attachTriggerSchedule[Trait: Type](
     resolvedExpr: Expr[AgentClientRuntime.ResolvedAgent[Trait]]
-  )(using Quotes): Expr[?] = {
+  )(using Quotes): Expr[Trait] = {
     import quotes.reflect.*
 
     case class MethodData(
@@ -338,9 +338,9 @@ private[golem] object AgentCompanionMacro {
     val methods: List[MethodData] =
       traitSymbol.methodMembers.collect {
         case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
-          val params                         = extractParameters(m)
-          val accessMode                     = methodAccess(params)
-          val inputType                      = inputTypeFor(accessMode, params)
+          val params                                    = extractParameters(m)
+          val accessMode                                = methodAccess(params)
+          val inputType                                 = inputTypeFor(accessMode, params)
           val (outputType, _) /* Future[Out] or Unit */ =
             returnAndOutputTypeFor(m)
           MethodData(m, params, accessMode, inputType, outputType)
@@ -367,28 +367,38 @@ private[golem] object AgentCompanionMacro {
       Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
 
     val resolvedSym =
-      Symbol.newVal(Symbol.spliceOwner, "$resolvedAgent", TypeRepr.of[AgentClientRuntime.ResolvedAgent[Trait]], Flags.EmptyFlags, Symbol.noSymbol)
+      Symbol.newVal(
+        Symbol.spliceOwner,
+        "$resolvedAgent",
+        TypeRepr.of[AgentClientRuntime.ResolvedAgent[Trait]],
+        Flags.EmptyFlags,
+        Symbol.noSymbol
+      )
     val resolvedVal = ValDef(resolvedSym, Some(resolvedExpr.asTerm))
     val resolvedRef = Ref(resolvedSym).asExprOf[AgentClientRuntime.ResolvedAgent[Trait]]
 
     val baseSym =
       Symbol.newVal(Symbol.spliceOwner, "$agent", traitRepr, Flags.EmptyFlags, Symbol.noSymbol)
-    val baseVal = ValDef(baseSym, Some('{ AgentClient.bind[Trait]($resolvedRef) }.asTerm))
+    val baseVal    = ValDef(baseSym, Some('{ AgentClient.bind[Trait]($resolvedRef) }.asTerm))
     val baseDynSym =
       Symbol.newVal(Symbol.spliceOwner, "$agentDyn", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
     val baseDynVal =
       ValDef(baseDynSym, Some('{ ${ Ref(baseSym).asExprOf[Trait] }.asInstanceOf[js.Dynamic] }.asTerm))
     val baseRef = Ref(baseDynSym).asExprOf[js.Dynamic]
 
-    val triggerSym = Symbol.newVal(Symbol.spliceOwner, "$trigger", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val triggerSym =
+      Symbol.newVal(Symbol.spliceOwner, "$trigger", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
     val triggerVal = ValDef(triggerSym, Some('{ js.Dynamic.literal() }.asTerm))
     val triggerRef = Ref(triggerSym).asExprOf[js.Dynamic]
 
-    val scheduleSym = Symbol.newVal(Symbol.spliceOwner, "$schedule", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val scheduleSym =
+      Symbol.newVal(Symbol.spliceOwner, "$schedule", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
     val scheduleVal = ValDef(scheduleSym, Some('{ js.Dynamic.literal() }.asTerm))
     val scheduleRef = Ref(scheduleSym).asExprOf[js.Dynamic]
 
-    def findMethod[In: Type, Out: Type](methodName: String): Expr[golem.runtime.agenttype.AgentMethod[Trait, In, Out]] = {
+    def findMethod[In: Type, Out: Type](
+      methodName: String
+    ): Expr[golem.runtime.agenttype.AgentMethod[Trait, In, Out]] = {
       val methodNameExpr = Expr(methodName)
       '{
         $resolvedRef.agentType.methods.collectFirst {
@@ -470,7 +480,10 @@ private[golem] object AgentCompanionMacro {
                 op match {
                   case "trigger" =>
                     val mt =
-                      MethodType(method.params.map(_._1))(_ => method.params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
+                      MethodType(method.params.map(_._1))(
+                        _ => method.params.map(_._2),
+                        _ => TypeRepr.of[scala.concurrent.Future[Unit]]
+                      )
                     Lambda(
                       Symbol.spliceOwner,
                       mt,
@@ -566,7 +579,7 @@ private[golem] object AgentCompanionMacro {
         Block(
           resolvedVal :: baseVal :: baseDynVal :: triggerVal :: scheduleVal :: (triggerUpdates ++ scheduleUpdates :+ attachTrigger :+ attachSchedule),
           casted.asTerm
-        ).asExprOf[t]
+        ).asExprOf[t].asExprOf[Trait]
     }
   }
 
@@ -635,7 +648,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def triggerOpsImpl[Trait: Type](agent: Expr[Trait])(using Quotes): Expr[?] = {
+  def triggerOpsImpl[Trait: Type](agent: Expr[Trait])(using Quotes): Expr[Selectable] = {
     import quotes.reflect.*
     val traitRepr   = TypeRepr.of[Trait]
     val traitSymbol = traitRepr.typeSymbol
@@ -646,9 +659,9 @@ private[golem] object AgentCompanionMacro {
     val methods =
       traitSymbol.methodMembers.collect {
         case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
-          val params                         = extractParameters(m)
-          val accessMode                     = methodAccess(params)
-          val inputType                      = inputTypeFor(accessMode, params)
+          val params                                    = extractParameters(m)
+          val accessMode                                = methodAccess(params)
+          val inputType                                 = inputTypeFor(accessMode, params)
           val (outputType, _) /* Future[Out] or Unit */ =
             returnAndOutputTypeFor(m)
           (m, params, accessMode, inputType, outputType)
@@ -676,11 +689,11 @@ private[golem] object AgentCompanionMacro {
     refinedType.asType match {
       case '[t] =>
         val typedAgent = Typed(agent.asTerm, Inferred(refinedType)).asExprOf[t]
-        Select(typedAgent.asTerm, "trigger").asExpr
+        Select.unique(typedAgent.asTerm, "trigger").asExprOf[Selectable]
     }
   }
 
-  def scheduleOpsImpl[Trait: Type](agent: Expr[Trait])(using Quotes): Expr[?] = {
+  def scheduleOpsImpl[Trait: Type](agent: Expr[Trait])(using Quotes): Expr[Selectable] = {
     import quotes.reflect.*
     val traitRepr   = TypeRepr.of[Trait]
     val traitSymbol = traitRepr.typeSymbol
@@ -691,9 +704,9 @@ private[golem] object AgentCompanionMacro {
     val methods =
       traitSymbol.methodMembers.collect {
         case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
-          val params                         = extractParameters(m)
-          val accessMode                     = methodAccess(params)
-          val inputType                      = inputTypeFor(accessMode, params)
+          val params                                    = extractParameters(m)
+          val accessMode                                = methodAccess(params)
+          val inputType                                 = inputTypeFor(accessMode, params)
           val (outputType, _) /* Future[Out] or Unit */ =
             returnAndOutputTypeFor(m)
           (m, params, accessMode, inputType, outputType)
@@ -721,7 +734,7 @@ private[golem] object AgentCompanionMacro {
     refinedType.asType match {
       case '[t] =>
         val typedAgent = Typed(agent.asTerm, Inferred(refinedType)).asExprOf[t]
-        Select(typedAgent.asTerm, "schedule").asExpr
+        Select.unique(typedAgent.asTerm, "schedule").asExprOf[Selectable]
     }
   }
 }

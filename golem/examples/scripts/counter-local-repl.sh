@@ -11,9 +11,14 @@ read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
 app_dir="$PWD/golem/examples"
 script_file="$app_dir/samples/simple-rpc/repl-counter.rib"
+run_id="run-$(date +%s)"
+tmp_script="$(mktemp)"
+trap 'rm -f "$tmp_script"' EXIT
+
+sed -e "s/demo2/$run_id/g" -e "s/demo/$run_id/g" "$script_file" > "$tmp_script"
 
 echo "[counter-local-repl] 2) Deploy app"
 ( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" deploy )
 echo "[counter-local-repl] 3) Invoke via repl"
 ( cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes --app-manifest-path "$app_dir/golem.yaml" \
-  repl scala:examples --script-file "$script_file" --disable-stream < /dev/null )
+  repl scala:examples --script-file "$tmp_script" --disable-stream < /dev/null )

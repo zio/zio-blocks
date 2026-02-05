@@ -9,6 +9,7 @@ import java.security.MessageDigest
 import scala.meta.*
 import scala.meta.parsers.*
 
+import org.scalajs.linker.interface.ModuleInitializer
 import org.scalajs.sbtplugin.ScalaJSPlugin
 
 /**
@@ -22,6 +23,18 @@ import org.scalajs.sbtplugin.ScalaJSPlugin
  * registers them.
  */
 object GolemPlugin extends AutoPlugin {
+
+  private def autoRegisterSuffix(basePackage: String): String =
+    basePackage
+      .replaceAll("[^a-zA-Z0-9_]", "_")
+      .stripPrefix("_")
+      .stripSuffix("_") match {
+      case ""  => "app"
+      case out => out
+    }
+
+  private def autoRegisterPackage(basePackage: String): String =
+    s"golem.runtime.__generated.autoregister.${autoRegisterSuffix(basePackage)}"
 
   private def sha256(bytes: Array[Byte]): Array[Byte] = {
     val md = MessageDigest.getInstance("SHA-256")
@@ -180,6 +193,11 @@ object GolemPlugin extends AutoPlugin {
         (Compile / ScalaJSPlugin.autoImport.fastLinkJS).dependsOn(golemPrepare).value,
       Compile / ScalaJSPlugin.autoImport.fullLinkJS :=
         (Compile / ScalaJSPlugin.autoImport.fullLinkJS).dependsOn(golemPrepare).value,
+      Compile / ScalaJSPlugin.autoImport.scalaJSModuleInitializers ++= {
+        golemBasePackage.value.toList.map { basePackage =>
+          ModuleInitializer.mainMethod(s"${autoRegisterPackage(basePackage)}.RegisterAgents", "main")
+        }
+      },
       Compile / sourceGenerators += Def.task {
         val basePackageOpt = golemBasePackage.value
         basePackageOpt match {
@@ -263,15 +281,7 @@ object GolemPlugin extends AutoPlugin {
 
             if (impls.isEmpty) Nil
             else {
-              val moduleSuffix =
-                basePackage
-                  .replaceAll("[^a-zA-Z0-9_]", "_")
-                  .stripPrefix("_")
-                  .stripSuffix("_") match {
-                  case ""  => "app"
-                  case out => out
-                }
-              val genBasePkg = s"golem.runtime.__generated.autoregister.$moduleSuffix"
+              val genBasePkg = autoRegisterPackage(basePackage)
 
               val byPkg: Map[String, List[AgentImpl]] =
                 impls
@@ -330,7 +340,7 @@ object GolemPlugin extends AutoPlugin {
               val touches =
                 byPkg.keys.toSeq.sorted.map { pkg =>
                   val objSuffix = pkg.replaceAll("[^a-zA-Z0-9_]", "_")
-                  s"    __GolemAutoRegister_$objSuffix.register()"
+                  s"      __GolemAutoRegister_$objSuffix.register()"
                 }.mkString("\n")
               val baseContent =
                 s"""|package $genBasePkg
@@ -339,11 +349,24 @@ object GolemPlugin extends AutoPlugin {
                     |
                     |/** Generated. Do not edit. */
                     |private[golem] object RegisterAgents {
-                    |  @JSExportTopLevel("__golemRegisterAgents")
-                    |  val __golemRegisterAgents: Unit = {
+                    |  private var registered = false
+                    |
+                    |  private def registerAll(): Unit =
+                    |    if (!registered) {
+                    |      registered = true
                     |$touches
-                    |    ()
-                    |  }
+                    |      ()
+                    |    }
+                    |
+                    |  def init(): Unit =
+                    |    registerAll()
+                    |
+                    |  def main(): Unit =
+                    |    registerAll()
+                    |
+                    |  @JSExportTopLevel("__golemRegisterAgents")
+                    |  val __golemRegisterAgents: Unit =
+                    |    registerAll()
                     |}
                     |""".stripMargin
               IO.write(baseOut, baseContent)

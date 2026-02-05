@@ -80,7 +80,7 @@ object AgentCompanionMacro {
            case _root_.scala.util.Left(err) =>
              throw _root_.scala.scalajs.js.JavaScriptException(err)
            case _root_.scala.util.Right(resolved) =>
-             ${ attachTriggerSchedule(c)(traitTpe, q"resolved") }
+             ${attachTriggerSchedule(c)(traitTpe, q"resolved")}
          }
      """
   }
@@ -98,7 +98,7 @@ object AgentCompanionMacro {
          case _root_.scala.util.Left(err) =>
            throw _root_.scala.scalajs.js.JavaScriptException(err)
          case _root_.scala.util.Right(resolved) =>
-           ${ attachTriggerSchedule(c)(traitTpe, q"resolved") }
+           ${attachTriggerSchedule(c)(traitTpe, q"resolved")}
        }
      """
   }
@@ -310,9 +310,12 @@ object AgentCompanionMacro {
           case TypeRef(_, sym, _) =>
             val full = sym.fullName
             if (full.startsWith("scala.scalajs.")) "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
-            else if (full.startsWith("scala.collection.immutable.")) "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
-            else if (full.startsWith("scala.collection.mutable.")) "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
-            else if (full.startsWith("scala.collection.")) "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
+            else if (full.startsWith("scala.collection.immutable."))
+              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
+            else if (full.startsWith("scala.collection.mutable."))
+              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
+            else if (full.startsWith("scala.collection."))
+              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
             else if (full.startsWith("scala.")) "s_" + full.stripPrefix("scala.").replace('.', '_')
             else if (full.startsWith("java.lang.")) "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
             else if (full.startsWith("java.util.")) "ju_" + full.stripPrefix("java.util.").replace('.', '_')
@@ -354,15 +357,16 @@ object AgentCompanionMacro {
       val params     = paramsFor(m)
       val accessMode = if (params.isEmpty) 0 else if (params.length == 1) 1 else 2
       val inputTpe   = inputTypeFor(params)
-      val jsName     = scalaJsMethodName(m.name.decodedName.toString, params.map(_._2), typeOf[scala.concurrent.Future[Unit]])
+      val jsName     =
+        scalaJsMethodName(m.name.decodedName.toString, params.map(_._2), typeOf[scala.concurrent.Future[Unit]])
 
-      val argNames = params.zipWithIndex.map { case ((n, _), idx) => TermName(s"${n.decodedName.toString}_$idx") }
-      val args     = params.zip(argNames).map { case ((_, tpe), nm) => q"val $nm: $tpe" }
-      val inputVal = buildInputValueExpr(argNames, accessMode)
+      val argNames   = params.zipWithIndex.map { case ((n, _), idx) => TermName(s"${n.decodedName.toString}_$idx") }
+      val args       = params.zip(argNames).map { case ((_, tpe), nm) => q"val $nm: $tpe" }
+      val inputVal   = buildInputValueExpr(argNames, accessMode)
       val methodExpr = findMethodExpr(inputTpe, m.name.decodedName.toString)
       val body       = q"$resolvedTree.trigger[$inputTpe]($methodExpr, $inputVal)"
 
-      val fn = q"(..$args) => $body"
+      val fn   = q"(..$args) => $body"
       val jsFn = params.length match {
         case 0 => q"_root_.scala.scalajs.js.Any.fromFunction0($fn)"
         case 1 => q"_root_.scala.scalajs.js.Any.fromFunction1($fn)"
@@ -387,19 +391,23 @@ object AgentCompanionMacro {
 
       val dtName   = TermName("datetime")
       val argNames = params.zipWithIndex.map { case ((n, _), idx) => TermName(s"${n.decodedName.toString}_$idx") }
-      val args     = (q"val $dtName: _root_.golem.Datetime") +: params.zip(argNames).map { case ((_, tpe), nm) => q"val $nm: $tpe" }
-      val inputVal = buildInputValueExpr(argNames, accessMode)
+      val args     =
+        (q"val $dtName: _root_.golem.Datetime") +: params.zip(argNames).map { case ((_, tpe), nm) => q"val $nm: $tpe" }
+      val inputVal   = buildInputValueExpr(argNames, accessMode)
       val methodExpr = findMethodExpr(inputTpe, m.name.decodedName.toString)
       val body       = q"$resolvedTree.schedule[$inputTpe]($methodExpr, $dtName, $inputVal)"
 
-      val fn = q"(..$args) => $body"
+      val fn   = q"(..$args) => $body"
       val jsFn = (params.length + 1) match {
         case 1 => q"_root_.scala.scalajs.js.Any.fromFunction1($fn)"
         case 2 => q"_root_.scala.scalajs.js.Any.fromFunction2($fn)"
         case 3 => q"_root_.scala.scalajs.js.Any.fromFunction3($fn)"
         case 4 => q"_root_.scala.scalajs.js.Any.fromFunction4($fn)"
         case n =>
-          c.abort(c.enclosingPosition, s"Unsupported agent method arity for schedule.${m.name}: $n (supported: 1-4 including datetime)")
+          c.abort(
+            c.enclosingPosition,
+            s"Unsupported agent method arity for schedule.${m.name}: $n (supported: 1-4 including datetime)"
+          )
       }
       q"$scheduleName.updateDynamic($jsName)($jsFn)"
     }

@@ -25,6 +25,9 @@ object AgentDefinitionMacro {
 
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name
+        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
+        .toLowerCase
 
     val hasAgentDefinition =
       typeSymbol.annotations.exists {

@@ -229,7 +229,7 @@ trait GolemAutoRegister extends ScalaModule {
           val touches =
             byPkg.keys.toSeq.sorted.map { pkg =>
               val objSuffix = pkg.replaceAll("[^a-zA-Z0-9_]", "_")
-              s"    __GolemAutoRegister_$objSuffix.register()"
+              s"      __GolemAutoRegister_$objSuffix.register()"
             }.mkString("\n")
           val baseContent =
             s"""|package $genBasePkg
@@ -238,11 +238,24 @@ trait GolemAutoRegister extends ScalaModule {
                 |
                 |/** Generated. Do not edit. */
                 |private[golem] object RegisterAgents {
-                |  @JSExportTopLevel("__golemRegisterAgents")
-                |  val __golemRegisterAgents: Unit = {
+                |  private var registered = false
+                |
+                |  private def registerAll(): Unit =
+                |    if (!registered) {
+                |      registered = true
                 |$touches
-                |    ()
-                |  }
+                |      ()
+                |    }
+                |
+                |  def init(): Unit =
+                |    registerAll()
+                |
+                |  def main(): Unit =
+                |    registerAll()
+                |
+                |  @JSExportTopLevel("__golemRegisterAgents")
+                |  val __golemRegisterAgents: Unit =
+                |    registerAll()
                 |}
                 |""".stripMargin
           os.write.over(baseOut, baseContent)
