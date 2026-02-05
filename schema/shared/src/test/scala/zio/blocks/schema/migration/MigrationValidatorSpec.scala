@@ -55,6 +55,11 @@ object MigrationValidatorSpec extends SchemaBaseSpec {
     implicit val schema: Schema[WithList] = Schema.derived
   }
 
+  final case class RecordWithList(name: String, items: List[Int])
+  object RecordWithList {
+    implicit val schema: Schema[RecordWithList] = Schema.derived
+  }
+
   final case class WithMap(data: Map[String, Int])
   object WithMap {
     implicit val schema: Schema[WithMap] = Schema.derived
@@ -316,10 +321,299 @@ object MigrationValidatorSpec extends SchemaBaseSpec {
         assertTrue(result.isValid)
       }
     ),
+    suite("validate - Mandate")(
+      test("validate mandate on optional field") {
+        val actions = Vector(
+          MigrationAction.Mandate(
+            DynamicOptic.root.field("nickname"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+        val result = MigrationValidator.validate(PersonWithOptional.schema, Person.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("reject mandate on non-existent field") {
+        val actions = Vector(
+          MigrationAction.Mandate(
+            DynamicOptic.root.field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("does not exist")))
+      }
+    ),
+    suite("validate - Optionalize")(
+      test("validate optionalize on mandatory field") {
+        val actions = Vector(
+          MigrationAction.Optionalize(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, PersonWithOptional.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("reject optionalize on non-existent field") {
+        val actions = Vector(
+          MigrationAction.Optionalize(
+            DynamicOptic.root.field("missing"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("does not exist")))
+      }
+    ),
+    suite("validate - Join")(
+      test("validates join from two fields") {
+        val actions = Vector(
+          MigrationAction.Join(
+            DynamicOptic.root.field("name"),
+            Vector(DynamicOptic.root.field("name"), DynamicOptic.root.field("age")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("reject join when source field missing") {
+        val actions = Vector(
+          MigrationAction.Join(
+            DynamicOptic.root.field("name"),
+            Vector(DynamicOptic.root.field("missing")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("does not exist")))
+      },
+      test("reject join when target is not a field") {
+        val actions = Vector(
+          MigrationAction.Join(
+            DynamicOptic.root.at(0),
+            Vector(DynamicOptic.root.field("name")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("must end in a field")))
+      }
+    ),
+    suite("validate - Split")(
+      test("validates split into two fields") {
+        val actions = Vector(
+          MigrationAction.Split(
+            DynamicOptic.root.field("name"),
+            Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("reject split when source missing") {
+        val actions = Vector(
+          MigrationAction.Split(
+            DynamicOptic.root.field("missing"),
+            Vector(DynamicOptic.root.field("first")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("does not exist")))
+      },
+      test("reject split when target is not a field") {
+        val actions = Vector(
+          MigrationAction.Split(
+            DynamicOptic.root.field("name"),
+            Vector(DynamicOptic.root.at(0)),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("must end in a field")))
+      }
+    ),
+    suite("validate - ChangeType")(
+      test("validates change type action") {
+        val actions = Vector(
+          MigrationAction.ChangeType(
+            DynamicOptic.root.field("age"),
+            DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "String"),
+            DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Path(DynamicOptic.root), "Int")
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(result.isValid)
+      }
+    ),
+    suite("validate - TransformCase")(
+      test("validates transform case action") {
+        val actions = Vector(
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            "Active",
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root,
+                "flag",
+                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+              )
+            )
+          )
+        )
+        val result = MigrationValidator.validate(Status.schema, Status.schema, actions)
+        assertTrue(result.isValid)
+      }
+    ),
+    suite("validate - TransformElements")(
+      test("validates transform elements action") {
+        val actions = Vector(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("items"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(result.isValid)
+      }
+    ),
+    suite("validate - TransformKeys/Values")(
+      test("validates transform keys action") {
+        val actions = Vector(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root.field("data"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validates transform values action") {
+        val actions = Vector(
+          MigrationAction.TransformValues(
+            DynamicOptic.root.field("data"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      }
+    ),
+    suite("validate - Wrap navigation")(
+      test("rejects elements on non-sequence") {
+        val actions = Vector(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-sequence")))
+      },
+      test("rejects map keys on non-map") {
+        val actions = Vector(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("rejects map values on non-map") {
+        val actions = Vector(
+          MigrationAction.TransformValues(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("rejects map key navigation on list") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("items").atKey("k"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("rejects elements navigation on record") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").elements,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-sequence")))
+      },
+      test("rejects case navigation on non-variant") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").caseOf("Active"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-variant")))
+      },
+      test("rejects missing case navigation") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.caseOf("Missing"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Status.schema, Status.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("not found")))
+      }
+    ),
+    suite("validate - structure comparisons")(
+      test("detects optionality mismatch for dynamic fields") {
+        val actions = Vector(
+          MigrationAction.Optionalize(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("Optionality mismatch")))
+      },
+      test("detects dynamic vs record mismatch") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("items"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, RecordWithList.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("Structure mismatch")))
+      }
+    ),
     suite("compareStructures")(
       test("detects missing fields") {
-        val source = MigrationValidator.extractStructure(Person.schema)
-        val target = MigrationValidator.extractStructure(PersonWithEmail.schema)
         val result = MigrationValidator.validate(Person.schema, PersonWithEmail.schema, Vector.empty)
         assertTrue(!result.isValid, result.errors.exists(_.contains("Missing fields")))
       },
@@ -368,23 +662,23 @@ object MigrationValidatorSpec extends SchemaBaseSpec {
       },
       test("Sequence returns empty set") {
         val seq = MigrationValidator.SchemaStructure.Sequence(MigrationValidator.SchemaStructure.Dynamic)
-        assertTrue(seq.fieldNames == Set.empty)
+        assertTrue(seq.fieldNames == Set.empty[String])
       },
       test("MapType returns empty set") {
         val mapType = MigrationValidator.SchemaStructure
           .MapType(MigrationValidator.SchemaStructure.Dynamic, MigrationValidator.SchemaStructure.Dynamic)
-        assertTrue(mapType.fieldNames == Set.empty)
+        assertTrue(mapType.fieldNames == Set.empty[String])
       },
       test("Primitive returns empty set") {
         val prim = MigrationValidator.SchemaStructure.Primitive("Int")
-        assertTrue(prim.fieldNames == Set.empty)
+        assertTrue(prim.fieldNames == Set.empty[String])
       },
       test("Optional returns empty set") {
         val opt = MigrationValidator.SchemaStructure.Optional(MigrationValidator.SchemaStructure.Dynamic)
-        assertTrue(opt.fieldNames == Set.empty)
+        assertTrue(opt.fieldNames == Set.empty[String])
       },
       test("Dynamic returns empty set") {
-        assertTrue(MigrationValidator.SchemaStructure.Dynamic.fieldNames == Set.empty)
+        assertTrue(MigrationValidator.SchemaStructure.Dynamic.fieldNames == Set.empty[String])
       }
     ),
     suite("DynamicOpticOps")(
