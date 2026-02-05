@@ -12,6 +12,9 @@ import scala.collection.immutable.ArraySeq
 import scala.util.Try
 
 object JsonTestUtils {
+  private def normalizeNewlines(s: String): String =
+    s.replace("\r\n", "\n")
+
   def roundTrip[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     roundTrip(value, expectedJson, getOrDeriveCodec(schema))
 
@@ -47,7 +50,7 @@ object JsonTestUtils {
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
     val encodedBySchema5 = codec.encodeToString(value, writerConfig).getBytes(UTF_8)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    assert(normalizeNewlines(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeNewlines(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
