@@ -1,0 +1,104 @@
+package zio.blocks
+
+import zio.blocks.context.{Context, IsNominalType}
+import zio.blocks.scope.internal.Finalizers
+
+/**
+ * Top-level functions for the Scope dependency injection library.
+ *
+ * Import `zio.blocks.scope._` to access these functions.
+ */
+package object scope {
+
+  /**
+   * Registers a finalizer to run when the current scope closes.
+   *
+   * @example
+   *   {{{
+   *   class MyService()(using Scope.Any) {
+   *     val resource = acquire()
+   *     defer { resource.release() }
+   *   }
+   *   }}}
+   */
+  def defer(finalizer: => Unit)(using scope: Scope.Any): Unit =
+    scope.defer(finalizer)
+
+  /**
+   * Retrieves a service from the current scope.
+   *
+   * Short syntax for accessing services within a scope context.
+   *
+   * @example
+   *   {{{
+   *   def doWork()(using Scope.Has[Database]): Unit = {
+   *     val db = $[Database]
+   *     db.query("SELECT ...")
+   *   }
+   *   }}}
+   */
+  def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T =
+    scope.get[T]
+
+  /**
+   * Creates a closeable scope containing the given value.
+   *
+   * If the value is `AutoCloseable`, its `close()` method is automatically
+   * registered as a finalizer.
+   */
+  def injectedValue[T](t: T)(using scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
+    val ctx        = Context(t)
+    val finalizers = new Finalizers
+    if (t.isInstanceOf[AutoCloseable]) {
+      finalizers.add(t.asInstanceOf[AutoCloseable].close())
+    }
+    Scope.makeCloseable(scope, ctx, finalizers)
+  }
+
+  /**
+   * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
+   *
+   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
+   * macro inspects `T`'s primary constructor and generates a wire that:
+   *   - Retrieves constructor parameters from the scope
+   *   - Passes an implicit `Scope` parameter if present
+   *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
+   *
+   * @example
+   *   {{{
+   *   Scope.global.injected[App](shared[Database], shared[Cache]).run { ... }
+   *   }}}
+   */
+  transparent inline def shared[T]: Wire.Shared[?, T] = ${ ScopeMacros.sharedImpl[T] }
+
+  /**
+   * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
+   *
+   * Like `shared[T]`, but the wire creates a fresh instance each time it's
+   * used.
+   */
+  transparent inline def unique[T]: Wire.Unique[?, T] = ${ ScopeMacros.uniqueImpl[T] }
+
+  /**
+   * Creates a child scope containing an instance of `T` and its dependencies.
+   *
+   * The macro inspects `T`'s constructor to determine dependencies.
+   * Dependencies are resolved from:
+   *   1. Provided wires (in order)
+   *   2. The parent scope's stack
+   *
+   * @example
+   *   {{{
+   *   Scope.global.injected[App](shared[Config]).run {
+   *     // App and Config are available here
+   *     val app = $[App]
+   *     app.run()
+   *   }
+   *   }}}
+   */
+  inline def injected[T](using scope: Scope.Any): Scope.Closeable[T, ?] =
+    ${ ScopeMacros.injectedImpl[T]('{ Seq.empty[Wire[?, ?]] }, 'scope) }
+
+  inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
+    ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
+}
