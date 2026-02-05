@@ -7,4 +7,6 @@ package object golem extends GolemPackageBase {
   type AgentDefinition[Trait] = runtime.autowire.AgentDefinition[Trait]
   type AgentMode              = runtime.autowire.AgentMode
   val AgentMode: runtime.autowire.AgentMode.type = runtime.autowire.AgentMode
+
+  export TriggerScheduleSyntax.*
 }

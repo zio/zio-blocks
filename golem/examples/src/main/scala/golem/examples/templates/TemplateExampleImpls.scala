@@ -26,6 +26,7 @@ final class CounterImpl(@unused private val name: String) extends Counter {
 @agentImplementation()
 final class RpcClientImpl(@unused private val name: String) extends RpcClient {
   override def callCounter(counterId: String): Future[Int] = {
+    Counter.get(counterId).trigger.increment()
     Counter.get(counterId).increment()
   }
 }

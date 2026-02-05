@@ -634,4 +634,94 @@ private[golem] object AgentCompanionMacro {
         report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
     }
   }
+
+  def triggerOpsImpl[Trait: Type](agent: Expr[Trait])(using Quotes): Expr[?] = {
+    import quotes.reflect.*
+    val traitRepr   = TypeRepr.of[Trait]
+    val traitSymbol = traitRepr.typeSymbol
+
+    if !traitSymbol.flags.is(Flags.Trait) then
+      report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
+
+    val methods =
+      traitSymbol.methodMembers.collect {
+        case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
+          val params                         = extractParameters(m)
+          val accessMode                     = methodAccess(params)
+          val inputType                      = inputTypeFor(accessMode, params)
+          val (outputType, _) /* Future[Out] or Unit */ =
+            returnAndOutputTypeFor(m)
+          (m, params, accessMode, inputType, outputType)
+      }
+
+    val triggerType: TypeRepr =
+      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
+        val triggerTpe =
+          MethodType(params.map(_._1))(_ => params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
+        Refinement(acc, method.name, triggerTpe)
+      }
+
+    val scheduleType: TypeRepr =
+      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
+        val scheduleTpe =
+          MethodType("datetime" :: params.map(_._1))(
+            _ => TypeRepr.of[Datetime] :: params.map(_._2),
+            _ => TypeRepr.of[scala.concurrent.Future[Unit]]
+          )
+        Refinement(acc, method.name, scheduleTpe)
+      }
+
+    val refinedType =
+      Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
+    refinedType.asType match {
+      case '[t] =>
+        val typedAgent = Typed(agent.asTerm, Inferred(refinedType)).asExprOf[t]
+        Select(typedAgent.asTerm, "trigger").asExpr
+    }
+  }
+
+  def scheduleOpsImpl[Trait: Type](agent: Expr[Trait])(using Quotes): Expr[?] = {
+    import quotes.reflect.*
+    val traitRepr   = TypeRepr.of[Trait]
+    val traitSymbol = traitRepr.typeSymbol
+
+    if !traitSymbol.flags.is(Flags.Trait) then
+      report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
+
+    val methods =
+      traitSymbol.methodMembers.collect {
+        case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
+          val params                         = extractParameters(m)
+          val accessMode                     = methodAccess(params)
+          val inputType                      = inputTypeFor(accessMode, params)
+          val (outputType, _) /* Future[Out] or Unit */ =
+            returnAndOutputTypeFor(m)
+          (m, params, accessMode, inputType, outputType)
+      }
+
+    val triggerType: TypeRepr =
+      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
+        val triggerTpe =
+          MethodType(params.map(_._1))(_ => params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
+        Refinement(acc, method.name, triggerTpe)
+      }
+
+    val scheduleType: TypeRepr =
+      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
+        val scheduleTpe =
+          MethodType("datetime" :: params.map(_._1))(
+            _ => TypeRepr.of[Datetime] :: params.map(_._2),
+            _ => TypeRepr.of[scala.concurrent.Future[Unit]]
+          )
+        Refinement(acc, method.name, scheduleTpe)
+      }
+
+    val refinedType =
+      Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
+    refinedType.asType match {
+      case '[t] =>
+        val typedAgent = Typed(agent.asTerm, Inferred(refinedType)).asExprOf[t]
+        Select(typedAgent.asTerm, "schedule").asExpr
+    }
+  }
 }

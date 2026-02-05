@@ -28,37 +28,37 @@ trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
     AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Input]]
 
   /** Connect to (or create) an agent instance from constructor input. */
-  transparent inline def get(input: Input) =
+  transparent inline def get(input: Input): Trait =
     ${ AgentCompanionMacro.getImpl[Trait, Input]('input) }
 
   /** Connect to a phantom (pre-provisioned) agent instance. */
-  transparent inline def getPhantom(input: Input, phantom: Uuid) =
+  transparent inline def getPhantom(input: Input, phantom: Uuid): Trait =
     ${ AgentCompanionMacro.getPhantomImpl[Trait, Input]('input, 'phantom) }
 
   /** Unit-constructor convenience. */
-  transparent inline def get() =
+  transparent inline def get(): Trait =
     ${ AgentCompanionMacro.getUnitImpl[Trait] }
 
   /** Unit-constructor + phantom convenience. */
-  transparent inline def getPhantom(phantom: Uuid) =
+  transparent inline def getPhantom(phantom: Uuid): Trait =
     ${ AgentCompanionMacro.getPhantomUnitImpl[Trait]('phantom) }
 
   /** Tuple2 constructor convenience. */
-  transparent inline def get[A1, A2](a1: A1, a2: A2) =
+  transparent inline def get[A1, A2](a1: A1, a2: A2): Trait =
     ${ AgentCompanionMacro.getTuple2Impl[Trait, A1, A2]('a1, 'a2) }
 
-  transparent inline def getPhantom[A1, A2](a1: A1, a2: A2, phantom: Uuid) =
+  transparent inline def getPhantom[A1, A2](a1: A1, a2: A2, phantom: Uuid): Trait =
     ${ AgentCompanionMacro.getPhantomTuple2Impl[Trait, A1, A2]('a1, 'a2, 'phantom) }
 
   /** Tuple3 constructor convenience. */
-  transparent inline def get[A1, A2, A3](a1: A1, a2: A2, a3: A3) =
+  transparent inline def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Trait =
     ${ AgentCompanionMacro.getTuple3Impl[Trait, A1, A2, A3]('a1, 'a2, 'a3) }
 
-  transparent inline def getPhantom[A1, A2, A3](a1: A1, a2: A2, a3: A3, phantom: Uuid) =
+  transparent inline def getPhantom[A1, A2, A3](a1: A1, a2: A2, a3: A3, phantom: Uuid): Trait =
     ${ AgentCompanionMacro.getPhantomTuple3Impl[Trait, A1, A2, A3]('a1, 'a2, 'a3, 'phantom) }
 
   /** Tuple4 constructor convenience. */
-  transparent inline def get[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4) =
+  transparent inline def get[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4): Trait =
     ${ AgentCompanionMacro.getTuple4Impl[Trait, A1, A2, A3, A4]('a1, 'a2, 'a3, 'a4) }
 
   transparent inline def getPhantom[A1, A2, A3, A4](
@@ -67,7 +67,7 @@ trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
     a3: A3,
     a4: A4,
     phantom: Uuid
-  ) =
+  ): Trait =
     ${ AgentCompanionMacro.getPhantomTuple4Impl[Trait, A1, A2, A3, A4]('a1, 'a2, 'a3, 'a4, 'phantom) }
 
   /** Tuple5 constructor convenience. */
@@ -77,7 +77,7 @@ trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
     a3: A3,
     a4: A4,
     a5: A5
-  ) =
+  ): Trait =
     ${ AgentCompanionMacro.getTuple5Impl[Trait, A1, A2, A3, A4, A5]('a1, 'a2, 'a3, 'a4, 'a5) }
 
   transparent inline def getPhantom[A1, A2, A3, A4, A5](
@@ -87,7 +87,7 @@ trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
     a4: A4,
     a5: A5,
     phantom: Uuid
-  ) =
+  ): Trait =
     ${
       AgentCompanionMacro.getPhantomTuple5Impl[Trait, A1, A2, A3, A4, A5]('a1, 'a2, 'a3, 'a4, 'a5, 'phantom)
     }
