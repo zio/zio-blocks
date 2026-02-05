@@ -116,7 +116,365 @@ The other methods follow a similar pattern, each tailored to the specific struct
 
 The underlying derivation engine takes care of traversing the schema structure, applying the appropriate derivation method for each structural pattern, and composing the resulting type class instances together. This means that once you've implemented a `Deriver` for a specific type class, you can automatically derive instances for any data type with a schema, without writing any additional boilerplate code.
 
-## Derivation Process Overview
+## Example: Deriving a `Show` Type Class Instance
+
+Let's say we want to derive a `Show` type class instance for any type of type `A`:
+
+```scala
+trait Show[A] {
+  def show(value: A): String
+}
+```
+
+The implementation of the `Deriver[Show]` would look like the following code. Don't worry about understanding every detail right now; we'll break down the derivation process step by step afterward.
+
+```
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.*
+import zio.blocks.schema.DynamicValue.Null
+import zio.blocks.schema.binding.*
+import zio.blocks.schema.derive.Deriver
+import zio.blocks.typeid.TypeId
+
+object DeriveShow extends Deriver[Show] {
+
+  override def derivePrimitive[A](
+    primitiveType: PrimitiveType[A],
+    typeId: TypeId[A],
+    binding: Binding[BindingType.Primitive, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
+  ): Lazy[Show[A]] =
+    Lazy {
+      new Show[A] {
+        def show(value: A): String = primitiveType match {
+          case _: PrimitiveType.String => "\"" + value + "\""
+          case _: PrimitiveType.Char   => "'" + value + "'"
+          case _                       => String.valueOf(value)
+        }
+      }
+    }
+
+  override def deriveRecord[F[_, _], A](
+    fields: IndexedSeq[Term[F, A, ?]],
+    typeId: TypeId[A],
+    binding: Binding[BindingType.Record, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
+  )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] =
+    Lazy {
+      // Collecting Lazy[Show] instances for each field from the transformed metadata
+      val fieldShowInstances: IndexedSeq[(String, Lazy[Show[Any]])] = fields.map { field =>
+        val fieldName = field.name
+        // Get the Lazy[Show] instance for this field's type, but we won't force it yet
+        // We'll force it later when we actually need to show a value of this field
+        val fieldShowInstance = D.instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]]
+        (fieldName, fieldShowInstance)
+      }
+
+      // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
+      val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
+
+      // Cast to Binding.Record to access constructor/deconstructor
+      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+
+      // Build a Reflect.Record to get access to the computed registers for each field
+      val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
+
+      new Show[A] {
+        def show(value: A): String = {
+
+          // Create registers with space for all used registers to hold deconstructed field values
+          val registers = Registers(recordReflect.usedRegisters)
+
+          // Deconstruct field values of the record into the registers
+          recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
+
+          // Build string representations for all fields
+          val fieldStrings = fields.indices.map { i =>
+            val (fieldName, showInstanceLazy) = fieldShowInstances(i)
+            val fieldValue                    = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
+            val result                        = s"$fieldName = ${showInstanceLazy.force.show(fieldValue)}"
+            result
+          }
+
+          s"${typeId.name}(${fieldStrings.mkString(", ")})"
+        }
+      }
+    }
+
+  override def deriveVariant[F[_, _], A](
+    cases: IndexedSeq[Term[F, A, _]],
+    typeId: TypeId[A],
+    binding: Binding[BindingType.Variant, A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
+  )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
+    // Get Show instances for all cases LAZILY
+    val caseShowInstances: IndexedSeq[Lazy[Show[Any]]] = cases.map { case_ =>
+      D.instance(case_.value.metadata).asInstanceOf[Lazy[Show[Any]]]
+    }
+
+    // Cast binding to Binding.Variant to access discriminator and matchers
+    val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
+    val discriminator  = variantBinding.discriminator
+    val matchers       = variantBinding.matchers
+
+    new Show[A] {
+      // Implement show by using discriminator and matchers to find the right case
+      // The `value` parameter is of type A (the variant type), e.g. an Option[Int] value
+      def show(value: A): String = {
+        // Use discriminator to determine which case this value belongs to
+        val caseIndex = discriminator.discriminate(value)
+
+        // Use matcher to downcast to the specific case type
+        val caseValue = matchers(caseIndex).downcastOrNull(value)
+
+        // Just delegate to the case's Show instance - it already knows its own name
+        caseShowInstances(caseIndex).force.show(caseValue)
+      }
+    }
+  }
+
+  override def deriveSequence[F[_, _], C[_], A](
+    element: Reflect[F, A],
+    typeId: TypeId[C[A]],
+    binding: Binding[BindingType.Seq[C], C[A]],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[C[A]],
+    examples: Seq[C[A]]
+  )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
+    // Get Show instance for element type LAZILY
+    val elementShowLazy: Lazy[Show[A]] = D.instance(element.metadata)
+
+    // Cast binding to Binding.Seq to access the deconstructor
+    val seqBinding    = binding.asInstanceOf[Binding.Seq[C, A]]
+    val deconstructor = seqBinding.deconstructor
+
+    new Show[C[A]] {
+      def show(value: C[A]): String = {
+        // Use deconstructor to iterate over elements
+        val iterator = deconstructor.deconstruct(value)
+        // Force the element Show instance only when actually showing
+        val elements = iterator.map(elem => elementShowLazy.force.show(elem)).mkString(", ")
+        s"[$elements]"
+      }
+    }
+  }
+
+  override def deriveMap[F[_, _], M[_, _], K, V](
+    key: Reflect[F, K],
+    value: Reflect[F, V],
+    typeId: TypeId[M[K, V]],
+    binding: Binding[BindingType.Map[M], M[K, V]],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[M[K, V]],
+    examples: Seq[M[K, V]]
+  )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
+    // Get Show instances for key and value types LAZILY
+    val keyShowLazy: Lazy[Show[K]]   = D.instance(key.metadata)
+    val valueShowLazy: Lazy[Show[V]] = D.instance(value.metadata)
+
+    // Cast binding to Binding.Map to access the deconstructor
+    val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
+    val deconstructor = mapBinding.deconstructor
+
+    new Show[M[K, V]] {
+      def show(m: M[K, V]): String = {
+        // Use deconstructor to iterate over key-value pairs
+        val iterator = deconstructor.deconstruct(m)
+        // Force the Show instances only when actually showing
+        val entries = iterator.map { kv =>
+          val k = deconstructor.getKey(kv)
+          val v = deconstructor.getValue(kv)
+          s"${keyShowLazy.force.show(k)} -> ${valueShowLazy.force.show(v)}"
+        }.mkString(", ")
+        s"Map($entries)"
+      }
+    }
+  }
+
+  override def deriveDynamic[F[_, _]](
+    binding: Binding[BindingType.Dynamic, DynamicValue],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[DynamicValue],
+    examples: Seq[DynamicValue]
+  )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[DynamicValue]] = Lazy {
+    new Show[DynamicValue] {
+      def show(value: DynamicValue): String =
+        value match {
+          case DynamicValue.Primitive(pv) =>
+            value.toString
+
+          case DynamicValue.Record(fields) =>
+            val fieldStrings = fields.map { case (name, v) =>
+              s"$name = ${show(v)}"
+            }
+            s"Record(${fieldStrings.mkString(", ")})"
+
+          case DynamicValue.Variant(caseName, v) =>
+            s"$caseName(${show(v)})"
+
+          case DynamicValue.Sequence(elements) =>
+            val elemStrings = elements.map(show)
+            s"[${elemStrings.mkString(", ")}]"
+
+          case DynamicValue.Map(entries) =>
+            val entryStrings = entries.map { case (k, v) =>
+              s"${show(k)} -> ${show(v)}"
+            }
+            s"Map(${entryStrings.mkString(", ")})"
+          case Null =>
+            "null"
+        }
+    }
+  }
+
+  override def deriveWrapper[F[_, _], A, B](
+    wrapped: Reflect[F, B],
+    typeId: TypeId[A],
+    binding: Binding[BindingType.Wrapper[A, B], A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Reflect],
+    defaultValue: Option[A],
+    examples: Seq[A]
+  )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
+    // Get Show instance for the wrapped (underlying) type B LAZILY
+    val wrappedShowLazy: Lazy[Show[B]] = D.instance(wrapped.metadata)
+
+    // Cast binding to Binding.Wrapper to access unwrap function
+    val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+
+    new Show[A] {
+      def show(value: A): String =
+        // Unwrap returns Either[SchemaError, B] now
+        wrapperBinding.unwrap(value) match {
+          case Right(unwrapped) =>
+            // Show the underlying value with the wrapper type name
+            // Force the wrapped Show instance only when actually showing
+            s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
+          case Left(error) =>
+            // Handle unwrap failure - show error information
+            s"${typeId.name}(<unwrap failed: ${error.message}>)"
+        }
+    }
+  }
+}
+```
+
+Now let's see how the derivation process works step by step.
+
+### Primitive Derivation
+
+When the derivation process encounters a primitive type (e.g., `String`, `Int`), it calls the `derivePrimitive` method of the `Deriver`. This method receives the `PrimitiveType[A]` information, which allows it to determine how to encode and decode values of that type:
+
+```scala
+override def derivePrimitive[A](
+  primitiveType: PrimitiveType[A],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Primitive, A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+): Lazy[Show[A]] =
+  Lazy {
+    new Show[A] {
+      def show(value: A): String = primitiveType match {
+        case _: PrimitiveType.String => "\"" + value + "\""
+        case _: PrimitiveType.Char   => "'" + value + "'"
+        case _                       => String.valueOf(value)
+      }
+    }
+  }
+```
+
+Please note that for our simple `Show` type class, we only need to know the `PrimitiveType` to determine how to show the value. However, for more complex type classes you might require additional information from the other parameters (e.g., documentation, modifiers, default values, examples) to build a more sophisticated type class instance.
+
+To make it simple, we only handle `String` and `Char` differently by adding quotes around them, while for all other primitive types we simply call `String.valueOf(value)` to get their string representation. You can easily extend this logic to handle other primitive types differently if needed.
+
+### Record Derivation
+
+When the derivation process encounters a record type (e.g., a case class), it calls the `deriveRecord` method of the `Deriver`. This method receives an `IndexedSeq[Term[F, A, ?]]` representing the fields of the record, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples. It also receives implicit parameters for accessing structural bindings and already-derived type class instances for nested types:
+
+```scala
+override def deriveRecord[F[_, _], A](
+  fields: IndexedSeq[Term[F, A, ?]],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Record, A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+)(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] =
+  Lazy {
+    // Collecting Lazy[Show] instances for each field from the transformed metadata
+    val fieldShowInstances: IndexedSeq[(String, Lazy[Show[Any]])] = fields.map { field =>
+      val fieldName = field.name
+      // Get the Lazy[Show] instance for this field's type, but we won't force it yet
+      // We'll force it later when we actually need to show a value of this field
+      val fieldShowInstance = D.instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]]
+      (fieldName, fieldShowInstance)
+    }
+
+    // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
+    val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
+
+    // Cast to Binding.Record to access constructor/deconstructor
+    val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+
+    // Build a Reflect.Record to get access to the computed registers for each field
+    val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
+
+    new Show[A] {
+      def show(value: A): String = {
+
+        // Create registers with space for all used registers to hold deconstructed field values
+        val registers = Registers(recordReflect.usedRegisters)
+
+        // Deconstruct field values of the record into the registers
+        recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
+
+        // Build string representations for all fields
+        val fieldStrings = fields.indices.map { i =>
+          val (fieldName, showInstanceLazy) = fieldShowInstances(i)
+          val fieldValue                    = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
+          val result                        = s"$fieldName = ${showInstanceLazy.force.show(fieldValue)}"
+          result
+        }
+
+        s"${typeId.name}(${fieldStrings.mkString(", ")})"
+      }
+    }
+  }
+```
+
+The `deriveRecord` method demonstrates derivation mechanics for record types such as case classes and tuples. The derivation proceeds in two phases: First, we need to extract the type class for each field of the record. Second, we implement the `Show[A]` instance that uses those field type classes to format the entire record.
+
+During the first step, the method gathers `Lazy[Show]` instances for each field by calling `D.instance(field.value.metadata)`. This method extracts the derived type class instance for the field's type from the transformed schema metadata. Again, the transformed metadata contains `Reflect[BindingInstance[TC, _, _], A]` nodes, where each node has a `BindingInstance` that bundles together the structural binding and the derived type class instance. By calling `D.instance`, we retrieve the `Lazy[Show]` instance for each field's type.
+
+These instances are wrapped in `Lazy` to support recursive data types—if a `Person` contains a `List[Person]`, we need to delay forcing the inner `Show[Person]` until runtime to avoid infinite loops during derivation.
+
+Our goal is to build a `String` representation of the record in the format `TypeName(field1 = value1, field2 = value2, ...)`. To achieve this, we need to access the individual field values of the record at runtime. To do this, we have to deconstruct the record value, which is given to the `show(value: A)` method, into its individual fields.
+
+To deconstruct the record, we use the `Binding.Record[A]` that was provided as a parameter to the `deriveRecord` method. This binding contains a `deconstructor` that knows how to extract all field values from a record of type `A`. To perform the deconstruction, we should first allocate register buffers to hold the deconstructed field values. But how do we know what the size of the register buffer should be? This is where the `Reflect.Record` comes in. By building a `Reflect.Record[Binding, A]` from the field definitions, we can compute the number of registers needed to hold all field values through `Reflect#usedRegisters`. The `Registers(recordReflect.usedRegisters)` call allocates a register buffer with the appropriate size to hold all field values of the record.
+
+Now we are ready to deconstruct the `A` value, using the `Binding.Record#deconstructor.deconstruct(registers, RegisterOffset.Zero, value)` call, which extracts the field values of the record into this register buffer in a single pass. Now the field values are stored in `registers`.
+
+The next question is how we can access the field values from the registers? The `Reflect.Record` we built earlier also computes the register layout for each field, which allows us to retrieve each field value from the appropriate register slot using `recordReflect.registers(i).get(registers, RegisterOffset.Zero)`. This call accesses the `i`-th field's value from the registers based on the register layout computed by `Reflect.Record`. 
+
+Finally, we can iterate through each field, retrieve its value from the registers, force the corresponding `Lazy[Show]` instance for that field's type, and format the result as `fieldName = fieldValue`. The output assembles into the familiar `TypeName(field1 = value1, field2 = value2)` representation.
+
+## Derivation Process Overview including Internal Mechanics
 
 ### PHASE 1: Deriving the Schema for the Target Type
 
