@@ -9,7 +9,8 @@ import zio.blocks.schema.Schema
  * information and provides a type-safe API for applying, composing, and
  * reversing migrations.
  *
- * The runtime flow is: `A -> toDynamicValue -> DynamicMigration.apply -> fromDynamicValue -> B`
+ * The runtime flow is:
+ * `A -> toDynamicValue -> DynamicMigration.apply -> fromDynamicValue -> B`
  *
  * @param dynamicMigration
  *   The untyped, serializable migration core
@@ -25,11 +26,11 @@ final case class Migration[A, B](
 ) {
 
   /**
-   * Applies this migration to a value of type A, producing a value of type B
-   * or a MigrationError.
+   * Applies this migration to a value of type A, producing a value of type B or
+   * a MigrationError.
    *
-   * Encodes A to DynamicValue, applies the dynamic migration, then decodes
-   * the result back to B.
+   * Encodes A to DynamicValue, applies the dynamic migration, then decodes the
+   * result back to B.
    */
   def apply(value: A): Either[MigrationError, B] = {
     val dynValue = sourceSchema.toDynamicValue(value)
@@ -37,12 +38,14 @@ final case class Migration[A, B](
       case Right(transformed) =>
         targetSchema.fromDynamicValue(transformed) match {
           case Right(result) => Right(result)
-          case Left(err) =>
-            Left(MigrationError(
-              s"Failed to decode migrated value as target type: ${err.message}",
-              zio.blocks.schema.DynamicOptic.root,
-              cause = Some(err)
-            ))
+          case Left(err)     =>
+            Left(
+              MigrationError(
+                s"Failed to decode migrated value as target type: ${err.message}",
+                zio.blocks.schema.DynamicOptic.root,
+                cause = Some(err)
+              )
+            )
         }
       case Left(err) => Left(err)
     }

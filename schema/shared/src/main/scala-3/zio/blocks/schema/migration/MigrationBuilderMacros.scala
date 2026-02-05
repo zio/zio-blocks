@@ -4,11 +4,11 @@ import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 import scala.quoted.*
 
 /**
- * Scala 3 macros for converting selector lambdas to DynamicOptic instances,
- * and extension methods that provide the selector-based MigrationBuilder API.
+ * Scala 3 macros for converting selector lambdas to DynamicOptic instances, and
+ * extension methods that provide the selector-based MigrationBuilder API.
  *
- * Selectors like `_.firstName` or `_.address.street` are parsed at compile
- * time into `DynamicOptic.root.field("firstName")` or
+ * Selectors like `_.firstName` or `_.address.street` are parsed at compile time
+ * into `DynamicOptic.root.field("firstName")` or
  * `DynamicOptic.root.field("address").field("street")`.
  */
 object MigrationBuilderMacros {
@@ -18,12 +18,13 @@ object MigrationBuilderMacros {
    *
    * Supported selector forms:
    *   - `_.field` → `DynamicOptic.root.field("field")`
-   *   - `_.field.subfield` → `DynamicOptic.root.field("field").field("subfield")`
+   *   - `_.field.subfield` →
+   *     `DynamicOptic.root.field("field").field("subfield")`
    */
   def selectorToOpticImpl[A: Type, B: Type](f: Expr[A => B])(using Quotes): Expr[DynamicOptic] = {
     import quotes.reflect.*
 
-    def extractNodes(term: quotes.reflect.Term): List[String] = {
+    def extractNodes(term: quotes.reflect.Term): List[String] =
       term match {
         case Select(qualifier, name) =>
           extractNodes(qualifier) :+ name
@@ -39,20 +40,19 @@ object MigrationBuilderMacros {
         case _ =>
           report.errorAndAbort(
             s"Unsupported selector expression. Expected simple field access like _.field or _.field.subfield, " +
-            s"got: ${term.show} (tree: ${term.getClass.getSimpleName})",
+              s"got: ${term.show} (tree: ${term.getClass.getSimpleName})",
             term.pos
           )
       }
-    }
 
     // Unwrap layers of Inlined, Block, and Typed to find the lambda body
     def unwrapToLambda(term: quotes.reflect.Term): quotes.reflect.Term = term match {
-      case Inlined(_, _, inner) => unwrapToLambda(inner)
-      case Block(Nil, inner)    => unwrapToLambda(inner)
-      case Typed(inner, _)      => unwrapToLambda(inner)
+      case Inlined(_, _, inner)                       => unwrapToLambda(inner)
+      case Block(Nil, inner)                          => unwrapToLambda(inner)
+      case Typed(inner, _)                            => unwrapToLambda(inner)
       case Block(List(DefDef(_, _, _, Some(rhs))), _) => rhs
-      case Lambda(_, body) => body
-      case other => other
+      case Lambda(_, body)                            => body
+      case other                                      => other
     }
 
     val body = unwrapToLambda(f.asTerm)
@@ -77,11 +77,11 @@ object MigrationBuilderMacros {
 }
 
 /**
- * Extension methods for MigrationBuilder that accept selector lambdas
- * instead of explicit DynamicOptic paths.
+ * Extension methods for MigrationBuilder that accept selector lambdas instead
+ * of explicit DynamicOptic paths.
  *
- * These compile-time macros convert `_.field` selectors to `DynamicOptic`
- * and delegate to the corresponding `*At` methods.
+ * These compile-time macros convert `_.field` selectors to `DynamicOptic` and
+ * delegate to the corresponding `*At` methods.
  */
 extension [A, B](builder: MigrationBuilder[A, B]) {
 

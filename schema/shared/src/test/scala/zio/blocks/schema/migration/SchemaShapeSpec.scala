@@ -26,7 +26,7 @@ object SchemaShapeSpec extends SchemaBaseSpec {
     test("extracts record shape") {
       case class Person(name: String, age: Int)
       implicit val schema: Schema[Person] = Schema.derived[Person]
-      val shape = SchemaShape.fromReflect(schema.reflect)
+      val shape                           = SchemaShape.fromReflect(schema.reflect)
       assertTrue(shape match {
         case SchemaShape.Record(fields) =>
           fields.length == 2 &&
@@ -60,21 +60,27 @@ object SchemaShapeSpec extends SchemaBaseSpec {
 
   private val compareShapesSuite = suite("compareShapes")(
     test("identical shapes produce no errors") {
-      val shape = SchemaShape.Record(Vector(
-        ("name", stringShape),
-        ("age", intShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("name", stringShape),
+          ("age", intShape)
+        )
+      )
       val errors = SchemaShape.compareShapes(shape, shape)
       assertTrue(errors.isEmpty)
     },
     test("missing field produces error") {
-      val actual = SchemaShape.Record(Vector(
-        ("name", stringShape)
-      ))
-      val expected = SchemaShape.Record(Vector(
-        ("name", stringShape),
-        ("age", intShape)
-      ))
+      val actual = SchemaShape.Record(
+        Vector(
+          ("name", stringShape)
+        )
+      )
+      val expected = SchemaShape.Record(
+        Vector(
+          ("name", stringShape),
+          ("age", intShape)
+        )
+      )
       val errors = SchemaShape.compareShapes(actual, expected)
       assertTrue(
         errors.size == 1,
@@ -82,13 +88,17 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       )
     },
     test("extra field produces error") {
-      val actual = SchemaShape.Record(Vector(
-        ("name", stringShape),
-        ("age", intShape)
-      ))
-      val expected = SchemaShape.Record(Vector(
-        ("name", stringShape)
-      ))
+      val actual = SchemaShape.Record(
+        Vector(
+          ("name", stringShape),
+          ("age", intShape)
+        )
+      )
+      val expected = SchemaShape.Record(
+        Vector(
+          ("name", stringShape)
+        )
+      )
       val errors = SchemaShape.compareShapes(actual, expected)
       assertTrue(
         errors.size == 1,
@@ -96,12 +106,16 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       )
     },
     test("type mismatch produces error") {
-      val actual = SchemaShape.Record(Vector(
-        ("name", stringShape)
-      ))
-      val expected = SchemaShape.Record(Vector(
-        ("name", intShape)
-      ))
+      val actual = SchemaShape.Record(
+        Vector(
+          ("name", stringShape)
+        )
+      )
+      val expected = SchemaShape.Record(
+        Vector(
+          ("name", intShape)
+        )
+      )
       val errors = SchemaShape.compareShapes(actual, expected)
       assertTrue(
         errors.size == 1,
@@ -109,32 +123,36 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       )
     },
     test("Dyn matches anything") {
-      val actual = SchemaShape.Dyn
-      val expected = SchemaShape.Record(Vector(
-        ("name", stringShape)
-      ))
+      val actual   = SchemaShape.Dyn
+      val expected = SchemaShape.Record(
+        Vector(
+          ("name", stringShape)
+        )
+      )
       val errors = SchemaShape.compareShapes(actual, expected)
       assertTrue(errors.isEmpty)
     },
     test("Wrap is structural by default") {
-      val actual = SchemaShape.Wrap(stringShape)
+      val actual   = SchemaShape.Wrap(stringShape)
       val expected = stringShape
-      val errors = SchemaShape.compareShapes(actual, expected)
+      val errors   = SchemaShape.compareShapes(actual, expected)
       assertTrue(errors.nonEmpty) // Wrap(String) != String
     },
     test("Wrap is transparent when wrapTransparent = true") {
-      val actual = SchemaShape.Wrap(stringShape)
+      val actual   = SchemaShape.Wrap(stringShape)
       val expected = stringShape
-      val errors = SchemaShape.compareShapes(actual, expected, wrapTransparent = true)
+      val errors   = SchemaShape.compareShapes(actual, expected, wrapTransparent = true)
       assertTrue(errors.isEmpty)
     }
   )
 
   private val applyActionSuite = suite("applyAction (symbolic execution)")(
     test("AddField adds to record shape") {
-      val shape = SchemaShape.Record(Vector(
-        ("name", stringShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("name", stringShape)
+        )
+      )
       val action = MigrationAction.AddField(
         DynamicOptic.root.field("age"),
         SchemaExpr.Literal[Any, Any](0, Schema[Int].asInstanceOf[Schema[Any]])
@@ -147,10 +165,12 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       })
     },
     test("AddField fails when field already exists") {
-      val shape = SchemaShape.Record(Vector(
-        ("name", stringShape),
-        ("age", intShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("name", stringShape),
+          ("age", intShape)
+        )
+      )
       val action = MigrationAction.AddField(
         DynamicOptic.root.field("age"),
         SchemaExpr.Literal[Any, Any](0, Schema[Int].asInstanceOf[Schema[Any]])
@@ -159,10 +179,12 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       assertTrue(result.isLeft)
     },
     test("DropField removes from record shape") {
-      val shape = SchemaShape.Record(Vector(
-        ("name", stringShape),
-        ("age", intShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("name", stringShape),
+          ("age", intShape)
+        )
+      )
       val action = MigrationAction.DropField(DynamicOptic.root.field("age"), reverseDefault = None)
       val result = SchemaShape.applyAction(shape, action)
       assertTrue(result match {
@@ -172,9 +194,11 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       })
     },
     test("Rename updates field name in shape") {
-      val shape = SchemaShape.Record(Vector(
-        ("firstName", stringShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("firstName", stringShape)
+        )
+      )
       val action = MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
       val result = SchemaShape.applyAction(shape, action)
       assertTrue(result match {
@@ -184,12 +208,14 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       })
     },
     test("Mandate unwraps Opt") {
-      val shape = SchemaShape.Record(Vector(
-        ("nickname", SchemaShape.Opt(stringShape))
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("nickname", SchemaShape.Opt(stringShape))
+        )
+      )
       val defaultExpr = SchemaExpr.Literal[Any, Any]("", Schema[String].asInstanceOf[Schema[Any]])
-      val action = MigrationAction.Mandate(DynamicOptic.root.field("nickname"), defaultExpr)
-      val result = SchemaShape.applyAction(shape, action)
+      val action      = MigrationAction.Mandate(DynamicOptic.root.field("nickname"), defaultExpr)
+      val result      = SchemaShape.applyAction(shape, action)
       assertTrue(result match {
         case Right(SchemaShape.Record(fields)) =>
           fields.exists(f => f._1 == "nickname" && f._2 == stringShape)
@@ -197,9 +223,11 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       })
     },
     test("Optionalize wraps in Opt") {
-      val shape = SchemaShape.Record(Vector(
-        ("name", stringShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("name", stringShape)
+        )
+      )
       val action = MigrationAction.Optionalize(DynamicOptic.root.field("name"))
       val result = SchemaShape.applyAction(shape, action)
       assertTrue(result match {
@@ -209,10 +237,12 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       })
     },
     test("RenameCase renames case in variant shape") {
-      val shape = SchemaShape.Variant(Vector(
-        ("Active", SchemaShape.Record(Vector.empty)),
-        ("Inactive", SchemaShape.Record(Vector.empty))
-      ))
+      val shape = SchemaShape.Variant(
+        Vector(
+          ("Active", SchemaShape.Record(Vector.empty)),
+          ("Inactive", SchemaShape.Record(Vector.empty))
+        )
+      )
       val action = MigrationAction.RenameCase(DynamicOptic.root, "Active", "Enabled")
       val result = SchemaShape.applyAction(shape, action)
       assertTrue(result match {
@@ -222,10 +252,12 @@ object SchemaShapeSpec extends SchemaBaseSpec {
       })
     },
     test("sequential actions compose correctly") {
-      val shape = SchemaShape.Record(Vector(
-        ("firstName", stringShape),
-        ("obsolete", intShape)
-      ))
+      val shape = SchemaShape.Record(
+        Vector(
+          ("firstName", stringShape),
+          ("obsolete", intShape)
+        )
+      )
       val actions = Vector(
         MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
         MigrationAction.DropField(DynamicOptic.root.field("obsolete"), reverseDefault = None),

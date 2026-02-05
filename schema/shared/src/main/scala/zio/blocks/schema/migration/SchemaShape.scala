@@ -4,13 +4,13 @@ import zio.blocks.schema.{DynamicOptic, PrimitiveType, Reflect}
 import zio.blocks.typeid.Owner
 
 /**
- * Simplified structural representation of a schema, used for symbolic
- * execution during `.build()` validation.
+ * Simplified structural representation of a schema, used for symbolic execution
+ * during `.build()` validation.
  *
  * `SchemaShape` captures the structural essence of a `Reflect` tree without
  * bindings, type IDs, or constructors — just the shape of the data. This
- * enables comparing source-after-migration against target to detect
- * mismatches before runtime.
+ * enables comparing source-after-migration against target to detect mismatches
+ * before runtime.
  *
  * The `Dyn` case acts as a wildcard: it matches any shape in `compareShapes`,
  * providing a safe fallback when shape inference is incomplete.
@@ -18,14 +18,14 @@ import zio.blocks.typeid.Owner
 sealed trait SchemaShape
 
 object SchemaShape {
-  final case class Record(fields: Vector[(String, SchemaShape)])              extends SchemaShape
-  final case class Variant(cases: Vector[(String, SchemaShape)])              extends SchemaShape
-  final case class Sequence(element: SchemaShape)                             extends SchemaShape
-  final case class MapShape(key: SchemaShape, value: SchemaShape)             extends SchemaShape
-  final case class Prim(primitiveType: PrimitiveType[_])                      extends SchemaShape
-  final case class Opt(inner: SchemaShape)                                    extends SchemaShape
-  final case class Wrap(inner: SchemaShape)                                   extends SchemaShape
-  case object Dyn                                                             extends SchemaShape
+  final case class Record(fields: Vector[(String, SchemaShape)])  extends SchemaShape
+  final case class Variant(cases: Vector[(String, SchemaShape)])  extends SchemaShape
+  final case class Sequence(element: SchemaShape)                 extends SchemaShape
+  final case class MapShape(key: SchemaShape, value: SchemaShape) extends SchemaShape
+  final case class Prim(primitiveType: PrimitiveType[_])          extends SchemaShape
+  final case class Opt(inner: SchemaShape)                        extends SchemaShape
+  final case class Wrap(inner: SchemaShape)                       extends SchemaShape
+  case object Dyn                                                 extends SchemaShape
 
   /**
    * Extracts a `SchemaShape` from a `Reflect` tree.
@@ -41,7 +41,7 @@ object SchemaShape {
       if (isOptionVariant(v)) {
         // The "Some" case is a Record with a single field "value" containing the inner type.
         // Use the same extraction as Reflect.optionInnerType: cases(1).value.asRecord.fields(0).value
-        val someCase = v.cases(1)
+        val someCase     = v.cases(1)
         val innerReflect = someCase.value.asRecord.map(_.fields(0).value).getOrElse(someCase.value)
         Opt(fromReflect(innerReflect))
       } else {
@@ -162,11 +162,11 @@ object SchemaShape {
   }
 
   /**
-   * Symbolically applies a `MigrationAction` to a `SchemaShape`, producing
-   * the transformed shape or a list of validation errors.
+   * Symbolically applies a `MigrationAction` to a `SchemaShape`, producing the
+   * transformed shape or a list of validation errors.
    *
-   * This is the core of `.build()` validation — it simulates each action
-   * on the shape without actually transforming data.
+   * This is the core of `.build()` validation — it simulates each action on the
+   * shape without actually transforming data.
    */
   def applyAction(shape: SchemaShape, action: MigrationAction): Either[List[MigrationError], SchemaShape] =
     action match {
@@ -212,24 +212,28 @@ object SchemaShape {
         }
 
       case MigrationAction.TransformValue(at, _, _) =>
-        modifyShapeAt(shape, at) { _ => Right(Dyn) }
+        modifyShapeAt(shape, at)(_ => Right(Dyn))
 
       case MigrationAction.Mandate(at, _) =>
         modifyShapeAt(shape, at) {
           case Opt(inner) => Right(inner)
-          case other =>
-            Left(List(MigrationError(
-              s"Expected optional shape",
-              at,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+          case other      =>
+            Left(
+              List(
+                MigrationError(
+                  s"Expected optional shape",
+                  at,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case MigrationAction.Optionalize(at) =>
-        modifyShapeAt(shape, at) { inner => Right(Opt(inner)) }
+        modifyShapeAt(shape, at)(inner => Right(Opt(inner)))
 
       case MigrationAction.ChangeType(at, _, _) =>
-        modifyShapeAt(shape, at) { _ => Right(Dyn) }
+        modifyShapeAt(shape, at)(_ => Right(Dyn))
 
       case MigrationAction.RenameCase(at, fromName, toName) =>
         modifyVariantAt(shape, at) { cases =>
@@ -249,7 +253,7 @@ object SchemaShape {
             case Some((_, caseShape)) =>
               val transformed = subActions.foldLeft[Either[List[MigrationError], SchemaShape]](Right(caseShape)) {
                 case (Right(s), action) => applyAction(s, action)
-                case (left, _)         => left
+                case (left, _)          => left
               }
               transformed.map { newShape =>
                 cases.map { case (n, s) => if (n == caseName) (n, newShape) else (n, s) }
@@ -260,34 +264,46 @@ object SchemaShape {
       case MigrationAction.TransformElements(at, _, _) =>
         modifyShapeAt(shape, at) {
           case Sequence(_) => Right(Sequence(Dyn))
-          case other =>
-            Left(List(MigrationError(
-              s"Expected sequence shape",
-              at,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+          case other       =>
+            Left(
+              List(
+                MigrationError(
+                  s"Expected sequence shape",
+                  at,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case MigrationAction.TransformKeys(at, _, _) =>
         modifyShapeAt(shape, at) {
           case MapShape(_, v) => Right(MapShape(Dyn, v))
-          case other =>
-            Left(List(MigrationError(
-              s"Expected map shape",
-              at,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+          case other          =>
+            Left(
+              List(
+                MigrationError(
+                  s"Expected map shape",
+                  at,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case MigrationAction.TransformValues(at, _, _) =>
         modifyShapeAt(shape, at) {
           case MapShape(k, _) => Right(MapShape(k, Dyn))
-          case other =>
-            Left(List(MigrationError(
-              s"Expected map shape",
-              at,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+          case other          =>
+            Left(
+              List(
+                MigrationError(
+                  s"Expected map shape",
+                  at,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case MigrationAction.Join(at, sourcePaths, _, _, targetShape) =>
@@ -301,7 +317,7 @@ object SchemaShape {
         else {
           val afterRemoval = sourcePaths.foldLeft[Either[List[MigrationError], SchemaShape]](Right(shape)) {
             case (Right(s), sp) => removeFieldAt(s, sp)
-            case (left, _)     => left
+            case (left, _)      => left
           }
           afterRemoval.flatMap { s =>
             MigrationAction.lastFieldName(at) match {
@@ -345,7 +361,10 @@ object SchemaShape {
 
   // ── Path navigation helpers ────────────────────────────────────────────
 
-  /** Resolves the shape at a given DynamicOptic path, returning None if not found. */
+  /**
+   * Resolves the shape at a given DynamicOptic path, returning None if not
+   * found.
+   */
   def resolveShapeAt(shape: SchemaShape, path: DynamicOptic): Option[SchemaShape] = {
     val nodes = path.nodes
     if (nodes.isEmpty) return Some(shape)
@@ -398,8 +417,8 @@ object SchemaShape {
   }
 
   /**
-   * Modifies a record's fields at a given path. The path should point to
-   * the record containing the fields to modify.
+   * Modifies a record's fields at a given path. The path should point to the
+   * record containing the fields to modify.
    */
   private def modifyRecordAt(
     shape: SchemaShape,
@@ -409,12 +428,16 @@ object SchemaShape {
   ): Either[List[MigrationError], SchemaShape] =
     modifyShapeAt(shape, path) {
       case Record(fields) => f(fields).map(Record(_))
-      case other =>
-        Left(List(MigrationError(
-          s"Expected record shape",
-          path,
-          actualShape = Some(truncate(other.toString, 200))
-        )))
+      case other          =>
+        Left(
+          List(
+            MigrationError(
+              s"Expected record shape",
+              path,
+              actualShape = Some(truncate(other.toString, 200))
+            )
+          )
+        )
     }
 
   /**
@@ -428,12 +451,16 @@ object SchemaShape {
   ): Either[List[MigrationError], SchemaShape] =
     modifyShapeAt(shape, path) {
       case Variant(cases) => f(cases).map(Variant(_))
-      case other =>
-        Left(List(MigrationError(
-          s"Expected variant shape",
-          path,
-          actualShape = Some(truncate(other.toString, 200))
-        )))
+      case other          =>
+        Left(
+          List(
+            MigrationError(
+              s"Expected variant shape",
+              path,
+              actualShape = Some(truncate(other.toString, 200))
+            )
+          )
+        )
     }
 
   /**
@@ -474,11 +501,15 @@ object SchemaShape {
                 }
             }
           case other =>
-            Left(List(MigrationError(
-              s"Expected record shape at field '$name'",
-              fullPath,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+            Left(
+              List(
+                MigrationError(
+                  s"Expected record shape at field '$name'",
+                  fullPath,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case DynamicOptic.Node.Case(name) =>
@@ -493,11 +524,15 @@ object SchemaShape {
                 }
             }
           case other =>
-            Left(List(MigrationError(
-              s"Expected variant shape at case '$name'",
-              fullPath,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+            Left(
+              List(
+                MigrationError(
+                  s"Expected variant shape at case '$name'",
+                  fullPath,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case DynamicOptic.Node.Elements =>
@@ -505,11 +540,15 @@ object SchemaShape {
           case Sequence(elem) =>
             modifyShapeAtNodes(elem, nodes, index + 1, fullPath)(f).map(Sequence(_))
           case other =>
-            Left(List(MigrationError(
-              s"Expected sequence shape at elements",
-              fullPath,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+            Left(
+              List(
+                MigrationError(
+                  s"Expected sequence shape at elements",
+                  fullPath,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case DynamicOptic.Node.MapKeys =>
@@ -517,11 +556,15 @@ object SchemaShape {
           case MapShape(k, v) =>
             modifyShapeAtNodes(k, nodes, index + 1, fullPath)(f).map(MapShape(_, v))
           case other =>
-            Left(List(MigrationError(
-              s"Expected map shape at keys",
-              fullPath,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+            Left(
+              List(
+                MigrationError(
+                  s"Expected map shape at keys",
+                  fullPath,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case DynamicOptic.Node.MapValues =>
@@ -529,11 +572,15 @@ object SchemaShape {
           case MapShape(k, v) =>
             modifyShapeAtNodes(v, nodes, index + 1, fullPath)(f).map(MapShape(k, _))
           case other =>
-            Left(List(MigrationError(
-              s"Expected map shape at values",
-              fullPath,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+            Left(
+              List(
+                MigrationError(
+                  s"Expected map shape at values",
+                  fullPath,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case DynamicOptic.Node.Wrapped =>
@@ -541,11 +588,15 @@ object SchemaShape {
           case Wrap(inner) =>
             modifyShapeAtNodes(inner, nodes, index + 1, fullPath)(f).map(Wrap(_))
           case other =>
-            Left(List(MigrationError(
-              s"Expected wrapper shape",
-              fullPath,
-              actualShape = Some(truncate(other.toString, 200))
-            )))
+            Left(
+              List(
+                MigrationError(
+                  s"Expected wrapper shape",
+                  fullPath,
+                  actualShape = Some(truncate(other.toString, 200))
+                )
+              )
+            )
         }
 
       case other =>
@@ -567,7 +618,10 @@ object SchemaShape {
         Left(List(MigrationError("Remove path must end with a Field node", path)))
     }
 
-  /** Detects if a Variant represents an Option type, matching Reflect.isOption logic. */
+  /**
+   * Detects if a Variant represents an Option type, matching Reflect.isOption
+   * logic.
+   */
   private def isOptionVariant[F[_, _], A](v: Reflect.Variant[F, A]): Boolean = {
     val tid   = v.typeId
     val cases = v.cases
@@ -582,7 +636,7 @@ object SchemaShape {
   }
 
   /** Converts a string path like ".foo.bar" to a DynamicOptic. */
-  private def pathToOptic(path: String): DynamicOptic = {
+  private def pathToOptic(path: String): DynamicOptic =
     if (path.isEmpty) DynamicOptic.root
     else {
       val parts = path.split("\\.").filter(_.nonEmpty)
@@ -601,9 +655,10 @@ object SchemaShape {
           optic.field(part)
       }
     }
-  }
 
-  /** Truncates a string to the given max length, appending "..." if truncated. */
+  /**
+   * Truncates a string to the given max length, appending "..." if truncated.
+   */
   private[migration] def truncate(s: String, maxLen: Int): String =
     if (s.length <= maxLen) s
     else s.take(maxLen - 3) + "..."

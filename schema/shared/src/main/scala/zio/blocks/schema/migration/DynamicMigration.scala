@@ -22,15 +22,15 @@ final case class DynamicMigration(
 ) {
 
   /**
-   * Applies this migration to a `DynamicValue`, returning the transformed
-   * value or a `MigrationError`.
+   * Applies this migration to a `DynamicValue`, returning the transformed value
+   * or a `MigrationError`.
    *
    * Actions are applied sequentially in order. If any action fails, execution
    * stops and the error is returned.
    *
    * @param includeInputSlice
-   *   If `true`, error messages include truncated DynamicValue snippets at
-   *   the failure path. Disable for production to avoid leaking sensitive data.
+   *   If `true`, error messages include truncated DynamicValue snippets at the
+   *   failure path. Disable for production to avoid leaking sensitive data.
    */
   def apply(value: DynamicValue, includeInputSlice: Boolean = false): Either[MigrationError, DynamicValue] =
     applyWithDepth(value, includeInputSlice, 0)
@@ -41,10 +41,12 @@ final case class DynamicMigration(
     depth: Int
   ): Either[MigrationError, DynamicValue] = {
     if (depth > DynamicMigration.MaxExecutionDepth)
-      return Left(MigrationError(
-        s"TransformCase nesting depth $depth exceeds maximum ${DynamicMigration.MaxExecutionDepth}",
-        DynamicOptic.root
-      ))
+      return Left(
+        MigrationError(
+          s"TransformCase nesting depth $depth exceeds maximum ${DynamicMigration.MaxExecutionDepth}",
+          DynamicOptic.root
+        )
+      )
     var current = value
     var i       = 0
     while (i < actions.length) {
@@ -59,20 +61,26 @@ final case class DynamicMigration(
     Right(current)
   }
 
-  /** Concatenates two migrations. Actions from `that` are appended after this migration's actions. */
+  /**
+   * Concatenates two migrations. Actions from `that` are appended after this
+   * migration's actions.
+   */
   def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(actions ++ that.actions, metadata)
 
   /**
-   * Returns the reverse migration if all actions are reversible.
-   * Returns `None` if any action is lossy (has `reverse == None`).
+   * Returns the reverse migration if all actions are reversible. Returns `None`
+   * if any action is lossy (has `reverse == None`).
    */
   def reverse: Option[DynamicMigration] =
     if (actions.exists(_.reverse.isEmpty)) None
-    else Some(DynamicMigration(
-      actions.reverseIterator.flatMap(_.reverse).toVector,
-      metadata
-    ))
+    else
+      Some(
+        DynamicMigration(
+          actions.reverseIterator.flatMap(_.reverse).toVector,
+          metadata
+        )
+      )
 
   /**
    * Returns the reverse migration or throws if any action is lossy.
@@ -114,20 +122,22 @@ final case class DynamicMigration(
   }
 
   private def actionSummary(action: MigrationAction): String = action match {
-    case MigrationAction.AddField(at, _)              => s"AddField $at"
-    case MigrationAction.DropField(at, _)             => s"DropField $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.AddField(at, _)               => s"AddField $at"
+    case MigrationAction.DropField(at, _)              => s"DropField $at${if (action.lossy) " (lossy)" else ""}"
     case MigrationAction.Rename(at, newName)           => s"Rename $at -> $newName"
-    case MigrationAction.TransformValue(at, _, _)     => s"TransformValue $at${if (action.lossy) " (lossy)" else ""}"
-    case MigrationAction.Mandate(at, _)               => s"Mandate $at"
+    case MigrationAction.TransformValue(at, _, _)      => s"TransformValue $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.Mandate(at, _)                => s"Mandate $at"
     case MigrationAction.Optionalize(at)               => s"Optionalize $at"
-    case MigrationAction.ChangeType(at, _, _)         => s"ChangeType $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.ChangeType(at, _, _)          => s"ChangeType $at${if (action.lossy) " (lossy)" else ""}"
     case MigrationAction.RenameCase(at, from, to)      => s"RenameCase $at: $from -> $to"
     case MigrationAction.TransformCase(at, name, subs) => s"TransformCase $at<$name> (${subs.size} sub-actions)"
-    case MigrationAction.TransformElements(at, _, _)  => s"TransformElements $at${if (action.lossy) " (lossy)" else ""}"
-    case MigrationAction.TransformKeys(at, _, _)      => s"TransformKeys $at${if (action.lossy) " (lossy)" else ""}"
-    case MigrationAction.TransformValues(at, _, _)    => s"TransformValues $at${if (action.lossy) " (lossy)" else ""}"
-    case MigrationAction.Join(at, srcs, _, _, _)       => s"Join ${srcs.mkString(", ")} -> $at${if (action.lossy) " (lossy)" else ""}"
-    case MigrationAction.Split(at, tgts, _, _, _)      => s"Split $at -> ${tgts.mkString(", ")}${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.TransformElements(at, _, _)   => s"TransformElements $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.TransformKeys(at, _, _)       => s"TransformKeys $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.TransformValues(at, _, _)     => s"TransformValues $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.Join(at, srcs, _, _, _)       =>
+      s"Join ${srcs.mkString(", ")} -> $at${if (action.lossy) " (lossy)" else ""}"
+    case MigrationAction.Split(at, tgts, _, _, _) =>
+      s"Split $at -> ${tgts.mkString(", ")}${if (action.lossy) " (lossy)" else ""}"
   }
 }
 
@@ -154,7 +164,7 @@ object DynamicMigration {
    *   `Right(migration)` if valid, `Left(errors)` listing violations
    */
   def validate(migration: DynamicMigration, limits: Limits = Limits()): Either[List[String], DynamicMigration] = {
-    val errors = List.newBuilder[String]
+    val errors     = List.newBuilder[String]
     var totalNodes = 0
 
     if (migration.actions.size > limits.maxActions)
@@ -225,7 +235,7 @@ object DynamicMigration {
 
     action match {
       case MigrationAction.AddField(at, defaultExpr) =>
-        val fieldName = MigrationAction.lastFieldName(at)
+        val fieldName   = MigrationAction.lastFieldName(at)
         val parentOptic = MigrationAction.parentPath(at)
         fieldName match {
           case None =>
@@ -283,10 +293,10 @@ object DynamicMigration {
       case MigrationAction.Mandate(at, defaultExpr) =>
         modifyAtPath(value, at, actionIndex, action) {
           case DynamicValue.Variant("Some", inner) => Right(inner)
-          case DynamicValue.Variant("None", _) =>
+          case DynamicValue.Variant("None", _)     =>
             evalExprDynamic(defaultExpr) match {
-              case Left(msg)  => Left(mkError(s"Default expression evaluation failed: $msg", at))
-              case Right(dv)  => Right(dv)
+              case Left(msg) => Left(mkError(s"Default expression evaluation failed: $msg", at))
+              case Right(dv) => Right(dv)
             }
           case other =>
             Left(mkError(s"Expected Option-like variant (Some/None), got ${other.valueType}", at))
@@ -346,7 +356,7 @@ object DynamicMigration {
         modifyAtPath(value, at, actionIndex, action) {
           case DynamicValue.Map(entries) =>
             mapChunkEntryKeys(entries, transform) match {
-              case Left(msg)        => Left(mkError(s"Key transform failed: $msg", at))
+              case Left(msg)         => Left(mkError(s"Key transform failed: $msg", at))
               case Right(newEntries) => Right(DynamicValue.Map(newEntries))
             }
           case other =>
@@ -357,7 +367,7 @@ object DynamicMigration {
         modifyAtPath(value, at, actionIndex, action) {
           case DynamicValue.Map(entries) =>
             mapChunkEntryValues(entries, transform) match {
-              case Left(msg)        => Left(mkError(s"Value transform failed: $msg", at))
+              case Left(msg)         => Left(mkError(s"Value transform failed: $msg", at))
               case Right(newEntries) => Right(DynamicValue.Map(newEntries))
             }
           case other =>
@@ -366,9 +376,9 @@ object DynamicMigration {
 
       case MigrationAction.Join(at, sourcePaths, combiner, _, _) =>
         // Extract values from source paths
-        val extractedBuilder = Vector.newBuilder[DynamicValue]
+        val extractedBuilder                     = Vector.newBuilder[DynamicValue]
         var extractError: Option[MigrationError] = None
-        var i = 0
+        var i                                    = 0
         while (i < sourcePaths.length && extractError.isEmpty) {
           val sp = sourcePaths(i)
           value.get(sp).one match {
@@ -381,28 +391,29 @@ object DynamicMigration {
         }
         extractError match {
           case Some(err) => Left(err)
-          case None =>
+          case None      =>
             // Build a record from extracted values for the combiner to operate on
-            val extracted = extractedBuilder.result()
+            val extracted   = extractedBuilder.result()
             val inputRecord = DynamicValue.Sequence(Chunk.fromIterable(extracted))
             evalExprDynamicWithInput(combiner, inputRecord) match {
               case Left(msg) =>
                 Left(mkError(s"Join combiner failed: $msg", at))
               case Right(combined) =>
                 // Remove source fields, then insert target field
-                var current = value
+                var current                             = value
                 var removeError: Option[MigrationError] = None
                 i = 0
                 while (i < sourcePaths.length && removeError.isEmpty) {
                   current.deleteOrFail(sourcePaths(i)) match {
                     case Right(next) => current = next
-                    case Left(err)   => removeError = Some(mkError(s"Failed to remove source: ${err.message}", sourcePaths(i)))
+                    case Left(err)   =>
+                      removeError = Some(mkError(s"Failed to remove source: ${err.message}", sourcePaths(i)))
                   }
                   i += 1
                 }
                 removeError match {
                   case Some(err) => Left(err)
-                  case None =>
+                  case None      =>
                     current.insertOrFail(at, combined) match {
                       case Right(result) => Right(result)
                       case Left(err)     => Left(mkError(s"Failed to insert join result: ${err.message}", at))
@@ -427,19 +438,21 @@ object DynamicMigration {
                   case single                       => Vector(single)
                 }
                 if (pieces.size < targetPaths.size) {
-                  Left(mkError(
-                    s"Split produced ${pieces.size} pieces but ${targetPaths.size} target paths specified",
-                    at
-                  ))
+                  Left(
+                    mkError(
+                      s"Split produced ${pieces.size} pieces but ${targetPaths.size} target paths specified",
+                      at
+                    )
+                  )
                 } else {
                   // Remove source, then insert each piece at its target path
                   value.deleteOrFail(at) match {
                     case Left(err) =>
                       Left(mkError(s"Failed to remove split source: ${err.message}", at))
                     case Right(afterRemoval) =>
-                      var current = afterRemoval
+                      var current                             = afterRemoval
                       var insertError: Option[MigrationError] = None
-                      var i = 0
+                      var i                                   = 0
                       while (i < targetPaths.length && insertError.isEmpty) {
                         current.insertOrFail(targetPaths(i), pieces(i)) match {
                           case Right(next) => current = next
@@ -461,7 +474,9 @@ object DynamicMigration {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  /** Modifies the DynamicValue at a path, wrapping errors with action context. */
+  /**
+   * Modifies the DynamicValue at a path, wrapping errors with action context.
+   */
   private def modifyAtPath(
     value: DynamicValue,
     path: DynamicOptic,
@@ -469,46 +484,48 @@ object DynamicMigration {
     action: MigrationAction
   )(
     f: DynamicValue => Either[MigrationError, DynamicValue]
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     if (path.nodes.isEmpty) {
       f(value)
     } else {
       var capturedError: Option[MigrationError] = None
-      val modified = try {
-        value.modifyOrFail(path) {
-          case dv =>
-            f(dv) match {
-              case Right(newDv) =>
-                capturedError = None
-                newDv
-              case Left(err) =>
-                capturedError = Some(err)
-                dv // Return unchanged, error captured
-            }
+      val modified                              = try {
+        value.modifyOrFail(path) { case dv =>
+          f(dv) match {
+            case Right(newDv) =>
+              capturedError = None
+              newDv
+            case Left(err) =>
+              capturedError = Some(err)
+              dv // Return unchanged, error captured
+          }
         }
       } catch {
         case e: Throwable =>
-          Left(zio.blocks.schema.SchemaError.conversionFailed(
-            Nil,
-            s"Unexpected error modifying path $path: ${e.getMessage}"
-          ))
+          Left(
+            zio.blocks.schema.SchemaError.conversionFailed(
+              Nil,
+              s"Unexpected error modifying path $path: ${e.getMessage}"
+            )
+          )
       }
       capturedError match {
         case Some(err) => Left(err)
-        case None =>
+        case None      =>
           modified match {
-            case Right(v) => Right(v)
+            case Right(v)  => Right(v)
             case Left(err) =>
-              Left(MigrationError(
-                s"Path not found: ${err.message}",
-                path,
-                Some(actionIndex),
-                Some(action)
-              ))
+              Left(
+                MigrationError(
+                  s"Path not found: ${err.message}",
+                  path,
+                  Some(actionIndex),
+                  Some(action)
+                )
+              )
           }
       }
     }
-  }
 
   /** Modifies record fields at the parent path. */
   private def modifyRecord(
@@ -523,12 +540,14 @@ object DynamicMigration {
       case DynamicValue.Record(fields) =>
         f(fields).map(DynamicValue.Record(_))
       case other =>
-        Left(MigrationError(
-          s"Expected record, got ${other.valueType}",
-          parentPath,
-          Some(actionIndex),
-          Some(action)
-        ))
+        Left(
+          MigrationError(
+            s"Expected record, got ${other.valueType}",
+            parentPath,
+            Some(actionIndex),
+            Some(action)
+          )
+        )
     }
 
   /** Evaluates a SchemaExpr to produce a DynamicValue (no input needed). */
@@ -543,7 +562,10 @@ object DynamicMigration {
       case e: Throwable => Left(s"Expression evaluation error: ${e.getMessage}")
     }
 
-  /** Evaluates a SchemaExpr with a DynamicValue as input, producing a DynamicValue output. */
+  /**
+   * Evaluates a SchemaExpr with a DynamicValue as input, producing a
+   * DynamicValue output.
+   */
   private def evalExprDynamicWithInput(expr: SchemaExpr[Any, Any], input: DynamicValue): Either[String, DynamicValue] =
     try {
       expr.evalDynamic(input) match {

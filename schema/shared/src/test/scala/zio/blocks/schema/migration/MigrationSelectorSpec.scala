@@ -32,12 +32,12 @@ object MigrationSelectorSpec extends SchemaBaseSpec {
 
   private val selectorToOpticSuite = suite("selectorToOptic")(
     test("simple field selector produces correct DynamicOptic") {
-      val optic = MigrationBuilderMacros.selectorToOptic[PersonV1, String](_.firstName)
+      val optic    = MigrationBuilderMacros.selectorToOptic[PersonV1, String](_.firstName)
       val expected = DynamicOptic.root.field("firstName")
       assertTrue(optic == expected)
     },
     test("nested field selector produces correct DynamicOptic") {
-      val optic = MigrationBuilderMacros.selectorToOptic[PersonWithAddress, String](_.address.street)
+      val optic    = MigrationBuilderMacros.selectorToOptic[PersonWithAddress, String](_.address.street)
       val expected = DynamicOptic.root.field("address").field("street")
       assertTrue(optic == expected)
     }

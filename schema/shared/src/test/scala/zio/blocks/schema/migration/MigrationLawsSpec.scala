@@ -52,28 +52,34 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     test("(m1 ++ m2) ++ m3 produces same result as m1 ++ (m2 ++ m3)") {
       // Three migrations that rename fields back and forth
       val m1 = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
       val m2 = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("fullName"), "name")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("fullName"), "name")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
       val m3 = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("name"), "firstName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("name"), "firstName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
 
-      val person = PersonV1("Alice", 30)
+      val person     = PersonV1("Alice", 30)
       val leftAssoc  = (m1 ++ m2) ++ m3
       val rightAssoc = m1 ++ (m2 ++ m3)
 
@@ -91,13 +97,15 @@ object MigrationLawsSpec extends SchemaBaseSpec {
   private val reverseSuite = suite("Reverse laws")(
     test("lossless migration reverse round-trips: reverse(reverse(m)) == m actions") {
       val m = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
-      val reversed     = m.reverse
+      val reversed       = m.reverse
       val doubleReversed = reversed.flatMap(_.reverse)
       assertTrue(
         reversed.isDefined,
@@ -107,10 +115,12 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     },
     test("lossless reverse produces original value: r.apply(m.apply(a)) == Right(a)") {
       val m = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
-          MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
+            MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
@@ -123,15 +133,17 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     },
     test("lossless migration: reverse.apply undoes forward.apply") {
       val m = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
-      val person   = PersonV1("Alice", 30)
-      val forward  = m.dynamicMigration.apply(Schema[PersonV1].toDynamicValue(person))
-      val reversed = m.reverse.get.dynamicMigration
+      val person    = PersonV1("Alice", 30)
+      val forward   = m.dynamicMigration.apply(Schema[PersonV1].toDynamicValue(person))
+      val reversed  = m.reverse.get.dynamicMigration
       val roundTrip = forward.flatMap(v => reversed.apply(v))
       assertTrue(
         forward.isRight,
@@ -145,16 +157,18 @@ object MigrationLawsSpec extends SchemaBaseSpec {
   private val compositionSuite = suite("Composition")(
     test("identity ++ m == m in effect") {
       val id = Migration.identity[PersonV1]
-      val m = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
-          MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
-        )),
+      val m  = Migration[PersonV1, PersonV1](
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
+            MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
-      val person = PersonV1("Bob", 25)
-      val composed = id ++ m
+      val person         = PersonV1("Bob", 25)
+      val composed       = id ++ m
       val resultComposed = composed.apply(person)
       val resultDirect   = m.apply(person)
       assertTrue(
@@ -165,16 +179,18 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     },
     test("m ++ identity == m in effect") {
       val id = Migration.identity[PersonV1]
-      val m = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
-          MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
-        )),
+      val m  = Migration[PersonV1, PersonV1](
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
+            MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
-      val person = PersonV1("Bob", 25)
-      val composed = m ++ id
+      val person         = PersonV1("Bob", 25)
+      val composed       = m ++ id
       val resultComposed = composed.apply(person)
       val resultDirect   = m.apply(person)
       assertTrue(
@@ -185,16 +201,20 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     },
     test("composed migration action count is sum of parts") {
       val m1 = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
       val m2 = Migration[PersonV1, PersonV1](
-        DynamicMigration(Vector(
-          MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
-        )),
+        DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("fullName"), "firstName")
+          )
+        ),
         PersonV1.schema,
         PersonV1.schema
       )
@@ -210,7 +230,7 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     },
     test("DropField with reverseDefault is lossless") {
       val defaultExpr = SchemaExpr.Literal[Any, Any](0, Schema[Int].asInstanceOf[Schema[Any]])
-      val action = MigrationAction.DropField(DynamicOptic.root.field("age"), reverseDefault = Some(defaultExpr))
+      val action      = MigrationAction.DropField(DynamicOptic.root.field("age"), reverseDefault = Some(defaultExpr))
       assertTrue(!action.lossy, action.reverse.isDefined)
     },
     test("Rename is always lossless") {
@@ -219,24 +239,24 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     },
     test("AddField is always lossless") {
       val defaultExpr = SchemaExpr.Literal[Any, Any](0, Schema[Int].asInstanceOf[Schema[Any]])
-      val action = MigrationAction.AddField(DynamicOptic.root.field("age"), defaultExpr)
+      val action      = MigrationAction.AddField(DynamicOptic.root.field("age"), defaultExpr)
       assertTrue(!action.lossy, action.reverse.isDefined)
     },
     test("TransformValue without inverse is lossy") {
-      val expr = SchemaExpr.Literal[Any, Any]("transformed", Schema[String].asInstanceOf[Schema[Any]])
+      val expr   = SchemaExpr.Literal[Any, Any]("transformed", Schema[String].asInstanceOf[Schema[Any]])
       val action = MigrationAction.TransformValue(DynamicOptic.root.field("name"), expr, inverse = None)
       assertTrue(action.lossy, action.reverse.isEmpty)
     },
     test("TransformValue with inverse is lossless") {
       val expr    = SchemaExpr.Literal[Any, Any]("transformed", Schema[String].asInstanceOf[Schema[Any]])
       val inverse = SchemaExpr.Literal[Any, Any]("original", Schema[String].asInstanceOf[Schema[Any]])
-      val action = MigrationAction.TransformValue(DynamicOptic.root.field("name"), expr, inverse = Some(inverse))
+      val action  = MigrationAction.TransformValue(DynamicOptic.root.field("name"), expr, inverse = Some(inverse))
       assertTrue(!action.lossy, action.reverse.isDefined)
     },
     test("mixed lossy/lossless migration is lossy overall") {
       val lossless = MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName")
       val lossy    = MigrationAction.DropField(DynamicOptic.root.field("age"), reverseDefault = None)
-      val dm = DynamicMigration(Vector(lossless, lossy))
+      val dm       = DynamicMigration(Vector(lossless, lossy))
       assertTrue(dm.isLossy, dm.reverse.isEmpty)
     },
     test("all-lossless migration reverse is defined") {
@@ -246,9 +266,11 @@ object MigrationLawsSpec extends SchemaBaseSpec {
       assertTrue(!dm.isLossy, dm.reverse.isDefined)
     },
     test("unsafeReverse throws for lossy migration") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.DropField(DynamicOptic.root.field("age"), reverseDefault = None)
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.DropField(DynamicOptic.root.field("age"), reverseDefault = None)
+        )
+      )
       val caught = try {
         dm.unsafeReverse
         false
