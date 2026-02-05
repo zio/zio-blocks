@@ -514,7 +514,42 @@ override def deriveVariant[F[_, _], A](
 }
 ```
 
-The derivation process for variants is similar to records, but instead of fields, we have cases. We extract the type class instances for each case, and at runtime we use the discriminator to determine which case the value belongs to. Then we use the matcher to downcast the value to that specific case type. Finally, we extract the corresponding type class instance for that case by applying the case index to the indexed sequence of type class instances. Now we have the correct type class instance for the specific case, but it's deferred in a `Lazy` container. We force it to retrieve the actual type class instance, and then we can call the `show` method on that case value to get the string representation.
+The derivation process for variants is similar to records, but instead of fields, we have cases. We extract the type class instances for each case, and at runtime we use the discriminator to determine which case the value belongs to. Then we use the matcher to downcast the value to the specific case type.
+
+Finally, we extract the corresponding type class instance for that case by applying the case index to the indexed sequence of type class instances. Now we have the correct type class instance for the specific case, wrapped in a `Lazy` data type. We force the lazy wrapper to retrieve the actual type class instance, and then we call the `show` method on that case value to get the string representation.
+
+### Sequence
+
+When the derivation process encounters a sequence type (e.g., `List[A]`), it calls the `deriveSequence` method of the `Deriver`. This method receives a `Reflect[F, A]` representing the element type of the sequence, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
+
+```scala
+def deriveSequence[F[_, _], C[_], A](
+  element: Reflect[F, A],
+  typeId: TypeId[C[A]],
+  binding: Binding[BindingType.Seq[C], C[A]],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[C[A]],
+  examples: Seq[C[A]]
+)(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
+  // Get Show instance for element type (lazily)
+  val elementShowLazy: Lazy[Show[A]] = D.instance(element.metadata)
+  // Cast binding to Binding.Seq to access the deconstructor
+  val seqBinding    = binding.asInstanceOf[Binding.Seq[C, A]]
+  val deconstructor = seqBinding.deconstructor
+  new Show[C[A]] {
+    def show(value: C[A]): String = {
+      // Use the deconstructor to iterate over elements
+      val iterator = deconstructor.deconstruct(value)
+      // Force the element Show instance only when actually showing
+      val elements = iterator.map(elem => elementShowLazy.force.show(elem)).mkString(", ")
+      s"[$elements]"
+    }
+  }
+}
+```
+
+The derivation process for sequences is straightforward. We extract the type class instance for the element type, and at runtime we use the deconstructor to iterate over the elements of the sequence. For each element, we force the `Lazy[Show[A]]` instance to get the actual `Show[A]` instance, and then call `show` on each element to get its string representation. Finally, we combine all element representations into a single string that represents the entire sequence.
 
 ## Derivation Process Overview including Internal Mechanics
 
