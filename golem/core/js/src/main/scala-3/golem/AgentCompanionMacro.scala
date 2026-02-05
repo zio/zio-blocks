@@ -36,27 +36,6 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getRemoteImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"getRemote(input) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
-    '{
-      AgentClientRuntime.resolve[Trait, In](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
-        $input
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
-      }
-    }
-  }
-
   def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
@@ -79,31 +58,6 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getRemotePhantomImpl[Trait: Type, In: Type](
-    input: Expr[In],
-    phantom: Expr[Uuid]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"getRemotePhantom(input, phantom) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
-    '{
-      AgentClientRuntime.resolveWithPhantom[Trait, In](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
-        $input,
-        phantom = Some($phantom)
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
-      }
-    }
-  }
-
   def getUnitImpl[Trait: Type](using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
@@ -118,24 +72,6 @@ private[golem] object AgentCompanionMacro {
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
           ${ attachTriggerSchedule[Trait]('resolved) }
-      }
-    }
-  }
-
-  def getRemoteUnitImpl[Trait: Type](using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"getRemote() requires: BaseAgent[Unit] (found: ${expected.show})")
-    '{
-      AgentClientRuntime.resolve[Trait, Unit](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
-        ()
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
       }
     }
   }
@@ -159,25 +95,6 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getRemotePhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"getRemotePhantom(phantom) requires: BaseAgent[Unit] (found: ${expected.show})")
-    '{
-      AgentClientRuntime.resolveWithPhantom[Trait, Unit](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
-        (),
-        phantom = Some($phantom)
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
-      }
-    }
-  }
-
   def getTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
@@ -194,29 +111,6 @@ private[golem] object AgentCompanionMacro {
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
           ${ attachTriggerSchedule[Trait]('resolved) }
-      }
-    }
-  }
-
-  def getRemoteTuple2Impl[Trait: Type, A1: Type, A2: Type](
-    a1: Expr[A1],
-    a2: Expr[A2]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple2[A1, A2]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"getRemote(a1, a2) requires: BaseAgent[${want.show}] (found: ${expected.show})")
-    val tup = '{ Tuple2($a1, $a2) }
-    '{
-      AgentClientRuntime.resolve[Trait, Tuple2[A1, A2]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
-        $tup
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
       }
     }
   }
@@ -248,33 +142,6 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getRemotePhantomTuple2Impl[Trait: Type, A1: Type, A2: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    phantom: Expr[Uuid]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple2[A1, A2]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getRemotePhantom(a1, a2, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
-    val tup = '{ Tuple2($a1, $a2) }
-    '{
-      AgentClientRuntime.resolveWithPhantom[Trait, Tuple2[A1, A2]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
-        $tup,
-        phantom = Some($phantom)
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
-      }
-    }
-  }
-
   def getTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](a1: Expr[A1], a2: Expr[A2], a3: Expr[A3])(using
     Quotes
   ): Expr[?] = {
@@ -293,30 +160,6 @@ private[golem] object AgentCompanionMacro {
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
           ${ attachTriggerSchedule[Trait]('resolved) }
-      }
-    }
-  }
-
-  def getRemoteTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    a3: Expr[A3]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"getRemote(a1, a2, a3) requires: BaseAgent[${want.show}] (found: ${expected.show})")
-    val tup = '{ Tuple3($a1, $a2, $a3) }
-    '{
-      AgentClientRuntime.resolve[Trait, Tuple3[A1, A2, A3]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
-        $tup
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
       }
     }
   }
@@ -349,34 +192,6 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getRemotePhantomTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    a3: Expr[A3],
-    phantom: Expr[Uuid]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getRemotePhantom(a1, a2, a3, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
-    val tup = '{ Tuple3($a1, $a2, $a3) }
-    '{
-      AgentClientRuntime.resolveWithPhantom[Trait, Tuple3[A1, A2, A3]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
-        $tup,
-        phantom = Some($phantom)
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
-      }
-    }
-  }
-
   def getTuple4Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type](
     a1: Expr[A1],
     a2: Expr[A2],
@@ -398,33 +213,6 @@ private[golem] object AgentCompanionMacro {
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
           ${ attachTriggerSchedule[Trait]('resolved) }
-      }
-    }
-  }
-
-  def getRemoteTuple4Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    a3: Expr[A3],
-    a4: Expr[A4]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getRemote(a1, a2, a3, a4) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
-    val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
-    '{
-      AgentClientRuntime.resolve[Trait, Tuple4[A1, A2, A3, A4]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple4[A1, A2, A3, A4]]],
-        $tup
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
       }
     }
   }
@@ -458,35 +246,6 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getRemotePhantomTuple4Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    a3: Expr[A3],
-    a4: Expr[A4],
-    phantom: Expr[Uuid]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getRemotePhantom(a1, a2, a3, a4, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
-    val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
-    '{
-      AgentClientRuntime.resolveWithPhantom[Trait, Tuple4[A1, A2, A3, A4]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple4[A1, A2, A3, A4]]],
-        $tup,
-        phantom = Some($phantom)
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
-      }
-    }
-  }
-
   def getTuple5Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type, A5: Type](
     a1: Expr[A1],
     a2: Expr[A2],
@@ -511,34 +270,6 @@ private[golem] object AgentCompanionMacro {
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
           ${ attachTriggerSchedule[Trait]('resolved) }
-      }
-    }
-  }
-
-  def getRemoteTuple5Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type, A5: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    a3: Expr[A3],
-    a4: Expr[A4],
-    a5: Expr[A5]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getRemote(a1, a2, a3, a4, a5) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
-    val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
-    '{
-      AgentClientRuntime.resolve[Trait, Tuple5[A1, A2, A3, A4, A5]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple5[A1, A2, A3, A4, A5]]],
-        $tup
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
       }
     }
   }
@@ -569,36 +300,6 @@ private[golem] object AgentCompanionMacro {
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
           ${ attachTriggerSchedule[Trait]('resolved) }
-      }
-    }
-  }
-
-  def getRemotePhantomTuple5Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type, A5: Type](
-    a1: Expr[A1],
-    a2: Expr[A2],
-    a3: Expr[A3],
-    a4: Expr[A4],
-    a5: Expr[A5],
-    phantom: Expr[Uuid]
-  )(using Quotes): Expr[RemoteAgent[Trait]] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getRemotePhantom(a1, a2, a3, a4, a5, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
-    val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
-    '{
-      AgentClientRuntime.resolveWithPhantom[Trait, Tuple5[A1, A2, A3, A4, A5]](
-        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple5[A1, A2, A3, A4, A5]]],
-        $tup,
-        phantom = Some($phantom)
-      ) match {
-        case Left(err) =>
-          throw scala.scalajs.js.JavaScriptException(err)
-        case Right(resolved) =>
-          RemoteAgent(resolved)
       }
     }
   }

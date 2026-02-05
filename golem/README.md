@@ -96,31 +96,29 @@ val result: Future[NameAgent] = AgentClient.connect(agentType, ())
 
 ### Remote invocation variants (await/trigger/schedule)
 
-All agent methods support three invocation styles. Use `getRemote(...)` plus
-`RemoteAgentOps` to access them:
+All agent methods support three invocation styles. Use `get(...)` and the
+`trigger` / `schedule` members on the returned agent:
 
 ```scala
 import golem.Datetime
 import golem.*
 
-val remote = CounterAgent.getRemote("shard-id")
+val agent = CounterAgent.get("shard-id")
 
-// Await (always invoke-and-await)
-remote.rpc.call_increment()
+// Await (normal method call)
+agent.increment()
 
 // Fire-and-forget trigger
-remote.rpc.trigger_increment()
+agent.trigger.increment()
 
 // Schedule (run 5 seconds later)
-remote.rpc.schedule_increment(Datetime.afterSeconds(5))
+agent.schedule.increment(Datetime.afterSeconds(5))
 ```
 
 Notes:
 
 - Works in Scala 2.13 and Scala 3.
-- Scala 3 exports `remote.rpc.*` via `golem.*`, so an explicit `RemoteAgentOps.*` import is not required.
-- `trigger_*` / `schedule_*` always return `Future[Unit]` by design.
-- `remote.rpc.call_increment()` always invokes the await path.
+- `trigger.*` / `schedule.*` always return `Future[Unit]` by design.
 
 ### Custom data types (Schemas)
 

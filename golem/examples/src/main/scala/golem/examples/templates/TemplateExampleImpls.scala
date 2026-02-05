@@ -26,8 +26,7 @@ final class CounterImpl(@unused private val name: String) extends Counter {
 @agentImplementation()
 final class RpcClientImpl(@unused private val name: String) extends RpcClient {
   override def callCounter(counterId: String): Future[Int] = {
-    val remote = Counter.getRemote(counterId)
-    remote.rpc.call_increment()
+    Counter.get(counterId).increment()
   }
 }
 
