@@ -13,10 +13,10 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, SH, ?]] = {
     import q.reflect.*
 
-    val fieldName      = extractFieldNameFromTerm(target.asTerm)
-    val fieldNameType  = ConstantType(StringConstant(fieldName))
+    val fieldName        = extractFieldNameFromTerm(target.asTerm)
+    val fieldNameType    = ConstantType(StringConstant(fieldName))
     val fieldNameWrapped = TypeRepr.of[FieldName].appliedTo(fieldNameType)
-    val newTPType      = AndType(TypeRepr.of[TP], fieldNameWrapped)
+    val newTPType        = AndType(TypeRepr.of[TP], fieldNameWrapped)
 
     newTPType.asType match {
       case '[newTp] =>
@@ -38,10 +38,10 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, TP]] = {
     import q.reflect.*
 
-    val fieldName      = extractFieldNameFromTerm(source.asTerm)
-    val fieldNameType  = ConstantType(StringConstant(fieldName))
+    val fieldName        = extractFieldNameFromTerm(source.asTerm)
+    val fieldNameType    = ConstantType(StringConstant(fieldName))
     val fieldNameWrapped = TypeRepr.of[FieldName].appliedTo(fieldNameType)
-    val newSHType      = AndType(TypeRepr.of[SH], fieldNameWrapped)
+    val newSHType        = AndType(TypeRepr.of[SH], fieldNameWrapped)
 
     newSHType.asType match {
       case '[newSh] =>
@@ -63,15 +63,15 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val fromFieldName      = extractFieldNameFromTerm(from.asTerm)
-    val toFieldName        = extractFieldNameFromTerm(to.asTerm)
-    val fromFieldNameType  = ConstantType(StringConstant(fromFieldName))
-    val toFieldNameType    = ConstantType(StringConstant(toFieldName))
-    val toNameExpr         = Expr(toFieldName)
-    val fromFieldWrapped   = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
-    val toFieldWrapped     = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
-    val newSHType          = AndType(TypeRepr.of[SH], fromFieldWrapped)
-    val newTPType          = AndType(TypeRepr.of[TP], toFieldWrapped)
+    val fromFieldName     = extractFieldNameFromTerm(from.asTerm)
+    val toFieldName       = extractFieldNameFromTerm(to.asTerm)
+    val fromFieldNameType = ConstantType(StringConstant(fromFieldName))
+    val toFieldNameType   = ConstantType(StringConstant(toFieldName))
+    val toNameExpr        = Expr(toFieldName)
+    val fromFieldWrapped  = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
+    val toFieldWrapped    = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
+    val newSHType         = AndType(TypeRepr.of[SH], fromFieldWrapped)
+    val newTPType         = AndType(TypeRepr.of[TP], toFieldWrapped)
 
     (newSHType.asType, newTPType.asType) match {
       case ('[newSh], '[newTp]) =>
@@ -94,14 +94,14 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val fromFieldName      = extractFieldNameFromTerm(from.asTerm)
-    val toFieldName        = extractFieldNameFromTerm(to.asTerm)
-    val fromFieldNameType  = ConstantType(StringConstant(fromFieldName))
-    val toFieldNameType    = ConstantType(StringConstant(toFieldName))
-    val fromFieldWrapped   = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
-    val toFieldWrapped     = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
-    val newSHType          = AndType(TypeRepr.of[SH], fromFieldWrapped)
-    val newTPType          = AndType(TypeRepr.of[TP], toFieldWrapped)
+    val fromFieldName     = extractFieldNameFromTerm(from.asTerm)
+    val toFieldName       = extractFieldNameFromTerm(to.asTerm)
+    val fromFieldNameType = ConstantType(StringConstant(fromFieldName))
+    val toFieldNameType   = ConstantType(StringConstant(toFieldName))
+    val fromFieldWrapped  = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
+    val toFieldWrapped    = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
+    val newSHType         = AndType(TypeRepr.of[SH], fromFieldWrapped)
+    val newTPType         = AndType(TypeRepr.of[TP], toFieldWrapped)
 
     (newSHType.asType, newTPType.asType) match {
       case ('[newSh], '[newTp]) =>
