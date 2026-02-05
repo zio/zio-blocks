@@ -1,12 +1,20 @@
 package typeclassderivation
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.*
 import zio.blocks.schema.DynamicValue.Null
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
 
-object DeriveShowApproachOne extends App {
+/**
+ * Implementation of Deriver to derive Show type-class instances for various
+ * schema types.
+ *
+ * Note: Implementation of all schema types would be lazy, and they will be
+ * forced later when the Show instance of that type is actually needed.
+ */
+object DeriveShowExample extends App {
   trait Show[A] {
     def show(value: A): String
   }
@@ -21,12 +29,8 @@ object DeriveShowApproachOne extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    ): Lazy[Show[A]] = {
-      println(s"  [derivePrimitive] Creating Lazy[Show[${typeId.name}]] (not yet evaluated)")
-      println(s"    - PrimitiveType: ${primitiveType.getClass.getSimpleName}")
-      println(s"    - This Lazy will be forced later when the Show instance is actually needed")
+    ): Lazy[Show[A]] =
       Lazy {
-        println(s"  [derivePrimitive] NOW EVALUATING: Creating Show instance for primitive type: ${typeId.name}")
         new Show[A] {
           def show(value: A): String = primitiveType match {
             case _: PrimitiveType.String => "\"" + value + "\""
@@ -35,7 +39,6 @@ object DeriveShowApproachOne extends App {
           }
         }
       }
-    }
 
     override def deriveRecord[F[_, _], A](
       fields: IndexedSeq[Term[F, A, ?]],
@@ -45,22 +48,14 @@ object DeriveShowApproachOne extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = {
-      println(s"  [deriveRecord] Creating Lazy[Show[${typeId.name}]] (not yet evaluated)")
-      println(s"    - Number of fields: ${fields.size}")
-      println(s"    - Field names: ${fields.map(_.name).mkString(", ")}")
-      println(s"    - This Lazy will be forced later when the Show instance is actually needed")
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] =
       Lazy {
-        println(s"  [deriveRecord] NOW EVALUATING: Creating Show instance for record type: ${typeId.name}")
-
-        // Get Show instances for all fields LAZILY
-        println(s"    Step 1: Collecting Lazy[Show] instances for each field...")
+        // Collecting Lazy[Show] instances for each field from the transformed metadata
         val fieldShowInstances: IndexedSeq[(String, Lazy[Show[Any]])] = fields.map { field =>
           val fieldName = field.name
-          println(s"      - Getting Lazy[Show] for field '$fieldName' from transformed metadata")
-          println(s"        (This retrieves the Lazy[Show] that was created during transformation)")
+          // Get the Lazy[Show] instance for this field's type, but we won't force it yet
+          // We'll force it later when we actually need to show a value of this field
           val fieldShowInstance = D.instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]]
-          println(s"        Got Lazy[Show] for '$fieldName' (not yet forced)")
           (fieldName, fieldShowInstance)
         }
 
@@ -71,40 +66,29 @@ object DeriveShowApproachOne extends App {
         val recordBinding = binding.asInstanceOf[Binding.Record[A]]
 
         // Build a Reflect.Record to get access to the computed registers for each field
-        println(s"    Step 2: Building Reflect.Record to compute register layout...")
         val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
-        println(s"    Step 3: Register layout computed. UsedRegisters: ${recordReflect.usedRegisters}")
 
-        println(s"  [deriveRecord] Show instance for '${typeId.name}' created (field Show instances still lazy)")
         new Show[A] {
           def show(value: A): String = {
-            println(s"    [Show.show] Called for ${typeId.name} value")
 
             // Create registers with space for all used registers to hold deconstructed field values
             val registers = Registers(recordReflect.usedRegisters)
-            println(s"      Step A: Created registers for deconstruction")
 
             // Deconstruct field values of the record into the registers
             recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-            println(s"      Step B: Deconstructed record into registers")
 
             // Build string representations for all fields
-            println(s"      Step C: Building field strings (will force Lazy[Show] for each field)...")
             val fieldStrings = fields.indices.map { i =>
               val (fieldName, showInstanceLazy) = fieldShowInstances(i)
               val fieldValue                    = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
-              println(s"        - Field '$fieldName': forcing Lazy[Show] and calling show($fieldValue)")
-              val result = s"$fieldName = ${showInstanceLazy.force.show(fieldValue)}"
-              println(s"        - Field '$fieldName' result: $result")
+              val result                        = s"$fieldName = ${showInstanceLazy.force.show(fieldValue)}"
               result
             }
 
             s"${typeId.name}(${fieldStrings.mkString(", ")})"
           }
         }
-
       }
-    }
 
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
@@ -293,120 +277,96 @@ object DeriveShowApproachOne extends App {
   printHeader("Example 1: Simple Person Record with two primitive fields")
 
   case class Person(name: String, age: Int)
+  
+  object Person {
+    implicit val schema: Schema[Person] = Schema.derived[Person]
+    implicit val show: Show[Person]     = schema.derive(DeriveShow)
+  }
 
-  printSection("PHASE 1: Schema Definition")
-  println("Creating Schema[Person] via Schema.derived[Person]")
-  println("This uses compile-time macros to generate a Reflect.Record structure")
-  println()
+  println(Person.show.show(Person("Alice", 30)))
 
-  val personSchema: Schema[Person] = Schema.derived[Person]
+  /**
+   * Example 2: Simple Shape Variant (Circle, Rectangle)
+   */
+  printHeader("Example 2: Simple Shape Variant (Circle, Rectangle)")
+  sealed trait Shape
+  case class Circle(radius: Double)                   extends Shape
+  case class Rectangle(width: Double, height: Double) extends Shape
 
-  println("Schema created: " + personSchema)
-  println()
+  object Shape {
+    implicit val schema: Schema[Shape] = Schema.derived[Shape]
+    implicit val show: Show[Shape]     = schema.derive(DeriveShow)
+  }
 
-  printSection("PHASE 2: Type-Class Derivation (schema.derive(DeriveShow))")
-  println("This is where the magic happens!")
-  println("The framework will:")
-  println("  1. Transform the schema tree, wrapping each node's Binding with BindingInstance")
-  println("  2. Create Lazy[Show[T]] instances for each schema node")
-  println("  3. Return the top-level Show[Person] instance")
-  println()
+  val shape1: Shape = Circle(5.0)
+  val shape2: Shape = Rectangle(4.0, 6.0)
+  println(Shape.show.show(shape1))
+  println(Shape.show.show(shape2))
 
-  val personShow: Show[Person] = personSchema.derive(DeriveShow)
+  /**
+   * Example 3: Recursive Tree and Expr
+   */
+  printHeader("Example 3: Recursive Tree")
+  case class Tree(value: Int, children: List[Tree])
+  object Tree {
+    implicit val schema: Schema[Tree] = Schema.derived[Tree]
+    implicit val show: Show[Tree]     = schema.derive(DeriveShow)
+  }
 
-  printSection("PHASE 3: Using the Derived Show Instance")
-  println("Now calling personShow.show(Person(\"Alice\", 30))")
-  println("This will force the Lazy[Show] instances as needed...")
-  println()
+  val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
+  println(Tree.show.show(tree))
 
-  val result = personShow.show(Person("Alice", 30))
-  println()
-  println("=" * 60)
-  println("FINAL RESULT: " + result)
-  println("=" * 60)
+  /**
+   * Example 4: Recursive Sealed Trait (Expr)
+   */
+  printHeader("Example 4: Recursive Sealed Trait (Expr)")
+  sealed trait Expr
+  case class Num(n: Int)           extends Expr
+  case class Add(a: Expr, b: Expr) extends Expr
 
-//  /**
-//   * Example 2: Simple Shape Variant (Circle, Rectangle)
-//   */
-//  printHeader("Example 2: Simple Shape Variant (Circle, Rectangle)")
-//  sealed trait Shape
-//  case class Circle(radius: Double)                   extends Shape
-//  case class Rectangle(width: Double, height: Double) extends Shape
-//
-//  object Shape {
-//    implicit val schema: Schema[Shape] = Schema.derived[Shape]
-//    implicit val show: Show[Shape]     = schema.derive(DeriveShow)
-//  }
-//
-//  val shape1: Shape = Circle(5.0)
-//  val shape2: Shape = Rectangle(4.0, 6.0)
-//  println(Shape.show.show(shape1))
-//  println(Shape.show.show(shape2))
-//
-//  /**
-//   * Example 3: Recursive Tree and Expr
-//   */
-//  printHeader("Example 3: Recursive Tree")
-//  case class Tree(value: Int, children: List[Tree])
-//  object Tree {
-//    implicit val schema: Schema[Tree] = Schema.derived[Tree]
-//    implicit val show: Show[Tree]     = schema.derive(DeriveShow)
-//  }
-//
-//  val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
-//  println(Tree.show.show(tree))
-//
-//  /**
-//   * Example 4: Recursive Sealed Trait (Expr)
-//   */
-//  printHeader("Example 4: Recursive Sealed Trait (Expr)")
-//  sealed trait Expr
-//  case class Num(n: Int)           extends Expr
-//  case class Add(a: Expr, b: Expr) extends Expr
-//
-//  object Expr {
-//    implicit val schema: Schema[Expr] = Schema.derived[Expr]
-//    implicit val show: Show[Expr]     = schema.derive(DeriveShow)
-//  }
-//
-//  val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
-//  println(Expr.show.show(expr))
-//
-//  /**
-//   * Example 5: DynamicValue Example
-//   */
-//  printHeader("Example 5: DynamicValue Example")
-//  implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
-//
-//  val manualRecord = DynamicValue.Record(
-//    Chunk(
-//      "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
-//      "title" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")),
-//      "tags"  -> DynamicValue.Sequence(
-//        Chunk(
-//          DynamicValue.Primitive(PrimitiveValue.String("scala")),
-//          DynamicValue.Primitive(PrimitiveValue.String("zio"))
-//        )
-//      )
-//    )
-//  )
-//
-//  println(dynamicShow.show(manualRecord))
-//
-//  /**
-//   * Example 6: Simple Email Wrapper Type
-//   */
-//  printHeader("Example 6: Simple Email Wrapper Type")
-//  case class Email(value: String)
-//  object Email {
-//    implicit val schema: Schema[Email] = Schema[String].transform(
-//      Email(_),
-//      _.value
-//    )
-//    implicit val show: Show[Email] = schema.derive(DeriveShow)
-//  }
-//
-//  val email = Email("alice@example.com")
-//  println(s"Email: ${Email.show.show(email)}")
+  object Expr {
+    implicit val schema: Schema[Expr] = Schema.derived[Expr]
+    implicit val show: Show[Expr]     = schema.derive(DeriveShow)
+  }
+
+  val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
+  println(Expr.show.show(expr))
+
+  /**
+   * Example 5: DynamicValue Example
+   */
+  printHeader("Example 5: DynamicValue Example")
+  implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
+
+  val manualRecord = DynamicValue.Record(
+    Chunk(
+      "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
+      "title" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")),
+      "tags"  -> DynamicValue.Sequence(
+        Chunk(
+          DynamicValue.Primitive(PrimitiveValue.String("scala")),
+          DynamicValue.Primitive(PrimitiveValue.String("zio"))
+        )
+      )
+    )
+  )
+
+  println(dynamicShow.show(manualRecord))
+
+  /**
+   * Example 6: Simple Email Wrapper Type
+   */
+  printHeader("Example 6: Simple Email Wrapper Type")
+  case class Email(value: String)
+  object Email {
+    implicit val schema: Schema[Email] = Schema[String].transform(
+      Email(_),
+      _.value
+    )
+    implicit val show: Show[Email] = schema.derive(DeriveShow)
+  }
+
+  val email = Email("alice@example.com")
+  println(s"Email: ${Email.show.show(email)}")
 
 }
