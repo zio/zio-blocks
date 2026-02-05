@@ -518,7 +518,7 @@ The derivation process for variants is similar to records, but instead of fields
 
 Finally, we extract the corresponding type class instance for that case by applying the case index to the indexed sequence of type class instances. Now we have the correct type class instance for the specific case, wrapped in a `Lazy` data type. We force the lazy wrapper to retrieve the actual type class instance, and then we call the `show` method on that case value to get the string representation.
 
-### Sequence
+### Sequence Derivation
 
 When the derivation process encounters a sequence type (e.g., `List[A]`), it calls the `deriveSequence` method of the `Deriver`. This method receives a `Reflect[F, A]` representing the element type of the sequence, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
 
@@ -551,7 +551,7 @@ def deriveSequence[F[_, _], C[_], A](
 
 The derivation process for sequences is straightforward. We extract the type class instance for the element type, and at runtime we use the deconstructor to iterate over the elements of the sequence. For each element, we force the `Lazy[Show[A]]` instance to get the actual `Show[A]` instance, and then call `show` on each element to get its string representation. Finally, we combine all element representations into a single string that represents the entire sequence.
 
-### Map
+### Map Derivation
 
 When the derivation process encounters a map type (e.g., `Map[K, V]`), it calls the `deriveMap` method of the `Deriver`. This method receives `Reflect[F, K]` and `Reflect[F, V]` representing the key and value types of the map, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
 
@@ -591,6 +591,84 @@ def deriveMap[F[_, _], M[_, _], K, V](
 ```
 
 The derivation process for maps is similar to sequences, but we have to handle both keys and values. We extract the type class instances for the key and value types, and at runtime we use the deconstructor to iterate over the key-value pairs of the map. For each pair, we force the `Lazy[Show[K]]` and `Lazy[Show[V]]` instances to get the actual `Show[K]` and `Show[V]` instances, and then call `show` on both the key and value to get their string representations. Finally, we combine all entries into a single string that represents the entire map.
+
+### Dynamic Derivation
+
+When the derivation process encounters a dynamic type (e.g., `DynamicValue`), it calls the `deriveDynamic` method of the `Deriver`. This method receives a `Binding[BindingType.Dynamic, DynamicValue]` representing the dynamic type, along with other metadata such as documentation, modifiers, default values, and examples:
+```scala
+def deriveDynamic[F[_, _]](
+  binding: Binding[BindingType.Dynamic, DynamicValue],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[DynamicValue],
+  examples: Seq[DynamicValue]
+)(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[DynamicValue]] = Lazy {
+  new Show[DynamicValue] {
+    def show(value: DynamicValue): String =
+      value match {
+        case DynamicValue.Primitive(pv) =>
+          value.toString
+        case DynamicValue.Record(fields) =>
+          val fieldStrings = fields.map { case (name, v) =>
+            s"$name = ${show(v)}"
+          }
+          s"Record(${fieldStrings.mkString(", ")})"
+        case DynamicValue.Variant(caseName, v) =>
+          s"$caseName(${show(v)})"
+        case DynamicValue.Sequence(elements) =>
+          val elemStrings = elements.map(show)
+          s"[${elemStrings.mkString(", ")}]"
+        case DynamicValue.Map(entries) =>
+          val entryStrings = entries.map { case (k, v) =>
+            s"${show(k)} -> ${show(v)}"
+          }
+          s"Map(${entryStrings.mkString(", ")})"
+        case Null =>
+          "null"
+      }
+  }
+}
+```
+
+The derivation process for dynamic types is more complex because the data structure is not known at compile time. Instead, we must handle different cases based on the runtime type of `DynamicValue` using pattern matching. For each subtype: `Primitive` values are converted via `toString`, `Record` fields are recursively shown, `Variant` cases display the name and contained value, `Sequence` elements are shown in bracket notation, `Map` entries are displayed as key-value pairs, and `Null` returns the string "null".
+
+### Wrapper Derivation
+
+When the derivation process encounters a wrapper type (e.g., a value class, opaque type, or any type that wraps another type), it calls the `deriveWrapper` method of the `Deriver`. This method receives a `Reflect[F, B]` representing the wrapped (underlying) type, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
+
+```scala
+def deriveWrapper[F[_, _], A, B](
+  wrapped: Reflect[F, B],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Wrapper[A, B], A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+)(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
+  // Get Show instance for the wrapped (underlying) type B LAZILY
+  val wrappedShowLazy: Lazy[Show[B]] = D.instance(wrapped.metadata)
+
+  // Cast binding to Binding.Wrapper to access unwrap function
+  val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+
+  new Show[A] {
+    def show(value: A): String =
+      // Unwrap returns Either[SchemaError, B] now
+      wrapperBinding.unwrap(value) match {
+        case Right(unwrapped) =>
+          // Show the underlying value with the wrapper type name
+          // Force the wrapped Show instance only when actually showing
+          s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
+        case Left(error) =>
+          // Handle unwrap failure - show error information
+          s"${typeId.name}(<unwrap failed: ${error.message}>)"
+      }
+  }
+}
+```
+
+The derivation process for wrapper types involves unwrapping the value to access the underlying type. We extract the type class instance for the wrapped type, and at runtime we use the `unwrap` function from the binding to get the underlying value. If unwrapping is successful, we show the underlying value using its type class instance. If unwrapping fails, we handle the error case accordingly (e.g., by returning an error message).
 
 ## Derivation Process Overview including Internal Mechanics
 
