@@ -86,6 +86,14 @@ object PathMacros {
 
       case Node.Wrapped =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.Wrapped"
+
+      case Node.TypeSearch(typeId) =>
+        val typeIdTree = buildTypeIdExpr(c)(typeId)
+        q"_root_.zio.blocks.schema.DynamicOptic.Node.TypeSearch($typeIdTree)"
+
+      case Node.SchemaSearch(schemaRepr) =>
+        val schemaReprTree = buildSchemaReprExpr(c)(schemaRepr)
+        q"_root_.zio.blocks.schema.DynamicOptic.Node.SchemaSearch($schemaReprTree)"
     }
   }
 
@@ -120,6 +128,57 @@ object PathMacros {
 
       case _ =>
         c.abort(c.enclosingPosition, s"Unsupported PrimitiveValue type: ${pv.getClass.getName}")
+    }
+  }
+
+  private def buildTypeIdExpr(c: blackbox.Context)(typeId: zio.blocks.typeid.TypeId[?]): c.Tree = {
+    // TypeSearch nodes in path interpolators are not supported at compile time
+    // They would need to reference a runtime TypeId value
+    c.abort(
+      c.enclosingPosition,
+      "TypeSearch is not supported in path interpolators. Use SchemaSearch via #TypeName syntax instead."
+    )
+  }
+
+  private def buildSchemaReprExpr(c: blackbox.Context)(repr: SchemaRepr): c.Tree = {
+    import c.universe._
+
+    repr match {
+      case SchemaRepr.Nominal(name) =>
+        q"_root_.zio.blocks.schema.SchemaRepr.Nominal($name)"
+
+      case SchemaRepr.Primitive(name) =>
+        q"_root_.zio.blocks.schema.SchemaRepr.Primitive($name)"
+
+      case SchemaRepr.Record(fields) =>
+        val fieldTrees = fields.map { case (name, fieldRepr) =>
+          val reprTree = buildSchemaReprExpr(c)(fieldRepr)
+          q"($name, $reprTree)"
+        }
+        q"_root_.zio.blocks.schema.SchemaRepr.Record(_root_.scala.Vector(..$fieldTrees))"
+
+      case SchemaRepr.Variant(cases) =>
+        val caseTrees = cases.map { case (name, caseRepr) =>
+          val reprTree = buildSchemaReprExpr(c)(caseRepr)
+          q"($name, $reprTree)"
+        }
+        q"_root_.zio.blocks.schema.SchemaRepr.Variant(_root_.scala.Vector(..$caseTrees))"
+
+      case SchemaRepr.Sequence(element) =>
+        val elementTree = buildSchemaReprExpr(c)(element)
+        q"_root_.zio.blocks.schema.SchemaRepr.Sequence($elementTree)"
+
+      case SchemaRepr.Map(key, value) =>
+        val keyTree   = buildSchemaReprExpr(c)(key)
+        val valueTree = buildSchemaReprExpr(c)(value)
+        q"_root_.zio.blocks.schema.SchemaRepr.Map($keyTree, $valueTree)"
+
+      case SchemaRepr.Optional(inner) =>
+        val innerTree = buildSchemaReprExpr(c)(inner)
+        q"_root_.zio.blocks.schema.SchemaRepr.Optional($innerTree)"
+
+      case SchemaRepr.Wildcard =>
+        q"_root_.zio.blocks.schema.SchemaRepr.Wildcard"
     }
   }
 }

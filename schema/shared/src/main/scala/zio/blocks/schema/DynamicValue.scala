@@ -871,6 +871,14 @@ object DynamicValue {
 
         case DynamicOptic.Node.Wrapped =>
           current
+
+        case _: DynamicOptic.Node.TypeSearch =>
+          // TypeSearch requires Schema context - not supported in untyped DynamicValue operations
+          Chunk.empty
+
+        case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+          // SchemaSearch uses iterative stack-based depth-first traversal to find all matching values
+          current.flatMap(dv => schemaSearchCollect(dv, schemaRepr))
       }
       idx += 1
     }
@@ -1041,6 +1049,14 @@ object DynamicValue {
 
       case DynamicOptic.Node.Wrapped =>
         modifyAtPathImpl(dv, nodes, idx + 1, f)
+
+      case _: DynamicOptic.Node.TypeSearch =>
+        // TypeSearch requires Schema context - not supported in untyped operations
+        None
+
+      case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+        // SchemaSearch traversal: find all matches and apply modification to each
+        schemaSearchModify(dv, schemaRepr, nodes, idx, f)
     }
   }
 
@@ -1259,6 +1275,14 @@ object DynamicValue {
 
       case DynamicOptic.Node.Wrapped =>
         deleteAtPathImpl(dv, nodes, idx + 1)
+
+      case _: DynamicOptic.Node.TypeSearch =>
+        // TypeSearch requires Schema context - not supported in untyped operations
+        None
+
+      case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+        // SchemaSearch traversal: find all matches and apply deletion to each
+        schemaSearchDelete(dv, schemaRepr, nodes, idx)
     }
   }
 
@@ -1267,6 +1291,349 @@ object DynamicValue {
     path: DynamicOptic
   ): Either[SchemaError, DynamicValue] =
     deleteAtPath(dv, path).toRight(SchemaError.message("Path not found", path))
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Iterative stack-based depth-first traversal to collect all values matching a SchemaRepr pattern.
+   * Order is depth-first, left-to-right (children are pushed in reverse order).
+   * The root value itself is included if it matches the pattern.
+   */
+  private def schemaSearchCollect(root: DynamicValue, pattern: SchemaRepr): Chunk[DynamicValue] = {
+    // Use a mutable list stack for iteration (avoids recursion stack overflow)
+    var stack: List[DynamicValue]                             = List(root)
+    val results: scala.collection.mutable.ArrayBuffer[DynamicValue] = scala.collection.mutable.ArrayBuffer.empty
+
+    while (stack.nonEmpty) {
+      val current = stack.head
+      stack = stack.tail
+
+      // Check if current matches the pattern
+      if (SchemaMatch.matches(pattern, current)) {
+        results += current
+      }
+
+      // Push children onto stack - first child should be at top for left-to-right DFS
+      current match {
+        case r: Record =>
+          // First field's value goes to top of stack, processed first
+          stack = r.fields.iterator.map(_._2).toList ++ stack
+        case v: Variant =>
+          stack = v.value :: stack
+        case s: Sequence =>
+          // First element goes to top of stack, processed first
+          stack = s.elements.iterator.toList ++ stack
+        case m: Map =>
+          // Only traverse values (not keys), first entry's value processed first
+          stack = m.entries.iterator.map(_._2).toList ++ stack
+        case _: Primitive | Null =>
+          // Primitives and Null have no children
+          ()
+      }
+    }
+
+    Chunk.from(results)
+  }
+
+  /**
+   * Modifies all values matching a SchemaRepr pattern and continues with remaining path nodes.
+   * Uses recursive approach that traverses the entire structure, applying modifications
+   * to matching values.
+   */
+  private def schemaSearchModify(
+    dv: DynamicValue,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    idx: Int,
+    f: DynamicValue => DynamicValue
+  ): Option[DynamicValue] = {
+    var found = false
+
+    def modifyMatching(value: DynamicValue): DynamicValue = {
+      // First check if this value matches
+      val afterSelf = if (SchemaMatch.matches(pattern, value)) {
+        // Apply remaining path and modification
+        modifyAtPathImpl(value, nodes, idx + 1, f) match {
+          case Some(modified) =>
+            found = true
+            modified
+          case None => value
+        }
+      } else {
+        value
+      }
+
+      // Then recurse into children (regardless of whether this value matched)
+      afterSelf match {
+        case r: Record =>
+          val newFields = r.fields.map { case (name, v) =>
+            val modified = modifyMatching(v)
+            (name, modified)
+          }
+          if (newFields == r.fields) afterSelf else Record(newFields)
+
+        case v: Variant =>
+          val modifiedPayload = modifyMatching(v.value)
+          if (modifiedPayload eq v.value) afterSelf else Variant(v.caseNameValue, modifiedPayload)
+
+        case s: Sequence =>
+          val newElems = s.elements.map(modifyMatching)
+          if (newElems == s.elements) afterSelf else Sequence(newElems)
+
+        case m: Map =>
+          val newEntries = m.entries.map { case (k, v) =>
+            val modifiedValue = modifyMatching(v)
+            (k, modifiedValue)
+          }
+          if (newEntries == m.entries) afterSelf else Map(newEntries)
+
+        case _ =>
+          // Primitives and Null have no children
+          afterSelf
+      }
+    }
+
+    val result = modifyMatching(dv)
+    if (found) Some(result) else None
+  }
+
+  /**
+   * Deletes all values matching a SchemaRepr pattern and continues with remaining path nodes.
+   * If SchemaSearch is the last node, matching values are removed from their containers.
+   * Otherwise, deletion continues recursively through matching values.
+   */
+  private def schemaSearchDelete(
+    dv: DynamicValue,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    idx: Int
+  ): Option[DynamicValue] = {
+    val isLast = idx == nodes.length - 1
+    var found  = false
+
+    def deleteMatching(value: DynamicValue): Option[DynamicValue] =
+      if (isLast) {
+        // SchemaSearch is the last node - we delete matching values
+        // This is called from the parent, so we return None to signal deletion
+        value match {
+          case r: Record =>
+            val newFields = r.fields.flatMap { case (name, v) =>
+              if (SchemaMatch.matches(pattern, v)) {
+                found = true
+                Chunk.empty
+              } else {
+                deleteMatching(v) match {
+                  case Some(modified) => Chunk((name, modified))
+                  case None           => Chunk((name, v))
+                }
+              }
+            }
+            if (found || newFields != r.fields) Some(Record(newFields)) else None
+
+          case v: Variant =>
+            if (SchemaMatch.matches(pattern, v.value)) {
+              // Cannot delete variant payload - replace with empty record
+              found = true
+              Some(Variant(v.caseNameValue, Record.empty))
+            } else {
+              deleteMatching(v.value).map(modified => Variant(v.caseNameValue, modified))
+            }
+
+          case s: Sequence =>
+            val newElems = s.elements.flatMap { e =>
+              if (SchemaMatch.matches(pattern, e)) {
+                found = true
+                Chunk.empty
+              } else {
+                deleteMatching(e) match {
+                  case Some(modified) => Chunk(modified)
+                  case None           => Chunk(e)
+                }
+              }
+            }
+            if (found || newElems != s.elements) Some(Sequence(newElems)) else None
+
+          case m: Map =>
+            val newEntries = m.entries.flatMap { case (k, v) =>
+              if (SchemaMatch.matches(pattern, v)) {
+                found = true
+                Chunk.empty
+              } else {
+                deleteMatching(v) match {
+                  case Some(modified) => Chunk((k, modified))
+                  case None           => Chunk((k, v))
+                }
+              }
+            }
+            if (found || newEntries != m.entries) Some(Map(newEntries)) else None
+
+          case _ =>
+            // Primitives and Null: no children to delete from
+            None
+        }
+      } else {
+        // SchemaSearch is not the last node - continue with remaining path
+        def processValue(v: DynamicValue): Option[DynamicValue] =
+          if (SchemaMatch.matches(pattern, v)) {
+            deleteAtPathImpl(v, nodes, idx + 1) match {
+              case Some(modified) =>
+                found = true
+                Some(modified)
+              case None => None
+            }
+          } else {
+            None
+          }
+
+        value match {
+          case r: Record =>
+            val newFields = r.fields.map { case (name, v) =>
+              val selfResult    = processValue(v)
+              val childResult   = deleteMatchingRecurse(v)
+              val combinedOpt   = selfResult.orElse(childResult)
+              combinedOpt match {
+                case Some(modified) => (name, modified)
+                case None           => (name, v)
+              }
+            }
+            if (found) Some(Record(newFields)) else None
+
+          case v: Variant =>
+            val selfResult  = processValue(v.value)
+            val childResult = deleteMatchingRecurse(v.value)
+            val combinedOpt = selfResult.orElse(childResult)
+            combinedOpt.map(modified => Variant(v.caseNameValue, modified))
+
+          case s: Sequence =>
+            val newElems = s.elements.map { e =>
+              val selfResult    = processValue(e)
+              val childResult   = deleteMatchingRecurse(e)
+              val combinedOpt   = selfResult.orElse(childResult)
+              combinedOpt.getOrElse(e)
+            }
+            if (found) Some(Sequence(newElems)) else None
+
+          case m: Map =>
+            val newEntries = m.entries.map { case (k, v) =>
+              val selfResult    = processValue(v)
+              val childResult   = deleteMatchingRecurse(v)
+              val combinedOpt   = selfResult.orElse(childResult)
+              combinedOpt match {
+                case Some(modified) => (k, modified)
+                case None           => (k, v)
+              }
+            }
+            if (found) Some(Map(newEntries)) else None
+
+          case _ =>
+            // Primitives and Null: check self only
+            processValue(value)
+        }
+      }
+
+    def deleteMatchingRecurse(value: DynamicValue): Option[DynamicValue] =
+      value match {
+        case r: Record =>
+          var localFound = false
+          val newFields  = r.fields.map { case (name, v) =>
+            val selfResult = if (SchemaMatch.matches(pattern, v)) {
+              deleteAtPathImpl(v, nodes, idx + 1) match {
+                case Some(modified) =>
+                  found = true
+                  localFound = true
+                  Some(modified)
+                case None => None
+              }
+            } else None
+
+            val childResult = deleteMatchingRecurse(v)
+            val combinedOpt = selfResult.orElse(childResult)
+            combinedOpt match {
+              case Some(modified) => (name, modified)
+              case None           => (name, v)
+            }
+          }
+          if (localFound || found) Some(Record(newFields)) else None
+
+        case v: Variant =>
+          val selfResult = if (SchemaMatch.matches(pattern, v.value)) {
+            deleteAtPathImpl(v.value, nodes, idx + 1) match {
+              case Some(modified) =>
+                found = true
+                Some(modified)
+              case None => None
+            }
+          } else None
+
+          val childResult = deleteMatchingRecurse(v.value)
+          val combinedOpt = selfResult.orElse(childResult)
+          combinedOpt.map(modified => Variant(v.caseNameValue, modified))
+
+        case s: Sequence =>
+          var localFound = false
+          val newElems   = s.elements.map { e =>
+            val selfResult = if (SchemaMatch.matches(pattern, e)) {
+              deleteAtPathImpl(e, nodes, idx + 1) match {
+                case Some(modified) =>
+                  found = true
+                  localFound = true
+                  Some(modified)
+                case None => None
+              }
+            } else None
+
+            val childResult = deleteMatchingRecurse(e)
+            val combinedOpt = selfResult.orElse(childResult)
+            combinedOpt.getOrElse(e)
+          }
+          if (localFound || found) Some(Sequence(newElems)) else None
+
+        case m: Map =>
+          var localFound = false
+          val newEntries = m.entries.map { case (k, v) =>
+            val selfResult = if (SchemaMatch.matches(pattern, v)) {
+              deleteAtPathImpl(v, nodes, idx + 1) match {
+                case Some(modified) =>
+                  found = true
+                  localFound = true
+                  Some(modified)
+                case None => None
+              }
+            } else None
+
+            val childResult = deleteMatchingRecurse(v)
+            val combinedOpt = selfResult.orElse(childResult)
+            combinedOpt match {
+              case Some(modified) => (k, modified)
+              case None           => (k, v)
+            }
+          }
+          if (localFound || found) Some(Map(newEntries)) else None
+
+        case _ =>
+          // Primitives and Null: no children
+          None
+      }
+
+    // Check if root matches pattern first
+    if (SchemaMatch.matches(pattern, dv)) {
+      if (isLast) {
+        // Root matches and SchemaSearch is last - but we can't delete root from itself
+        // Delegate to children
+        deleteMatching(dv)
+      } else {
+        // Root matches - apply remaining path
+        deleteAtPathImpl(dv, nodes, idx + 1) match {
+          case Some(modified) => Some(modified)
+          case None           => deleteMatching(dv)
+        }
+      }
+    } else {
+      deleteMatching(dv)
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Insert Implementation

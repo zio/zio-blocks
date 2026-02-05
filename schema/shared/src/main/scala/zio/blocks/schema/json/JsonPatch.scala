@@ -245,6 +245,12 @@ object JsonPatch {
         new Left(SchemaError.expectationMismatch(trace, "MapKeys not supported in patches"))
       case DynamicOptic.Node.MapValues =>
         new Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
+      case _: DynamicOptic.Node.TypeSearch =>
+        new Left(
+          SchemaError.expectationMismatch(trace, "TypeSearch requires Schema context, not supported for JSON patches")
+        )
+      case _: DynamicOptic.Node.SchemaSearch =>
+        new Left(SchemaError.expectationMismatch(trace, "SchemaSearch not yet implemented for JSON patches"))
     }
   }
 

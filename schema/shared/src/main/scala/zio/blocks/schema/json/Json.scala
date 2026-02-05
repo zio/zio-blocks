@@ -1,7 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema, SchemaError, SchemaRepr}
 import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -1606,6 +1606,10 @@ object Json {
             case _ => ()
           }
           results.result()
+        case _: DynamicOptic.Node.TypeSearch =>
+          return JsonSelection.fail(SchemaError("TypeSearch requires Schema context, not supported for raw JSON"))
+        case search: DynamicOptic.Node.SchemaSearch =>
+          schemaSearchCollectJson(jsons, search.schemaRepr)
         case _ => // Case and Wrapped are not applicable to raw JSON
           jsons
       }
@@ -1753,6 +1757,10 @@ object Json {
         }
       case _: DynamicOptic.Node.MapKeys.type =>
         None // Cannot modify map keys in JSON (keys are strings, not values)
+      case _: DynamicOptic.Node.TypeSearch =>
+        None // TypeSearch requires Schema context
+      case search: DynamicOptic.Node.SchemaSearch =>
+        schemaSearchModifyJson(json, search.schemaRepr, nodes, nodeIdx, f)
       case _ =>
         modifyAtPathRecursive(json, nodes, nodeIdx + 1, f) // Case and Wrapped pass through for JSON
     }
@@ -1930,6 +1938,10 @@ object Json {
             })
           case _ => None
         }
+      case _: DynamicOptic.Node.TypeSearch =>
+        None // TypeSearch requires Schema context
+      case search: DynamicOptic.Node.SchemaSearch =>
+        schemaSearchDeleteJson(json, search.schemaRepr, nodes, idx)
       case _ => None // Other node types not supported for delete
     }
   }
@@ -2367,5 +2379,253 @@ object Json {
     }
 
     override def nullValue: Json = Null
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Iterative stack-based depth-first traversal to collect all JSON values matching a SchemaRepr pattern.
+   * Order is depth-first, left-to-right (children are pushed in reverse order).
+   * The root values themselves are included if they match the pattern.
+   */
+  private def schemaSearchCollectJson(roots: Chunk[Json], pattern: SchemaRepr): Chunk[Json] = {
+    // Use a mutable list stack for iteration (avoids recursion stack overflow)
+    var stack: List[Json]                                   = roots.iterator.toList
+    val results: scala.collection.mutable.ArrayBuffer[Json] = scala.collection.mutable.ArrayBuffer.empty
+
+    while (stack.nonEmpty) {
+      val current = stack.head
+      stack = stack.tail
+
+      // Check if current matches the pattern
+      if (JsonMatch.matches(pattern, current)) {
+        results += current
+      }
+
+      // Push children onto stack - first child should be at top for left-to-right DFS
+      current match {
+        case obj: Object =>
+          // First field's value goes to top of stack, processed first
+          stack = obj.value.iterator.map(_._2).toList ++ stack
+        case arr: Array =>
+          // First element goes to top of stack, processed first
+          stack = arr.value.iterator.toList ++ stack
+        case _ =>
+          // Primitives (String, Number, Boolean, Null) have no children
+          ()
+      }
+    }
+
+    Chunk.from(results)
+  }
+
+  /**
+   * Modifies all JSON values matching a SchemaRepr pattern and continues with remaining path nodes.
+   * Uses recursive approach that traverses the entire structure, applying modifications
+   * to matching values.
+   */
+  private def schemaSearchModifyJson(
+    json: Json,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    nodeIdx: Int,
+    f: Json => Json
+  ): Option[Json] = {
+    var found = false
+
+    def modifyMatching(value: Json): Json = {
+      // First check if this value matches
+      val afterSelf = if (JsonMatch.matches(pattern, value)) {
+        // Apply remaining path and modification
+        modifyAtPathRecursive(value, nodes, nodeIdx + 1, f) match {
+          case Some(modified) =>
+            found = true
+            modified
+          case None => value
+        }
+      } else {
+        value
+      }
+
+      // Then recurse into children (regardless of whether this value matched)
+      afterSelf match {
+        case obj: Object =>
+          val newFields = obj.value.map { case (name, v) =>
+            val modified = modifyMatching(v)
+            (name, modified)
+          }
+          if (newFields == obj.value) afterSelf else new Object(newFields)
+
+        case arr: Array =>
+          val newElems = arr.value.map(modifyMatching)
+          if (newElems == arr.value) afterSelf else new Array(newElems)
+
+        case _ =>
+          // Primitives (String, Number, Boolean, Null) have no children
+          afterSelf
+      }
+    }
+
+    val result = modifyMatching(json)
+    if (found) Some(result) else None
+  }
+
+  /**
+   * Deletes all JSON values matching a SchemaRepr pattern and continues with remaining path nodes.
+   * If SchemaSearch is the last node, matching values are removed from their containers.
+   * Otherwise, deletion continues recursively through matching values.
+   */
+  private def schemaSearchDeleteJson(
+    json: Json,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    nodeIdx: Int
+  ): Option[Json] = {
+    val isLast = nodeIdx == nodes.length - 1
+    var found  = false
+
+    def deleteMatching(value: Json): Option[Json] =
+      if (isLast) {
+        // SchemaSearch is the last node - we delete matching values
+        value match {
+          case obj: Object =>
+            val newFields = obj.value.flatMap { case (name, v) =>
+              if (JsonMatch.matches(pattern, v)) {
+                found = true
+                Chunk.empty
+              } else {
+                deleteMatching(v) match {
+                  case Some(modified) => Chunk((name, modified))
+                  case None           => Chunk((name, v))
+                }
+              }
+            }
+            if (found || newFields != obj.value) Some(new Object(newFields)) else None
+
+          case arr: Array =>
+            val newElems = arr.value.flatMap { e =>
+              if (JsonMatch.matches(pattern, e)) {
+                found = true
+                Chunk.empty
+              } else {
+                deleteMatching(e) match {
+                  case Some(modified) => Chunk(modified)
+                  case None           => Chunk(e)
+                }
+              }
+            }
+            if (found || newElems != arr.value) Some(new Array(newElems)) else None
+
+          case _ =>
+            // Primitives have no children to delete from
+            None
+        }
+      } else {
+        // SchemaSearch is not the last node - continue with remaining path
+        def processValue(v: Json): Option[Json] =
+          if (JsonMatch.matches(pattern, v)) {
+            deleteAtPathRecursive(v, nodes, nodeIdx + 1) match {
+              case Some(modified) =>
+                found = true
+                Some(modified)
+              case None => None
+            }
+          } else {
+            None
+          }
+
+        value match {
+          case obj: Object =>
+            val newFields = obj.value.map { case (name, v) =>
+              val selfResult    = processValue(v)
+              val childResult   = deleteMatchingRecurse(v)
+              val combinedOpt   = selfResult.orElse(childResult)
+              combinedOpt match {
+                case Some(modified) => (name, modified)
+                case None           => (name, v)
+              }
+            }
+            if (found) Some(new Object(newFields)) else None
+
+          case arr: Array =>
+            val newElems = arr.value.map { e =>
+              val selfResult    = processValue(e)
+              val childResult   = deleteMatchingRecurse(e)
+              val combinedOpt   = selfResult.orElse(childResult)
+              combinedOpt.getOrElse(e)
+            }
+            if (found) Some(new Array(newElems)) else None
+
+          case _ =>
+            // Primitives: check self only
+            processValue(value)
+        }
+      }
+
+    def deleteMatchingRecurse(value: Json): Option[Json] =
+      value match {
+        case obj: Object =>
+          var localFound = false
+          val newFields  = obj.value.map { case (name, v) =>
+            val selfResult = if (JsonMatch.matches(pattern, v)) {
+              deleteAtPathRecursive(v, nodes, nodeIdx + 1) match {
+                case Some(modified) =>
+                  found = true
+                  localFound = true
+                  Some(modified)
+                case None => None
+              }
+            } else None
+
+            val childResult = deleteMatchingRecurse(v)
+            val combinedOpt = selfResult.orElse(childResult)
+            combinedOpt match {
+              case Some(modified) => (name, modified)
+              case None           => (name, v)
+            }
+          }
+          if (localFound || found) Some(new Object(newFields)) else None
+
+        case arr: Array =>
+          var localFound = false
+          val newElems   = arr.value.map { e =>
+            val selfResult = if (JsonMatch.matches(pattern, e)) {
+              deleteAtPathRecursive(e, nodes, nodeIdx + 1) match {
+                case Some(modified) =>
+                  found = true
+                  localFound = true
+                  Some(modified)
+                case None => None
+              }
+            } else None
+
+            val childResult = deleteMatchingRecurse(e)
+            val combinedOpt = selfResult.orElse(childResult)
+            combinedOpt.getOrElse(e)
+          }
+          if (localFound || found) Some(new Array(newElems)) else None
+
+        case _ =>
+          // Primitives: no children to recurse into
+          None
+      }
+
+    // Check if root matches first
+    if (JsonMatch.matches(pattern, json)) {
+      if (isLast) {
+        deleteMatching(json)
+      } else {
+        deleteAtPathRecursive(json, nodes, nodeIdx + 1) match {
+          case Some(modified) =>
+            found = true
+            Some(modified)
+          case None => deleteMatching(json)
+        }
+      }
+    } else {
+      deleteMatching(json)
+    }
   }
 }

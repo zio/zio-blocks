@@ -8,6 +8,10 @@ import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
 
+// Test fixtures for TypeSearch and SchemaSearch tests
+case class PersonRecord(name: String, age: Int)
+case class RecursiveNode(value: String, children: List[RecursiveNode])
+
 object ReflectSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ReflectSpec")(
     suite("Reflect")(
@@ -873,6 +877,143 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(deferred1.asWrapperUnknown)(isNone) &&
         assert(deferred1.isWrapper)(equalTo(false)) &&
         assert(deferred1.typeId)(equalTo(TypeId.nominal[Any]("<deferred-cycle>", Owner.Root)))
+      }
+    ),
+    suite("Reflect.get with TypeSearch")(
+      test("TypeSearch finds direct type match at root") {
+        val intReflect = Reflect.int[Binding]
+        val optic      = DynamicOptic.root.search[Int]
+        assert(intReflect.get(optic))(isSome(equalTo(intReflect)))
+      },
+      test("TypeSearch finds field of matching type in Record") {
+        val optic = DynamicOptic.root.search[Int]
+        // tuple4Reflect is (Byte, Short, Int, Long), Int is at index 2
+        val result = tuple4Reflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("TypeSearch finds nested type in Record") {
+        // Create a nested structure: record containing record containing Int
+        val outerRecord = Schema.derived[(Boolean, (Int, String))].reflect
+        val optic       = DynamicOptic.root.search[Int]
+        val result      = outerRecord.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("TypeSearch finds case payload type in Variant") {
+        // eitherReflect is Either[Int, Long]
+        val optic  = DynamicOptic.root.search[Int]
+        val result = eitherReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("TypeSearch finds element type in Sequence") {
+        val listReflect = Reflect.list(Reflect.int[Binding])
+        val optic       = DynamicOptic.root.search[Int]
+        val result      = listReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("TypeSearch finds value type in Map") {
+        val mapReflect = Reflect.map(Reflect.string[Binding], Reflect.long[Binding])
+        val optic      = DynamicOptic.root.search[Long]
+        val result     = mapReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.long)))
+      },
+      test("TypeSearch finds key type in Map") {
+        val mapReflect = Reflect.map(Reflect.string[Binding], Reflect.long[Binding])
+        val optic      = DynamicOptic.root.search[String]
+        val result     = mapReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      },
+      test("TypeSearch finds wrapped type in Wrapper") {
+        val optic  = DynamicOptic.root.search[Long]
+        val result = wrapperReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.long)))
+      },
+      test("TypeSearch returns None for no matches") {
+        val optic  = DynamicOptic.root.search[Float]
+        val result = tuple4Reflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("TypeSearch handles recursive types without infinite loop") {
+        // Create a recursive structure using Deferred
+        lazy val recursiveSchema: Schema[RecursiveNode] = Schema.derived[RecursiveNode]
+        val optic  = DynamicOptic.root.search[String]
+        val result = recursiveSchema.reflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      },
+      test("TypeSearch with path composition: field then search") {
+        val outerRecord = Schema.derived[(Boolean, (Int, String))].reflect
+        val optic       = DynamicOptic.root.field("_2").search[String]
+        val result      = outerRecord.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      },
+      test("TypeSearch with path composition: search then field") {
+        // Search for a record type, then access a field within it
+        val nestedRecord = Schema.derived[(Int, (String, Long))].reflect
+        // The inner (String, Long) tuple's field _1 is String
+        val tupleTypeId = TypeId.of[(String, Long)]
+        val optic       = DynamicOptic.root.search(tupleTypeId).field("_1")
+        val result      = nestedRecord.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      }
+    ),
+    suite("Reflect.get with SchemaSearch")(
+      test("SchemaSearch with Wildcard matches root") {
+        val intReflect = Reflect.int[Binding]
+        val optic      = DynamicOptic.root.searchSchema(SchemaRepr.Wildcard)
+        assert(intReflect.get(optic))(isSome(equalTo(intReflect)))
+      },
+      test("SchemaSearch with Primitive pattern matches primitive type") {
+        val optic  = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = tuple4Reflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("SchemaSearch with Primitive pattern is case-insensitive") {
+        val optic  = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("INT"))
+        val result = tuple4Reflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("SchemaSearch with Nominal pattern matches by type name") {
+        val optic  = DynamicOptic.root.searchSchema(SchemaRepr.Nominal("Int"))
+        val result = tuple4Reflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("SchemaSearch with Record pattern using subset matching") {
+        // Create a record with name: String and age: Int
+        val personSchema = Schema.derived[PersonRecord]
+        val pattern      = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("string"))))
+        val optic        = DynamicOptic.root.searchSchema(pattern)
+        val result       = personSchema.reflect.get(optic)
+        assert(result.isDefined)(isTrue)
+      },
+      test("SchemaSearch with Sequence pattern matches element type") {
+        val listReflect = Reflect.list(Reflect.string[Binding])
+        val pattern     = SchemaRepr.Sequence(SchemaRepr.Primitive("string"))
+        val optic       = DynamicOptic.root.searchSchema(pattern)
+        assert(listReflect.get(optic))(isSome(equalTo(listReflect)))
+      },
+      test("SchemaSearch with Map pattern matches key and value types") {
+        val mapReflect = Reflect.map(Reflect.string[Binding], Reflect.int[Binding])
+        val pattern    = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int"))
+        val optic      = DynamicOptic.root.searchSchema(pattern)
+        assert(mapReflect.get(optic))(isSome(equalTo(mapReflect)))
+      },
+      test("SchemaSearch returns None for no matches") {
+        val optic  = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("uuid"))
+        val result = tuple4Reflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch handles recursive types without infinite loop") {
+        lazy val recursiveSchema: Schema[RecursiveNode] = Schema.derived[RecursiveNode]
+        val pattern = SchemaRepr.Primitive("string")
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = recursiveSchema.reflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      },
+      test("SchemaSearch with path composition works correctly") {
+        val nestedSchema = Schema.derived[(Int, PersonRecord)].reflect
+        val pattern      = SchemaRepr.Primitive("string")
+        val optic        = DynamicOptic.root.field("_2").searchSchema(pattern)
+        val result       = nestedSchema.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
       }
     )
   )
