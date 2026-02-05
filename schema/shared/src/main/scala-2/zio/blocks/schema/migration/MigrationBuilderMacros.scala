@@ -1,7 +1,8 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
+import zio.blocks.schema.{DynamicOptic, Schema}
 import scala.language.experimental.macros
+import scala.language.implicitConversions
 import scala.reflect.macros.blackbox
 
 /**

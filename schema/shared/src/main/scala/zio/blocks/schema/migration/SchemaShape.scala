@@ -33,7 +33,7 @@ object SchemaShape {
    * Detects `Option`-like variants (cases named "Some" and "None") and
    * represents them as `Opt(inner)` rather than a general `Variant`.
    */
-  def fromReflect(r: Reflect[_, _]): SchemaShape = r match {
+  def fromReflect[F[_, _], A](r: Reflect[F, A]): SchemaShape = r match {
     case rec: Reflect.Record[_, _] =>
       Record(rec.fields.map(t => (t.name, fromReflect(t.value))).toVector)
 
@@ -568,7 +568,7 @@ object SchemaShape {
     }
 
   /** Detects if a Variant represents an Option type, matching Reflect.isOption logic. */
-  private def isOptionVariant(v: Reflect.Variant[_, _]): Boolean = {
+  private def isOptionVariant[F[_, _], A](v: Reflect.Variant[F, A]): Boolean = {
     val tid   = v.typeId
     val cases = v.cases
     tid.owner == Owner.fromPackagePath("scala") && tid.name == "Option" &&

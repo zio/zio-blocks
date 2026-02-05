@@ -19,7 +19,45 @@ object MigrationSchemas {
 
   // ── MigrationMetadata ──────────────────────────────────────────────
 
-  implicit lazy val migrationMetadataSchema: Schema[MigrationMetadata] = Schema.derived[MigrationMetadata]
+  implicit lazy val migrationMetadataSchema: Schema[MigrationMetadata] =
+    new Schema(
+      reflect = new Reflect.Record[Binding, MigrationMetadata](
+        fields = Vector(
+          Schema[Option[String]].reflect.asTerm[MigrationMetadata]("id"),
+          Schema[Option[String]].reflect.asTerm[MigrationMetadata]("description"),
+          Schema[Option[Long]].reflect.asTerm[MigrationMetadata]("timestamp"),
+          Schema[Option[String]].reflect.asTerm[MigrationMetadata]("createdBy"),
+          Schema[Option[String]].reflect.asTerm[MigrationMetadata]("fingerprint")
+        ),
+        typeId = TypeId.of[MigrationMetadata],
+        recordBinding = new Binding.Record(
+          constructor = new Constructor[MigrationMetadata] {
+            def usedRegisters: RegisterOffset = RegisterOffset(objects = 5)
+
+            def construct(in: Registers, offset: RegisterOffset): MigrationMetadata =
+              MigrationMetadata(
+                id = in.getObject(offset + RegisterOffset(objects = 0)).asInstanceOf[Option[String]],
+                description = in.getObject(offset + RegisterOffset(objects = 1)).asInstanceOf[Option[String]],
+                timestamp = in.getObject(offset + RegisterOffset(objects = 2)).asInstanceOf[Option[Long]],
+                createdBy = in.getObject(offset + RegisterOffset(objects = 3)).asInstanceOf[Option[String]],
+                fingerprint = in.getObject(offset + RegisterOffset(objects = 4)).asInstanceOf[Option[String]]
+              )
+          },
+          deconstructor = new Deconstructor[MigrationMetadata] {
+            def usedRegisters: RegisterOffset = RegisterOffset(objects = 5)
+
+            def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationMetadata): Unit = {
+              out.setObject(offset + RegisterOffset(objects = 0), in.id)
+              out.setObject(offset + RegisterOffset(objects = 1), in.description)
+              out.setObject(offset + RegisterOffset(objects = 2), in.timestamp)
+              out.setObject(offset + RegisterOffset(objects = 3), in.createdBy)
+              out.setObject(offset + RegisterOffset(objects = 4), in.fingerprint)
+            }
+          }
+        ),
+        modifiers = Vector.empty
+      )
+    )
 
   // ── MigrationError ─────────────────────────────────────────────────
 
