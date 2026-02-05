@@ -469,7 +469,8 @@ object MigrationValidator {
   ): Either[String, SchemaStructure] =
     validatePath(structure, path).flatMap {
       case s: SchemaStructure.Sequence => Right(s)
-      case other                       => Left(s"Cannot apply elements transform on non-sequence: ${describeStructure(other)}")
+      case other                       =>
+        Left(s"Cannot apply elements transform on non-sequence: ${describeStructure(other)}")
     }
 
   /**
@@ -514,13 +515,15 @@ object MigrationValidator {
       case (_: DynamicOptic.Node.AtIndex) :: rest =>
         structure match {
           case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest)
-          case other                       => Left(s"Cannot navigate index in non-sequence: ${describeStructure(other)}")
+          case other                       =>
+            Left(s"Cannot navigate index in non-sequence: ${describeStructure(other)}")
         }
 
       case (_: DynamicOptic.Node.AtIndices) :: rest =>
         structure match {
           case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest)
-          case other                       => Left(s"Cannot navigate indices in non-sequence: ${describeStructure(other)}")
+          case other                       =>
+            Left(s"Cannot navigate indices in non-sequence: ${describeStructure(other)}")
         }
 
       case (_: DynamicOptic.Node.AtMapKey) :: rest =>
@@ -538,7 +541,8 @@ object MigrationValidator {
       case DynamicOptic.Node.Elements :: rest =>
         structure match {
           case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest)
-          case other                       => Left(s"Cannot navigate elements in non-sequence: ${describeStructure(other)}")
+          case other                       =>
+            Left(s"Cannot navigate elements in non-sequence: ${describeStructure(other)}")
         }
 
       case DynamicOptic.Node.Wrapped :: rest =>
@@ -553,7 +557,8 @@ object MigrationValidator {
       case DynamicOptic.Node.MapValues :: rest =>
         structure match {
           case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest)
-          case other                      => Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
+          case other                      =>
+            Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
         }
     }
 
