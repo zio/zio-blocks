@@ -128,7 +128,7 @@ trait Show[A] {
 
 The implementation of the `Deriver[Show]` would look like the following code. Don't worry about understanding every detail right now; we'll break down the derivation process step by step afterward.
 
-```
+```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.*
 import zio.blocks.schema.DynamicValue.Null
@@ -458,7 +458,10 @@ override def deriveRecord[F[_, _], A](
   }
 ```
 
-The `deriveRecord` method demonstrates derivation mechanics for record types such as case classes and tuples. The derivation proceeds in two phases: First, we need to extract the type class for each field of the record. Second, we implement the `Show[A]` instance that uses those field type classes to format the entire record.
+The `deriveRecord` method demonstrates derivation mechanics for record types such as case classes and tuples. To derive the type class for a record type, we follow these steps:
+1. First, we extract the type class instances for each field of the record. 
+2. Second, we have to deconstruct the record value at runtime to access individual field values.
+3. Third, we assemble the final string representation of the record by combining field names and their corresponding representations using the extracted type class instances.
 
 During the first step, the method gathers `Lazy[Show]` instances for each field by calling `D.instance(field.value.metadata)`. This method extracts the derived type class instance for the field's type from the transformed schema metadata. Again, the transformed metadata contains `Reflect[BindingInstance[TC, _, _], A]` nodes, where each node has a `BindingInstance` that bundles together the structural binding and the derived type class instance. By calling `D.instance`, we retrieve the `Lazy[Show]` instance for each field's type.
 
@@ -473,6 +476,45 @@ Now we are ready to deconstruct the `A` value, using the `Binding.Record#deconst
 The next question is how we can access the field values from the registers? The `Reflect.Record` we built earlier also computes the register layout for each field, which allows us to retrieve each field value from the appropriate register slot using `recordReflect.registers(i).get(registers, RegisterOffset.Zero)`. This call accesses the `i`-th field's value from the registers based on the register layout computed by `Reflect.Record`. 
 
 Finally, we can iterate through each field, retrieve its value from the registers, force the corresponding `Lazy[Show]` instance for that field's type, and format the result as `fieldName = fieldValue`. The output assembles into the familiar `TypeName(field1 = value1, field2 = value2)` representation.
+
+### Variant Derivation
+
+When the derivation process encounters a variant type (e.g., a sealed trait with case classes), it calls the `deriveVariant` method of the `Deriver`. This method receives an `IndexedSeq[Term[F, A, _]]` representing the cases of the variant, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
+
+```scala
+override def deriveVariant[F[_, _], A](
+  cases: IndexedSeq[Term[F, A, _]],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Variant, A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+)(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
+  // Get Show instances for all cases LAZILY
+  val caseShowInstances: IndexedSeq[Lazy[Show[Any]]] = cases.map { case_ =>
+    D.instance(case_.value.metadata).asInstanceOf[Lazy[Show[Any]]]
+  }
+  // Cast binding to Binding.Variant to access discriminator and matchers
+  val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
+  val discriminator  = variantBinding.discriminator
+  val matchers       = variantBinding.matchers
+  new Show[A] {
+    // Implement show by using discriminator and matchers to find the right case
+    // The `value` parameter is of type A (the variant type), e.g. an Option[Int] value
+    def show(value: A): String = {
+      // Use discriminator to determine which case this value belongs to
+      val caseIndex = discriminator.discriminate(value)
+      // Use matcher to downcast to the specific case type
+      val caseValue = matchers(caseIndex).downcastOrNull(value)
+      // Just delegate to the case's Show instance - it already knows its own name
+      caseShowInstances(caseIndex).force.show(caseValue)
+    }
+  }
+}
+```
+
+The derivation process for variants is similar to records, but instead of fields, we have cases. We extract the type class instances for each case, and at runtime we use the discriminator to determine which case the value belongs to. Then we use the matcher to downcast the value to that specific case type. Finally, we extract the corresponding type class instance for that case by applying the case index to the indexed sequence of type class instances. Now we have the correct type class instance for the specific case, but it's deferred in a `Lazy` container. We force it to retrieve the actual type class instance, and then we can call the `show` method on that case value to get the string representation.
 
 ## Derivation Process Overview including Internal Mechanics
 
