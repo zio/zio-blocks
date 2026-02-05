@@ -97,6 +97,6 @@ package object scope {
    *   }
    *   }}}
    */
-  def injected[T](wires: Wire[_, _]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] =
-    macro ScopeMacros.injectedImpl[T]
+  def injected[T](wires: Wire[_, _]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] = macro
+    ScopeMacros.injectedImpl[T]
 }

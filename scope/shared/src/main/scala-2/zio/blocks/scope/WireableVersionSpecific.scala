@@ -17,15 +17,19 @@ private[scope] trait WireableVersionSpecific {
    *
    * For AutoCloseable types, `close()` is automatically registered as a
    * finalizer.
+   *
+   * Note: This is a whitebox macro that refines the return type to preserve the
+   * `In` type member. The actual return type is `Wireable[T] { type In = ...
+   * }`.
    */
   def from[T]: Wireable[T] = macro WireableMacros.fromImpl[T]
 }
 
 private[scope] object WireableMacros {
-  import scala.reflect.macros.blackbox
+  import scala.reflect.macros.whitebox
   import zio.blocks.scope.internal.{MacroCore => MC}
 
-  def fromImpl[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[Wireable[T]] = {
+  def fromImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wireable[T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -102,6 +106,8 @@ private[scope] object WireableMacros {
       """
     }
 
+    // Whitebox macro: returning a tree with refined type allows the compiler
+    // to infer Wireable[T] { type In = inType } as the return type
     val result = q"""
       new _root_.zio.blocks.scope.Wireable[$tpe] {
         type In = $inType

@@ -1,11 +1,13 @@
 package zio.blocks.scope
 
-import scala.reflect.macros.blackbox
+import scala.reflect.macros.whitebox
 import zio.blocks.scope.internal.{MacroCore => MC}
 
 private[scope] object ScopeMacros {
 
-  def sharedImpl[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[Wire.Shared[_, T]] = {
+  // Using whitebox macros to allow refined return types (preserving In type)
+
+  def sharedImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wire.Shared[_, T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -15,7 +17,20 @@ private[scope] object ScopeMacros {
       c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
 
     if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType) {
-      c.Expr[Wire.Shared[_, T]](q"$wireableTpe.wire.shared")
+      // The tree is: Apply(TypeApply(implicitly, types), List(actualImplicitVal))
+      // Extract the actual implicit value's declared type which preserves refinements
+      val actualImplicitTpe = wireableTpe match {
+        case Apply(_, List(implicitVal)) if implicitVal.symbol != null && implicitVal.symbol != NoSymbol =>
+          implicitVal.symbol.typeSignature
+        case _ =>
+          wireableTpe.tpe
+      }
+      val inType = extractWireableInType(c)(actualImplicitTpe)
+      // Construct the proper Wire.Shared[In, T] type for the Expr
+      val wireSharedType = appliedType(typeOf[Wire.Shared[_, _]].typeConstructor, List(inType, tpe))
+      // Use asInstanceOf to break the path-dependent type and establish the concrete type
+      val result = q"$wireableTpe.wire.shared.asInstanceOf[$wireSharedType]"
+      c.Expr(result)(c.WeakTypeTag(wireSharedType))
     } else {
       if (!sym.isClass) {
         MC.abortNotAClass(c)(tpe.toString)
@@ -24,7 +39,7 @@ private[scope] object ScopeMacros {
     }
   }
 
-  def uniqueImpl[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[Wire.Unique[_, T]] = {
+  def uniqueImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wire.Unique[_, T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -34,7 +49,20 @@ private[scope] object ScopeMacros {
       c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
 
     if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType) {
-      c.Expr[Wire.Unique[_, T]](q"$wireableTpe.wire.unique")
+      // The tree is: Apply(TypeApply(implicitly, types), List(actualImplicitVal))
+      // Extract the actual implicit value's declared type which preserves refinements
+      val actualImplicitTpe = wireableTpe match {
+        case Apply(_, List(implicitVal)) if implicitVal.symbol != null && implicitVal.symbol != NoSymbol =>
+          implicitVal.symbol.typeSignature
+        case _ =>
+          wireableTpe.tpe
+      }
+      val inType = extractWireableInType(c)(actualImplicitTpe)
+      // Construct the proper Wire.Unique[In, T] type for the Expr
+      val wireUniqueType = appliedType(typeOf[Wire.Unique[_, _]].typeConstructor, List(inType, tpe))
+      // Use asInstanceOf to break the path-dependent type and establish the concrete type
+      val result = q"$wireableTpe.wire.unique.asInstanceOf[$wireUniqueType]"
+      c.Expr(result)(c.WeakTypeTag(wireUniqueType))
     } else {
       if (!sym.isClass) {
         MC.abortNotAClass(c)(tpe.toString)
@@ -43,7 +71,53 @@ private[scope] object ScopeMacros {
     }
   }
 
-  private def deriveSharedWire[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[Wire.Shared[_, T]] = {
+  /** Extract the In type member from a Wireable type */
+  private def extractWireableInType(c: whitebox.Context)(wireableTpe: c.Type): c.Type = {
+    import c.universe._
+
+    // Unwrap NullaryMethodType to get the actual result type (for vals)
+    val unwrapped = wireableTpe match {
+      case NullaryMethodType(resultType) => resultType
+      case other                         => other
+    }
+
+    // First, check if this is Wireable.Typed[In, Out] - extract In from type args directly
+    unwrapped match {
+      case TypeRef(_, sym, args) if sym.fullName == "zio.blocks.scope.Wireable.Typed" && args.nonEmpty =>
+        return args.head
+      case _ => // continue
+    }
+
+    // Otherwise, dealias and look for the In type member in refinements
+    val dealiased = wireableTpe.dealias
+    dealiased match {
+      // Handle refinement type like Wireable[T] { type In >: X }
+      case RefinedType(_, scope) =>
+        val inSym = scope.find(_.name == TypeName("In"))
+        inSym.map { sym =>
+          sym.typeSignature match {
+            case TypeBounds(lo, _) if !(lo =:= typeOf[Nothing]) => lo.dealias
+            case TypeBounds(_, hi)                              => hi.dealias
+            case t                                              => t.dealias
+          }
+        }.getOrElse(typeOf[Any])
+      case _ =>
+        // Fallback: look for In member
+        val inMember = dealiased.member(TypeName("In"))
+        if (inMember != NoSymbol) {
+          val sig = inMember.typeSignatureIn(dealiased).dealias
+          sig match {
+            case TypeBounds(lo, hi) if lo =:= hi => lo.dealias
+            case TypeBounds(_, hi)               => hi.dealias
+            case t                               => t
+          }
+        } else {
+          typeOf[Any]
+        }
+    }
+  }
+
+  private def deriveSharedWire[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wire.Shared[_, T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -117,7 +191,7 @@ private[scope] object ScopeMacros {
     c.Expr[Wire.Shared[_, T]](result)
   }
 
-  private def deriveUniqueWire[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[Wire.Unique[_, T]] = {
+  private def deriveUniqueWire[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wire.Unique[_, T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -195,14 +269,14 @@ private[scope] object ScopeMacros {
   // injected[T] implementations
   // ─────────────────────────────────────────────────────────────────────────
 
-  def injectedImpl[T: c.WeakTypeTag](c: blackbox.Context)(
+  def injectedImpl[T: c.WeakTypeTag](c: whitebox.Context)(
     wires: c.Expr[Wire[_, _]]*
   )(
     scope: c.Expr[Scope.Any]
   ): c.Expr[Scope.Closeable[T, _]] =
     injectedImplWithScope[T](c)(wires, scope)
 
-  def injectedFromPrefixImpl[T: c.WeakTypeTag](c: blackbox.Context)(
+  def injectedFromPrefixImpl[T: c.WeakTypeTag](c: whitebox.Context)(
     wires: c.Expr[Wire[_, _]]*
   ): c.Expr[Scope.Closeable[T, _]] = {
     import c.universe._
@@ -217,7 +291,7 @@ private[scope] object ScopeMacros {
     injectedImplWithScope[T](c)(wires, scopeExpr)
   }
 
-  def injectedFromSelfImpl[T: c.WeakTypeTag](c: blackbox.Context)(
+  def injectedFromSelfImpl[T: c.WeakTypeTag](c: whitebox.Context)(
     wires: c.Expr[Wire[_, _]]*
   ): c.Expr[Scope.Closeable[T, _]] = {
     import c.universe._
@@ -227,7 +301,7 @@ private[scope] object ScopeMacros {
     injectedImplWithScope[T](c)(wires, scopeExpr)
   }
 
-  private def injectedImplWithScope[T: c.WeakTypeTag](c: blackbox.Context)(
+  private def injectedImplWithScope[T: c.WeakTypeTag](c: whitebox.Context)(
     wires: Seq[c.Expr[Wire[_, _]]],
     scopeExpr: c.Expr[Scope.Any]
   ): c.Expr[Scope.Closeable[T, _]] = {
@@ -297,7 +371,7 @@ private[scope] object ScopeMacros {
     }
   }
 
-  private def generateInjected0[T: c.WeakTypeTag](c: blackbox.Context)(
+  private def generateInjected0[T: c.WeakTypeTag](c: whitebox.Context)(
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean,
     scopeExpr: c.Expr[Scope.Any]
@@ -341,7 +415,7 @@ private[scope] object ScopeMacros {
     c.Expr[Scope.Closeable[T, _]](result)
   }
 
-  private def generateInjected1[T: c.WeakTypeTag](c: blackbox.Context)(
+  private def generateInjected1[T: c.WeakTypeTag](c: whitebox.Context)(
     dep1Tpe: c.Type,
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean,
@@ -392,7 +466,7 @@ private[scope] object ScopeMacros {
     c.Expr[Scope.Closeable[T, _]](result)
   }
 
-  private def generateInjected2[T: c.WeakTypeTag](c: blackbox.Context)(
+  private def generateInjected2[T: c.WeakTypeTag](c: whitebox.Context)(
     dep1Tpe: c.Type,
     dep2Tpe: c.Type,
     hasScopeParam: Boolean,
