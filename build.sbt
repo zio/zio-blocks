@@ -83,9 +83,6 @@ lazy val root = project
     chunk.js,
     markdown.jvm,
     markdown.js,
-    scalaNextTests.jvm,
-    scalaNextTests.js,
-    benchmarks,
     zioGolemModel.jvm,
     zioGolemModel.js,
     zioGolemCore.jvm,
@@ -407,10 +404,13 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
+    scalaVersion              := "3.7.4",
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    Compile / skip := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
+    Test / skip    := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
   )
   .jsSettings(jsSettings)
 
@@ -436,6 +436,7 @@ lazy val benchmarks = project
       "dev.zio"                               %% "zio-test"              % "2.1.24",
       "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
     ),
+    scalaVersion                     := "3.7.4",
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case x if x.endsWith("module-info.class") => MergeStrategy.discard
@@ -446,7 +447,9 @@ lazy val benchmarks = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 30,
-    coverageMinimumBranchTotal := 42
+    coverageMinimumBranchTotal := 42,
+    Compile / skip := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
+    Test / skip    := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
   )
 
 // ---------------------------------------------------------------------------

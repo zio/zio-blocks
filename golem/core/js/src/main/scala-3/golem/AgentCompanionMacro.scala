@@ -5,6 +5,7 @@ import golem.runtime.rpc.{AgentClient, AgentClientRuntime}
 import golem.Uuid
 
 import scala.quoted.*
+import scala.scalajs.js
 
 /**
  * Scala 3 implementation for `AgentCompanion` methods that need to be checked
@@ -14,7 +15,7 @@ import scala.quoted.*
  * dependency.
  */
 private[golem] object AgentCompanionMacro {
-  def getImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] = {
+  def getImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val got      = TypeRepr.of[In]
@@ -30,7 +31,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
-          AgentClient.bind[Trait](resolved)
+          ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
   }
@@ -56,7 +57,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[Trait] = {
+  def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val got      = TypeRepr.of[In]
@@ -73,7 +74,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
-          AgentClient.bind[Trait](resolved)
+          ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
   }
@@ -103,7 +104,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getUnitImpl[Trait: Type](using Quotes): Expr[Trait] = {
+  def getUnitImpl[Trait: Type](using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     if !(expected =:= TypeRepr.of[Unit]) then
@@ -116,7 +117,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
-          AgentClient.bind[Trait](resolved)
+          ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
   }
@@ -139,7 +140,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getPhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[Trait] = {
+  def getPhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     if !(expected =:= TypeRepr.of[Unit]) then
@@ -153,7 +154,7 @@ private[golem] object AgentCompanionMacro {
         case Left(err) =>
           throw scala.scalajs.js.JavaScriptException(err)
         case Right(resolved) =>
-          AgentClient.bind[Trait](resolved)
+          ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
   }
@@ -177,7 +178,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def getTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[Trait] = {
+  def getTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple2[A1, A2]]
@@ -185,10 +186,15 @@ private[golem] object AgentCompanionMacro {
       report.errorAndAbort(s"get(a1, a2) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple2($a1, $a2) }
     '{
-      AgentClient.connect[Trait, Tuple2[A1, A2]](
+      AgentClientRuntime.resolve[Trait, Tuple2[A1, A2]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
         $tup
-      )
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -219,7 +225,7 @@ private[golem] object AgentCompanionMacro {
     a1: Expr[A1],
     a2: Expr[A2],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[Trait] = {
+  )(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple2[A1, A2]]
@@ -229,11 +235,16 @@ private[golem] object AgentCompanionMacro {
       )
     val tup = '{ Tuple2($a1, $a2) }
     '{
-      AgentClient.connectPhantom[Trait, Tuple2[A1, A2]](
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple2[A1, A2]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
         $tup,
-        $phantom
-      )
+        phantom = Some($phantom)
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -266,7 +277,7 @@ private[golem] object AgentCompanionMacro {
 
   def getTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](a1: Expr[A1], a2: Expr[A2], a3: Expr[A3])(using
     Quotes
-  ): Expr[Trait] = {
+  ): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
@@ -274,10 +285,15 @@ private[golem] object AgentCompanionMacro {
       report.errorAndAbort(s"get(a1, a2, a3) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
-      AgentClient.connect[Trait, Tuple3[A1, A2, A3]](
+      AgentClientRuntime.resolve[Trait, Tuple3[A1, A2, A3]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
         $tup
-      )
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -310,7 +326,7 @@ private[golem] object AgentCompanionMacro {
     a2: Expr[A2],
     a3: Expr[A3],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[Trait] = {
+  )(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
@@ -320,11 +336,16 @@ private[golem] object AgentCompanionMacro {
       )
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
-      AgentClient.connectPhantom[Trait, Tuple3[A1, A2, A3]](
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple3[A1, A2, A3]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
         $tup,
-        $phantom
-      )
+        phantom = Some($phantom)
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -361,7 +382,7 @@ private[golem] object AgentCompanionMacro {
     a2: Expr[A2],
     a3: Expr[A3],
     a4: Expr[A4]
-  )(using Quotes): Expr[Trait] = {
+  )(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
@@ -369,10 +390,15 @@ private[golem] object AgentCompanionMacro {
       report.errorAndAbort(s"get(a1, a2, a3, a4) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
     '{
-      AgentClient.connect[Trait, Tuple4[A1, A2, A3, A4]](
+      AgentClientRuntime.resolve[Trait, Tuple4[A1, A2, A3, A4]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple4[A1, A2, A3, A4]]],
         $tup
-      )
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -409,7 +435,7 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     a4: Expr[A4],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[Trait] = {
+  )(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
@@ -419,11 +445,16 @@ private[golem] object AgentCompanionMacro {
       )
     val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
     '{
-      AgentClient.connectPhantom[Trait, Tuple4[A1, A2, A3, A4]](
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple4[A1, A2, A3, A4]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple4[A1, A2, A3, A4]]],
         $tup,
-        $phantom
-      )
+        phantom = Some($phantom)
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -462,7 +493,7 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     a4: Expr[A4],
     a5: Expr[A5]
-  )(using Quotes): Expr[Trait] = {
+  )(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
@@ -472,10 +503,15 @@ private[golem] object AgentCompanionMacro {
       )
     val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
     '{
-      AgentClient.connect[Trait, Tuple5[A1, A2, A3, A4, A5]](
+      AgentClientRuntime.resolve[Trait, Tuple5[A1, A2, A3, A4, A5]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple5[A1, A2, A3, A4, A5]]],
         $tup
-      )
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -514,7 +550,7 @@ private[golem] object AgentCompanionMacro {
     a4: Expr[A4],
     a5: Expr[A5],
     phantom: Expr[Uuid]
-  )(using Quotes): Expr[Trait] = {
+  )(using Quotes): Expr[?] = {
     import quotes.reflect.*
     val expected = agentInputTypeRepr[Trait]
     val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
@@ -524,11 +560,16 @@ private[golem] object AgentCompanionMacro {
       )
     val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
     '{
-      AgentClient.connectPhantom[Trait, Tuple5[A1, A2, A3, A4, A5]](
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple5[A1, A2, A3, A4, A5]](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple5[A1, A2, A3, A4, A5]]],
         $tup,
-        $phantom
-      )
+        phantom = Some($phantom)
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
     }
   }
 
@@ -572,5 +613,320 @@ private[golem] object AgentCompanionMacro {
         case AppliedType(_, List(arg)) => arg.dealias
         case _                         => TypeRepr.of[Unit]
       }
+  }
+
+  private def attachTriggerSchedule[Trait: Type](
+    resolvedExpr: Expr[AgentClientRuntime.ResolvedAgent[Trait]]
+  )(using Quotes): Expr[?] = {
+    import quotes.reflect.*
+
+    case class MethodData(
+      method: Symbol,
+      params: List[(String, TypeRepr)],
+      accessMode: MethodParamAccess,
+      inputType: TypeRepr,
+      outputType: TypeRepr
+    )
+
+    val traitRepr   = TypeRepr.of[Trait]
+    val traitSymbol = traitRepr.typeSymbol
+
+    if !traitSymbol.flags.is(Flags.Trait) then
+      report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
+
+    val methods: List[MethodData] =
+      traitSymbol.methodMembers.collect {
+        case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
+          val params                         = extractParameters(m)
+          val accessMode                     = methodAccess(params)
+          val inputType                      = inputTypeFor(accessMode, params)
+          val (outputType, _) /* Future[Out] or Unit */ =
+            returnAndOutputTypeFor(m)
+          MethodData(m, params, accessMode, inputType, outputType)
+      }
+
+    val triggerType: TypeRepr =
+      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, m) =>
+        val triggerTpe =
+          MethodType(m.params.map(_._1))(_ => m.params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
+        Refinement(acc, m.method.name, triggerTpe)
+      }
+
+    val scheduleType: TypeRepr =
+      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, m) =>
+        val scheduleTpe =
+          MethodType("datetime" :: m.params.map(_._1))(
+            _ => TypeRepr.of[Datetime] :: m.params.map(_._2),
+            _ => TypeRepr.of[scala.concurrent.Future[Unit]]
+          )
+        Refinement(acc, m.method.name, scheduleTpe)
+      }
+
+    val refinedType =
+      Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
+
+    val resolvedSym =
+      Symbol.newVal(Symbol.spliceOwner, "$resolvedAgent", TypeRepr.of[AgentClientRuntime.ResolvedAgent[Trait]], Flags.EmptyFlags, Symbol.noSymbol)
+    val resolvedVal = ValDef(resolvedSym, Some(resolvedExpr.asTerm))
+    val resolvedRef = Ref(resolvedSym).asExprOf[AgentClientRuntime.ResolvedAgent[Trait]]
+
+    val baseSym =
+      Symbol.newVal(Symbol.spliceOwner, "$agent", traitRepr, Flags.EmptyFlags, Symbol.noSymbol)
+    val baseVal = ValDef(baseSym, Some('{ AgentClient.bind[Trait]($resolvedRef) }.asTerm))
+    val baseRef = Ref(baseSym).asExprOf[js.Dynamic]
+
+    val triggerSym = Symbol.newVal(Symbol.spliceOwner, "$trigger", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val triggerVal = ValDef(triggerSym, Some('{ js.Dynamic.literal() }.asTerm))
+    val triggerRef = Ref(triggerSym).asExprOf[js.Dynamic]
+
+    val scheduleSym = Symbol.newVal(Symbol.spliceOwner, "$schedule", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
+    val scheduleVal = ValDef(scheduleSym, Some('{ js.Dynamic.literal() }.asTerm))
+    val scheduleRef = Ref(scheduleSym).asExprOf[js.Dynamic]
+
+    def findMethod[In: Type, Out: Type](methodName: String): Expr[golem.runtime.agenttype.AgentMethod[Trait, In, Out]] = {
+      val methodNameExpr = Expr(methodName)
+      '{
+        $resolvedRef.agentType.methods.collectFirst {
+          case mm if mm.metadata.name == $methodNameExpr =>
+            mm.asInstanceOf[golem.runtime.agenttype.AgentMethod[Trait, In, Out]]
+        }
+          .getOrElse(throw new IllegalStateException(s"Method definition for ${$methodNameExpr} not found"))
+      }
+    }
+
+    def buildInputValueExpr(accessMode: MethodParamAccess, inputType: TypeRepr, params: List[Expr[Any]]): Expr[Any] =
+      inputType.asType match {
+        case '[input] =>
+          accessMode match {
+            case MethodParamAccess.NoArgs =>
+              '{ ().asInstanceOf[input] }
+            case MethodParamAccess.SingleArg =>
+              params.headOption
+                .getOrElse(report.errorAndAbort("Single argument access mode requires exactly one argument"))
+                .asExprOf[input]
+            case MethodParamAccess.MultiArgs =>
+              val elements = params.map(_.asExprOf[Any])
+              '{ Vector[Any](${ Varargs(elements) }*) }.asExprOf[input]
+          }
+      }
+
+    def encodeTypeName(tpe0: TypeRepr): String = {
+      val tpe = tpe0.dealias.widen
+      if tpe =:= TypeRepr.of[Unit] then "V"
+      else if tpe =:= TypeRepr.of[Boolean] then "Z"
+      else if tpe =:= TypeRepr.of[Byte] then "B"
+      else if tpe =:= TypeRepr.of[Short] then "S"
+      else if tpe =:= TypeRepr.of[Char] then "C"
+      else if tpe =:= TypeRepr.of[Int] then "I"
+      else if tpe =:= TypeRepr.of[Long] then "J"
+      else if tpe =:= TypeRepr.of[Float] then "F"
+      else if tpe =:= TypeRepr.of[Double] then "D"
+      else if tpe =:= TypeRepr.of[String] then "T"
+      else
+        tpe match {
+          case AppliedType(arr, List(elem)) if arr.typeSymbol.fullName == "scala.Array" =>
+            "A" + encodeTypeName(elem)
+          case AppliedType(constructor, _) =>
+            encodeTypeName(constructor)
+          case _ =>
+            val full = tpe.typeSymbol.fullName
+            if full.startsWith("scala.scalajs.") then "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
+            else if full.startsWith("scala.collection.immutable.") then
+              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
+            else if full.startsWith("scala.collection.mutable.") then
+              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
+            else if full.startsWith("scala.collection.") then
+              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
+            else if full.startsWith("scala.") then "s_" + full.stripPrefix("scala.").replace('.', '_')
+            else if full.startsWith("java.lang.") then "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
+            else if full.startsWith("java.util.") then "ju_" + full.stripPrefix("java.util.").replace('.', '_')
+            else if full == "" || full == "<none>" then "O"
+            else "L" + full.replace('.', '_')
+        }
+    }
+
+    def scalaJsMethodName(name: String, paramTypes: List[TypeRepr], resultType: TypeRepr): String = {
+      val paramTypeNames = paramTypes.map(encodeTypeName)
+      val resultTypeName = encodeTypeName(resultType)
+      if paramTypeNames.isEmpty then s"${name}__${resultTypeName}"
+      else s"${name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
+    }
+
+    def buildFn(method: MethodData, op: String): Expr[js.Any] = {
+      val methodName = method.method.name
+
+      method.inputType.asType match {
+        case '[in] =>
+          method.outputType.asType match {
+            case '[out] =>
+              val methodExpr = findMethod[in, out](methodName)
+
+              val fnTerm: Term =
+                op match {
+                  case "trigger" =>
+                    val mt =
+                      MethodType(method.params.map(_._1))(_ => method.params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
+                    Lambda(
+                      Symbol.spliceOwner,
+                      mt,
+                      (owner, params) => {
+                        val args    = params.collect { case t: Term => t.asExprOf[Any] }.toList
+                        val inValue =
+                          buildInputValueExpr(method.accessMode, method.inputType, args).asExprOf[in]
+                        '{ $resolvedRef.trigger[in]($methodExpr, $inValue) }.asTerm.changeOwner(owner)
+                      }
+                    )
+                  case "schedule" =>
+                    val mt =
+                      MethodType("datetime" :: method.params.map(_._1))(
+                        _ => TypeRepr.of[Datetime] :: method.params.map(_._2),
+                        _ => TypeRepr.of[scala.concurrent.Future[Unit]]
+                      )
+                    Lambda(
+                      Symbol.spliceOwner,
+                      mt,
+                      (owner, params) => {
+                        val all = params.collect { case t: Term => t }.toList
+                        val dt  =
+                          all.headOption.getOrElse(
+                            report.errorAndAbort(s"schedule.${methodName} missing datetime argument")
+                          )
+                        val rest    = all.drop(1)
+                        val args    = rest.map(_.asExprOf[Any])
+                        val inValue =
+                          buildInputValueExpr(method.accessMode, method.inputType, args).asExprOf[in]
+                        val dtExpr = dt.asExprOf[Datetime]
+                        '{ $resolvedRef.schedule[in]($methodExpr, $dtExpr, $inValue) }.asTerm.changeOwner(owner)
+                      }
+                    )
+                  case other =>
+                    report.errorAndAbort(s"Unsupported op: $other")
+                }
+
+              val fnExpr = fnTerm.asExprOf[Any]
+
+              op match {
+                case "schedule" =>
+                  (method.params.length + 1) match {
+                    case 1 => '{ js.Any.fromFunction1($fnExpr.asInstanceOf[Any => Any]) }
+                    case 2 => '{ js.Any.fromFunction2($fnExpr.asInstanceOf[(Any, Any) => Any]) }
+                    case 3 => '{ js.Any.fromFunction3($fnExpr.asInstanceOf[(Any, Any, Any) => Any]) }
+                    case 4 => '{ js.Any.fromFunction4($fnExpr.asInstanceOf[(Any, Any, Any, Any) => Any]) }
+                    case n =>
+                      report.errorAndAbort(
+                        s"Unsupported agent method arity for schedule.${methodName}: $n (supported: 1-4 including datetime)"
+                      )
+                  }
+                case _ =>
+                  method.params.length match {
+                    case 0 => '{ js.Any.fromFunction0($fnExpr.asInstanceOf[() => Any]) }
+                    case 1 => '{ js.Any.fromFunction1($fnExpr.asInstanceOf[Any => Any]) }
+                    case 2 => '{ js.Any.fromFunction2($fnExpr.asInstanceOf[(Any, Any) => Any]) }
+                    case 3 => '{ js.Any.fromFunction3($fnExpr.asInstanceOf[(Any, Any, Any) => Any]) }
+                    case n =>
+                      report.errorAndAbort(
+                        s"Unsupported agent method arity for trigger.${methodName}: $n (supported: 0-3)"
+                      )
+                  }
+              }
+          }
+      }
+    }
+
+    val triggerUpdates: List[Statement] =
+      methods.map { m =>
+        val jsName = scalaJsMethodName(m.method.name, m.params.map(_._2), TypeRepr.of[scala.concurrent.Future[Unit]])
+        val fn     = buildFn(m, "trigger")
+        '{ $triggerRef.updateDynamic(${ Expr(jsName) })($fn) }.asTerm
+      }
+
+    val scheduleUpdates: List[Statement] =
+      methods.map { m =>
+        val jsName =
+          scalaJsMethodName(
+            m.method.name,
+            TypeRepr.of[Datetime] :: m.params.map(_._2),
+            TypeRepr.of[scala.concurrent.Future[Unit]]
+          )
+        val fn = buildFn(m, "schedule")
+        '{ $scheduleRef.updateDynamic(${ Expr(jsName) })($fn) }.asTerm
+      }
+
+    val attachTrigger  = '{ $baseRef.updateDynamic("trigger")($triggerRef) }.asTerm
+    val attachSchedule = '{ $baseRef.updateDynamic("schedule")($scheduleRef) }.asTerm
+
+    refinedType.asType match {
+      case '[t] =>
+        val casted = Typed(baseRef.asTerm, Inferred(refinedType)).asExprOf[t]
+        Block(
+          resolvedVal :: baseVal :: triggerVal :: scheduleVal :: (triggerUpdates ++ scheduleUpdates :+ attachTrigger :+ attachSchedule),
+          casted.asTerm
+        ).asExprOf[t]
+    }
+  }
+
+  private enum MethodParamAccess {
+    case NoArgs
+    case SingleArg
+    case MultiArgs
+  }
+
+  private def extractParameters(using
+    Quotes
+  )(method: quotes.reflect.Symbol): List[(String, quotes.reflect.TypeRepr)] = {
+    import quotes.reflect.*
+    method.paramSymss.collectFirst {
+      case params if params.forall(_.isTerm) =>
+        params.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => (sym.name, v.tpt.tpe)
+              case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
+            }
+        }
+    }.getOrElse(Nil)
+  }
+
+  private def methodAccess(using Quotes)(params: List[(String, quotes.reflect.TypeRepr)]): MethodParamAccess =
+    params match {
+      case Nil      => MethodParamAccess.NoArgs
+      case _ :: Nil => MethodParamAccess.SingleArg
+      case _        => MethodParamAccess.MultiArgs
+    }
+
+  private def inputTypeFor(using
+    Quotes
+  )(
+    access: MethodParamAccess,
+    params: List[(String, quotes.reflect.TypeRepr)]
+  ): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+    access match {
+      case MethodParamAccess.NoArgs    => TypeRepr.of[Unit]
+      case MethodParamAccess.SingleArg => params.head._2
+      case MethodParamAccess.MultiArgs => TypeRepr.of[Vector[Any]]
+    }
+  }
+
+  private def returnAndOutputTypeFor(using
+    Quotes
+  )(method: quotes.reflect.Symbol): (quotes.reflect.TypeRepr, quotes.reflect.TypeRepr) = {
+    import quotes.reflect.*
+    method.tree match {
+      case d: DefDef =>
+        val tpe = d.returnTpt.tpe
+        tpe match {
+          case AppliedType(constructor, args)
+              if constructor.typeSymbol.fullName == "scala.concurrent.Future" && args.nonEmpty =>
+            (args.head, tpe)
+          case AppliedType(constructor, args)
+              if constructor.typeSymbol.fullName == "scala.scalajs.js.Promise" && args.nonEmpty =>
+            (args.head, tpe)
+          case other =>
+            (other, other)
+        }
+      case other =>
+        report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
+    }
   }
 }

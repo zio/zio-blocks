@@ -232,6 +232,9 @@ object BuildHelper {
     crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),
     coverageEnabled          := false,
     Test / parallelExecution := false,
-    Test / fork              := false
+    Test / fork              := false,
+    // Avoid mixing Scala 3.7.x JVM classpath with Scala.js 3.3.x builds.
+    Compile / skip           := (ThisBuild / scalaVersion).value == Scala3,
+    Test / skip              := (ThisBuild / scalaVersion).value == Scala3
   )
 }

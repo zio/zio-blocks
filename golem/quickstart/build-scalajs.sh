@@ -97,6 +97,7 @@ else
   build_log="$(mktemp)"
   trap 'rm -f "$build_log"' EXIT
   if ! ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
+      "++3.3.7!" \
       "project $sbt_project" \
       "set golemAgentGuestWasmFile := file(\"$agent_wasm\")" \
       "golemEnsureAgentGuestWasm" \
