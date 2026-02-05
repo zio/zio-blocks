@@ -11,3 +11,11 @@ trait Matcher[+A] {
    */
   def downcastOrNull(any: Any): A
 }
+
+/**
+ * A matcher for structural types that exist only at compile-time. Structural
+ * types cannot be matched at runtime; they work only with DynamicValue.
+ */
+class StructuralMatcher[+A] extends Matcher[A] {
+  def downcastOrNull(any: Any): A = null.asInstanceOf[A]
+}
