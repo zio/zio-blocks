@@ -1,6 +1,7 @@
 package zio.blocks.scope
 
 import scala.reflect.macros.blackbox
+import zio.blocks.scope.internal.{MacroCore => MC}
 
 private[scope] object ScopeMacros {
 
@@ -10,15 +11,14 @@ private[scope] object ScopeMacros {
     val tpe = weakTypeOf[T]
     val sym = tpe.typeSymbol
 
-    val wireableTpe = c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
+    val wireableTpe =
+      c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
 
     if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType) {
       c.Expr[Wire.Shared[_, T]](q"$wireableTpe.wire.shared")
     } else {
       if (!sym.isClass) {
-        c.abort(c.enclosingPosition,
-          s"Cannot derive Wire for ${tpe.toString}: not a class. " +
-            s"Provide a Wireable[${tpe.toString}] instance or use Wire.Shared directly.")
+        MC.abortNotAClass(c)(tpe.toString)
       }
       deriveSharedWire[T](c)
     }
@@ -30,15 +30,14 @@ private[scope] object ScopeMacros {
     val tpe = weakTypeOf[T]
     val sym = tpe.typeSymbol
 
-    val wireableTpe = c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
+    val wireableTpe =
+      c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
 
     if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType) {
       c.Expr[Wire.Unique[_, T]](q"$wireableTpe.wire.unique")
     } else {
       if (!sym.isClass) {
-        c.abort(c.enclosingPosition,
-          s"Cannot derive Wire for ${tpe.toString}: not a class. " +
-            s"Provide a Wireable[${tpe.toString}] instance or use Wire.Unique directly.")
+        MC.abortNotAClass(c)(tpe.toString)
       }
       deriveUniqueWire[T](c)
     }
@@ -51,30 +50,71 @@ private[scope] object ScopeMacros {
 
     val ctor = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
-    }.getOrElse(c.abort(c.enclosingPosition, s"${tpe.toString} has no primary constructor"))
+    }.getOrElse(MC.abortNoPrimaryCtor(c)(tpe.toString))
 
     val paramLists = ctor.paramLists
-    val (regularParams, implicitParams) = paramLists.partition { params =>
-      params.headOption.forall(!_.isImplicit)
+
+    // Extract dependencies from all param lists
+    val allDepTypes: List[Type] = paramLists.flatten.flatMap { param =>
+      val paramType = param.typeSignature
+      MC.classifyAndExtractDep(c)(paramType)
     }
 
-    val allRegularParams = regularParams.flatten
-    val hasScopeParam = implicitParams.flatten.exists { param =>
-      param.typeSignature <:< typeOf[Scope.Any]
+    // Check for subtype conflicts
+    MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
+      case Some((sub, sup)) =>
+        MC.abortSubtypeConflict(c)(tpe.toString, sub.toString, sup.toString)
+      case None => // ok
     }
+
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
-    val depTypes = allRegularParams.map(_.typeSignature)
+    val inType          =
+      if (allDepTypes.isEmpty) typeOf[Any]
+      else allDepTypes.reduceLeft((a, b) => c.universe.internal.refinedType(List(a, b), NoSymbol))
 
-    depTypes match {
-      case Nil =>
-        generateSharedWire0[T](c)(hasScopeParam, isAutoCloseable)
-      case List(dep1Tpe) =>
-        generateSharedWire1[T](c)(dep1Tpe, hasScopeParam, isAutoCloseable)
-      case List(dep1Tpe, dep2Tpe) =>
-        generateSharedWire2[T](c)(dep1Tpe, dep2Tpe, hasScopeParam, isAutoCloseable)
-      case _ =>
-        c.abort(c.enclosingPosition, s"shared[T] supports up to 2 constructor parameters, got ${depTypes.length}")
+    // Generate argument expressions for constructor
+    def generateArgs(params: List[Symbol]): List[Tree] =
+      params.map { param =>
+        val paramType = param.typeSignature
+        if (MC.isScopeType(c)(paramType)) {
+          MC.extractScopeHasType(c)(paramType) match {
+            case Some(depType) =>
+              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[$depType]]"
+            case None =>
+              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Any]"
+          }
+        } else {
+          q"scope.get[$paramType]"
+        }
+      }
+
+    // Generate constructor call with all param lists
+    val argLists = paramLists.map(generateArgs)
+    val ctorCall = if (argLists.isEmpty) {
+      q"new $tpe()"
+    } else {
+      argLists.foldLeft[Tree](Select(New(TypeTree(tpe)), termNames.CONSTRUCTOR)) { (acc, args) =>
+        Apply(acc, args)
+      }
     }
+
+    val result = if (isAutoCloseable) {
+      q"""
+        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$inType, $tpe] { scope =>
+          val instance = $ctorCall
+          scope.defer(instance.asInstanceOf[AutoCloseable].close())
+          _root_.zio.blocks.context.Context[$tpe](instance)
+        }
+      """
+    } else {
+      q"""
+        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$inType, $tpe] { scope =>
+          val instance = $ctorCall
+          _root_.zio.blocks.context.Context[$tpe](instance)
+        }
+      """
+    }
+    c.Expr[Wire.Shared[_, T]](result)
   }
 
   private def deriveUniqueWire[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[Wire.Unique[_, T]] = {
@@ -84,211 +124,66 @@ private[scope] object ScopeMacros {
 
     val ctor = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
-    }.getOrElse(c.abort(c.enclosingPosition, s"${tpe.toString} has no primary constructor"))
+    }.getOrElse(MC.abortNoPrimaryCtor(c)(tpe.toString))
 
     val paramLists = ctor.paramLists
-    val (regularParams, implicitParams) = paramLists.partition { params =>
-      params.headOption.forall(!_.isImplicit)
+
+    // Extract dependencies from all param lists
+    val allDepTypes: List[Type] = paramLists.flatten.flatMap { param =>
+      val paramType = param.typeSignature
+      MC.classifyAndExtractDep(c)(paramType)
     }
 
-    val allRegularParams = regularParams.flatten
-    val hasScopeParam = implicitParams.flatten.exists { param =>
-      param.typeSignature <:< typeOf[Scope.Any]
+    // Check for subtype conflicts
+    MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
+      case Some((sub, sup)) =>
+        MC.abortSubtypeConflict(c)(tpe.toString, sub.toString, sup.toString)
+      case None => // ok
     }
+
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
-    val depTypes = allRegularParams.map(_.typeSignature)
+    val inType          =
+      if (allDepTypes.isEmpty) typeOf[Any]
+      else allDepTypes.reduceLeft((a, b) => c.universe.internal.refinedType(List(a, b), NoSymbol))
 
-    depTypes match {
-      case Nil =>
-        generateUniqueWire0[T](c)(hasScopeParam, isAutoCloseable)
-      case List(dep1Tpe) =>
-        generateUniqueWire1[T](c)(dep1Tpe, hasScopeParam, isAutoCloseable)
-      case List(dep1Tpe, dep2Tpe) =>
-        generateUniqueWire2[T](c)(dep1Tpe, dep2Tpe, hasScopeParam, isAutoCloseable)
-      case _ =>
-        c.abort(c.enclosingPosition, s"unique[T] supports up to 2 constructor parameters, got ${depTypes.length}")
-    }
-  }
-
-  private def generateSharedWire0[T: c.WeakTypeTag](c: blackbox.Context)(
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean
-  ): c.Expr[Wire.Shared[Any, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[Any, $tpe] { scope =>
-          val instance = new $tpe()(scope)
-          _root_.zio.blocks.context.Context[$tpe](instance)
+    // Generate argument expressions for constructor
+    def generateArgs(params: List[Symbol]): List[Tree] =
+      params.map { param =>
+        val paramType = param.typeSignature
+        if (MC.isScopeType(c)(paramType)) {
+          MC.extractScopeHasType(c)(paramType) match {
+            case Some(depType) =>
+              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[$depType]]"
+            case None =>
+              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Any]"
+          }
+        } else {
+          q"scope.get[$paramType]"
         }
-      """
-    } else if (isAutoCloseable) {
+      }
+
+    // Generate constructor call with all param lists
+    val argLists = paramLists.map(generateArgs)
+    val ctorCall = if (argLists.isEmpty) {
+      q"new $tpe()"
+    } else {
+      argLists.foldLeft[Tree](Select(New(TypeTree(tpe)), termNames.CONSTRUCTOR)) { (acc, args) =>
+        Apply(acc, args)
+      }
+    }
+
+    val result = if (isAutoCloseable) {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[Any, $tpe] { scope =>
-          val instance = new $tpe()
+        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$inType, $tpe] { scope =>
+          val instance = $ctorCall
           scope.defer(instance.asInstanceOf[AutoCloseable].close())
           _root_.zio.blocks.context.Context[$tpe](instance)
         }
       """
     } else {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[Any, $tpe] { _ =>
-          val instance = new $tpe()
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    }
-    c.Expr[Wire.Shared[Any, T]](result)
-  }
-
-  private def generateSharedWire1[T: c.WeakTypeTag](c: blackbox.Context)(
-    dep1Tpe: c.Type,
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean
-  ): c.Expr[Wire.Shared[_, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$dep1Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val instance = new $tpe(arg1)(scope)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else if (isAutoCloseable) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$dep1Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val instance = new $tpe(arg1)
-          scope.defer(instance.asInstanceOf[AutoCloseable].close())
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$dep1Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val instance = new $tpe(arg1)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    }
-    c.Expr[Wire.Shared[_, T]](result)
-  }
-
-  private def generateSharedWire2[T: c.WeakTypeTag](c: blackbox.Context)(
-    dep1Tpe: c.Type,
-    dep2Tpe: c.Type,
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean
-  ): c.Expr[Wire.Shared[_, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$dep1Tpe with $dep2Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val arg2 = scope.get[$dep2Tpe]
-          val instance = new $tpe(arg1, arg2)(scope)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else if (isAutoCloseable) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$dep1Tpe with $dep2Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val arg2 = scope.get[$dep2Tpe]
-          val instance = new $tpe(arg1, arg2)
-          scope.defer(instance.asInstanceOf[AutoCloseable].close())
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else {
-      q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$dep1Tpe with $dep2Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val arg2 = scope.get[$dep2Tpe]
-          val instance = new $tpe(arg1, arg2)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    }
-    c.Expr[Wire.Shared[_, T]](result)
-  }
-
-  private def generateUniqueWire0[T: c.WeakTypeTag](c: blackbox.Context)(
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean
-  ): c.Expr[Wire.Unique[Any, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[Any, $tpe] { scope =>
-          val instance = new $tpe()(scope)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else if (isAutoCloseable) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[Any, $tpe] { scope =>
-          val instance = new $tpe()
-          scope.defer(instance.asInstanceOf[AutoCloseable].close())
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[Any, $tpe] { _ =>
-          val instance = new $tpe()
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    }
-    c.Expr[Wire.Unique[Any, T]](result)
-  }
-
-  private def generateUniqueWire1[T: c.WeakTypeTag](c: blackbox.Context)(
-    dep1Tpe: c.Type,
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean
-  ): c.Expr[Wire.Unique[_, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$dep1Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val instance = new $tpe(arg1)(scope)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else if (isAutoCloseable) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$dep1Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val instance = new $tpe(arg1)
-          scope.defer(instance.asInstanceOf[AutoCloseable].close())
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$dep1Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val instance = new $tpe(arg1)
+        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$inType, $tpe] { scope =>
+          val instance = $ctorCall
           _root_.zio.blocks.context.Context[$tpe](instance)
         }
       """
@@ -296,62 +191,60 @@ private[scope] object ScopeMacros {
     c.Expr[Wire.Unique[_, T]](result)
   }
 
-  private def generateUniqueWire2[T: c.WeakTypeTag](c: blackbox.Context)(
-    dep1Tpe: c.Type,
-    dep2Tpe: c.Type,
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean
-  ): c.Expr[Wire.Unique[_, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$dep1Tpe with $dep2Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val arg2 = scope.get[$dep2Tpe]
-          val instance = new $tpe(arg1, arg2)(scope)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else if (isAutoCloseable) {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$dep1Tpe with $dep2Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val arg2 = scope.get[$dep2Tpe]
-          val instance = new $tpe(arg1, arg2)
-          scope.defer(instance.asInstanceOf[AutoCloseable].close())
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    } else {
-      q"""
-        _root_.zio.blocks.scope.Wire.Unique.fromFunction[$dep1Tpe with $dep2Tpe, $tpe] { scope =>
-          val arg1 = scope.get[$dep1Tpe]
-          val arg2 = scope.get[$dep2Tpe]
-          val instance = new $tpe(arg1, arg2)
-          _root_.zio.blocks.context.Context[$tpe](instance)
-        }
-      """
-    }
-    c.Expr[Wire.Unique[_, T]](result)
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // injected[T] implementations
+  // ─────────────────────────────────────────────────────────────────────────
 
   def injectedImpl[T: c.WeakTypeTag](c: blackbox.Context)(
     wires: c.Expr[Wire[_, _]]*
-  )(scope: c.Expr[Scope.Any]): c.Expr[Scope.Closeable[T, _]] = {
+  )(
+    scope: c.Expr[Scope.Any]
+  ): c.Expr[Scope.Closeable[T, _]] =
+    injectedImplWithScope[T](c)(wires, scope)
+
+  def injectedFromPrefixImpl[T: c.WeakTypeTag](c: blackbox.Context)(
+    wires: c.Expr[Wire[_, _]]*
+  ): c.Expr[Scope.Closeable[T, _]] = {
+    import c.universe._
+
+    val prefix    = c.prefix.tree
+    val scopeExpr = prefix match {
+      case Apply(_, List(scopeArg)) =>
+        c.Expr[Scope.Any](scopeArg)
+      case _ =>
+        c.Expr[Scope.Any](q"$prefix.scope")
+    }
+    injectedImplWithScope[T](c)(wires, scopeExpr)
+  }
+
+  def injectedFromSelfImpl[T: c.WeakTypeTag](c: blackbox.Context)(
+    wires: c.Expr[Wire[_, _]]*
+  ): c.Expr[Scope.Closeable[T, _]] = {
+    import c.universe._
+
+    val prefix    = c.prefix.tree
+    val scopeExpr = c.Expr[Scope.Any](q"$prefix")
+    injectedImplWithScope[T](c)(wires, scopeExpr)
+  }
+
+  private def injectedImplWithScope[T: c.WeakTypeTag](c: blackbox.Context)(
+    wires: Seq[c.Expr[Wire[_, _]]],
+    scopeExpr: c.Expr[Scope.Any]
+  ): c.Expr[Scope.Closeable[T, _]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
     val sym = tpe.typeSymbol
 
-    val wireableTpe = c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
+    val wireableTpe =
+      c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
 
     if (!sym.isClass && (wireableTpe.isEmpty || wireableTpe.tpe == NoType)) {
-      c.abort(c.enclosingPosition,
+      c.abort(
+        c.enclosingPosition,
         s"Cannot inject ${tpe.toString}: not a class and no Wireable[${tpe.toString}] available. " +
-          "Either use a concrete class or provide a Wireable instance.")
+          "Either use a concrete class or provide a Wireable instance."
+      )
     }
 
     val ctorOpt = if (sym.isClass) {
@@ -362,7 +255,7 @@ private[scope] object ScopeMacros {
 
     val (allRegularParams, hasScopeParam, isAutoCloseable) = ctorOpt match {
       case Some(ctor) =>
-        val paramLists = ctor.paramLists
+        val paramLists                      = ctor.paramLists
         val (regularParams, implicitParams) = paramLists.partition { params =>
           params.headOption.forall(!_.isImplicit)
         }
@@ -380,7 +273,7 @@ private[scope] object ScopeMacros {
     if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType && depTypes.isEmpty) {
       val result = q"""
         {
-          val parentScope = $scope
+          val parentScope = $scopeExpr
           val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
           val w = $wireableTpe.wire.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $tpe]]
           val childScope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](
@@ -393,13 +286,13 @@ private[scope] object ScopeMacros {
     } else {
       depTypes match {
         case Nil =>
-          generateInjected0[T](c)(hasScopeParam, isAutoCloseable, scope)
+          generateInjected0[T](c)(hasScopeParam, isAutoCloseable, scopeExpr)
         case List(dep1Tpe) =>
-          generateInjected1[T](c)(dep1Tpe, hasScopeParam, isAutoCloseable, wires, scope)
+          generateInjected1[T](c)(dep1Tpe, hasScopeParam, isAutoCloseable, wires, scopeExpr)
         case List(dep1Tpe, dep2Tpe) =>
-          generateInjected2[T](c)(dep1Tpe, dep2Tpe, hasScopeParam, isAutoCloseable, wires, scope)
+          generateInjected2[T](c)(dep1Tpe, dep2Tpe, hasScopeParam, isAutoCloseable, wires, scopeExpr)
         case _ =>
-          c.abort(c.enclosingPosition, s"injected[T] supports up to 2 constructor parameters, got ${depTypes.length}")
+          MC.abortTooManyParams(c)("injected", tpe.toString, depTypes.length, 2)
       }
     }
   }
@@ -457,7 +350,7 @@ private[scope] object ScopeMacros {
   ): c.Expr[Scope.Closeable[T, _]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[T]
+    val tpe      = weakTypeOf[T]
     val dep1Name = dep1Tpe.toString
 
     val wireSeq = q"_root_.scala.Seq(..$wires)"
@@ -509,7 +402,7 @@ private[scope] object ScopeMacros {
   ): c.Expr[Scope.Closeable[T, _]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[T]
+    val tpe      = weakTypeOf[T]
     val dep1Name = dep1Tpe.toString
     val dep2Name = dep2Tpe.toString
 
@@ -559,97 +452,5 @@ private[scope] object ScopeMacros {
       }
     """
     c.Expr[Scope.Closeable[T, _]](result)
-  }
-
-  def injectedFromPrefixImpl[T: c.WeakTypeTag](c: blackbox.Context)(
-    wires: c.Expr[Wire[_, _]]*
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val prefix = c.prefix.tree
-    val scopeExpr = prefix match {
-      case Apply(_, List(scopeArg)) =>
-        c.Expr[Scope.Any](scopeArg)
-      case _ =>
-        c.Expr[Scope.Any](q"$prefix.scope")
-    }
-    injectedImplWithScope[T](c)(wires, scopeExpr)
-  }
-
-  def injectedFromSelfImpl[T: c.WeakTypeTag](c: blackbox.Context)(
-    wires: c.Expr[Wire[_, _]]*
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val prefix    = c.prefix.tree
-    val scopeExpr = c.Expr[Scope.Any](q"$prefix")
-    injectedImplWithScope[T](c)(wires, scopeExpr)
-  }
-
-  private def injectedImplWithScope[T: c.WeakTypeTag](c: blackbox.Context)(
-    wires: Seq[c.Expr[Wire[_, _]]],
-    scopeExpr: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-    val sym = tpe.typeSymbol
-
-    val wireableTpe = c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
-
-    if (!sym.isClass && (wireableTpe.isEmpty || wireableTpe.tpe == NoType)) {
-      c.abort(c.enclosingPosition,
-        s"Cannot inject ${tpe.toString}: not a class and no Wireable[${tpe.toString}] available. " +
-          "Either use a concrete class or provide a Wireable instance.")
-    }
-
-    val ctorOpt = if (sym.isClass) {
-      tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m }
-    } else {
-      None
-    }
-
-    val (allRegularParams, hasScopeParam, isAutoCloseable) = ctorOpt match {
-      case Some(ctor) =>
-        val paramLists = ctor.paramLists
-        val (regularParams, implicitParams) = paramLists.partition { params =>
-          params.headOption.forall(!_.isImplicit)
-        }
-        val hasScope = implicitParams.flatten.exists { param =>
-          param.typeSignature <:< typeOf[Scope.Any]
-        }
-        val isAC = tpe <:< typeOf[AutoCloseable]
-        (regularParams.flatten, hasScope, isAC)
-      case None =>
-        (Nil, false, false)
-    }
-
-    val depTypes = allRegularParams.map(_.typeSignature)
-
-    if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType && depTypes.isEmpty) {
-      val result = q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val w = $wireableTpe.wire.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $tpe]]
-          val childScope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](
-            parentScope, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]], finalizers)
-          val ctx = w.constructFn(childScope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-      c.Expr[Scope.Closeable[T, _]](result)
-    } else {
-      depTypes match {
-        case Nil =>
-          generateInjected0[T](c)(hasScopeParam, isAutoCloseable, scopeExpr)
-        case List(dep1Tpe) =>
-          generateInjected1[T](c)(dep1Tpe, hasScopeParam, isAutoCloseable, wires, scopeExpr)
-        case List(dep1Tpe, dep2Tpe) =>
-          generateInjected2[T](c)(dep1Tpe, dep2Tpe, hasScopeParam, isAutoCloseable, wires, scopeExpr)
-        case _ =>
-          c.abort(c.enclosingPosition, s"injected[T] supports up to 2 constructor parameters, got ${depTypes.length}")
-      }
-    }
   }
 }

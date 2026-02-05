@@ -44,8 +44,8 @@ package object scope {
   /**
    * Creates a closeable scope containing the given value.
    *
-   * If the value is `AutoCloseable`, its `close()` method is automatically registered as a
-   * finalizer.
+   * If the value is `AutoCloseable`, its `close()` method is automatically
+   * registered as a finalizer.
    */
   def injectedValue[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, _] = {
     val ctx        = Context(t)
@@ -59,8 +59,8 @@ package object scope {
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
    *
-   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the macro inspects `T`'s
-   * primary constructor and generates a wire that:
+   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
+   * macro inspects `T`'s primary constructor and generates a wire that:
    *   - Retrieves constructor parameters from the scope
    *   - Passes an implicit `Scope` parameter if present
    *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
@@ -75,14 +75,16 @@ package object scope {
   /**
    * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
    *
-   * Like `shared[T]`, but the wire creates a fresh instance each time it's used.
+   * Like `shared[T]`, but the wire creates a fresh instance each time it's
+   * used.
    */
   def unique[T]: Wire.Unique[_, T] = macro ScopeMacros.uniqueImpl[T]
 
   /**
    * Creates a child scope containing an instance of `T` and its dependencies.
    *
-   * The macro inspects `T`'s constructor to determine dependencies. Dependencies are resolved from:
+   * The macro inspects `T`'s constructor to determine dependencies.
+   * Dependencies are resolved from:
    *   1. Provided wires (in order)
    *   2. The parent scope's stack
    *

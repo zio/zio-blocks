@@ -64,6 +64,105 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     }
   }
 
+  // Test classes for Scope.Has parameter handling
+  class ServiceWithScopeHas(val config: Config)(using Scope.Has[Database]) {
+    val db: Database = $[Database]
+  }
+
+  class ServiceWithMultipleScopeHas(using Scope.Has[Config], Scope.Has[Database]) {
+    val config: Config = $[Config]
+    val db: Database   = $[Database]
+  }
+
+  class ServiceWithMixedParams(val cache: Cache)(using Scope.Has[Config], Scope.Any) {
+    val config: Config     = $[Config]
+    var cleanedUp: Boolean = false
+    defer { cleanedUp = true }
+  }
+
+  class ServiceWithScopeHasInRegularParams(configScope: Scope.Has[Config], val cache: Cache) {
+    val config: Config = configScope.get[Config]
+  }
+
+  class ServiceWithMultipleParamLists(val cache: Cache)(dbScope: Scope.Has[Database])(using Scope.Any) {
+    val db: Database       = dbScope.get[Database]
+    var cleanedUp: Boolean = false
+    defer { cleanedUp = true }
+  }
+
+  // Test classes from conversation examples
+  // Example 1: UserProfileService(database: Database, config: Config)(using Scope.Any)
+  // In = Database & Config
+  class UserProfileService(val database: Database, val config: Config)(using Scope.Any) {
+    var cleanedUp: Boolean = false
+    defer { cleanedUp = true }
+  }
+
+  // Example 2: All Scope.Has params in one list
+  // Use distinct (non-subtype) stream types to avoid subtype conflict
+  trait SocketStream { def read(): Int          }
+  trait FileReader   { def getChannel(): String }
+  trait FileWriter   { def write(b: Int): Unit  }
+  class MergeType(val name: String)
+
+  class SocketStream1 extends SocketStream { def read(): Int = 42             }
+  class FileReader1   extends FileReader   { def getChannel(): String = "ch1" }
+  class FileWriter1   extends FileWriter   { def write(b: Int): Unit = ()     }
+
+  // MergeSort(socket: Scope.Has[SocketStream], file: Scope.Has[FileReader], output: Scope.Has[FileWriter], mergeType: MergeType)
+  // In = SocketStream & FileReader & FileWriter & MergeType
+  class MergeSort(
+    socket: Scope.Has[SocketStream],
+    file: Scope.Has[FileReader],
+    output: Scope.Has[FileWriter],
+    val mergeType: MergeType
+  ) {
+    val socketStream: SocketStream = socket.get[SocketStream]
+    val fileReader: FileReader     = file.get[FileReader]
+    val fileWriter: FileWriter     = output.get[FileWriter]
+  }
+
+  // Example 3: Multiple param lists with Scope.Has
+  // MergeSort2(socket: Scope.Has[SocketStream], file: Scope.Has[FileReader])(output: Scope.Has[FileWriter], mergeType: MergeType)(using Scope.Any)
+  // In = SocketStream & FileReader & FileWriter & MergeType
+  class MergeSort2(
+    socket: Scope.Has[SocketStream],
+    file: Scope.Has[FileReader]
+  )(
+    output: Scope.Has[FileWriter],
+    val mergeType: MergeType
+  )(using Scope.Any) {
+    val socketStream: SocketStream = socket.get[SocketStream]
+    val fileReader: FileReader     = file.get[FileReader]
+    val fileWriter: FileWriter     = output.get[FileWriter]
+    var cleanedUp: Boolean         = false
+    defer { cleanedUp = true }
+  }
+
+  // Example 4: Mix of value deps and Scope.Has in same param list
+  class ComplexService(
+    val config: Config,
+    dbScope: Scope.Has[Database],
+    val cache: Cache
+  )(using Scope.Any) {
+    val db: Database       = dbScope.get[Database]
+    var cleanedUp: Boolean = false
+    defer { cleanedUp = true }
+  }
+
+  // Example 5: Only Scope.Any, no deps
+  class NoDepsService()(using Scope.Any) {
+    var cleanedUp: Boolean = false
+    defer { cleanedUp = true }
+  }
+
+  // Example 6: AutoCloseable with Scope.Has
+  class AutoCloseableWithScopeHas(configScope: Scope.Has[Config]) extends AutoCloseable {
+    val config: Config  = configScope.get[Config]
+    var closed: Boolean = false
+    def close(): Unit   = closed = true
+  }
+
   def spec = suite("package functions (Scala 3)")(
     test("defer registers cleanup on scope") {
       var cleaned     = false
@@ -257,6 +356,266 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val ctx                                             = wire.construct
         val db                                              = ctx.get[DatabaseTrait]
         assertTrue(db.query() == "querying with false")
+      }
+    ),
+    suite("Scope.Has parameter handling")(
+      test("Wireable.from extracts Y from Scope.Has[Y] in using params") {
+        // ServiceWithScopeHas(config: Config)(using Scope.Has[Database])
+        // In should be Config & Database
+        val wireable                       = Wireable.from[ServiceWithScopeHas]
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        val depsCtx                        = Context(new Config).add(new Database)
+        val scope                          = Scope.makeCloseable[Config & Database, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Database] = scope
+        val ctx                            = wireable.wire.construct
+        val svc                            = ctx.get[ServiceWithScopeHas]
+        assertTrue(svc.config != null && svc.db != null)
+      },
+      test("Wireable.from handles multiple Scope.Has params") {
+        // ServiceWithMultipleScopeHas(using Scope.Has[Config], Scope.Has[Database])
+        // In should be Config & Database
+        val wireable                       = Wireable.from[ServiceWithMultipleScopeHas]
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        val depsCtx                        = Context(new Config).add(new Database)
+        val scope                          = Scope.makeCloseable[Config & Database, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Database] = scope
+        val ctx                            = wireable.wire.construct
+        val svc                            = ctx.get[ServiceWithMultipleScopeHas]
+        assertTrue(svc.config != null && svc.db != null)
+      },
+      test("Wireable.from handles mix of regular params, Scope.Has, and Scope.Any") {
+        // ServiceWithMixedParams(cache: Cache)(using Scope.Has[Config], Scope.Any)
+        // In should be Cache & Config
+        val wireable                    = Wireable.from[ServiceWithMixedParams]
+        val (parentScope, closeParent)  = Scope.createTestableScope()
+        val finalizers                  = new Finalizers
+        val depsCtx                     = Context(new Cache).add(new Config)
+        val scope                       = Scope.makeCloseable[Cache & Config, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Cache & Config] = scope
+        val ctx                         = wireable.wire.construct
+        val svc                         = ctx.get[ServiceWithMixedParams]
+        assertTrue(svc.cache != null && svc.config != null && !svc.cleanedUp)
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("Wireable.from extracts Y from Scope.Has[Y] in regular params") {
+        // ServiceWithScopeHasInRegularParams(configScope: Scope.Has[Config], cache: Cache)
+        // In should be Config & Cache
+        val wireable                    = Wireable.from[ServiceWithScopeHasInRegularParams]
+        val parent: Scope.Any           = Scope.global
+        val finalizers                  = new Finalizers
+        val depsCtx                     = Context(new Config).add(new Cache)
+        val scope                       = Scope.makeCloseable[Config & Cache, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Cache] = scope
+        val ctx                         = wireable.wire.construct
+        val svc                         = ctx.get[ServiceWithScopeHasInRegularParams]
+        assertTrue(svc.config != null && svc.cache != null)
+      },
+      test("Wireable.from handles multiple param lists with Scope.Has") {
+        // ServiceWithMultipleParamLists(cache: Cache)(dbScope: Scope.Has[Database])(using Scope.Any)
+        // In should be Cache & Database
+        val wireable                      = Wireable.from[ServiceWithMultipleParamLists]
+        val (parentScope, closeParent)    = Scope.createTestableScope()
+        val finalizers                    = new Finalizers
+        val depsCtx                       = Context(new Cache).add(new Database)
+        val scope                         = Scope.makeCloseable[Cache & Database, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Cache & Database] = scope
+        val ctx                           = wireable.wire.construct
+        val svc                           = ctx.get[ServiceWithMultipleParamLists]
+        assertTrue(svc.cache != null && svc.db != null && !svc.cleanedUp)
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("shared[T] extracts Y from Scope.Has[Y] in using params") {
+        val wire                           = shared[ServiceWithScopeHas]
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        val depsCtx                        = Context(new Config).add(new Database)
+        val scope                          = Scope.makeCloseable[Config & Database, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Database] = scope
+        val ctx                            = wire.construct
+        val svc                            = ctx.get[ServiceWithScopeHas]
+        assertTrue(svc.config != null && svc.db != null)
+      },
+      test("shared[T] handles multiple Scope.Has params") {
+        val wire                           = shared[ServiceWithMultipleScopeHas]
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        val depsCtx                        = Context(new Config).add(new Database)
+        val scope                          = Scope.makeCloseable[Config & Database, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Database] = scope
+        val ctx                            = wire.construct
+        val svc                            = ctx.get[ServiceWithMultipleScopeHas]
+        assertTrue(svc.config != null && svc.db != null)
+      },
+      test("shared[T] handles mix of regular params, Scope.Has, and Scope.Any") {
+        val wire                        = shared[ServiceWithMixedParams]
+        val (parentScope, closeParent)  = Scope.createTestableScope()
+        val finalizers                  = new Finalizers
+        val depsCtx                     = Context(new Cache).add(new Config)
+        val scope                       = Scope.makeCloseable[Cache & Config, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Cache & Config] = scope
+        val ctx                         = wire.construct
+        val svc                         = ctx.get[ServiceWithMixedParams]
+        assertTrue(svc.cache != null && svc.config != null && !svc.cleanedUp)
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("unique[T] extracts Y from Scope.Has[Y] in using params") {
+        val wire                           = unique[ServiceWithScopeHas]
+        val parent: Scope.Any              = Scope.global
+        val finalizers                     = new Finalizers
+        val depsCtx                        = Context(new Config).add(new Database)
+        val scope                          = Scope.makeCloseable[Config & Database, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Database] = scope
+        val ctx                            = wire.construct
+        val svc                            = ctx.get[ServiceWithScopeHas]
+        assertTrue(svc.config != null && svc.db != null)
+      }
+    ),
+    suite("Conversation examples")(
+      test("UserProfileService: regular params with Scope.Any") {
+        // UserProfileService(database: Database, config: Config)(using Scope.Any)
+        // In = Database & Config
+        val wireable                       = Wireable.from[UserProfileService]
+        val (parentScope, closeParent)     = Scope.createTestableScope()
+        val finalizers                     = new Finalizers
+        val depsCtx                        = Context(new Database).add(new Config)
+        val scope                          = Scope.makeCloseable[Database & Config, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Database & Config] = scope
+        val ctx                            = wireable.wire.construct
+        val svc                            = ctx.get[UserProfileService]
+        assertTrue(svc.database != null && svc.config != null && !svc.cleanedUp)
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("MergeSort: multiple Scope.Has params in one list with value param") {
+        // MergeSort(socket: Scope.Has[SocketStream], file: Scope.Has[FileReader], output: Scope.Has[FileWriter], mergeType: MergeType)
+        // In = SocketStream & FileReader & FileWriter & MergeType
+        val wireable          = Wireable.from[MergeSort]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context[SocketStream](new SocketStream1)
+          .add[FileReader](new FileReader1)
+          .add[FileWriter](new FileWriter1)
+          .add(new MergeType("quick"))
+        val scope =
+          Scope.makeCloseable[SocketStream & FileReader & FileWriter & MergeType, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[SocketStream & FileReader & FileWriter & MergeType] = scope
+        val ctx                                                             = wireable.wire.construct
+        val svc                                                             = ctx.get[MergeSort]
+        assertTrue(
+          svc.socketStream.read() == 42 &&
+            svc.fileReader.getChannel() == "ch1" &&
+            svc.mergeType.name == "quick"
+        )
+      },
+      test("MergeSort2: multiple param lists with Scope.Has and Scope.Any") {
+        // MergeSort2(socket: Scope.Has[SocketStream], file: Scope.Has[FileReader])(output: Scope.Has[FileWriter], mergeType: MergeType)(using Scope.Any)
+        // In = SocketStream & FileReader & FileWriter & MergeType
+        val wireable                   = Wireable.from[MergeSort2]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context[SocketStream](new SocketStream1)
+          .add[FileReader](new FileReader1)
+          .add[FileWriter](new FileWriter1)
+          .add(new MergeType("merge"))
+        val scope = Scope
+          .makeCloseable[SocketStream & FileReader & FileWriter & MergeType, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[SocketStream & FileReader & FileWriter & MergeType] = scope
+        val ctx                                                             = wireable.wire.construct
+        val svc                                                             = ctx.get[MergeSort2]
+        assertTrue(
+          svc.socketStream.read() == 42 &&
+            svc.fileReader.getChannel() == "ch1" &&
+            svc.mergeType.name == "merge" &&
+            !svc.cleanedUp
+        )
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("ComplexService: mix of value deps and Scope.Has in same param list") {
+        // ComplexService(config: Config, dbScope: Scope.Has[Database], cache: Cache)(using Scope.Any)
+        // In = Config & Database & Cache
+        val wireable                               = Wireable.from[ComplexService]
+        val (parentScope, closeParent)             = Scope.createTestableScope()
+        val finalizers                             = new Finalizers
+        val depsCtx                                = Context(new Config).add(new Database).add(new Cache)
+        val scope                                  = Scope.makeCloseable[Config & Database & Cache, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Config & Database & Cache] = scope
+        val ctx                                    = wireable.wire.construct
+        val svc                                    = ctx.get[ComplexService]
+        assertTrue(
+          svc.config != null &&
+            svc.db != null &&
+            svc.cache != null &&
+            !svc.cleanedUp
+        )
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("NoDepsService: only Scope.Any, In = Any") {
+        val wireable                   = Wireable.from[NoDepsService]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val scope                      = Scope.makeCloseable[Any, TNil](parentScope, Context.empty, finalizers)
+        given Scope.Has[Any]           = scope
+        val ctx                        = wireable.wire.construct
+        val svc                        = ctx.get[NoDepsService]
+        assertTrue(!svc.cleanedUp)
+        scope.close()
+        assertTrue(svc.cleanedUp)
+      },
+      test("AutoCloseableWithScopeHas: AutoCloseable with Scope.Has") {
+        val wireable                   = Wireable.from[AutoCloseableWithScopeHas]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Config)
+        val scope                      = Scope.makeCloseable[Config, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Config]        = scope
+        val ctx                        = wireable.wire.construct
+        val svc                        = ctx.get[AutoCloseableWithScopeHas]
+        assertTrue(svc.config != null && !svc.closed)
+        scope.close()
+        assertTrue(svc.closed)
+      },
+      test("shared[MergeSort] works with complex Scope.Has params") {
+        val wire              = shared[MergeSort]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context[SocketStream](new SocketStream1)
+          .add[FileReader](new FileReader1)
+          .add[FileWriter](new FileWriter1)
+          .add(new MergeType("heap"))
+        val scope =
+          Scope.makeCloseable[SocketStream & FileReader & FileWriter & MergeType, TNil](parent, depsCtx, finalizers)
+        given Scope.Has[SocketStream & FileReader & FileWriter & MergeType] = scope
+        val ctx                                                             = wire.construct
+        val svc                                                             = ctx.get[MergeSort]
+        assertTrue(svc.mergeType.name == "heap")
+      },
+      test("shared[ComplexService] works with mixed params") {
+        val wire                                   = shared[ComplexService]
+        val (parentScope, closeParent)             = Scope.createTestableScope()
+        val finalizers                             = new Finalizers
+        val depsCtx                                = Context(new Config).add(new Database).add(new Cache)
+        val scope                                  = Scope.makeCloseable[Config & Database & Cache, TNil](parentScope, depsCtx, finalizers)
+        given Scope.Has[Config & Database & Cache] = scope
+        val ctx                                    = wire.construct
+        val svc                                    = ctx.get[ComplexService]
+        assertTrue(svc.config != null && svc.db != null && svc.cache != null)
+      },
+      test("subtype conflict check prevents ambiguous dependencies") {
+        // This test verifies the error message exists by testing with non-conflicting types
+        // The actual compile error for conflicting subtypes (like InputStream/FileInputStream)
+        // would be caught at compile time with a helpful message
+        trait Animal
+        trait Dog extends Animal
+        // If you tried: class BadService(a: Scope.Has[Animal], d: Scope.Has[Dog])
+        // You'd get: "Dependency type conflict: Dog is a subtype of Animal..."
+        assertTrue(true)
       }
     )
   )

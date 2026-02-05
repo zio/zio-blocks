@@ -284,6 +284,77 @@ class Cache(config: Config)(using Scope.Any) {
 
 ---
 
+## Advanced Parameter Patterns
+
+The macro derivation (`shared[T]`, `unique[T]`, `Wireable.from[T]`) analyzes constructor parameters to determine dependencies and how to pass them.
+
+### Regular Parameters
+
+Regular constructor parameters become dependencies. Their types are combined into the `In` type of the resulting wire:
+
+```scala
+class UserService(db: Database, cache: Cache)
+
+val wire = shared[UserService]
+// wire has type Wire.Shared[Database & Cache, UserService]
+```
+
+### Scope.Any Parameters
+
+An implicit/using `Scope.Any` parameter receives the current scope but doesn't add a dependency:
+
+```scala
+class Cache(config: Config)(using Scope.Any) {
+  defer { /* cleanup */ }
+}
+
+val wire = shared[Cache]
+// wire has type Wire.Shared[Config, Cache]
+// (Scope.Any is NOT part of the In type)
+```
+
+### Scope.Has[Y] Parameters
+
+Parameters of type `Scope.Has[Y]` extract `Y` as a dependency and receive a narrowed scope:
+
+```scala
+class MergeSort(
+  input: Scope.Has[InputStream],
+  output: Scope.Has[OutputStream],
+  config: MergeConfig
+) {
+  val in = input.get[InputStream]
+  val out = output.get[OutputStream]
+}
+
+val wire = shared[MergeSort]
+// wire has type Wire.Shared[InputStream & OutputStream & MergeConfig, MergeSort]
+```
+
+This is useful when you need the scope for more than just `defer` — for example, to pass it to helper functions or store it for later use.
+
+### Multiple Parameter Lists
+
+Macro derivation preserves parameter list structure:
+
+```scala
+class Service(db: Database)(cache: Cache)(using Scope.Any) {
+  defer { /* cleanup */ }
+}
+
+// Generates: new Service(scope.get[Database])(scope.get[Cache])(scope)
+```
+
+### Parameter Handling Summary
+
+| Parameter Type | Added to `In`? | Passed as |
+|---------------|----------------|-----------|
+| Regular `T` | Yes, `T` | `scope.get[T]` |
+| `Scope.Any` | No | `scope` |
+| `Scope.Has[Y]` | Yes, `Y` | `scope` (narrowed) |
+
+---
+
 ## Request Scoping
 
 For request-scoped services, use `injected` with the implicit parent scope:
@@ -533,12 +604,78 @@ def handleRequest(request: Request)(using Scope.Any): Response =
 
 ## Compile-Time Errors
 
-Scope provides rich error messages with dependency graphs.
+Scope provides rich error messages with ASCII formatting and color support (when running in an interactive terminal). Colors are automatically disabled when `NO_COLOR` is set or `sbt.log.noformat=true`.
 
-**Missing dependency:**
+### Not a Class
+
+When you try to derive a wire for a trait or abstract type without a `Wireable` instance:
 
 ```
-── Scope Error ─────────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
+
+  Cannot derive Wire for DatabaseTrait: not a class.
+
+  Hint: Provide a Wireable[DatabaseTrait] instance
+        or use Wire.Shared / Wire.Unique directly.
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### Subtype Conflict
+
+When two dependencies have a subtype relationship, Context cannot reliably distinguish them:
+
+```scala
+class BadService(
+  input: InputStream,      // General type
+  file: FileInputStream    // Subtype of InputStream
+)
+```
+
+```
+── Scope Error ────────────────────────────────────────────────────────────────
+
+  Dependency type conflict in BadService
+
+  FileInputStream is a subtype of InputStream.
+
+  When both types are dependencies, Context cannot reliably distinguish
+  them. The more specific type may be retrieved when the more general
+  type is requested.
+
+  To fix this, wrap one or both types in a distinct wrapper:
+
+    case class WrappedInputStream(value: InputStream)
+    or
+    opaque type WrappedInputStream = InputStream
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### Too Many Parameters
+
+When a class has more constructor parameters than the macro currently supports:
+
+```
+── Scope Error ────────────────────────────────────────────────────────────────
+
+  injected[ComplexService] has too many constructor parameters.
+
+  Found: 5 parameters
+  Supported: up to 2 parameters
+
+  Hint: Use Wireable.from[ComplexService] for more control,
+        or restructure to reduce direct dependencies.
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### Missing Dependency
+
+When a required dependency is not available in the scope or provided as a wire:
+
+```
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Missing dependency: Cache
 
@@ -557,10 +694,12 @@ Scope provides rich error messages with dependency graphs.
 ────────────────────────────────────────────────────────────────────────────────
 ```
 
-**Ambiguous provider:**
+### Duplicate Provider
+
+When the same type is provided by multiple wires:
 
 ```
-── Scope Error ─────────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Multiple providers for Config
 
@@ -568,15 +707,17 @@ Scope provides rich error messages with dependency graphs.
     1. shared[Config] at MyApp.scala:15
     2. Wire.value(...) at MyApp.scala:16
 
-  Hint: Remove duplicate wires or use distinct types
+  Hint: Remove duplicate wires or use distinct wrapper types.
 
 ────────────────────────────────────────────────────────────────────────────────
 ```
 
-**Dependency cycle:**
+### Dependency Cycle
+
+When dependencies form a circular reference:
 
 ```
-── Scope Error ─────────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Dependency cycle detected
 

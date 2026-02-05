@@ -48,7 +48,7 @@ object Scope {
    * A scope with an unknown stack type. Use in constructors that need `defer`
    * but don't access services.
    */
-  type Any = Scope[?]
+  type Any = Scope[scala.Any]
 
   /**
    * A scope that has service `T` available.

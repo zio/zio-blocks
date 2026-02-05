@@ -99,29 +99,29 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     },
     suite("shared[T]")(
       test("derives wire for no-arg class") {
-        val wire                = shared[Config]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val scope               = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        val ctx                 = wire.asInstanceOf[Wire.Shared[Any, Config]].construct(scope)
+        val wire              = shared[Config]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val scope             = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
+        val ctx               = wire.asInstanceOf[Wire.Shared[Any, Config]].construct(scope)
         assertTrue(ctx.get[Config].debug == false)
       },
       test("derives wire for class with one dependency") {
-        val wire                = shared[SimpleService]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
-        val ctx                 = wire.asInstanceOf[Wire.Shared[Any, SimpleService]].construct(scope)
+        val wire              = shared[SimpleService]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val configCtx         = Context(new Config)
+        val scope             = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
+        val ctx               = wire.asInstanceOf[Wire.Shared[Any, SimpleService]].construct(scope)
         assertTrue(ctx.get[SimpleService] != null)
       },
       test("derives wire for class with two dependencies") {
-        val wire                = shared[ServiceWith2Deps]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val depsCtx             = Context(new Config).add(new Database)
-        val scope               = Scope.makeCloseable[Config with Database, TNil](parent, depsCtx, finalizers)
-        val ctx                 = wire.asInstanceOf[Wire.Shared[Any, ServiceWith2Deps]].construct(scope)
+        val wire              = shared[ServiceWith2Deps]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context(new Config).add(new Database)
+        val scope             = Scope.makeCloseable[Config with Database, TNil](parent, depsCtx, finalizers)
+        val ctx               = wire.asInstanceOf[Wire.Shared[Any, ServiceWith2Deps]].construct(scope)
         assertTrue(ctx.get[ServiceWith2Deps] != null)
       },
       test("handles AutoCloseable") {
@@ -136,32 +136,32 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         assertTrue(instance.closed)
       },
       test("uses Wireable when available") {
-        val wire                = shared[DatabaseTrait]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
-        val ctx                 = wire.asInstanceOf[Wire.Shared[Any, DatabaseTrait]].construct(scope)
-        val db                  = ctx.get[DatabaseTrait]
+        val wire              = shared[DatabaseTrait]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val configCtx         = Context(new Config)
+        val scope             = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
+        val ctx               = wire.asInstanceOf[Wire.Shared[Any, DatabaseTrait]].construct(scope)
+        val db                = ctx.get[DatabaseTrait]
         assertTrue(db.query() == "querying with false")
       }
     ),
     suite("unique[T]")(
       test("derives wire for no-arg class") {
-        val wire                = unique[Config]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val scope               = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        val ctx                 = wire.asInstanceOf[Wire.Unique[Any, Config]].construct(scope)
+        val wire              = unique[Config]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val scope             = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
+        val ctx               = wire.asInstanceOf[Wire.Unique[Any, Config]].construct(scope)
         assertTrue(ctx.get[Config].debug == false)
       },
       test("derives wire for class with dependency") {
-        val wire                = unique[SimpleService]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
-        val ctx                 = wire.asInstanceOf[Wire.Unique[Any, SimpleService]].construct(scope)
+        val wire              = unique[SimpleService]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val configCtx         = Context(new Config)
+        val scope             = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
+        val ctx               = wire.asInstanceOf[Wire.Unique[Any, SimpleService]].construct(scope)
         assertTrue(ctx.get[SimpleService] != null)
       },
       test("handles AutoCloseable") {
@@ -199,20 +199,20 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     ),
     suite("Wireable.from")(
       test("creates Wireable for no-arg class") {
-        val wireable            = Wireable.from[Config]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val scope               = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
-        val ctx                 = wireable.wire.asInstanceOf[Wire.Shared[Any, Config]].construct(scope)
+        val wireable          = Wireable.from[Config]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val scope             = Scope.makeCloseable[Any, TNil](parent, Context.empty, finalizers)
+        val ctx               = wireable.wire.asInstanceOf[Wire.Shared[Any, Config]].construct(scope)
         assertTrue(ctx.get[Config].debug == false)
       },
       test("creates Wireable for class with dependency") {
-        val wireable            = Wireable.from[SimpleService]
-        val parent: Scope.Any   = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
-        val ctx                 = wireable.wire.asInstanceOf[Wire.Shared[Any, SimpleService]].construct(scope)
+        val wireable          = Wireable.from[SimpleService]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val configCtx         = Context(new Config)
+        val scope             = Scope.makeCloseable[Config, TNil](parent, configCtx, finalizers)
+        val ctx               = wireable.wire.asInstanceOf[Wire.Shared[Any, SimpleService]].construct(scope)
         assertTrue(ctx.get[SimpleService] != null)
       },
       test("handles AutoCloseable") {
