@@ -52,4 +52,35 @@ object Wireable extends WireableVersionSpecific {
    * }}}
    */
   type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
+
+  /**
+   * Creates a [[Wireable]] from a pre-existing value.
+   *
+   * The value is wrapped in a shared wire with no dependencies.
+   *
+   * @example
+   *   {{{
+   *   object Config {
+   *     given Wireable[Config] = Wireable(Config("jdbc://localhost", 8080))
+   *   }
+   *   }}}
+   */
+  def apply[T](value: T)(implicit ev: zio.blocks.context.IsNominalType[T]): Wireable.Typed[Any, T] =
+    fromWire(Wire(value))
+
+  /**
+   * Creates a [[Wireable]] from an existing [[Wire]].
+   *
+   * @example
+   *   {{{
+   *   object Database {
+   *     given Wireable[Database] = Wireable.fromWire(shared[PostgresDatabase])
+   *   }
+   *   }}}
+   */
+  def fromWire[In0, Out](w: Wire[In0, Out]): Wireable.Typed[In0, Out] =
+    new Wireable[Out] {
+      type In = In0
+      def wire: Wire[In0, Out] = w
+    }
 }
