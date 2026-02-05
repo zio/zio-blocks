@@ -4,9 +4,10 @@ import scala.language.experimental.macros
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
 /**
- * Phantom type wrapper to preserve literal string types through macro expansion.
- * Direct use of ConstantType causes literal types to widen to String.
- * By wrapping in FieldName[N], the type argument is preserved when using appliedType.
+ * Phantom type wrapper to preserve literal string types through macro
+ * expansion. Direct use of ConstantType causes literal types to widen to
+ * String. By wrapping in FieldName[N], the type argument is preserved when
+ * using appliedType.
  */
 sealed trait FieldName[N]
 
@@ -49,7 +50,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def addField(
     target: B => Any,
     default: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, _] = macro MigrationBuilderMacros.addFieldImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, SourceHandled, _] = macro
+    MigrationBuilderMacros.addFieldImpl[A, B, SourceHandled, TargetProvided]
 
   /**
    * Drop a field from the source.
@@ -63,7 +65,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def dropField(
     source: A => Any,
     defaultForReverse: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, _, TargetProvided] = macro MigrationBuilderMacros.dropFieldImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _, TargetProvided] = macro
+    MigrationBuilderMacros.dropFieldImpl[A, B, SourceHandled, TargetProvided]
 
   /**
    * Rename a field from source to target.
@@ -111,7 +114,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def optionalizeField(
     source: A => Any,
     target: B => Option[_]
-  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.optionalizeFieldImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _, _] = macro
+    MigrationBuilderMacros.optionalizeFieldImpl[A, B, SourceHandled, TargetProvided]
 
   /**
    * Change the type of a field (primitive-to-primitive only).
@@ -127,7 +131,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     source: A => Any,
     target: B => Any,
     converter: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.changeFieldTypeImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _, _] = macro
+    MigrationBuilderMacros.changeFieldTypeImpl[A, B, SourceHandled, TargetProvided]
 
   // ----- Enum operations -----
 
@@ -169,7 +174,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def transformElements(
     at: A => Iterable[_],
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = macro MigrationBuilderMacros.transformElementsImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = macro
+    MigrationBuilderMacros.transformElementsImpl[A, B, SourceHandled, TargetProvided]
 
   // ----- Maps -----
 
@@ -184,7 +190,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def transformKeys(
     at: A => Map[_, _],
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = macro MigrationBuilderMacros.transformKeysImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = macro
+    MigrationBuilderMacros.transformKeysImpl[A, B, SourceHandled, TargetProvided]
 
   /**
    * Transform each value in a map.
@@ -197,13 +204,14 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def transformValues(
     at: A => Map[_, _],
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = macro MigrationBuilderMacros.transformValuesImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = macro
+    MigrationBuilderMacros.transformValuesImpl[A, B, SourceHandled, TargetProvided]
 
   // ----- Build -----
 
   /**
-   * Build migration with full macro validation.
-   * Requires implicit evidence that all source fields are handled and all target fields are provided.
+   * Build migration with full macro validation. Requires implicit evidence that
+   * all source fields are handled and all target fields are provided.
    */
   def build(implicit ev: MigrationComplete[A, B, SourceHandled, TargetProvided]): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
@@ -229,8 +237,8 @@ object MigrationBuilder {
 }
 
 /**
- * Evidence that a migration is complete.
- * All source fields must be handled and all target fields must be provided.
+ * Evidence that a migration is complete. All source fields must be handled and
+ * all target fields must be provided.
  */
 trait MigrationComplete[-A, -B, -SourceHandled, -TargetProvided]
 
@@ -241,6 +249,6 @@ object MigrationComplete {
   private val instance: MigrationComplete[Any, Any, Any, Any] =
     new MigrationComplete[Any, Any, Any, Any] {}
 
-  implicit def derive[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
-    macro MigrationValidationMacros.validateMigrationImpl[A, B, SH, TP]
+  implicit def derive[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] = macro
+    MigrationValidationMacros.validateMigrationImpl[A, B, SH, TP]
 }
