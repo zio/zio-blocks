@@ -101,7 +101,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val json                              = Json.Number(10)
       val patch                             = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(5))))
       val result: Either[SchemaError, Json] = json.patch(patch) // Type annotation proves return type
-      assertTrue(result == Right(Json.Number("15")))
+      assertTrue(result == Right(Json.Number(15)))
     }
   )
 

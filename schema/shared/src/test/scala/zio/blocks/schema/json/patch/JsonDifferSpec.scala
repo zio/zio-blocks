@@ -47,8 +47,8 @@ object JsonDifferSpec extends SchemaBaseSpec {
       )
     },
     test("diff handles decimal numbers") {
-      val source = Json.Number("1.5")
-      val target = Json.Number("2.75")
+      val source = Json.Number(1.5)
+      val target = Json.Number(2.75)
       val patch  = JsonDiffer.diff(source, target)
 
       assertTrue(
@@ -60,8 +60,8 @@ object JsonDifferSpec extends SchemaBaseSpec {
       )
     },
     test("diff handles large numbers") {
-      val source = Json.Number("999999999999999999")
-      val target = Json.Number("1000000000000000000")
+      val source = Json.Number(999999999999999999L)
+      val target = Json.Number(1000000000000000000L)
       val patch  = JsonDiffer.diff(source, target)
 
       assertTrue(
@@ -237,8 +237,8 @@ object JsonDifferSpec extends SchemaBaseSpec {
         patch.ops.head.operation match {
           case Op.ObjectEdit(ops) =>
             ops.exists {
-              case ObjectOp.Add("b", Json.Number("2")) => true
-              case _                                   => false
+              case ObjectOp.Add("b", Json.Number(n)) => n == BigDecimal(2)
+              case _                                 => false
             }
           case _ => false
         }
@@ -362,8 +362,8 @@ object JsonDifferSpec extends SchemaBaseSpec {
 
       assertTrue(
         patch.ops.head.operation match {
-          case Op.Set(Json.Number("1")) => true
-          case _                        => false
+          case Op.Set(Json.Number(n)) => n == BigDecimal(1)
+          case _                      => false
         },
         patch.apply(source) == Right(target)
       )
