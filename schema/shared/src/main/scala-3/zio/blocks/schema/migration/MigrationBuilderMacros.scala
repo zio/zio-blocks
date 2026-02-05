@@ -6,21 +6,23 @@ import zio.blocks.schema.SchemaExpr
 
 object MigrationBuilderMacros {
 
-  def addFieldImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def addFieldImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     target: Expr[B => Any],
     default: Expr[SchemaExpr[_, _]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, SH, ?]] = {
     import q.reflect.*
 
-    val fieldName     = extractFieldNameFromTerm(target.asTerm)
-    val fieldNameType = ConstantType(StringConstant(fieldName))
+    val fieldName      = extractFieldNameFromTerm(target.asTerm)
+    val fieldNameType  = ConstantType(StringConstant(fieldName))
+    val fieldNameWrapped = TypeRepr.of[FieldName].appliedTo(fieldNameType)
+    val newTPType      = AndType(TypeRepr.of[TP], fieldNameWrapped)
 
-    fieldNameType.asType match {
-      case '[fn] =>
+    newTPType.asType match {
+      case '[newTp] =>
         '{
           val targetPath = SelectorMacros.toPath[B, Any]($target)
-          new MigrationBuilder[A, B, SH, Tuple.Concat[TP, fn *: EmptyTuple]](
+          new MigrationBuilder[A, B, SH, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.AddField(targetPath, $default)
@@ -29,21 +31,23 @@ object MigrationBuilderMacros {
     }
   }
 
-  def dropFieldImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def dropFieldImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     source: Expr[A => Any],
     defaultForReverse: Expr[SchemaExpr[_, _]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, TP]] = {
     import q.reflect.*
 
-    val fieldName     = extractFieldNameFromTerm(source.asTerm)
-    val fieldNameType = ConstantType(StringConstant(fieldName))
+    val fieldName      = extractFieldNameFromTerm(source.asTerm)
+    val fieldNameType  = ConstantType(StringConstant(fieldName))
+    val fieldNameWrapped = TypeRepr.of[FieldName].appliedTo(fieldNameType)
+    val newSHType      = AndType(TypeRepr.of[SH], fieldNameWrapped)
 
-    fieldNameType.asType match {
-      case '[fn] =>
+    newSHType.asType match {
+      case '[newSh] =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Any]($source)
-          new MigrationBuilder[A, B, Tuple.Concat[SH, fn *: EmptyTuple], TP](
+          new MigrationBuilder[A, B, newSh, TP](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.DropField(sourcePath, $defaultForReverse)
@@ -52,24 +56,28 @@ object MigrationBuilderMacros {
     }
   }
 
-  def renameFieldImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def renameFieldImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     from: Expr[A => Any],
     to: Expr[B => Any]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val fromFieldName     = extractFieldNameFromTerm(from.asTerm)
-    val toFieldName       = extractFieldNameFromTerm(to.asTerm)
-    val fromFieldNameType = ConstantType(StringConstant(fromFieldName))
-    val toFieldNameType   = ConstantType(StringConstant(toFieldName))
-    val toNameExpr        = Expr(toFieldName)
+    val fromFieldName      = extractFieldNameFromTerm(from.asTerm)
+    val toFieldName        = extractFieldNameFromTerm(to.asTerm)
+    val fromFieldNameType  = ConstantType(StringConstant(fromFieldName))
+    val toFieldNameType    = ConstantType(StringConstant(toFieldName))
+    val toNameExpr         = Expr(toFieldName)
+    val fromFieldWrapped   = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
+    val toFieldWrapped     = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
+    val newSHType          = AndType(TypeRepr.of[SH], fromFieldWrapped)
+    val newTPType          = AndType(TypeRepr.of[TP], toFieldWrapped)
 
-    (fromFieldNameType.asType, toFieldNameType.asType) match {
-      case ('[fromFn], '[toFn]) =>
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
         '{
           val fromPath = SelectorMacros.toPath[A, Any]($from)
-          new MigrationBuilder[A, B, Tuple.Concat[SH, fromFn *: EmptyTuple], Tuple.Concat[TP, toFn *: EmptyTuple]](
+          new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.Rename(fromPath, $toNameExpr)
@@ -78,7 +86,7 @@ object MigrationBuilderMacros {
     }
   }
 
-  def transformFieldImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def transformFieldImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     from: Expr[A => Any],
     to: Expr[B => Any],
@@ -86,16 +94,20 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val fromFieldName     = extractFieldNameFromTerm(from.asTerm)
-    val toFieldName       = extractFieldNameFromTerm(to.asTerm)
-    val fromFieldNameType = ConstantType(StringConstant(fromFieldName))
-    val toFieldNameType   = ConstantType(StringConstant(toFieldName))
+    val fromFieldName      = extractFieldNameFromTerm(from.asTerm)
+    val toFieldName        = extractFieldNameFromTerm(to.asTerm)
+    val fromFieldNameType  = ConstantType(StringConstant(fromFieldName))
+    val toFieldNameType    = ConstantType(StringConstant(toFieldName))
+    val fromFieldWrapped   = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
+    val toFieldWrapped     = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
+    val newSHType          = AndType(TypeRepr.of[SH], fromFieldWrapped)
+    val newTPType          = AndType(TypeRepr.of[TP], toFieldWrapped)
 
-    (fromFieldNameType.asType, toFieldNameType.asType) match {
-      case ('[fromFn], '[toFn]) =>
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
         '{
           val fromPath = SelectorMacros.toPath[A, Any]($from)
-          new MigrationBuilder[A, B, Tuple.Concat[SH, fromFn *: EmptyTuple], Tuple.Concat[TP, toFn *: EmptyTuple]](
+          new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.TransformValue(fromPath, $transform)
@@ -104,7 +116,7 @@ object MigrationBuilderMacros {
     }
   }
 
-  def mandateFieldImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def mandateFieldImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     source: Expr[A => Option[?]],
     target: Expr[B => Any],
@@ -116,12 +128,16 @@ object MigrationBuilderMacros {
     val targetFieldName     = extractFieldNameFromTerm(target.asTerm)
     val sourceFieldNameType = ConstantType(StringConstant(sourceFieldName))
     val targetFieldNameType = ConstantType(StringConstant(targetFieldName))
+    val sourceFieldWrapped  = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
+    val targetFieldWrapped  = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
+    val newSHType           = AndType(TypeRepr.of[SH], sourceFieldWrapped)
+    val newTPType           = AndType(TypeRepr.of[TP], targetFieldWrapped)
 
-    (sourceFieldNameType.asType, targetFieldNameType.asType) match {
-      case ('[srcFn], '[tgtFn]) =>
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Option[?]]($source)
-          new MigrationBuilder[A, B, Tuple.Concat[SH, srcFn *: EmptyTuple], Tuple.Concat[TP, tgtFn *: EmptyTuple]](
+          new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.Mandate(sourcePath, $default)
@@ -130,7 +146,7 @@ object MigrationBuilderMacros {
     }
   }
 
-  def optionalizeFieldImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def optionalizeFieldImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     source: Expr[A => Any],
     target: Expr[B => Option[?]]
@@ -141,12 +157,16 @@ object MigrationBuilderMacros {
     val targetFieldName     = extractFieldNameFromTerm(target.asTerm)
     val sourceFieldNameType = ConstantType(StringConstant(sourceFieldName))
     val targetFieldNameType = ConstantType(StringConstant(targetFieldName))
+    val sourceFieldWrapped  = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
+    val targetFieldWrapped  = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
+    val newSHType           = AndType(TypeRepr.of[SH], sourceFieldWrapped)
+    val newTPType           = AndType(TypeRepr.of[TP], targetFieldWrapped)
 
-    (sourceFieldNameType.asType, targetFieldNameType.asType) match {
-      case ('[srcFn], '[tgtFn]) =>
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Any]($source)
-          new MigrationBuilder[A, B, Tuple.Concat[SH, srcFn *: EmptyTuple], Tuple.Concat[TP, tgtFn *: EmptyTuple]](
+          new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.Optionalize(sourcePath)
@@ -155,7 +175,7 @@ object MigrationBuilderMacros {
     }
   }
 
-  def changeFieldTypeImpl[A: Type, B: Type, SH <: Tuple: Type, TP <: Tuple: Type](
+  def changeFieldTypeImpl[A: Type, B: Type, SH: Type, TP: Type](
     builder: Expr[MigrationBuilder[A, B, SH, TP]],
     source: Expr[A => Any],
     target: Expr[B => Any],
@@ -167,12 +187,16 @@ object MigrationBuilderMacros {
     val targetFieldName     = extractFieldNameFromTerm(target.asTerm)
     val sourceFieldNameType = ConstantType(StringConstant(sourceFieldName))
     val targetFieldNameType = ConstantType(StringConstant(targetFieldName))
+    val sourceFieldWrapped  = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
+    val targetFieldWrapped  = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
+    val newSHType           = AndType(TypeRepr.of[SH], sourceFieldWrapped)
+    val newTPType           = AndType(TypeRepr.of[TP], targetFieldWrapped)
 
-    (sourceFieldNameType.asType, targetFieldNameType.asType) match {
-      case ('[srcFn], '[tgtFn]) =>
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Any]($source)
-          new MigrationBuilder[A, B, Tuple.Concat[SH, srcFn *: EmptyTuple], Tuple.Concat[TP, tgtFn *: EmptyTuple]](
+          new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.ChangeType(sourcePath, $converter)
