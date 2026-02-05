@@ -1040,7 +1040,7 @@ object Json {
   private def projectImpl(json: Json, paths: Seq[DynamicOptic]): Json = {
     if (paths.isEmpty) return Null
     // For each path, get the value and build a sparse result
-    fromKVUnsafe(paths.flatMap(p => json.get(p).toVector.map(v => (p, v))))
+    fromKVUnsafe(paths.flatMap(p => json.get(p).toChunk.map(v => (p, v))))
   }
 
   private def partitionImpl(
@@ -1206,7 +1206,7 @@ object Json {
     path: DynamicOptic,
     p: (DynamicOptic, Json) => scala.Boolean
   ): JsonSelection = {
-    val results = Vector.newBuilder[Json]
+    val results = ChunkBuilder.make[Json]()
 
     def collect(j: Json, currentPath: DynamicOptic): Unit = {
       if (p(currentPath, j)) results.addOne(j)
@@ -1463,7 +1463,7 @@ object Json {
       }
       idx += 1
     }
-    JsonSelection.succeedMany(jsons.toVector)
+    JsonSelection.succeedMany(jsons)
   }
 
   /**
