@@ -112,198 +112,354 @@ private[scope] object ScopeMacros {
         }
 
       case _ =>
-        // Derive from constructor
-        depTypes match {
-          case Nil =>
-            generateInjected0[T](hasScopeParam, isAutoCloseable, scopeExpr)
-          case List(dep1Tpe) =>
-            dep1Tpe.asType match {
-              case '[d1] =>
-                generateInjected1[T, d1](hasScopeParam, isAutoCloseable, wiresExpr, scopeExpr)
-            }
-          case List(dep1Tpe, dep2Tpe) =>
-            (dep1Tpe.asType, dep2Tpe.asType) match {
-              case ('[d1], '[d2]) =>
-                generateInjected2[T, d1, d2](hasScopeParam, isAutoCloseable, wiresExpr, scopeExpr)
-            }
-          case _ =>
-            MacroCore.abort(
-              MacroCore.ScopeMacroError.TooManyParams("injected", tpe.show, depTypes.length, 2)
-            )
-        }
+        // Derive from constructor - supports arbitrary number of parameters
+        generateInjectedN[T](allRegularParams, hasScopeParam, isAutoCloseable, wiresExpr, scopeExpr)
     }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // injected[T] code generation helpers
+  // injected[T] code generation - supports arbitrary arity
   // ─────────────────────────────────────────────────────────────────────────
 
-  private def generateInjected0[T: Type](
+  private def generateInjectedN[T: Type](using
+    Quotes
+  )(
+    allRegularParams: List[quotes.reflect.Symbol],
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean,
+    wiresExpr: Expr[Seq[Wire[?, ?]]],
     scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
+  ): Expr[Scope.Closeable[T, ?]] = {
     import quotes.reflect.*
-    val tpe = TypeRepr.of[T]
 
-    if (hasScopeParam) {
-      '{
-        val parentScope = $scopeExpr
-        val finalizers  = new Finalizers
-        val instance    = ${
-          val ctorSym  = tpe.typeSymbol.primaryConstructor
-          val ctor     = Select(New(TypeTree.of[T]), ctorSym)
-          val scopeRef = '{ parentScope }.asTerm
-          Apply(Apply(ctor, Nil), List(scopeRef)).asExprOf[T]
+    val tpe      = TypeRepr.of[T]
+    val depTypes = allRegularParams.map(param => tpe.memberType(param))
+
+    if (depTypes.isEmpty) {
+      // No dependencies - just construct
+      if (hasScopeParam) {
+        '{
+          val parentScope = $scopeExpr
+          val finalizers  = new Finalizers
+          val instance    = ${
+            val ctorSym  = tpe.typeSymbol.primaryConstructor
+            val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+            val scopeRef = '{ parentScope }.asTerm
+            Apply(Apply(ctor, Nil), List(scopeRef)).asExprOf[T]
+          }
+          val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+          Scope.makeCloseable(parentScope, ctx, finalizers)
         }
-        val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
-        Scope.makeCloseable(parentScope, ctx, finalizers)
-      }
-    } else if (isAutoCloseable) {
-      '{
-        val parentScope = $scopeExpr
-        val finalizers  = new Finalizers
-        val instance    = ${
-          val ctorSym = tpe.typeSymbol.primaryConstructor
-          val ctor    = Select(New(TypeTree.of[T]), ctorSym)
-          Apply(ctor, Nil).asExprOf[T]
+      } else if (isAutoCloseable) {
+        '{
+          val parentScope = $scopeExpr
+          val finalizers  = new Finalizers
+          val instance    = ${
+            val ctorSym = tpe.typeSymbol.primaryConstructor
+            val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+            Apply(ctor, Nil).asExprOf[T]
+          }
+          finalizers.add(instance.asInstanceOf[AutoCloseable].close())
+          val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+          Scope.makeCloseable(parentScope, ctx, finalizers)
         }
-        finalizers.add(instance.asInstanceOf[AutoCloseable].close())
-        val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
-        Scope.makeCloseable(parentScope, ctx, finalizers)
+      } else {
+        '{
+          val parentScope = $scopeExpr
+          val finalizers  = new Finalizers
+          val instance    = ${
+            val ctorSym = tpe.typeSymbol.primaryConstructor
+            val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+            Apply(ctor, Nil).asExprOf[T]
+          }
+          val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+          Scope.makeCloseable(parentScope, ctx, finalizers)
+        }
       }
     } else {
-      '{
-        val parentScope = $scopeExpr
-        val finalizers  = new Finalizers
-        val instance    = ${
-          val ctorSym = tpe.typeSymbol.primaryConstructor
-          val ctor    = Select(New(TypeTree.of[T]), ctorSym)
-          Apply(ctor, Nil).asExprOf[T]
-        }
-        val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
-        Scope.makeCloseable(parentScope, ctx, finalizers)
-      }
-    }
-  }
+      // Has dependencies - generate code to extract all deps and construct
+      // Build a Block with all wire extractions, then the constructor call
+      val depNameExprs: List[Expr[String]] = depTypes.map(dt => Expr(dt.show))
 
-  private def generateInjected1[T: Type, D1: Type](
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean,
-    wiresExpr: Expr[Seq[Wire[?, ?]]],
-    scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
-    import quotes.reflect.*
-    val tpe      = TypeRepr.of[T]
-    val dep1Name = TypeRepr.of[D1].show
-
-    '{
-      val parentScope = $scopeExpr
-      val finalizers  = new Finalizers
-      val wires       = $wiresExpr
-
-      val wire1 = wires.headOption.getOrElse {
-        throw new IllegalStateException(s"Missing wire for dependency: " + ${ Expr(dep1Name) })
-      }.asInstanceOf[Wire.Shared[Any, D1]]
-
-      val depCtx    = Context.empty.asInstanceOf[Context[Any]]
-      val dep1Scope = Scope.makeCloseable[Any, TNil](parentScope, depCtx, finalizers)
-      val dep1Ctx   = wire1.constructFn(dep1Scope.asInstanceOf[Scope.Has[Any]])
-      val arg1      = dep1Ctx.get[D1](using summonInline[IsNominalType[D1]])
-
-      val instance = ${
-        if (hasScopeParam) {
-          val ctorSym  = tpe.typeSymbol.primaryConstructor
-          val ctor     = Select(New(TypeTree.of[T]), ctorSym)
-          val arg1Ref  = '{ arg1 }.asTerm
-          val scopeRef = '{ parentScope }.asTerm
-          Apply(Apply(ctor, List(arg1Ref)), List(scopeRef)).asExprOf[T]
-        } else {
-          val ctorSym = tpe.typeSymbol.primaryConstructor
-          val ctor    = Select(New(TypeTree.of[T]), ctorSym)
-          val arg1Ref = '{ arg1 }.asTerm
-          Apply(ctor, List(arg1Ref)).asExprOf[T]
+      // Generate helper to create argument extraction expression
+      def generateArgExpr(depType: TypeRepr, idx: Int, depName: Expr[String]): Expr[Any] = {
+        val idxExpr = Expr(idx)
+        depType.asType match {
+          case '[d] =>
+            '{
+              val wire = $wiresExpr
+                .lift($idxExpr)
+                .getOrElse {
+                  throw new IllegalStateException("Missing wire for dependency: " + $depName)
+                }
+                .asInstanceOf[Wire.Shared[Any, d]]
+              val depCtx   = Context.empty.asInstanceOf[Context[Any]]
+              val depScope = Scope.makeCloseable[Any, TNil]($scopeExpr, depCtx, new Finalizers)
+              val ctx      = wire.constructFn(depScope.asInstanceOf[Scope.Has[Any]])
+              ctx.get[d](using summonInline[IsNominalType[d]])
+            }
         }
       }
 
-      ${
-        if (isAutoCloseable && !hasScopeParam) {
-          '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
-        } else {
-          '{ () }
-        }
+      // Generate all argument expressions
+      val argExprs: List[Expr[Any]] = depTypes.zipWithIndex.zip(depNameExprs).map { case ((dt, idx), name) =>
+        generateArgExpr(dt, idx, name)
       }
 
-      val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
-      Scope.makeCloseable(parentScope, ctx, finalizers)
-    }
-  }
+      // Now create the final expression that evaluates args and constructs
+      depTypes.length match {
+        case 1 =>
+          val arg0Expr = argExprs(0)
+          depTypes(0).asType match {
+            case '[d0] =>
+              '{
+                val parentScope = $scopeExpr
+                val finalizers  = new Finalizers
+                val arg0        = ${ arg0Expr.asExprOf[d0] }
+                val instance    = ${
+                  if (hasScopeParam) {
+                    val ctorSym  = tpe.typeSymbol.primaryConstructor
+                    val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                    val arg0Ref  = '{ arg0 }.asTerm
+                    val scopeRef = '{ parentScope }.asTerm
+                    Apply(Apply(ctor, List(arg0Ref)), List(scopeRef)).asExprOf[T]
+                  } else {
+                    val ctorSym = tpe.typeSymbol.primaryConstructor
+                    val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                    val arg0Ref = '{ arg0 }.asTerm
+                    Apply(ctor, List(arg0Ref)).asExprOf[T]
+                  }
+                }
+                ${
+                  if (isAutoCloseable && !hasScopeParam)
+                    '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
+                  else '{ () }
+                }
+                val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+                Scope.makeCloseable(parentScope, ctx, finalizers)
+              }
+          }
 
-  private def generateInjected2[T: Type, D1: Type, D2: Type](
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean,
-    wiresExpr: Expr[Seq[Wire[?, ?]]],
-    scopeExpr: Expr[Scope.Any]
-  )(using Quotes): Expr[Scope.Closeable[T, ?]] = {
-    import quotes.reflect.*
-    val tpe      = TypeRepr.of[T]
-    val dep1Name = TypeRepr.of[D1].show
-    val dep2Name = TypeRepr.of[D2].show
+        case 2 =>
+          (depTypes(0).asType, depTypes(1).asType) match {
+            case ('[d0], '[d1]) =>
+              '{
+                val parentScope = $scopeExpr
+                val finalizers  = new Finalizers
+                val arg0        = ${ argExprs(0).asExprOf[d0] }
+                val arg1        = ${ argExprs(1).asExprOf[d1] }
+                val instance    = ${
+                  if (hasScopeParam) {
+                    val ctorSym  = tpe.typeSymbol.primaryConstructor
+                    val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                    val scopeRef = '{ parentScope }.asTerm
+                    Apply(Apply(ctor, List('{ arg0 }.asTerm, '{ arg1 }.asTerm)), List(scopeRef)).asExprOf[T]
+                  } else {
+                    val ctorSym = tpe.typeSymbol.primaryConstructor
+                    val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                    Apply(ctor, List('{ arg0 }.asTerm, '{ arg1 }.asTerm)).asExprOf[T]
+                  }
+                }
+                ${
+                  if (isAutoCloseable && !hasScopeParam)
+                    '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
+                  else '{ () }
+                }
+                val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+                Scope.makeCloseable(parentScope, ctx, finalizers)
+              }
+          }
 
-    '{
-      val parentScope = $scopeExpr
-      val finalizers  = new Finalizers
-      val wires       = $wiresExpr
+        case 3 =>
+          (depTypes(0).asType, depTypes(1).asType, depTypes(2).asType) match {
+            case ('[d0], '[d1], '[d2]) =>
+              '{
+                val parentScope = $scopeExpr
+                val finalizers  = new Finalizers
+                val arg0        = ${ argExprs(0).asExprOf[d0] }
+                val arg1        = ${ argExprs(1).asExprOf[d1] }
+                val arg2        = ${ argExprs(2).asExprOf[d2] }
+                val instance    = ${
+                  if (hasScopeParam) {
+                    val ctorSym  = tpe.typeSymbol.primaryConstructor
+                    val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                    val scopeRef = '{ parentScope }.asTerm
+                    Apply(
+                      Apply(ctor, List('{ arg0 }.asTerm, '{ arg1 }.asTerm, '{ arg2 }.asTerm)),
+                      List(scopeRef)
+                    ).asExprOf[T]
+                  } else {
+                    val ctorSym = tpe.typeSymbol.primaryConstructor
+                    val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                    Apply(ctor, List('{ arg0 }.asTerm, '{ arg1 }.asTerm, '{ arg2 }.asTerm)).asExprOf[T]
+                  }
+                }
+                ${
+                  if (isAutoCloseable && !hasScopeParam)
+                    '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
+                  else '{ () }
+                }
+                val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+                Scope.makeCloseable(parentScope, ctx, finalizers)
+              }
+          }
 
-      val wire1 = wires
-        .lift(0)
-        .getOrElse {
-          throw new IllegalStateException(s"Missing wire for dependency: " + ${ Expr(dep1Name) })
-        }
-        .asInstanceOf[Wire.Shared[Any, D1]]
-      val wire2 = wires
-        .lift(1)
-        .getOrElse {
-          throw new IllegalStateException(s"Missing wire for dependency: " + ${ Expr(dep2Name) })
-        }
-        .asInstanceOf[Wire.Shared[Any, D2]]
+        case 4 =>
+          (depTypes(0).asType, depTypes(1).asType, depTypes(2).asType, depTypes(3).asType) match {
+            case ('[d0], '[d1], '[d2], '[d3]) =>
+              '{
+                val parentScope = $scopeExpr
+                val finalizers  = new Finalizers
+                val arg0        = ${ argExprs(0).asExprOf[d0] }
+                val arg1        = ${ argExprs(1).asExprOf[d1] }
+                val arg2        = ${ argExprs(2).asExprOf[d2] }
+                val arg3        = ${ argExprs(3).asExprOf[d3] }
+                val instance    = ${
+                  if (hasScopeParam) {
+                    val ctorSym  = tpe.typeSymbol.primaryConstructor
+                    val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                    val scopeRef = '{ parentScope }.asTerm
+                    Apply(
+                      Apply(ctor, List('{ arg0 }.asTerm, '{ arg1 }.asTerm, '{ arg2 }.asTerm, '{ arg3 }.asTerm)),
+                      List(scopeRef)
+                    ).asExprOf[T]
+                  } else {
+                    val ctorSym = tpe.typeSymbol.primaryConstructor
+                    val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                    Apply(ctor, List('{ arg0 }.asTerm, '{ arg1 }.asTerm, '{ arg2 }.asTerm, '{ arg3 }.asTerm))
+                      .asExprOf[T]
+                  }
+                }
+                ${
+                  if (isAutoCloseable && !hasScopeParam)
+                    '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
+                  else '{ () }
+                }
+                val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+                Scope.makeCloseable(parentScope, ctx, finalizers)
+              }
+          }
 
-      val depCtx    = Context.empty.asInstanceOf[Context[Any]]
-      val dep1Scope = Scope.makeCloseable[Any, TNil](parentScope, depCtx, finalizers)
-      val dep1Ctx   = wire1.constructFn(dep1Scope.asInstanceOf[Scope.Has[Any]])
-      val arg1      = dep1Ctx.get[D1](using summonInline[IsNominalType[D1]])
+        case 5 =>
+          (
+            depTypes(0).asType,
+            depTypes(1).asType,
+            depTypes(2).asType,
+            depTypes(3).asType,
+            depTypes(4).asType
+          ) match {
+            case ('[d0], '[d1], '[d2], '[d3], '[d4]) =>
+              '{
+                val parentScope = $scopeExpr
+                val finalizers  = new Finalizers
+                val arg0        = ${ argExprs(0).asExprOf[d0] }
+                val arg1        = ${ argExprs(1).asExprOf[d1] }
+                val arg2        = ${ argExprs(2).asExprOf[d2] }
+                val arg3        = ${ argExprs(3).asExprOf[d3] }
+                val arg4        = ${ argExprs(4).asExprOf[d4] }
+                val instance    = ${
+                  if (hasScopeParam) {
+                    val ctorSym  = tpe.typeSymbol.primaryConstructor
+                    val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                    val scopeRef = '{ parentScope }.asTerm
+                    Apply(
+                      Apply(
+                        ctor,
+                        List('{ arg0 }.asTerm, '{ arg1 }.asTerm, '{ arg2 }.asTerm, '{ arg3 }.asTerm, '{ arg4 }.asTerm)
+                      ),
+                      List(scopeRef)
+                    ).asExprOf[T]
+                  } else {
+                    val ctorSym = tpe.typeSymbol.primaryConstructor
+                    val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                    Apply(
+                      ctor,
+                      List('{ arg0 }.asTerm, '{ arg1 }.asTerm, '{ arg2 }.asTerm, '{ arg3 }.asTerm, '{ arg4 }.asTerm)
+                    ).asExprOf[T]
+                  }
+                }
+                ${
+                  if (isAutoCloseable && !hasScopeParam)
+                    '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
+                  else '{ () }
+                }
+                val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+                Scope.makeCloseable(parentScope, ctx, finalizers)
+              }
+          }
 
-      val dep2Scope = Scope.makeCloseable[D1, TNil](parentScope, dep1Ctx.asInstanceOf[Context[D1]], finalizers)
-      val dep2Ctx   = wire2.constructFn(dep2Scope.asInstanceOf[Scope.Has[Any]])
-      val arg2      = dep2Ctx.get[D2](using summonInline[IsNominalType[D2]])
+        case 6 =>
+          (
+            depTypes(0).asType,
+            depTypes(1).asType,
+            depTypes(2).asType,
+            depTypes(3).asType,
+            depTypes(4).asType,
+            depTypes(5).asType
+          ) match {
+            case ('[d0], '[d1], '[d2], '[d3], '[d4], '[d5]) =>
+              '{
+                val parentScope = $scopeExpr
+                val finalizers  = new Finalizers
+                val arg0        = ${ argExprs(0).asExprOf[d0] }
+                val arg1        = ${ argExprs(1).asExprOf[d1] }
+                val arg2        = ${ argExprs(2).asExprOf[d2] }
+                val arg3        = ${ argExprs(3).asExprOf[d3] }
+                val arg4        = ${ argExprs(4).asExprOf[d4] }
+                val arg5        = ${ argExprs(5).asExprOf[d5] }
+                val instance    = ${
+                  if (hasScopeParam) {
+                    val ctorSym  = tpe.typeSymbol.primaryConstructor
+                    val ctor     = Select(New(TypeTree.of[T]), ctorSym)
+                    val scopeRef = '{ parentScope }.asTerm
+                    Apply(
+                      Apply(
+                        ctor,
+                        List(
+                          '{ arg0 }.asTerm,
+                          '{ arg1 }.asTerm,
+                          '{ arg2 }.asTerm,
+                          '{ arg3 }.asTerm,
+                          '{ arg4 }.asTerm,
+                          '{ arg5 }.asTerm
+                        )
+                      ),
+                      List(scopeRef)
+                    ).asExprOf[T]
+                  } else {
+                    val ctorSym = tpe.typeSymbol.primaryConstructor
+                    val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+                    Apply(
+                      ctor,
+                      List(
+                        '{ arg0 }.asTerm,
+                        '{ arg1 }.asTerm,
+                        '{ arg2 }.asTerm,
+                        '{ arg3 }.asTerm,
+                        '{ arg4 }.asTerm,
+                        '{ arg5 }.asTerm
+                      )
+                    ).asExprOf[T]
+                  }
+                }
+                ${
+                  if (isAutoCloseable && !hasScopeParam)
+                    '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
+                  else '{ () }
+                }
+                val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
+                Scope.makeCloseable(parentScope, ctx, finalizers)
+              }
+          }
 
-      val instance = ${
-        if (hasScopeParam) {
-          val ctorSym  = tpe.typeSymbol.primaryConstructor
-          val ctor     = Select(New(TypeTree.of[T]), ctorSym)
-          val arg1Ref  = '{ arg1 }.asTerm
-          val arg2Ref  = '{ arg2 }.asTerm
-          val scopeRef = '{ parentScope }.asTerm
-          Apply(Apply(ctor, List(arg1Ref, arg2Ref)), List(scopeRef)).asExprOf[T]
-        } else {
-          val ctorSym = tpe.typeSymbol.primaryConstructor
-          val ctor    = Select(New(TypeTree.of[T]), ctorSym)
-          val arg1Ref = '{ arg1 }.asTerm
-          val arg2Ref = '{ arg2 }.asTerm
-          Apply(ctor, List(arg1Ref, arg2Ref)).asExprOf[T]
-        }
+        case n =>
+          // For 7+ parameters, provide a compile-time error with helpful suggestion
+          report.errorAndAbort(
+            s"injected[${tpe.show}] has $n constructor parameters. " +
+              s"Currently, up to 6 parameters are supported. " +
+              s"For types with more parameters, use Wireable.from[${tpe.show}] to provide a custom construction strategy."
+          )
       }
-
-      ${
-        if (isAutoCloseable && !hasScopeParam) {
-          '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) }
-        } else {
-          '{ () }
-        }
-      }
-
-      val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
-      Scope.makeCloseable(parentScope, ctx, finalizers)
     }
   }
 }

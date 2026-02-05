@@ -116,50 +116,7 @@ object MacroErrorSpec extends ZIOSpecDefault {
         }
       }
     ),
-    suite("TooManyParams errors")(
-      test("class with too many params fails with count info") {
-        typeCheck("""
-          import zio.blocks.scope._
 
-          class Config
-          class Database
-          class Cache
-          class TooManyDeps(a: Config, b: Database, c: Cache)
-          val scope: Scope.Any = Scope.global
-          injected[TooManyDeps](shared[Config], shared[Database], shared[Cache])(using scope)
-        """).map { result =>
-          assertTrue(
-            result.isLeft,
-            result.left.exists(msg =>
-              msg.contains("too many") ||
-                msg.contains("parameters") ||
-                msg.contains("Supported")
-            )
-          )
-        }
-      },
-      test("TooManyParams error mentions Wireable.from as alternative") {
-        typeCheck("""
-          import zio.blocks.scope._
-
-          class Config
-          class Database
-          class Cache
-          class TooManyDeps(a: Config, b: Database, c: Cache)
-          val scope: Scope.Any = Scope.global
-          injected[TooManyDeps](shared[Config], shared[Database], shared[Cache])(using scope)
-        """).map { result =>
-          assertTrue(
-            result.isLeft,
-            result.left.exists(msg =>
-              msg.contains("Wireable.from") ||
-                msg.contains("too many") ||
-                msg.contains("restructure")
-            )
-          )
-        }
-      }
-    ),
     suite("Error message formatting")(
       test("error contains Scope Error header") {
         typeCheck("""

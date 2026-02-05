@@ -373,65 +373,13 @@ private[scope] object ScopeMacros {
       """
       c.Expr[Scope.Closeable[T, _]](result)
     } else {
-      depTypes match {
-        case Nil =>
-          generateInjected0[T](c)(hasScopeParam, isAutoCloseable, scopeExpr)
-        case List(dep1Tpe) =>
-          generateInjected1[T](c)(dep1Tpe, hasScopeParam, isAutoCloseable, wires, scopeExpr)
-        case List(dep1Tpe, dep2Tpe) =>
-          generateInjected2[T](c)(dep1Tpe, dep2Tpe, hasScopeParam, isAutoCloseable, wires, scopeExpr)
-        case _ =>
-          MC.abortTooManyParams(c)("injected", tpe.toString, depTypes.length, 2)
-      }
+      // Supports arbitrary number of constructor parameters
+      generateInjectedN[T](c)(depTypes, hasScopeParam, isAutoCloseable, wires, scopeExpr)
     }
   }
 
-  private def generateInjected0[T: c.WeakTypeTag](c: whitebox.Context)(
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean,
-    scopeExpr: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-
-    val result = if (hasScopeParam) {
-      q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val instance = new $tpe()(parentScope)
-          val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-    } else if (isAutoCloseable) {
-      q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val instance = new $tpe()
-          finalizers.add(instance.asInstanceOf[AutoCloseable].close())
-          val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-    } else {
-      q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val instance = new $tpe()
-          val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-    }
-    c.Expr[Scope.Closeable[T, _]](result)
-  }
-
-  private def generateInjected1[T: c.WeakTypeTag](c: whitebox.Context)(
-    dep1Tpe: c.Type,
+  private def generateInjectedN[T: c.WeakTypeTag](c: whitebox.Context)(
+    depTypes: List[c.Type],
     hasScopeParam: Boolean,
     isAutoCloseable: Boolean,
     wires: Seq[c.Expr[Wire[_, _]]],
@@ -439,107 +387,103 @@ private[scope] object ScopeMacros {
   ): c.Expr[Scope.Closeable[T, _]] = {
     import c.universe._
 
-    val tpe      = weakTypeOf[T]
-    val dep1Name = dep1Tpe.toString
-
+    val tpe     = weakTypeOf[T]
     val wireSeq = q"_root_.scala.Seq(..$wires)"
 
-    val instanceExpr = if (hasScopeParam) {
-      q"new $tpe(arg1)(parentScope)"
-    } else {
-      q"new $tpe(arg1)"
-    }
-
-    val cleanupExpr = if (isAutoCloseable && !hasScopeParam) {
-      q"finalizers.add(instance.asInstanceOf[AutoCloseable].close())"
-    } else {
-      q"()"
-    }
-
-    val result = q"""
-      {
-        val parentScope = $scopeExpr
-        val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-        val wiresSeq = $wireSeq
-
-        val wire1 = wiresSeq.headOption.getOrElse {
-          throw new IllegalStateException("Missing wire for dependency: " + $dep1Name)
-        }.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $dep1Tpe]]
-
-        val depCtx = _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]]
-        val dep1Scope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](parentScope, depCtx, finalizers)
-        val dep1Ctx = wire1.constructFn(dep1Scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
-        val arg1 = dep1Ctx.get[$dep1Tpe]
-
-        val instance = $instanceExpr
-        $cleanupExpr
-
-        val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-        _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
+    if (depTypes.isEmpty) {
+      // No dependencies - just construct
+      val result = if (hasScopeParam) {
+        q"""
+          {
+            val parentScope = $scopeExpr
+            val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
+            val instance = new $tpe()(parentScope)
+            val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
+            _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
+          }
+        """
+      } else if (isAutoCloseable) {
+        q"""
+          {
+            val parentScope = $scopeExpr
+            val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
+            val instance = new $tpe()
+            finalizers.add(instance.asInstanceOf[AutoCloseable].close())
+            val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
+            _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
+          }
+        """
+      } else {
+        q"""
+          {
+            val parentScope = $scopeExpr
+            val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
+            val instance = new $tpe()
+            val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
+            _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
+          }
+        """
       }
-    """
-    c.Expr[Scope.Closeable[T, _]](result)
-  }
-
-  private def generateInjected2[T: c.WeakTypeTag](c: whitebox.Context)(
-    dep1Tpe: c.Type,
-    dep2Tpe: c.Type,
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean,
-    wires: Seq[c.Expr[Wire[_, _]]],
-    scopeExpr: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val tpe      = weakTypeOf[T]
-    val dep1Name = dep1Tpe.toString
-    val dep2Name = dep2Tpe.toString
-
-    val wireSeq = q"_root_.scala.Seq(..$wires)"
-
-    val instanceExpr = if (hasScopeParam) {
-      q"new $tpe(arg1, arg2)(parentScope)"
+      c.Expr[Scope.Closeable[T, _]](result)
     } else {
-      q"new $tpe(arg1, arg2)"
-    }
+      // Has dependencies - generate wire extraction for each and then construct
+      val argNames = depTypes.zipWithIndex.map { case (_, i) => TermName(s"arg$i") }
 
-    val cleanupExpr = if (isAutoCloseable && !hasScopeParam) {
-      q"finalizers.add(instance.asInstanceOf[AutoCloseable].close())"
-    } else {
-      q"()"
-    }
+      // Generate individual wire extraction statements (not blocks)
+      val wireExtractions: List[List[Tree]] = depTypes.zipWithIndex.map { case (depTpe, i) =>
+        val depName   = depTpe.toString
+        val argName   = argNames(i)
+        val wireName  = TermName(s"wire$i")
+        val ctxName   = TermName(s"ctx$i")
+        val scopeName = TermName(s"scope$i")
 
-    val result = q"""
-      {
-        val parentScope = $scopeExpr
-        val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-        val wiresSeq = $wireSeq
-
-        val wire1 = wiresSeq.lift(0).getOrElse {
-          throw new IllegalStateException("Missing wire for dependency: " + $dep1Name)
-        }.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $dep1Tpe]]
-
-        val wire2 = wiresSeq.lift(1).getOrElse {
-          throw new IllegalStateException("Missing wire for dependency: " + $dep2Name)
-        }.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $dep2Tpe]]
-
-        val depCtx = _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]]
-        val dep1Scope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](parentScope, depCtx, finalizers)
-        val dep1Ctx = wire1.constructFn(dep1Scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
-        val arg1 = dep1Ctx.get[$dep1Tpe]
-
-        val dep2Scope = _root_.zio.blocks.scope.Scope.makeCloseable[$dep1Tpe, _root_.zio.blocks.scope.TNil](
-          parentScope, dep1Ctx.asInstanceOf[_root_.zio.blocks.context.Context[$dep1Tpe]], finalizers)
-        val dep2Ctx = wire2.constructFn(dep2Scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
-        val arg2 = dep2Ctx.get[$dep2Tpe]
-
-        val instance = $instanceExpr
-        $cleanupExpr
-
-        val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-        _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
+        List(
+          q"""val $wireName = wiresSeq.lift($i).getOrElse {
+            throw new IllegalStateException("Missing wire for dependency: " + $depName)
+          }.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $depTpe]]""",
+          q"""val $scopeName = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](
+            parentScope,
+            _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]],
+            finalizers
+          )""",
+          q"val $ctxName = $wireName.constructFn($scopeName.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])",
+          q"val $argName = $ctxName.get[$depTpe]"
+        )
       }
-    """
-    c.Expr[Scope.Closeable[T, _]](result)
+
+      // Flatten all statements
+      val allWireStatements = wireExtractions.flatten
+
+      // Build constructor call with all arguments
+      val argRefs      = argNames.map(name => q"$name")
+      val instanceExpr = if (hasScopeParam) {
+        q"new $tpe(..$argRefs)(parentScope)"
+      } else {
+        q"new $tpe(..$argRefs)"
+      }
+
+      val cleanupExpr = if (isAutoCloseable && !hasScopeParam) {
+        q"finalizers.add(instance.asInstanceOf[AutoCloseable].close())"
+      } else {
+        q"()"
+      }
+
+      val result = q"""
+        {
+          val parentScope = $scopeExpr
+          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
+          val wiresSeq = $wireSeq
+
+          ..$allWireStatements
+
+          val instance = $instanceExpr
+          $cleanupExpr
+
+          val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
+          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
+        }
+      """
+      c.Expr[Scope.Closeable[T, _]](result)
+    }
   }
 }

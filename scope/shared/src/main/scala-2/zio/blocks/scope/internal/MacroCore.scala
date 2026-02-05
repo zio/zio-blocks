@@ -167,27 +167,11 @@ private[scope] object MacroCore {
          |  ${yellow("To fix this, wrap one or both types in a distinct wrapper:", color)}
          |
          |    ${cyan(s"case class Wrapped$supertype(value: $supertype)", color)}
+         |    ${gray("or", color)}
+         |    ${cyan(s"opaque type Wrapped$supertype = $supertype", color)}
          |
          |${footer(color)}""".stripMargin
 
-    def renderTooManyParams(
-      macroName: String,
-      typeName: String,
-      count: Int,
-      maxSupported: Int,
-      color: Boolean
-    ): String =
-      s"""${header("Scope Error", color)}
-         |
-         |  ${cyan(s"$macroName[$typeName]", color)} has too many constructor parameters.
-         |
-         |  Found: ${red(count.toString, color)} parameters
-         |  Supported: up to ${green(maxSupported.toString, color)} parameters
-         |
-         |  ${yellow("Hint:", color)} Use ${cyan(s"Wireable.from[$typeName]", color)} for more control,
-         |        or restructure to reduce direct dependencies.
-         |
-         |${footer(color)}""".stripMargin
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -211,15 +195,5 @@ private[scope] object MacroCore {
   ): Nothing = {
     val color = Colors.shouldUseColor
     c.abort(c.enclosingPosition, ErrorRenderer.renderSubtypeConflict(typeName, subtype, supertype, color))
-  }
-
-  def abortTooManyParams(c: blackbox.Context)(
-    macroName: String,
-    typeName: String,
-    count: Int,
-    maxSupported: Int
-  ): Nothing = {
-    val color = Colors.shouldUseColor
-    c.abort(c.enclosingPosition, ErrorRenderer.renderTooManyParams(macroName, typeName, count, maxSupported, color))
   }
 }

@@ -106,16 +106,6 @@ private[scope] object MacroCore {
       def render(color: Boolean): String =
         ErrorRenderer.renderDependencyCycle(path, color)
     }
-
-    final case class TooManyParams(
-      macroName: String,
-      typeName: String,
-      count: Int,
-      maxSupported: Int
-    ) extends ScopeMacroError {
-      def render(color: Boolean): String =
-        ErrorRenderer.renderTooManyParams(macroName, typeName, count, maxSupported, color)
-    }
   }
 
   final case class ProviderInfo(label: String, location: Option[String])
@@ -421,15 +411,14 @@ private[scope] object MacroCore {
       val treeViz = dependencyTree match {
         case Some(root) =>
           val lines = new StringBuilder
-          lines.append(s"\n  ${bold("Dependency Tree:", color)}\n")
+          lines.append(s"  ${bold("Dependency Tree:", color)}\n")
           renderDepTree(root, "    ", isLast = true, isRoot = true, missing.toSet, found.toSet, color, lines)
-          lines.toString
+          lines.toString.stripSuffix("\n")
         case None => ""
       }
 
       val hint = missing.headOption.map { m =>
-        s"""
-           |  ${yellow("Hint:", color)} Either:
+        s"""  ${yellow("Hint:", color)} Either:
            |    ${gray("•", color)} ${cyan(s".injected[$m].injected[$requiredBy]", color)}     ${gray(
             s"— $m visible in stack",
             color
@@ -440,16 +429,30 @@ private[scope] object MacroCore {
           )}""".stripMargin
       }.getOrElse("")
 
-      s"""${header("Scope Error", color)}
-         |
-         |  Missing dependency: ${red(missingList, color)}
-         |$stackViz
-         |$treeViz
-         |  ${bold(s"$requiredBy requires:", color)}
-         |$deps
-         |$hint
-         |
-         |${footer(color)}""".stripMargin
+      val requiresSection = s"  ${bold(s"$requiredBy requires:", color)}\n$deps"
+
+      // Build output with proper blank line separation between sections
+      val sb = new StringBuilder
+      sb.append(header("Scope Error", color))
+      sb.append("\n\n")
+      sb.append(s"  Missing dependency: ${red(missingList, color)}")
+      if (stackViz.nonEmpty) {
+        sb.append("\n")
+        sb.append(stackViz)
+      }
+      if (treeViz.nonEmpty) {
+        sb.append("\n\n")
+        sb.append(treeViz)
+      }
+      sb.append("\n\n")
+      sb.append(requiresSection)
+      if (hint.nonEmpty) {
+        sb.append("\n\n")
+        sb.append(hint)
+      }
+      sb.append("\n\n")
+      sb.append(footer(color))
+      sb.toString
     }
 
     private def renderDepTree(
@@ -552,25 +555,6 @@ private[scope] object MacroCore {
          |
          |${footer(color)}""".stripMargin
     }
-
-    def renderTooManyParams(
-      macroName: String,
-      typeName: String,
-      count: Int,
-      maxSupported: Int,
-      color: Boolean
-    ): String =
-      s"""${header("Scope Error", color)}
-         |
-         |  ${cyan(s"$macroName[$typeName]", color)} has too many constructor parameters.
-         |
-         |  Found: ${red(count.toString, color)} parameters
-         |  Supported: up to ${green(maxSupported.toString, color)} parameters
-         |
-         |  ${yellow("Hint:", color)} Use ${cyan(s"Wireable.from[$typeName]", color)} for more control,
-         |        or restructure to reduce direct dependencies.
-         |
-         |${footer(color)}""".stripMargin
   }
 
   // ─────────────────────────────────────────────────────────────────────────
