@@ -37,7 +37,7 @@ private[scope] final class ScopeImplScala2[H, T](
   def runWithErrors[B](f: Scope.Has[H] => B): (B, Chunk[Throwable]) = {
     ensureFirstRun()
     var result: B = null.asInstanceOf[B]
-    val errors = try {
+    val errors    = try {
       result = f(this)
       doClose()
     } catch {

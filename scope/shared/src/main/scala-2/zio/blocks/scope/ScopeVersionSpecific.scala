@@ -16,8 +16,8 @@ private[scope] trait CloseableVersionSpecific[+Head, +Tail] { self: Scope.Closea
   /**
    * Executes the given function with this scope, then closes the scope.
    *
-   * Finalizer errors are silently discarded. Use `runWithErrors` if you need
-   * to handle cleanup errors.
+   * Finalizer errors are silently discarded. Use `runWithErrors` if you need to
+   * handle cleanup errors.
    */
   def run[B](f: Scope.Has[Head] => B): B
 

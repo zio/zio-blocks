@@ -550,8 +550,9 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val parent: Scope.Any = Scope.global
         val finalizers        = new Finalizers
         val depsCtx           = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
-        val scope =
-          Scope.makeCloseable[Config with Database with Cache with Logger with Metrics, TNil](parent, depsCtx, finalizers)
+        val scope             =
+          Scope
+            .makeCloseable[Config with Database with Cache with Logger with Metrics, TNil](parent, depsCtx, finalizers)
         val ctx = wire.construct(scope)
         val svc = ctx.get[ServiceWith5Deps]
         assertTrue(svc != null && svc.metrics.enabled)
@@ -560,7 +561,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val wire              = shared[ServiceWith6Deps]
         val parent: Scope.Any = Scope.global
         val finalizers        = new Finalizers
-        val depsCtx =
+        val depsCtx           =
           Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics).add(new Tracer)
         val scope =
           Scope.makeCloseable[Config with Database with Cache with Logger with Metrics with Tracer, TNil](
@@ -577,8 +578,9 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val parent: Scope.Any = Scope.global
         val finalizers        = new Finalizers
         val depsCtx           = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
-        val scope =
-          Scope.makeCloseable[Config with Database with Cache with Logger with Metrics, TNil](parent, depsCtx, finalizers)
+        val scope             =
+          Scope
+            .makeCloseable[Config with Database with Cache with Logger with Metrics, TNil](parent, depsCtx, finalizers)
 
         val ctx1 = wire.construct(scope)
         val ctx2 = wire.construct(scope)
