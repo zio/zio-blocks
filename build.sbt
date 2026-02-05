@@ -126,18 +126,18 @@ lazy val combinators = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .settings(
-     libraryDependencies ++= Seq(
-       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
-       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
-     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-       case Some((2, _)) =>
-         Seq(
-           "org.scala-lang" % "scala-reflect"  % scalaVersion.value, // Compile scope for macros
-           "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
-         )
-       case _ =>
-         Seq()
-     }),
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect"  % scalaVersion.value, // Compile scope for macros
+          "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
+        )
+      case _ =>
+        Seq()
+    }),
     coverageMinimumStmtTotal   := 58,
     coverageMinimumBranchTotal := 25
   )
