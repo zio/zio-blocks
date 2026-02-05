@@ -83,7 +83,8 @@ object MigrationBuilderSyntax {
     /**
      * Drop a field using a type-safe selector.
      */
-    def dropField[T](selector: A => T): MigrationBuilder[A, B] = macro MigrationBuilderSyntaxImpl.dropFieldImpl[A, B, T]
+    def dropField[T](selector: A => T): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.dropFieldImpl[A, B, T]
 
     /**
      * Rename a field using type-safe selectors.

@@ -911,6 +911,373 @@ object MigrationValidatorSpec extends SchemaBaseSpec {
         )
         val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
         assertTrue(result.isValid)
+      },
+      test("validate detects AtIndices on non-sequence") {
+        val actions = Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("name").atIndices(0, 1),
+            "newField",
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate detects AtMapKeys on non-map") {
+        val actions = Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("name").atKeys("k1", "k2"),
+            "newField",
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate TransformValue with AtIndex on sequence") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("items").at(0),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue with AtIndices on sequence") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("items").atIndices(0, 1),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue with AtMapKey on map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("data").atKey("k"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue with AtMapKeys on map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("data").atKeys("k1", "k2"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue with MapKeys on map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("data").mapKeys,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue with MapValues on map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("data").mapValues,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue with Elements on sequence") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("items").elements,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformValue rejects AtIndex on non-sequence") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").at(0),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-sequence")))
+      },
+      test("validate TransformValue rejects AtIndices on non-sequence") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").atIndices(0, 1),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-sequence")))
+      },
+      test("validate TransformValue rejects AtMapKey on non-map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").atKey("k"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("validate TransformValue rejects AtMapKeys on non-map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").atKeys("k1", "k2"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("validate TransformValue rejects MapKeys on non-map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").mapKeys,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("validate TransformValue rejects MapValues on non-map") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").mapValues,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("validate TransformValue rejects Elements on non-sequence") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("name").elements,
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-sequence")))
+      },
+      test("validate TransformElements with valid path") {
+        val actions = Vector(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("items"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformKeys with valid path") {
+        val actions = Vector(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root.field("data"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformElements rejects non-sequence target") {
+        val actions = Vector(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("data"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-sequence")))
+      },
+      test("validate TransformKeys rejects non-map target") {
+        val actions = Vector(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root.field("items"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("validate TransformValues rejects non-map target") {
+        val actions = Vector(
+          MigrationAction.TransformValues(
+            DynamicOptic.root.field("items"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-map")))
+      },
+      test("validate Join with non-field target path") {
+        val actions = Vector(
+          MigrationAction.Join(
+            DynamicOptic.root.at(0),
+            Vector(DynamicOptic.root.field("name")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate Join with non-field source path") {
+        val actions = Vector(
+          MigrationAction.Join(
+            DynamicOptic.root.field("name"),
+            Vector(DynamicOptic.root.at(0)),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate Split with non-field source path") {
+        val actions = Vector(
+          MigrationAction.Split(
+            DynamicOptic.root.at(0),
+            Vector(DynamicOptic.root.field("name")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate Split with non-field target path") {
+        val actions = Vector(
+          MigrationAction.Split(
+            DynamicOptic.root.field("name"),
+            Vector(DynamicOptic.root.at(0)),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate Join with missing source field") {
+        val actions = Vector(
+          MigrationAction.Join(
+            DynamicOptic.root.field("combined"),
+            Vector(DynamicOptic.root.field("nonexistent")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate Split with missing source field") {
+        val actions = Vector(
+          MigrationAction.Split(
+            DynamicOptic.root.field("nonexistent"),
+            Vector(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid)
+      },
+      test("validate Identity action") {
+        val actions = Vector(MigrationAction.Identity)
+        val result  = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate ChangeType action") {
+        val actions = Vector(
+          MigrationAction.ChangeType(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("validate TransformCase action") {
+        val actions = Vector(
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            "Active",
+            Vector.empty
+          )
+        )
+        val result = MigrationValidator.validate(Status.schema, Status.schema, actions)
+        assertTrue(result.isValid)
+      },
+      test("compareStructures detects type mismatch for primitives") {
+        val result = MigrationValidator.validate(WithList.schema, WithMap.schema, Vector.empty)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("Structure mismatch")))
+      },
+      test("validate detects field not found in record path") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("nonexistent"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Person.schema, Person.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("not found")))
+      },
+      test("validate detects field navigation on non-record") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("items").field("sub"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(WithList.schema, WithList.schema, actions)
+        assertTrue(!result.isValid, result.errors.exists(_.contains("non-record")))
+      },
+      test("validate TransformValue with Case on variant") {
+        val actions = Vector(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.caseOf("Active"),
+            DynamicSchemaExpr.Path(DynamicOptic.root),
+            DynamicSchemaExpr.Path(DynamicOptic.root)
+          )
+        )
+        val result = MigrationValidator.validate(Status.schema, Status.schema, actions)
+        assertTrue(result.isValid)
       }
     )
   )
