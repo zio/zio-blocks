@@ -61,9 +61,9 @@ object MigrationValidationMacros {
     def extract(tpe: TypeRepr): Set[String] = {
       val dealiased = tpe.dealias
       dealiased match {
-        case AndType(left, right)            => extract(left) ++ extract(right)
-        case ConstantType(StringConstant(s)) => Set(s)
-        case t if t =:= TypeRepr.of[Any]     => Set.empty
+        case AndType(left, right)                                                    => extract(left) ++ extract(right)
+        case ConstantType(StringConstant(s))                                         => Set(s)
+        case t if t =:= TypeRepr.of[Any]                                             => Set.empty
         case AppliedType(tycon, List(field)) if tycon.typeSymbol.name == "FieldName" =>
           extract(field)
         case _ => Set.empty
