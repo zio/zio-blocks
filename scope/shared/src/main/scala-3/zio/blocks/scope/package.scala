@@ -96,6 +96,9 @@ package object scope {
    *   }
    *   }}}
    */
+  inline def injected[T](using scope: Scope.Any): Scope.Closeable[T, ?] =
+    ${ ScopeMacros.injectedImpl[T]('{ Seq.empty[Wire[?, ?]] }, 'scope) }
+
   inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
 }

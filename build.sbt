@@ -150,7 +150,13 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 100,
-    coverageMinimumBranchTotal := 100
+    coverageMinimumBranchTotal := 100,
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/scope/.*",
+      ".*scala-3/zio/blocks/scope/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform)

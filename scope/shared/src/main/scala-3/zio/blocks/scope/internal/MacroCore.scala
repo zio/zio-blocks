@@ -85,10 +85,11 @@ private[scope] object MacroCore {
       requiredBy: String,
       missing: List[String],
       found: List[String],
-      stack: List[String]
+      stack: List[String],
+      dependencyTree: Option[DepNode] = None
     ) extends ScopeMacroError {
       def render(color: Boolean): String =
-        ErrorRenderer.renderMissingDependency(requiredBy, missing, found, stack, color)
+        ErrorRenderer.renderMissingDependency(requiredBy, missing, found, stack, dependencyTree, color)
     }
 
     final case class DuplicateProvider(
@@ -118,6 +119,20 @@ private[scope] object MacroCore {
   }
 
   final case class ProviderInfo(label: String, location: Option[String])
+
+  /** A node in the dependency tree for visualization. */
+  final case class DepNode(
+    name: String,
+    status: DepStatus,
+    children: List[DepNode] = Nil
+  )
+
+  sealed trait DepStatus
+  object DepStatus {
+    case object Found   extends DepStatus
+    case object Missing extends DepStatus
+    case object Pending extends DepStatus // not yet resolved
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Type analysis utilities (Scala 3 specific)
@@ -387,6 +402,7 @@ private[scope] object MacroCore {
       missing: List[String],
       found: List[String],
       stack: List[String],
+      dependencyTree: Option[DepNode],
       color: Boolean
     ): String = {
       val missingList = missing.headOption.getOrElse("Unknown")
@@ -401,6 +417,15 @@ private[scope] object MacroCore {
       val foundLines   = found.map(f => s"    ${green("✓", color)} $f  ${gray("— found in stack", color)}")
       val missingLines = missing.map(m => s"    ${red("✗", color)} $m  ${gray("— missing", color)}")
       val deps         = (foundLines ++ missingLines).mkString("\n")
+
+      val treeViz = dependencyTree match {
+        case Some(root) =>
+          val lines = new StringBuilder
+          lines.append(s"\n  ${bold("Dependency Tree:", color)}\n")
+          renderDepTree(root, "    ", isLast = true, isRoot = true, missing.toSet, found.toSet, color, lines)
+          lines.toString
+        case None => ""
+      }
 
       val hint = missing.headOption.map { m =>
         s"""
@@ -419,12 +444,51 @@ private[scope] object MacroCore {
          |
          |  Missing dependency: ${red(missingList, color)}
          |$stackViz
-         |
+         |$treeViz
          |  ${bold(s"$requiredBy requires:", color)}
          |$deps
          |$hint
          |
          |${footer(color)}""".stripMargin
+    }
+
+    private def renderDepTree(
+      node: DepNode,
+      prefix: String,
+      isLast: Boolean,
+      isRoot: Boolean,
+      missing: Set[String],
+      found: Set[String],
+      color: Boolean,
+      sb: StringBuilder
+    ): Unit = {
+      // Determine the connector for this node
+      val connector = if (isRoot) "" else if (isLast) "└── " else "├── "
+
+      // Format the node name with status indicator
+      val statusIndicator = node.status match {
+        case DepStatus.Found   => s" ${green("✓", color)}"
+        case DepStatus.Missing => s" ${red("✗", color)}"
+        case DepStatus.Pending => ""
+      }
+
+      val nodeName = node.status match {
+        case DepStatus.Found   => green(node.name, color)
+        case DepStatus.Missing => red(node.name, color)
+        case DepStatus.Pending => cyan(node.name, color)
+      }
+
+      sb.append(s"$prefix$connector$nodeName$statusIndicator\n")
+
+      // Calculate the prefix for children
+      val childPrefix = if (isRoot) prefix else prefix + (if (isLast) "    " else "│   ")
+
+      // Render children
+      val children = node.children
+      children.zipWithIndex.foreach { case (child, idx) =>
+        val childIsLast = idx == children.length - 1
+        renderDepTree(child, childPrefix, childIsLast, isRoot = false, missing, found, color, sb)
+      }
     }
 
     def renderDuplicateProvider(

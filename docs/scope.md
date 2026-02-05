@@ -109,12 +109,12 @@ class App(db: Database) {
 }
 
 @main def main(): Unit =
-  Scope.global.injected[App]().run {
+  Scope.global.injected[App].run {
     $[App].run()
   }
 ```
 
-The `injected[App]` macro discovers that `App` needs `Database` needs `Config`, wires them up, runs your code, then cleans up in reverse order.
+The `injected[App]` macro discovers that `App` needs `Database` needs `Config`, wires them up, runs your code, then cleans up in reverse order. Note that `injected[T]` can be called without parentheses when no explicit wires are needed.
 
 ### With Lifecycle Management
 
@@ -145,7 +145,7 @@ class App(userService: UserService) {
 }
 
 @main def main(): Unit =
-  Scope.global.injected[App]().run {
+  Scope.global.injected[App].run {
     $[App].run()
   }
   // Cleanup runs automatically in reverse order:
@@ -165,7 +165,7 @@ class Cache(config: Config)(implicit scope: Scope.Any) {
 }
 
 def main(): Unit =
-  Scope.global.injected[App]().run { scope =>
+  Scope.global.injected[App].run { scope =>
     scope.get[App].run()
   }
 ```
@@ -204,7 +204,7 @@ The `InStack[T, Stack]` evidence is resolved at compile time, ensuring you can o
 `Scope.global` never closes during normal execution — it finalizes via JVM shutdown hook. Use it for application-lifetime services:
 
 ```scala
-Scope.global.injected[App]().run {
+Scope.global.injected[App].run {
   $[App].run()
 }
 ```
@@ -212,7 +212,7 @@ Scope.global.injected[App]().run {
 For tests, create a child scope for deterministic cleanup:
 
 ```scala
-val testScope = Scope.global.injected[TestFixture]()
+val testScope = Scope.global.injected[TestFixture]
 try { testScope.run { /* test */ } } finally { testScope.close() }
 ```
 
@@ -380,7 +380,7 @@ Each request gets its own child scope. The `UserService` from the parent scope i
 injected[RequestHandler](shared[Cache]).run { /* ... */ }
 
 // Public: Cache is visible in the scope stack
-Scope.global.injected[Cache]().injected[RequestHandler]().run { /* ... */ }
+Scope.global.injected[Cache].injected[RequestHandler].run { /* ... */ }
 ```
 
 ### Type Safety with Multiple Lifecycles
@@ -452,7 +452,7 @@ Swap implementations by providing different wires:
 
 ```scala
 // Production
-Scope.global.injected[UserService]().run {
+Scope.global.injected[UserService].run {
   $[UserService].getUser("123")
 }
 
@@ -469,8 +469,8 @@ Or inject mock types directly:
 
 ```scala
 // MockDatabase and MockCache extend the traits
-Scope.global.injected[MockDatabase & MockCache]()
-  .injected[UserService]()
+Scope.global.injected[MockDatabase & MockCache]
+  .injected[UserService]
   .run {
     val svc = $[UserService]
     assert(svc.getUser("123") == expectedUser)
@@ -498,7 +498,7 @@ class DatabaseImpl(config: Config) extends Database with AutoCloseable {
 }
 
 // Now works:
-Scope.global.injected[App]().run {
+Scope.global.injected[App].run {
   $[App].run()  // Uses DatabaseImpl via Wireable
 }
 ```
@@ -683,6 +683,14 @@ When a required dependency is not available in the scope or provided as a wire:
     → Database
     → (root)
 
+  Dependency Tree:
+    App
+    ├── Config ✓
+    └── UserService
+        ├── Database ✓
+        │   └── Config ✓
+        └── Cache ✗
+
   UserService requires:
     ✓ Database  — found in stack
     ✗ Cache     — missing
@@ -693,6 +701,8 @@ When a required dependency is not available in the scope or provided as a wire:
 
 ────────────────────────────────────────────────────────────────────────────────
 ```
+
+The dependency tree shows the full hierarchy of types and their dependencies, with `✓` for found and `✗` for missing. This helps you trace exactly where in the dependency chain a type is required.
 
 ### Duplicate Provider
 
@@ -814,6 +824,7 @@ object Wireable {
 // Scala 3
 transparent inline def shared[T]: Wire.Shared[?, T]
 transparent inline def unique[T]: Wire.Unique[?, T]
+inline def injected[T](using Scope.Any): Scope.Closeable[T, ?]
 inline def injected[T](wires: Wire[?,?]*)(using Scope.Any): Scope.Closeable[T, ?]
 def $[T](using Scope.Has[T], IsNominalType[T]): T
 def defer(finalizer: => Unit)(using Scope.Any): Unit
@@ -821,6 +832,7 @@ def defer(finalizer: => Unit)(using Scope.Any): Unit
 // Scala 2
 def shared[T]: Wire.Shared[_, T] = macro ...
 def unique[T]: Wire.Unique[_, T] = macro ...
+def injected[T](implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
 def injected[T](wires: Wire[_,_]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
 def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T
 def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit
@@ -857,9 +869,10 @@ Scope depends on:
 
 ## Summary
 
-- **`injected[T]`** — Create child scope, wire dependencies from stack
+- **`injected[T]`** — Create child scope, wire dependencies from stack (no parentheses needed)
 - **`injected[T](wires...)`** — Wire with explicit/private dependencies
-- **`.run { ctx => ... }`** — Execute with automatic cleanup
+- **`.run { ... }`** — Execute with automatic cleanup (Scala 3: context function; Scala 2: lambda with scope)
+- **`shared[T]`** / **`unique[T]`** — Derive wires that are memoized vs fresh per use
 - **`Scope.Any`** — Use in constructors needing `defer`
 - **`defer { ... }`** — Register cleanup on current scope
 - **`Wire.value(x)`** — Inject a specific value

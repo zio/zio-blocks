@@ -5,6 +5,9 @@ import zio.blocks.scope.internal.{Finalizers, ScopeImplScala3}
 
 private[scope] trait ScopeVersionSpecific[+Stack] { self: Scope[Stack] =>
 
+  inline def injected[T]: Scope.Closeable[T, ?] =
+    ${ ScopeMacros.injectedImpl[T]('{ Seq.empty[Wire[?, ?]] }, 'self) }
+
   inline def injected[T](inline wires: Wire[?, ?]*): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('wires, 'self) }
 }

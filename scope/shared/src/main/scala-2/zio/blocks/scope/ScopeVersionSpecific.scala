@@ -6,6 +6,8 @@ import scala.language.experimental.macros
 
 private[scope] trait ScopeVersionSpecific[+Stack] { self: Scope[Stack] =>
 
+  def injected[T]: Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfNoArgsImpl[T]
+
   def injected[T](wires: Wire[_, _]*): Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfImpl[T]
 }
 

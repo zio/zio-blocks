@@ -52,6 +52,17 @@ object WireSpec extends ZIOSpecDefault {
       val uniqueWire   = sharedWire.unique
       val backToShared = uniqueWire.shared
       assertTrue(sharedWire.isShared, uniqueWire.isUnique, backToShared.isShared)
+    },
+    test("Wire.Unique.unique returns self") {
+      val sharedWire = Wire.value(Config(true))
+      val uniqueWire = sharedWire.unique
+      val sameWire   = uniqueWire.unique
+      assertTrue(uniqueWire eq sameWire)
+    },
+    test("Wire.Shared.shared returns self") {
+      val sharedWire = Wire.value(Config(true))
+      val sameWire   = sharedWire.shared
+      assertTrue(sharedWire eq sameWire)
     }
   )
 }

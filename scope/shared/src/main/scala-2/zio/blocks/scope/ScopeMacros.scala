@@ -276,6 +276,11 @@ private[scope] object ScopeMacros {
   ): c.Expr[Scope.Closeable[T, _]] =
     injectedImplWithScope[T](c)(wires, scope)
 
+  def injectedNoArgsImpl[T: c.WeakTypeTag](c: whitebox.Context)(
+    scope: c.Expr[Scope.Any]
+  ): c.Expr[Scope.Closeable[T, _]] =
+    injectedImplWithScope[T](c)(Seq.empty, scope)
+
   def injectedFromPrefixImpl[T: c.WeakTypeTag](c: whitebox.Context)(
     wires: c.Expr[Wire[_, _]]*
   ): c.Expr[Scope.Closeable[T, _]] = {
@@ -299,6 +304,14 @@ private[scope] object ScopeMacros {
     val prefix    = c.prefix.tree
     val scopeExpr = c.Expr[Scope.Any](q"$prefix")
     injectedImplWithScope[T](c)(wires, scopeExpr)
+  }
+
+  def injectedFromSelfNoArgsImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Scope.Closeable[T, _]] = {
+    import c.universe._
+
+    val prefix    = c.prefix.tree
+    val scopeExpr = c.Expr[Scope.Any](q"$prefix")
+    injectedImplWithScope[T](c)(Seq.empty, scopeExpr)
   }
 
   private def injectedImplWithScope[T: c.WeakTypeTag](c: whitebox.Context)(
