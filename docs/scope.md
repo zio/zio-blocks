@@ -16,8 +16,11 @@ The key insight: **resources should be part of the scope's type**. A `Scope.Has[
 - You can't access a resource that isn't in scope — compile error
 - You can't pass the wrong scope to a function — compile error  
 - You can't use a resource after its scope closes — compile error
+- **You can't accidentally leak a resource** — it's "locked" to its scope (Scala 3)
 
 Traditional DI prevents "app won't start" errors. Scope prevents "3am production incident" errors.
+
+> **Unique feature**: Scope is the only DI library that prevents resource escape at compile time. Resources tagged with `@@` cannot have their methods called outside their scope — trying to leak them is a compile error, not a runtime bug.
 
 Scope supports both **Scala 2.13** and **Scala 3.x**. The core functionality is identical across versions.
 
@@ -248,6 +251,82 @@ Scope.global                              // Scope[TNil]
 ```
 
 Services can be retrieved from any layer in the stack. The stack type ensures at compile time that requested services exist.
+
+### Resource Escape Prevention (Scala 3)
+
+**The Problem**: Even with type-level stack tracking, resources can escape their scope:
+
+```scala
+var leaked: InputStream = null
+
+Scope.global.injected[Request].run {
+  leaked = $[Request].body  // Captured reference survives scope!
+}
+
+leaked.read()  // Use-after-close bug — compiles but fails at runtime
+```
+
+**The Solution**: Scope provides compile-time escape prevention via opaque tagging:
+
+```scala
+import zio.blocks.scope.@@
+
+val closeable = Scope.global.injectedValue(new Request(new InputStream))
+
+// Get tagged value — methods are hidden by opaque type
+val request: Request @@ closeable.Tag = closeable.value
+
+// request.body  ← Compile error! 'body' is not a member of Request @@ Tag
+
+// Must use $ operator with scope in context:
+val body: InputStream @@ closeable.Tag = request.$(_.body)(using closeable)(using summon)
+
+// Primitives and Unscoped types escape freely:
+val n: Int = request.$(_.body.read())(using closeable)(using summon)  // Int is Unscoped
+
+closeable.closeOrThrow()
+```
+
+**How It Works**:
+
+1. **Opaque tagging**: `A @@ S` is an opaque type alias — the underlying `A` methods are hidden
+2. **Scope capability**: The `$` operator requires `Scope[?] { type Tag >: S }` — you can only access the value when the matching scope is in context
+3. **Conditional untagging**: The `Untag` typeclass controls what escapes:
+   - `Unscoped` types (primitives, String, collections) return raw values
+   - Resource types return re-tagged values `B @@ S`
+
+**For-comprehensions** work naturally with tag accumulation:
+
+```scala
+val stream1: InputStream @@ scope1.Tag = ...
+val stream2: InputStream @@ scope2.Tag = ...
+
+// Union tag requires both scopes to be in context
+val combined: (InputStream, InputStream) @@ (scope1.Tag | scope2.Tag) = for {
+  s1 <- stream1
+  s2 <- stream2
+} yield (s1, s2)
+```
+
+**Child scopes can use parent-scoped values** because child tags are supertypes of parent tags:
+
+```scala
+val parent = Scope.global.injectedValue(new Resource)
+val parentValue: Resource @@ parent.Tag = parent.value
+
+val child = parent.injectedValue(new OtherResource)
+// child.Tag >: parent.Tag, so we can use parentValue:
+val n: Int = parentValue.$(_.getData)(using child)(using summon)
+```
+
+**Zero overhead**: The tagging is purely compile-time:
+- `@@` is an opaque type alias — erased at runtime
+- `@@.tag`, `map`, `flatMap` are `inline` — no method calls
+- `$` operator incurs minimal overhead (one virtual call for `Untag.apply`)
+
+**Unscoped types** include all primitives, String, collections of Unscoped elements, and tuples of Unscoped elements. Resource types (streams, connections, file handles) are NOT Unscoped and stay tagged.
+
+> **Note**: Resource escape prevention is Scala 3 only (requires opaque types). Scala 2 builds work but don't have this feature.
 
 ### Scope.Closeable
 
@@ -899,6 +978,50 @@ def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit
 
 **`injectedValue`** wraps an existing value in a closeable scope. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
 
+### Tagged Values (Scala 3 Only)
+
+```scala
+// Opaque type for tagging values with scope identity
+opaque infix type @@[+A, S] = A
+
+object @@ {
+  inline def tag[A, S](a: A): A @@ S
+  
+  extension [A, S](tagged: A @@ S) {
+    // Access value with scope capability check
+    inline infix def $[B](inline f: A => B)(using Scope[?] { type Tag >: S })(using Untag[B, S]): Untag[B, S]#Out
+    
+    // For-comprehension support
+    inline def map[B](inline f: A => B): B @@ S
+    inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S | T)
+    
+    // Tuple accessors
+    inline def _1[X, Y](using A =:= (X, Y)): X @@ S
+    inline def _2[X, Y](using A =:= (X, Y)): Y @@ S
+  }
+}
+
+// Types that can escape untagged (primitives, String, collections)
+trait Unscoped[A]
+
+// Conditional untagging based on Unscoped evidence
+trait Untag[A, S] {
+  type Out  // A if Unscoped[A] exists, else A @@ S
+  def apply(a: A): Out
+}
+```
+
+**Scope.Closeable additions**:
+
+```scala
+trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] {
+  // ... existing methods ...
+  
+  // Get head value tagged with scope identity (Scala 3 only)
+  def value: Head @@ Tag
+}
+```
+
 ---
 
 ## Comparison with Alternatives
@@ -909,10 +1032,13 @@ def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit
 | Lifecycle management | ✅ | ✅ | ✅ | ❌ |
 | Effect system required | ❌ | ✅ (ZIO) | ❌ | ❌ |
 | Type-level stack tracking | ✅ | ❌ | ❌ | ❌ |
+| **Resource escape prevention** | ✅ (Scala 3) | ❌ | ❌ | ❌ |
 | Async construction | ❌* | ✅ | ❌ | ❌ |
 | Scoped instances | ✅ | ✅ | ✅ | ❌ |
 
 *Async construction can be added later if needed.
+
+**Resource escape prevention** is a unique feature of Scope — resources cannot accidentally escape their intended lifecycle, preventing use-after-close bugs at compile time.
 
 ---
 
@@ -931,6 +1057,8 @@ Scope depends on:
 
 ## Summary
 
+### Core API
+
 - **`injected[T]`** — Create child scope, wire dependencies from stack (no parentheses needed)
 - **`injected[T](wires...)`** — Wire with explicit/private dependencies (supports arbitrary arity)
 - **`injectedValue(x)`** — Wrap existing value in a closeable scope (auto-registers `close()` for AutoCloseable)
@@ -944,3 +1072,14 @@ Scope depends on:
 - **`$[T]`** — Retrieve service from current scope
 - **`Wire(x)`** — Inject a specific value as a wire
 - **`Wireable[T]`** — Enable `injected[T]` for traits
+
+### Resource Escape Prevention (Scala 3)
+
+- **`A @@ S`** — Value of type `A` tagged with scope identity `S`; methods hidden
+- **`.value`** — Get tagged value from `Scope.Closeable`
+- **`tagged $ (_.method())`** — Access tagged value with scope capability check
+- **`tagged.map(f)`** — Transform tagged value, preserving tag
+- **`tagged.flatMap(f)`** — Chain tagged operations with union tags
+- **`Unscoped[A]`** — Marker for types that can escape untagged (primitives, String, collections)
+
+**Key guarantee**: Resources cannot accidentally escape their scope — use-after-close bugs are compile-time errors.

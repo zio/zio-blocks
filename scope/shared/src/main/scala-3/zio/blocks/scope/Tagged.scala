@@ -41,6 +41,10 @@ object @@ {
      *   - If `B` is `Unscoped`, returns raw `B`
      *   - Otherwise, returns `B @@ S` (stays tagged)
      *
+     * Zero overhead: The typeclass dispatch is resolved at compile time, and
+     * both branches (identity for Unscoped, tag for resources) compile to
+     * no-ops since `@@` is an opaque type alias.
+     *
      * @param f
      *   The function to apply to the underlying value
      * @param scope
@@ -155,15 +159,15 @@ trait Untag[A, S] {
 
 object Untag {
 
-  /** Unscoped types escape as raw values. */
+  /** Unscoped types escape as raw values. Zero overhead: identity function. */
   given unscoped[A, S](using Unscoped[A]): Untag[A, S] with {
     type Out = A
-    inline def apply(a: A): Out = a
+    def apply(a: A): Out = a
   }
 
-  /** Non-Unscoped types stay tagged. */
+  /** Non-Unscoped types stay tagged. Zero overhead: opaque type alias. */
   given resourceful[A, S](using NotGiven[Unscoped[A]]): Untag[A, S] with {
     type Out = A @@ S
-    inline def apply(a: A): Out = @@.tag(a)
+    def apply(a: A): Out = @@.tag(a)
   }
 }
