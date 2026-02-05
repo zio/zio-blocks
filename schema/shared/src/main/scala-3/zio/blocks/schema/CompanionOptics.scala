@@ -1,13 +1,15 @@
 package zio.blocks.schema
 
 import scala.annotation.tailrec
-import scala.compiletime.error
+import scala.compiletime.{error, summonInline}
 
 transparent trait CompanionOptics[S] {
   extension [A](a: A) {
     inline def when[B <: A]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
     inline def wrapped[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
+
+    inline def searchFor[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
   }
 
   extension [C[_], A](c: C[A]) {
@@ -449,6 +451,66 @@ private object CompanionOptics {
                   }
               }
           })
+        case TypeApply(Apply(TypeApply(searchTerm, _), List(parent)), List(typeTree))
+            if hasName(searchTerm, "searchFor") =>
+          val parentTpe = parent.tpe.widen.dealias
+          val searchTpe = typeTree.tpe.dealias
+          new Some(parentTpe.asType match {
+            case '[p] =>
+              searchTpe.asType match {
+                case '[s] =>
+                  toOptic(parent).fold {
+                    '{
+                      SearchTraversal(
+                        $schema.reflect.asInstanceOf[Reflect.Bound[p]],
+                        summonInline[Schema[s]].reflect
+                      ).asInstanceOf[Traversal[p, s]]
+                    }
+                  } { x =>
+                    if (x.isExprOf[Lens[S, p]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p, s]]
+                        )
+                      }
+                    } else if (x.isExprOf[Prism[S, p & S]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p & S]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p & S, s]]
+                        )
+                      }
+                    } else if (x.isExprOf[Optional[S, p]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p, s]]
+                        )
+                      }
+                    } else if (x.isExprOf[Traversal[S, p]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p, s]]
+                        )
+                      }
+                    } else unsupportedOpticType(x)
+                  }
+              }
+          })
         case Select(parent, fieldName) =>
           val parentTpe = parent.tpe.widen.dealias
           val childTpe  = term.tpe.widen.dealias
@@ -511,7 +573,7 @@ private object CompanionOptics {
             case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
             case _                                                                      =>
               fail(
-                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '${term.show}'."
+                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, .wrapped[<T>], or .searchFor[<T>], got '${term.show}'."
               )
           }
           var parentTpe = parent.tpe.widen.dealias
