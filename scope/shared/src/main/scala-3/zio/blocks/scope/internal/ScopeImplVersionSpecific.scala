@@ -12,11 +12,7 @@ private[scope] final class ScopeImplScala3[H, T, ParentTag](
   private[internal] val errorReporter: Chunk[Throwable] => Unit = ScopeImplScala3.defaultErrorReporter
 ) extends ScopeImpl[H, T](parent, context, finalizers) {
 
-  import zio.blocks.scope.@@
-
   type Tag = ParentTag | this.type
-
-  def value: H @@ Tag = @@.tag(context.head.asInstanceOf[H])
 
   private val runCalled = new AtomicBoolean(false)
 

@@ -3,7 +3,7 @@ package zio.blocks.scope
 import scala.util.NotGiven
 
 /**
- * Opaque type for tagging values with scope identity.
+ * Opaque type for scoping values with scope identity.
  *
  * A value of type `A @@ S` is a value of type `A` that is "locked" to a scope
  * with tag `S`. The opaque type hides all methods on `A`, so the only way to
@@ -14,35 +14,35 @@ import scala.util.NotGiven
  *
  * @example
  *   {{{
- *   // Tagged value cannot escape
+ *   // Scoped value cannot escape
  *   val stream: InputStream @@ scope.Tag = getStream()
  *   stream.read()  // Compile error: read() is not a member of InputStream @@ Tag
  *
  *   // Must use $ operator with scope in context
- *   stream $ (_.read())  // Works, returns Int (untagged, since Int is Unscoped)
+ *   stream $ (_.read())  // Works, returns Int (unscoped, since Int is Unscoped)
  *   }}}
  */
 opaque infix type @@[+A, S] = A
 
 object @@ {
 
-  /** Tags a value with a scope identity. */
-  inline def tag[A, S](a: A): A @@ S = a
+  /** Scopes a value with a scope identity. */
+  inline def scoped[A, S](a: A): A @@ S = a
 
-  /** Retrieves the underlying value without untagging (internal use). */
-  private[scope] inline def untag[A, S](tagged: A @@ S): A = tagged
+  /** Retrieves the underlying value without unscoping (internal use). */
+  private[scope] inline def unscoped[A, S](scoped: A @@ S): A = scoped
 
-  extension [A, S](tagged: A @@ S) {
+  extension [A, S](scoped: A @@ S) {
 
     /**
-     * Applies a function to the tagged value within the scope context.
+     * Applies a function to the scoped value within the scope context.
      *
      * The result type depends on whether `B` is [[Unscoped]]:
      *   - If `B` is `Unscoped`, returns raw `B`
-     *   - Otherwise, returns `B @@ S` (stays tagged)
+     *   - Otherwise, returns `B @@ S` (stays scoped)
      *
      * Zero overhead: The typeclass dispatch is resolved at compile time, and
-     * both branches (identity for Unscoped, tag for resources) compile to
+     * both branches (identity for Unscoped, scoped for resources) compile to
      * no-ops since `@@` is an opaque type alias.
      *
      * @param f
@@ -52,13 +52,15 @@ object @@ {
      * @param u
      *   Typeclass determining the result type
      * @return
-     *   Either raw `B` or `B @@ S` depending on Untag instance
+     *   Either raw `B` or `B @@ S` depending on AutoUnscoped instance
      */
-    inline infix def $[B](inline f: A => B)(using scope: Scope[?] { type Tag >: S })(using u: Untag[B, S]): u.Out =
-      u(f(tagged))
+    inline infix def $[B](inline f: A => B)(using scope: Scope[?] { type Tag >: S })(using
+      u: AutoUnscoped[B, S]
+    ): u.Out =
+      u(f(scoped))
 
     /**
-     * Maps over a tagged value, preserving the tag.
+     * Maps over a scoped value, preserving the tag.
      *
      * @param f
      *   The function to apply
@@ -66,31 +68,31 @@ object @@ {
      *   Result with same tag
      */
     inline def map[B](inline f: A => B): B @@ S =
-      f(tagged)
+      f(scoped)
 
     /**
-     * FlatMaps over a tagged value, combining tags via union.
+     * FlatMaps over a scoped value, combining tags via union.
      *
      * @param f
-     *   Function returning a tagged result
+     *   Function returning a scoped result
      * @return
      *   Result with union tag `S | T`
      */
     inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S | T) =
-      f(tagged)
+      f(scoped)
 
-    /** Extracts the first element of a tagged tuple. */
+    /** Extracts the first element of a scoped tuple. */
     inline def _1[X, Y](using ev: A =:= (X, Y)): X @@ S =
-      ev(tagged)._1
+      ev(scoped)._1
 
-    /** Extracts the second element of a tagged tuple. */
+    /** Extracts the second element of a scoped tuple. */
     inline def _2[X, Y](using ev: A =:= (X, Y)): Y @@ S =
-      ev(tagged)._2
+      ev(scoped)._2
   }
 }
 
 /**
- * Marker typeclass for types that can escape a scope untagged.
+ * Marker typeclass for types that can escape a scope unscoped.
  *
  * Types with an `Unscoped` instance are considered "safe data" - they don't
  * hold resources and can be freely extracted from a scope without tracking.
@@ -104,7 +106,7 @@ object @@ {
  *   // Primitives escape freely
  *   val n: Int = stream $ (_.read())  // Int is Unscoped
  *
- *   // Resources stay tagged
+ *   // Resources stay scoped
  *   val body = request $ (_.body)     // InputStream @@ Tag (not raw InputStream)
  *   }}}
  */
@@ -144,30 +146,30 @@ object Unscoped {
 }
 
 /**
- * Typeclass that determines how a value is untagged when extracted via `$`.
+ * Typeclass that determines how a value is unscoped when extracted via `$`.
  *
  * If `A` has an [[Unscoped]] instance, `Out = A` (raw value). Otherwise, `Out
- * = A @@ S` (re-tagged with scope).
+ * = A @@ S` (re-scoped with scope).
  *
- * This enables conditional untagging: data types escape freely, resource types
+ * This enables conditional unscoping: data types escape freely, resource types
  * stay tracked.
  */
-trait Untag[A, S] {
+trait AutoUnscoped[A, S] {
   type Out
   def apply(a: A): Out
 }
 
-object Untag {
+object AutoUnscoped {
 
   /** Unscoped types escape as raw values. Zero overhead: identity function. */
-  given unscoped[A, S](using Unscoped[A]): Untag[A, S] with {
+  given unscoped[A, S](using Unscoped[A]): AutoUnscoped[A, S] with {
     type Out = A
     def apply(a: A): Out = a
   }
 
-  /** Non-Unscoped types stay tagged. Zero overhead: opaque type alias. */
-  given resourceful[A, S](using NotGiven[Unscoped[A]]): Untag[A, S] with {
+  /** Non-Unscoped types stay scoped. Zero overhead: opaque type alias. */
+  given resourceful[A, S](using NotGiven[Unscoped[A]]): AutoUnscoped[A, S] with {
     type Out = A @@ S
-    def apply(a: A): Out = @@.tag(a)
+    def apply(a: A): Out = @@.scoped(a)
   }
 }

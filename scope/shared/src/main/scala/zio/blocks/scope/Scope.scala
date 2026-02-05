@@ -14,7 +14,7 @@ import zio.blocks.scope.internal.Finalizers
  * scope.
  *
  * The `Tag` type member provides compile-time scope identity for preventing
- * resource escape. Values tagged with `A @@ scope.Tag` can only be accessed
+ * resource escape. Values scoped with `A @@ scope.Tag` can only be accessed
  * through the `$` operator when the matching scope is in context.
  *
  * @example
@@ -38,7 +38,7 @@ sealed trait Scope[+Stack] extends ScopeVersionSpecific[Stack] {
    *
    * Child scopes have tags that are SUPERtypes of their parent's tag (via
    * union: `Tag = ParentTag | this.type`). This enables child scopes to use
-   * parent-scoped values: when accessing a value tagged with `ParentTag`, the
+   * parent-scoped values: when accessing a value scoped with `ParentTag`, the
    * `$` operator requires `scope.Tag >: ParentTag`, which is satisfied by child
    * scopes since `ParentTag <: (ParentTag | this.type)`.
    *

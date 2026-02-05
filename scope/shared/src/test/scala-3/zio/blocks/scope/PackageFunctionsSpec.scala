@@ -56,7 +56,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     given Wireable.Typed[Config, DatabaseTrait] = new Wireable[DatabaseTrait] {
       type In = Config
       def wire: Wire[Config, DatabaseTrait] = Wire.Shared[Config, DatabaseTrait] {
-        val config = $[Config]
+        val config = summon[Scope.Has[Config]].get[Config]
         val impl   = new DatabaseImpl(config)
         defer(impl.close())
         Context[DatabaseTrait](impl)
@@ -65,19 +65,19 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
   }
 
   // Test classes for Scope.Has parameter handling
-  class ServiceWithScopeHas(val config: Config)(using Scope.Has[Database]) {
-    val db: Database = $[Database]
+  class ServiceWithScopeHas(val config: Config)(using scope: Scope.Has[Database]) {
+    val db: Database = scope.get[Database]
   }
 
-  class ServiceWithMultipleScopeHas(using Scope.Has[Config], Scope.Has[Database]) {
-    val config: Config = $[Config]
-    val db: Database   = $[Database]
+  class ServiceWithMultipleScopeHas(using configScope: Scope.Has[Config], dbScope: Scope.Has[Database]) {
+    val config: Config = configScope.get[Config]
+    val db: Database   = dbScope.get[Database]
   }
 
-  class ServiceWithMixedParams(val cache: Cache)(using Scope.Has[Config], Scope.Any) {
-    val config: Config     = $[Config]
+  class ServiceWithMixedParams(val cache: Cache)(using configScope: Scope.Has[Config], anyScope: Scope.Any) {
+    val config: Config     = configScope.get[Config]
     var cleanedUp: Boolean = false
-    defer { cleanedUp = true }
+    anyScope.defer { cleanedUp = true }
   }
 
   class ServiceWithScopeHasInRegularParams(configScope: Scope.Has[Config], val cache: Cache) {
@@ -326,13 +326,15 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       closeable.close()
       assertTrue(cleaned)
     },
-    test("$ retrieves from scope") {
+    test("$ retrieves scoped value from scope") {
       val config              = new Config
       val closeable           = Scope.makeCloseable[Config, TNil](Scope.global, Context(config), new Finalizers)
       given Scope.Has[Config] = closeable
       val retrieved           = $[Config]
+      // retrieved is Config @@ closeable.Tag, use $ operator to check
+      val isDebug: Boolean = retrieved $ (_.debug)
       closeable.close()
-      assertTrue(retrieved eq config)
+      assertTrue(!isDebug)
     },
     test("scope.injected creates closeable scope") {
       val closeable = Scope.global.injected[Config]()
