@@ -23,7 +23,7 @@ private[scope] object ScopeMacros {
         val tpe = TypeRepr.of[T]
         val sym = tpe.typeSymbol
 
-        if (!sym.isClassDef) {
+        if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
           MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
         }
 
@@ -43,7 +43,7 @@ private[scope] object ScopeMacros {
         val tpe = TypeRepr.of[T]
         val sym = tpe.typeSymbol
 
-        if (!sym.isClassDef) {
+        if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
           MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
         }
 

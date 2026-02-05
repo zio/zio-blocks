@@ -32,7 +32,8 @@ private[scope] object ScopeMacros {
       val result = q"$wireableTpe.wire.shared.asInstanceOf[$wireSharedType]"
       c.Expr(result)(c.WeakTypeTag(wireSharedType))
     } else {
-      if (!sym.isClass) {
+      // Must be a concrete class (not trait, not abstract)
+      if (!sym.isClass || sym.asClass.isTrait || sym.asClass.isAbstract) {
         MC.abortNotAClass(c)(tpe.toString)
       }
       deriveSharedWire[T](c)
@@ -64,7 +65,8 @@ private[scope] object ScopeMacros {
       val result = q"$wireableTpe.wire.unique.asInstanceOf[$wireUniqueType]"
       c.Expr(result)(c.WeakTypeTag(wireUniqueType))
     } else {
-      if (!sym.isClass) {
+      // Must be a concrete class (not trait, not abstract)
+      if (!sym.isClass || sym.asClass.isTrait || sym.asClass.isAbstract) {
         MC.abortNotAClass(c)(tpe.toString)
       }
       deriveUniqueWire[T](c)

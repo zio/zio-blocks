@@ -36,8 +36,8 @@ private[scope] object WireCodeGen {
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
 
-    // Validate
-    if (!sym.isClassDef) {
+    // Validate: must be a concrete class (not trait, not abstract)
+    if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
       MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
     }
 
@@ -184,7 +184,8 @@ private[scope] object WireCodeGen {
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
 
-    if (!sym.isClassDef) {
+    // Validate: must be a concrete class (not trait, not abstract)
+    if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
       MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
     }
 
