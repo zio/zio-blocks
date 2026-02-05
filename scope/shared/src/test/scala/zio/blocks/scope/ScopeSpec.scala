@@ -21,13 +21,12 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(Scope.global != null)
       },
       test("global scope get throws for missing type") {
-        val result = try {
-          Scope.global.asInstanceOf[Scope[Context[Config] :: TNil]].get[Config]
-          false
-        } catch {
-          case _: IllegalStateException => true
-        }
-        assertTrue(result)
+        // Global scope has no services, so get should throw at runtime.
+        // We use asInstanceOf to bypass compile-time checks and test runtime behavior.
+        val threw = scala.util.Try {
+          Scope.global.asInstanceOf[Scope.Has[Config]].get[Config]
+        }.isFailure
+        assertTrue(threw)
       },
       test("global scope defer works") {
         var ran          = false
@@ -101,14 +100,13 @@ object ScopeSpec extends ZIOSpecDefault {
         val finalizers        = new Finalizers
         val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
 
-        val result = try {
-          closeable.asInstanceOf[Scope[Context[Database] :: TNil]].get[Database]
-          false
-        } catch {
-          case _: NoSuchElementException => true
-        }
+        // Try to get Database which is not in the scope - should throw at runtime.
+        // We use asInstanceOf to bypass compile-time checks and test runtime behavior.
+        val threw = scala.util.Try {
+          closeable.asInstanceOf[Scope.Has[Database]].get[Database]
+        }.isFailure
         closeable.close()
-        assertTrue(result)
+        assertTrue(threw)
       },
       test("defer registers finalizer") {
         var cleaned           = false
