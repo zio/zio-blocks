@@ -551,6 +551,47 @@ def deriveSequence[F[_, _], C[_], A](
 
 The derivation process for sequences is straightforward. We extract the type class instance for the element type, and at runtime we use the deconstructor to iterate over the elements of the sequence. For each element, we force the `Lazy[Show[A]]` instance to get the actual `Show[A]` instance, and then call `show` on each element to get its string representation. Finally, we combine all element representations into a single string that represents the entire sequence.
 
+### Map
+
+When the derivation process encounters a map type (e.g., `Map[K, V]`), it calls the `deriveMap` method of the `Deriver`. This method receives `Reflect[F, K]` and `Reflect[F, V]` representing the key and value types of the map, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
+
+```scala
+def deriveMap[F[_, _], M[_, _], K, V](
+  key: Reflect[F, K],
+  value: Reflect[F, V],
+  typeId: TypeId[M[K, V]],
+  binding: Binding[BindingType.Map[M], M[K, V]],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[M[K, V]],
+  examples: Seq[M[K, V]]
+)(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
+  // Get Show instances for key and value types LAZILY
+  val keyShowLazy: Lazy[Show[K]]   = D.instance(key.metadata)
+  val valueShowLazy: Lazy[Show[V]] = D.instance(value.metadata)
+
+  // Cast binding to Binding.Map to access the deconstructor
+  val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
+  val deconstructor = mapBinding.deconstructor
+
+  new Show[M[K, V]] {
+    def show(m: M[K, V]): String = {
+      // Use deconstructor to iterate over key-value pairs
+      val iterator = deconstructor.deconstruct(m)
+      // Force the Show instances only when actually showing
+      val entries = iterator.map { kv =>
+        val k = deconstructor.getKey(kv)
+        val v = deconstructor.getValue(kv)
+        s"${keyShowLazy.force.show(k)} -> ${valueShowLazy.force.show(v)}"
+      }.mkString(", ")
+      s"Map($entries)"
+    }
+  }
+}
+```
+
+The derivation process for maps is similar to sequences, but we have to handle both keys and values. We extract the type class instances for the key and value types, and at runtime we use the deconstructor to iterate over the key-value pairs of the map. For each pair, we force the `Lazy[Show[K]]` and `Lazy[Show[V]]` instances to get the actual `Show[K]` and `Show[V]` instances, and then call `show` on both the key and value to get their string representations. Finally, we combine all entries into a single string that represents the entire map.
+
 ## Derivation Process Overview including Internal Mechanics
 
 ### PHASE 1: Deriving the Schema for the Target Type
