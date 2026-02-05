@@ -15,7 +15,7 @@ import zio.blocks.scope.internal.Finalizers
  * @example
  *   {{{
  *   // Scala 3
- *   Scope.global.injected[Database]().run {
+ *   Scope.global.injected[Database].run {
  *     val db = $[Database]  // Compile-time verified
  *     db.query("SELECT ...")
  *   }

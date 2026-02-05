@@ -58,7 +58,7 @@ Scope makes resources part of the scope's type, so lifecycle errors become type 
 
 ```scala
 def processRequest()(using Scope.Any): Response = {
-  injected[TempFile](Wire.value(TempFile.create())).run {
+  injectedValue(TempFile.create()).run {
     // TempFile is in THIS scope's type — cleanup is automatic
     doWork()  // Has access to TempFile
   }
@@ -68,7 +68,7 @@ def processRequest()(using Scope.Any): Response = {
 }
 
 def doWork()(using Scope.Has[TempFile]): Unit = {
-  $[TempFile].write(data)  // Compiler verified TempFile is available
+  $[TempFile].write("example data")  // Compiler verified TempFile is available
 }
 
 def finalize()(using Scope.Has[TempFile]): Unit = { ... }
@@ -102,7 +102,10 @@ Scope is deliberately **not**:
 ```scala
 import zio.blocks.scope._
 
-class Config(val dbUrl: String)
+// Classes with no-arg constructors are auto-wired
+class Config {
+  val dbUrl: String = "jdbc://localhost/mydb"
+}
 class Database(config: Config)
 class App(db: Database) {
   def run(): Unit = println("Running")
@@ -116,32 +119,51 @@ class App(db: Database) {
 
 The `injected[App]` macro discovers that `App` needs `Database` needs `Config`, wires them up, runs your code, then cleans up in reverse order. Note that `injected[T]` can be called without parentheses when no explicit wires are needed.
 
+For classes that require runtime configuration, use `Wire.value` to inject specific values:
+
+```scala
+case class DbUrl(value: String)
+class Config(dbUrl: DbUrl) {
+  val url: String = dbUrl.value
+}
+
+@main def main(): Unit = {
+  val dbUrl = DbUrl(sys.env.getOrElse("DB_URL", "jdbc://localhost/mydb"))
+  Scope.global.injected[App](Wire.value(dbUrl)).run {
+    $[App].run()
+  }
+}
+```
+
 ### With Lifecycle Management
 
 ```scala
 import zio.blocks.scope._
 
-class Config(val dbUrl: String, val cacheSize: Int)
+class Config {
+  val dbUrl: String = "jdbc://localhost/mydb"
+  val cacheSize: Int = 1000
+}
 
 // AutoCloseable — cleanup auto-registered
 class Database(config: Config) extends AutoCloseable {
-  val pool = ConnectionPool.create(config.dbUrl)
-  def close(): Unit = pool.close()
+  private var open = true
+  def query(sql: String): String = s"Result from ${config.dbUrl}"
+  def close(): Unit = { open = false }
 }
 
 // Manual cleanup via defer
 class Cache(config: Config)(using Scope.Any) {
-  private val evictor = startEvictorThread()
-  defer {
-    evictor.interrupt()
-    evictor.join()
-  }
+  private var running = true
+  defer { running = false }  // Cleanup registered on scope
 }
 
-class UserService(db: Database, cache: Cache)
+class UserService(db: Database, cache: Cache) {
+  def getUser(id: String): String = db.query(s"SELECT * FROM users WHERE id = $id")
+}
 
 class App(userService: UserService) {
-  def run(): Unit = println(s"Hello, ${userService.getUser("123").name}")
+  def run(): Unit = println(s"Hello, ${userService.getUser("123")}")
 }
 
 @main def main(): Unit =
@@ -149,7 +171,7 @@ class App(userService: UserService) {
     $[App].run()
   }
   // Cleanup runs automatically in reverse order:
-  // Cache (evictor stopped), Database (pool closed)
+  // Cache (defer runs), Database (close() called)
 ```
 
 **Scala 2 equivalent:**
@@ -157,11 +179,8 @@ class App(userService: UserService) {
 ```scala
 // Scala 2 — use implicit parameters instead of `using`
 class Cache(config: Config)(implicit scope: Scope.Any) {
-  private val evictor = startEvictorThread()
-  defer {
-    evictor.interrupt()
-    evictor.join()
-  }
+  private var running = true
+  defer { running = false }
 }
 
 def main(): Unit =
@@ -186,9 +205,9 @@ sealed trait Scope[+Stack] {
 }
 
 object Scope {
-  val global: Scope[TNil]                      // Root scope, closes on JVM shutdown
-  type Any = Scope[Any]                          // Use in constructors needing cleanup
-  type Has[+T] = Scope[Context[T] :: scala.Any] // Scope that has T available
+  val global: Scope[TNil]                        // Root scope, closes on JVM shutdown
+  type Any = Scope[scala.Any]                    // Use in constructors needing cleanup
+  type Has[+T] = Scope[Context[T] :: scala.Any]  // Scope that has T available
 }
 ```
 
@@ -388,16 +407,16 @@ Scope.global.injected[Cache].injected[RequestHandler].run { /* ... */ }
 When multiple resources have different lifecycles, the type system ensures you can't mix them up:
 
 ```scala
-def processUpload(file: UploadedFile)(using Scope.Any): Result = {
+def processUpload(fileBytes: Array[Byte])(using Scope.Any): Result = {
   // Request scope — socket lives for this request
-  injected[Socket](Wire.value(Socket.connect(validationServiceUrl))).run {
+  injectedValue(Socket.connect("validation.example.com")).run {
     // Socket is now in scope, cleanup automatic
     
     // Operation scope — temp file lives only for validation
-    injected[TempFile](Wire.value(TempFile.create())).run {
+    injectedValue(TempFile.create()).run {
       // TempFile is now in scope, cleanup automatic
       
-      $[TempFile].write(file.bytes)
+      $[TempFile].write(fileBytes)
       validate()  // Can access both Socket and TempFile
     }
     // TempFile cleaned up here
@@ -762,7 +781,7 @@ sealed trait Scope[+Stack] {
 object Scope {
   val global: Scope[TNil]
   
-  type Any = Scope[?]                           // Scope-polymorphic  
+  type Any = Scope[scala.Any]                   // Scope with unknown stack  
   type Has[+T] = Scope[Context[T] :: scala.Any] // Scope that has T available
   
   trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
@@ -826,6 +845,7 @@ transparent inline def shared[T]: Wire.Shared[?, T]
 transparent inline def unique[T]: Wire.Unique[?, T]
 inline def injected[T](using Scope.Any): Scope.Closeable[T, ?]
 inline def injected[T](wires: Wire[?,?]*)(using Scope.Any): Scope.Closeable[T, ?]
+def injectedValue[T](t: T)(using Scope.Any, IsNominalType[T]): Scope.Closeable[T, ?]
 def $[T](using Scope.Has[T], IsNominalType[T]): T
 def defer(finalizer: => Unit)(using Scope.Any): Unit
 
@@ -834,9 +854,12 @@ def shared[T]: Wire.Shared[_, T] = macro ...
 def unique[T]: Wire.Unique[_, T] = macro ...
 def injected[T](implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
 def injected[T](wires: Wire[_,_]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
+def injectedValue[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, _]
 def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T
 def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit
 ```
+
+**`injectedValue`** wraps an existing value in a closeable scope. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
 
 ---
 
@@ -871,9 +894,11 @@ Scope depends on:
 
 - **`injected[T]`** — Create child scope, wire dependencies from stack (no parentheses needed)
 - **`injected[T](wires...)`** — Wire with explicit/private dependencies
+- **`injectedValue(x)`** — Wrap existing value in a closeable scope (auto-registers `close()` for AutoCloseable)
 - **`.run { ... }`** — Execute with automatic cleanup (Scala 3: context function; Scala 2: lambda with scope)
 - **`shared[T]`** / **`unique[T]`** — Derive wires that are memoized vs fresh per use
 - **`Scope.Any`** — Use in constructors needing `defer`
 - **`defer { ... }`** — Register cleanup on current scope
-- **`Wire.value(x)`** — Inject a specific value
+- **`$[T]`** — Retrieve service from current scope
+- **`Wire.value(x)`** — Inject a specific value as a wire
 - **`Wireable[T]`** — Enable `injected[T]` for traits

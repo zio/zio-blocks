@@ -91,9 +91,10 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       assertTrue(retrieved.debug == false)
     },
     test("top-level injected without parens creates closeable scope") {
-      @annotation.unused implicit val s: Scope.Any = Scope.global
-      val closeable                                = injected[Config]
-      val retrieved                                = closeable.get[Config]
+      @annotation.unused
+      implicit val s: Scope.Any = Scope.global
+      val closeable             = injected[Config]
+      val retrieved             = closeable.get[Config]
       closeable.close()
       assertTrue(retrieved.debug == false)
     },
@@ -325,7 +326,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
           var configCount: Int  = 0
           var dbCount: Int      = 0
           var serviceCount: Int = 0
-          def reset(): Unit = { configCount = 0; dbCount = 0; serviceCount = 0 }
+          def reset(): Unit     = { configCount = 0; dbCount = 0; serviceCount = 0 }
         }
 
         class CountedConfig {
@@ -423,10 +424,11 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val right     = rightCtx.get[RightService]
 
         val fullCtx   = baseCtx.add(left).add(right)
-        val fullScope = Scope.makeCloseable[BaseConfig with LeftService with RightService, TNil](parent, fullCtx, finalizers)
-        val topWire   = shared[TopService]
-        val topCtx    = topWire.construct(fullScope)
-        val top       = topCtx.get[TopService]
+        val fullScope =
+          Scope.makeCloseable[BaseConfig with LeftService with RightService, TNil](parent, fullCtx, finalizers)
+        val topWire = shared[TopService]
+        val topCtx  = topWire.construct(fullScope)
+        val top     = topCtx.get[TopService]
 
         assertTrue(
           baseCount == 1 &&
