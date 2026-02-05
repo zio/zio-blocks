@@ -130,7 +130,7 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
 
 lazy val scope = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .dependsOn(context)
+  .dependsOn(context, chunk)
   .settings(stdSettings("zio-blocks-scope"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.scope"))

@@ -76,7 +76,7 @@ object ErrorRenderingSpec extends ZIOSpecDefault {
           "Config",
           List(
             ProviderInfo("shared[Config]", Some("MyApp.scala:15")),
-            ProviderInfo("Wire.value(...)", Some("MyApp.scala:16"))
+            ProviderInfo("Wire(...)", Some("MyApp.scala:16"))
           )
         )
         val output   = error.render(color = false)
@@ -87,7 +87,7 @@ object ErrorRenderingSpec extends ZIOSpecDefault {
             |
             |  Conflicting wires:
             |    1. shared[Config] at MyApp.scala:15
-            |    2. Wire.value(...) at MyApp.scala:16
+            |    2. Wire(...) at MyApp.scala:16
             |
             |  Hint: Remove duplicate wires or use distinct wrapper types.
             |

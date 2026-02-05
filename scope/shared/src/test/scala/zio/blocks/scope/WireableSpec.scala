@@ -10,7 +10,7 @@ object WireableSpec extends ZIOSpecDefault {
     test("trait exists") {
       val wireable = new Wireable[Config] {
         type In = Any
-        def wire: Wire[Any, Config] = Wire.value(Config(true))
+        def wire: Wire[Any, Config] = Wire(Config(true))
       }
       assertTrue(wireable.wire != null)
     }

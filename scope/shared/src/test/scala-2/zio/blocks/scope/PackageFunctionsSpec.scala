@@ -37,6 +37,62 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
 
   class ServiceWith2Deps(val config: Config, val db: Database)
 
+  // Test classes for arbitrary arity (3, 4, 5, 6 parameters)
+  class ServiceWith3Deps(val config: Config, val db: Database, val cache: Cache)
+
+  class Logger {
+    val prefix: String = "[LOG]"
+  }
+
+  class ServiceWith4Deps(val config: Config, val db: Database, val cache: Cache, val logger: Logger)
+
+  class Metrics {
+    val enabled: Boolean = true
+  }
+
+  class ServiceWith5Deps(
+    val config: Config,
+    val db: Database,
+    val cache: Cache,
+    val logger: Logger,
+    val metrics: Metrics
+  )
+
+  class Tracer {
+    val sampleRate: Double = 0.1
+  }
+
+  class ServiceWith6Deps(
+    val config: Config,
+    val db: Database,
+    val cache: Cache,
+    val logger: Logger,
+    val metrics: Metrics,
+    val tracer: Tracer
+  )
+
+  class AutoCloseableWith5Deps(
+    val config: Config,
+    val db: Database,
+    val cache: Cache,
+    val logger: Logger,
+    val metrics: Metrics
+  ) extends AutoCloseable {
+    var closed: Boolean = false
+    def close(): Unit   = closed = true
+  }
+
+  class ServiceWith5DepsAndScope(
+    val config: Config,
+    val db: Database,
+    val cache: Cache,
+    val logger: Logger,
+    val metrics: Metrics
+  )(implicit scope: Scope.Any) {
+    var cleanedUp: Boolean = false
+    defer { cleanedUp = true }
+  }
+
   class AutoCloseableService(val config: Config) extends AutoCloseable {
     var closed: Boolean = false
     def close(): Unit   = closed = true
@@ -465,6 +521,125 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val totalAfter4 = Counter.count
 
         assertTrue(sharedCountAfter2 == 2 && totalAfter4 == 4)
+      }
+    ),
+    suite("Arbitrary arity (3-6 parameters)")(
+      test("shared[T] works with 3 constructor parameters") {
+        val wire              = shared[ServiceWith3Deps]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context(new Config).add(new Database).add(new Cache)
+        val scope             = Scope.makeCloseable[Config with Database with Cache, TNil](parent, depsCtx, finalizers)
+        val ctx               = wire.construct(scope)
+        val svc               = ctx.get[ServiceWith3Deps]
+        assertTrue(svc != null && svc.config != null && svc.db != null && svc.cache != null)
+      },
+      test("shared[T] works with 4 constructor parameters") {
+        val wire              = shared[ServiceWith4Deps]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context(new Config).add(new Database).add(new Cache).add(new Logger)
+        val scope             =
+          Scope.makeCloseable[Config with Database with Cache with Logger, TNil](parent, depsCtx, finalizers)
+        val ctx = wire.construct(scope)
+        val svc = ctx.get[ServiceWith4Deps]
+        assertTrue(svc != null && svc.logger.prefix == "[LOG]")
+      },
+      test("shared[T] works with 5 constructor parameters") {
+        val wire              = shared[ServiceWith5Deps]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
+        val scope =
+          Scope.makeCloseable[Config with Database with Cache with Logger with Metrics, TNil](parent, depsCtx, finalizers)
+        val ctx = wire.construct(scope)
+        val svc = ctx.get[ServiceWith5Deps]
+        assertTrue(svc != null && svc.metrics.enabled)
+      },
+      test("shared[T] works with 6 constructor parameters") {
+        val wire              = shared[ServiceWith6Deps]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx =
+          Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics).add(new Tracer)
+        val scope =
+          Scope.makeCloseable[Config with Database with Cache with Logger with Metrics with Tracer, TNil](
+            parent,
+            depsCtx,
+            finalizers
+          )
+        val ctx = wire.construct(scope)
+        val svc = ctx.get[ServiceWith6Deps]
+        assertTrue(svc != null && svc.tracer.sampleRate == 0.1)
+      },
+      test("unique[T] works with 5 constructor parameters") {
+        val wire              = unique[ServiceWith5Deps]
+        val parent: Scope.Any = Scope.global
+        val finalizers        = new Finalizers
+        val depsCtx           = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
+        val scope =
+          Scope.makeCloseable[Config with Database with Cache with Logger with Metrics, TNil](parent, depsCtx, finalizers)
+
+        val ctx1 = wire.construct(scope)
+        val ctx2 = wire.construct(scope)
+        val svc1 = ctx1.get[ServiceWith5Deps]
+        val svc2 = ctx2.get[ServiceWith5Deps]
+
+        assertTrue(svc1 ne svc2)
+      },
+      test("injected[T] works with 5 wires") {
+        val closeable = Scope.global.injected[ServiceWith5Deps](
+          shared[Config],
+          shared[Database],
+          shared[Cache],
+          shared[Logger],
+          shared[Metrics]
+        )
+        val svc = closeable.get[ServiceWith5Deps]
+        closeable.close()
+        assertTrue(svc != null && svc.config != null && svc.metrics.enabled)
+      },
+      test("injected[T] works with 6 wires") {
+        val closeable = Scope.global.injected[ServiceWith6Deps](
+          shared[Config],
+          shared[Database],
+          shared[Cache],
+          shared[Logger],
+          shared[Metrics],
+          shared[Tracer]
+        )
+        val svc = closeable.get[ServiceWith6Deps]
+        closeable.close()
+        assertTrue(svc != null && svc.tracer.sampleRate == 0.1)
+      },
+      test("5-param AutoCloseable is properly closed") {
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val closeable                  = parentScope.injected[AutoCloseableWith5Deps](
+          shared[Config],
+          shared[Database],
+          shared[Cache],
+          shared[Logger],
+          shared[Metrics]
+        )
+        val svc = closeable.get[AutoCloseableWith5Deps]
+        assertTrue(!svc.closed)
+        closeable.close()
+        assertTrue(svc.closed)
+      },
+      test("5-param with Scope.Any param registers cleanup") {
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val closeable                  = parentScope.injected[ServiceWith5DepsAndScope](
+          shared[Config],
+          shared[Database],
+          shared[Cache],
+          shared[Logger],
+          shared[Metrics]
+        )
+        val svc = closeable.get[ServiceWith5DepsAndScope]
+        assertTrue(!svc.cleanedUp)
+        closeable.close()
+        closeParent()
+        assertTrue(svc.cleanedUp)
       }
     )
   )

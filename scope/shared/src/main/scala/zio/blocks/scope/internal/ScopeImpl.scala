@@ -1,15 +1,20 @@
 package zio.blocks.scope.internal
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.Scope
 
+/**
+ * Base implementation of a closeable scope.
+ *
+ * Thread-safety is guaranteed by the Finalizers implementation which uses
+ * lock-free atomic operations.
+ */
 private[scope] abstract class ScopeImpl[H, T](
   private val parent: Scope[?],
   private[scope] val context: Context[H],
   private val finalizers: Finalizers
 ) extends Scope.Closeable[H, T] {
-
-  @volatile private var closed: Boolean = false
 
   private[scope] def getImpl[A](nom: IsNominalType[A]): A =
     context.getOption[A](nom) match {
@@ -29,15 +34,9 @@ private[scope] abstract class ScopeImpl[H, T](
     }
 
   def defer(finalizer: => Unit): Unit =
-    if (!closed) finalizers.add(finalizer)
+    finalizers.add(finalizer)
 
-  def close(): Unit = synchronized {
-    if (!closed) {
-      closed = true
-      val errors = finalizers.runAll()
-      errors.headOption.foreach(throw _)
-    }
-  }
+  def close(): Chunk[Throwable] = finalizers.runAll()
 
-  protected def doClose(): Unit = close()
+  protected def doClose(): Chunk[Throwable] = close()
 }

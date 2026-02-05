@@ -138,9 +138,8 @@ private[scope] object ScopeMacros {
 
     // Check for subtype conflicts
     MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
-      case Some((sub, sup)) =>
-        MC.abortSubtypeConflict(c)(tpe.toString, sub.toString, sup.toString)
-      case None => // ok
+      case Some(error) => MC.abort(c)(error)
+      case None        => // ok
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
@@ -212,9 +211,8 @@ private[scope] object ScopeMacros {
 
     // Check for subtype conflicts
     MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
-      case Some((sub, sup)) =>
-        MC.abortSubtypeConflict(c)(tpe.toString, sub.toString, sup.toString)
-      case None => // ok
+      case Some(error) => MC.abort(c)(error)
+      case None        => // ok
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]

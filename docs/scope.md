@@ -119,7 +119,7 @@ class App(db: Database) {
 
 The `injected[App]` macro discovers that `App` needs `Database` needs `Config`, wires them up, runs your code, then cleans up in reverse order. Note that `injected[T]` can be called without parentheses when no explicit wires are needed.
 
-For classes that require runtime configuration, use `Wire.value` to inject specific values:
+For classes that require runtime configuration, use `Wire(...)` to inject specific values:
 
 ```scala
 case class DbUrl(value: String)
@@ -129,7 +129,7 @@ class Config(dbUrl: DbUrl) {
 
 @main def main(): Unit = {
   val dbUrl = DbUrl(sys.env.getOrElse("DB_URL", "jdbc://localhost/mydb"))
-  Scope.global.injected[App](Wire.value(dbUrl)).run {
+  Scope.global.injected[App](Wire(dbUrl)).run {
     $[App].run()
   }
 }
@@ -217,6 +217,8 @@ The `InStack[T, Stack]` evidence is resolved at compile time, ensuring you can o
 - Finalizers run in **reverse order** of registration (LIFO)
 - Parent close **closes children first**, then runs own finalizers
 - `close()` is **idempotent** — safe to call multiple times
+- `close()` returns `Chunk[Throwable]` containing any errors (all finalizers run even if some fail)
+- `run` can only be called **once** — subsequent calls throw `IllegalStateException`
 
 **The global scope:**
 
@@ -253,12 +255,14 @@ Services can be retrieved from any layer in the stack. The stack type ensures at
 
 ```scala
 trait Scope.Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
-  def close(): Unit
-  def run[B](f: Scope.Has[Head] ?=> B): B  // Scala 3: scope available via context function
+  def close(): Chunk[Throwable]             // Close and return any errors
+  def closeOrThrow(): Unit                  // Close; throw first error if any
+  def run[B](f: Scope.Has[Head] ?=> B): B   // Execute then close automatically
+  def runWithErrors[B](f: ...): (B, Chunk[Throwable])  // Run and capture errors
 }
 ```
 
-The `run` method executes your code then closes the scope automatically.
+The `run` method executes your code then closes the scope automatically. If finalizers throw, errors are logged to stderr. Use `runWithErrors` to capture finalizer errors explicitly. Note that `run` can only be called once — this prevents accidental double-cleanup bugs.
 
 ---
 
@@ -300,6 +304,56 @@ class Cache(config: Config)(using Scope.Any) {
 | `extends AutoCloseable`, no `Scope` param | Macro auto-generates `defer(_.close())` |
 | Takes `Scope.Any` (implicit or explicit) | You handle cleanup manually |
 | Both `AutoCloseable` AND takes `Scope` | You handle cleanup (Scope wins) |
+
+---
+
+## Error Handling
+
+### Finalizer Errors
+
+When `close()` or `run` executes finalizers, errors don't stop remaining finalizers — all registered cleanups run regardless:
+
+```scala
+val scope = Scope.global.injected[App]
+scope.defer(throw new RuntimeException("error 1"))
+scope.defer(throw new RuntimeException("error 2"))
+scope.defer(println("this still runs"))
+
+val errors: Chunk[Throwable] = scope.close()
+// "this still runs" prints first (LIFO order)
+// errors contains both RuntimeExceptions
+```
+
+Use `closeOrThrow()` when you want the first error thrown:
+
+```scala
+scope.closeOrThrow()  // Throws "error 2" (last registered, runs first)
+```
+
+### Handling Errors from run
+
+The `run` method logs finalizer errors to stderr but does not throw them. Use `runWithErrors` if you need to handle errors programmatically:
+
+```scala
+val (result, errors) = scope.runWithErrors {
+  // your code
+  "done"
+}
+if (errors.nonEmpty) {
+  // handle cleanup failures
+}
+```
+
+---
+
+## Thread Safety
+
+Scope's finalizer implementation uses **lock-free atomic operations** for thread safety. Multiple threads can safely:
+- Call `defer` concurrently
+- Call `close()` concurrently (only the first call runs finalizers)
+- Add finalizers while another thread is closing (they are silently ignored)
+
+This makes Scope safe for multi-threaded applications without explicit synchronization.
 
 ---
 
@@ -671,24 +725,6 @@ class BadService(
 ────────────────────────────────────────────────────────────────────────────────
 ```
 
-### Too Many Parameters
-
-When a class has more constructor parameters than the macro currently supports:
-
-```
-── Scope Error ────────────────────────────────────────────────────────────────
-
-  injected[ComplexService] has too many constructor parameters.
-
-  Found: 5 parameters
-  Supported: up to 2 parameters
-
-  Hint: Use Wireable.from[ComplexService] for more control,
-        or restructure to reduce direct dependencies.
-
-────────────────────────────────────────────────────────────────────────────────
-```
-
 ### Missing Dependency
 
 When a required dependency is not available in the scope or provided as a wire:
@@ -785,9 +821,11 @@ object Scope {
   type Has[+T] = Scope[Context[T] :: scala.Any] // Scope that has T available
   
   trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with AutoCloseable {
-    def close(): Unit
+    def close(): Chunk[Throwable]            // Returns all finalizer errors
+    def closeOrThrow(): Unit                 // Throws first error if any
     def run[B](f: Scope.Has[Head] ?=> B): B  // Scala 3
     def run[B](f: Scope.Has[Head] => B): B   // Scala 2
+    def runWithErrors[B](f: ...): (B, Chunk[Throwable])  // Explicit error capture
   }
 }
 
@@ -817,7 +855,7 @@ object Wire {
     def apply[In, Out](f: Scope.Has[In] => Context[Out]): Wire.Shared[In, Out]   // Scala 2
   }
   
-  def value[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T]
+  def apply[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T]  // Inject a value
 }
 ```
 
@@ -885,6 +923,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
 Scope depends on:
+- `zio-blocks-chunk` (for `Chunk[Throwable]` error collection)
 - `zio-blocks-context` (for `Context`)
 - `zio-blocks-typeid` (for type identity)
 
@@ -893,12 +932,15 @@ Scope depends on:
 ## Summary
 
 - **`injected[T]`** — Create child scope, wire dependencies from stack (no parentheses needed)
-- **`injected[T](wires...)`** — Wire with explicit/private dependencies
+- **`injected[T](wires...)`** — Wire with explicit/private dependencies (supports arbitrary arity)
 - **`injectedValue(x)`** — Wrap existing value in a closeable scope (auto-registers `close()` for AutoCloseable)
-- **`.run { ... }`** — Execute with automatic cleanup (Scala 3: context function; Scala 2: lambda with scope)
+- **`.run { ... }`** — Execute with automatic cleanup; can only be called once (Scala 3: context function; Scala 2: lambda with scope)
+- **`.runWithErrors { ... }`** — Like `run` but returns `(B, Chunk[Throwable])` for explicit error handling
+- **`.close()`** — Returns `Chunk[Throwable]` containing any finalizer errors
+- **`.closeOrThrow()`** — Throws the first finalizer error if any occurred
 - **`shared[T]`** / **`unique[T]`** — Derive wires that are memoized vs fresh per use
 - **`Scope.Any`** — Use in constructors needing `defer`
 - **`defer { ... }`** — Register cleanup on current scope
 - **`$[T]`** — Retrieve service from current scope
-- **`Wire.value(x)`** — Inject a specific value as a wire
+- **`Wire(x)`** — Inject a specific value as a wire
 - **`Wireable[T]`** — Enable `injected[T]` for traits

@@ -3,6 +3,7 @@ package zio.blocks.scope
 import zio.test._
 import zio.blocks.context.Context
 import zio.blocks.scope.internal.Finalizers
+
 import scala.collection.mutable
 
 object FinalizersSpec extends ZIOSpecDefault {
@@ -22,20 +23,18 @@ object FinalizersSpec extends ZIOSpecDefault {
       closeable.close()
       assertTrue(order.toList == List(3, 2, 1))
     },
-    test("exception in finalizer is propagated") {
+    test("exception in finalizer is returned in Chunk") {
       val parent: Scope.Any = Scope.global
       val config            = Config(true)
       val finalizers        = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer boom"))
       val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
 
-      val result = try {
-        closeable.close()
-        false
-      } catch {
-        case e: RuntimeException => e.getMessage == "finalizer boom"
-      }
-      assertTrue(result)
+      val errors = closeable.close()
+      assertTrue(
+        errors.size == 1,
+        errors.headOption.exists(_.getMessage == "finalizer boom")
+      )
     },
     test("isClosed returns correct state") {
       val finalizers = new Finalizers
@@ -64,6 +63,29 @@ object FinalizersSpec extends ZIOSpecDefault {
       finalizers.runAll()
       finalizers.runAll()
       assertTrue(count == 1)
+    },
+    test("closeOrThrow throws first exception") {
+      val parent: Scope.Any = Scope.global
+      val config            = Config(true)
+      val finalizers        = new Finalizers
+      finalizers.add(throw new RuntimeException("boom"))
+      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+
+      val threw = try {
+        closeable.closeOrThrow()
+        false
+      } catch {
+        case e: RuntimeException => e.getMessage == "boom"
+      }
+      assertTrue(threw)
+    },
+    test("closeOrThrow does not throw on success") {
+      val parent: Scope.Any = Scope.global
+      val config            = Config(true)
+      val finalizers        = new Finalizers
+      val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      closeable.closeOrThrow()
+      assertTrue(true)
     }
   )
 }

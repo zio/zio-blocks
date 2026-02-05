@@ -1,5 +1,6 @@
 package zio.blocks.scope
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.internal.Finalizers
 
@@ -82,27 +83,35 @@ object Scope {
   /**
    * A scope that can be explicitly closed, releasing all registered resources.
    *
-   * Created by `injected[T]`. Implements `AutoCloseable` for use with
-   * try-with-resources patterns.
+   * Created by `injected[T]`.
    *
    * @tparam Head
    *   The service type at the top of this scope's stack
    * @tparam Tail
    *   The remaining stack from the parent scope
    */
-  trait Closeable[+Head, +Tail]
-      extends Scope[Context[Head] :: Tail]
-      with CloseableVersionSpecific[Head, Tail]
-      with AutoCloseable {
+  trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with CloseableVersionSpecific[Head, Tail] {
 
     /**
      * Closes this scope, running all registered finalizers in LIFO order.
      *
      * This method is idempotent - calling it multiple times has no additional
-     * effect. Finalizers run even if previous finalizers threw exceptions; the
-     * first exception is propagated after all finalizers complete.
+     * effect. Finalizers run even if previous finalizers threw exceptions; all
+     * exceptions are collected and returned.
+     *
+     * @return
+     *   A Chunk containing any exceptions thrown by finalizers. Empty if no
+     *   errors occurred or if the scope was already closed.
      */
-    def close(): Unit
+    def close(): Chunk[Throwable]
+
+    /**
+     * Closes this scope and throws the first exception if any occurred.
+     *
+     * Convenience method for cases where you want traditional exception
+     * propagation.
+     */
+    def closeOrThrow(): Unit = close().headOption.foreach(throw _)
   }
 
   private[scope] def makeCloseable[T, S](

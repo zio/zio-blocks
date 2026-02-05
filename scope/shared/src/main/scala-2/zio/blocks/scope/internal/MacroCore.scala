@@ -12,6 +12,35 @@ import scala.reflect.macros.blackbox
 private[scope] object MacroCore {
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Error model
+  // ─────────────────────────────────────────────────────────────────────────
+
+  sealed trait ScopeMacroError {
+    def render(color: Boolean): String
+  }
+
+  object ScopeMacroError {
+    final case class NotAClass(typeName: String) extends ScopeMacroError {
+      def render(color: Boolean): String =
+        ErrorRenderer.renderNotAClass(typeName, color)
+    }
+
+    final case class NoPrimaryCtor(typeName: String) extends ScopeMacroError {
+      def render(color: Boolean): String =
+        ErrorRenderer.renderNoPrimaryCtor(typeName, color)
+    }
+
+    final case class SubtypeConflict(
+      typeName: String,
+      subtype: String,
+      supertype: String
+    ) extends ScopeMacroError {
+      def render(color: Boolean): String =
+        ErrorRenderer.renderSubtypeConflict(typeName, subtype, supertype, color)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Type analysis utilities
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -66,9 +95,9 @@ private[scope] object MacroCore {
    */
   @SuppressWarnings(Array("org.wartremover.warts.All"))
   def checkSubtypeConflicts(c: blackbox.Context)(
-    @annotation.unused typeName: String,
+    typeName: String,
     depTypes: List[c.Type]
-  ): Option[(c.Type, c.Type)] = {
+  ): Option[ScopeMacroError.SubtypeConflict] = {
     val conflicts = for {
       (t1, i) <- depTypes.zipWithIndex
       (t2, j) <- depTypes.zipWithIndex
@@ -76,7 +105,8 @@ private[scope] object MacroCore {
       if !(t1 =:= t2)
       if (t1 <:< t2) || (t2 <:< t1)
     } yield {
-      if (t1 <:< t2) (t1, t2) else (t2, t1)
+      val (sub, sup) = if (t1 <:< t2) (t1, t2) else (t2, t1)
+      ScopeMacroError.SubtypeConflict(typeName, sub.toString, sup.toString)
     }
 
     conflicts.headOption
@@ -178,22 +208,21 @@ private[scope] object MacroCore {
   // Abort helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  def abortNotAClass(c: blackbox.Context)(typeName: String): Nothing = {
+  def abort(c: blackbox.Context)(error: ScopeMacroError): Nothing = {
     val color = Colors.shouldUseColor
-    c.abort(c.enclosingPosition, ErrorRenderer.renderNotAClass(typeName, color))
+    c.abort(c.enclosingPosition, error.render(color))
   }
 
-  def abortNoPrimaryCtor(c: blackbox.Context)(typeName: String): Nothing = {
-    val color = Colors.shouldUseColor
-    c.abort(c.enclosingPosition, ErrorRenderer.renderNoPrimaryCtor(typeName, color))
-  }
+  def abortNotAClass(c: blackbox.Context)(typeName: String): Nothing =
+    abort(c)(ScopeMacroError.NotAClass(typeName))
+
+  def abortNoPrimaryCtor(c: blackbox.Context)(typeName: String): Nothing =
+    abort(c)(ScopeMacroError.NoPrimaryCtor(typeName))
 
   def abortSubtypeConflict(c: blackbox.Context)(
     typeName: String,
     subtype: String,
     supertype: String
-  ): Nothing = {
-    val color = Colors.shouldUseColor
-    c.abort(c.enclosingPosition, ErrorRenderer.renderSubtypeConflict(typeName, subtype, supertype, color))
-  }
+  ): Nothing =
+    abort(c)(ScopeMacroError.SubtypeConflict(typeName, subtype, supertype))
 }

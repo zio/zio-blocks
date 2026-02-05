@@ -107,9 +107,9 @@ object Wire extends WireCompanionVersionSpecific {
    * @example
    *   {{{
    *   val config = Config.load()
-   *   Scope.global.injected[App](Wire.value(config)).run { ... }
+   *   Scope.global.injected[App](Wire(config)).run { ... }
    *   }}}
    */
-  def value[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T] =
+  def apply[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T] =
     new Shared[Any, T]((_: Scope.Has[Any]) => Context(t))
 }
