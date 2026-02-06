@@ -159,6 +159,50 @@ object CloseableRunSpec extends ZIOSpecDefault {
         order.toList == List("body", "use", "close"),
         !resource.closed || order.indexOf("use") < order.indexOf("close")
       )
+    },
+    test("injected[T] wireable: user finalizers run before AutoCloseable.close()") {
+      // Same test but using injected[T] with wireable construction
+      // instead of injected(value)
+      val order = ArrayBuffer.empty[String]
+
+      implicit val globalScope: Scope.Any = Scope.global
+
+      // Use a static holder to track order across the test
+      OrderTracker.order = order
+
+      val closeable = injected[OrderTrackingResource]
+
+      closeable.run { implicit scope =>
+        val resource = $[OrderTrackingResource]
+        // Register a finalizer that uses the resource
+        defer { resource.$(_.use()) }
+        order += "body"
+      }
+
+      // Expected order: body executed, then user finalizer (use), then close
+      assertTrue(
+        order.toList == List("body", "use", "close"),
+        order.indexOf("use") < order.indexOf("close")
+      )
     }
   )
+}
+
+// Helper object for test communication
+object OrderTracker {
+  var order: ArrayBuffer[String] = ArrayBuffer.empty
+}
+
+// Helper class for wireable construction test - must be top-level for macro
+class OrderTrackingResource extends AutoCloseable {
+  private val order          = OrderTracker.order
+  var closed: Boolean        = false
+  def use(): Unit = {
+    if (closed) throw new IllegalStateException("Resource already closed!")
+    order += "use"
+  }
+  def close(): Unit = {
+    closed = true
+    order += "close"
+  }
 }
