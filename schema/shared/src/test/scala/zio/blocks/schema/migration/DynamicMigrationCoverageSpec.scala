@@ -679,6 +679,147 @@ object DynamicMigrationCoverageSpec extends SchemaBaseSpec {
         val result = m(variant)
         assertTrue(result.isLeft && result.left.exists(_.message.contains("Variant")))
       }
+    ),
+    suite("modifyAtPathWithParentContextRec coverage")(
+      test("TransformValue through Wrapped node") {
+        val wrappedRec = DynamicValue.Record(Chunk("inner" -> intV))
+        val outerRec   = DynamicValue.Record(Chunk("data" -> wrappedRec))
+        val optic      = root.field("data").wrapped
+        val m          = DynamicMigration(MigrationAction.TransformValue(optic, litS, litI))
+        assertTrue(m(outerRec).isRight)
+      },
+      test("TransformValue through Wrapped on multi-field record fails") {
+        val multiRec = DynamicValue.Record(Chunk("a" -> intV, "b" -> strV))
+        val outerRec = DynamicValue.Record(Chunk("data" -> multiRec))
+        val optic    = root.field("data").wrapped
+        val m        = DynamicMigration(MigrationAction.TransformValue(optic, litS, litI))
+        assertTrue(m(outerRec).isLeft)
+      },
+      test("TransformValue through Elements node") {
+        val seqRec = DynamicValue.Record(Chunk("items" -> seq3))
+        val optic  = root.field("items").elements
+        val m      = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(seqRec).isRight)
+      },
+      test("TransformValue through Elements on non-sequence fails") {
+        val rec   = DynamicValue.Record(Chunk("items" -> intV))
+        val optic = root.field("items").elements
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isLeft)
+      },
+      test("TransformValue through MapKeys node") {
+        val rec   = DynamicValue.Record(Chunk("data" -> map2))
+        val optic = root.field("data").mapKeys
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litS, litS))
+        assertTrue(m(rec).isRight)
+      },
+      test("TransformValue through MapKeys on non-map fails") {
+        val rec   = DynamicValue.Record(Chunk("data" -> intV))
+        val optic = root.field("data").mapKeys
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litS, litS))
+        assertTrue(m(rec).isLeft)
+      },
+      test("TransformValue through MapValues node") {
+        val rec   = DynamicValue.Record(Chunk("data" -> map2))
+        val optic = root.field("data").mapValues
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isRight)
+      },
+      test("TransformValue through MapValues on non-map fails") {
+        val rec   = DynamicValue.Record(Chunk("data" -> intV))
+        val optic = root.field("data").mapValues
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isLeft)
+      },
+      test("TransformValue through AtIndices node") {
+        val seqRec = DynamicValue.Record(Chunk("items" -> seq3))
+        val optic  = root.field("items").atIndices(0, 2)
+        val m      = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(seqRec).isRight)
+      },
+      test("TransformValue through AtIndices out of bounds fails") {
+        val seqRec = DynamicValue.Record(Chunk("items" -> seq3))
+        val optic  = root.field("items").atIndices(99)
+        val m      = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(seqRec).isLeft)
+      },
+      test("TransformValue through AtIndices on non-sequence fails") {
+        val rec   = DynamicValue.Record(Chunk("items" -> intV))
+        val optic = root.field("items").atIndices(0)
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isLeft)
+      },
+      test("TransformValue through AtMapKeys node") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val rec   = DynamicValue.Record(Chunk("data" -> map2))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Field("data"), DynamicOptic.Node.AtMapKeys(Vector(keyA))))
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isRight)
+      },
+      test("TransformValue through AtMapKeys missing key fails") {
+        val keyX  = DynamicValue.Primitive(PrimitiveValue.String("missing"))
+        val rec   = DynamicValue.Record(Chunk("data" -> map2))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Field("data"), DynamicOptic.Node.AtMapKeys(Vector(keyX))))
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isLeft)
+      },
+      test("TransformValue through AtMapKeys on non-map fails") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val rec   = DynamicValue.Record(Chunk("data" -> intV))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Field("data"), DynamicOptic.Node.AtMapKeys(Vector(keyA))))
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isLeft)
+      },
+      test("Mandate through nested field path") {
+        val optVal   = DynamicValue.Variant("Some", intV)
+        val innerRec = DynamicValue.Record(Chunk("opt" -> optVal))
+        val outerRec = DynamicValue.Record(Chunk("inner" -> innerRec))
+        val optic    = root.field("inner").field("opt")
+        val m        = DynamicMigration(MigrationAction.Mandate(optic, litI0))
+        val result   = m(outerRec)
+        result match {
+          case Right(DynamicValue.Record(fields)) =>
+            val inner = fields.find(_._1 == "inner").get._2
+            inner match {
+              case DynamicValue.Record(innerFields) =>
+                assertTrue(innerFields.exists(f => f._1 == "opt" && f._2 == intV))
+              case _ => assertTrue(false)
+            }
+          case _ => assertTrue(false)
+        }
+      },
+      test("Mandate through Case node") {
+        val caseRec  = DynamicValue.Record(Chunk("opt" -> DynamicValue.Variant("None", DynamicValue.Null)))
+        val variantV = DynamicValue.Variant("Dog", caseRec)
+        val optic    = DynamicOptic(Vector(DynamicOptic.Node.Case("Dog"))).field("opt")
+        val m        = DynamicMigration(MigrationAction.Mandate(optic, litI0))
+        assertTrue(m(variantV).isRight)
+      },
+      test("Mandate through Case on wrong case passes through") {
+        val caseRec  = DynamicValue.Record(Chunk("opt" -> DynamicValue.Variant("None", DynamicValue.Null)))
+        val variantV = DynamicValue.Variant("Cat", caseRec)
+        val optic    = DynamicOptic(Vector(DynamicOptic.Node.Case("Dog"))).field("opt")
+        val m        = DynamicMigration(MigrationAction.Mandate(optic, litI0))
+        assertTrue(m(variantV) == Right(variantV))
+      },
+      test("Mandate on non-variant with Case path fails") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Case("Dog"))).field("opt")
+        val m     = DynamicMigration(MigrationAction.Mandate(optic, litI0))
+        assertTrue(m(simpleRecord).isLeft)
+      },
+      test("TransformValue through AtIndex node") {
+        val seqRec = DynamicValue.Record(Chunk("items" -> seq3))
+        val optic  = root.field("items").at(1)
+        val m      = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(seqRec).isRight)
+      },
+      test("TransformValue through AtMapKey node") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val rec   = DynamicValue.Record(Chunk("data" -> map2))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Field("data"), DynamicOptic.Node.AtMapKey(keyA)))
+        val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
+        assertTrue(m(rec).isRight)
+      }
     )
   )
 }

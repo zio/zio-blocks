@@ -441,6 +441,131 @@ object DynamicSchemaExprCoverageSpec extends SchemaBaseSpec {
         val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "Long")
         assertTrue(expr.eval(intVal).isLeft)
       },
+      test("coerce Char to Int fails") {
+        val ch   = DynamicValue.Primitive(PrimitiveValue.Char('a'))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(ch), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Char to Long fails") {
+        val ch   = DynamicValue.Primitive(PrimitiveValue.Char('x'))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(ch), "Long")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Char to Double fails") {
+        val ch   = DynamicValue.Primitive(PrimitiveValue.Char('z'))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(ch), "Double")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Char to Float fails") {
+        val ch   = DynamicValue.Primitive(PrimitiveValue.Char('q'))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(ch), "Float")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Char to Boolean fails") {
+        val ch   = DynamicValue.Primitive(PrimitiveValue.Char('t'))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(ch), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigInt to Int fails") {
+        val bi   = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(42)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bi), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigInt to Long fails") {
+        val bi   = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(42)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bi), "Long")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigInt to Double fails") {
+        val bi   = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(42)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bi), "Double")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigInt to Float fails") {
+        val bi   = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(42)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bi), "Float")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigInt to Boolean fails") {
+        val bi   = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bi), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigDecimal to Int fails") {
+        val bd   = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3.14)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bd), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigDecimal to Long fails") {
+        val bd   = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3.14)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bd), "Long")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigDecimal to Double fails") {
+        val bd   = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3.14)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bd), "Double")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigDecimal to Float fails") {
+        val bd   = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3.14)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bd), "Float")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce BigDecimal to Boolean fails") {
+        val bd   = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bd), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Boolean to Double fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "Double")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Boolean to Float fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "Float")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce to unsupported type Char fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce to unsupported type BigInt fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "BigInt")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce to unsupported type BigDecimal fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "BigDecimal")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce invalid String to Int fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("abc"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce invalid String to Long fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("abc"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Long")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce invalid String to Double fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("abc"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Double")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce invalid String to Float fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("abc"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Float")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce invalid String to Boolean fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("abc"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce UUID to String via toString") {
+        val uuid = DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.randomUUID()))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(uuid), "String")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
       test("coerce Short to Int") {
         val sVal = DynamicValue.Primitive(PrimitiveValue.Short(5.toShort))
         val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sVal), "Int")

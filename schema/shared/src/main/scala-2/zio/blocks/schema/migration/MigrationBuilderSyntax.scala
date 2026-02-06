@@ -71,44 +71,44 @@ object MigrationBuilderSyntax {
     /**
      * Add a field with a type-safe selector and literal default.
      */
-    def addField[T](selector: B => T, default: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.addFieldImpl[A, B, T]
+    def addField[T](selector: B => T, default: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.addFieldImpl[A, B, T]
 
     /**
      * Add a field with a type-safe selector and expression default.
      */
-    def addFieldExpr[T](selector: B => T, default: DynamicSchemaExpr): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.addFieldExprImpl[A, B, T]
+    def addFieldExpr[T](selector: B => T, default: DynamicSchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.addFieldExprImpl[A, B, T]
 
     /**
      * Drop a field using a type-safe selector.
      */
-    def dropField[T](selector: A => T): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.dropFieldImpl[A, B, T]
+    def dropField[T](selector: A => T): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.dropFieldImpl[A, B, T]
 
     /**
      * Rename a field using type-safe selectors.
      */
-    def renameField[T, U](from: A => T, to: B => U): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.renameFieldImpl[A, B, T, U]
+    def renameField[T, U](from: A => T, to: B => U): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.renameFieldImpl[A, B, T, U]
 
     /**
      * Transform a field using a type-safe selector.
      */
-    def transformField[T](selector: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.transformFieldImpl[A, B, T]
+    def transformField[T](selector: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.transformFieldImpl[A, B, T]
 
     /**
      * Make an optional field mandatory with type-safe selector.
      */
-    def mandateField[T](selector: B => T, default: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.mandateFieldImpl[A, B, T]
+    def mandateField[T](selector: B => T, default: T)(implicit schema: Schema[T]): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.mandateFieldImpl[A, B, T]
 
     /**
      * Make a mandatory field optional using a type-safe selector.
      */
-    def optionalizeField[T](selector: A => T): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.optionalizeFieldImpl[A, B, T]
+    def optionalizeField[T](selector: A => T): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.optionalizeFieldImpl[A, B, T]
 
     /**
      * Make a mandatory field optional using a type-safe selector with a reverse
@@ -122,20 +122,20 @@ object MigrationBuilderSyntax {
     /**
      * Transform all elements in a sequence field.
      */
-    def transformElements[T](selector: A => Seq[T], transform: DynamicSchemaExpr): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.transformElementsImpl[A, B, T]
+    def transformElements[T](selector: A => Seq[T], transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.transformElementsImpl[A, B, T]
 
     /**
      * Transform map keys using type-safe selector.
      */
-    def transformKeys[K, V](selector: A => Map[K, V], transform: DynamicSchemaExpr): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.transformKeysImpl[A, B, K, V]
+    def transformKeys[K, V](selector: A => Map[K, V], transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.transformKeysImpl[A, B, K, V]
 
     /**
      * Transform map values using type-safe selector.
      */
-    def transformValues[K, V](selector: A => Map[K, V], transform: DynamicSchemaExpr): MigrationBuilder[A, B] = macro
-      MigrationBuilderSyntaxImpl.transformValuesImpl[A, B, K, V]
+    def transformValues[K, V](selector: A => Map[K, V], transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderSyntaxImpl.transformValuesImpl[A, B, K, V]
   }
 
   /**
