@@ -1197,6 +1197,37 @@ def deriveDynamic[F[_, _]](
 
 Please note that the random generation logic in this example is basic and is intended for illustrative purposes only.
 
+### Wrapper Derivation
+
+The `deriveWrapper` method is responsible for deriving a `Gen` instance for wrapper types, such as value classes or opaque types:
+
+```scala
+def deriveWrapper[F[_, _], A, B](
+  wrapped: Reflect[F, B],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Wrapper[A, B], A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+)(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = Lazy {
+  val wrappedGen     = D.instance(wrapped.metadata)
+  val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+
+  new Gen[A] {
+    def generate(random: Random): A =
+      wrapperBinding.wrap(wrappedGen.force.generate(random)) match {
+        case Right(a) => a
+        case Left(_)  => generate(random) // Retry on validation failure
+      }
+  }
+}
+```
+
+First, we retrieve the `Gen` instance for the wrapped (underlying) type `B`. Then, within the `generate` method, we generate a random value of type `B` and attempt to wrap it into type `A` using the `wrap` function provided by the binding. If the wrapping is successful, we return the generated value of type `A`. If the wrapping fails (for example, due to a validation error), we retry the generation process until a valid value is produced.
+
+Please note that in a production implementation, you should include safeguards to prevent infinite retries in the event of persistent validation failures.
+
 ## Derivation Process Overview including Internal Mechanics
 
 ### PHASE 1: Deriving the Schema for the Target Type
