@@ -562,7 +562,8 @@ object DynamicSchemaExprCoverageSpec extends SchemaBaseSpec {
         assertTrue(expr.eval(intVal).isLeft)
       },
       test("coerce UUID to String via toString") {
-        val uuid = DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.randomUUID()))
+        val uuid =
+          DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")))
         val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(uuid), "String")
         assertTrue(expr.eval(intVal).isLeft)
       },
@@ -798,6 +799,340 @@ object DynamicSchemaExprCoverageSpec extends SchemaBaseSpec {
           SchemaExpr.Arithmetic(l, r, SchemaExpr.ArithmeticOperator.Multiply, IsNumeric.IsInt)
         )
         assertTrue(result.isRight)
+      }
+    ),
+    suite("navigateDynamicValue coverage")(
+      test("navigate Field into record") {
+        val r     = DynamicValue.Record(Chunk("x" -> intVal))
+        val optic = DynamicOptic.root.field("x")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(r, optic) == Some(intVal))
+      },
+      test("navigate Field missing returns None") {
+        val r     = DynamicValue.Record(Chunk("x" -> intVal))
+        val optic = DynamicOptic.root.field("y")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(r, optic).isEmpty)
+      },
+      test("navigate Field on non-record returns None") {
+        val optic = DynamicOptic.root.field("x")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(intVal, optic).isEmpty)
+      },
+      test("navigate Case into matching variant") {
+        val v     = DynamicValue.Variant("A", intVal)
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Case("A")))
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(v, optic) == Some(intVal))
+      },
+      test("navigate Case on non-matching variant returns None") {
+        val v     = DynamicValue.Variant("B", intVal)
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Case("A")))
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(v, optic).isEmpty)
+      },
+      test("navigate Case on non-variant returns None") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Case("A")))
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(intVal, optic).isEmpty)
+      },
+      test("navigate AtIndex into sequence") {
+        val s     = DynamicValue.Sequence(Chunk(intVal, strVal))
+        val optic = DynamicOptic.root.at(1)
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(s, optic) == Some(strVal))
+      },
+      test("navigate AtIndex out of bounds returns None") {
+        val s     = DynamicValue.Sequence(Chunk(intVal))
+        val optic = DynamicOptic.root.at(5)
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(s, optic).isEmpty)
+      },
+      test("navigate AtIndex on non-sequence returns None") {
+        val optic = DynamicOptic.root.at(0)
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(intVal, optic).isEmpty)
+      },
+      test("navigate AtMapKey into map") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val m     = DynamicValue.Map(Chunk(key -> intVal))
+        val optic = DynamicOptic.root.atKey[String]("k")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(m, optic) == Some(intVal))
+      },
+      test("navigate AtMapKey missing returns None") {
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val m     = DynamicValue.Map(Chunk(key -> intVal))
+        val optic = DynamicOptic.root.atKey[String]("z")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(m, optic).isEmpty)
+      },
+      test("navigate AtMapKey on non-map returns None") {
+        val optic = DynamicOptic.root.atKey[String]("k")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(intVal, optic).isEmpty)
+      },
+      test("navigate Wrapped into single-field record") {
+        val r     = DynamicValue.Record(Chunk("value" -> intVal))
+        val optic = DynamicOptic.root.wrapped
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(r, optic) == Some(intVal))
+      },
+      test("navigate Wrapped on multi-field record returns None") {
+        val r     = DynamicValue.Record(Chunk("a" -> intVal, "b" -> strVal))
+        val optic = DynamicOptic.root.wrapped
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(r, optic).isEmpty)
+      },
+      test("navigate Wrapped on non-record returns None") {
+        val optic = DynamicOptic.root.wrapped
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(intVal, optic).isEmpty)
+      },
+      test("navigate Elements traversal returns None") {
+        val s     = DynamicValue.Sequence(Chunk(intVal))
+        val optic = DynamicOptic.root.elements
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(s, optic).isEmpty)
+      },
+      test("navigate MapKeys traversal returns None") {
+        val k     = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val m     = DynamicValue.Map(Chunk(k -> intVal))
+        val optic = DynamicOptic.root.mapKeys
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(m, optic).isEmpty)
+      },
+      test("navigate MapValues traversal returns None") {
+        val k     = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val m     = DynamicValue.Map(Chunk(k -> intVal))
+        val optic = DynamicOptic.root.mapValues
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(m, optic).isEmpty)
+      },
+      test("navigate root path returns value itself") {
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(intVal, DynamicOptic.root) == Some(intVal))
+      },
+      test("navigate chained Field.Field") {
+        val inner = DynamicValue.Record(Chunk("y" -> intVal))
+        val outer = DynamicValue.Record(Chunk("x" -> inner))
+        val optic = DynamicOptic.root.field("x").field("y")
+        assertTrue(DynamicSchemaExpr.navigateDynamicValue(outer, optic) == Some(intVal))
+      }
+    ),
+    suite("getDynamicValueTypeName coverage")(
+      test("Arithmetic non-primitive error uses type name") {
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(record),
+          DynamicSchemaExpr.Literal(intVal),
+          DynamicSchemaExpr.ArithmeticOperator.Add
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("StringConcat non-string error") {
+        val expr = DynamicSchemaExpr.StringConcat(
+          DynamicSchemaExpr.Literal(intVal),
+          DynamicSchemaExpr.Literal(strVal)
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("StringLength non-string error") {
+        val expr = DynamicSchemaExpr.StringLength(DynamicSchemaExpr.Literal(intVal))
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("StringLength on Null error") {
+        val expr = DynamicSchemaExpr.StringLength(DynamicSchemaExpr.Literal(DynamicValue.Null))
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("CoercePrimitive on Variant error") {
+        val variant = DynamicValue.Variant("A", intVal)
+        val expr    = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(variant), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("CoercePrimitive on Sequence error") {
+        val seq  = DynamicValue.Sequence(Chunk(intVal))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(seq), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("CoercePrimitive on Map error") {
+        val k    = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val m    = DynamicValue.Map(Chunk(k -> intVal))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(m), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("CoercePrimitive on Null error") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(DynamicValue.Null), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("StringConcat with Variant fails") {
+        val variant = DynamicValue.Variant("A", intVal)
+        val expr    = DynamicSchemaExpr.StringConcat(
+          DynamicSchemaExpr.Literal(variant),
+          DynamicSchemaExpr.Literal(strVal)
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("StringConcat with Sequence fails") {
+        val seq  = DynamicValue.Sequence(Chunk(intVal))
+        val expr = DynamicSchemaExpr.StringConcat(
+          DynamicSchemaExpr.Literal(seq),
+          DynamicSchemaExpr.Literal(strVal)
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("Arithmetic with Null fails") {
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(DynamicValue.Null),
+          DynamicSchemaExpr.Literal(intVal),
+          DynamicSchemaExpr.ArithmeticOperator.Add
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      }
+    ),
+    suite("additional coercion branches")(
+      test("coerce Long to Boolean fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Double to Boolean fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(dblVal), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Float to Boolean fails") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(fltVal), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Short to Boolean fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.Short(1.toShort))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Byte to Boolean fails") {
+        val bv   = DynamicValue.Primitive(PrimitiveValue.Byte(1.toByte))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bv), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Long to Short unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "Short")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Long to Byte unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "Byte")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Double to Short unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(dblVal), "Short")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Double to Byte unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(dblVal), "Byte")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Float to Short unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(fltVal), "Short")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Float to Byte unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(fltVal), "Byte")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Int to Char unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Long to Char unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Double to Char unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(dblVal), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Float to Char unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(fltVal), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Boolean to Char unsupported target") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Byte to Short unsupported target") {
+        val bv   = DynamicValue.Primitive(PrimitiveValue.Byte(7.toByte))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bv), "Short")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Short to Byte unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.Short(5.toShort))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Byte")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Short to Long") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.Short(5.toShort))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Long")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(5L))))
+      },
+      test("coerce Byte to Long") {
+        val bv   = DynamicValue.Primitive(PrimitiveValue.Byte(7.toByte))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bv), "Long")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(7L))))
+      },
+      test("coerce Short to Double") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.Short(5.toShort))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Double")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(5.0))))
+      },
+      test("coerce Byte to Double") {
+        val bv   = DynamicValue.Primitive(PrimitiveValue.Byte(7.toByte))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bv), "Double")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(7.0))))
+      },
+      test("coerce Short to Float") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.Short(5.toShort))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Float")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Float(5.0f))))
+      },
+      test("coerce Byte to Float") {
+        val bv   = DynamicValue.Primitive(PrimitiveValue.Byte(7.toByte))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bv), "Float")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Float(7.0f))))
+      },
+      test("coerce Short to String") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.Short(5.toShort))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("5"))))
+      },
+      test("coerce Byte to String") {
+        val bv   = DynamicValue.Primitive(PrimitiveValue.Byte(7.toByte))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(bv), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("7"))))
+      },
+      test("coerce Char to String") {
+        val cv   = DynamicValue.Primitive(PrimitiveValue.Char('A'))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(cv), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("A"))))
+      },
+      test("coerce Boolean to String") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("true"))))
+      },
+      test("coerce Int to BigDecimal") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "BigDecimal")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce Int to BigInt") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "BigInt")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce String to Short unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("not-a-number"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Short")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce String to Byte unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("not-a-number"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Byte")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce String to Short numeric unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("42"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Short")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce String to Byte numeric unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("7"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Byte")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce String to Char single unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("A"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("coerce String to Char multi-char unsupported target") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("AB"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Char")
+        assertTrue(expr.eval(intVal).isLeft)
       }
     )
   )

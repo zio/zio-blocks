@@ -820,6 +820,167 @@ object DynamicMigrationCoverageSpec extends SchemaBaseSpec {
         val m     = DynamicMigration(MigrationAction.TransformValue(optic, litI0, litI))
         assertTrue(m(rec).isRight)
       }
+    ),
+    suite("modifyAtPathRec coverage - non-context actions")(
+      test("DropField through Elements path") {
+        val rec1  = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val rec2  = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val seq   = DynamicValue.Sequence(Chunk(rec1, rec2))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Elements))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        val r     = m(seq)
+        assertTrue(r.isRight)
+      },
+      test("DropField through MapValues path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val rec   = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val mp    = DynamicValue.Map(Chunk(keyA -> rec))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(mp).isRight)
+      },
+      test("DropField through MapKeys path") {
+        val keyRec = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val mp     = DynamicValue.Map(Chunk(keyRec -> intV))
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
+        val m      = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(mp).isRight)
+      },
+      test("AddField through Wrapped path") {
+        val inner   = DynamicValue.Record(Chunk("x" -> intV))
+        val wrapped = DynamicValue.Record(Chunk("value" -> inner))
+        val optic   = DynamicOptic(Vector(DynamicOptic.Node.Wrapped))
+        val m       = DynamicMigration(MigrationAction.AddField(optic, "z", litI0))
+        assertTrue(m(wrapped).isRight)
+      },
+      test("Wrapped on multi-field record fails") {
+        val rec   = DynamicValue.Record(Chunk("a" -> intV, "b" -> strV))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Wrapped))
+        val m     = DynamicMigration(MigrationAction.AddField(optic, "z", litI0))
+        assertTrue(m(rec).isLeft)
+      },
+      test("DropField through AtIndices path") {
+        val rec1  = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val rec2  = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val seq   = DynamicValue.Sequence(Chunk(rec1, rec2))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Vector(0, 1))))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(seq).isRight)
+      },
+      test("DropField through AtMapKeys path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val keyB  = DynamicValue.Primitive(PrimitiveValue.String("b"))
+        val rec   = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val mp    = DynamicValue.Map(Chunk(keyA -> rec, keyB -> rec))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Vector(keyA))))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(mp).isRight)
+      },
+      test("DropField through Case path matching") {
+        val inner   = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val varCase = DynamicValue.Variant("Dog", inner)
+        val optic   = DynamicOptic(Vector(DynamicOptic.Node.Case("Dog")))
+        val m       = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(varCase).isRight)
+      },
+      test("DropField through Case path non-matching passes through") {
+        val inner   = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val varCase = DynamicValue.Variant("Cat", inner)
+        val optic   = DynamicOptic(Vector(DynamicOptic.Node.Case("Dog")))
+        val m       = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(varCase) == Right(varCase))
+      },
+      test("DropField through AtIndex path") {
+        val rec1  = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val rec2  = DynamicValue.Record(Chunk("x" -> intV, "y" -> strV))
+        val seq   = DynamicValue.Sequence(Chunk(rec1, rec2))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtIndex(0)))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "y", litI))
+        assertTrue(m(seq).isRight)
+      },
+      test("AddField through AtMapKey path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val rec   = DynamicValue.Record(Chunk("x" -> intV))
+        val mp    = DynamicValue.Map(Chunk(keyA -> rec))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(keyA)))
+        val m     = DynamicMigration(MigrationAction.AddField(optic, "z", litI0))
+        assertTrue(m(mp).isRight)
+      },
+      test("Elements on non-sequence fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Elements))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("MapValues on non-map fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("MapKeys on non-map fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("Wrapped on non-record fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Wrapped))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("Case on non-variant fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.Case("Dog")))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("AtIndex on non-sequence fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtIndex(0)))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("AtIndex out of bounds in non-context path") {
+        val seq   = DynamicValue.Sequence(Chunk(intV))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtIndex(5)))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(seq).isLeft)
+      },
+      test("AtMapKey not found in non-context path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val keyB  = DynamicValue.Primitive(PrimitiveValue.String("b"))
+        val mp    = DynamicValue.Map(Chunk(keyA -> intV))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(keyB)))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(mp).isLeft)
+      },
+      test("AtMapKey on non-map fails in non-context path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(keyA)))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("AtIndices on non-sequence fails in non-context path") {
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Vector(0))))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("AtIndices out of bounds in non-context path") {
+        val seq   = DynamicValue.Sequence(Chunk(intV))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Vector(5))))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(seq).isLeft)
+      },
+      test("AtMapKeys on non-map fails in non-context path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Vector(keyA))))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(intV).isLeft)
+      },
+      test("AtMapKeys missing key in non-context path") {
+        val keyA  = DynamicValue.Primitive(PrimitiveValue.String("a"))
+        val keyB  = DynamicValue.Primitive(PrimitiveValue.String("b"))
+        val mp    = DynamicValue.Map(Chunk(keyA -> intV))
+        val optic = DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Vector(keyB))))
+        val m     = DynamicMigration(MigrationAction.DropField(optic, "x", litI))
+        assertTrue(m(mp).isLeft)
+      }
     )
   )
 }
