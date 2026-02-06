@@ -7,9 +7,9 @@ private[scope] object ScopedMacros {
   /**
    * Checks if a scoped value with tag S can be accessed from a scope with the given Tag type.
    *
-   * For path-dependent types with bounds (like `type Tag >: tail.Tag`), we check:
-   * 1. Direct subtyping: S <:< Tag
-   * 2. Bound subtyping: S <:< Tag's lower bound
+   * For path-dependent types with bounds (like `type Tag <: tail.Tag`), we check:
+   * 1. Direct subtyping: Tag <:< S (scope's tag is subtype of scoped value's tag)
+   * 2. Bound subtyping: Tag's upper bound <:< S
    * 3. Hierarchy walking: For :: scopes, walk the tail chain to find matching tags
    */
   private def checkTagAccess(c: whitebox.Context)(sTpe: c.Type, scopeTpe: c.Type): Boolean = {
@@ -20,15 +20,15 @@ private[scope] object ScopedMacros {
 
     val tagTpe = tagMember.asType.toType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
 
-    // Direct check
-    if (sTpe <:< tagTpe) return true
+    // Direct check: scope's Tag <: S
+    if (tagTpe <:< sTpe) return true
 
-    // Check lower bound of the Tag type member
+    // Check upper bound of the Tag type member
     val tagTypeInfo = tagMember.asType.typeSignature
     tagTypeInfo match {
-      case TypeBounds(lo, _) if lo != NoType && !(lo =:= typeOf[Nothing]) =>
-        val lowerBound = lo.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
-        if (sTpe <:< lowerBound) return true
+      case TypeBounds(_, hi) if hi != NoType && !(hi =:= typeOf[Any]) =>
+        val upperBound = hi.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
+        if (upperBound <:< sTpe) return true
       case _ => // No usable bounds
     }
 
@@ -46,9 +46,9 @@ private[scope] object ScopedMacros {
 
   /**
    * Macro implementation for the `$` operator that verifies at compile time
-   * that the scope's Tag is a supertype of S.
+   * that the scope's Tag is a subtype of S.
    *
-   * This matches the Scala 3 constraint: `Scope[?] { type Tag >: S }`
+   * This matches the Scala 3 constraint: `Scope { type Tag <: S }`
    */
   def dollarImpl[A, S, B](c: whitebox.Context)(
     f: c.Expr[A => B]
@@ -71,12 +71,12 @@ private[scope] object ScopedMacros {
 
     val tagTpe = tagMember.asType.toType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
 
-    // Check that Tag >: S (i.e., S <:< Tag) using hierarchy-aware check
+    // Check that Tag <: S (i.e., Tag <:< S) using hierarchy-aware check
     if (!checkTagAccess(c)(sTpe, scopeTpe)) {
       c.abort(
         c.enclosingPosition,
         s"Scoped value with tag $sTpe cannot be accessed with scope having Tag = $tagTpe. " +
-          s"The scope's Tag must be a supertype of the scoped value's tag."
+          s"The scope's Tag must be a subtype of the scoped value's tag."
       )
     }
 
@@ -102,9 +102,9 @@ private[scope] object ScopedMacros {
 
   /**
    * Macro implementation for the `get` method that verifies at compile time
-   * that the scope's Tag is a supertype of S.
+   * that the scope's Tag is a subtype of S.
    *
-   * This matches the Scala 3 constraint: `Scope[?] { type Tag >: S }`
+   * This matches the Scala 3 constraint: `Scope { type Tag <: S }`
    */
   def getImpl[A, S](c: whitebox.Context)(
     scope: c.Expr[Scope.Any],
@@ -125,12 +125,12 @@ private[scope] object ScopedMacros {
 
     val tagTpe = tagMember.asType.toType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
 
-    // Check that Tag >: S (i.e., S <:< Tag) using hierarchy-aware check
+    // Check that Tag <: S (i.e., Tag <:< S) using hierarchy-aware check
     if (!checkTagAccess(c)(sTpe, scopeTpe)) {
       c.abort(
         c.enclosingPosition,
         s"Scoped value with tag $sTpe cannot be accessed with scope having Tag = $tagTpe. " +
-          s"The scope's Tag must be a supertype of the scoped value's tag."
+          s"The scope's Tag must be a subtype of the scoped value's tag."
       )
     }
 

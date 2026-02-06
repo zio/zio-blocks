@@ -10,11 +10,11 @@ import zio.blocks.scope.internal.Finalizers
  *
  * Scope forms an HList-like structure where each level carries a Context and
  * has its own Tag type. The Tag chain follows the scope structure:
- *   - SNil.Tag >: Global (base case)
- *   - (H :: T).Tag >: T.Tag (child tags are supertypes of parent tags)
+ *   - Global.Tag <: GlobalTag (base case)
+ *   - (H :: T).Tag <: T.Tag (child tags are subtypes of parent tags)
  *
  * This enables child scopes to use parent-scoped values: a value tagged with a
- * parent's tag is usable in child scopes since child.Tag >: parent.Tag.
+ * parent's tag is usable in child scopes since child.Tag <: parent.Tag.
  */
 sealed trait Scope extends ScopeVersionSpecific {
 
@@ -22,7 +22,7 @@ sealed trait Scope extends ScopeVersionSpecific {
    * Path-dependent type that identifies this scope.
    *
    * Each scope instance has its own unique Tag type. Child scopes have tags
-   * that are supertypes of their parent's tag, enabling child scopes to access
+   * that are subtypes of their parent's tag, enabling child scopes to access
    * parent-scoped values while preventing child values from escaping to
    * parents.
    */
@@ -66,7 +66,7 @@ object Scope {
       with Closeable[H, T]
       with ScopeConsVersionSpecific[H, T] {
 
-    type Tag >: tail.Tag
+    type Tag <: tail.Tag
 
     private[scope] def getImpl[A](nom: IsNominalType[A]): A =
       head.getOption[A](nom) match {
@@ -84,7 +84,7 @@ object Scope {
    */
   final class Global private[scope] (private val finalizers: Finalizers) extends Scope {
 
-    type Tag >: GlobalTag
+    type Tag <: GlobalTag
 
     private[scope] def getImpl[T](nom: IsNominalType[T]): T =
       throw new IllegalStateException("Global scope has no services")

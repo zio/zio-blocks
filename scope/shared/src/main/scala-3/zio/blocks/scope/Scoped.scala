@@ -52,7 +52,7 @@ object @@ {
      * @return
      *   Either raw `B` or `B @@ S` depending on ScopeEscape instance
      */
-    inline infix def $[B](inline f: A => B)(using scope: Scope { type Tag >: S })(using
+    inline infix def $[B](inline f: A => B)(using scope: Scope { type Tag <: S })(using
       u: ScopeEscape[B, S]
     ): u.Out =
       u(f(scoped))
@@ -72,7 +72,7 @@ object @@ {
      * @return
      *   Either raw `A` or `A @@ S` depending on ScopeEscape instance
      */
-    inline def get(using scope: Scope { type Tag >: S })(using u: ScopeEscape[A, S]): u.Out =
+    inline def get(using scope: Scope { type Tag <: S })(using u: ScopeEscape[A, S]): u.Out =
       u(scoped)
 
     /**
@@ -87,14 +87,14 @@ object @@ {
       f(scoped)
 
     /**
-     * FlatMaps over a scoped value, widening to the outer scope.
+     * FlatMaps over a scoped value, narrowing to the inner scope.
      *
      * @param f
      *   Function returning a scoped result
      * @return
-     *   Result with the wider tag T
+     *   Result with the narrower tag T
      */
-    inline def flatMap[B, T >: S](inline f: A => B @@ T): B @@ T =
+    inline def flatMap[B, T <: S](inline f: A => B @@ T): B @@ T =
       f(scoped)
 
     /** Extracts the first element of a scoped tuple. */
