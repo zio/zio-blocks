@@ -122,6 +122,58 @@ The other methods follow a similar pattern, each tailored to the specific struct
 
 The underlying derivation engine takes care of traversing the schema structure, applying the appropriate derivation method for each structural pattern, and composing the resulting type class instances together. This means that once you've implemented a `Deriver` for a specific type class, you can automatically derive instances for any data type with a schema, without writing any additional boilerplate code.
 
+## Using the `Deriver` to Derive Type Class Instances
+
+Given a `Schema[A]`, you can call the `derive` method to get an instance of the type class `TC[A]`:
+
+```scala
+case class Schema[A](reflect: Reflect.Bound[A]) {
+  def derive[TC[_]](deriver: Deriver[TC]): TC[A] = ???
+}
+```
+
+It takes a `Deriver[TC]` as a parameter and returns a type class instance of type `TC[A]`. For example, in the following code snippet, we derive a `JsonBinaryCodec[Person]` instance for the `Person` case class using the `JsonBinaryCodecDeriver`:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+import zio.blocks.schema.json.JsonBinaryCodecDeriver
+
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+}
+
+val jsonCodec: JsonBinaryCodec[Person] =
+  Person.schema.derive(JsonBinaryCodecDeriver)
+
+val result: Either[SchemaError, Person] = 
+  jsonCodec.decode(
+    """
+      |{
+      |  "name": "Alice",
+      |  "age": 30
+      |}
+      |""".stripMargin
+  )
+```
+
+There is another overloaded version of the `Schema#derive` method that takes a `Format` instead of a `Deriver`:
+
+```scala
+case class Schema[A](reflect: Reflect.Bound[A]) {
+  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
+}
+```
+
+For example, by calling `Person.schema.derive(JsonFormat)`, we can derive a `JsonCodec[Person]` instance:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.json._
+
+val jsonCodec = Person.schema.derive(JsonFormat)
+```
+
 ## Example 1: Deriving a `Show` Type Class Instance
 
 Let's say we want to derive a `Show` type class instance for any type of type `A`:
