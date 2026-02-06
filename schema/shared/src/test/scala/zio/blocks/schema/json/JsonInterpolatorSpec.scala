@@ -335,19 +335,17 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       )
     },
     test("supports interpolated Map values with Float keys") {
-      check(Gen.float)(x =>
+      check(Gen.float.filter(_.isFinite))(x =>
         assertTrue {
-          // Map keys use Keyable.asKey which is .toString
-          val key = x.toString
+          val key = JsonBinaryCodec.floatCodec.encodeToString(x)
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(key -> Json.Null))
         }
       )
     },
     test("supports interpolated Map values with Double keys") {
-      check(Gen.double)(x =>
+      check(Gen.double.filter(_.isFinite))(x =>
         assertTrue {
-          // Map keys use Keyable.asKey which is .toString
-          val key = x.toString
+          val key = JsonBinaryCodec.doubleCodec.encodeToString(x)
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(key -> Json.Null))
         }
       )

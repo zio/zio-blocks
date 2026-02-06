@@ -39,7 +39,7 @@ trait JsonDecoder[A] { self =>
   def orElse(that: => JsonDecoder[A]): JsonDecoder[A] = (json: Json) =>
     self.decode(json) match {
       case _: Left[_, _] => that.decode(json)
-      case right         => right
+      case r             => r
     }
 }
 
@@ -96,30 +96,16 @@ object JsonDecoder {
   }
 
   implicit val floatDecoder: JsonDecoder[Float] = new JsonDecoder[Float] {
-    def decode(json: Json): Either[SchemaError, Float] = {
-      json match {
-        case num: Json.Number =>
-          try return new Right(num.value.toFloat)
-          catch {
-            case err if NonFatal(err) =>
-          }
-        case _ =>
-      }
-      new Left(SchemaError("Expected Number"))
+    def decode(json: Json): Either[SchemaError, Float] = json match {
+      case num: Json.Number => new Right(num.value.floatValue)
+      case _                => new Left(SchemaError("Expected Number"))
     }
   }
 
   implicit val doubleDecoder: JsonDecoder[Double] = new JsonDecoder[Double] {
-    def decode(json: Json): Either[SchemaError, Double] = {
-      json match {
-        case num: Json.Number =>
-          try return new Right(num.value.toDouble)
-          catch {
-            case err if NonFatal(err) =>
-          }
-        case _ =>
-      }
-      new Left(SchemaError("Expected Number"))
+    def decode(json: Json): Either[SchemaError, Double] = json match {
+      case num: Json.Number => new Right(num.value.doubleValue)
+      case _                => new Left(SchemaError("Expected Number"))
     }
   }
 
@@ -390,8 +376,7 @@ object JsonDecoder {
   private def parseString[A](name: String)(parse: String => A): JsonDecoder[A] = new JsonDecoder[A] {
     def decode(json: Json): Either[SchemaError, A] = json match {
       case str: Json.String =>
-        val s = str.value
-        try new Right(parse(s))
+        try new Right(parse(str.value))
         catch {
           case err if NonFatal(err) => new Left(SchemaError(s"Invalid $name: ${err.getMessage}"))
         }

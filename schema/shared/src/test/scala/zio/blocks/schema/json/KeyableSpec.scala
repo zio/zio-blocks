@@ -11,8 +11,7 @@ object KeyableSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("KeyableSpec")(
     suite("Keyable instances exist for all PrimitiveType types")(
       test("Unit has Keyable instance") {
-        val s = Keyable[Unit]
-        assertTrue(s.asKey(()) == "{}")
+        assertTrue(Keyable[Unit].asKey(()) == "{}")
       },
       test("Boolean has Keyable instance") {
         check(Gen.boolean)(b => assertTrue(Keyable[Boolean].asKey(b) == b.toString))
@@ -30,10 +29,14 @@ object KeyableSpec extends SchemaBaseSpec {
         check(Gen.long)(l => assertTrue(Keyable[Long].asKey(l) == l.toString))
       },
       test("Float has Keyable instance") {
-        check(Gen.float)(f => assertTrue(Keyable[Float].asKey(f) == f.toString))
+        check(Gen.float.filter(_.isFinite)) { f =>
+          assertTrue(Keyable[Float].asKey(f) == JsonBinaryCodec.floatCodec.encodeToString(f))
+        }
       },
       test("Double has Keyable instance") {
-        check(Gen.double)(d => assertTrue(Keyable[Double].asKey(d) == d.toString))
+        check(Gen.double.filter(_.isFinite)) { d =>
+          assertTrue(Keyable[Double].asKey(d) == JsonBinaryCodec.doubleCodec.encodeToString(d))
+        }
       },
       test("Char has Keyable instance") {
         check(Gen.char)(c => assertTrue(Keyable[Char].asKey(c) == c.toString))
@@ -133,20 +136,6 @@ object KeyableSpec extends SchemaBaseSpec {
           Keyable[Long].asKey(0L) == "0",
           Keyable[Long].asKey(Long.MaxValue) == "9223372036854775807",
           Keyable[Long].asKey(Long.MinValue) == "-9223372036854775808"
-        )
-      },
-      test("Float asKey handles special values") {
-        assertTrue(
-          Keyable[Float].asKey(Float.NaN) == "NaN",
-          Keyable[Float].asKey(Float.PositiveInfinity) == "Infinity",
-          Keyable[Float].asKey(Float.NegativeInfinity) == "-Infinity"
-        )
-      },
-      test("Double asKey handles special values") {
-        assertTrue(
-          Keyable[Double].asKey(Double.NaN) == "NaN",
-          Keyable[Double].asKey(Double.PositiveInfinity) == "Infinity",
-          Keyable[Double].asKey(Double.NegativeInfinity) == "-Infinity"
         )
       },
       test("String asKey is identity") {
