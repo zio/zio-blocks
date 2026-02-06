@@ -288,10 +288,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   }
 
   object Sealed {
-    def unapply(id: TypeId[_]): Option[(String, List[TypeRepr])] =
+    def unapply(id: TypeId[_]): Option[String] =
       id.defKind match {
-        case TypeDefKind.Trait(true, subtypes, _) => Some((id.name, subtypes))
-        case _                                    => None
+        case TypeDefKind.Trait(true, _) => Some(id.name)
+        case _                          => None
       }
   }
 

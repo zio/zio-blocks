@@ -197,8 +197,8 @@ typeId match {
   case TypeId.Opaque(name, owner, params, repr, bounds) =>
     // Opaque types - repr is the representation type
     
-  case TypeId.Sealed(name, subtypes) =>
-    // Sealed traits - subtypes is List[TypeRepr]
+  case TypeId.Sealed(name) =>
+    // Sealed traits
     
   case TypeId.Enum(name, owner, cases) =>
     // Scala 3 enums - cases is List[EnumCaseInfo]
