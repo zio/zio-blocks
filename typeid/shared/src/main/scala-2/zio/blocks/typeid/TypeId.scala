@@ -61,8 +61,8 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
   final def isSealed: Boolean = defKind match {
-    case TypeDefKind.Trait(isSealed, _, _) => isSealed
-    case _                                 => false
+    case TypeDefKind.Trait(isSealed, _) => isSealed
+    case _                              => false
   }
 
   final def isCaseClass: Boolean = defKind match {
