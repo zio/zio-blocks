@@ -123,6 +123,42 @@ object CloseableRunSpec extends ZIOSpecDefault {
         case _: RuntimeException => ()
       }
       assertTrue(cleaned)
+    },
+    test("user-registered finalizers run before AutoCloseable.close()") {
+      // When injecting an AutoCloseable, its close() is registered first.
+      // User-registered finalizers (via defer) are added later.
+      // Since finalizers run in LIFO order, user finalizers should run
+      // BEFORE close(), allowing them to use the resource safely.
+      val order = ArrayBuffer.empty[String]
+
+      class Resource extends AutoCloseable {
+        var closed = false
+        def use(): Unit = {
+          if (closed) throw new IllegalStateException("Resource already closed!")
+          order += "use"
+        }
+        def close(): Unit = {
+          closed = true
+          order += "close"
+        }
+      }
+
+      implicit val globalScope: Scope.Any = Scope.global
+
+      val resource  = new Resource
+      val closeable = injected(resource)
+
+      closeable.run { implicit scope =>
+        // Register a finalizer that uses the resource
+        defer { resource.use() }
+        order += "body"
+      }
+
+      // Expected order: body executed, then user finalizer (use), then close
+      assertTrue(
+        order.toList == List("body", "use", "close"),
+        !resource.closed || order.indexOf("use") < order.indexOf("close")
+      )
     }
   )
 }
