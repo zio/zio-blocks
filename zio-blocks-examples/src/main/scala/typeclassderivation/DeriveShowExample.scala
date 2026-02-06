@@ -91,7 +91,7 @@ object DeriveShowExample extends App {
       }
 
     override def deriveVariant[F[_, _], A](
-      cases: IndexedSeq[Term[F, A, _]],
+      cases: IndexedSeq[Term[F, A, ?]],
       typeId: TypeId[A],
       binding: Binding[BindingType.Variant, A],
       doc: Doc,
