@@ -37,17 +37,6 @@ final class Context[+R] private (
   def nonEmpty: Boolean = !isEmpty
 
   /**
-   * Returns the first (most recently added) value in this context.
-   *
-   * This is primarily used internally for scope implementations where the
-   * context is known to contain exactly one value.
-   *
-   * @throws NoSuchElementException
-   *   if the context is empty
-   */
-  private[blocks] def head: Any = entries.head
-
-  /**
    * Retrieves the value of type `A` from this context.
    *
    * The type bound `A >: R` ensures at compile time that a value of type `A`

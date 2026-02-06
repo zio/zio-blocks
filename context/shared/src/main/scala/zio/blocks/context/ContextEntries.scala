@@ -10,10 +10,6 @@ private[context] final class ContextEntries private (
 
   def isEmpty: Boolean = entries.length == 0
 
-  def head: Any =
-    if (entries.isEmpty) throw new NoSuchElementException("Context is empty")
-    else entries(entries.length - 1)._2
-
   def get(key: TypeId.Erased): Any = {
     var i = entries.length - 1
     while (i >= 0) {
