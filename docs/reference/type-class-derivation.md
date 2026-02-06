@@ -214,7 +214,7 @@ object DeriveShow extends Deriver[Show] {
     }
 
   override def deriveVariant[F[_, _], A](
-    cases: IndexedSeq[Term[F, A, _]],
+    cases: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
@@ -502,7 +502,7 @@ When the derivation process encounters a variant type (e.g., a sealed trait with
 
 ```scala mdoc:compile-only
 def deriveVariant[F[_, _], A](
-  cases: IndexedSeq[Term[F, A, _]],
+  cases: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
   binding: Binding[BindingType.Variant, A],
   doc: Doc,
@@ -689,6 +689,132 @@ def deriveWrapper[F[_, _], A, B](
 ```
 
 The derivation process for wrapper types involves unwrapping the value to access the underlying type. We extract the type class instance for the wrapped type, and at runtime we use the `unwrap` function from the binding to get the underlying value. If unwrapping is successful, we show the underlying value using its type class instance. If unwrapping fails, we handle the error case accordingly (e.g., by returning an error message).
+
+### Example Usages
+
+To see how this derivation works in practice, we can define some simple data types and then derive `Show` instances for them using the `DeriveShow` object we implemented.
+
+1. Example 1: Simple `Person` Record with Two Primitive Fields:
+
+```scala mdoc:silent:nest
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+  implicit val show: Show[Person]     = schema.derive(DeriveShow)
+}
+```
+
+Now we can use the derived `Show[Person]` instance to convert `Person` values to strings:
+
+```scala mdoc
+Person.show.show(Person("Alice", 30))
+```
+
+2. Simple Shape Variant (Circle, Rectangle)
+
+```scala mdoc:silent
+sealed trait Shape
+case class Circle(radius: Double)                   extends Shape
+case class Rectangle(width: Double, height: Double) extends Shape
+
+object Shape {
+  implicit val schema: Schema[Shape] = Schema.derived[Shape]
+  implicit val show: Show[Shape]     = schema.derive(DeriveShow)
+}
+```
+
+To show a `Shape` value, we can do the following:
+
+```scala mdoc
+val shape1: Shape = Circle(5.0)
+Shape.show.show(shape1)
+
+val shape2: Shape = Rectangle(4.0, 6.0)
+Shape.show.show(shape2)
+```
+
+3. Recursive Tree and Expr
+
+```scala mdoc:silent
+case class Tree(value: Int, children: List[Tree])
+object Tree {
+  implicit val schema: Schema[Tree] = Schema.derived[Tree]
+  implicit val show: Show[Tree]     = schema.derive(DeriveShow)
+}
+```
+
+The `Tree` is a record with a recursive field `children` of type `List[Tree]`. Let's see how the derived `Show[Tree]` instance handles this recursive structure:
+
+```scala mdoc
+val tree = Tree(1, List(Tree(2, List(Tree(4, Nil))), Tree(3, Nil)))
+Tree.show.show(tree)
+```
+
+4. Example 4: Recursive Sealed Trait (Expr)
+
+```scala mdoc:silent
+sealed trait Expr
+case class Num(n: Int)           extends Expr
+case class Add(a: Expr, b: Expr) extends Expr
+
+object Expr {
+  implicit val schema: Schema[Expr] = Schema.derived[Expr]
+  implicit val show: Show[Expr]     = schema.derive(DeriveShow)
+}
+```
+
+Similar to `Tree`, `Expr` is a recursive variant type. The derived `Show[Expr]` instance can handle this recursive structure as well:
+
+```scala mdoc
+val expr: Expr = Add(Num(1), Add(Num(2), Num(3)))
+Expr.show.show(expr)
+```
+
+5. Example 5: DynamicValue Example
+
+```scala mdoc:silent
+implicit val dynamicShow: Show[DynamicValue] = Schema.dynamic.derive(DeriveShow)
+```
+
+Let's define a `DynamicValue` that represents a record with some primitive fields and a sequence field, then show it using the derived `Show[DynamicValue]` instance:
+
+```scala mdoc
+val manualRecord = DynamicValue.Record(
+  Chunk(
+    "id"    -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
+    "title" -> DynamicValue.Primitive(PrimitiveValue.String("Hello World")),
+    "tags"  -> DynamicValue.Sequence(
+      Chunk(
+        DynamicValue.Primitive(PrimitiveValue.String("scala")),
+        DynamicValue.Primitive(PrimitiveValue.String("zio"))
+      )
+    )
+  )
+)
+
+dynamicShow.show(manualRecord)
+```
+
+6. Example 6: Simple Email Wrapper Type
+
+```scala mdoc:silent
+case class Email(value: String)
+object Email {
+  implicit val schema: Schema[Email] = Schema[String].transform(
+    Email(_),
+    _.value
+  )
+  implicit val show: Show[Email] = schema.derive(DeriveShow)
+}
+```
+
+The `Email` type is a simple wrapper around `String`. Let's see how it shows an `Email` value:
+
+```scala mdoc
+val email = Email("alice@example.com")
+println(s"Email: ${Email.show.show(email)}")
+```
 
 ## Example 2: Deriving a `Gen` Type Class Instance
 
@@ -1275,7 +1401,7 @@ This schema derivation is typically done using `Schema.derived[A]`, which uses S
 
 For example, the following code derives the schema for `Person`:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 case class Person(name: String, age: Int)
 
 object Person {
