@@ -14,7 +14,7 @@ private[scope] object ScopedMacros {
     f: c.Expr[A => B]
   )(
     scope: c.Expr[Scope.Any],
-    u: c.Expr[AutoUnscoped[B, S]]
+    u: c.Expr[ScopeEscape[B, S]]
   )(implicit
     stag: c.WeakTypeTag[S]
   ): c.Tree = {
@@ -68,7 +68,7 @@ private[scope] object ScopedMacros {
    */
   def getImpl[A, S](c: whitebox.Context)(
     scope: c.Expr[Scope.Any],
-    u: c.Expr[AutoUnscoped[A, S]]
+    u: c.Expr[ScopeEscape[A, S]]
   )(implicit
     stag: c.WeakTypeTag[S]
   ): c.Tree = {

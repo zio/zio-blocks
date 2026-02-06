@@ -1,0 +1,54 @@
+package zio.blocks.scope
+
+/**
+ * Typeclass that controls whether `A @@ S` escapes the scope as raw `A` or
+ * remains scoped as `A @@ S` when extracted via `.get` or `$`.
+ *
+ * Priority (highest to lowest):
+ *   1. Global scope (`TNil`): all types escape as raw `A`
+ *   2. [[Unscoped]] types: escape as raw `A`
+ *   3. Resource types: stay scoped as `A @@ S`
+ *
+ * This enables conditional scoping: data types and global-scope values escape
+ * freely, while resource types in child scopes stay tracked.
+ */
+trait ScopeEscape[A, S] {
+  type Out
+  def apply(a: A): Out
+}
+
+object ScopeEscape extends ScopeEscapeMidPriority {
+  type Aux[A, S, O] = ScopeEscape[A, S] { type Out = O }
+
+  /**
+   * Global scope: all types escape as raw values.
+   *
+   * Values scoped with `TNil` (the global scope tag) can always be extracted
+   * because the global scope never closes during normal execution.
+   */
+  implicit def globalScope[A]: ScopeEscape.Aux[A, TNil, A] =
+    new ScopeEscape[A, TNil] {
+      type Out = A
+      def apply(a: A): Out = a
+    }
+}
+
+trait ScopeEscapeMidPriority extends ScopeEscapeLowPriority {
+
+  /** Unscoped types escape as raw values. Zero overhead: identity function. */
+  implicit def unscoped[A, S](implicit ev: Unscoped[A]): ScopeEscape.Aux[A, S, A] =
+    new ScopeEscape[A, S] {
+      type Out = A
+      def apply(a: A): Out = a
+    }
+}
+
+trait ScopeEscapeLowPriority {
+
+  /** Non-Unscoped types stay scoped. Zero overhead: opaque type alias. */
+  implicit def resourceful[A, S]: ScopeEscape.Aux[A, S, A @@ S] =
+    new ScopeEscape[A, S] {
+      type Out = A @@ S
+      def apply(a: A): Out = @@.scoped(a)
+    }
+}

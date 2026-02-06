@@ -50,10 +50,10 @@ object @@ {
      * @param u
      *   Typeclass determining the result type
      * @return
-     *   Either raw `B` or `B @@ S` depending on AutoUnscoped instance
+     *   Either raw `B` or `B @@ S` depending on ScopeEscape instance
      */
     inline infix def $[B](inline f: A => B)(using scope: Scope[?] { type Tag >: S })(using
-      u: AutoUnscoped[B, S]
+      u: ScopeEscape[B, S]
     ): u.Out =
       u(f(scoped))
 
@@ -70,9 +70,9 @@ object @@ {
      * @param u
      *   Typeclass determining the result type
      * @return
-     *   Either raw `A` or `A @@ S` depending on AutoUnscoped instance
+     *   Either raw `A` or `A @@ S` depending on ScopeEscape instance
      */
-    inline def get(using scope: Scope[?] { type Tag >: S })(using u: AutoUnscoped[A, S]): u.Out =
+    inline def get(using scope: Scope[?] { type Tag >: S })(using u: ScopeEscape[A, S]): u.Out =
       u(scoped)
 
     /**

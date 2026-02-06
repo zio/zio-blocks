@@ -141,4 +141,10 @@ package object scope {
   def injected[T](wires: Wire[_, _]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] =
     macro ScopeMacros.injectedImpl[T]
   // format: on
+
+  @deprecated("Use ScopeEscape instead", "0.1.0")
+  type AutoUnscoped[A, S] = ScopeEscape[A, S]
+
+  @deprecated("Use ScopeEscape instead", "0.1.0")
+  val AutoUnscoped = ScopeEscape
 }

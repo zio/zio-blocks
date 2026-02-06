@@ -45,9 +45,9 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    * @param u
    *   Typeclass determining the result type
    * @return
-   *   Either raw `B` or `B @@ S` depending on AutoUnscoped instance
+   *   Either raw `B` or `B @@ S` depending on ScopeEscape instance
    */
-  def $[B](f: A => B)(implicit scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out = macro ScopedMacros.dollarImpl[A, S, B]
+  def $[B](f: A => B)(implicit scope: Scope.Any, u: ScopeEscape[B, S]): u.Out = macro ScopedMacros.dollarImpl[A, S, B]
 
   /**
    * Extracts the scoped value, auto-unscoping if the type is [[Unscoped]].
@@ -66,9 +66,9 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    * @param u
    *   Typeclass determining the result type
    * @return
-   *   Either raw `A` or `A @@ S` depending on AutoUnscoped instance
+   *   Either raw `A` or `A @@ S` depending on ScopeEscape instance
    */
-  def get(implicit scope: Scope.Any, u: AutoUnscoped[A, S]): u.Out = macro ScopedMacros.getImpl[A, S]
+  def get(implicit scope: Scope.Any, u: ScopeEscape[A, S]): u.Out = macro ScopedMacros.getImpl[A, S]
 
   /**
    * Maps over a scoped value, preserving the tag.
