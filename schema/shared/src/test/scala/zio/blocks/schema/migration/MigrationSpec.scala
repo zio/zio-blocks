@@ -2615,8 +2615,8 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(expr.eval(DynamicValue.Null).isLeft)
       },
       test("FieldRef fails with unsupported path node") {
-        val expr   = MigrationExpr.FieldRef(DynamicOptic.root.elements)
-        val input  = DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val expr  = MigrationExpr.FieldRef(DynamicOptic.root.elements)
+        val input = DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
         assertTrue(expr.eval(input).isLeft)
       },
       test("Arithmetic fails with mismatched numeric types") {
