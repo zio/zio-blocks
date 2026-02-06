@@ -197,11 +197,11 @@ typeId match {
   case TypeId.Opaque(name, owner, params, repr, bounds) =>
     // Opaque types - repr is the representation type
     
-  case TypeId.Sealed(name, subtypes) =>
-    // Sealed traits - subtypes is List[TypeRepr]
+  case TypeId.Sealed(name) =>
+    // Sealed traits
     
-  case TypeId.Enum(name, owner, cases) =>
-    // Scala 3 enums - cases is List[EnumCaseInfo]
+  case TypeId.Enum(name, owner) =>
+    // Scala 3 enums
 }
 ```
 
@@ -647,7 +647,6 @@ TypeDefKind.Class(
 ```scala
 TypeDefKind.Trait(
   isSealed = true,
-  knownSubtypes = List(subtypeRef1, subtypeRef2),
   bases = List(...)
 )
 ```
@@ -664,17 +663,6 @@ TypeDefKind.Object(
 
 ```scala
 TypeDefKind.Enum(
-  cases = List(
-    EnumCaseInfo("Red", ordinal = 0, isObjectCase = true),
-    EnumCaseInfo("RGB", ordinal = 1, 
-      params = List(
-        EnumCaseParam("r", intType),
-        EnumCaseParam("g", intType),
-        EnumCaseParam("b", intType)
-      ),
-      isObjectCase = false
-    )
-  ),
   bases = List(...)
 )
 
