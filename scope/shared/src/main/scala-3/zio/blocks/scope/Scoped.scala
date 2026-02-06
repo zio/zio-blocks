@@ -76,32 +76,73 @@ object @@ {
       u(scoped)
 
     /**
-     * Maps over a scoped value, preserving the tag.
+     * Maps over a scoped value, preserving the scope tag.
      *
-     * @param f
-     *   The function to apply
-     * @return
-     *   Result with same tag
+     * The function `f` is applied to the underlying value, and the result
+     * is wrapped with the same scope tag. This does not require the scope
+     * to be in context.
+     *
+     * @example
+     *   {{{
+     *   val conn: Connection @@ S = ...
+     *   val stmt: Statement @@ S = conn.map(_.createStatement())
+     *   }}}
+     *
+     * @param f the function to apply to the underlying value
+     * @tparam B the result type of the function
+     * @return the result wrapped with the same scope tag
      */
     inline def map[B](inline f: A => B): B @@ S =
       f(scoped)
 
     /**
-     * FlatMaps over a scoped value, combining tags via intersection.
+     * FlatMaps over a scoped value, combining scope tags via intersection.
      *
-     * @param f
-     *   Function returning a scoped result
-     * @return
-     *   Result with the combined tag S & T
+     * Enables for-comprehension syntax with scoped values. The resulting
+     * value is tagged with the intersection of both scope tags, ensuring
+     * it can only be used where both scopes are available.
+     *
+     * @example
+     *   {{{
+     *   val result: Result @@ (S & T) = for {
+     *     a <- scopedA  // A @@ S
+     *     b <- scopedB  // B @@ T
+     *   } yield combine(a, b)
+     *   }}}
+     *
+     * @param f function returning a scoped result
+     * @tparam B the underlying result type
+     * @tparam T the scope tag of the returned value
+     * @return the result with combined scope tag `S & T`
      */
     inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S & T) =
       f(scoped)
 
-    /** Extracts the first element of a scoped tuple. */
+    /**
+     * Extracts the first element of a scoped tuple.
+     *
+     * @example
+     *   {{{
+     *   val pair: (Int, String) @@ S = ...
+     *   val first: Int @@ S = pair._1
+     *   }}}
+     *
+     * @return the first element, still scoped with tag `S`
+     */
     inline def _1[X, Y](using ev: A =:= (X, Y)): X @@ S =
       ev(scoped)._1
 
-    /** Extracts the second element of a scoped tuple. */
+    /**
+     * Extracts the second element of a scoped tuple.
+     *
+     * @example
+     *   {{{
+     *   val pair: (Int, String) @@ S = ...
+     *   val second: String @@ S = pair._2
+     *   }}}
+     *
+     * @return the second element, still scoped with tag `S`
+     */
     inline def _2[X, Y](using ev: A =:= (X, Y)): Y @@ S =
       ev(scoped)._2
   }

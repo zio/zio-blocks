@@ -74,6 +74,29 @@ object Wire extends WireCompanionVersionSpecific {
     override def construct(implicit scope: Scope.Has[In]): Context[Out] = constructFn(scope)
   }
 
+  /**
+   * Companion object for [[Wire.Shared]] providing factory methods.
+   *
+   * In Scala 3, use the context function syntax:
+   * {{{
+   * Wire.Shared[Config, Database] {
+   *   val config = $[Config]
+   *   val db = Database.connect(config.url)
+   *   defer(db.close())
+   *   Context(db)
+   * }
+   * }}}
+   *
+   * In Scala 2, use `fromFunction`:
+   * {{{
+   * Wire.Shared.fromFunction[Config, Database] { scope =>
+   *   val config = scope.get[Config]
+   *   val db = Database.connect(config.url)
+   *   scope.defer(db.close())
+   *   Context(db)
+   * }
+   * }}}
+   */
   object Shared extends SharedVersionSpecific
 
   /**
@@ -96,6 +119,23 @@ object Wire extends WireCompanionVersionSpecific {
     override def construct(implicit scope: Scope.Has[In]): Context[Out] = constructFn(scope)
   }
 
+  /**
+   * Companion object for [[Wire.Unique]] providing factory methods.
+   *
+   * In Scala 3, use the context function syntax:
+   * {{{
+   * Wire.Unique[Config, RequestId] {
+   *   Context(RequestId.generate())
+   * }
+   * }}}
+   *
+   * In Scala 2, use `fromFunction`:
+   * {{{
+   * Wire.Unique.fromFunction[Config, RequestId] { scope =>
+   *   Context(RequestId.generate())
+   * }
+   * }}}
+   */
   object Unique extends UniqueVersionSpecific
 
   /**

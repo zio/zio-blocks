@@ -43,13 +43,27 @@ trait Wireable[+Out] {
 object Wireable extends WireableVersionSpecific {
 
   /**
-   * A [[Wireable]] with its `In` type exposed in the type signature.
+   * A [[Wireable]] with its `In` (dependency) type exposed in the type
+   * signature.
    *
-   * Use this when defining manual wireables to preserve the dependency type
-   * information:
-   * {{{
-   * given Wireable.Typed[Config, Database] = ...
-   * }}}
+   * Use this type alias when defining manual wireables to preserve the
+   * dependency type information at the type level. This allows the compiler
+   * to properly track what dependencies are required.
+   *
+   * @example
+   *   {{{
+   *   // Scala 3
+   *   given Wireable.Typed[Config, Database] = new Wireable[Database] {
+   *     type In = Config
+   *     def wire = Wire.Shared[Config, Database] { ... }
+   *   }
+   *
+   *   // Scala 2
+   *   implicit val databaseWireable: Wireable.Typed[Config, Database] = ...
+   *   }}}
+   *
+   * @tparam In0 the dependency types required (contravariant lower bound)
+   * @tparam Out the service type produced (covariant)
    */
   type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
 
