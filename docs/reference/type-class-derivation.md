@@ -1058,6 +1058,45 @@ def deriveVariant[F[_, _], A](
 
 The derivation process for `Gen` variants is simpler than for the record case because we don't need to worry about registers or constructors. Instead, we simply need to randomly select one of the type class instances for the cases and generate a value for that case.
 
+### Sequence Derivation
+
+The `deriveSequence` method is responsible for deriving a `Gen` instance for sequence types, such as `List[A]`:
+
+```scala
+def deriveSequence[F[_, _], C[_], A](
+  element: Reflect[F, A],
+  typeId: TypeId[C[A]],
+  binding: Binding[BindingType.Seq[C], C[A]],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[C[A]],
+  examples: Seq[C[A]]
+)(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = Lazy {
+  val elementGen  = D.instance(element.metadata)
+  val seqBinding  = binding.asInstanceOf[Binding.Seq[C, A]]
+  val constructor = seqBinding.constructor
+
+  new Gen[C[A]] {
+    def generate(random: Random): C[A] = {
+      val length = random.nextInt(6) // 0 to 5 elements
+
+      if (length == 0) {
+        constructor.emptyObject[A]
+      } else {
+        val builder = constructor.newObjectBuilder[A](length)
+        (0 until length).foreach { _ =>
+          constructor.addObject(builder, elementGen.force.generate(random))
+        }
+        constructor.resultObject(builder)
+      }
+    }
+  }
+}
+```
+
+A sequence is an object that contains multiple elements of the same type. To derive a `Gen` instance for a sequence, we first need to retrieve the `Gen` instance for the element type. Then, at runtime, we generate a random length for the sequence (e.g., between 0 and 5). Based on this length, we either return an empty sequence using `constructor.emptyObject` or create a new builder using `constructor.newObjectBuilder`. We then generate random values for each element using the element's type class instance and add them to the builder using `constructor.addObject`. Finally, we call `constructor.resultObject` to build the final sequence object.
+
+
 ## Derivation Process Overview including Internal Mechanics
 
 ### PHASE 1: Deriving the Schema for the Target Type
