@@ -420,7 +420,7 @@ lazy val benchmarks = project
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.5.0",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
-      "dev.zio"                               %% "zio-json"              % "0.7.45",
+      "dev.zio"                               %% "zio-json"              % "0.9.0",
       "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
       "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
       "io.github.arainko"                     %% "chanterelle"           % "0.1.2",
