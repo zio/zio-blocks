@@ -1,7 +1,5 @@
 package zio.blocks.scope
 
-import scala.util.NotGiven
-
 /**
  * Opaque type for scoping values with scope identity.
  *
@@ -88,88 +86,5 @@ object @@ {
     /** Extracts the second element of a scoped tuple. */
     inline def _2[X, Y](using ev: A =:= (X, Y)): Y @@ S =
       ev(scoped)._2
-  }
-}
-
-/**
- * Marker typeclass for types that can escape a scope unscoped.
- *
- * Types with an `Unscoped` instance are considered "safe data" - they don't
- * hold resources and can be freely extracted from a scope without tracking.
- *
- * Primitives, strings, and collections of unscoped types are unscoped by
- * default. Resource types (streams, connections, handles) should NOT have
- * instances.
- *
- * @example
- *   {{{
- *   // Primitives escape freely
- *   val n: Int = stream $ (_.read())  // Int is Unscoped
- *
- *   // Resources stay scoped
- *   val body = request $ (_.body)     // InputStream @@ Tag (not raw InputStream)
- *   }}}
- */
-trait Unscoped[A]
-
-object Unscoped {
-  // Primitives
-  given Unscoped[Int]        = new Unscoped[Int] {}
-  given Unscoped[Long]       = new Unscoped[Long] {}
-  given Unscoped[Short]      = new Unscoped[Short] {}
-  given Unscoped[Byte]       = new Unscoped[Byte] {}
-  given Unscoped[Char]       = new Unscoped[Char] {}
-  given Unscoped[Boolean]    = new Unscoped[Boolean] {}
-  given Unscoped[Float]      = new Unscoped[Float] {}
-  given Unscoped[Double]     = new Unscoped[Double] {}
-  given Unscoped[Unit]       = new Unscoped[Unit] {}
-  given Unscoped[String]     = new Unscoped[String] {}
-  given Unscoped[BigInt]     = new Unscoped[BigInt] {}
-  given Unscoped[BigDecimal] = new Unscoped[BigDecimal] {}
-
-  // Collections of unscoped elements
-  given [A: Unscoped]: Unscoped[Array[A]]  = new Unscoped[Array[A]] {}
-  given [A: Unscoped]: Unscoped[List[A]]   = new Unscoped[List[A]] {}
-  given [A: Unscoped]: Unscoped[Vector[A]] = new Unscoped[Vector[A]] {}
-  given [A: Unscoped]: Unscoped[Set[A]]    = new Unscoped[Set[A]] {}
-  given [A: Unscoped]: Unscoped[Option[A]] = new Unscoped[Option[A]] {}
-  given [A: Unscoped]: Unscoped[Seq[A]]    = new Unscoped[Seq[A]] {}
-
-  // Tuples of unscoped elements
-  given [A: Unscoped, B: Unscoped]: Unscoped[(A, B)]                                 = new Unscoped[(A, B)] {}
-  given [A: Unscoped, B: Unscoped, C: Unscoped]: Unscoped[(A, B, C)]                 = new Unscoped[(A, B, C)] {}
-  given [A: Unscoped, B: Unscoped, C: Unscoped, D: Unscoped]: Unscoped[(A, B, C, D)] =
-    new Unscoped[(A, B, C, D)] {}
-
-  // Maps with unscoped keys and values
-  given [K: Unscoped, V: Unscoped]: Unscoped[Map[K, V]] = new Unscoped[Map[K, V]] {}
-}
-
-/**
- * Typeclass that determines how a value is unscoped when extracted via `$`.
- *
- * If `A` has an [[Unscoped]] instance, `Out = A` (raw value). Otherwise, `Out
- * = A @@ S` (re-scoped with scope).
- *
- * This enables conditional unscoping: data types escape freely, resource types
- * stay tracked.
- */
-trait AutoUnscoped[A, S] {
-  type Out
-  def apply(a: A): Out
-}
-
-object AutoUnscoped {
-
-  /** Unscoped types escape as raw values. Zero overhead: identity function. */
-  given unscoped[A, S](using Unscoped[A]): AutoUnscoped[A, S] with {
-    type Out = A
-    def apply(a: A): Out = a
-  }
-
-  /** Non-Unscoped types stay scoped. Zero overhead: opaque type alias. */
-  given resourceful[A, S](using NotGiven[Unscoped[A]]): AutoUnscoped[A, S] with {
-    type Out = A @@ S
-    def apply(a: A): Out = @@.scoped(a)
   }
 }
