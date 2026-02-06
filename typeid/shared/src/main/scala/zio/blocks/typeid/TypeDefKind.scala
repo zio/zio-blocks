@@ -73,13 +73,10 @@ object TypeDefKind {
   /**
    * A Scala 3 enum definition.
    *
-   * @param cases
-   *   List of enum cases
    * @param bases
    *   Parent traits this enum extends
    */
   final case class Enum(
-    cases: List[EnumCaseInfo],
     bases: List[TypeRepr] = Nil
   ) extends TypeDefKind {
     override def baseTypes: List[TypeRepr] = bases
@@ -122,29 +119,6 @@ object TypeDefKind {
 
   /** Unknown or unclassified type definition kind. */
   case object Unknown extends TypeDefKind
-}
-
-/**
- * Information about an enum case for serialization.
- *
- * @param name
- *   The name of the enum case
- * @param ordinal
- *   The ordinal index
- * @param params
- *   Parameters for parameterized cases (empty for object cases)
- * @param isObjectCase
- *   True for `case Red`, false for `case RGB(...)`
- */
-final case class EnumCaseInfo(
-  name: String,
-  ordinal: Int,
-  params: List[EnumCaseParam] = Nil,
-  isObjectCase: Boolean = true
-) {
-
-  /** The number of parameters for this case. */
-  def arity: Int = params.size
 }
 
 /**

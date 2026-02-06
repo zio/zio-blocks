@@ -31,7 +31,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     memberSuite,
     tupleElementSuite,
     enumCaseParamSuite,
-    enumCaseInfoSuite,
     annotationArgSuite,
     annotationSuite,
     typeReprSuite,
@@ -263,28 +262,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
         tpe = TypeRepr.Ref(TypeId.of[Int])
       )
       assertTrue(roundtrip(param))
-    }
-  )
-
-  lazy val enumCaseInfoSuite = suite("EnumCaseInfo")(
-    test("roundtrip simple EnumCaseInfo") {
-      val info = EnumCaseInfo(
-        name = "Red",
-        ordinal = 0,
-        params = Nil,
-        isObjectCase = true
-      )
-      assertTrue(roundtrip(info))
-    },
-    test("roundtrip EnumCaseInfo with params") {
-      val param = EnumCaseParam("value", TypeRepr.Ref(TypeId.of[Int]))
-      val info  = EnumCaseInfo(
-        name = "Some",
-        ordinal = 1,
-        params = List(param),
-        isObjectCase = false
-      )
-      assertTrue(roundtrip(info))
     }
   )
 
@@ -524,11 +501,7 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
       assertTrue(roundtrip(defKind))
     },
     test("roundtrip Enum") {
-      val caseInfo             = EnumCaseInfo("Red", 0, Nil, isObjectCase = true)
-      val defKind: TypeDefKind = TypeDefKind.Enum(
-        cases = List(caseInfo),
-        bases = Nil
-      )
+      val defKind: TypeDefKind = TypeDefKind.Enum(bases = Nil)
       assertTrue(roundtrip(defKind))
     },
     test("roundtrip EnumCase simple") {

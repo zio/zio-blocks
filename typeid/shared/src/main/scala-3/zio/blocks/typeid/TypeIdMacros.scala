@@ -257,13 +257,6 @@ object TypeIdMacros {
       '{ EnumCaseParam(${ Expr(ecp.name) }, ${ Expr(ecp.tpe) }) }
   }
 
-  given ToExpr[EnumCaseInfo] with {
-    def apply(eci: EnumCaseInfo)(using Quotes): Expr[EnumCaseInfo] = {
-      val paramsExpr = Expr.ofList(eci.params.map(p => Expr(p)))
-      '{ EnumCaseInfo(${ Expr(eci.name) }, ${ Expr(eci.ordinal) }, $paramsExpr, ${ Expr(eci.isObjectCase) }) }
-    }
-  }
-
   given ToExpr[TypeDefKind] with {
     def apply(tdk: TypeDefKind)(using Quotes): Expr[TypeDefKind] = tdk match {
       case TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, bases) =>
@@ -283,10 +276,9 @@ object TypeIdMacros {
       case TypeDefKind.Object(bases) =>
         val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
         '{ TypeDefKind.Object(bases = $basesExpr) }
-      case TypeDefKind.Enum(cases, bases) =>
-        val casesExpr = Expr.ofList(cases.map(c => Expr(c)))
+      case TypeDefKind.Enum(bases) =>
         val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
-        '{ TypeDefKind.Enum(cases = $casesExpr, bases = $basesExpr) }
+        '{ TypeDefKind.Enum(bases = $basesExpr) }
       case TypeDefKind.EnumCase(parentEnum, ordinal, isObjectCase) =>
         '{ TypeDefKind.EnumCase(${ Expr(parentEnum) }, ${ Expr(ordinal) }, ${ Expr(isObjectCase) }) }
       case TypeDefKind.TypeAlias          => '{ TypeDefKind.TypeAlias }
@@ -483,37 +475,8 @@ object TypeIdMacros {
     }
   }
 
-  private def analyzeEnumDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKind = {
-    import quotes.reflect.*
-
-    val children = sym.children
-    val cases    = children.zipWithIndex.collect {
-      case (child, idx) if child.flags.is(Flags.Case) =>
-        analyzeEnumCaseInfo(child, idx)
-    }
-
-    TypeDefKind.Enum(cases, analyzeBaseTypes(sym))
-  }
-
-  private def analyzeEnumCaseInfo(using Quotes)(caseSym: quotes.reflect.Symbol, ordinal: Int): EnumCaseInfo = {
-    import quotes.reflect.*
-
-    val name         = caseSym.name
-    val isObjectCase = caseSym.flags.is(Flags.Module) ||
-      caseSym.primaryConstructor.paramSymss.flatten.isEmpty
-
-    if (isObjectCase) {
-      EnumCaseInfo(name, ordinal, Nil, isObjectCase = true)
-    } else {
-      val params = caseSym.primaryConstructor.paramSymss.flatten.filter(_.isTerm).map { param =>
-        val paramName     = param.name
-        val paramType     = param.termRef.widenTermRefByName
-        val paramTypeRepr = analyzeTypeReprMinimal(paramType)
-        EnumCaseParam(paramName, paramTypeRepr)
-      }
-      EnumCaseInfo(name, ordinal, params, isObjectCase = false)
-    }
-  }
+  private def analyzeEnumDefKind(using Quotes)(sym: quotes.reflect.Symbol): TypeDefKind =
+    TypeDefKind.Enum(analyzeBaseTypes(sym))
 
   private def analyzeEnumCaseDefKind(using Quotes)(caseSym: quotes.reflect.Symbol): TypeDefKind = {
     import quotes.reflect.*

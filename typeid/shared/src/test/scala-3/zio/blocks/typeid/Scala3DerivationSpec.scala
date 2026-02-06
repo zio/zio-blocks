@@ -66,56 +66,6 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       }
     ),
     suite("Enums")(
-      test("enum TypeDefKind includes enum cases") {
-        enum Status {
-          case Pending
-          case Active
-          case Completed
-        }
-        val statusId = TypeId.of[Status]
-
-        assertTrue(
-          statusId.isEnum,
-          statusId.defKind match {
-            case TypeDefKind.Enum(cases, _) =>
-              cases.length == 3 &&
-              cases.exists(_.name == "Pending") &&
-              cases.exists(_.name == "Active") &&
-              cases.exists(_.name == "Completed")
-            case _ => false
-          },
-          statusId.enumCases.length == 3
-        )
-      },
-      test("enum with parameterized cases has correct EnumCaseInfo") {
-        enum Result[+T] {
-          case Success(value: T)
-          case Failure(error: String)
-        }
-        val resultId = TypeId.of[Result[Any]]
-
-        assertTrue(
-          resultId.isEnum,
-          resultId.defKind match {
-            case TypeDefKind.Enum(cases, _) =>
-              cases.length == 2 &&
-              cases.exists(c => c.name == "Success" && !c.isObjectCase && c.params.nonEmpty) &&
-              cases.exists(c => c.name == "Failure" && !c.isObjectCase && c.params.exists(_.name == "error"))
-            case _ => false
-          }
-        )
-      },
-      test("enum object cases are marked as isObjectCase") {
-        enum Direction {
-          case North, South, East, West
-        }
-        val dirId = TypeId.of[Direction]
-
-        assertTrue(
-          dirId.isEnum,
-          dirId.enumCases.forall(_.isObjectCase)
-        )
-      },
       test("enum case is subtype of parent enum") {
         enum Status { case Pending, Active }
 

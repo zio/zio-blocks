@@ -73,7 +73,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     wildcardSuite,
     annotationSuite,
     selfTypeSuite,
-    enumCaseInfoSuite,
     memberSuite,
     kindSuite,
     typeIdMethodsSuite,
@@ -582,57 +581,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     }
   )
 
-  val enumCaseInfoSuite = suite("EnumCaseInfo")(
-    test("EnumCaseInfo with no params has arity 0") {
-      val info = EnumCaseInfo("Red", 0, Nil, isObjectCase = true)
-      assertTrue(info.arity == 0, info.isObjectCase)
-    },
-    test("EnumCaseInfo with params has correct arity") {
-      val params = List(
-        EnumCaseParam("r", TypeRepr.Ref(TypeId.int)),
-        EnumCaseParam("g", TypeRepr.Ref(TypeId.int)),
-        EnumCaseParam("b", TypeRepr.Ref(TypeId.int))
-      )
-      val info = EnumCaseInfo("RGB", 1, params, isObjectCase = false)
-      assertTrue(info.arity == 3, !info.isObjectCase)
-    },
-    test("EnumCaseParam holds name and type") {
-      val param = EnumCaseParam("value", TypeRepr.Ref(TypeId.string))
-      assertTrue(param.name == "value")
-      param.tpe match {
-        case TypeRepr.Ref(id) => assertTrue(id.name == "String")
-        case _                => assertTrue(false)
-      }
-    },
-    test("TypeDefKind.Enum has cases and baseTypes") {
-      val cases    = List(EnumCaseInfo("A", 0), EnumCaseInfo("B", 1))
-      val bases    = List(TypeRepr.Ref(TypeId.of[SimpleTrait]))
-      val enumKind = TypeDefKind.Enum(cases, bases)
-      assertTrue(enumKind.cases.size == 2, enumKind.baseTypes.size == 1)
-    },
-    test("TypeDefKind.EnumCase has parentEnum and ordinal") {
-      val parentRef = TypeRepr.Ref(TypeId.of[Animal])
-      val enumCase  = TypeDefKind.EnumCase(parentRef, ordinal = 0, isObjectCase = true)
-      assertTrue(
-        enumCase.ordinal == 0,
-        enumCase.isObjectCase,
-        enumCase.baseTypes == List(parentRef)
-      )
-    },
-    test("TypeDefKind.Object has baseTypes") {
-      val bases = List(TypeRepr.Ref(TypeId.of[SimpleTrait]))
-      val obj   = TypeDefKind.Object(bases)
-      assertTrue(obj.baseTypes == bases)
-    },
-    test("TypeDefKind case objects") {
-      assertTrue(
-        TypeDefKind.TypeAlias.baseTypes.isEmpty,
-        TypeDefKind.AbstractType.baseTypes.isEmpty,
-        TypeDefKind.Unknown.baseTypes.isEmpty
-      )
-    }
-  )
-
   val memberSuite = suite("Member")(
     test("Member.Val holds val information") {
       val valMember = Member.Val("x", TypeRepr.Ref(TypeId.int), isVar = false)
@@ -765,10 +713,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       val regularClass = TypeId.of[RegularClass]
       assertTrue(caseClass.isCaseClass, !regularClass.isCaseClass)
     },
-    test("enumCases returns empty for non-enum") {
-      val traitId = TypeId.of[Animal]
-      assertTrue(traitId.enumCases.isEmpty)
-    },
     test("isTuple returns true for scala tuples") {
       val tuple2 = TypeId.of[(Int, String)]
       assertTrue(tuple2.isTuple)
@@ -789,19 +733,18 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
 
   val typeIdExtractorsSuite = suite("TypeId Extractors")(
     test("Enum extractor matches enum TypeDefKind") {
-      val enumDefKind = TypeDefKind.Enum(List(EnumCaseInfo("A", 0)), Nil)
+      val enumDefKind = TypeDefKind.Enum(Nil)
       val id          = TypeId.nominal[Animal]("TestEnum", Owner.Root, defKind = enumDefKind)
       id match {
-        case TypeId.Enum(name, _, cases) =>
-          assertTrue(name == "TestEnum", cases.size == 1)
-        case _ => assertTrue(false)
+        case TypeId.Enum(name, _) => assertTrue(name == "TestEnum")
+        case _                    => assertTrue(false)
       }
     },
     test("Enum extractor does not match non-enum") {
       val id     = TypeId.of[Animal]
       val isEnum = id match {
-        case TypeId.Enum(_, _, _) => true
-        case _                    => false
+        case TypeId.Enum(_, _) => true
+        case _                 => false
       }
       assertTrue(!isEnum)
     },
@@ -878,7 +821,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       assertTrue(id.isAlias)
     },
     test("TypeId.isEnum returns true for enum") {
-      val enumKind = TypeDefKind.Enum(List(EnumCaseInfo("A", 0)), Nil)
+      val enumKind = TypeDefKind.Enum(Nil)
       val id       = TypeId.nominal[Animal]("MyEnum", Owner.Root, defKind = enumKind)
       assertTrue(id.isEnum)
     },

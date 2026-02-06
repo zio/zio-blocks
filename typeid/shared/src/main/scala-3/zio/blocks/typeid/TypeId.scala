@@ -99,12 +99,6 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
     else ClassTag.AnyRef
   }
 
-  /** Get enum cases if this is an enum */
-  final def enumCases: List[EnumCaseInfo] = defKind match {
-    case TypeDefKind.Enum(cases, _) => cases
-    case _                          => Nil
-  }
-
   /** Checks if the normalized type is a Scala Tuple */
   final def isTuple: Boolean = {
     val norm = TypeId.normalize(this)
@@ -362,10 +356,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   }
 
   object Enum {
-    def unapply(id: TypeId[?]): Option[(String, Owner, List[EnumCaseInfo])] =
+    def unapply(id: TypeId[?]): Option[(String, Owner)] =
       id.defKind match {
-        case TypeDefKind.Enum(cases, _) => Some((id.name, id.owner, cases))
-        case _                          => None
+        case TypeDefKind.Enum(_) => Some((id.name, id.owner))
+        case _                   => None
       }
   }
 
