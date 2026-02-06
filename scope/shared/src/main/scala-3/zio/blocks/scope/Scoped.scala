@@ -58,6 +58,24 @@ object @@ {
       u(f(scoped))
 
     /**
+     * Extracts the scoped value, auto-unscoping if the type is [[Unscoped]].
+     *
+     * Equivalent to `scoped $ identity`. The result type depends on whether `A`
+     * is [[Unscoped]]:
+     *   - If `A` is `Unscoped`, returns raw `A`
+     *   - Otherwise, returns `A @@ S` (stays scoped)
+     *
+     * @param scope
+     *   Evidence that the current scope encompasses tag `S`
+     * @param u
+     *   Typeclass determining the result type
+     * @return
+     *   Either raw `A` or `A @@ S` depending on AutoUnscoped instance
+     */
+    inline def get(using scope: Scope[?] { type Tag >: S })(using u: AutoUnscoped[A, S]): u.Out =
+      u(scoped)
+
+    /**
      * Maps over a scoped value, preserving the tag.
      *
      * @param f

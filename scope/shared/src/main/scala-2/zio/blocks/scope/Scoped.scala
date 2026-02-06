@@ -50,6 +50,27 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
   def $[B](f: A => B)(implicit scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out = macro ScopedMacros.dollarImpl[A, S, B]
 
   /**
+   * Extracts the scoped value, auto-unscoping if the type is [[Unscoped]].
+   *
+   * Equivalent to `scoped $ identity`. The result type depends on whether `A`
+   * is [[Unscoped]]:
+   *   - If `A` is `Unscoped`, returns raw `A`
+   *   - Otherwise, returns `A @@ S` (stays scoped)
+   *
+   * This is a macro that verifies at compile time that the implicit scope's Tag
+   * is a supertype of S, matching the Scala 3 constraint
+   * `Scope[?] { type Tag >: S }`.
+   *
+   * @param scope
+   *   Evidence that the current scope encompasses tag `S`
+   * @param u
+   *   Typeclass determining the result type
+   * @return
+   *   Either raw `A` or `A @@ S` depending on AutoUnscoped instance
+   */
+  def get(implicit scope: Scope.Any, u: AutoUnscoped[A, S]): u.Out = macro ScopedMacros.getImpl[A, S]
+
+  /**
    * Maps over a scoped value, preserving the tag.
    *
    * @param f

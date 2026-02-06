@@ -84,19 +84,19 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("cannot use $ without scope in context") {
+      test("cannot use .get without scope in context") {
         typeCheck {
           """
           import zio.blocks.scope._
           val scoped: Int @@ String = @@.scoped[Int, String](42)
-          scoped.$(identity)  // Should fail: no implicit scope
+          scoped.get  // Should fail: no implicit scope
           """
         }.map(result => assertTrue(result.isLeft))
       }
     ),
     suite("Escape prevention")(
-      test("resource types cannot escape as raw via $") {
-        // Resource types (non-Unscoped) stay scoped after $ - can't assign to raw
+      test("resource types cannot escape as raw via .get") {
+        // Resource types (non-Unscoped) stay scoped after .get - can't assign to raw
         typeCheck {
           """
           import zio.blocks.scope._
@@ -106,8 +106,8 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           val closeable = injected(new Resource)
           closeable.run { implicit scope =>
             val scoped = $[Resource]
-            // Resource is not Unscoped, so $ returns Resource @@ Tag, not raw Resource
-            val raw: Resource = scoped.$(identity)  // Should fail: type mismatch
+            // Resource is not Unscoped, so .get returns Resource @@ Tag, not raw Resource
+            val raw: Resource = scoped.get  // Should fail: type mismatch
           }
           """
         }.map(result => assertTrue(result.isLeft))
@@ -120,8 +120,8 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
         closeable.run { implicit scope =>
           val scoped = $[MockResource]
           val mapped = scoped.map(_.getData())
-          // mapped is Int @@ Tag - verify we can use it with $ operator
-          val result: Int = mapped.$(identity)
+          // mapped is Int @@ Tag - verify we can use .get to extract
+          val result: Int = mapped.get
           assertTrue(result == 42)
         }
       },
