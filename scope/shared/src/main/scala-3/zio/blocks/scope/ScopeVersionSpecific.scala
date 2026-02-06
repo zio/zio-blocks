@@ -35,5 +35,5 @@ private[scope] object ScopeFactory {
     context: Context[T],
     finalizers: Finalizers
   ): Scope.Closeable[T, S] =
-    new ScopeImplScala3[T, S](parent, context, finalizers)
+    new ScopeImplScala3[T, S, parent.Tag](parent, context, finalizers)
 }

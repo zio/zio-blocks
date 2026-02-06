@@ -3,6 +3,7 @@ package zio.blocks
 import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.internal.Finalizers
 import scala.language.experimental.macros
+import scala.language.implicitConversions
 
 /**
  * Top-level functions for the Scope dependency injection library.
@@ -10,6 +11,31 @@ import scala.language.experimental.macros
  * Import `zio.blocks.scope._` to access these functions.
  */
 package object scope {
+
+  /**
+   * Opaque-like type for scoping values with scope identity.
+   *
+   * A value of type `A @@ S` is a value of type `A` that is "locked" to a scope
+   * with tag `S`. The abstract type hides all methods on `A`, so the only way
+   * to use the value is through the `$` operator, which requires the matching
+   * scope capability.
+   *
+   * This prevents scoped resources from escaping their scope at compile time.
+   *
+   * @example
+   *   {{{
+   *   // Scoped value cannot escape
+   *   val stream: InputStream @@ scope.Tag = getStream()
+   *   stream.read()  // Compile error: read() is not a member of InputStream @@ Tag
+   *
+   *   // Must use $ operator with scope in context
+   *   stream.$(_.read())(scope, implicitly)  // Works, returns Int (unscoped)
+   *   }}}
+   */
+  type @@[+A, S] = ScopedModule.instance.@@[A, S]
+
+  /** Implicit conversion to enable `$`, `map`, `flatMap` on scoped values. */
+  implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
 
   /**
    * Registers a finalizer to run when the current scope closes.
@@ -26,28 +52,39 @@ package object scope {
     scope.defer(finalizer)
 
   /**
-   * Retrieves a service from the current scope.
+   * Retrieves a service from the current scope, scoped with the scope's
+   * identity.
    *
-   * Short syntax for accessing services within a scope context.
+   * The returned value is scoped to prevent escape. Use the `$` operator on the
+   * scoped value to access methods:
    *
    * @example
    *   {{{
    *   def doWork()(implicit scope: Scope.Has[Database]): Unit = {
-   *     val db = $[Database]
-   *     db.query("SELECT ...")
+   *     val db = $[Database]                      // Database @@ scope.Tag
+   *     db.$(_.query("SELECT ..."))(scope, implicitly)  // String (unscoped)
    *   }
    *   }}}
    */
-  def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T =
-    scope.get[T]
+  def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag =
+    @@.scoped(scope.get[T])
 
   /**
    * Creates a closeable scope containing the given value.
    *
    * If the value is `AutoCloseable`, its `close()` method is automatically
    * registered as a finalizer.
+   *
+   * @example
+   *   {{{
+   *   val config = Config.load()
+   *   injected(config).run { implicit scope =>
+   *     val cfg = $[Config]
+   *     cfg.$(_.dbUrl)
+   *   }
+   *   }}}
    */
-  def injectedValue[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, _] = {
+  def injected[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, _] = {
     val ctx        = Context(t)
     val finalizers = new Finalizers
     if (t.isInstanceOf[AutoCloseable]) {

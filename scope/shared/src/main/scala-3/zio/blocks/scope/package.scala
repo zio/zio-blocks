@@ -25,28 +25,39 @@ package object scope {
     scope.defer(finalizer)
 
   /**
-   * Retrieves a service from the current scope.
+   * Retrieves a service from the current scope, scoped with the scope's
+   * identity.
    *
-   * Short syntax for accessing services within a scope context.
+   * The returned value is scoped to prevent escape. Use the `$` operator on the
+   * scoped value to access methods:
    *
    * @example
    *   {{{
-   *   def doWork()(using Scope.Has[Database]): Unit = {
-   *     val db = $[Database]
-   *     db.query("SELECT ...")
+   *   def doWork()(using scope: Scope.Has[Database]): Unit = {
+   *     val db = $[Database]           // Database @@ scope.Tag
+   *     db $ (_.query("SELECT ..."))   // String (unscoped, since String is Unscoped)
    *   }
    *   }}}
    */
-  def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T =
-    scope.get[T]
+  inline def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag =
+    @@.scoped(scope.get[T])
 
   /**
    * Creates a closeable scope containing the given value.
    *
    * If the value is `AutoCloseable`, its `close()` method is automatically
    * registered as a finalizer.
+   *
+   * @example
+   *   {{{
+   *   val config = Config.load()
+   *   injected(config).run {
+   *     val cfg = $[Config]
+   *     cfg $ (_.dbUrl)
+   *   }
+   *   }}}
    */
-  def injectedValue[T](t: T)(using scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
+  def injected[T](t: T)(using scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
     val ctx        = Context(t)
     val finalizers = new Finalizers
     if (t.isInstanceOf[AutoCloseable]) {
