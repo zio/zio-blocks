@@ -1,5 +1,6 @@
 package zio.blocks
 
+import scala.annotation.experimental
 import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.internal.Finalizers
 
