@@ -265,22 +265,23 @@ leaked.read()  // Use-after-close bug — compiles but fails at runtime
 **The Solution**: Scope provides compile-time escape prevention via opaque scoping:
 
 ```scala
-import zio.blocks.scope.@@
+import zio.blocks.scope._
 
 val closeable = Scope.global.injected(new Request(new InputStream))
 
-// Get scoped value — methods are hidden by opaque type
-val request: Request @@ closeable.Tag = closeable.value
+closeable.run { // implicit scope: Scope.Has[Request]
+  // Get scoped value — methods are hidden by opaque type
+  val request: Request @@ closeable.Tag = $[Request]
 
-// request.body  ← Compile error! 'body' is not a member of Request @@ Tag
+  // request.body  ← Compile error! 'body' is not a member of Request @@ Tag
 
-// Must use $ operator with scope in context:
-val body: InputStream @@ closeable.Tag = request $ (_.body)(using closeable)(using summon)
+  // Must use $ operator with scope in context:
+  val body: InputStream @@ closeable.Tag = request $ (_.body)
 
-// Primitives and Unscoped types escape freely:
-val n: Int = request $ (_.body.read())(using closeable)(using summon)  // Int is Unscoped
-
-closeable.closeOrThrow()
+  // Primitives and Unscoped types escape freely:
+  val n: Int = request $ (_.body.read())  // Int is Unscoped
+}
+// Request is automatically closed here
 ```
 
 **How It Works**:
@@ -308,11 +309,17 @@ val combined: (InputStream, InputStream) @@ (scope1.Tag | scope2.Tag) = for {
 
 ```scala
 val parent = Scope.global.injected(new Resource)
-val parentValue: Resource @@ parent.Tag = parent.value
 
-val child = parent.injected(new OtherResource)
-// child.Tag >: parent.Tag, so we can use parentValue:
-val n: Int = parentValue $ (_.getData)(using child)(using summon)
+parent.run { // implicit parentScope: Scope.Has[Resource]
+  val parentValue: Resource @@ parent.Tag = $[Resource]
+
+  val child = parent.injected(new OtherResource)
+
+  child.run { // implicit childScope: Scope.Has[OtherResource]
+    // child.Tag >: parent.Tag, so we can use parentValue:
+    val n: Int = parentValue $ (_.getData)
+  }
+}
 ```
 
 **Zero overhead**: The scoping is purely compile-time:
@@ -322,6 +329,8 @@ val n: Int = parentValue $ (_.getData)(using child)(using summon)
 - `$` operator incurs minimal overhead (one virtual call for `AutoUnscoped.apply`)
 
 **Unscoped types** include all primitives, String, collections of Unscoped elements, and tuples of Unscoped elements. Resource types (streams, connections, file handles) are NOT Unscoped and stay scoped.
+
+> **Scala 2 Note**: In Scala 3, the `$` operator enforces tag capability checking via `Scope[?] { type Tag >: S }`, ensuring only the matching scope can access the value. Scala 2 lacks refined type syntax and requires only `Scope.Any` in scope. The safety guarantee still holds in practice because scoped values can only be obtained from the matching scope, and the opaque type prevents direct access.
 
 ### Scope.Closeable
 
