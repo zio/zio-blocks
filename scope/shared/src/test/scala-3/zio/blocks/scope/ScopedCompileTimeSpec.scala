@@ -39,7 +39,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           val scoped: Int @@ String = zio.blocks.scope.@@.scoped(42)
           val raw: Int = scoped  // Should fail: type mismatch
         """)
-        assertTrue(errors.nonEmpty)
+        assertTrue(errors.exists(e => e.message.contains("Found") || e.message.contains("type mismatch")))
       }
     ),
     suite("$ operator tag checking")(
@@ -67,7 +67,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
             escapedValue $ (_.value)
           }
         """)
-        assertTrue(errors.nonEmpty)
+        assertTrue(errors.exists(e => e.message.contains("No given instance") || e.message.contains("Tag")))
       },
       test("cannot use .get without scope in context") {
         val errors = typeCheckErrors("""
@@ -75,7 +75,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           val scoped: Int @@ String = @@.scoped(42)
           scoped.get  // Should fail: no implicit scope
         """)
-        assertTrue(errors.nonEmpty)
+        assertTrue(errors.exists(e => e.message.contains("is not a member") || e.message.contains("No given instance")))
       },
       test("cannot use .get with value from different scope") {
         val errors = typeCheckErrors("""
@@ -101,7 +101,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
             escapedValue.get
           }
         """)
-        assertTrue(errors.nonEmpty)
+        assertTrue(errors.exists(e => e.message.contains("No given instance") || e.message.contains("Tag")))
       }
     ),
     suite("Escape prevention")(
@@ -119,7 +119,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
             val raw: Resource = scoped.get  // Should fail: type mismatch
           }
         """)
-        assertTrue(errors.nonEmpty)
+        assertTrue(errors.exists(e => e.message.contains("Found") || e.message.contains("type mismatch")))
       }
     ),
     suite("Tag type safety")(
