@@ -277,10 +277,9 @@ object TypeIdMacros {
             bases = $basesExpr
           )
         }
-      case TypeDefKind.Trait(isSealed, knownSubtypes, bases) =>
-        val subtypesExpr = Expr.ofList(knownSubtypes.map(s => Expr(s)))
-        val basesExpr    = Expr.ofList(bases.map(b => Expr(b)))
-        '{ TypeDefKind.Trait(isSealed = ${ Expr(isSealed) }, knownSubtypes = $subtypesExpr, bases = $basesExpr) }
+      case TypeDefKind.Trait(isSealed, bases) =>
+        val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
+        '{ TypeDefKind.Trait(isSealed = ${ Expr(isSealed) }, bases = $basesExpr) }
       case TypeDefKind.Object(bases) =>
         val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
         '{ TypeDefKind.Object(bases = $basesExpr) }
@@ -478,11 +477,9 @@ object TypeIdMacros {
     val isSealed = flags.is(Flags.Sealed)
 
     if (isSealed) {
-      val children = sym.children
-      val subtypes = children.map(child => analyzeTypeReprMinimal(child.typeRef))
-      TypeDefKind.Trait(isSealed = true, subtypes, analyzeBaseTypes(sym))
+      TypeDefKind.Trait(isSealed = true, analyzeBaseTypes(sym))
     } else {
-      TypeDefKind.Trait(isSealed = false, Nil, analyzeBaseTypes(sym))
+      TypeDefKind.Trait(isSealed = false, analyzeBaseTypes(sym))
     }
   }
 
@@ -1350,11 +1347,7 @@ object TypeIdMacros {
     val basesExpr = buildBaseTypesMinimal(sym)
 
     if (isSealed) {
-      val children     = sym.children
-      val subtypeExprs = children.map { child =>
-        buildTypeReprMinimal(child.typeRef)
-      }
-      '{ TypeDefKind.Trait(isSealed = true, knownSubtypes = ${ Expr.ofList(subtypeExprs) }, bases = $basesExpr) }
+      '{ TypeDefKind.Trait(isSealed = true, bases = $basesExpr) }
     } else {
       '{ TypeDefKind.Trait(isSealed = false, bases = $basesExpr) }
     }

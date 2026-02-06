@@ -1298,15 +1298,11 @@ trait TypeIdSchemas {
                               .get("isSealed")
                               .toRight(SchemaError.missingField(Nil, "isSealed"))
                               .flatMap(Schema[Boolean].fromDynamicValue)
-                knownSubtypes <- fieldMap
-                                   .get("knownSubtypes")
-                                   .toRight(SchemaError.missingField(Nil, "knownSubtypes"))
-                                   .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
                 bases <- fieldMap
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Trait(isSealed, knownSubtypes, bases)).fold(throw _, identity)
+              } yield TypeDefKind.Trait(isSealed, bases)).fold(throw _, identity)
 
             case Some("Object") =>
               (for {
@@ -1380,12 +1376,11 @@ trait TypeIdSchemas {
               )
             )
 
-          case TypeDefKind.Trait(isSealed, knownSubtypes, bases) =>
+          case TypeDefKind.Trait(isSealed, bases) =>
             DynamicValue.Record(
               Chunk(
                 ("type", DynamicValue.Primitive(PrimitiveValue.String("Trait"))),
                 ("isSealed", Schema[Boolean].toDynamicValue(isSealed)),
-                ("knownSubtypes", Schema[List[TypeRepr]].toDynamicValue(knownSubtypes)),
                 ("bases", Schema[List[TypeRepr]].toDynamicValue(bases))
               )
             )

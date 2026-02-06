@@ -623,12 +623,7 @@ object TypeIdMacros {
       // Trait
       val isSealed = classSym.isSealed
       if (isSealed) {
-        // Get known subtypes for sealed traits
-        val children     = classSym.knownDirectSubclasses.toList
-        val subtypeExprs = children.map { child =>
-          buildTypeReprFromSymbol(c)(child)
-        }
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, knownSubtypes = _root_.scala.List(..$subtypeExprs), bases = $basesExpr)"
+        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
       } else {
         q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
       }
@@ -678,11 +673,7 @@ object TypeIdMacros {
     if (classSym.isTrait) {
       val isSealed = classSym.isSealed
       if (isSealed) {
-        val children     = classSym.knownDirectSubclasses.toList
-        val subtypeExprs = children.map { child =>
-          buildTypeReprMinimal(c)(child)
-        }
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, knownSubtypes = _root_.scala.List(..$subtypeExprs), bases = $basesExpr)"
+        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
       } else {
         q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
       }

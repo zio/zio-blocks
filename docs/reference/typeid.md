@@ -647,7 +647,6 @@ TypeDefKind.Class(
 ```scala
 TypeDefKind.Trait(
   isSealed = true,
-  knownSubtypes = List(subtypeRef1, subtypeRef2),
   bases = List(...)
 )
 ```

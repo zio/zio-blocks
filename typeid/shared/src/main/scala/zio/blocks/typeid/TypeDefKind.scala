@@ -5,7 +5,7 @@ package zio.blocks.typeid
  *
  * This enables distinguishing between:
  *   - Classes (regular, case, abstract, final, value)
- *   - Traits (regular, sealed with known subtypes)
+ *   - Traits (regular, sealed)
  *   - Objects (singleton objects)
  *   - Enums (Scala 3 enums with cases)
  *   - Type aliases and opaque types
@@ -48,14 +48,11 @@ object TypeDefKind {
    *
    * @param isSealed
    *   Whether the trait is sealed
-   * @param knownSubtypes
-   *   List of known subtypes (for sealed traits)
    * @param bases
    *   Parent traits this trait extends
    */
   final case class Trait(
     isSealed: Boolean = false,
-    knownSubtypes: List[TypeRepr] = Nil,
     bases: List[TypeRepr] = Nil
   ) extends TypeDefKind {
     override def baseTypes: List[TypeRepr] = bases

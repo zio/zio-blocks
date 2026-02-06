@@ -104,11 +104,6 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
     case _                          => Nil
   }
 
-  final def knownSubtypes: List[TypeRepr] = defKind match {
-    case TypeDefKind.Trait(_, subtypes, _) => subtypes
-    case _                                 => Nil
-  }
-
   final def isTuple: Boolean = {
     val norm = TypeId.normalize(this)
     norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Tuple")

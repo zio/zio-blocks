@@ -87,40 +87,32 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     test("Sealed extractor matches derived sealed trait") {
       val animalId = TypeId.of[Animal]
       animalId match {
-        case TypeId.Sealed(name, subtypes) =>
-          assertTrue(name == "Animal", subtypes.nonEmpty)
-        case _ => assertTrue(false)
-      }
-    },
-    test("Sealed extractor extracts known subtypes for Shape") {
-      val shapeId = TypeId.of[Shape]
-      shapeId match {
-        case TypeId.Sealed(name, subtypes) =>
-          assertTrue(name == "Shape", subtypes.size >= 2)
+        case TypeId.Sealed(name) =>
+          assertTrue(name == "Animal")
         case _ => assertTrue(false)
       }
     },
     test("Sealed extractor does NOT match regular trait") {
       val traitId  = TypeId.of[SimpleTrait]
       val isSealed = traitId match {
-        case TypeId.Sealed(_, _) => true
-        case _                   => false
+        case TypeId.Sealed(_) => true
+        case _                => false
       }
       assertTrue(!isSealed)
     },
     test("Sealed extractor does NOT match case class") {
       val dogId    = TypeId.of[Dog]
       val isSealed = dogId match {
-        case TypeId.Sealed(_, _) => true
-        case _                   => false
+        case TypeId.Sealed(_) => true
+        case _                => false
       }
       assertTrue(!isSealed)
     },
     test("Sealed extractor does NOT match case object") {
       val objId    = TypeId.of[UnknownAnimal.type]
       val isSealed = objId match {
-        case TypeId.Sealed(_, _) => true
-        case _                   => false
+        case TypeId.Sealed(_) => true
+        case _                => false
       }
       assertTrue(!isSealed)
     }
@@ -149,9 +141,8 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     test("derived sealed trait has Trait defKind with isSealed=true") {
       val id = TypeId.of[Animal]
       id.defKind match {
-        case TypeDefKind.Trait(isSealed, knownSubtypes, _) =>
-          assertTrue(isSealed, knownSubtypes.nonEmpty)
-        case _ => assertTrue(false)
+        case TypeDefKind.Trait(isSealed, _) => assertTrue(isSealed)
+        case _                              => assertTrue(false)
       }
     },
     test("derived case object has Object defKind") {
@@ -778,14 +769,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       val traitId = TypeId.of[Animal]
       assertTrue(traitId.enumCases.isEmpty)
     },
-    test("knownSubtypes returns subtypes for sealed trait") {
-      val sealedId = TypeId.of[Animal]
-      assertTrue(sealedId.knownSubtypes.nonEmpty)
-    },
-    test("knownSubtypes returns empty for non-sealed") {
-      val notSealed = TypeId.of[SimpleTrait]
-      assertTrue(notSealed.knownSubtypes.isEmpty)
-    },
     test("isTuple returns true for scala tuples") {
       val tuple2 = TypeId.of[(Int, String)]
       assertTrue(tuple2.isTuple)
@@ -930,11 +913,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     test("Member.TypeMember name accessor") {
       val typeMember = Member.TypeMember("T", Nil, None, None)
       assertTrue(typeMember.name == "T")
-    },
-    test("TypeDefKind.Trait with knownSubtypes") {
-      val subtypes  = List(TypeRepr.Ref(TypeId.of[Dog]), TypeRepr.Ref(TypeId.of[Cat]))
-      val traitKind = TypeDefKind.Trait(isSealed = true, knownSubtypes = subtypes)
-      assertTrue(traitKind.knownSubtypes.size == 2)
     },
     test("TermPath Package and Term segments") {
       val pkg  = TermPath.Package("com")

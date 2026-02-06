@@ -504,7 +504,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     test("roundtrip Trait simple") {
       val defKind: TypeDefKind = TypeDefKind.Trait(
         isSealed = false,
-        knownSubtypes = Nil,
         bases = Nil
       )
       assertTrue(roundtrip(defKind))
@@ -512,7 +511,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     test("roundtrip Trait sealed") {
       val defKind: TypeDefKind = TypeDefKind.Trait(
         isSealed = true,
-        knownSubtypes = List(TypeRepr.Ref(TypeId.of[Some[_]]), TypeRepr.Ref(TypeId.of[None.type])),
         bases = Nil
       )
       assertTrue(roundtrip(defKind))

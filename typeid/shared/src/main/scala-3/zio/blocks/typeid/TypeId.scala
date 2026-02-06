@@ -61,8 +61,8 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
   final def isSealed: Boolean = defKind match {
-    case TypeDefKind.Trait(isSealed, _, _) => isSealed
-    case _                                 => false
+    case TypeDefKind.Trait(isSealed, _) => isSealed
+    case _                              => false
   }
 
   final def isCaseClass: Boolean = defKind match {
@@ -103,12 +103,6 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   final def enumCases: List[EnumCaseInfo] = defKind match {
     case TypeDefKind.Enum(cases, _) => cases
     case _                          => Nil
-  }
-
-  /** Get known subtypes if this is a sealed trait */
-  final def knownSubtypes: List[TypeRepr] = defKind match {
-    case TypeDefKind.Trait(_, subtypes, _) => subtypes
-    case _                                 => Nil
   }
 
   /** Checks if the normalized type is a Scala Tuple */
@@ -360,10 +354,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   }
 
   object Sealed {
-    def unapply(id: TypeId[?]): Option[(String, List[TypeRepr])] =
+    def unapply(id: TypeId[?]): Option[String] =
       id.defKind match {
-        case TypeDefKind.Trait(true, subtypes, _) => Some((id.name, subtypes))
-        case _                                    => None
+        case TypeDefKind.Trait(true, _) => Some(id.name)
+        case _                          => None
       }
   }
 
