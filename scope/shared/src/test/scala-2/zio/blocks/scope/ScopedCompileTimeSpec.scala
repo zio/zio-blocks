@@ -1,6 +1,7 @@
 package zio.blocks.scope
 
 import zio.test._
+import zio.test.TestAspect
 
 /**
  * Tests that verify compile-time safety of scoped values.
@@ -49,7 +50,9 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
       }
     ),
     suite("$ operator tag checking")(
-      // TODO: Macro hierarchy check too permissive after Scope refactoring - needs fix
+      // TODO: Scala 2 limitation - the macro extracts scope from tag prefix but can't
+      // verify that the implicit scope in context is compatible. This works in Scala 3
+      // via refined type constraints (using scope: Scope { type Tag <: S }).
       test("cannot use $ with value from different scope") {
         // This verifies that the macro rejects mismatched scope tags
         // We use two different closeable scopes - a value from one scope
@@ -96,7 +99,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           """
         }.map(result => assertTrue(result.isLeft))
       },
-      // TODO: Macro hierarchy check too permissive after Scope refactoring - needs fix
+      // TODO: Scala 2 limitation - same as above
       test("cannot use .get with value from different scope") {
         typeCheck {
           """
@@ -151,8 +154,10 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
         }.map(result => assertTrue(result.isLeft, result.left.exists(_.contains("type mismatch"))))
       }
     ),
+    // TODO: Scala 2 limitation - the macro extracts scope from tag prefix but can't
+    // verify that the implicit scope in context is compatible. This works in Scala 3
+    // via refined type constraints (using scope: Scope { type Tag <: S }).
     suite("Nested scope tag hierarchy")(
-      // TODO: Macro hierarchy check too permissive after Scope refactoring - needs fix
       test("sibling scopes cannot share scoped values") {
         // Negative test: sibling scopes have unrelated Tags
         typeCheck {
