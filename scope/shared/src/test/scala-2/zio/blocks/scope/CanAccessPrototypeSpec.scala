@@ -72,10 +72,10 @@ object CanAccessPrototypeSpec extends ZIOSpecDefault {
 
   def spec = suite("CanAccess Prototype")(
     test("same scope: can access value") {
-      val global                       = new Global
-      implicit val scope: global.type  = global
-      val value: Int @@ global.Tag     = tagged(42)
-      val result: Int                  = value.get
+      val global                      = new Global
+      implicit val scope: global.type = global
+      val value: Int @@ global.Tag    = tagged(42)
+      val result: Int                 = value.get
       assertTrue(result == 42)
     },
     test("child scope: can access parent-tagged value") {

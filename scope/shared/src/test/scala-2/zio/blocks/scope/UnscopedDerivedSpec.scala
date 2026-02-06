@@ -29,10 +29,10 @@ object UnscopedDerivedSpec extends ZIOSpecDefault {
   }
 
   sealed trait Status
-  case object Active                           extends Status
-  case object Inactive                         extends Status
-  case class Pending(reason: String)           extends Status
-  case class Failed(code: Int, msg: String)    extends Status
+  case object Active                        extends Status
+  case object Inactive                      extends Status
+  case class Pending(reason: String)        extends Status
+  case class Failed(code: Int, msg: String) extends Status
   object Status {
     implicit val unscoped: Unscoped[Status] = Unscoped.derived[Status]
   }

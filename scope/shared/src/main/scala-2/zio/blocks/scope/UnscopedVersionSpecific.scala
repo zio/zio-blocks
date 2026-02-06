@@ -26,8 +26,8 @@ private[scope] object UnscopedMacros {
       t.typeSymbol.isClass && t.typeSymbol.asClass.isCaseClass
 
     def directSubTypes(t: Type): List[Type] = {
-      val tpeClass    = t.typeSymbol.asClass
-      val tpeTypeArgs = t.typeArgs.map(_.dealias)
+      val tpeClass         = t.typeSymbol.asClass
+      val tpeTypeArgs      = t.typeArgs.map(_.dealias)
       var tpeParamsAndArgs = Map.empty[String, Type]
       if (tpeTypeArgs.nonEmpty) {
         tpeClass.typeParams.zip(tpeTypeArgs).foreach { case (typeParam, tpeTypeArg) =>
@@ -36,7 +36,7 @@ private[scope] object UnscopedMacros {
       }
       tpeClass.knownDirectSubclasses.toList.map { symbol =>
         val classSymbol = symbol.asClass
-        var classType = if (classSymbol.isModuleClass) classSymbol.module.typeSignature else classSymbol.toType
+        var classType   = if (classSymbol.isModuleClass) classSymbol.module.typeSignature else classSymbol.toType
         if (tpeTypeArgs.nonEmpty) {
           val typeParams = classSymbol.typeParams
           if (typeParams.nonEmpty) {
@@ -77,8 +77,8 @@ private[scope] object UnscopedMacros {
     }.getOrElse(fail(s"Cannot find a primary constructor for '$t'"))
 
     def getConstructorParams(t: Type): List[Type] = {
-      val ctor   = primaryConstructor(t)
-      val params = ctor.paramLists.flatten
+      val ctor          = primaryConstructor(t)
+      val params        = ctor.paramLists.flatten
       val tpeTypeArgs   = t.typeArgs
       val tpeTypeParams = if (tpeTypeArgs.nonEmpty) t.typeSymbol.asClass.typeParams else Nil
       params.map { param =>

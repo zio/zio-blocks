@@ -200,7 +200,11 @@ object AritySpec extends ZIOSpecDefault {
         val depsCtx    = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
         val scope      =
           Scope
-            .makeCloseable[Config with Database with Cache with Logger with Metrics, Scope.Global](parent, depsCtx, finalizers)
+            .makeCloseable[Config with Database with Cache with Logger with Metrics, Scope.Global](
+              parent,
+              depsCtx,
+              finalizers
+            )
         val ctx = wire.construct(scope)
         val svc = ctx.get[ServiceWith5Deps]
         assertTrue(svc != null && svc.metrics.enabled)
@@ -228,7 +232,11 @@ object AritySpec extends ZIOSpecDefault {
         val depsCtx    = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
         val scope      =
           Scope
-            .makeCloseable[Config with Database with Cache with Logger with Metrics, Scope.Global](parent, depsCtx, finalizers)
+            .makeCloseable[Config with Database with Cache with Logger with Metrics, Scope.Global](
+              parent,
+              depsCtx,
+              finalizers
+            )
 
         val ctx1 = wire.construct(scope)
         val ctx2 = wire.construct(scope)

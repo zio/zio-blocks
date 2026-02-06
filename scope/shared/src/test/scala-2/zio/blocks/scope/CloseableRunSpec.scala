@@ -11,11 +11,11 @@ object CloseableRunSpec extends ZIOSpecDefault {
 
   def spec = suite("Closeable.use (Scala 2)")(
     test("run executes block and closes scope") {
-      var blockRan          = false
-      var cleaned           = false
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      var blockRan   = false
+      var cleaned    = false
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add { cleaned = true }
       val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
       closeable.use { scope =>
@@ -26,10 +26,10 @@ object CloseableRunSpec extends ZIOSpecDefault {
       assertTrue(blockRan, cleaned)
     },
     test("run even on exception") {
-      var cleaned           = false
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      var cleaned    = false
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add { cleaned = true }
       val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
       try {
@@ -40,10 +40,10 @@ object CloseableRunSpec extends ZIOSpecDefault {
       assertTrue(cleaned)
     },
     test("run called twice throws IllegalStateException") {
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
-      val closeable         = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
+      val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 
       closeable.use(_ => ())
 
@@ -57,9 +57,9 @@ object CloseableRunSpec extends ZIOSpecDefault {
       assertTrue(threw)
     },
     test("useWithErrors captures finalizer errors") {
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer error"))
       val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 
@@ -72,9 +72,9 @@ object CloseableRunSpec extends ZIOSpecDefault {
       )
     },
     test("useWithErrors returns result and errors") {
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("error1"))
       finalizers.add(throw new RuntimeException("error2"))
       val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
@@ -89,10 +89,10 @@ object CloseableRunSpec extends ZIOSpecDefault {
       )
     },
     test("useWithErrors called twice throws IllegalStateException") {
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
-      val closeable         = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
+      val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 
       closeable.useWithErrors(_ => ())
 
@@ -106,10 +106,10 @@ object CloseableRunSpec extends ZIOSpecDefault {
       assertTrue(threw)
     },
     test("useWithErrors closes scope on exception") {
-      var cleaned           = false
-      val parent = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      var cleaned    = false
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add { cleaned = true }
       val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 

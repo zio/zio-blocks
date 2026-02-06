@@ -58,8 +58,8 @@ private[scope] object MacroCore {
    *   - Scope.Global is the empty scope
    *   - Scope.Has[T] = Scope.::[T, Scope]
    *
-   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type
-   * (not Any/Nothing), otherwise None.
+   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type (not
+   * Any/Nothing), otherwise None.
    */
   def extractScopeHasType(c: blackbox.Context)(tpe: c.Type): Option[c.Type] = {
     import c.universe._

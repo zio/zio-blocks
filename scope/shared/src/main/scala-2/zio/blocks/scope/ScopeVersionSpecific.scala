@@ -16,8 +16,8 @@ private[scope] trait CloseableVersionSpecific[+Head, +Tail <: Scope] { self: Sco
   /**
    * Uses this scope to execute the given function, then closes the scope.
    *
-   * Can only be called once. Finalizer errors are silently discarded.
-   * Use `useWithErrors` if you need to handle cleanup errors.
+   * Can only be called once. Finalizer errors are silently discarded. Use
+   * `useWithErrors` if you need to handle cleanup errors.
    */
   def use[B](f: self.type => B): B
 
@@ -55,8 +55,9 @@ private[scope] trait ScopeConsVersionSpecific[+H, +T <: Scope] { self: Scope.::[
     if (finalizers.isClosed)
       throw new IllegalStateException("Scope.useWithErrors can only be called once")
     var errors: zio.blocks.chunk.Chunk[Throwable] = zio.blocks.chunk.Chunk.empty
-    val result = try f(self)
-    finally errors = close()
+    val result                                    =
+      try f(self)
+      finally errors = close()
     (result, errors)
   }
 }
