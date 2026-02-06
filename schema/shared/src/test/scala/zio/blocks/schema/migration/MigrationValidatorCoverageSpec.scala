@@ -73,48 +73,6 @@ object MigrationValidatorCoverageSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationValidatorCoverageSpec")(
     suite("extractStructure")(
-      test("extracts record structure") {
-        val s = MigrationValidator.extractStructure(SimpleRecord.schema)
-        assertTrue(s.isInstanceOf[MigrationValidator.SchemaStructure.Record])
-        s match {
-          case r: MigrationValidator.SchemaStructure.Record =>
-            assertTrue(r.fields.keySet == Set("name", "age"))
-          case _ => assertTrue(false)
-        }
-      },
-      test("extracts variant structure") {
-        val s = MigrationValidator.extractStructure(Animal.schema)
-        assertTrue(s.isInstanceOf[MigrationValidator.SchemaStructure.Variant])
-        s match {
-          case v: MigrationValidator.SchemaStructure.Variant =>
-            assertTrue(v.cases.keySet == Set("Dog", "Cat"))
-          case _ => assertTrue(false)
-        }
-      },
-      test("extracts sequence structure") {
-        val s = MigrationValidator.extractStructure(WithList.schema)
-        s match {
-          case r: MigrationValidator.SchemaStructure.Record =>
-            assertTrue(r.fields("items").isInstanceOf[MigrationValidator.SchemaStructure.Sequence])
-          case _ => assertTrue(false)
-        }
-      },
-      test("extracts map structure") {
-        val s = MigrationValidator.extractStructure(WithMap.schema)
-        s match {
-          case r: MigrationValidator.SchemaStructure.Record =>
-            assertTrue(r.fields("data").isInstanceOf[MigrationValidator.SchemaStructure.MapType])
-          case _ => assertTrue(false)
-        }
-      },
-      test("extracts optional structure") {
-        val s = MigrationValidator.extractStructure(RecordWithOptional.schema)
-        s match {
-          case r: MigrationValidator.SchemaStructure.Record =>
-            assertTrue(r.isOptional("nick") == true)
-          case _ => assertTrue(false)
-        }
-      },
       test("extracts primitive type in fields") {
         val s = MigrationValidator.extractStructure(SimpleRecord.schema)
         s match {

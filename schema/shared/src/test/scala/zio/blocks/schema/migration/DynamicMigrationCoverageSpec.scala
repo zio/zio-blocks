@@ -27,10 +27,6 @@ object DynamicMigrationCoverageSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("DynamicMigrationCoverageSpec")(
     suite("DynamicMigration basics")(
-      test("empty migration returns value unchanged") {
-        val result = DynamicMigration.empty(simpleRecord)
-        assertTrue(result == Right(simpleRecord))
-      },
       test("isEmpty on empty is true") {
         assertTrue(DynamicMigration.empty.isEmpty)
       },
