@@ -9,89 +9,94 @@ The migration system enables:
 - **Dynamic migrations**: Operate on untyped `DynamicValue` for flexibility
 - **Reversibility**: All migrations can be structurally reversed
 - **Serialization**: Migrations are pure data that can be serialized and stored
+- **Build-time validation**: Structural correctness is verified when you call `build`
 - **Path-aware errors**: Detailed error messages with exact location information
 
 ## Core Types
 
 ### Migration[A, B]
 
-A typed migration from schema `A` to schema `B`:
+A typed migration from schema `A` to schema `B`. Use `MigrationBuilder` to construct one:
 
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.migration._
 
-// Needed when (de)serializing DynamicMigration / MigrationAction / DynamicSchemaExpr
+// Import serialization schemas when (de)serializing migrations
 import zio.blocks.schema.migration.MigrationSchemas._
 
-case class PersonV1(name: String, age: Int)
-case class PersonV2(fullName: String, age: Int, country: String)
-
-object PersonV1 { implicit val schema: Schema[PersonV1] = Schema.derived }
-object PersonV2 { implicit val schema: Schema[PersonV2] = Schema.derived }
+@schema case class PersonV1(name: String, age: Int)
+@schema case class PersonV2(fullName: String, age: Int, country: String)
 
 val migration: Migration[PersonV1, PersonV2] =
   Migration
     .newBuilder[PersonV1, PersonV2]
     .renameField(MigrationBuilder.paths.field("name"), MigrationBuilder.paths.field("fullName"))
     .addField(MigrationBuilder.paths.field("country"), "US")
-    .buildPartial
+    .buildPartial  // skips structural validation
 ```
+
+`build` validates that the migration actions produce a structurally correct target schema.
+`buildPartial` skips validation and is useful during development or when validation is too strict.
 
 ### DynamicMigration
 
-An untyped, serializable migration operating on `DynamicValue`:
+An untyped, serializable migration that operates directly on `DynamicValue`. Every `Migration[A, B]`
+contains a `DynamicMigration` accessible via `.dynamicMigration`:
 
 ```scala
-val dynamicMigration = migration.dynamicMigration
+val dynamicMigration: DynamicMigration = migration.dynamicMigration
 
 import zio.blocks.chunk.Chunk
 
-// Apply to DynamicValue directly
 val oldValue: DynamicValue = DynamicValue.Record(Chunk(
   "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
   "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
 ))
 
 val newValue: Either[MigrationError, DynamicValue] = dynamicMigration(oldValue)
+// Right(Record(Chunk("fullName" -> Primitive(String("John")), "age" -> Primitive(Int(30)), "country" -> Primitive(String("US")))))
 ```
 
 ### MigrationAction
 
-Individual migration actions are represented as an algebraic data type:
+Individual migration steps are represented as an algebraic data type. Each action is reversible:
 
 | Action | Description |
 |--------|-------------|
-| `AddField` | Add a new field with a default value |
-| `DropField` | Remove a field |
+| `AddField` | Add a new field with a default value expression |
+| `DropField` | Remove a field (stores a reverse default) |
 | `RenameField` | Rename a field |
-| `TransformValue` | Transform a value using an expression |
-| `Mandate` | Make an optional field mandatory |
-| `Optionalize` | Make a mandatory field optional |
-| `ChangeType` | Convert between primitive types |
-| `Join` | Combine multiple fields into one |
-| `Split` | Split one field into multiple |
+| `TransformValue` | Transform a field's value using a `DynamicSchemaExpr` |
+| `Mandate` | Make an optional field mandatory (unwrap `Option`) |
+| `Optionalize` | Make a mandatory field optional (wrap in `Option`) |
+| `ChangeType` | Convert between primitive types (e.g., `Int` → `Long`) |
+| `Join` | Combine multiple source fields into one target field |
+| `Split` | Split one source field into multiple target fields |
 | `RenameCase` | Rename a case in a variant/enum |
-| `TransformCase` | Transform within a specific case |
-| `TransformElements` | Transform all elements in a sequence |
-| `TransformKeys` | Transform all keys in a map |
-| `TransformValues` | Transform all values in a map |
-| `Identity` | No-op action |
+| `TransformCase` | Apply nested actions within a specific variant case |
+| `TransformElements` | Transform every element in a sequence |
+| `TransformKeys` | Transform every key in a map |
+| `TransformValues` | Transform every value in a map |
+| `Identity` | No-op action (useful as a placeholder) |
 
 ### DynamicSchemaExpr
 
-Serializable expressions for value transformations:
+A serializable expression language for computing values during migration. Expressions are evaluated
+against `DynamicValue` at runtime:
 
 ```scala
 // Literal value
-val lit = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+val lit = DynamicSchemaExpr.Literal(
+  DynamicValue.Primitive(PrimitiveValue.Int(42))
+)
 
-// Path extraction
-val path = DynamicSchemaExpr.Path(DynamicOptic.root.field("name"))
+// Extract a value by path
+val nameExpr = DynamicSchemaExpr.Path(DynamicOptic.root.field("name"))
 
-// Arithmetic
+// Arithmetic on numeric fields
 val doubled = DynamicSchemaExpr.Arithmetic(
-  path,
+  nameExpr,
   DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
   DynamicSchemaExpr.ArithmeticOperator.Multiply
 )
@@ -100,28 +105,29 @@ val doubled = DynamicSchemaExpr.Arithmetic(
 val concat = DynamicSchemaExpr.StringConcat(expr1, expr2)
 val length = DynamicSchemaExpr.StringLength(stringExpr)
 
-// Type coercion
+// Primitive type coercion (e.g., Int → String)
 val coerced = DynamicSchemaExpr.CoercePrimitive(intExpr, "String")
 ```
 
 ## MigrationBuilder API
 
-The builder provides a fluent API for constructing migrations:
+The builder provides a fluent API for constructing migrations. All path arguments are `DynamicOptic`
+values — use `MigrationBuilder.paths` helpers or the type-safe selector syntax below:
 
 ```scala
 Migration
   .newBuilder[OldType, NewType]
   // Record operations
-  .addField(path, defaultExpr)
-  .dropField(path, defaultForReverse)
-  .renameField(fromPath, toPath)
-  .transformField(path, transform, reverseTransform)
-  .mandateField(path, default)
-  .optionalizeField(path)
-  .changeFieldType(path, converter, reverseConverter)
+  .addField(path, defaultExpr)                            // add a field with a default
+  .dropField(path, defaultForReverse)                     // remove a field
+  .renameField(fromPath, toPath)                          // rename a field
+  .transformField(path, transform, reverseTransform)      // transform a field value
+  .mandateField(path, default)                            // Option[T] → T
+  .optionalizeField(path)                                 // T → Option[T]
+  .changeFieldType(path, converter, reverseConverter)     // change primitive type
   .joinFields(targetPath, sourcePaths, combiner, splitter)
   .splitField(sourcePath, targetPaths, splitter, combiner)
-  // Enum operations
+  // Enum/variant operations
   .renameCaseAt(path, from, to)
   .transformCaseAt(path, caseName, nestedActions)
   // Collection operations
@@ -129,13 +135,14 @@ Migration
   .transformKeys(path, transform, reverseTransform)
   .transformValues(path, transform, reverseTransform)
   // Build
-  .build        // Full validation
-  .buildPartial // Skip validation
+  .build        // validates structural correctness, then builds
+  .buildPartial // builds without validation
 ```
 
-## Type-Safe Selector Syntax
+## Type-Safe Selector Syntax (Scala 2 & 3)
 
-For more ergonomic, type-safe paths, import the selector syntax extensions:
+For ergonomic, type-checked paths, import the selector syntax. The macro inspects selector
+lambdas like `_.fieldName.nested` and converts them to `DynamicOptic` paths at compile time:
 
 ```scala
 import zio.blocks.schema.migration.MigrationBuilderSyntax._
@@ -148,18 +155,25 @@ val migration: Migration[PersonV1, PersonV2] =
     .buildPartial
 ```
 
-Selector syntax supports optic-like projections such as:
-- `.when[T]`, `.each`, `.eachKey`, `.eachValue`, `.wrapped[T]`, `.at(i)`, `.atIndices(is*)`, `.atKey(k)`, `.atKeys(ks*)`
+Selector lambdas support optic-like projections for nested structures:
+
+| Projection | Meaning |
+|------------|---------|
+| `_.field` | Select a record field |
+| `_.field.nested` | Select a nested field |
+| `_.each` | Traverse into sequence elements |
+| `_.eachKey` | Traverse into map keys |
+| `_.eachValue` | Traverse into map values |
 
 ## Path Helpers
 
-Use the `paths` object for constructing paths:
+When you don't need compile-time type checking, use the `paths` object:
 
 ```scala
 import MigrationBuilder.paths
 
 paths.field("name")               // Single field
-paths.field("address", "street")  // Nested field
+paths.field("address", "street")  // Nested field (address.street)
 paths.elements                    // Sequence elements
 paths.mapKeys                     // Map keys
 paths.mapValues                   // Map values
@@ -167,56 +181,71 @@ paths.mapValues                   // Map values
 
 ## Reversibility
 
-All migrations can be reversed:
+Every migration action stores enough information to be reversed. Call `.reverse` to get
+a `Migration[B, A]`:
 
 ```scala
-val forward: Migration[A, B] = ...
-val backward: Migration[B, A] = forward.reverse
+val forward: Migration[PersonV1, PersonV2] = ...
+val backward: Migration[PersonV2, PersonV1] = forward.reverse
 
-// Law: forward ++ backward should be identity (structurally)
+// Reverse of addField is dropField, reverse of rename is rename back, etc.
 ```
+
+> **Note:** Reverse transforms are resolved best-effort at build time. For `TransformValue`
+> and `ChangeType`, provide explicit reverse expressions for reliable round-tripping.
 
 ## Composition
 
-Migrations can be composed:
+Migrations compose sequentially with `++` or `.andThen`:
 
 ```scala
 val v1ToV2: Migration[V1, V2] = ...
 val v2ToV3: Migration[V2, V3] = ...
 
 val v1ToV3: Migration[V1, V3] = v1ToV2 ++ v2ToV3
-// or
+// or equivalently:
 val v1ToV3: Migration[V1, V3] = v1ToV2.andThen(v2ToV3)
 ```
 
 ## Error Handling
 
-Migrations return `Either[MigrationError, DynamicValue]`:
+All migration operations return `Either[MigrationError, DynamicValue]`. Errors are accumulated
+(not short-circuiting) and carry path information:
 
 ```scala
-migration.apply(value) match {
-  case Right(newValue) => // Success
-  case Left(errors) =>
-    errors.errors.foreach { error =>
+migration.applyDynamic(value) match {
+  case Right(newValue) => // success
+  case Left(migrationError) =>
+    migrationError.errors.foreach { error =>
       println(s"At ${error.path}: ${error.message}")
     }
 }
 ```
 
 Error types include:
-- `FieldNotFound` - A required field was not found in the source value
-- `FieldAlreadyExists` - A field already exists when trying to add it
-- `NotARecord` - Expected a record but found a different kind of value
-- `NotAVariant` - Expected a variant but found a different kind of value
-- `TypeConversionFailed` - Primitive type conversion failed
-- `DefaultValueMissing` - Default value not resolved
-- `PathNavigationFailed` - Cannot navigate the path
-- `ActionFailed` - General action failure
+
+| Error | Description |
+|-------|-------------|
+| `FieldNotFound` | Required field missing from source |
+| `FieldAlreadyExists` | Field already exists when adding |
+| `NotARecord` | Expected a record, found something else |
+| `NotAVariant` | Expected a variant, found something else |
+| `NotASequence` | Expected a sequence, found something else |
+| `NotAMap` | Expected a map, found something else |
+| `CaseNotFound` | Variant case not found |
+| `TypeConversionFailed` | Primitive type conversion failed |
+| `ExprEvalFailed` | Expression evaluation failed |
+| `PathNavigationFailed` | Cannot navigate the specified path |
+| `DefaultValueMissing` | Default value not resolved for a required field |
+| `IndexOutOfBounds` | Sequence index out of range |
+| `KeyNotFound` | Map key not found |
+| `NumericOverflow` | Arithmetic overflow |
+| `ActionFailed` | General action failure |
 
 ## Best Practices
 
-1. **Use `buildPartial` during development**, switch to `build` for production validation
-2. **Provide meaningful reverse transforms** for `TransformValue` actions
-3. **Keep migrations small and focused** - compose multiple simple migrations
-4. **Test both forward and reverse** directions
-5. **Store migrations alongside schema versions** for reproducibility
+1. **Use `build` in production** to catch structural mismatches early; use `buildPartial` during prototyping
+2. **Provide explicit reverse expressions** for `transformField` and `changeFieldType` to ensure reliable round-tripping
+3. **Compose small migrations** rather than writing one large migration — this improves readability and testability
+4. **Test both directions** — apply forward, then reverse, and verify the round-trip
+5. **Serialize migrations** alongside schema versions for audit trails and reproducibility
