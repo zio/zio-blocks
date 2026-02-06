@@ -146,7 +146,9 @@ object UnscopedSpec extends ZIOSpecDefault {
     ),
     suite("Common Java types")(
       test("UUID") {
-        assertTrue(verifyUnscoped(UUID.randomUUID()))
+        // Use fixed UUID instead of randomUUID() for Scala.js compatibility (no SecureRandom)
+        val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        assertTrue(verifyUnscoped(uuid))
       }
     ),
     suite("Scala duration")(
