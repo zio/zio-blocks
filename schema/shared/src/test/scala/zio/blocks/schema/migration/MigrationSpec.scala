@@ -2589,6 +2589,135 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = expr.eval(DynamicValue.Null)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("123.456")))))
       }
+    ),
+    suite("MigrationExpr error path coverage")(
+      test("Conditional fails when condition is not boolean") {
+        val expr = MigrationExpr.Conditional(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("yes"))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("no")))
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("StringConcat fails when operand is not primitive") {
+        val expr = MigrationExpr.StringConcat(
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("world")))
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Compare fails with non-primitive values") {
+        val expr = MigrationExpr.Compare(
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.CompareOp.Eq
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("FieldRef fails with unsupported path node") {
+        val expr   = MigrationExpr.FieldRef(DynamicOptic.root.elements)
+        val input  = DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        assertTrue(expr.eval(input).isLeft)
+      },
+      test("Arithmetic fails with mismatched numeric types") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(2L))),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToBoolean from string 'no' returns false") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("no"))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        assertTrue(expr.eval(DynamicValue.Null) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+      },
+      test("Convert ToBoolean from string 'yes' returns true") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("yes"))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        assertTrue(expr.eval(DynamicValue.Null) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Convert ToBoolean fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("maybe"))),
+          MigrationExpr.PrimitiveTargetType.ToBoolean
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToBigInt fails for unsupported type") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToBigInt fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("not_a_number"))),
+          MigrationExpr.PrimitiveTargetType.ToBigInt
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToBigDecimal fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("xyz"))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToLong fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("not_long"))),
+          MigrationExpr.PrimitiveTargetType.ToLong
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToDouble fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("not_double"))),
+          MigrationExpr.PrimitiveTargetType.ToDouble
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToFloat fails for invalid string") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("not_float"))),
+          MigrationExpr.PrimitiveTargetType.ToFloat
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToFloat fails for unsupported type") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+          MigrationExpr.PrimitiveTargetType.ToFloat
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToLong fails for unsupported type") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+          MigrationExpr.PrimitiveTargetType.ToLong
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Convert ToBigDecimal fails for unsupported type") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Char('x'))),
+          MigrationExpr.PrimitiveTargetType.ToBigDecimal
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      },
+      test("Type conversion fails with non-primitive value") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.Literal(DynamicValue.Record(Chunk.empty)),
+          MigrationExpr.PrimitiveTargetType.ToInt
+        )
+        assertTrue(expr.eval(DynamicValue.Null).isLeft)
+      }
     )
   )
 }
