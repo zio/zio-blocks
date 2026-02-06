@@ -20,7 +20,7 @@ private[scope] object ScopedMacros {
   ): c.Tree = {
     import c.universe._
 
-    val sTpe = stag.tpe
+    val sTpe     = stag.tpe
     val scopeTpe = scope.actualType
 
     // Extract the Tag type member from the scope

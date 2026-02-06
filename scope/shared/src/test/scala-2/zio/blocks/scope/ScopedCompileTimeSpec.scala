@@ -80,9 +80,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
         }.map(result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(msg =>
-              msg.contains("cannot be accessed") || msg.contains("Tag")
-            )
+            result.left.exists(msg => msg.contains("cannot be accessed") || msg.contains("Tag"))
           )
         )
       },

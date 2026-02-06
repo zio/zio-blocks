@@ -15,7 +15,7 @@ private[scope] final class ScopeImplScala2[H, T, ParentTag](
   /**
    * In Scala 3, the Tag type is defined as:
    *
-   *   type Tag = ParentTag | this.type
+   * type Tag = ParentTag | this.type
    *
    * This union type precisely represents that the child scope's tag encompasses
    * both the parent's tag and its own identity.
@@ -23,7 +23,7 @@ private[scope] final class ScopeImplScala2[H, T, ParentTag](
    * Since Scala 2 does not support union types, we approximate this with a
    * lower type bound:
    *
-   *   type Tag >: ParentTag
+   * type Tag >: ParentTag
    *
    * This is intentionally less precise: it allows any supertype of `ParentTag`,
    * not specifically the union. However, the runtime semantics are equivalent,

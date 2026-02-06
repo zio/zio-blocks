@@ -61,11 +61,11 @@ object Unscoped {
   implicit def unscopedMap[K: Unscoped, V: Unscoped]: Unscoped[Map[K, V]] = new Unscoped[Map[K, V]] {}
 
   // Java time types (immutable value types)
-  implicit val unscopedInstant: Unscoped[java.time.Instant]             = new Unscoped[java.time.Instant] {}
-  implicit val unscopedLocalDate: Unscoped[java.time.LocalDate]         = new Unscoped[java.time.LocalDate] {}
-  implicit val unscopedLocalTime: Unscoped[java.time.LocalTime]         = new Unscoped[java.time.LocalTime] {}
-  implicit val unscopedLocalDateTime: Unscoped[java.time.LocalDateTime] = new Unscoped[java.time.LocalDateTime] {}
-  implicit val unscopedZonedDateTime: Unscoped[java.time.ZonedDateTime] = new Unscoped[java.time.ZonedDateTime] {}
+  implicit val unscopedInstant: Unscoped[java.time.Instant]               = new Unscoped[java.time.Instant] {}
+  implicit val unscopedLocalDate: Unscoped[java.time.LocalDate]           = new Unscoped[java.time.LocalDate] {}
+  implicit val unscopedLocalTime: Unscoped[java.time.LocalTime]           = new Unscoped[java.time.LocalTime] {}
+  implicit val unscopedLocalDateTime: Unscoped[java.time.LocalDateTime]   = new Unscoped[java.time.LocalDateTime] {}
+  implicit val unscopedZonedDateTime: Unscoped[java.time.ZonedDateTime]   = new Unscoped[java.time.ZonedDateTime] {}
   implicit val unscopedOffsetDateTime: Unscoped[java.time.OffsetDateTime] =
     new Unscoped[java.time.OffsetDateTime] {}
   implicit val unscopedJavaDuration: Unscoped[java.time.Duration] = new Unscoped[java.time.Duration] {}

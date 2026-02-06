@@ -132,7 +132,7 @@ object CloseableRunSpec extends ZIOSpecDefault {
       val order = ArrayBuffer.empty[String]
 
       class Resource extends AutoCloseable {
-        var closed = false
+        var closed      = false
         def use(): Unit = {
           if (closed) throw new IllegalStateException("Resource already closed!")
           order += "use"
@@ -150,7 +150,7 @@ object CloseableRunSpec extends ZIOSpecDefault {
 
       closeable.run { implicit scope =>
         // Register a finalizer that uses the resource
-        defer { resource.use() }
+        defer(resource.use())
         order += "body"
       }
 
@@ -175,7 +175,7 @@ object CloseableRunSpec extends ZIOSpecDefault {
       closeable.run { implicit scope =>
         val resource = $[OrderTrackingResource]
         // Register a finalizer that uses the resource
-        defer { resource.$(_.use()) }
+        defer(resource.$(_.use()))
         order += "body"
       }
 
@@ -195,9 +195,9 @@ object OrderTracker {
 
 // Helper class for wireable construction test - must be top-level for macro
 class OrderTrackingResource extends AutoCloseable {
-  private val order          = OrderTracker.order
-  var closed: Boolean        = false
-  def use(): Unit = {
+  private val order   = OrderTracker.order
+  var closed: Boolean = false
+  def use(): Unit     = {
     if (closed) throw new IllegalStateException("Resource already closed!")
     order += "use"
   }

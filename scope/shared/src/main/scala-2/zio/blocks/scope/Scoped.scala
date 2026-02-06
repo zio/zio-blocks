@@ -35,7 +35,8 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   - Otherwise, returns `B @@ S` (stays scoped)
    *
    * This is a macro that verifies at compile time that the implicit scope's Tag
-   * is a supertype of S, matching the Scala 3 constraint `Scope[?] { type Tag >: S }`.
+   * is a supertype of S, matching the Scala 3 constraint
+   * `Scope[?] { type Tag >: S }`.
    *
    * @param f
    *   The function to apply to the underlying value
@@ -46,8 +47,7 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    * @return
    *   Either raw `B` or `B @@ S` depending on AutoUnscoped instance
    */
-  def $[B](f: A => B)(implicit scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out =
-    macro ScopedMacros.dollarImpl[A, S, B]
+  def $[B](f: A => B)(implicit scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out = macro ScopedMacros.dollarImpl[A, S, B]
 
   /**
    * Maps over a scoped value, preserving the tag.
