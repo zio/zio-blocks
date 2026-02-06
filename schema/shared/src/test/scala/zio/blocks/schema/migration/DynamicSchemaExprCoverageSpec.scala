@@ -1134,6 +1134,243 @@ object DynamicSchemaExprCoverageSpec extends SchemaBaseSpec {
         val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Char")
         assertTrue(expr.eval(intVal).isLeft)
       }
+    ),
+    suite("Path eval")(
+      test("Path eval succeeds on existing field") {
+        val expr = DynamicSchemaExpr.Path(DynamicOptic.root.field("name"))
+        val r    = expr.eval(record)
+        assertTrue(r == Right(strVal))
+      },
+      test("Path eval fails on non-existent field") {
+        val expr = DynamicSchemaExpr.Path(DynamicOptic.root.field("missing"))
+        val r    = expr.eval(record)
+        assertTrue(r.isLeft)
+      },
+      test("Path eval fails on primitive") {
+        val expr = DynamicSchemaExpr.Path(DynamicOptic.root.field("x"))
+        val r    = expr.eval(intVal)
+        assertTrue(r.isLeft)
+      }
+    ),
+    suite("DefaultValue eval")(
+      test("DefaultValue eval returns Left") {
+        val r = DynamicSchemaExpr.DefaultValue.eval(intVal)
+        assertTrue(r.isLeft)
+      }
+    ),
+    suite("ResolvedDefault eval")(
+      test("ResolvedDefault eval returns Right") {
+        val expr = DynamicSchemaExpr.ResolvedDefault(intVal)
+        val r    = expr.eval(strVal)
+        assertTrue(r == Right(intVal))
+      }
+    ),
+    suite("Literal eval")(
+      test("Literal eval always returns the literal value") {
+        val expr = DynamicSchemaExpr.Literal(strVal)
+        assertTrue(expr.eval(intVal) == Right(strVal))
+      }
+    ),
+    suite("coercePrimitive identity and cross-type conversions")(
+      test("Int to Int identity") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "Int")
+        assertTrue(expr.eval(intVal) == Right(intVal))
+      },
+      test("Long to Long identity") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "Long")
+        assertTrue(expr.eval(intVal) == Right(longVal))
+      },
+      test("Double to Double identity") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(dblVal), "Double")
+        assertTrue(expr.eval(intVal) == Right(dblVal))
+      },
+      test("Float to Float identity") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(fltVal), "Float")
+        assertTrue(expr.eval(intVal) == Right(fltVal))
+      },
+      test("String to String identity") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(strVal), "String")
+        assertTrue(expr.eval(intVal) == Right(strVal))
+      },
+      test("Boolean to Boolean identity") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "Boolean")
+        assertTrue(expr.eval(intVal) == Right(boolT))
+      },
+      test("Int to Long") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "Long")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(10L))))
+      },
+      test("Long to Int") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "Int")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Int(100))))
+      },
+      test("Int to String") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("10"))))
+      },
+      test("Long to String") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(longVal), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("100"))))
+      },
+      test("Double to String") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(dblVal), "String")
+        assertTrue(expr.eval(intVal).isRight)
+      },
+      test("Float to String") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(fltVal), "String")
+        assertTrue(expr.eval(intVal).isRight)
+      },
+      test("Boolean to String") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(boolT), "String")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.String("true"))))
+      },
+      test("Int to Boolean (non-zero)") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(intVal), "Boolean")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("String valid to Int") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("42"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Int")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      },
+      test("String invalid to Int fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("abc"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Int")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("String valid to Long") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("99999"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Long")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(99999L))))
+      },
+      test("String invalid to Long fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("xyz"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Long")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("String valid to Double") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("3.14"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Double")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(3.14))))
+      },
+      test("String invalid to Double fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("not-a-number"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Double")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("String valid to Float") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("1.5"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Float")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Float(1.5f))))
+      },
+      test("String invalid to Float fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("not-float"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Float")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("String 'true' to Boolean") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("true"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Boolean")
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("String invalid to Boolean fails") {
+        val sv   = DynamicValue.Primitive(PrimitiveValue.String("maybe"))
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(sv), "Boolean")
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("toString_ fallback for non-stringifiable") {
+        val expr = DynamicSchemaExpr.CoercePrimitive(DynamicSchemaExpr.Literal(DynamicValue.Null), "String")
+        assertTrue(expr.eval(intVal).isLeft)
+      }
+    ),
+    suite("evalPrimitiveArithmetic additional types")(
+      test("Int Add") {
+        val i1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val i2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(7)))
+        val expr = DynamicSchemaExpr.Arithmetic(i1, i2, DynamicSchemaExpr.ArithmeticOperator.Add)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Int(10))))
+      },
+      test("Int Subtract") {
+        val i1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)))
+        val i2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        val expr = DynamicSchemaExpr.Arithmetic(i1, i2, DynamicSchemaExpr.ArithmeticOperator.Subtract)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Int(7))))
+      },
+      test("Int Multiply") {
+        val i1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(4)))
+        val i2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val expr = DynamicSchemaExpr.Arithmetic(i1, i2, DynamicSchemaExpr.ArithmeticOperator.Multiply)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Int(20))))
+      },
+      test("Long Add") {
+        val l1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(10L)))
+        val l2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(20L)))
+        val expr = DynamicSchemaExpr.Arithmetic(l1, l2, DynamicSchemaExpr.ArithmeticOperator.Add)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(30L))))
+      },
+      test("Long Subtract") {
+        val l1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(30L)))
+        val l2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(10L)))
+        val expr = DynamicSchemaExpr.Arithmetic(l1, l2, DynamicSchemaExpr.ArithmeticOperator.Subtract)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(20L))))
+      },
+      test("Long Multiply") {
+        val l1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(6L)))
+        val l2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(7L)))
+        val expr = DynamicSchemaExpr.Arithmetic(l1, l2, DynamicSchemaExpr.ArithmeticOperator.Multiply)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
+      },
+      test("Double Add") {
+        val d1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(1.5)))
+        val d2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(2.5)))
+        val expr = DynamicSchemaExpr.Arithmetic(d1, d2, DynamicSchemaExpr.ArithmeticOperator.Add)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(4.0))))
+      },
+      test("Double Subtract") {
+        val d1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(5.0)))
+        val d2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(2.0)))
+        val expr = DynamicSchemaExpr.Arithmetic(d1, d2, DynamicSchemaExpr.ArithmeticOperator.Subtract)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(3.0))))
+      },
+      test("Double Multiply") {
+        val d1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.0)))
+        val d2   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(4.0)))
+        val expr = DynamicSchemaExpr.Arithmetic(d1, d2, DynamicSchemaExpr.ArithmeticOperator.Multiply)
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Double(12.0))))
+      },
+      test("mismatched types Int+Long fails") {
+        val i1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val l1   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(2L)))
+        val expr = DynamicSchemaExpr.Arithmetic(i1, l1, DynamicSchemaExpr.ArithmeticOperator.Add)
+        assertTrue(expr.eval(intVal).isLeft)
+      }
+    ),
+    suite("evalPrimitiveRelational additional coverage")(
+      test("LessThan true") {
+        val expr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          DynamicSchemaExpr.RelationalOperator.LessThan
+        )
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("Equal true") {
+        val expr = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Literal(intVal),
+          DynamicSchemaExpr.Literal(intVal),
+          DynamicSchemaExpr.RelationalOperator.Equal
+        )
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      },
+      test("NotEqual true") {
+        val three = DynamicValue.Primitive(PrimitiveValue.Int(3))
+        val expr  = DynamicSchemaExpr.Relational(
+          DynamicSchemaExpr.Literal(intVal),
+          DynamicSchemaExpr.Literal(three),
+          DynamicSchemaExpr.RelationalOperator.NotEqual
+        )
+        assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      }
     )
   )
 }

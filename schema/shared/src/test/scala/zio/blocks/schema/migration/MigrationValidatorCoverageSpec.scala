@@ -55,6 +55,18 @@ object MigrationValidatorCoverageSpec extends SchemaBaseSpec {
   case class RecordJoined(a: String, combined: String)
   object RecordJoined { implicit val schema: Schema[RecordJoined] = Schema.derived }
 
+  case class ValueInt(value: Int)
+  object ValueInt { implicit val schema: Schema[ValueInt] = Schema.derived }
+
+  case class ValueStr(value: String)
+  object ValueStr { implicit val schema: Schema[ValueStr] = Schema.derived }
+
+  case class ValueList(items: List[Int])
+  object ValueList { implicit val schema: Schema[ValueList] = Schema.derived }
+
+  case class ValueDyn(value: DynamicValue)
+  object ValueDyn { implicit val schema: Schema[ValueDyn] = Schema.derived }
+
   private val root = DynamicOptic.root
   private val litI = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
   private val litS = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
@@ -509,6 +521,36 @@ object MigrationValidatorCoverageSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(!result.isValid)
+      },
+      test("Join source path must end in field") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(
+            MigrationAction.Join(
+              root.field("combined"),
+              Vector(root),
+              litS,
+              litS
+            )
+          )
+        )
+        assertTrue(!result.isValid)
+      },
+      test("Join target path must end in field") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(
+            MigrationAction.Join(
+              root,
+              Vector(root.field("name")),
+              litS,
+              litS
+            )
+          )
+        )
+        assertTrue(!result.isValid)
       }
     ),
     suite("validate Split")(
@@ -535,6 +577,36 @@ object MigrationValidatorCoverageSpec extends SchemaBaseSpec {
             MigrationAction.Split(
               root.field("missing"),
               Vector(root.field("a"), root.field("b")),
+              litS,
+              litS
+            )
+          )
+        )
+        assertTrue(!result.isValid)
+      },
+      test("Split source path must end in field") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(
+            MigrationAction.Split(
+              root,
+              Vector(root.field("a"), root.field("b")),
+              litS,
+              litS
+            )
+          )
+        )
+        assertTrue(!result.isValid)
+      },
+      test("Split target path must end in field") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(
+            MigrationAction.Split(
+              root.field("name"),
+              Vector(root),
               litS,
               litS
             )
@@ -603,6 +675,164 @@ object MigrationValidatorCoverageSpec extends SchemaBaseSpec {
       test("lastFieldName on empty path") {
         import MigrationValidator.DynamicOpticOps
         assertTrue(root.lastFieldName == None)
+      }
+    ),
+    suite("compareStructures branch coverage")(
+      test("Sequence vs Sequence - same element") {
+        val result = MigrationValidator.validate(ValueList.schema, ValueList.schema, Vector.empty)
+        assertTrue(result.isValid)
+      },
+      test("MapType vs MapType - same key and value") {
+        val result = MigrationValidator.validate(WithMap.schema, WithMap.schema, Vector.empty)
+        assertTrue(result.isValid)
+      },
+      test("Optional vs Optional - same inner") {
+        val result = MigrationValidator.validate(
+          RecordWithOptional.schema,
+          RecordWithOptional.schema,
+          Vector.empty
+        )
+        assertTrue(result.isValid)
+      },
+      test("Primitive match - same types") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector.empty
+        )
+        assertTrue(result.isValid)
+      },
+      test("Primitive mismatch - different field types") {
+        val result = MigrationValidator.validate(ValueInt.schema, ValueStr.schema, Vector.empty)
+        assertTrue(!result.isValid)
+      },
+      test("Structure mismatch - sequence vs primitive") {
+        val result = MigrationValidator.validate(ValueList.schema, ValueInt.schema, Vector.empty)
+        assertTrue(!result.isValid)
+      },
+      test("Dynamic matches any target") {
+        val result = MigrationValidator.validate(ValueDyn.schema, ValueInt.schema, Vector.empty)
+        assertTrue(result.isValid)
+      },
+      test("Any source matches Dynamic target") {
+        val result = MigrationValidator.validate(ValueInt.schema, ValueDyn.schema, Vector.empty)
+        assertTrue(result.isValid)
+      },
+      test("Variant vs Variant - same cases") {
+        val result = MigrationValidator.validate(Animal.schema, Animal.schema, Vector.empty)
+        assertTrue(result.isValid)
+      },
+      test("Variant vs Variant - missing case without action") {
+        val result = MigrationValidator.validate(Animal.schema, AnimalRenamed.schema, Vector.empty)
+        assertTrue(!result.isValid)
+      }
+    ),
+    suite("validatePath error paths")(
+      test("field on non-record") {
+        val result = MigrationValidator.validate(
+          ValueList.schema,
+          ValueList.schema,
+          Vector(MigrationAction.TransformValue(root.field("items").field("x"), litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("case on non-variant") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(root.field("name").caseOf("x"), litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("case not found in variant") {
+        val result = MigrationValidator.validate(
+          Animal.schema,
+          Animal.schema,
+          Vector(MigrationAction.TransformValue(root.caseOf("Fish"), litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("atIndex on non-sequence") {
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtIndex(0)))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("atIndices on non-sequence") {
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtIndices(Seq(0, 1))))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("atMapKey on non-map") {
+        val kv     = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtMapKey(kv)))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("atMapKeys on non-map") {
+        val kv     = DynamicValue.Primitive(PrimitiveValue.String("k"))
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtMapKeys(Seq(kv))))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("elements on non-sequence") {
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.Elements))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("mapKeys on non-map") {
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.MapKeys))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("mapValues on non-map") {
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.MapValues))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(!result.isValid)
+      },
+      test("wrapped passthrough in path validation") {
+        val optic  = DynamicOptic(Vector(DynamicOptic.Node.Wrapped, DynamicOptic.Node.Field("name")))
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(optic, litI, litI))
+        )
+        assertTrue(result.isValid)
+      },
+      test("field not found in record") {
+        val result = MigrationValidator.validate(
+          SimpleRecord.schema,
+          SimpleRecord.schema,
+          Vector(MigrationAction.TransformValue(root.field("nonexistent"), litI, litI))
+        )
+        assertTrue(!result.isValid)
       }
     )
   )
