@@ -251,4 +251,37 @@ object MigrationBuilderSyntax {
     inline def from[A, B](inline selector: A => B): DynamicOptic =
       SelectorMacros.toOptic(selector)
   }
+
+  // ==================== Tracked Builder ====================
+
+  /**
+   * Convert an untracked builder to a compile-time-tracked builder.
+   *
+   * The tracked builder accumulates field names at the type level and validates
+   * migration completeness at compile time via [[MigrationComplete]].
+   */
+  extension [A, B](builder: MigrationBuilder[A, B]) {
+    def tracked: TrackedMigrationBuilder[A, B, EmptyTuple, EmptyTuple] =
+      new TrackedMigrationBuilder(builder)
+  }
+
+  /**
+   * Create a compile-time-tracked migration builder.
+   *
+   * This is the recommended entry point for migrations that should be validated
+   * at compile time. Equivalent to `Migration.newBuilder[A, B].tracked`.
+   *
+   * Usage:
+   * {{{
+   * val migration = MigrationBuilderSyntax.checkedBuilder[PersonV1, PersonV2]
+   *   .addField(_.email, "unknown@example.com")
+   *   .renameField(_.name, _.fullName)
+   *   .build  // compile error if incomplete
+   * }}}
+   */
+  def checkedBuilder[A, B](using
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): TrackedMigrationBuilder[A, B, EmptyTuple, EmptyTuple] =
+    new TrackedMigrationBuilder(new MigrationBuilder(sourceSchema, targetSchema, Vector.empty))
 }
