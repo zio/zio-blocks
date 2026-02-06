@@ -281,14 +281,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
     case Right(v) =>
       val len = v.length
       if (len == 1) decoder.decode(v.head)
-      else {
-        new Left(
-          SchemaError(
-            if (len == 0) "Expected single value but got none"
-            else s"Expected single value but got $len"
-          )
-        )
-      }
+      else new Left(SchemaError(s"Expected single value but got $len"))
     case l => l.asInstanceOf[Either[SchemaError, A]]
   }
 

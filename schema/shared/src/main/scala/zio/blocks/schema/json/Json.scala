@@ -307,7 +307,7 @@ sealed trait Json {
    *   {{{json.select(JsonType.Object) // selection if json is object, else empty}}}
    */
   def select(jsonType: JsonType): JsonSelection =
-    if (this.jsonType == jsonType) JsonSelection.succeed(this)
+    if (this.jsonType eq jsonType) JsonSelection.succeed(this)
     else JsonSelection.empty
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -948,7 +948,7 @@ object Json {
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
     case DynamicValue.Null                     => Null
     case v: DynamicValue.Primitive             => fromPrimitiveValue(v.value)
-    case v: DynamicValue.Record                => new Object(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) })
+    case v: DynamicValue.Record                => new Object(v.fields.map(kv => (kv._1, fromDynamicValue(kv._2))))
     case DynamicValue.Variant(caseName, value) => new Object(Chunk.single((caseName, fromDynamicValue(value))))
     case v: DynamicValue.Sequence              => new Array(v.elements.map(fromDynamicValue))
     case v: DynamicValue.Map                   =>
@@ -963,8 +963,8 @@ object Json {
           (k.value, fromDynamicValue(v))
         })
       } else {
-        new Array(entries.map { case (k, v) =>
-          new Object(Chunk(("key", fromDynamicValue(k)), ("value", fromDynamicValue(v))))
+        new Array(entries.map { kv =>
+          new Object(Chunk(("key", fromDynamicValue(kv._1)), ("value", fromDynamicValue(kv._2))))
         })
       }
   }
@@ -1016,7 +1016,7 @@ object Json {
         else new DynamicValue.Primitive(new PrimitiveValue.Long(longValue))
       } else new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
     case arr: Array  => new DynamicValue.Sequence(arr.value.map(toDynamicValue))
-    case obj: Object => new DynamicValue.Record(obj.value.map { case (k, v) => (k, toDynamicValue(v)) })
+    case obj: Object => new DynamicValue.Record(obj.value.map(kv => (kv._1, toDynamicValue(kv._2))))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1237,7 +1237,7 @@ object Json {
       path,
       json,
       json match {
-        case obj: Object => obj.value.foldLeft(z) { case (acc, (k, v)) => foldUpImpl(v, path.field(k), acc, f) }
+        case obj: Object => obj.value.foldLeft(z)((acc, kv) => foldUpImpl(kv._2, path.field(kv._1), acc, f))
         case arr: Array  =>
           arr.value.foldLeft(z) {
             var idx = -1
@@ -1252,7 +1252,7 @@ object Json {
   private def foldDownImpl[B](json: Json, path: DynamicOptic, z: B, f: (DynamicOptic, Json, B) => B): B = {
     val afterThis = f(path, json, z)
     json match {
-      case obj: Object => obj.value.foldLeft(afterThis) { case (acc, (k, v)) => foldDownImpl(v, path.field(k), acc, f) }
+      case obj: Object => obj.value.foldLeft(afterThis)((acc, kv) => foldDownImpl(kv._2, path.field(kv._1), acc, f))
       case arr: Array  =>
         arr.value.foldLeft(afterThis) {
           var idx = -1
@@ -1362,7 +1362,7 @@ object Json {
     def collect(j: Json, currentPath: DynamicOptic): Unit = {
       if (p(currentPath, j)) results.addOne(j)
       j match {
-        case obj: Object => obj.value.foreach { case (k, v) => collect(v, currentPath.field(k)) }
+        case obj: Object => obj.value.foreach(kv => collect(kv._2, currentPath.field(kv._1)))
         case arr: Array  =>
           arr.value.foreach {
             var idx = -1
@@ -1426,7 +1426,7 @@ object Json {
     val len = kvs.length
     if (len == 0) return Null
     if (len == 1 && kvs.head._1.nodes.isEmpty) return kvs.head._2 // Simple case: single root value
-    kvs.foldLeft[Json](Null) { case (acc, (path, value)) => setOrCreatePath(acc, path, value) }
+    kvs.foldLeft[Json](Null)((acc, pv) => setOrCreatePath(acc, pv._1, pv._2))
   }
 
   private[this] def setOrCreatePath(json: Json, path: DynamicOptic, value: Json): Json = {
@@ -1500,8 +1500,7 @@ object Json {
     var jsons = Chunk.single(json)
     var idx   = 0
     while (idx < len) {
-      val node = nodes(idx)
-      jsons = node match {
+      jsons = nodes(idx) match {
         case field: DynamicOptic.Node.Field =>
           val name    = field.name
           val results = ChunkBuilder.make[Json]()
@@ -1595,20 +1594,20 @@ object Json {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
             case _                                                 => ()
           }
-          jsons.flatMap {
+          val results = ChunkBuilder.make[Json]()
+          jsons.foreach {
             case obj: Object =>
-              val results = ChunkBuilder.make[Json]()
-              val kvs     = obj.value
-              val len     = kvs.length
-              var idx     = 0
+              val kvs = obj.value
+              val len = kvs.length
+              var idx = 0
               while (idx < len) {
                 val kv = kvs(idx)
                 if (keyStrs.contains(kv._1)) results.addOne(kv._2)
                 idx += 1
               }
-              results.result()
-            case _ => Chunk.empty[Json]
+            case _ => ()
           }
+          results.result()
         case _ => // Case and Wrapped are not applicable to raw JSON
           jsons
       }
@@ -1670,8 +1669,8 @@ object Json {
           case arr: Array =>
             new Some(new Array(arr.value.map { elem =>
               modifyAtPathRecursive(elem, nodes, nodeIdx + 1, f) match {
-                case Some(j) => j
-                case _       => elem
+                case Some(json) => json
+                case _          => elem
               }
             }))
           case _ => None
@@ -1683,8 +1682,8 @@ object Json {
               (
                 k,
                 modifyAtPathRecursive(v, nodes, nodeIdx + 1, f) match {
-                  case Some(j) => j
-                  case _       => v
+                  case Some(json) => json
+                  case _          => v
                 }
               )
             }))
@@ -1700,8 +1699,8 @@ object Json {
                 idx += 1
                 if (indexSet.contains(idx)) {
                   modifyAtPathRecursive(elem, nodes, nodeIdx + 1, f) match {
-                    case Some(j) => j
-                    case _       => elem
+                    case Some(json) => json
+                    case _          => elem
                   }
                 } else elem
             }))
@@ -1739,16 +1738,18 @@ object Json {
         }
         json match {
           case obj: Object =>
-            new Some(new Object(obj.value.map { case (k, v) =>
+            new Some(new Object(obj.value.map { kv =>
+              val k = kv._1
               if (keyStrs.contains(k)) {
+                val v = kv._2
                 (
                   k,
                   modifyAtPathRecursive(v, nodes, nodeIdx + 1, f) match {
-                    case Some(j) => j
-                    case _       => v
+                    case Some(json) => json
+                    case _          => v
                   }
                 )
-              } else (k, v)
+              } else kv
             }))
           case _ => None
         }
@@ -1905,34 +1906,31 @@ object Json {
           case arr: Array =>
             val index = atIndex.index
             val elems = arr.value
-            if (isLast) {
-              // Delete this element
-              if (index >= 0 && index < elems.length) new Some(new Array(elems.take(index) ++ elems.drop(index + 1)))
-              else None
-            } else {
-              // Navigate into the element and continue
-              if (index >= 0 && index < elems.length) {
+            if (index >= 0 && index < elems.length) {
+              if (isLast) {
+                // Delete this element
+                new Some(new Array(elems.take(index) ++ elems.drop(index + 1)))
+              } else {
+                // Navigate into the element and continue
                 deleteAtPathRecursive(elems(index), nodes, idx + 1) match {
                   case Some(newValue) => new Some(new Array(elems.updated(index, newValue)))
                   case _              => None
                 }
-              } else None
-            }
+              }
+            } else None
           case _ => None
         }
       case _: DynamicOptic.Node.Elements.type =>
-        if (isLast) {
-          // Delete all elements
-          json match {
-            case _: Array => new Some(Array.empty)
-            case _        => None
-          }
-        } else {
-          // Apply delete to each element
-          json match {
-            case arr: Array => new Some(new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1))))
-            case _          => None
-          }
+        json match {
+          case arr: Array =>
+            new Some(if (isLast) {
+              // Delete all elements
+              Array.empty
+            } else {
+              // Apply delete to each element
+              new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1)))
+            })
+          case _ => None
         }
       case _ => None // Other node types not supported for delete
     }
@@ -1976,8 +1974,9 @@ object Json {
                 else fieldIdx += 1
               }
               if (found) {
-                insertAtPathRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value).map { newValue =>
-                  new Object(fields.updated(fieldIdx, (name, newValue)))
+                insertAtPathRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value) match {
+                  case Some(newValue) => new Some(new Object(fields.updated(fieldIdx, (name, newValue))))
+                  case _              => None
                 }
               } else None
             }
@@ -1996,8 +1995,9 @@ object Json {
             } else {
               // Navigate into the element and continue
               if (index >= 0 && index < elems.length) {
-                insertAtPathRecursive(elems(index), nodes, nodeIdx + 1, value).map { newValue =>
-                  new Array(elems.updated(index, newValue))
+                insertAtPathRecursive(elems(index), nodes, nodeIdx + 1, value) match {
+                  case Some(newValue) => new Some(new Array(elems.updated(index, newValue)))
+                  case _              => None
                 }
               } else None
             }
@@ -2042,8 +2042,9 @@ object Json {
                 else fieldIdx += 1
               }
               if (found) {
-                insertAtPathOrFailRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value).map { newValue =>
-                  new Object(fields.updated(fieldIdx, (name, newValue)))
+                insertAtPathOrFailRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value) match {
+                  case Right(newValue) => new Right(new Object(fields.updated(fieldIdx, (name, newValue))))
+                  case l               => l
                 }
               } else new Left(SchemaError(s"Field '$name' not found"))
             }
@@ -2060,8 +2061,9 @@ object Json {
               } else new Left(SchemaError(s"Index $index out of bounds for insert (size: ${elems.length})"))
             } else {
               if (index >= 0 && index < elems.length) {
-                insertAtPathOrFailRecursive(elems(index), nodes, nodeIdx + 1, value).map { newValue =>
-                  new Array(elems.updated(index, newValue))
+                insertAtPathOrFailRecursive(elems(index), nodes, nodeIdx + 1, value) match {
+                  case Right(newValue) => new Right(new Array(elems.updated(index, newValue)))
+                  case l               => l
                 }
               } else new Left(SchemaError(s"Index $index out of bounds (size: ${elems.length})"))
             }

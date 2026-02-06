@@ -53,9 +53,9 @@ object Keyable {
 
   implicit val longKeyable: Keyable[Long] = instance(_.toString)
 
-  implicit val floatKeyable: Keyable[Float] = instance(_.toString)
+  implicit val floatKeyable: Keyable[Float] = instance(JsonBinaryCodec.floatCodec.encodeToString)
 
-  implicit val doubleKeyable: Keyable[Double] = instance(_.toString)
+  implicit val doubleKeyable: Keyable[Double] = instance(JsonBinaryCodec.doubleCodec.encodeToString)
 
   implicit val charKeyable: Keyable[Char] = instance(_.toString)
 
@@ -63,9 +63,9 @@ object Keyable {
 
   // Arbitrary Precision Numbers
 
-  implicit val bigIntKeyable: Keyable[BigInt] = instance(_.toString)
+  implicit val bigIntKeyable: Keyable[BigInt] = instance(JsonBinaryCodec.bigIntCodec.encodeToString)
 
-  implicit val bigDecimalKeyable: Keyable[BigDecimal] = instance(_.toString)
+  implicit val bigDecimalKeyable: Keyable[BigDecimal] = instance(JsonBinaryCodec.bigDecimalCodec.encodeToString)
 
   // Java Time Types
 
