@@ -7,6 +7,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
+import java.util
 import scala.util.control.NonFatal
 
 /**
@@ -505,7 +506,7 @@ object Json {
           else (kv._1, v2)
         idx += 1
       }
-      java.util.Arrays.sort(
+      util.Arrays.sort(
         arr,
         0,
         arr.length,
@@ -533,7 +534,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Object(Chunk.fromArray(arr))
     }
 
@@ -560,7 +561,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Object(Chunk.fromArray(arr))
     }
 
@@ -588,8 +589,8 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
-      java.util.Arrays.sort(
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
+      util.Arrays.sort(
         arr,
         0,
         arr.length,
@@ -688,7 +689,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Array(Chunk.fromArray(arr))
     }
 
@@ -711,7 +712,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Array(Chunk.fromArray(arr))
     }
 
@@ -735,7 +736,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Array(Chunk.fromArray(arr))
     }
 
@@ -1589,7 +1590,7 @@ object Json {
           }
         case atMapKeys: DynamicOptic.Node.AtMapKeys =>
           val keys    = atMapKeys.keys
-          val keyStrs = new java.util.HashSet[java.lang.String](keys.size)
+          val keyStrs = new util.HashSet[java.lang.String](keys.size)
           keys.foreach {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
             case _                                                 => ()
@@ -1731,7 +1732,7 @@ object Json {
           case _ => None
         }
       case atMapKeys: DynamicOptic.Node.AtMapKeys =>
-        val keyStrs = new java.util.HashSet[java.lang.String]
+        val keyStrs = new util.HashSet[java.lang.String]
         atMapKeys.keys.foreach {
           case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
           case _                                                 => ()
@@ -2279,56 +2280,67 @@ object Json {
     )
   )
 
-  implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json]() {
+  implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
     override def decodeValue(in: JsonReader, default: Json): Json = {
-      val b = in.nextToken()
-      if (b == '"') {
+      var x = in.nextToken().toInt
+      if (x == '"') {
         in.rollbackToken()
         new String(in.readString(null))
-      } else if (b == 'f' || b == 't') {
+      } else if (x == 'f' || x == 't') {
         in.rollbackToken()
         Boolean.apply(in.readBoolean())
-      } else if (b >= '0' && b <= '9' || b == '-') {
+      } else if (x >= '0' && x <= '9' || x == '-') {
         in.rollbackToken()
         new Number(in.readBigDecimal(null))
-      } else if (b == '[') {
+      } else if (x == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
           in.rollbackToken()
-          val builder     = ChunkBuilder.make[Json]()
-          var idx, errIdx = 0
+          var arr    = new scala.Array[Json](4)
+          var errIdx = 0
+          x = 0
           try {
             while ({
-              errIdx = idx
-              builder.addOne(decodeValue(in, default))
+              errIdx = x
+              arr(x) = decodeValue(in, default)
+              x += 1
               errIdx = -1
-              idx += 1
               in.isNextToken(',')
-            }) ()
+            }) {
+              if (arr.length == x) arr = util.Arrays.copyOf(arr, x << 1)
+            }
           } catch {
             case error if NonFatal(error) && errIdx >= 0 => in.decodeError(new DynamicOptic.Node.AtIndex(errIdx), error)
           }
-          if (in.isCurrentToken(']')) new Array(builder.result())
-          else in.arrayEndOrCommaError()
+          if (in.isCurrentToken(']')) {
+            if (arr.length != x) arr = util.Arrays.copyOf(arr, x)
+            new Array(Chunk.fromArray(arr))
+          } else in.arrayEndOrCommaError()
         }
-      } else if (b == '{') {
+      } else if (x == '{') {
         if (in.isNextToken('}')) Object.empty
         else {
           in.rollbackToken()
-          val builder               = ChunkBuilder.make[(java.lang.String, Json)]()
+          var arr                   = new scala.Array[(java.lang.String, Json)](4)
           var key: java.lang.String = null
+          x = 0
           try {
             while ({
               key = in.readKeyAsString()
-              builder.addOne((key, decodeValue(in, default)))
+              arr(x) = new Tuple2(key, decodeValue(in, default))
+              x += 1
               key = null
               in.isNextToken(',')
-            }) ()
+            }) {
+              if (arr.length == x) arr = util.Arrays.copyOf(arr, x << 1)
+            }
           } catch {
             case error if NonFatal(error) && (key ne null) => in.decodeError(new DynamicOptic.Node.Field(key), error)
           }
-          if (in.isCurrentToken('}')) new Object(builder.result())
-          else in.objectEndOrCommaError()
+          if (in.isCurrentToken('}')) {
+            if (arr.length != x) arr = util.Arrays.copyOf(arr, x)
+            new Object(Chunk.fromArray(arr))
+          } else in.objectEndOrCommaError()
         }
       } else {
         in.rollbackToken()
@@ -2342,24 +2354,13 @@ object Json {
       case num: Number   => out.writeVal(num.value)
       case arr: Array    =>
         out.writeArrayStart()
-        val vs  = arr.value
-        val len = vs.length
-        var idx = 0
-        while (idx < len) {
-          encodeValue(vs(idx), out)
-          idx += 1
-        }
+        arr.value.foreach(encodeValue(_, out))
         out.writeArrayEnd()
       case obj: Object =>
         out.writeObjectStart()
-        val kvs = obj.value
-        val len = kvs.length
-        var idx = 0
-        while (idx < len) {
-          val kv = kvs(idx)
+        obj.value.foreach { kv =>
           out.writeKey(kv._1)
           encodeValue(kv._2, out)
-          idx += 1
         }
         out.writeObjectEnd()
       case _ => out.writeNull()
