@@ -1027,6 +1027,37 @@ def deriveRecord[F[_, _], A](
 
 As shown above, the implementation of the `deriveRecord` method for `Gen` is structurally similar to the `deriveRecord` method used in `Show` derivation. The primary difference is the data flow: instead of deconstructing an existing record to access its fields, we generate random values for each field. We then use `Register#set` to store these values in the registers before invoking the `constructor` from the `Binding` to create an instance of type `A`.
 
+### Variant
+
+The `deriveVariant` method is responsible for deriving a `Gen` instance for variant types, such as sealed traits with case classes:
+
+```scala
+def deriveVariant[F[_, _], A](
+  cases: IndexedSeq[Term[F, A, ?]],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Variant, A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+)(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = Lazy {
+  // Get Gen instances for all cases
+  val caseGens: IndexedSeq[Lazy[Gen[A]]] = cases.map { c =>
+    D.instance(c.value.metadata).asInstanceOf[Lazy[Gen[A]]]
+  }
+
+  new Gen[A] {
+    def generate(random: Random): A = {
+      // Pick a random case and generate its value
+      val caseIndex = random.nextInt(cases.length)
+      caseGens(caseIndex).force.generate(random)
+    }
+  }
+}
+```
+
+The derivation process for `Gen` variants is simpler than for the record case because we don't need to worry about registers or constructors. Instead, we simply need to randomly select one of the type class instances for the cases and generate a value for that case.
+
 ## Derivation Process Overview including Internal Mechanics
 
 ### PHASE 1: Deriving the Schema for the Target Type
