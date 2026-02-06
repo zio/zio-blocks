@@ -2718,6 +2718,136 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         assertTrue(expr.eval(DynamicValue.Null).isLeft)
       }
+    ),
+    suite("Executor error paths and reverse coverage")(
+      test("JoinExpr fails when combine expression fails") {
+        val action = MigrationAction.JoinExpr(
+          DynamicOptic.root.field("combined"),
+          Vector(DynamicOptic.root.field("a")),
+          MigrationExpr.FieldRef(DynamicOptic.root.field("nonexistent"))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        assertTrue(migration(input).isLeft)
+      },
+      test("JoinExpr fails on non-Record parent") {
+        val action = MigrationAction.JoinExpr(
+          DynamicOptic.root.field("combined"),
+          Vector.empty,
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        assertTrue(migration(input).isLeft)
+      },
+      test("SplitExpr fails when split expression fails") {
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("a")),
+          Vector(MigrationExpr.FieldRef(DynamicOptic.root.field("nonexistent")))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("source" -> DynamicValue.Primitive(PrimitiveValue.String("x"))))
+        assertTrue(migration(input).isLeft)
+      },
+      test("SplitExpr fails on non-Record parent") {
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("a")),
+          Vector(MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        assertTrue(migration(input).isLeft)
+      },
+      test("TransformValueExpr fails when expression fails") {
+        val expr      = MigrationExpr.FieldRef(DynamicOptic.root.field("nonexistent"))
+        val action    = MigrationAction.TransformValueExpr(DynamicOptic.root.field("value"), expr)
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(5))))
+        assertTrue(migration(input).isLeft)
+      },
+      test("ChangeTypeExpr fails when expression fails") {
+        val expr      = MigrationExpr.FieldRef(DynamicOptic.root.field("nonexistent"))
+        val action    = MigrationAction.ChangeTypeExpr(DynamicOptic.root.field("value"), expr)
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(5))))
+        assertTrue(migration(input).isLeft)
+      },
+      test("Join fails on non-Record parent") {
+        val action = MigrationAction.Join(
+          DynamicOptic.root.field("combined"),
+          Vector.empty,
+          DynamicValue.Primitive(PrimitiveValue.Int(1))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        assertTrue(migration(input).isLeft)
+      },
+      test("Split fails on non-Record parent") {
+        val action = MigrationAction.Split(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("a")),
+          DynamicValue.Primitive(PrimitiveValue.Int(1))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        assertTrue(migration(input).isLeft)
+      },
+      test("Rename fails when path doesn't end with Field node") {
+        val action    = MigrationAction.Rename(DynamicOptic.root, "newName")
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(Chunk("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        assertTrue(migration(input).isLeft)
+      },
+      test("JoinExpr reverse without splitExprs uses FieldRef fallback") {
+        val action = MigrationAction.JoinExpr(
+          DynamicOptic.root.field("combined"),
+          Vector(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
+          MigrationExpr.Literal(DynamicValue.Null),
+          None
+        )
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.SplitExpr(_, paths, exprs, Some(_)) =>
+            paths.length == 2 && exprs.length == 2 && exprs.forall(_.isInstanceOf[MigrationExpr.FieldRef])
+          case _ => false
+        })
+      },
+      test("SplitExpr reverse without combineExpr uses FieldRef fallback") {
+        val action = MigrationAction.SplitExpr(
+          DynamicOptic.root.field("source"),
+          Vector(DynamicOptic.root.field("a")),
+          Vector(MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+          None
+        )
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.JoinExpr(_, _, MigrationExpr.FieldRef(_), Some(_)) => true
+          case _                                                                  => false
+        })
+      },
+      test("ChangeTypeExpr reverse without reverseExpr uses original expr") {
+        val expr = MigrationExpr.Convert(
+          MigrationExpr.FieldRef(DynamicOptic.root),
+          MigrationExpr.PrimitiveTargetType.ToString
+        )
+        val action   = MigrationAction.ChangeTypeExpr(DynamicOptic.root.field("v"), expr, None)
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.ChangeTypeExpr(_, e, Some(re)) => e == expr && re == expr
+          case _                                              => false
+        })
+      },
+      test("TransformValueExpr reverse without reverseExpr uses original expr") {
+        val expr     = MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        val action   = MigrationAction.TransformValueExpr(DynamicOptic.root.field("x"), expr, None)
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.TransformValueExpr(_, e, Some(re)) => e == expr && re == expr
+          case _                                                  => false
+        })
+      }
     )
   )
 }
