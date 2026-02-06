@@ -332,8 +332,6 @@ parent.run { // implicit parentScope: Scope.Has[Resource]
 
 **Unscoped types** include all primitives, String, collections of Unscoped elements, and tuples of Unscoped elements. Resource types (streams, connections, file handles) are NOT Unscoped and stay scoped.
 
-> **Scala 2 Note**: In Scala 3, the `$` operator enforces tag capability checking via `Scope[?] { type Tag >: S }`, ensuring only the matching scope can access the value. Scala 2 lacks refined type syntax and requires only `Scope.Any` in scope. The safety guarantee still holds in practice because scoped values can only be obtained from the matching scope, and the opaque type prevents direct access.
-
 ### Scope.Closeable
 
 `injected` returns a `Scope.Closeable` — a scope that can be explicitly closed:

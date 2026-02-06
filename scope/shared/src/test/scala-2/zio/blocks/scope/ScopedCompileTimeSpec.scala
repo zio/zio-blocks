@@ -5,8 +5,9 @@ import zio.test._
 /**
  * Tests that verify compile-time safety of scoped values.
  *
- * In Scala 2, we can't use `typeCheckErrors` like Scala 3, so these tests
- * verify runtime behavior that demonstrates the scoping system works.
+ * In Scala 2, we use `typeCheck` from ZIO Test to verify that certain code
+ * DOESN'T compile, which is the key safety property of the escape prevention
+ * system.
  */
 object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
@@ -17,6 +18,43 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
   implicit val globalScope: Scope.Any = Scope.global
 
   def spec = suite("Scoped Compile-Time Safety (Scala 2)")(
+    suite("$ operator tag checking")(
+      test("cannot use $ with value from different scope") {
+        // This verifies that the macro rejects mismatched scope tags
+        // We use two different closeable scopes - a value from one scope
+        // cannot be accessed with the other scope in context
+        typeCheck {
+          """
+          import zio.blocks.scope._
+
+          class Resource1 { def value: Int = 1 }
+          class Resource2 { def value: Int = 2 }
+
+          val closeable1 = injected(new Resource1)
+          val closeable2 = injected(new Resource2)
+
+          // Get a scoped value from closeable1's scope
+          var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
+          closeable1.run { implicit scope =>
+            escapedValue = $[Resource1]
+          }
+
+          // Try to use it with closeable2's scope - should fail
+          closeable2.run { implicit scope =>
+            // This should fail: closeable2.Tag is not a supertype of closeable1.Tag
+            escapedValue.$(_.value)
+          }
+          """
+        }.map(result =>
+          assertTrue(
+            result.isLeft,
+            result.left.exists(msg =>
+              msg.contains("cannot be accessed") || msg.contains("Tag")
+            )
+          )
+        )
+      }
+    ),
     suite("Tag type safety")(
       test("map preserves tag type") {
         // Verify that map returns a scoped value

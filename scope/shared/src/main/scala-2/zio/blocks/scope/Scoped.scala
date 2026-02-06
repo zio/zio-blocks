@@ -1,6 +1,6 @@
 package zio.blocks.scope
 
-import scala.annotation.unused
+import scala.language.experimental.macros
 import scala.language.implicitConversions
 
 /**
@@ -150,24 +150,20 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   - If `B` is `Unscoped`, returns raw `B`
    *   - Otherwise, returns `B @@ S` (stays scoped)
    *
-   * Note: In Scala 2, the scope parameter only requires `Scope.Any` rather than
-   * the refined `Scope[?] { type Tag >: S }` used in Scala 3. This is because
-   * Scala 2 has limited support for refined types with path-dependent type
-   * constraints in implicit resolution. The safety guarantee still holds in
-   * practice because scoped values can only be obtained from the matching
-   * scope, and the opaque type prevents direct access.
+   * This is a macro that verifies at compile time that the implicit scope's Tag
+   * is a supertype of S, matching the Scala 3 constraint `Scope[?] { type Tag >: S }`.
    *
    * @param f
    *   The function to apply to the underlying value
    * @param scope
-   *   Evidence that a scope is in context
+   *   Evidence that the current scope encompasses tag `S`
    * @param u
    *   Typeclass determining the result type
    * @return
    *   Either raw `B` or `B @@ S` depending on AutoUnscoped instance
    */
-  def $[B](f: A => B)(implicit @unused scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out =
-    u(f(@@.unscoped(scoped)))
+  def $[B](f: A => B)(implicit scope: Scope.Any, u: AutoUnscoped[B, S]): u.Out =
+    macro ScopedMacros.dollarImpl[A, S, B]
 
   /**
    * Maps over a scoped value, preserving the tag.
