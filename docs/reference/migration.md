@@ -10,6 +10,7 @@ The migration system enables:
 - **Reversibility**: All migrations can be structurally reversed
 - **Serialization**: Migrations are pure data that can be serialized and stored
 - **Build-time validation**: Structural correctness is verified when you call `build`
+- **Compile-time field tracking** (Scala 3): Verify all fields are handled at compile time
 - **Path-aware errors**: Detailed error messages with exact location information
 
 ## Core Types
@@ -249,3 +250,70 @@ Error types include:
 3. **Compose small migrations** rather than writing one large migration — this improves readability and testability
 4. **Test both directions** — apply forward, then reverse, and verify the round-trip
 5. **Serialize migrations** alongside schema versions for audit trails and reproducibility
+6. **Use `checkedBuilder` (Scala 3)** to catch missing fields at compile time instead of runtime
+
+## Compile-Time Field Tracking (Scala 3 Only)
+
+For Scala 3 projects, `TrackedMigrationBuilder` adds **type-level field name tracking** that validates
+migration completeness at compile time. If you forget to handle a source field or provide a target
+field, you get a compile error — not a runtime failure.
+
+### Quick Start
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+import zio.blocks.schema.migration.MigrationBuilderSyntax._
+
+case class PersonV1(name: String, age: Int, ssn: String) derives Schema
+case class PersonV2(fullName: String, age: Int, email: String) derives Schema
+
+val migration = MigrationBuilderSyntax.checkedBuilder[PersonV1, PersonV2]
+  .renameField(_.name, _.fullName)   // handles source "name", provides target "fullName"
+  .dropField(_.ssn)                  // handles source "ssn"
+  .addField(_.email, "unknown")      // provides target "email"
+  .build                             // ✅ compiles — all fields accounted for
+```
+
+If you forget `.dropField(_.ssn)`, the compiler produces:
+
+```
+Migration is incomplete.
+
+Unhandled source fields: ssn
+
+Hints: Use .dropField or .renameField for: ssn
+
+Source fields: name, age, ssn
+Target fields: fullName, age, email
+Auto-mapped: age
+```
+
+### Entry Points
+
+| Entry point | Description |
+|-------------|-------------|
+| `MigrationBuilderSyntax.checkedBuilder[A, B]` | Create a tracked builder directly |
+| `Migration.newBuilder[A, B].tracked` | Convert an existing builder to tracked |
+
+### Build Modes
+
+| Method | Compile-time check | Runtime validation |
+|--------|-------------------|-------------------|
+| `.build` | ✅ `MigrationComplete` required | ✅ `MigrationValidator` runs |
+| `.buildChecked` | ✅ `MigrationComplete` required | ❌ Skipped |
+| `.buildPartial` | ❌ Not required | ❌ Skipped |
+
+### How It Works
+
+The builder carries two Tuple type parameters:
+- **`SH` (SourceHandled)**: Accumulates source field names handled via `dropField` / `renameField`
+- **`TP` (TargetProvided)**: Accumulates target field names provided via `addField` / `renameField`
+
+Fields with the same name in source and target are **auto-mapped** and don't need explicit handling.
+
+At `.build` time, the compiler summons `MigrationComplete[A, B, SH, TP]` evidence, which uses a
+macro to verify: `sourceFields - autoMapped ⊆ SH` and `targetFields - autoMapped ⊆ TP`.
+
+> **Note:** This feature requires Scala 3 (transparent inline macros + Tuple types). Scala 2
+> projects should use the standard `MigrationBuilder` with runtime validation via `.build`.
