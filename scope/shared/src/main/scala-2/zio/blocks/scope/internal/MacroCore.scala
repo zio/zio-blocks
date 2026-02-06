@@ -44,34 +44,35 @@ private[scope] object MacroCore {
   // Type analysis utilities
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Check if a type is a Scope type (Scope[?]) */
+  /** Check if a type is a Scope type (subtype of Scope) */
   def isScopeType(c: blackbox.Context)(tpe: c.Type): Boolean = {
     import c.universe._
-    tpe <:< typeOf[zio.blocks.scope.Scope[_]]
+    tpe <:< typeOf[zio.blocks.scope.Scope]
   }
 
   /**
    * Extract the dependency type from a Scope.Has[Y] type.
    *
-   * Returns Some(Y) if this is Scope[Context[Y] :: scala.Any] with Y being a
-   * concrete type (not Any/Nothing), otherwise None.
+   * In the new design, Scope is an HList:
+   *   - Scope.::[H, T] is a cons cell with head type H and tail T <: Scope
+   *   - Scope.Global is the empty scope
+   *   - Scope.Has[T] = Scope.::[T, Scope]
+   *
+   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type
+   * (not Any/Nothing), otherwise None.
    */
   def extractScopeHasType(c: blackbox.Context)(tpe: c.Type): Option[c.Type] = {
     import c.universe._
     val dealiased = tpe.dealias
     dealiased match {
-      case TypeRef(_, sym, List(stackType)) if sym.fullName == "zio.blocks.scope.Scope" =>
-        stackType.dealias match {
-          case TypeRef(_, consSym, List(contextType, _)) if consSym.name.toString == "::" =>
-            contextType.dealias match {
-              case TypeRef(_, ctxSym, List(innerType)) if ctxSym.fullName == "zio.blocks.context.Context" =>
-                val inner = innerType.dealias
-                if (inner =:= typeOf[Any] || inner =:= typeOf[Nothing]) None
-                else Some(inner)
-              case _ => None
-            }
-          case _ => None
-        }
+      case TypeRef(_, sym, List(headType, _)) if sym.name.toString == "$colon$colon" =>
+        // Check that this is Scope.:: not List.::
+        val owner = sym.owner
+        if (owner.fullName == "zio.blocks.scope.Scope") {
+          val head = headType.dealias
+          if (head =:= typeOf[Any] || head =:= typeOf[Nothing]) None
+          else Some(head)
+        } else None
       case _ => None
     }
   }

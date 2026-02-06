@@ -128,33 +128,34 @@ private[scope] object MacroCore {
   // Type analysis utilities (Scala 3 specific)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Check if a type is a Scope type (Scope[?]) */
+  /** Check if a type is a Scope type (subtype of Scope) */
   def isScopeType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
-    tpe <:< TypeRepr.of[zio.blocks.scope.Scope[?]]
+    tpe <:< TypeRepr.of[zio.blocks.scope.Scope]
   }
 
   /**
    * Extract the dependency type from a Scope.Has[Y] type.
    *
-   * Returns Some(Y) if this is Scope[Context[Y] :: scala.Any] with Y being a
-   * concrete type (not Any/Nothing), otherwise None.
+   * In the new design, Scope is itself an HList:
+   *   - Scope.::[H, T] is a cons cell with head type H and tail T <: Scope
+   *   - Scope.SNil is the empty scope
+   *   - Scope.Has[T] = Scope.::[T, Scope]
+   *
+   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type (not
+   * Any/Nothing), otherwise None.
    */
   def extractScopeHasType(using Quotes)(tpe: quotes.reflect.TypeRepr): Option[quotes.reflect.TypeRepr] = {
     import quotes.reflect.*
     tpe.dealias match {
-      case AppliedType(_, List(stackType)) =>
-        stackType.dealias match {
-          case AppliedType(cons, List(contextType, _)) if cons.typeSymbol.name == "::" =>
-            contextType.dealias match {
-              case AppliedType(_, List(innerType)) =>
-                val inner = innerType.dealias.simplified
-                if (inner =:= TypeRepr.of[scala.Any] || inner =:= TypeRepr.of[Nothing]) None
-                else Some(inner)
-              case _ => None
-            }
-          case _ => None
-        }
+      case AppliedType(cons, List(headType, _)) if cons.typeSymbol.name == "::" =>
+        // Check that cons is actually Scope.::
+        val scopeConsSymbol = TypeRepr.of[zio.blocks.scope.Scope.::[?, ?]].typeSymbol
+        if (cons.typeSymbol == scopeConsSymbol) {
+          val head = headType.dealias.simplified
+          if (head =:= TypeRepr.of[scala.Any] || head =:= TypeRepr.of[Nothing]) None
+          else Some(head)
+        } else None
       case _ => None
     }
   }

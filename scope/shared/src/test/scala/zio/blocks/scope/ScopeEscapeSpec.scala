@@ -16,22 +16,23 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
   def spec = suite("ScopeEscape")(
     suite("Global scope escape")(
       test("any type escapes from global scope via ScopeEscape") {
-        // Resource is NOT Unscoped, but TNil (global scope tag) allows escape
-        val escape: ScopeEscape.Aux[Resource, TNil, Resource] =
-          implicitly[ScopeEscape[Resource, TNil]].asInstanceOf[ScopeEscape.Aux[Resource, TNil, Resource]]
+        // Resource is NOT Unscoped, but Scope.Global (global scope tag) allows escape
+        val escape: ScopeEscape.Aux[Resource, Scope.Global, Resource] =
+          implicitly[ScopeEscape[Resource, Scope.Global]]
+            .asInstanceOf[ScopeEscape.Aux[Resource, Scope.Global, Resource]]
         val resource         = new Resource
         val result: Resource = escape(resource)
-        // result should be raw Resource, not Resource @@ TNil
+        // result should be raw Resource, not Resource @@ Scope.Global
         assertTrue(result.getData() == 42)
       },
       test("InputStream escapes from global scope") {
         // InputStream is NOT Unscoped, but should escape from global scope
-        val escape = implicitly[ScopeEscape[InputStream, TNil]]
+        val escape = implicitly[ScopeEscape[InputStream, Scope.Global]]
         assertTrue(escape != null)
       },
       test("primitives also escape from global scope") {
-        val escape: ScopeEscape.Aux[Int, TNil, Int] =
-          implicitly[ScopeEscape[Int, TNil]].asInstanceOf[ScopeEscape.Aux[Int, TNil, Int]]
+        val escape: ScopeEscape.Aux[Int, Scope.Global, Int] =
+          implicitly[ScopeEscape[Int, Scope.Global]].asInstanceOf[ScopeEscape.Aux[Int, Scope.Global, Int]]
         val result: Int = escape(42)
         assertTrue(result == 42)
       }
@@ -45,7 +46,7 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         assertTrue(result == "hello")
       },
       test("Resource types stay scoped in child scopes") {
-        // Resource is NOT Unscoped and tag is not TNil, so it stays scoped
+        // Resource is NOT Unscoped and tag is not Scope.Global, so it stays scoped
         val escape: ScopeEscape.Aux[Resource, String, Resource @@ String] =
           implicitly[ScopeEscape[Resource, String]].asInstanceOf[ScopeEscape.Aux[Resource, String, Resource @@ String]]
         val resource                   = new Resource
@@ -56,10 +57,10 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
     ),
     suite("Priority ordering")(
       test("global scope has higher priority than Unscoped") {
-        // Both globalScope and unscoped instances match for Int @@ TNil
+        // Both globalScope and unscoped instances match for Int @@ Scope.Global
         // The globalScope instance should win
-        val escape: ScopeEscape.Aux[Int, TNil, Int] =
-          implicitly[ScopeEscape[Int, TNil]].asInstanceOf[ScopeEscape.Aux[Int, TNil, Int]]
+        val escape: ScopeEscape.Aux[Int, Scope.Global, Int] =
+          implicitly[ScopeEscape[Int, Scope.Global]].asInstanceOf[ScopeEscape.Aux[Int, Scope.Global, Int]]
         assertTrue(escape(123) == 123)
       }
     )

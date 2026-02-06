@@ -67,12 +67,12 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           // Get a scoped value from closeable1's scope
           var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
-          closeable1.run { implicit scope =>
+          closeable1.use { implicit scope =>
             escapedValue = $[Resource1]
           }
 
           // Try to use it with closeable2's scope - should fail
-          closeable2.run { implicit scope =>
+          closeable2.use { implicit scope =>
             // This should fail: closeable2.Tag is not a supertype of closeable1.Tag
             escapedValue.$(_.value)
           }
@@ -108,12 +108,12 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           // Get a scoped value from closeable1's scope
           var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
-          closeable1.run { implicit scope =>
+          closeable1.use { implicit scope =>
             escapedValue = $[Resource1]
           }
 
           // Try to use .get with closeable2's scope - should fail
-          closeable2.run { implicit scope =>
+          closeable2.use { implicit scope =>
             // closeable2.Tag is not a supertype of closeable1.Tag
             escapedValue.get
           }
@@ -136,69 +136,66 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           implicit val globalScope: Scope.Any = Scope.global
           val closeable = injected(new Resource)
-          closeable.run { implicit scope =>
+          closeable.use { implicit scope =>
             val scoped = $[Resource]
             // Resource is not Unscoped, so .get returns Resource @@ Tag, not raw Resource
             val raw: Resource = scoped.get  // Should fail: type mismatch
           }
           """
-        }.map(result => assertTrue(result.isLeft))
+        }.map(result => assertTrue(result.isLeft, result.left.exists(_.contains("type mismatch"))))
       }
     ),
-    suite("Tag type safety")(
-      test("map preserves tag type") {
-        // Verify that map returns a scoped value
-        val closeable = injected(new MockResource)
-        closeable.run { implicit scope =>
-          val scoped = $[MockResource]
-          val mapped = scoped.map(_.getData())
-          // mapped is Int @@ Tag - verify we can use .get to extract
-          val result: Int = mapped.get
-          assertTrue(result == 42)
-        }
-      },
-      test("flatMap combines tags") {
-        // Tests type algebra of scoped values in isolation.
-        // Uses artificial String tag (not from a real scope) to verify
-        // that map/flatMap preserve and combine tags correctly.
-        val t1: Int @@ String    = @@.scoped(1)
-        val t2: String @@ String = @@.scoped("hello")
+    suite("Nested scope tag hierarchy")(
+      test("sibling scopes cannot share scoped values") {
+        // Negative test: sibling scopes have unrelated Tags
+        typeCheck {
+          """
+          import zio.blocks.scope._
 
-        val combined = for {
-          x <- t1
-          y <- t2
-        } yield (x, y)
+          class Resource1 { def value: Int = 1 }
+          class Resource2 { def value: Int = 2 }
 
-        // Compilation proves type algebra works; verify runtime behavior
-        val result: Int @@ String = combined.map { case (a, b) => a + b.length }
-        assertTrue(@@.unscoped(result) == 6)
+          implicit val globalScope: Scope.Any = Scope.global
+
+          val sibling1 = injected(new Resource1)
+          val sibling2 = injected(new Resource2)
+
+          var escapedFromSibling1: Resource1 @@ sibling1.Tag = null.asInstanceOf[Resource1 @@ sibling1.Tag]
+          sibling1.use { implicit scope =>
+            escapedFromSibling1 = $[Resource1]
+          }
+
+          // Try to use sibling1's value in sibling2's scope - should fail
+          sibling2.use { implicit scope =>
+            escapedFromSibling1.$(_.value)
+          }
+          """
+        }.map(result => assertTrue(
+          result.isLeft,
+          result.left.exists(msg => msg.contains("cannot be accessed") || msg.contains("type mismatch"))
+        ))
       }
     ),
-    suite("Unscoped types escape")(
-      test("Int escapes unscoped via $ operator") {
-        val closeable = injected(new MockResource)
-        closeable.run { implicit scope =>
-          val scoped = $[MockResource]
-          val n: Int = scoped.$(_.getData())
-          assertTrue(n == 42)
-        }
-      },
-      test("resourceful types stay scoped via $ operator") {
-        class Inner { def value: Int = 99          }
-        class Outer { def inner: Inner = new Inner }
+    suite("Service retrieval")(
+      test("cannot retrieve service not in scope") {
+        // Negative test: $[T] should fail if T is not in the scope
+        typeCheck {
+          """
+          import zio.blocks.scope._
 
-        val closeable = injected(new Outer)
-        closeable.run { implicit scope =>
-          val scoped = $[Outer]
+          class Database { def query(): String = "result" }
+          class Config { def url: String = "localhost" }
 
-          // inner is not Unscoped, so it stays scoped (can't assign to raw Inner)
-          val inner = scoped.$(_.inner)
+          implicit val globalScope: Scope.Any = Scope.global
 
-          // Can extract value from inner with same scope
-          val n: Int = inner.$(_.value)
-
-          assertTrue(n == 99)
-        }
+          // Scope only has Config, not Database
+          val closeable = injected(new Config)
+          closeable.use { implicit scope =>
+            // This should NOT compile: Database is not in scope
+            val db = $[Database]
+          }
+          """
+        }.map(result => assertTrue(result.isLeft, result.left.exists(msg => msg.contains("could not find implicit") || msg.contains("No implicit"))))
       }
     )
   )

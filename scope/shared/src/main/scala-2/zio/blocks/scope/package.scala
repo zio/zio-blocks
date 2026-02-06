@@ -84,7 +84,7 @@ package object scope {
    *   }
    *   }}}
    */
-  def injected[T](t: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, _] = {
+  def injected[T, S <: Scope](t: T)(implicit scope: S, nom: IsNominalType[T]): Scope.::[T, S] = {
     val ctx        = Context(t)
     val finalizers = new Finalizers
     if (t.isInstanceOf[AutoCloseable]) {

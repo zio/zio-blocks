@@ -105,8 +105,8 @@ private[scope] object ScopeMacros {
               val finalizers  = new Finalizers
               val w           = $wireableE.wire.asInstanceOf[Wire.Shared[inType, T]]
               val childScope  =
-                Scope.makeCloseable[inType, TNil](parentScope, Context.empty.asInstanceOf[Context[inType]], finalizers)
-              val ctx = w.construct(using childScope.asInstanceOf[Scope.Has[inType]])
+                Scope.makeCloseable[inType, Scope](parentScope, Context.empty.asInstanceOf[Context[inType]], finalizers)
+              val ctx = w.construct(using childScope)
               Scope.makeCloseable(parentScope, ctx, finalizers)
             }
         }
@@ -236,12 +236,12 @@ private[scope] object ScopeMacros {
                   throw new IllegalStateException("Missing wire for dependency: " + ${ Expr(depName) })
                 }
                 .asInstanceOf[Wire.Shared[Any, d]]
-              val depScope = Scope.makeCloseable[Any, TNil](
+              val depScope = Scope.makeCloseable[Any, Scope](
                 ${ parentRef.asExprOf[Scope.Any] },
                 Context.empty.asInstanceOf[Context[Any]],
                 new Finalizers
               )
-              val ctx = wire.constructFn(depScope.asInstanceOf[Scope.Has[Any]])
+              val ctx = wire.constructFn(depScope)
               ctx.get[d](using summonInline[IsNominalType[d]])
             }.asTerm
         }
@@ -301,8 +301,8 @@ private[scope] object ScopeMacros {
 
       // Build final return expression
       val result = '{
-        Scope.makeCloseable[T, scala.Any](
-          ${ parentRef.asExprOf[Scope.Any] },
+        Scope.makeCloseable[T, Scope](
+          ${ parentRef.asExprOf[Scope] },
           ${ ctxRef.asExprOf[Context[T]] },
           ${ finsRef.asExprOf[Finalizers] }
         )

@@ -20,7 +20,7 @@ object LeakSpec extends ZIOSpecDefault {
     suite("leak function")(
       test("leak unwraps scoped value to raw value") {
         val closeable = injected(new Resource(123))
-        closeable.run { implicit scope =>
+        closeable.use { implicit scope =>
           val scoped = $[Resource]
           // leak should return the raw Resource
           val raw: Resource = leak(scoped)
@@ -29,7 +29,7 @@ object LeakSpec extends ZIOSpecDefault {
       },
       test("leak works with chained access") {
         val closeable = injected(new Request)
-        closeable.run { implicit scope =>
+        closeable.use { implicit scope =>
           val request = $[Request]
           // Simulate $[Request].body.getData() pattern
           val data: String = leak(request.map(_.body)) match {
@@ -42,7 +42,7 @@ object LeakSpec extends ZIOSpecDefault {
         def legacyApi(resource: Resource): Int = resource.value * 2
 
         val closeable = injected(new Resource(21))
-        closeable.run { implicit scope =>
+        closeable.use { implicit scope =>
           val scoped = $[Resource]
           val result = legacyApi(leak(scoped))
           assertTrue(result == 42)

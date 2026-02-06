@@ -363,7 +363,7 @@ private[scope] object ScopeMacros {
           val parentScope = $scopeExpr
           val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
           val w = $wireableTpe.wire.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $tpe]]
-          val childScope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](
+          val childScope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.Scope.Global](
             parentScope, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]], finalizers)
           val ctx = w.constructFn(childScope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
           _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
@@ -439,7 +439,7 @@ private[scope] object ScopeMacros {
           q"""val $wireName = wiresSeq.lift($i).getOrElse {
             throw new IllegalStateException("Missing wire for dependency: " + $depName)
           }.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $depTpe]]""",
-          q"""val $scopeName = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.TNil](
+          q"""val $scopeName = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.Scope.Global](
             parentScope,
             _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]],
             finalizers

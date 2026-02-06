@@ -59,35 +59,35 @@ object ScopeSpec extends ZIOSpecDefault {
     ),
     suite("Closeable")(
       test("close is idempotent") {
-        var closeCount        = 0
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
+        var closeCount = 0
+        val parent     = Scope.global
+        val config     = Config(true)
+        val finalizers = new Finalizers
         finalizers.add(closeCount += 1)
-        val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+        val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
         closeable.close()
         closeable.close()
         closeable.close()
         assertTrue(closeCount == 1)
       },
       test("get retrieves from context") {
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
-        val retrieved         = closeable.get[Config]
+        val parent     = Scope.global
+        val config     = Config(true)
+        val finalizers = new Finalizers
+        val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
+        val retrieved  = closeable.get[Config]
         closeable.close()
         assertTrue(retrieved == config)
       },
       test("get retrieves from parent context") {
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val db                = Database("jdbc://localhost")
-        val f1                = new Finalizers
-        val f2                = new Finalizers
+        val parent = Scope.global
+        val config = Config(true)
+        val db     = Database("jdbc://localhost")
+        val f1     = new Finalizers
+        val f2     = new Finalizers
 
-        val scope1    = Scope.makeCloseable[Config, TNil](parent, Context(config), f1)
-        val scope2    = Scope.makeCloseable[Database, Context[Config] :: TNil](scope1, Context(db), f2)
+        val scope1    = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), f1)
+        val scope2    = Scope.makeCloseable[Database, Scope.::[Config, Scope.Global]](scope1, Context(db), f2)
         val retrieved = scope2.get[Config]
 
         scope2.close()
@@ -95,10 +95,10 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(retrieved == config)
       },
       test("get throws for missing service") {
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+        val parent     = Scope.global
+        val config     = Config(true)
+        val finalizers = new Finalizers
+        val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 
         // Try to get Database which is not in the scope - should throw at runtime.
         // We use asInstanceOf to bypass compile-time checks and test runtime behavior.
@@ -109,22 +109,22 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(threw)
       },
       test("defer registers finalizer") {
-        var cleaned           = false
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+        var cleaned    = false
+        val parent     = Scope.global
+        val config     = Config(true)
+        val finalizers = new Finalizers
+        val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
         closeable.defer { cleaned = true }
         assertTrue(!cleaned)
         closeable.close()
         assertTrue(cleaned)
       },
       test("defer not registered after close") {
-        var cleaned           = false
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val finalizers        = new Finalizers
-        val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+        var cleaned    = false
+        val parent     = Scope.global
+        val config     = Config(true)
+        val finalizers = new Finalizers
+        val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
         closeable.close()
         closeable.defer { cleaned = true }
         assertTrue(!cleaned)
@@ -132,18 +132,18 @@ object ScopeSpec extends ZIOSpecDefault {
     ),
     suite("nested scopes")(
       test("get from grandparent") {
-        val parent: Scope.Any = Scope.global
-        val config            = Config(true)
-        val db                = Database("jdbc://localhost")
-        val cache             = Cache(100)
-        val f1                = new Finalizers
-        val f2                = new Finalizers
-        val f3                = new Finalizers
+        val parent = Scope.global
+        val config = Config(true)
+        val db     = Database("jdbc://localhost")
+        val cache  = Cache(100)
+        val f1     = new Finalizers
+        val f2     = new Finalizers
+        val f3     = new Finalizers
 
-        val scope1 = Scope.makeCloseable[Config, TNil](parent, Context(config), f1)
-        val scope2 = Scope.makeCloseable[Database, Context[Config] :: TNil](scope1, Context(db), f2)
+        val scope1 = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), f1)
+        val scope2 = Scope.makeCloseable[Database, Scope.::[Config, Scope.Global]](scope1, Context(db), f2)
         val scope3 =
-          Scope.makeCloseable[Cache, Context[Database] :: Context[Config] :: TNil](scope2, Context(cache), f3)
+          Scope.makeCloseable[Cache, Scope.::[Database, Scope.::[Config, Scope.Global]]](scope2, Context(cache), f3)
 
         val retrievedConfig = scope3.get[Config]
         val retrievedDb     = scope3.get[Database]
@@ -158,11 +158,11 @@ object ScopeSpec extends ZIOSpecDefault {
     ),
     suite("InStack")(
       test("evidence for head") {
-        val ev = implicitly[InStack[Config, Context[Config] :: TNil]]
+        val ev = implicitly[InStack[Config, Scope.::[Config, Scope]]]
         assertTrue(ev != null)
       },
       test("evidence for tail") {
-        val ev = implicitly[InStack[Config, Context[Database] :: Context[Config] :: TNil]]
+        val ev = implicitly[InStack[Config, Scope.::[Database, Scope.::[Config, Scope]]]]
         assertTrue(ev != null)
       }
     )

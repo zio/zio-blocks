@@ -3,53 +3,53 @@ package zio.blocks.scope
 import zio.test._
 import zio.blocks.chunk.Chunk
 import zio.blocks.context.Context
-import zio.blocks.scope.internal.{Finalizers, ScopeImplScala3}
+import zio.blocks.scope.internal.Finalizers
 import scala.collection.mutable.ArrayBuffer
 
 object CloseableRunSpec extends ZIOSpecDefault {
 
   case class Config(debug: Boolean)
 
-  def spec = suite("Closeable.run (Scala 3)")(
-    test("run executes block and closes scope") {
-      var blockRan          = false
-      var cleaned           = false
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+  def spec = suite("Closeable.use (Scala 3)")(
+    test("use executes block and closes scope") {
+      var blockRan   = false
+      var cleaned    = false
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add { cleaned = true }
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
-      closeable.run {
+      val closeable = Scope.makeCloseable(parent, Context(config), finalizers)
+      closeable.use {
         blockRan = true
         val c = $[Config]
         assertTrue(c == config)
       }
       assertTrue(blockRan, cleaned)
     },
-    test("run even on exception") {
-      var cleaned           = false
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+    test("use closes scope even on exception") {
+      var cleaned    = false
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add { cleaned = true }
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val closeable = Scope.makeCloseable(parent, Context(config), finalizers)
       try {
-        closeable.run(throw new RuntimeException("boom"))
+        closeable.use(throw new RuntimeException("boom"))
       } catch {
         case _: RuntimeException => ()
       }
       assertTrue(cleaned)
     },
-    test("run called twice throws IllegalStateException") {
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
-      val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+    test("use called twice throws IllegalStateException") {
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
+      val closeable  = Scope.makeCloseable(parent, Context(config), finalizers)
 
-      closeable.run(())
+      closeable.use(())
 
       val threw = try {
-        closeable.run(())
+        closeable.use(())
         false
       } catch {
         case e: IllegalStateException =>
@@ -57,33 +57,27 @@ object CloseableRunSpec extends ZIOSpecDefault {
       }
       assertTrue(threw)
     },
-    test("run reports finalizer errors via errorReporter") {
-      val parent: Scope.Any                      = Scope.global
-      val config                                 = Config(true)
-      val finalizers                             = new Finalizers
-      val reportedErrors                         = ArrayBuffer.empty[Chunk[Throwable]]
-      val testReporter: Chunk[Throwable] => Unit = (errors: Chunk[Throwable]) => { reportedErrors += errors; () }
+    test("use silently discards finalizer errors") {
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer error"))
-      val closeable = new ScopeImplScala3[Config, TNil, parent.Tag](parent, Context(config), finalizers, testReporter)
+      val closeable = Scope.makeCloseable(parent, Context(config), finalizers)
 
-      val result = closeable.run(42)
+      // use discards finalizer errors (use useWithErrors to get them)
+      val result = closeable.use(42)
 
-      assertTrue(
-        result == 42,
-        reportedErrors.size == 1,
-        reportedErrors.head.size == 1,
-        reportedErrors.head.head.getMessage == "finalizer error"
-      )
+      assertTrue(result == 42)
     },
-    test("runWithErrors returns result and errors") {
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+    test("useWithErrors returns result and errors") {
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("error1"))
       finalizers.add(throw new RuntimeException("error2"))
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val closeable = Scope.makeCloseable(parent, Context(config), finalizers)
 
-      val (result, errors) = closeable.runWithErrors(42)
+      val (result, errors) = closeable.useWithErrors(42)
 
       assertTrue(
         result == 42,
@@ -92,16 +86,16 @@ object CloseableRunSpec extends ZIOSpecDefault {
         errors.exists(_.getMessage == "error2")
       )
     },
-    test("runWithErrors called twice throws IllegalStateException") {
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
-      val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+    test("useWithErrors called twice throws IllegalStateException") {
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
+      val closeable  = Scope.makeCloseable(parent, Context(config), finalizers)
 
-      closeable.runWithErrors(())
+      closeable.useWithErrors(())
 
       val threw = try {
-        closeable.runWithErrors(())
+        closeable.useWithErrors(())
         false
       } catch {
         case e: IllegalStateException =>
@@ -109,16 +103,16 @@ object CloseableRunSpec extends ZIOSpecDefault {
       }
       assertTrue(threw)
     },
-    test("runWithErrors closes scope on exception") {
-      var cleaned           = false
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+    test("useWithErrors closes scope on exception") {
+      var cleaned    = false
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add { cleaned = true }
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val closeable = Scope.makeCloseable(parent, Context(config), finalizers)
 
       try {
-        closeable.runWithErrors[Unit](throw new RuntimeException("boom"))
+        closeable.useWithErrors[Unit](throw new RuntimeException("boom"))
       } catch {
         case _: RuntimeException => ()
       }
@@ -132,8 +126,8 @@ object CloseableRunSpec extends ZIOSpecDefault {
       val order = ArrayBuffer.empty[String]
 
       class Resource extends AutoCloseable {
-        var closed      = false
-        def use(): Unit = {
+        var closed              = false
+        def useResource(): Unit = {
           if (closed) throw new IllegalStateException("Resource already closed!")
           order += "use"
         }
@@ -148,9 +142,9 @@ object CloseableRunSpec extends ZIOSpecDefault {
       val resource  = new Resource
       val closeable = injected(resource)
 
-      closeable.run {
+      closeable.use {
         // Register a finalizer that uses the resource
-        defer(resource.use())
+        defer(resource.useResource())
         order += "body"
       }
 
@@ -170,12 +164,13 @@ object CloseableRunSpec extends ZIOSpecDefault {
       // Use a static holder to track order across the test
       OrderTracker.order = order
 
-      val closeable = injected[OrderTrackingResource]
+      // Cast to get access to the head (safe because injected[T] returns :: internally)
+      val closeable = injected[OrderTrackingResource].asInstanceOf[Scope.::[OrderTrackingResource, ?]]
+      val resource  = closeable.head.get[OrderTrackingResource]
 
-      closeable.run {
-        val resource = $[OrderTrackingResource]
+      closeable.use {
         // Register a finalizer that uses the resource
-        defer(resource $ (_.use()))
+        defer(resource.useResource())
         order += "body"
       }
 
@@ -195,9 +190,9 @@ object OrderTracker {
 
 // Helper class for wireable construction test - must be top-level for macro
 class OrderTrackingResource extends AutoCloseable {
-  private val order = OrderTracker.order
-  var closed        = false
-  def use(): Unit   = {
+  private val order       = OrderTracker.order
+  var closed              = false
+  def useResource(): Unit = {
     if (closed) throw new IllegalStateException("Resource already closed!")
     order += "use"
   }

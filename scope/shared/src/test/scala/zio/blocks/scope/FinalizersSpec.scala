@@ -12,23 +12,23 @@ object FinalizersSpec extends ZIOSpecDefault {
 
   def spec = suite("Finalizers")(
     test("run in LIFO order") {
-      val order             = mutable.Buffer[Int]()
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      val order      = mutable.Buffer[Int]()
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(order += 1)
       finalizers.add(order += 2)
       finalizers.add(order += 3)
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
       closeable.close()
       assertTrue(order.toList == List(3, 2, 1))
     },
     test("exception in finalizer is returned in Chunk") {
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer boom"))
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 
       val errors = closeable.close()
       assertTrue(
@@ -65,11 +65,11 @@ object FinalizersSpec extends ZIOSpecDefault {
       assertTrue(count == 1)
     },
     test("closeOrThrow throws first exception") {
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("boom"))
-      val closeable = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
 
       val threw = try {
         closeable.closeOrThrow()
@@ -80,10 +80,10 @@ object FinalizersSpec extends ZIOSpecDefault {
       assertTrue(threw)
     },
     test("closeOrThrow does not throw on success") {
-      val parent: Scope.Any = Scope.global
-      val config            = Config(true)
-      val finalizers        = new Finalizers
-      val closeable         = Scope.makeCloseable[Config, TNil](parent, Context(config), finalizers)
+      val parent     = Scope.global
+      val config     = Config(true)
+      val finalizers = new Finalizers
+      val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
       closeable.closeOrThrow()
       assertTrue(true)
     }

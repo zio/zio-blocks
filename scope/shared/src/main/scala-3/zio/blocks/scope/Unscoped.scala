@@ -21,7 +21,7 @@ package zio.blocks.scope
  */
 trait Unscoped[A]
 
-object Unscoped {
+object Unscoped extends UnscopedVersionSpecific {
   // Primitives
   given Unscoped[Int]        = new Unscoped[Int] {}
   given Unscoped[Long]       = new Unscoped[Long] {}

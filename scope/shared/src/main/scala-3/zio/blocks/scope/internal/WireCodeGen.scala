@@ -1,7 +1,7 @@
 package zio.blocks.scope.internal
 
 import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.{::, InStack, Scope, Wire, Wireable}
+import zio.blocks.scope.{Scope, Wire, Wireable}
 import scala.quoted.*
 import scala.compiletime.summonInline
 
@@ -80,10 +80,7 @@ private[scope] object WireCodeGen {
         paramType.asType match {
           case '[d] =>
             '{
-              $scopeExpr.get[d](using
-                summonInline[InStack[d, Context[In] :: scala.Any]],
-                summonInline[IsNominalType[d]]
-              )
+              $scopeExpr.get[d](using summonInline[IsNominalType[d]])
             }.asTerm
         }
       }
@@ -228,10 +225,7 @@ private[scope] object WireCodeGen {
         paramType.asType match {
           case '[d] =>
             '{
-              $scopeExpr.get[d](using
-                summonInline[InStack[d, Context[In] :: scala.Any]],
-                summonInline[IsNominalType[d]]
-              )
+              $scopeExpr.get[d](using summonInline[IsNominalType[d]])
             }.asTerm
         }
       }

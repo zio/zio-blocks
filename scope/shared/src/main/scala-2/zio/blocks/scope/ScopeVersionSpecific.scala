@@ -1,38 +1,62 @@
 package zio.blocks.scope
 
 import zio.blocks.context.Context
-import zio.blocks.scope.internal.{Finalizers, ScopeImplScala2}
+import zio.blocks.scope.internal.Finalizers
 import scala.language.experimental.macros
 
-private[scope] trait ScopeVersionSpecific[+Stack] { self: Scope[Stack] =>
+private[scope] trait ScopeVersionSpecific { self: Scope =>
 
   def injected[T]: Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfNoArgsImpl[T]
 
   def injected[T](wires: Wire[_, _]*): Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfImpl[T]
 }
 
-private[scope] trait CloseableVersionSpecific[+Head, +Tail] { self: Scope.Closeable[Head, Tail] =>
+private[scope] trait CloseableVersionSpecific[+Head, +Tail <: Scope] { self: Scope.Closeable[Head, Tail] =>
 
   /**
-   * Executes the given function with this scope, then closes the scope.
+   * Uses this scope to execute the given function, then closes the scope.
    *
-   * Finalizer errors are silently discarded. Use `runWithErrors` if you need to
-   * handle cleanup errors.
+   * Can only be called once. Finalizer errors are silently discarded.
+   * Use `useWithErrors` if you need to handle cleanup errors.
    */
-  def run[B](f: Scope.Has[Head] => B): B
+  def use[B](f: self.type => B): B
 
   /**
-   * Executes the given function with this scope, then closes the scope,
+   * Uses this scope to execute the given function, then closes the scope,
    * returning both the result and any finalizer errors.
+   *
+   * Can only be called once.
    */
-  def runWithErrors[B](f: Scope.Has[Head] => B): (B, zio.blocks.chunk.Chunk[Throwable])
+  def useWithErrors[B](f: self.type => B): (B, zio.blocks.chunk.Chunk[Throwable])
 }
 
 private[scope] object ScopeFactory {
-  def createScopeImpl[T, S](
-    parent: Scope[_],
+  def createScopeImpl[T, S <: Scope](
+    parent: S,
     context: Context[T],
     finalizers: Finalizers
-  ): Scope.Closeable[T, S] =
-    new ScopeImplScala2[T, S, parent.Tag](parent, context, finalizers)
+  ): Scope.::[T, S] =
+    new Scope.::[T, S](context, parent, finalizers)
+}
+
+/**
+ * Scala 2 implementation of use/useWithErrors using regular functions.
+ */
+private[scope] trait ScopeConsVersionSpecific[+H, +T <: Scope] { self: Scope.::[H, T] =>
+
+  def use[B](f: self.type => B): B = {
+    if (finalizers.isClosed)
+      throw new IllegalStateException("Scope.use can only be called once")
+    try f(self)
+    finally { close(); () }
+  }
+
+  def useWithErrors[B](f: self.type => B): (B, zio.blocks.chunk.Chunk[Throwable]) = {
+    if (finalizers.isClosed)
+      throw new IllegalStateException("Scope.useWithErrors can only be called once")
+    var errors: zio.blocks.chunk.Chunk[Throwable] = zio.blocks.chunk.Chunk.empty
+    val result = try f(self)
+    finally errors = close()
+    (result, errors)
+  }
 }

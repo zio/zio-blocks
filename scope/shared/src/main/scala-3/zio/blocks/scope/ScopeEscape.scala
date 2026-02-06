@@ -5,7 +5,7 @@ package zio.blocks.scope
  * remains scoped as `A @@ S` when extracted via `.get` or `$`.
  *
  * Priority (highest to lowest):
- *   1. Global scope (`TNil`): all types escape as raw `A`
+ *   1. Global scope (`Scope.Global`): all types escape as raw `A`
  *   2. [[Unscoped]] types: escape as raw `A`
  *   3. Resource types: stay scoped as `A @@ S`
  *
@@ -23,10 +23,10 @@ object ScopeEscape extends ScopeEscapeLowPriority {
   /**
    * Global scope: all types escape as raw values.
    *
-   * Values scoped with `TNil` (the global scope tag) can always be extracted
-   * because the global scope never closes during normal execution.
+   * Values scoped with `Scope.Global` (the global scope) can always be
+   * extracted because the global scope never closes during normal execution.
    */
-  given globalScope[A]: ScopeEscape[A, TNil] with {
+  given globalScope[A]: ScopeEscape[A, Scope.Global] with {
     type Out = A
     def apply(a: A): Out = a
   }
@@ -46,9 +46,3 @@ trait ScopeEscapeLowPriority {
     def apply(a: A): Out = @@.scoped(a)
   }
 }
-
-@deprecated("Use ScopeEscape instead", "0.1.0")
-type AutoUnscoped[A, S] = ScopeEscape[A, S]
-
-@deprecated("Use ScopeEscape instead", "0.1.0")
-val AutoUnscoped = ScopeEscape

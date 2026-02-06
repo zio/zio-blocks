@@ -1,13 +1,13 @@
 package zio.blocks.scope
 
-import zio.blocks.context.Context
-
 private[scope] trait InStackVersionSpecific {
   private val singleton: InStack[Any, Any] = new InStack[Any, Any] {}
 
-  implicit def head[T, R <: T, Tail]: InStack[T, Context[R] :: Tail] =
-    singleton.asInstanceOf[InStack[T, Context[R] :: Tail]]
+  // Head match: T is at the head of the scope
+  implicit def head[T, R <: T, Tail <: Scope]: InStack[T, Scope.::[R, Tail]] =
+    singleton.asInstanceOf[InStack[T, Scope.::[R, Tail]]]
 
-  implicit def tail[T, H, Tail](implicit ev: InStack[T, Tail]): InStack[T, H :: Tail] =
-    singleton.asInstanceOf[InStack[T, H :: Tail]]
+  // Tail match: T is somewhere in the tail
+  implicit def tail[T, H, Tail <: Scope](implicit ev: InStack[T, Tail]): InStack[T, Scope.::[H, Tail]] =
+    singleton.asInstanceOf[InStack[T, Scope.::[H, Tail]]]
 }
