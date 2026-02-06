@@ -146,9 +146,10 @@ object DynamicMigration {
       }
 
     case MigrationAction.Optionalize(at, _) =>
-      modifyAtPath(value, at) { targetValue =>
-        // Wrap the value in a Some variant
-        Right(DynamicValue.Variant("Some", targetValue))
+      modifyAtPath(value, at) {
+        case already @ DynamicValue.Variant("Some", _) => Right(already)
+        case DynamicValue.Variant("None", _)           => Right(DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty)))
+        case targetValue                               => Right(DynamicValue.Variant("Some", targetValue))
       }
 
     case MigrationAction.ChangeType(at, converter, _) =>
@@ -162,32 +163,49 @@ object DynamicMigration {
       modifyAtPath(value, parentPath) {
         case record @ DynamicValue.Record(fields) =>
           // Extract values from source paths
-          val sourceValues = sourcePaths.flatMap { path =>
-            DynamicSchemaExpr.navigateDynamicValue(record, path)
+          val sourceResults = sourcePaths.map { path =>
+            DynamicSchemaExpr.navigateDynamicValue(record, path).toRight(path)
           }
-          if (sourceValues.length != sourcePaths.length) {
-            Left(MigrationError.single(MigrationError.PathNavigationFailed(at, "Not all source paths exist")))
+          val missingPaths = sourceResults.collect { case Left(path) => path.toString }
+          if (missingPaths.nonEmpty) {
+            Left(
+              MigrationError.single(
+                MigrationError.PathNavigationFailed(at, s"Source paths not found: ${missingPaths.mkString(", ")}")
+              )
+            )
           } else {
+            val sourceValues = sourceResults.collect { case Right(v) => v }
             // Create a temporary record with the source values for the combiner
             val tempRecord = DynamicValue.Record(
               Chunk.from(
                 sourceValues.zipWithIndex.map { case (v, i) => (s"_$i", v) }
               )
             )
-            combiner.eval(tempRecord).left.map(wrapExprError(at, "Join")).map { combined =>
+            combiner.eval(tempRecord).left.map(wrapExprError(at, "Join")).flatMap { combined =>
               // Remove source fields and add combined field
               val sourceFieldNames = sourcePaths
                 .flatMap(_.nodes.lastOption)
                 .collect { case DynamicOptic.Node.Field(name) =>
                   name
                 }
-                .toSet
-              val newFields       = fields.filterNot { case (name, _) => sourceFieldNames.contains(name) }
-              val targetFieldName = at.nodes.lastOption match {
-                case Some(DynamicOptic.Node.Field(name)) => name
-                case _                                   => "combined"
+              if (sourceFieldNames.size != sourcePaths.size) {
+                Left(
+                  MigrationError.single(
+                    MigrationError.ActionFailed(
+                      at,
+                      "Join",
+                      s"All source paths must end with a Field node, but ${sourcePaths.size - sourceFieldNames.size} do not"
+                    )
+                  )
+                )
+              } else {
+                val newFields       = fields.filterNot { case (name, _) => sourceFieldNames.toSet.contains(name) }
+                val targetFieldName = at.nodes.lastOption match {
+                  case Some(DynamicOptic.Node.Field(name)) => name
+                  case _                                   => "combined"
+                }
+                Right(DynamicValue.Record(newFields :+ (targetFieldName -> combined)))
               }
-              DynamicValue.Record(newFields :+ (targetFieldName -> combined))
             }
           }
         case other =>
@@ -218,9 +236,21 @@ object DynamicMigration {
                         val targetFieldNames = targetPaths.flatMap(_.nodes.lastOption).collect {
                           case DynamicOptic.Node.Field(name) => name
                         }
-                        val newFields = fields.filterNot(_._1 == sourceFieldName) ++
-                          targetFieldNames.zip(splitValues)
-                        Right(DynamicValue.Record(newFields))
+                        if (targetFieldNames.length != targetPaths.length) {
+                          Left(
+                            MigrationError.single(
+                              MigrationError.ActionFailed(
+                                at,
+                                "Split",
+                                s"All target paths must end with a Field node, but ${targetPaths.length - targetFieldNames.length} do not"
+                              )
+                            )
+                          )
+                        } else {
+                          val newFields = fields.filterNot(_._1 == sourceFieldName) ++
+                            targetFieldNames.zip(splitValues)
+                          Right(DynamicValue.Record(newFields))
+                        }
                       }
                     case other =>
                       Left(MigrationError.single(MigrationError.NotASequence(at, getDynamicValueTypeName(other))))

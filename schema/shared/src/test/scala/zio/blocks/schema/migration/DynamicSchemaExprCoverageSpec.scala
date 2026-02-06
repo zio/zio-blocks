@@ -197,6 +197,66 @@ object DynamicSchemaExprCoverageSpec extends SchemaBaseSpec {
         )
         assertTrue(expr.eval(intVal) == Right(DynamicValue.Primitive(PrimitiveValue.Byte(12.toByte))))
       },
+      test("Byte Add overflow returns NumericOverflow error") {
+        val b1   = DynamicValue.Primitive(PrimitiveValue.Byte(127.toByte))
+        val b2   = DynamicValue.Primitive(PrimitiveValue.Byte(1.toByte))
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(b1),
+          DynamicSchemaExpr.Literal(b2),
+          DynamicSchemaExpr.ArithmeticOperator.Add
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("Byte Subtract underflow returns NumericOverflow error") {
+        val b1   = DynamicValue.Primitive(PrimitiveValue.Byte((-128).toByte))
+        val b2   = DynamicValue.Primitive(PrimitiveValue.Byte(1.toByte))
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(b1),
+          DynamicSchemaExpr.Literal(b2),
+          DynamicSchemaExpr.ArithmeticOperator.Subtract
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("Byte Multiply overflow returns NumericOverflow error") {
+        val b1   = DynamicValue.Primitive(PrimitiveValue.Byte(100.toByte))
+        val b2   = DynamicValue.Primitive(PrimitiveValue.Byte(2.toByte))
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(b1),
+          DynamicSchemaExpr.Literal(b2),
+          DynamicSchemaExpr.ArithmeticOperator.Multiply
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("Short Add overflow returns NumericOverflow error") {
+        val s1   = DynamicValue.Primitive(PrimitiveValue.Short(Short.MaxValue))
+        val s2   = DynamicValue.Primitive(PrimitiveValue.Short(1.toShort))
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(s1),
+          DynamicSchemaExpr.Literal(s2),
+          DynamicSchemaExpr.ArithmeticOperator.Add
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("Short Subtract underflow returns NumericOverflow error") {
+        val s1   = DynamicValue.Primitive(PrimitiveValue.Short(Short.MinValue))
+        val s2   = DynamicValue.Primitive(PrimitiveValue.Short(1.toShort))
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(s1),
+          DynamicSchemaExpr.Literal(s2),
+          DynamicSchemaExpr.ArithmeticOperator.Subtract
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
+      test("Short Multiply overflow returns NumericOverflow error") {
+        val s1   = DynamicValue.Primitive(PrimitiveValue.Short(200.toShort))
+        val s2   = DynamicValue.Primitive(PrimitiveValue.Short(200.toShort))
+        val expr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Literal(s1),
+          DynamicSchemaExpr.Literal(s2),
+          DynamicSchemaExpr.ArithmeticOperator.Multiply
+        )
+        assertTrue(expr.eval(intVal).isLeft)
+      },
       test("BigInt Add") {
         val bi1  = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(100)))
         val bi2  = DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(200)))

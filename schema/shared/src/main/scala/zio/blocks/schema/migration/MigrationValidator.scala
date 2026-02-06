@@ -13,6 +13,12 @@ import zio.blocks.schema._
 object MigrationValidator {
 
   /**
+   * Maximum recursion depth for path traversal to guard against recursive
+   * schemas.
+   */
+  private val MaxRecursionDepth = 64
+
+  /**
    * A structural representation of a schema for validation purposes.
    */
   sealed trait SchemaStructure {
@@ -487,80 +493,84 @@ object MigrationValidator {
 
   private def validatePathRecursive(
     structure: SchemaStructure,
-    path: List[DynamicOptic.Node]
+    path: List[DynamicOptic.Node],
+    depth: Int = 0
   ): Either[String, SchemaStructure] =
-    path match {
-      case Nil => Right(structure)
+    if (depth > MaxRecursionDepth)
+      Left(s"Maximum recursion depth ($MaxRecursionDepth) exceeded — possible recursive schema")
+    else
+      path match {
+        case Nil => Right(structure)
 
-      case DynamicOptic.Node.Field(name) :: rest =>
-        structure match {
-          case r: SchemaStructure.Record =>
-            r.fields.get(name) match {
-              case Some(fieldStructure) => validatePathRecursive(fieldStructure, rest)
-              case None                 => Left(s"Field '$name' not found in record")
-            }
-          case other => Left(s"Cannot navigate field '$name' in non-record: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.Field(name) :: rest =>
+          structure match {
+            case r: SchemaStructure.Record =>
+              r.fields.get(name) match {
+                case Some(fieldStructure) => validatePathRecursive(fieldStructure, rest, depth + 1)
+                case None                 => Left(s"Field '$name' not found in record")
+              }
+            case other => Left(s"Cannot navigate field '$name' in non-record: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.Case(name) :: rest =>
-        structure match {
-          case v: SchemaStructure.Variant =>
-            v.cases.get(name) match {
-              case Some(caseStructure) => validatePathRecursive(caseStructure, rest)
-              case None                => Left(s"Case '$name' not found in variant")
-            }
-          case other => Left(s"Cannot navigate case '$name' in non-variant: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.Case(name) :: rest =>
+          structure match {
+            case v: SchemaStructure.Variant =>
+              v.cases.get(name) match {
+                case Some(caseStructure) => validatePathRecursive(caseStructure, rest, depth + 1)
+                case None                => Left(s"Case '$name' not found in variant")
+              }
+            case other => Left(s"Cannot navigate case '$name' in non-variant: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtIndex) :: rest =>
-        structure match {
-          case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest)
-          case other                       =>
-            Left(s"Cannot navigate index in non-sequence: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtIndex) :: rest =>
+          structure match {
+            case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest, depth + 1)
+            case other                       =>
+              Left(s"Cannot navigate index in non-sequence: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtIndices) :: rest =>
-        structure match {
-          case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest)
-          case other                       =>
-            Left(s"Cannot navigate indices in non-sequence: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtIndices) :: rest =>
+          structure match {
+            case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest, depth + 1)
+            case other                       =>
+              Left(s"Cannot navigate indices in non-sequence: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtMapKey) :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest)
-          case other                      => Left(s"Cannot navigate map key in non-map: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtMapKey) :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest, depth + 1)
+            case other                      => Left(s"Cannot navigate map key in non-map: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtMapKeys) :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest)
-          case other                      => Left(s"Cannot navigate map keys in non-map: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtMapKeys) :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest, depth + 1)
+            case other                      => Left(s"Cannot navigate map keys in non-map: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.Elements :: rest =>
-        structure match {
-          case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest)
-          case other                       =>
-            Left(s"Cannot navigate elements in non-sequence: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.Elements :: rest =>
+          structure match {
+            case s: SchemaStructure.Sequence => validatePathRecursive(s.element, rest, depth + 1)
+            case other                       =>
+              Left(s"Cannot navigate elements in non-sequence: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.Wrapped :: rest =>
-        validatePathRecursive(structure, rest)
+        case DynamicOptic.Node.Wrapped :: rest =>
+          validatePathRecursive(structure, rest, depth + 1)
 
-      case DynamicOptic.Node.MapKeys :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType => validatePathRecursive(m.key, rest)
-          case other                      => Left(s"Cannot navigate map keys in non-map: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.MapKeys :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType => validatePathRecursive(m.key, rest, depth + 1)
+            case other                      => Left(s"Cannot navigate map keys in non-map: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.MapValues :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest)
-          case other                      =>
-            Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
-        }
-    }
+        case DynamicOptic.Node.MapValues :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType => validatePathRecursive(m.value, rest, depth + 1)
+            case other                      =>
+              Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
+          }
+      }
 
   /**
    * Modify a structure at a given path.
@@ -581,116 +591,119 @@ object MigrationValidator {
   private def modifyAtPathRecursive(
     structure: SchemaStructure,
     path: List[DynamicOptic.Node],
-    modify: SchemaStructure => Either[String, SchemaStructure]
+    modify: SchemaStructure => Either[String, SchemaStructure],
+    depth: Int = 0
   ): Either[String, SchemaStructure] = {
-    path match {
-      case Nil =>
-        modify(structure)
+    if (depth > MaxRecursionDepth)
+      Left(s"Maximum recursion depth ($MaxRecursionDepth) exceeded — possible recursive schema")
+    else
+      path match {
+        case Nil =>
+          modify(structure)
 
-      case DynamicOptic.Node.Field(name) :: rest =>
-        structure match {
-          case r: SchemaStructure.Record =>
-            r.fields.get(name) match {
-              case Some(fieldStructure) =>
-                modifyAtPathRecursive(fieldStructure, rest, modify).map { newField =>
-                  r.copy(fields = r.fields + (name -> newField))
-                }
-              case None =>
-                Left(s"Field '$name' not found in record")
-            }
-          case other =>
-            Left(s"Cannot navigate field '$name' in non-record: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.Field(name) :: rest =>
+          structure match {
+            case r: SchemaStructure.Record =>
+              r.fields.get(name) match {
+                case Some(fieldStructure) =>
+                  modifyAtPathRecursive(fieldStructure, rest, modify, depth + 1).map { newField =>
+                    r.copy(fields = r.fields + (name -> newField))
+                  }
+                case None =>
+                  Left(s"Field '$name' not found in record")
+              }
+            case other =>
+              Left(s"Cannot navigate field '$name' in non-record: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.Case(name) :: rest =>
-        structure match {
-          case v: SchemaStructure.Variant =>
-            v.cases.get(name) match {
-              case Some(caseStructure) =>
-                modifyAtPathRecursive(caseStructure, rest, modify).map { newCase =>
-                  v.copy(cases = v.cases + (name -> newCase))
-                }
-              case None =>
-                Left(s"Case '$name' not found in variant")
-            }
-          case other =>
-            Left(s"Cannot navigate case '$name' in non-variant: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.Case(name) :: rest =>
+          structure match {
+            case v: SchemaStructure.Variant =>
+              v.cases.get(name) match {
+                case Some(caseStructure) =>
+                  modifyAtPathRecursive(caseStructure, rest, modify, depth + 1).map { newCase =>
+                    v.copy(cases = v.cases + (name -> newCase))
+                  }
+                case None =>
+                  Left(s"Case '$name' not found in variant")
+              }
+            case other =>
+              Left(s"Cannot navigate case '$name' in non-variant: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtIndex) :: rest =>
-        structure match {
-          case s: SchemaStructure.Sequence =>
-            modifyAtPathRecursive(s.element, rest, modify).map { newElement =>
-              s.copy(element = newElement)
-            }
-          case other =>
-            Left(s"Cannot navigate index in non-sequence: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtIndex) :: rest =>
+          structure match {
+            case s: SchemaStructure.Sequence =>
+              modifyAtPathRecursive(s.element, rest, modify, depth + 1).map { newElement =>
+                s.copy(element = newElement)
+              }
+            case other =>
+              Left(s"Cannot navigate index in non-sequence: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtIndices) :: rest =>
-        structure match {
-          case s: SchemaStructure.Sequence =>
-            modifyAtPathRecursive(s.element, rest, modify).map { newElement =>
-              s.copy(element = newElement)
-            }
-          case other =>
-            Left(s"Cannot navigate indices in non-sequence: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtIndices) :: rest =>
+          structure match {
+            case s: SchemaStructure.Sequence =>
+              modifyAtPathRecursive(s.element, rest, modify, depth + 1).map { newElement =>
+                s.copy(element = newElement)
+              }
+            case other =>
+              Left(s"Cannot navigate indices in non-sequence: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtMapKey) :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType =>
-            modifyAtPathRecursive(m.value, rest, modify).map { newValue =>
-              m.copy(value = newValue)
-            }
-          case other =>
-            Left(s"Cannot navigate map value in non-map: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtMapKey) :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType =>
+              modifyAtPathRecursive(m.value, rest, modify, depth + 1).map { newValue =>
+                m.copy(value = newValue)
+              }
+            case other =>
+              Left(s"Cannot navigate map value in non-map: ${describeStructure(other)}")
+          }
 
-      case (_: DynamicOptic.Node.AtMapKeys) :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType =>
-            modifyAtPathRecursive(m.value, rest, modify).map { newValue =>
-              m.copy(value = newValue)
-            }
-          case other =>
-            Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
-        }
+        case (_: DynamicOptic.Node.AtMapKeys) :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType =>
+              modifyAtPathRecursive(m.value, rest, modify, depth + 1).map { newValue =>
+                m.copy(value = newValue)
+              }
+            case other =>
+              Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.Elements :: rest =>
-        structure match {
-          case s: SchemaStructure.Sequence =>
-            modifyAtPathRecursive(s.element, rest, modify).map { newElement =>
-              s.copy(element = newElement)
-            }
-          case other =>
-            Left(s"Cannot navigate elements in non-sequence: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.Elements :: rest =>
+          structure match {
+            case s: SchemaStructure.Sequence =>
+              modifyAtPathRecursive(s.element, rest, modify, depth + 1).map { newElement =>
+                s.copy(element = newElement)
+              }
+            case other =>
+              Left(s"Cannot navigate elements in non-sequence: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.Wrapped :: rest =>
-        // Wrappers are treated as transparent for validation purposes
-        modifyAtPathRecursive(structure, rest, modify)
+        case DynamicOptic.Node.Wrapped :: rest =>
+          modifyAtPathRecursive(structure, rest, modify, depth + 1)
 
-      case DynamicOptic.Node.MapKeys :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType =>
-            modifyAtPathRecursive(m.key, rest, modify).map { newKey =>
-              m.copy(key = newKey)
-            }
-          case other =>
-            Left(s"Cannot navigate map keys in non-map: ${describeStructure(other)}")
-        }
+        case DynamicOptic.Node.MapKeys :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType =>
+              modifyAtPathRecursive(m.key, rest, modify, depth + 1).map { newKey =>
+                m.copy(key = newKey)
+              }
+            case other =>
+              Left(s"Cannot navigate map keys in non-map: ${describeStructure(other)}")
+          }
 
-      case DynamicOptic.Node.MapValues :: rest =>
-        structure match {
-          case m: SchemaStructure.MapType =>
-            modifyAtPathRecursive(m.value, rest, modify).map { newValue =>
-              m.copy(value = newValue)
-            }
-          case other =>
-            Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
-        }
-    }
+        case DynamicOptic.Node.MapValues :: rest =>
+          structure match {
+            case m: SchemaStructure.MapType =>
+              modifyAtPathRecursive(m.value, rest, modify, depth + 1).map { newValue =>
+                m.copy(value = newValue)
+              }
+            case other =>
+              Left(s"Cannot navigate map values in non-map: ${describeStructure(other)}")
+          }
+      }
   }
 
   /**
@@ -703,122 +716,144 @@ object MigrationValidator {
     actual: SchemaStructure,
     expected: SchemaStructure,
     path: DynamicOptic,
-    lenient: Boolean
+    lenient: Boolean,
+    depth: Int = 0
   ): ValidationResult =
-    (actual, expected) match {
-      case (SchemaStructure.Dynamic, _) =>
-        // Dynamic matches anything
-        Valid
+    if (depth > MaxRecursionDepth)
+      Invalid(s"At ${path.toString}: Maximum recursion depth ($MaxRecursionDepth) exceeded — possible recursive schema")
+    else
+      (actual, expected) match {
+        case (SchemaStructure.Dynamic, _) =>
+          // Dynamic matches anything
+          Valid
 
-      case (_, SchemaStructure.Dynamic) =>
-        // Dynamic matches anything
-        Valid
+        case (_, SchemaStructure.Dynamic) =>
+          // Dynamic matches anything
+          Valid
 
-      case (a: SchemaStructure.Record, e: SchemaStructure.Record) =>
-        val missingFields = e.fields.keySet -- a.fields.keySet
-        val extraFields   = a.fields.keySet -- e.fields.keySet
+        case (a: SchemaStructure.Record, e: SchemaStructure.Record) =>
+          val missingFields = e.fields.keySet -- a.fields.keySet
+          val extraFields   = a.fields.keySet -- e.fields.keySet
 
-        var result: ValidationResult = Valid
+          var result: ValidationResult = Valid
 
-        val sameRecordType = a.name == e.name
+          val sameRecordType = a.name == e.name
 
-        // Strict mode (no structural actions): report all structural differences
-        // Lenient mode (structural actions present): skip missing/extra field checks
-        if (!lenient) {
-          // Report structure mismatch when record types differ
-          if (!sameRecordType && (missingFields.nonEmpty || extraFields.nonEmpty)) {
-            result = result ++ Invalid(s"At ${path.toString}: Structure mismatch: expected ${e.name}, got ${a.name}")
+          // Strict mode (no structural actions): report all structural differences
+          // Lenient mode (structural actions present): skip missing/extra field checks
+          if (!lenient) {
+            // Report structure mismatch when record types differ
+            if (!sameRecordType && (missingFields.nonEmpty || extraFields.nonEmpty)) {
+              result = result ++ Invalid(s"At ${path.toString}: Structure mismatch: expected ${e.name}, got ${a.name}")
+            }
+            if (missingFields.nonEmpty) {
+              result = result ++ Invalid(s"At ${path.toString}: Missing fields: ${missingFields.mkString(", ")}")
+            }
+            if (extraFields.nonEmpty) {
+              result = result ++ Invalid(s"At ${path.toString}: Unexpected fields: ${extraFields.mkString(", ")}")
+            }
           }
-          if (missingFields.nonEmpty) {
-            result = result ++ Invalid(s"At ${path.toString}: Missing fields: ${missingFields.mkString(", ")}")
-          }
-          if (extraFields.nonEmpty) {
-            result = result ++ Invalid(s"At ${path.toString}: Unexpected fields: ${extraFields.mkString(", ")}")
-          }
-        }
-        // In lenient mode, skip missing/extra field checks entirely
+          // In lenient mode, skip missing/extra field checks entirely
 
-        // Compare common fields - focus on structural compatibility for fields that exist in both
-        val commonFields = a.fields.keySet.intersect(e.fields.keySet)
-        commonFields.foreach { fieldName =>
-          val fieldPath     = path.field(fieldName)
-          val actualField   = a.fields(fieldName)
-          val expectedField = e.fields(fieldName)
+          // Compare common fields - focus on structural compatibility for fields that exist in both
+          val commonFields = a.fields.keySet.intersect(e.fields.keySet)
+          commonFields.foreach { fieldName =>
+            val fieldPath     = path.field(fieldName)
+            val actualField   = a.fields(fieldName)
+            val expectedField = e.fields(fieldName)
 
-          // Check optionality for common fields
-          // In lenient mode with different record types, skip optionality check UNLESS the actual field is Dynamic
-          // (Dynamic fields are placeholders from migrations and must match target optionality)
-          val isDynamicField = actualField == SchemaStructure.Dynamic
-          if (!lenient || sameRecordType || isDynamicField) {
-            val actualOpt   = a.isOptional.getOrElse(fieldName, false)
-            val expectedOpt = e.isOptional.getOrElse(fieldName, false)
-            if (actualOpt != expectedOpt) {
-              val expectedLabel = if (expectedOpt) "optional" else "mandatory"
-              val actualLabel   = if (actualOpt) "optional" else "mandatory"
-              result = result ++ Invalid(
-                s"At ${fieldPath.toString}: Optionality mismatch: expected $expectedLabel, got $actualLabel"
-              )
+            // Check optionality for common fields
+            // In lenient mode with different record types, skip optionality check UNLESS the actual field is Dynamic
+            // (Dynamic fields are placeholders from migrations and must match target optionality)
+            val isDynamicField = actualField == SchemaStructure.Dynamic
+            if (!lenient || sameRecordType || isDynamicField) {
+              val actualOpt   = a.isOptional.getOrElse(fieldName, false)
+              val expectedOpt = e.isOptional.getOrElse(fieldName, false)
+              if (actualOpt != expectedOpt) {
+                val expectedLabel = if (expectedOpt) "optional" else "mandatory"
+                val actualLabel   = if (actualOpt) "optional" else "mandatory"
+                result = result ++ Invalid(
+                  s"At ${fieldPath.toString}: Optionality mismatch: expected $expectedLabel, got $actualLabel"
+                )
+              }
+            }
+
+            result = result ++ compareStructures(actualField, expectedField, fieldPath, lenient, depth + 1)
+          }
+
+          result
+
+        case (a: SchemaStructure.Variant, e: SchemaStructure.Variant) =>
+          val missingCases = e.cases.keySet -- a.cases.keySet
+          val extraCases   = a.cases.keySet -- e.cases.keySet
+
+          var result: ValidationResult = Valid
+
+          if (!lenient) {
+            if (missingCases.nonEmpty) {
+              result = result ++ Invalid(s"At ${path.toString}: Missing cases: ${missingCases.mkString(", ")}")
+            }
+
+            if (extraCases.nonEmpty) {
+              result = result ++ Invalid(s"At ${path.toString}: Unexpected cases: ${extraCases.mkString(", ")}")
             }
           }
 
-          result = result ++ compareStructures(actualField, expectedField, fieldPath, lenient)
-        }
-
-        result
-
-      case (a: SchemaStructure.Variant, e: SchemaStructure.Variant) =>
-        val missingCases = e.cases.keySet -- a.cases.keySet
-        val extraCases   = a.cases.keySet -- e.cases.keySet
-
-        var result: ValidationResult = Valid
-
-        if (!lenient) {
-          if (missingCases.nonEmpty) {
-            result = result ++ Invalid(s"At ${path.toString}: Missing cases: ${missingCases.mkString(", ")}")
+          // Compare common cases
+          val commonCases = a.cases.keySet.intersect(e.cases.keySet)
+          commonCases.foreach { caseName =>
+            val casePath = path.caseOf(caseName)
+            result = result ++ compareStructures(a.cases(caseName), e.cases(caseName), casePath, lenient, depth + 1)
           }
 
-          if (extraCases.nonEmpty) {
-            result = result ++ Invalid(s"At ${path.toString}: Unexpected cases: ${extraCases.mkString(", ")}")
-          }
-        }
+          result
 
-        // Compare common cases
-        val commonCases = a.cases.keySet.intersect(e.cases.keySet)
-        commonCases.foreach { caseName =>
-          val casePath = path.caseOf(caseName)
-          result = result ++ compareStructures(a.cases(caseName), e.cases(caseName), casePath, lenient)
-        }
+        case (a: SchemaStructure.Sequence, e: SchemaStructure.Sequence) =>
+          compareStructures(
+            a.element,
+            e.element,
+            new DynamicOptic(path.nodes :+ DynamicOptic.Node.Elements),
+            lenient,
+            depth + 1
+          )
 
-        result
+        case (a: SchemaStructure.MapType, e: SchemaStructure.MapType) =>
+          compareStructures(
+            a.key,
+            e.key,
+            new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys),
+            lenient,
+            depth + 1
+          ) ++
+            compareStructures(
+              a.value,
+              e.value,
+              new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapValues),
+              lenient,
+              depth + 1
+            )
 
-      case (a: SchemaStructure.Sequence, e: SchemaStructure.Sequence) =>
-        compareStructures(a.element, e.element, new DynamicOptic(path.nodes :+ DynamicOptic.Node.Elements), lenient)
+        case (SchemaStructure.Optional(a), SchemaStructure.Optional(e)) =>
+          compareStructures(a, e, path, lenient, depth + 1)
 
-      case (a: SchemaStructure.MapType, e: SchemaStructure.MapType) =>
-        compareStructures(a.key, e.key, new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), lenient) ++
-          compareStructures(a.value, e.value, new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapValues), lenient)
+        // When comparing Optional wrapper with non-Optional, the optionality difference
+        // is already captured by the isOptional check in record comparison.
+        // Compare the inner structure to detect type mismatches.
+        case (SchemaStructure.Optional(a), e) =>
+          compareStructures(a, e, path, lenient, depth + 1)
 
-      case (SchemaStructure.Optional(a), SchemaStructure.Optional(e)) =>
-        compareStructures(a, e, path, lenient)
+        case (a, SchemaStructure.Optional(e)) =>
+          compareStructures(a, e, path, lenient, depth + 1)
 
-      // When comparing Optional wrapper with non-Optional, the optionality difference
-      // is already captured by the isOptional check in record comparison.
-      // Compare the inner structure to detect type mismatches.
-      case (SchemaStructure.Optional(a), e) =>
-        compareStructures(a, e, path, lenient)
+        case (a: SchemaStructure.Primitive, e: SchemaStructure.Primitive) =>
+          if (a.typeName == e.typeName) Valid
+          else Invalid(s"At ${path.toString}: Type mismatch: expected ${e.typeName}, got ${a.typeName}")
 
-      case (a, SchemaStructure.Optional(e)) =>
-        compareStructures(a, e, path, lenient)
-
-      case (a: SchemaStructure.Primitive, e: SchemaStructure.Primitive) =>
-        if (a.typeName == e.typeName) Valid
-        else Invalid(s"At ${path.toString}: Type mismatch: expected ${e.typeName}, got ${a.typeName}")
-
-      case (a, e) =>
-        Invalid(
-          s"At ${path.toString}: Structure mismatch: expected ${describeStructure(e)}, got ${describeStructure(a)}"
-        )
-    }
+        case (a, e) =>
+          Invalid(
+            s"At ${path.toString}: Structure mismatch: expected ${describeStructure(e)}, got ${describeStructure(a)}"
+          )
+      }
 
   private def describeStructure(s: SchemaStructure): String = s match {
     case r: SchemaStructure.Record    => s"Record(${r.name})"

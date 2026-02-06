@@ -537,9 +537,12 @@ class MigrationBuilder[A, B](
       case a: MigrationAction.RenameCase =>
         a
 
-      case a: MigrationAction.TransformCase =>
-        // TransformCase nests actions under dynamic schemas; default resolution is best-effort at runtime.
-        a
+      case MigrationAction.TransformCase(at, caseName, nestedActions) =>
+        MigrationAction.TransformCase(
+          at,
+          caseName,
+          resolveDefaults(nestedActions)
+        )
 
       case MigrationAction.TransformElements(at, transform, reverseTransform) =>
         val elementPath = new DynamicOptic(at.nodes :+ DynamicOptic.Node.Elements)

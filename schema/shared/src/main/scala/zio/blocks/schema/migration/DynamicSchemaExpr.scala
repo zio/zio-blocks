@@ -459,20 +459,24 @@ object DynamicSchemaExpr {
         Right(DynamicValue.Primitive(PrimitiveValue.Float(result)))
 
       case (PrimitiveValue.Short(l), PrimitiveValue.Short(r)) =>
-        val result = op match {
-          case ArithmeticOperator.Add      => (l + r).toShort
-          case ArithmeticOperator.Subtract => (l - r).toShort
-          case ArithmeticOperator.Multiply => (l * r).toShort
+        val wide = op match {
+          case ArithmeticOperator.Add      => l + r
+          case ArithmeticOperator.Subtract => l - r
+          case ArithmeticOperator.Multiply => l * r
         }
-        Right(DynamicValue.Primitive(PrimitiveValue.Short(result)))
+        if (wide < Short.MinValue || wide > Short.MaxValue)
+          Left(MigrationError.single(MigrationError.NumericOverflow(DynamicOptic.root, s"Short $l ${op} $r = $wide")))
+        else Right(DynamicValue.Primitive(PrimitiveValue.Short(wide.toShort)))
 
       case (PrimitiveValue.Byte(l), PrimitiveValue.Byte(r)) =>
-        val result = op match {
-          case ArithmeticOperator.Add      => (l + r).toByte
-          case ArithmeticOperator.Subtract => (l - r).toByte
-          case ArithmeticOperator.Multiply => (l * r).toByte
+        val wide = op match {
+          case ArithmeticOperator.Add      => l + r
+          case ArithmeticOperator.Subtract => l - r
+          case ArithmeticOperator.Multiply => l * r
         }
-        Right(DynamicValue.Primitive(PrimitiveValue.Byte(result)))
+        if (wide < Byte.MinValue || wide > Byte.MaxValue)
+          Left(MigrationError.single(MigrationError.NumericOverflow(DynamicOptic.root, s"Byte $l ${op} $r = $wide")))
+        else Right(DynamicValue.Primitive(PrimitiveValue.Byte(wide.toByte)))
 
       case (PrimitiveValue.BigInt(l), PrimitiveValue.BigInt(r)) =>
         val result = op match {
@@ -506,12 +510,18 @@ object DynamicSchemaExpr {
   // Coerce a primitive value to a target type
   private def coercePrimitive(value: PrimitiveValue, targetType: String): Either[MigrationError, DynamicValue] = {
     def toInt: Either[MigrationError, Int] = value match {
-      case PrimitiveValue.Int(v)    => Right(v)
-      case PrimitiveValue.Long(v)   => Right(v.toInt)
+      case PrimitiveValue.Int(v)  => Right(v)
+      case PrimitiveValue.Long(v) =>
+        if (v < Int.MinValue || v > Int.MaxValue) Left(conversionError(value, targetType))
+        else Right(v.toInt)
       case PrimitiveValue.Short(v)  => Right(v.toInt)
       case PrimitiveValue.Byte(v)   => Right(v.toInt)
-      case PrimitiveValue.Double(v) => Right(v.toInt)
-      case PrimitiveValue.Float(v)  => Right(v.toInt)
+      case PrimitiveValue.Double(v) =>
+        if (v < Int.MinValue.toDouble || v > Int.MaxValue.toDouble) Left(conversionError(value, targetType))
+        else Right(v.toInt)
+      case PrimitiveValue.Float(v) =>
+        if (v < Int.MinValue.toFloat || v > Int.MaxValue.toFloat) Left(conversionError(value, targetType))
+        else Right(v.toInt)
       case PrimitiveValue.String(v) => v.toIntOption.toRight(conversionError(value, targetType))
       case _                        => Left(conversionError(value, targetType))
     }
@@ -521,8 +531,11 @@ object DynamicSchemaExpr {
       case PrimitiveValue.Int(v)    => Right(v.toLong)
       case PrimitiveValue.Short(v)  => Right(v.toLong)
       case PrimitiveValue.Byte(v)   => Right(v.toLong)
-      case PrimitiveValue.Double(v) => Right(v.toLong)
-      case PrimitiveValue.Float(v)  => Right(v.toLong)
+      case PrimitiveValue.Double(v) =>
+        if (v < Long.MinValue.toDouble || v > Long.MaxValue.toDouble) Left(conversionError(value, targetType))
+        else Right(v.toLong)
+      case PrimitiveValue.Float(v) =>
+        Right(v.toLong)
       case PrimitiveValue.String(v) => v.toLongOption.toRight(conversionError(value, targetType))
       case _                        => Left(conversionError(value, targetType))
     }
@@ -540,7 +553,10 @@ object DynamicSchemaExpr {
 
     def toFloat: Either[MigrationError, Float] = value match {
       case PrimitiveValue.Float(v)  => Right(v)
-      case PrimitiveValue.Double(v) => Right(v.toFloat)
+      case PrimitiveValue.Double(v) =>
+        if (!v.isNaN && !v.isInfinite && v.abs > Float.MaxValue)
+          Left(conversionError(value, targetType))
+        else Right(v.toFloat)
       case PrimitiveValue.Int(v)    => Right(v.toFloat)
       case PrimitiveValue.Long(v)   => Right(v.toFloat)
       case PrimitiveValue.Short(v)  => Right(v.toFloat)
