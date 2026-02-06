@@ -20,6 +20,14 @@ Assume we have a simple `JsonCodec` type class for JSON serialization and deseri
 ```scala mdoc:silent
 import zio.blocks.schema.json._
 
+sealed abstract class JsonError(msg: String) extends Exception(msg)
+
+case class ParseError(details: String) 
+  extends JsonError(s"Parse Error: $details")
+
+case class DecodeError(details: String, path: String) 
+  extends JsonError(s"Decode Error at '$path': $details")
+
 trait JsonCodec[A] {
   def encode(a: A): Json
   def decode(j: Json): Either[JsonError, A]
@@ -118,7 +126,7 @@ The underlying derivation engine takes care of traversing the schema structure, 
 
 Let's say we want to derive a `Show` type class instance for any type of type `A`:
 
-```scala
+```scala mdoc:silent
 trait Show[A] {
   def show(value: A): String
 }
@@ -126,7 +134,7 @@ trait Show[A] {
 
 The implementation of the `Deriver[Show]` would look like the following code. Don't worry about understanding every detail right now; we'll break down the derivation process step by step afterward.
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.*
 import zio.blocks.schema.DynamicValue.Null
@@ -375,8 +383,17 @@ Now let's see how the derivation process works step by step.
 
 When the derivation process encounters a primitive type (e.g., `String`, `Int`), it calls the `derivePrimitive` method of the `Deriver`. This method receives the `PrimitiveType[A]` information, which allows it to determine how to encode and decode values of that type:
 
-```scala
-override def derivePrimitive[A](
+```scala mdoc:invisible
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.*
+import zio.blocks.schema.DynamicValue.Null
+import zio.blocks.schema.binding.*
+import zio.blocks.schema.derive.Deriver
+import zio.blocks.typeid.TypeId
+```
+
+```scala mdoc:compile-only
+def derivePrimitive[A](
   primitiveType: PrimitiveType[A],
   typeId: TypeId[A],
   binding: Binding[BindingType.Primitive, A],
@@ -404,8 +421,12 @@ To make it simple, we only handle `String` and `Char` differently by adding quot
 
 When the derivation process encounters a record type (e.g., a case class), it calls the `deriveRecord` method of the `Deriver`. This method receives an `IndexedSeq[Term[F, A, ?]]` representing the fields of the record, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples. It also receives implicit parameters for accessing structural bindings and already-derived type class instances for nested types:
 
-```scala
-override def deriveRecord[F[_, _], A](
+```scala mdoc:invisible
+import DeriveShow._
+```
+
+```scala mdoc:compile-only
+def deriveRecord[F[_, _], A](
   fields: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
   binding: Binding[BindingType.Record, A],
@@ -479,8 +500,8 @@ Finally, we can iterate through each field, retrieve its value from the register
 
 When the derivation process encounters a variant type (e.g., a sealed trait with case classes), it calls the `deriveVariant` method of the `Deriver`. This method receives an `IndexedSeq[Term[F, A, _]]` representing the cases of the variant, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
 
-```scala
-override def deriveVariant[F[_, _], A](
+```scala mdoc:compile-only
+def deriveVariant[F[_, _], A](
   cases: IndexedSeq[Term[F, A, _]],
   typeId: TypeId[A],
   binding: Binding[BindingType.Variant, A],
@@ -520,7 +541,7 @@ Finally, we extract the corresponding type class instance for that case by apply
 
 When the derivation process encounters a sequence type (e.g., `List[A]`), it calls the `deriveSequence` method of the `Deriver`. This method receives a `Reflect[F, A]` representing the element type of the sequence, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
 
-```scala
+```scala mdoc:compile-only
 def deriveSequence[F[_, _], C[_], A](
   element: Reflect[F, A],
   typeId: TypeId[C[A]],
@@ -553,7 +574,7 @@ The derivation process for sequences is straightforward. We extract the type cla
 
 When the derivation process encounters a map type (e.g., `Map[K, V]`), it calls the `deriveMap` method of the `Deriver`. This method receives `Reflect[F, K]` and `Reflect[F, V]` representing the key and value types of the map, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
 
-```scala
+```scala mdoc:compile-only
 def deriveMap[F[_, _], M[_, _], K, V](
   key: Reflect[F, K],
   value: Reflect[F, V],
@@ -593,7 +614,8 @@ The derivation process for maps is similar to sequences, but we have to handle b
 ### Dynamic Derivation
 
 When the derivation process encounters a dynamic type (e.g., `DynamicValue`), it calls the `deriveDynamic` method of the `Deriver`. This method receives a `Binding[BindingType.Dynamic, DynamicValue]` representing the dynamic type, along with other metadata such as documentation, modifiers, default values, and examples:
-```scala
+
+```scala mdoc:compile-only
 def deriveDynamic[F[_, _]](
   binding: Binding[BindingType.Dynamic, DynamicValue],
   doc: Doc,
@@ -634,7 +656,7 @@ The derivation process for dynamic types is more complex because the data struct
 
 When the derivation process encounters a wrapper type (e.g., a value class, opaque type, or any type that wraps another type), it calls the `deriveWrapper` method of the `Deriver`. This method receives a `Reflect[F, B]` representing the wrapped (underlying) type, along with other metadata such as the type ID, binding information, documentation, modifiers, default values, and examples:
 
-```scala
+```scala mdoc:compile-only
 def deriveWrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
   typeId: TypeId[A],
@@ -672,7 +694,9 @@ The derivation process for wrapper types involves unwrapping the value to access
 
 Let's say we want to derive a `Gen` type class instance for any type `A`:
 
-```scala
+```scala mdoc:silent
+import scala.util.Random
+
 trait Gen[A] {
   def generate(random: Random): A
 }
@@ -684,7 +708,7 @@ To implement the `Show` type class, we need to know what components type `A` is 
 
 Here is a simple pedagogical implementation of a `GenDeriver` that can derive `Gen` instances for various types:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.*
@@ -950,7 +974,7 @@ object DeriveGen extends Deriver[Gen] {
 
 The `derivePrimitive` method is responsible for deriving a `Gen` instance for primitive types. It matches on the specific primitive type and generates random values accordingly. For example, for `String`, it generates a random alphanumeric string of random length; for `Int`, it generates a random integer; and so on. The generated value is then cast to the appropriate type `A` and returned:
 
-```scala
+```scala mdoc:silent
 def derivePrimitive[A](
   primitiveType: PrimitiveType[A],
   typeId: TypeId[A],
@@ -984,7 +1008,7 @@ To handle all primitive types, you would want to implement cases for each primit
 
 The `deriveRecord` method is responsible for deriving a `Gen` instance for record types, such as case classes and tuples. The strategy for deriving a record type involves three main steps:
 
-```scala
+```scala mdoc:silent
 def deriveRecord[F[_, _], A](
   fields: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
@@ -1029,7 +1053,7 @@ As shown above, the implementation of the `deriveRecord` method for `Gen` is str
 
 The `deriveVariant` method is responsible for deriving a `Gen` instance for variant types, such as sealed traits with case classes:
 
-```scala
+```scala mdoc:silent
 def deriveVariant[F[_, _], A](
   cases: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
@@ -1060,7 +1084,7 @@ The derivation process for `Gen` variants is simpler than for the record case be
 
 The `deriveSequence` method is responsible for deriving a `Gen` instance for sequence types, such as `List[A]`:
 
-```scala
+```scala mdoc:silent
 def deriveSequence[F[_, _], C[_], A](
   element: Reflect[F, A],
   typeId: TypeId[C[A]],
@@ -1098,7 +1122,7 @@ A sequence is an object that contains multiple elements of the same type. To der
 
 The `deriveMap` method is responsible for deriving a `Gen` instance for map types, such as `Map[K, V]`:
 
-```scala
+```scala mdoc:silent
 def deriveMap[F[_, _], M[_, _], K, V](
   key: Reflect[F, K],
   value: Reflect[F, V],
@@ -1138,7 +1162,7 @@ The derivation process for maps is similar to sequences, but it requires handlin
 
 The `deriveDynamic` method is responsible for deriving a `Gen` instance for dynamic types, such as `DynamicValue`. Since `DynamicValue` can represent any schema type, we generate random dynamic values by choosing a variant at random and generating the appropriate content for that variant. The implementation involves pattern matching on the `DynamicValue` type and generating content accordingly:
 
-```scala
+```scala mdoc:silent
 def deriveDynamic[F[_, _]](
   binding: Binding[BindingType.Dynamic, DynamicValue],
   doc: Doc,
@@ -1199,7 +1223,7 @@ Please note that the random generation logic in this example is basic and is int
 
 The `deriveWrapper` method is responsible for deriving a `Gen` instance for wrapper types, such as value classes or opaque types:
 
-```scala
+```scala mdoc:silent
 def deriveWrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
   typeId: TypeId[A],
@@ -1251,7 +1275,7 @@ This schema derivation is typically done using `Schema.derived[A]`, which uses S
 
 For example, the following code derives the schema for `Person`:
 
-```scala
+```scala mdoc:silent
 case class Person(name: String, age: Int)
 
 object Person {
@@ -1306,12 +1330,12 @@ case class BindingInstance[TC[_], T, A](
 
 For example, the transformation sequence for the `Person` data type would look like this:
 
-```scala
+```scala mdoc:silent:nest
 case class Person(name: String, age: Int)
 
 object Person {
     implicit val schema: Schema[Person] = Schema.derived[Person]
-    implicit val show: Show[Person]     = schema.derive(ShowDeriver)
+    implicit val show: Show[Person]     = schema.derive(DeriveShow)
 }
 ```
 
@@ -1339,12 +1363,10 @@ After the schema tree has been fully transformed to contain `Reflect[BindingInst
 After derivation is complete, you can use the derived type class instance as needed. For example, you can use the derived `Show[Person]` instance to display a `Person` object:
 
 ```scala mdoc:silent
-val result = Person[Show].show(Person("Alice", 30))
+val result = Person.show.show(Person("Alice", 30))
 // result: String = "Person(name = Alice, age = 30)"
 ```
 
 The interesting part here is how the `show` method of the derived `Show[Person]` instance works. It uses the `HasInstance` type class to access the derived `Show` instances for each field of the `Person` record (i.e., `Show[String]` for the `name` field and `Show[Int]` for the `age` field). This allows it to recursively display each field using its respective `Show` instance, demonstrating the composability and reusability of type class instances in the derivation system.
 
 Please note that this happens when either the `Deriver` implementation uses the `HasInstance` implicit parameter or uses the centralized recursive approach to access nested derived instances.
-
-

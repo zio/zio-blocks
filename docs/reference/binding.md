@@ -116,10 +116,10 @@ final case class Variant[A](
 - `Matchers`: Given a value and a case index, safely downcast the value to the specific case type, or return null if it doesn't match.
 
 ```scala mdoc:compile-only
+import zio.blocks.schema.binding._
+
 sealed trait Shape extends Product with Serializable
-
 case class Circle(radius: Double) extends Shape
-
 case class Rectangle(width: Double, height: Double) extends Shape
 
 val shapeBinding = Binding.Variant[Shape](
@@ -308,17 +308,24 @@ final case class Wrapper[A, B](
 Here is an example of a `Binding.Wrapper` for an `Email` newtype with validation:
 
 ```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
 case class Email(value: String)
 
 object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-  new Binding.Wrapper[Email, String](
-    wrap = {
-      case x@EmailRegex(_*) => Right(new Email(x))
-      case _ => Left("Expected Email")
-    },
-    _.value
-  )
+  val binding            =
+    new Binding.Wrapper[Email, String](
+      wrap = {
+        case x @ EmailRegex(_*) => Right(new Email(x))
+        case _                  => Left(SchemaError.validationFailed("Expected Email"))
+      },
+      unwrap = {
+        case Email(value) => Right(value)
+        case _            => Left(SchemaError.validationFailed("Expected Email"))
+      }
+    )
 }
 ```
 

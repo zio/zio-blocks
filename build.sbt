@@ -440,7 +440,8 @@ lazy val docs = project
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                             := true
+    publish / skip                             := true,
+    scalacOptions += "-experimental"
   )
   .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)
