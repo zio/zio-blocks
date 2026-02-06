@@ -128,19 +128,20 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
         }
       },
       test("flatMap combines tags") {
-        // Create scoped values directly for testing flatMap behavior
+        // Tests type algebra of scoped values in isolation.
+        // Uses artificial String tag (not from a real scope) to verify
+        // that map/flatMap preserve and combine tags correctly.
         val t1: Int @@ String    = @@.scoped(1)
         val t2: String @@ String = @@.scoped("hello")
 
-        // flatMap produces a combined scoped value
         val combined = for {
           x <- t1
           y <- t2
         } yield (x, y)
 
-        // Verify the combined value can be mapped
-        val result = combined.map { case (a, b) => a + b.length }
-        assertTrue(result != null)
+        // Compilation proves type algebra works; verify runtime behavior
+        val result: Int @@ String = combined.map { case (a, b) => a + b.length }
+        assertTrue(@@.unscoped(result) == 6)
       }
     ),
     suite("Unscoped types escape")(

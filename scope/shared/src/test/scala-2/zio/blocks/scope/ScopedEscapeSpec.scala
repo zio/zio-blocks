@@ -83,18 +83,21 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
         }
       },
       test("flatMap combines tags") {
-        // Create scoped values directly to test flatMap
+        // Tests type algebra of scoped values in isolation.
+        // Uses artificial String tag (not from a real scope) to verify
+        // that map/flatMap preserve and combine tags correctly.
         val stream1: MockInputStream @@ String = @@.scoped(new MockInputStream)
         val stream2: MockInputStream @@ String = @@.scoped(new MockInputStream)
 
         val combined = stream1.flatMap(s1 => stream2.map(s2 => (s1, s2)))
-
-        // Verify the combined value can be mapped
-        val _ = combined.map { case (a, b) => a.read() + b.read() }
-        assertTrue(true)
+        // Compilation proves type algebra works; verify runtime behavior
+        val result: Int @@ String = combined.map { case (a, b) => a.read() + b.read() }
+        assertTrue(@@.unscoped(result) == 84)
       },
       test("for-comprehension syntax works") {
-        // Create scoped values directly to test for-comprehension
+        // Tests type algebra of scoped values in isolation.
+        // Uses artificial String tag (not from a real scope) to verify
+        // that for-comprehension desugaring works correctly.
         val stream: MockInputStream @@ String = @@.scoped(new MockInputStream)
         val request: MockRequest @@ String    = @@.scoped(new MockRequest(new MockInputStream))
 
@@ -103,9 +106,9 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
           r <- request
         } yield (s, r)
 
-        // Verify the combined value can be mapped
-        val _ = combined.map { case (a, _) => a.read() }
-        assertTrue(true)
+        // Compilation proves type algebra works; verify runtime behavior
+        val result: Int @@ String = combined.map { case (a, _) => a.read() }
+        assertTrue(@@.unscoped(result) == 42)
       }
     )
   )

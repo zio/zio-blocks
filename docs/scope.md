@@ -252,13 +252,14 @@ Services can be retrieved from any layer in the stack. The stack type ensures at
 
 ### Resource Escape Prevention (Scala 3)
 
-**The Problem**: Even with type-level stack tracking, resources can escape their scope:
+**The Problem**: Without scoped values, even with type-level stack tracking, resources can escape their scope:
 
 ```scala
+// Hypothetical unsafe API (NOT how Scope actually works):
 var leaked: InputStream = null
 
-Scope.global.injected[Request].run {
-  leaked = $[Request] $ (_.body)  // Captured reference survives scope!
+Scope.global.injected[Request].run { implicit scope =>
+  leaked = scope.get[Request].body  // Captured reference survives scope!
 }
 
 leaked.read()  // Use-after-close bug — compiles but fails at runtime
