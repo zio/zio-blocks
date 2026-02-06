@@ -112,4 +112,29 @@ package object scope {
 
   inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
+
+  /**
+   * Leaks a scoped value out of its scope, returning the raw unwrapped value.
+   *
+   * This function emits a compiler warning because leaking resources bypasses
+   * Scope's compile-time safety guarantees. Use only for legacy code interop
+   * where third-party or Java code cannot operate with scoped values.
+   *
+   * @example
+   *   {{{
+   *   // Legacy Java API that needs a raw InputStream
+   *   def processWithLegacyApi()(using scope: Scope.Has[Request]): Unit = {
+   *     val stream = leak($[Request].body.getInputStream())
+   *     LegacyJavaProcessor.process(stream)  // Third-party code
+   *   }
+   *   }}}
+   *
+   * To suppress the warning for a specific call site, use
+   * `@nowarn("msg=is being leaked")` or configure your build tool's lint
+   * settings.
+   *
+   * If the type is not actually resourceful, consider adding a `given
+   * ScopeEscape` instance to avoid needing `leak`.
+   */
+  inline def leak[A, S](inline scoped: A @@ S): A = ${ LeakMacros.leakImpl[A, S]('scoped) }
 }

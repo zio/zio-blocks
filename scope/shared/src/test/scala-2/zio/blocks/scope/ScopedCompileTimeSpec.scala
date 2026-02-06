@@ -92,6 +92,38 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           scoped.get  // Should fail: no implicit scope
           """
         }.map(result => assertTrue(result.isLeft))
+      },
+      test("cannot use .get with value from different scope") {
+        typeCheck {
+          """
+          import zio.blocks.scope._
+
+          class Resource1 { def value: Int = 1 }
+          class Resource2 { def value: Int = 2 }
+
+          implicit val globalScope: Scope.Any = Scope.global
+
+          val closeable1 = injected(new Resource1)
+          val closeable2 = injected(new Resource2)
+
+          // Get a scoped value from closeable1's scope
+          var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
+          closeable1.run { implicit scope =>
+            escapedValue = $[Resource1]
+          }
+
+          // Try to use .get with closeable2's scope - should fail
+          closeable2.run { implicit scope =>
+            // closeable2.Tag is not a supertype of closeable1.Tag
+            escapedValue.get
+          }
+          """
+        }.map(result =>
+          assertTrue(
+            result.isLeft,
+            result.left.exists(msg => msg.contains("cannot be accessed") || msg.contains("Tag"))
+          )
+        )
       }
     ),
     suite("Escape prevention")(

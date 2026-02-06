@@ -147,4 +147,29 @@ package object scope {
 
   @deprecated("Use ScopeEscape instead", "0.1.0")
   val AutoUnscoped = ScopeEscape
+
+  /**
+   * Leaks a scoped value out of its scope, returning the raw unwrapped value.
+   *
+   * This function emits a compiler warning because leaking resources bypasses
+   * Scope's compile-time safety guarantees. Use only for legacy code interop
+   * where third-party or Java code cannot operate with scoped values.
+   *
+   * @example
+   *   {{{
+   *   // Legacy Java API that needs a raw InputStream
+   *   def processWithLegacyApi()(implicit scope: Scope.Has[Request]): Unit = {
+   *     val stream = leak($[Request].body.getInputStream())
+   *     LegacyJavaProcessor.process(stream)  // Third-party code
+   *   }
+   *   }}}
+   *
+   * To suppress the warning for a specific call site, use
+   * `@nowarn("msg=is being leaked")` or configure your build tool's lint
+   * settings.
+   *
+   * If the type is not actually resourceful, consider adding an `implicit
+   * ScopeEscape` instance to avoid needing `leak`.
+   */
+  def leak[A, S](scoped: A @@ S): A = macro LeakMacros.leakImpl[A, S]
 }
