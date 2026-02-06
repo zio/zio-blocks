@@ -26,6 +26,74 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
           scoped + 1  // Should fail: + is not a member of Int @@ String
         """)
         assertTrue(errors.exists(_.message.contains("value + is not a member")))
+      },
+      test("cannot call String methods on scoped String") {
+        val errors = typeCheckErrors("""
+          val scoped: String @@ Int = zio.blocks.scope.@@.scoped("hello")
+          scoped.length  // Should fail: length is not a member
+        """)
+        assertTrue(errors.exists(_.message.contains("is not a member")))
+      },
+      test("cannot assign scoped value to raw type") {
+        val errors = typeCheckErrors("""
+          val scoped: Int @@ String = zio.blocks.scope.@@.scoped(42)
+          val raw: Int = scoped  // Should fail: type mismatch
+        """)
+        assertTrue(errors.nonEmpty)
+      }
+    ),
+    suite("$ operator tag checking")(
+      test("cannot use $ with value from different scope") {
+        val errors = typeCheckErrors("""
+          import zio.blocks.scope._
+
+          class Resource1 { def value: Int = 1 }
+          class Resource2 { def value: Int = 2 }
+
+          given Scope.Any = Scope.global
+
+          val closeable1 = injected(new Resource1)
+          val closeable2 = injected(new Resource2)
+
+          // Get a scoped value from closeable1's scope
+          var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
+          closeable1.run {
+            escapedValue = $[Resource1]
+          }
+
+          // Try to use it with closeable2's scope - should fail
+          closeable2.run {
+            // closeable2.Tag is not a supertype of closeable1.Tag
+            escapedValue $ (_.value)
+          }
+        """)
+        assertTrue(errors.nonEmpty)
+      },
+      test("cannot use $ without scope in context") {
+        val errors = typeCheckErrors("""
+          import zio.blocks.scope._
+          val scoped: Int @@ String = @@.scoped(42)
+          scoped $ identity  // Should fail: no implicit scope
+        """)
+        assertTrue(errors.nonEmpty)
+      }
+    ),
+    suite("Escape prevention")(
+      test("resource types cannot escape as raw via $") {
+        // Resource types (non-Unscoped) stay scoped after $ - can't assign to raw
+        val errors = typeCheckErrors("""
+          import zio.blocks.scope._
+          class Resource { def value: Int = 42 }
+
+          given Scope.Any = Scope.global
+          val closeable = injected(new Resource)
+          closeable.run {
+            val scoped = $[Resource]
+            // Resource is not Unscoped, so $ returns Resource @@ Tag, not raw Resource
+            val raw: Resource = scoped $ identity  // Should fail: type mismatch
+          }
+        """)
+        assertTrue(errors.nonEmpty)
       }
     ),
     suite("Tag type safety")(

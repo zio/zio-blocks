@@ -18,6 +18,36 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
   implicit val globalScope: Scope.Any = Scope.global
 
   def spec = suite("Scoped Compile-Time Safety (Scala 2)")(
+    suite("Opaque type hides methods")(
+      test("cannot call methods on scoped value directly") {
+        // This verifies the core safety property: methods are hidden
+        typeCheck {
+          """
+          import zio.blocks.scope._
+          val scoped: Int @@ String = @@.scoped[Int, String](42)
+          scoped + 1  // Should fail: + is not a member of Int @@ String
+          """
+        }.map(result => assertTrue(result.isLeft))
+      },
+      test("cannot call String methods on scoped String") {
+        typeCheck {
+          """
+          import zio.blocks.scope._
+          val scoped: String @@ Int = @@.scoped[String, Int]("hello")
+          scoped.length  // Should fail: length is not a member
+          """
+        }.map(result => assertTrue(result.isLeft))
+      },
+      test("cannot assign scoped value to raw type") {
+        typeCheck {
+          """
+          import zio.blocks.scope._
+          val scoped: Int @@ String = @@.scoped[Int, String](42)
+          val raw: Int = scoped  // Should fail: type mismatch
+          """
+        }.map(result => assertTrue(result.isLeft))
+      }
+    ),
     suite("$ operator tag checking")(
       test("cannot use $ with value from different scope") {
         // This verifies that the macro rejects mismatched scope tags
@@ -29,6 +59,8 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           class Resource1 { def value: Int = 1 }
           class Resource2 { def value: Int = 2 }
+
+          implicit val globalScope: Scope.Any = Scope.global
 
           val closeable1 = injected(new Resource1)
           val closeable2 = injected(new Resource2)
@@ -53,6 +85,34 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("cannot use $ without scope in context") {
+        typeCheck {
+          """
+          import zio.blocks.scope._
+          val scoped: Int @@ String = @@.scoped[Int, String](42)
+          scoped.$(identity)  // Should fail: no implicit scope
+          """
+        }.map(result => assertTrue(result.isLeft))
+      }
+    ),
+    suite("Escape prevention")(
+      test("resource types cannot escape as raw via $") {
+        // Resource types (non-Unscoped) stay scoped after $ - can't assign to raw
+        typeCheck {
+          """
+          import zio.blocks.scope._
+          class Resource { def value: Int = 42 }
+
+          implicit val globalScope: Scope.Any = Scope.global
+          val closeable = injected(new Resource)
+          closeable.run { implicit scope =>
+            val scoped = $[Resource]
+            // Resource is not Unscoped, so $ returns Resource @@ Tag, not raw Resource
+            val raw: Resource = scoped.$(identity)  // Should fail: type mismatch
+          }
+          """
+        }.map(result => assertTrue(result.isLeft))
       }
     ),
     suite("Tag type safety")(
