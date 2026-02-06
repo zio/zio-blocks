@@ -1027,7 +1027,7 @@ def deriveRecord[F[_, _], A](
 
 As shown above, the implementation of the `deriveRecord` method for `Gen` is structurally similar to the `deriveRecord` method used in `Show` derivation. The primary difference is the data flow: instead of deconstructing an existing record to access its fields, we generate random values for each field. We then use `Register#set` to store these values in the registers before invoking the `constructor` from the `Binding` to create an instance of type `A`.
 
-### Variant
+### Variant Derivation
 
 The `deriveVariant` method is responsible for deriving a `Gen` instance for variant types, such as sealed traits with case classes:
 
@@ -1096,6 +1096,106 @@ def deriveSequence[F[_, _], C[_], A](
 
 A sequence is an object that contains multiple elements of the same type. To derive a `Gen` instance for a sequence, we first need to retrieve the `Gen` instance for the element type. Then, at runtime, we generate a random length for the sequence (e.g., between 0 and 5). Based on this length, we either return an empty sequence using `constructor.emptyObject` or create a new builder using `constructor.newObjectBuilder`. We then generate random values for each element using the element's type class instance and add them to the builder using `constructor.addObject`. Finally, we call `constructor.resultObject` to build the final sequence object.
 
+### Map Derivation
+
+The `deriveMap` method is responsible for deriving a `Gen` instance for map types, such as `Map[K, V]`:
+
+```scala
+def deriveMap[F[_, _], M[_, _], K, V](
+  key: Reflect[F, K],
+  value: Reflect[F, V],
+  typeId: TypeId[M[K, V]],
+  binding: Binding[BindingType.Map[M], M[K, V]],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[M[K, V]],
+  examples: Seq[M[K, V]]
+)(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[M[K, V]]] = Lazy {
+  val keyGen      = D.instance(key.metadata)
+  val valueGen    = D.instance(value.metadata)
+  val mapBinding  = binding.asInstanceOf[Binding.Map[M, K, V]]
+  val constructor = mapBinding.constructor
+
+  new Gen[M[K, V]] {
+    def generate(random: Random): M[K, V] = {
+      val size = random.nextInt(6) // 0 to 5 entries
+
+      if (size == 0) {
+        constructor.emptyObject[K, V]
+      } else {
+        val builder = constructor.newObjectBuilder[K, V](size)
+        (0 until size).foreach { _ =>
+          constructor.addObject(builder, keyGen.force.generate(random), valueGen.force.generate(random))
+        }
+        constructor.resultObject(builder)
+      }
+    }
+  }
+}
+```
+
+The derivation process for maps is similar to sequences, but it requires handling the generation of random values for both keys and values.
+
+### Dynamic Derivation
+
+The `deriveDynamic` method is responsible for deriving a `Gen` instance for dynamic types, such as `DynamicValue`. Since `DynamicValue` can represent any schema type, we generate random dynamic values by choosing a variant at random and generating the appropriate content for that variant. The implementation involves pattern matching on the `DynamicValue` type and generating content accordingly:
+
+```scala
+def deriveDynamic[F[_, _]](
+  binding: Binding[BindingType.Dynamic, DynamicValue],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[DynamicValue],
+  examples: Seq[DynamicValue]
+)(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[DynamicValue]] = Lazy {
+  new Gen[DynamicValue] {
+    // Helper to generate a random primitive value
+    private def randomPrimitive(random: Random): DynamicValue.Primitive = {
+      val primitiveType = random.nextInt(5)
+      primitiveType match {
+        case 0 => DynamicValue.Primitive(PrimitiveValue.Int(random.nextInt()))
+        case 1 => DynamicValue.Primitive(PrimitiveValue.String(random.alphanumeric.take(10).mkString))
+        case 2 => DynamicValue.Primitive(PrimitiveValue.Boolean(random.nextBoolean()))
+        case 3 => DynamicValue.Primitive(PrimitiveValue.Double(random.nextDouble()))
+        case 4 => DynamicValue.Primitive(PrimitiveValue.Long(random.nextLong()))
+      }
+    }
+
+    def generate(random: Random): DynamicValue = {
+      // Randomly choose what kind of DynamicValue to generate
+      // Weight towards primitives and simpler structures to avoid deep nesting
+      val valueType = random.nextInt(10)
+      valueType match {
+        case 0 | 1 | 2 | 3 | 4 =>
+          // 50% chance: generate a primitive
+          randomPrimitive(random)
+
+        case 5 | 6 =>
+          // 20% chance: generate a record with 1-3 fields
+          val numFields = random.nextInt(3) + 1
+          val fields    = (0 until numFields).map { i =>
+            val fieldName  = s"field$i"
+            val fieldValue = randomPrimitive(random)
+            (fieldName, fieldValue: DynamicValue)
+          }
+          DynamicValue.Record(Chunk.from(fields))
+
+        case 7 | 8 =>
+          // 20% chance: generate a sequence of 0-3 primitives
+          val numElements = random.nextInt(4)
+          val elements    = (0 until numElements).map(_ => randomPrimitive(random): DynamicValue)
+          DynamicValue.Sequence(Chunk.from(elements))
+
+        case 9 =>
+          // 10% chance: generate null
+          DynamicValue.Null
+      }
+    }
+  }
+}
+```
+
+Please note that the random generation logic in this example is basic and is intended for illustrative purposes only.
 
 ## Derivation Process Overview including Internal Mechanics
 
