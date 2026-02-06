@@ -150,10 +150,17 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   - If `B` is `Unscoped`, returns raw `B`
    *   - Otherwise, returns `B @@ S` (stays scoped)
    *
+   * Note: In Scala 2, the scope parameter only requires `Scope.Any` rather than
+   * the refined `Scope[?] { type Tag >: S }` used in Scala 3. This is because
+   * Scala 2 has limited support for refined types with path-dependent type
+   * constraints in implicit resolution. The safety guarantee still holds in
+   * practice because scoped values can only be obtained from the matching
+   * scope, and the opaque type prevents direct access.
+   *
    * @param f
    *   The function to apply to the underlying value
    * @param scope
-   *   Evidence that the scope is available (compile-time check)
+   *   Evidence that a scope is in context
    * @param u
    *   Typeclass determining the result type
    * @return

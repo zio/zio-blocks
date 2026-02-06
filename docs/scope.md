@@ -18,7 +18,9 @@ Scope is a minimalist dependency injection library that makes **lifecycle errors
 
 Traditional DI prevents "app won't start" errors. Scope prevents "3am production incident" errors.
 
-Scope supports both **Scala 2.13** and **Scala 3.x**. The core functionality is identical across versions, including resource escape prevention. Scope is effect-system-agnostic; the `zio.blocks` prefix is for project grouping, not a ZIO dependency.
+Scope supports both **Scala 2.13** and **Scala 3.x**. The core functionality is identical across versions, including resource escape prevention.
+
+> **Note:** Despite the `zio.blocks` package prefix, Scope has **no dependency on ZIO**. The prefix is for project grouping only. Scope is effect-system-agnostic and works with any Scala code.
 
 ## Why Scope?
 
@@ -519,7 +521,7 @@ For request-scoped services, use `injected` with the implicit parent scope:
 class App(userService: UserService)(using Scope.Any) {
   def handleRequest(request: Request): Response =
     injected[RequestHandler](
-      Wire.value(request)        // Inject the request value
+      Wire(request)        // Inject the request value
     ).run {
       $[RequestHandler] $ (_.handle())
     }
@@ -614,8 +616,8 @@ Scope.global.injected[UserService].run {
 
 // Test with mocks
 Scope.global.injected[UserService](
-  Wire.value(new MockDatabase()),
-  Wire.value(new MockCache())
+  Wire(new MockDatabase()),
+  Wire(new MockCache())
 ).run {
   assert($[UserService] $ (_.getUser("123")) == expectedUser)
 }
@@ -741,15 +743,15 @@ Scope.global.injected[App](
 }
 ```
 
-### Wire.value for Injecting Existing Values
+### Wire(...) for Injecting Existing Values
 
-Use `Wire.value` to inject a pre-existing value:
+Use `Wire(...)` to inject a pre-existing value:
 
 ```scala
 def handleRequest(request: Request)(using Scope.Any): Response =
   injected[RequestHandler](
-    Wire.value(request),           // Inject the request
-    Wire.value(Transaction.begin()) // Inject a fresh transaction
+    Wire(request),           // Inject the request
+    Wire(Transaction.begin()) // Inject a fresh transaction
   ).run {
     $[RequestHandler] $ (_.handle())
   }
@@ -852,7 +854,7 @@ When the same type is provided by multiple wires:
 
   Conflicting wires:
     1. shared[Config] at MyApp.scala:15
-    2. Wire.value(...) at MyApp.scala:16
+    2. Wire(...) at MyApp.scala:16
 
   Hint: Remove duplicate wires or use distinct wrapper types.
 
