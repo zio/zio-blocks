@@ -405,8 +405,8 @@ object DynamicPatch {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Applies an operation to all values matching a SchemaRepr pattern.
-   * Uses recursive traversal to find matching values and apply the operation.
+   * Applies an operation to all values matching a SchemaRepr pattern. Uses
+   * recursive traversal to find matching values and apply the operation.
    * Returns the modified structure with all matching values updated.
    */
   private def schemaSearchApplyOperation(
@@ -477,7 +477,7 @@ object DynamicPatch {
 
     globalError match {
       case Some(err) => Left(err)
-      case None =>
+      case None      =>
         if (!found && mode == PatchMode.Strict) {
           Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
         } else {
@@ -487,8 +487,9 @@ object DynamicPatch {
   }
 
   /**
-   * Navigates through values matching a SchemaRepr pattern and continues with the remaining path.
-   * Uses recursive traversal to find matching values and apply remaining path operations.
+   * Navigates through values matching a SchemaRepr pattern and continues with
+   * the remaining path. Uses recursive traversal to find matching values and
+   * apply remaining path operations.
    */
   private def schemaSearchNavigate(
     value: DynamicValue,
@@ -569,7 +570,7 @@ object DynamicPatch {
 
     globalError match {
       case Some(err) => Left(err)
-      case None =>
+      case None      =>
         if (!found && mode == PatchMode.Strict) {
           Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
         } else {

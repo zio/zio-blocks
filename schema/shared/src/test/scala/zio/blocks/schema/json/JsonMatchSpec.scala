@@ -71,10 +71,12 @@ object JsonMatchSpec extends SchemaBaseSpec {
         assertTrue(JsonMatch.matches(pattern, json))
       },
       test("Record with multiple fields matches object with those fields") {
-        val pattern = SchemaRepr.Record(Vector(
-          "name" -> SchemaRepr.Primitive("string"),
-          "age"  -> SchemaRepr.Primitive("int")
-        ))
+        val pattern = SchemaRepr.Record(
+          Vector(
+            "name" -> SchemaRepr.Primitive("string"),
+            "age"  -> SchemaRepr.Primitive("int")
+          )
+        )
         val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
         assertTrue(JsonMatch.matches(pattern, json))
       },
@@ -150,6 +152,35 @@ object JsonMatchSpec extends SchemaBaseSpec {
         val pattern = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int"))
         val json    = Json.Object("a" -> Json.String("not a number"))
         assertTrue(!JsonMatch.matches(pattern, json))
+      },
+      test("Map with Wildcard key pattern matches object") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Wildcard, SchemaRepr.Primitive("int"))
+        val json    = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
+        assertTrue(JsonMatch.matches(pattern, json))
+      },
+      test("Map with Wildcard key pattern matches empty object") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Wildcard, SchemaRepr.Primitive("int"))
+        assertTrue(JsonMatch.matches(pattern, Json.Object.empty))
+      },
+      test("Map with Wildcard key but mismatched values rejects object") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Wildcard, SchemaRepr.Primitive("int"))
+        val json    = Json.Object("a" -> Json.String("not a number"))
+        assertTrue(!JsonMatch.matches(pattern, json))
+      },
+      test("Map with Record key pattern rejects objects") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Record(Vector.empty), SchemaRepr.Primitive("int"))
+        val json    = Json.Object("a" -> Json.Number(1))
+        assertTrue(!JsonMatch.matches(pattern, json))
+      },
+      test("Map with Optional key pattern rejects objects") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Optional(SchemaRepr.Primitive("string")), SchemaRepr.Primitive("int"))
+        val json    = Json.Object("a" -> Json.Number(1))
+        assertTrue(!JsonMatch.matches(pattern, json))
+      },
+      test("Map with Sequence key pattern rejects objects") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Sequence(SchemaRepr.Primitive("string")), SchemaRepr.Primitive("int"))
+        val json    = Json.Object("a" -> Json.Number(1))
+        assertTrue(!JsonMatch.matches(pattern, json))
       }
     ),
     suite("Optional matching")(
@@ -178,10 +209,12 @@ object JsonMatchSpec extends SchemaBaseSpec {
     ),
     suite("Variant matching")(
       test("Variant matches if value matches any case pattern") {
-        val pattern = SchemaRepr.Variant(Vector(
-          "Left"  -> SchemaRepr.Primitive("int"),
-          "Right" -> SchemaRepr.Primitive("string")
-        ))
+        val pattern = SchemaRepr.Variant(
+          Vector(
+            "Left"  -> SchemaRepr.Primitive("int"),
+            "Right" -> SchemaRepr.Primitive("string")
+          )
+        )
         // JSON doesn't have tagged variants, but we try to match against any case pattern
         assertTrue(
           JsonMatch.matches(pattern, Json.Number(42)),
@@ -189,18 +222,22 @@ object JsonMatchSpec extends SchemaBaseSpec {
         )
       },
       test("Variant rejects if value matches no case pattern") {
-        val pattern = SchemaRepr.Variant(Vector(
-          "Left"  -> SchemaRepr.Primitive("int"),
-          "Right" -> SchemaRepr.Primitive("string")
-        ))
+        val pattern = SchemaRepr.Variant(
+          Vector(
+            "Left"  -> SchemaRepr.Primitive("int"),
+            "Right" -> SchemaRepr.Primitive("string")
+          )
+        )
         assertTrue(!JsonMatch.matches(pattern, Json.Boolean(true)))
       }
     ),
     suite("Nested patterns")(
       test("Nested Record in Record") {
-        val pattern = SchemaRepr.Record(Vector(
-          "person" -> SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
-        ))
+        val pattern = SchemaRepr.Record(
+          Vector(
+            "person" -> SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+          )
+        )
         val json = Json.Object("person" -> Json.Object("name" -> Json.String("Alice")))
         assertTrue(JsonMatch.matches(pattern, json))
       },

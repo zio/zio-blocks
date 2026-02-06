@@ -36,7 +36,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
   /**
-   * Appends a search node that matches all values of the specified nominal type.
+   * Appends a search node that matches all values of the specified nominal
+   * type.
    */
   def search[A](implicit typeId: TypeId[A]): DynamicOptic =
     new DynamicOptic(nodes :+ Node.TypeSearch(typeId))
@@ -81,11 +82,11 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append('}')
-        case Node.Elements                => sb.append("[*]")
-        case Node.MapKeys                 => sb.append("{*:}")
-        case Node.MapValues               => sb.append("{*}")
-        case Node.Wrapped                 => sb.append(".~")
-        case Node.TypeSearch(typeId)      => sb.append('#').append(typeId.name)
+        case Node.Elements                 => sb.append("[*]")
+        case Node.MapKeys                  => sb.append("{*:}")
+        case Node.MapValues                => sb.append("{*}")
+        case Node.Wrapped                  => sb.append(".~")
+        case Node.TypeSearch(typeId)       => sb.append('#').append(typeId.name)
         case Node.SchemaSearch(schemaRepr) => sb.append('#').append(schemaRepr.toString)
       }
       idx += 1
@@ -418,12 +419,12 @@ object DynamicOptic {
       typeId = TypeId.of[Node.TypeSearch],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.TypeSearch] {
-          def usedRegisters: RegisterOffset                                    = 1
+          def usedRegisters: RegisterOffset                                     = 1
           def construct(in: Registers, offset: RegisterOffset): Node.TypeSearch =
             Node.TypeSearch(in.getObject(offset + 0).asInstanceOf[TypeId[?]])
         },
         deconstructor = new Deconstructor[Node.TypeSearch] {
-          def usedRegisters: RegisterOffset                                                 = 1
+          def usedRegisters: RegisterOffset                                                  = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Node.TypeSearch): Unit =
             out.setObject(offset + 0, in.typeId)
         }
@@ -440,12 +441,12 @@ object DynamicOptic {
       typeId = TypeId.of[Node.SchemaSearch],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.SchemaSearch] {
-          def usedRegisters: RegisterOffset                                      = 1
+          def usedRegisters: RegisterOffset                                       = 1
           def construct(in: Registers, offset: RegisterOffset): Node.SchemaSearch =
             Node.SchemaSearch(in.getObject(offset + 0).asInstanceOf[SchemaRepr])
         },
         deconstructor = new Deconstructor[Node.SchemaSearch] {
-          def usedRegisters: RegisterOffset                                                   = 1
+          def usedRegisters: RegisterOffset                                                    = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: Node.SchemaSearch): Unit =
             out.setObject(offset + 0, in.schemaRepr)
         }

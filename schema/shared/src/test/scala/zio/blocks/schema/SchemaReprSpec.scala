@@ -19,17 +19,21 @@ object SchemaReprSpec extends SchemaBaseSpec {
         assert(repr.fields)(equalTo(Vector("name" -> SchemaRepr.Primitive("string"))))
       },
       test("Record creates structural record with multiple fields") {
-        val repr = SchemaRepr.Record(Vector(
-          "name" -> SchemaRepr.Primitive("string"),
-          "age"  -> SchemaRepr.Primitive("int")
-        ))
+        val repr = SchemaRepr.Record(
+          Vector(
+            "name" -> SchemaRepr.Primitive("string"),
+            "age"  -> SchemaRepr.Primitive("int")
+          )
+        )
         assert(repr.fields.length)(equalTo(2))
       },
       test("Variant creates structural variant with cases") {
-        val repr = SchemaRepr.Variant(Vector(
-          "Left"  -> SchemaRepr.Primitive("int"),
-          "Right" -> SchemaRepr.Primitive("string")
-        ))
+        val repr = SchemaRepr.Variant(
+          Vector(
+            "Left"  -> SchemaRepr.Primitive("int"),
+            "Right" -> SchemaRepr.Primitive("string")
+          )
+        )
         assert(repr.cases.length)(equalTo(2))
       },
       test("Sequence creates sequence type") {
@@ -51,8 +55,8 @@ object SchemaReprSpec extends SchemaBaseSpec {
     ),
     suite("nesting")(
       test("Record containing Record") {
-        val inner = SchemaRepr.Record(Vector("street" -> SchemaRepr.Primitive("string")))
-        val outer = SchemaRepr.Record(Vector("address" -> inner))
+        val inner   = SchemaRepr.Record(Vector("street" -> SchemaRepr.Primitive("string")))
+        val outer   = SchemaRepr.Record(Vector("address" -> inner))
         val address = outer.fields.head._2.asInstanceOf[SchemaRepr.Record]
         assert(address.fields.head._1)(equalTo("street"))
       },
@@ -84,17 +88,21 @@ object SchemaReprSpec extends SchemaBaseSpec {
         assert(repr.toString)(equalTo("record { name: string }"))
       },
       test("Record renders multiple fields comma-separated") {
-        val repr = SchemaRepr.Record(Vector(
-          "name" -> SchemaRepr.Primitive("string"),
-          "age"  -> SchemaRepr.Primitive("int")
-        ))
+        val repr = SchemaRepr.Record(
+          Vector(
+            "name" -> SchemaRepr.Primitive("string"),
+            "age"  -> SchemaRepr.Primitive("int")
+          )
+        )
         assert(repr.toString)(equalTo("record { name: string, age: int }"))
       },
       test("Variant renders with cases") {
-        val repr = SchemaRepr.Variant(Vector(
-          "Left"  -> SchemaRepr.Primitive("int"),
-          "Right" -> SchemaRepr.Primitive("string")
-        ))
+        val repr = SchemaRepr.Variant(
+          Vector(
+            "Left"  -> SchemaRepr.Primitive("int"),
+            "Right" -> SchemaRepr.Primitive("string")
+          )
+        )
         assert(repr.toString)(equalTo("variant { Left: int, Right: string }"))
       },
       test("Sequence renders as list(element)") {
@@ -113,9 +121,11 @@ object SchemaReprSpec extends SchemaBaseSpec {
         assert(SchemaRepr.Wildcard.toString)(equalTo("_"))
       },
       test("Nested structure renders correctly") {
-        val repr = SchemaRepr.Record(Vector(
-          "items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))
-        ))
+        val repr = SchemaRepr.Record(
+          Vector(
+            "items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))
+          )
+        )
         assert(repr.toString)(equalTo("record { items: list(Person) }"))
       }
     ),

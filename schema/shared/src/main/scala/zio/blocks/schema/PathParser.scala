@@ -346,8 +346,9 @@ private[schema] object PathParser {
   }
 
   /**
-   * Finds the end position of a schema expression by tracking balanced braces and parens.
-   * Schema expressions end at `.`, `[`, `{` (outside balanced context), `<`, `#`, or end of input.
+   * Finds the end position of a schema expression by tracking balanced braces
+   * and parens. Schema expressions end at `.`, `[`, `{` (outside balanced
+   * context), `<`, `#`, or end of input.
    */
   private def extractSchemaEnd(ctx: ParseContext): Int = {
     var braceDepth = 0

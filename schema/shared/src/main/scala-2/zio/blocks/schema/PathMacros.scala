@@ -131,14 +131,13 @@ object PathMacros {
     }
   }
 
-  private def buildTypeIdExpr(c: blackbox.Context)(typeId: zio.blocks.typeid.TypeId[?]): c.Tree = {
+  private def buildTypeIdExpr(c: blackbox.Context)(typeId: zio.blocks.typeid.TypeId[?]): c.Tree =
     // TypeSearch nodes in path interpolators are not supported at compile time
     // They would need to reference a runtime TypeId value
     c.abort(
       c.enclosingPosition,
       "TypeSearch is not supported in path interpolators. Use SchemaSearch via #TypeName syntax instead."
     )
-  }
 
   private def buildSchemaReprExpr(c: blackbox.Context)(repr: SchemaRepr): c.Tree = {
     import c.universe._

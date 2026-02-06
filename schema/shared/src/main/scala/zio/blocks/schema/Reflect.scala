@@ -1795,9 +1795,12 @@ object Reflect {
    * matching the given TypeId. Uses iterative traversal with cycle detection
    * for recursive types (Deferred nodes).
    *
-   * @param root The starting Reflect node to search from
-   * @param searchTypeId The TypeId to search for
-   * @return Some(Reflect) if a matching type is found, None otherwise
+   * @param root
+   *   The starting Reflect node to search from
+   * @param searchTypeId
+   *   The TypeId to search for
+   * @return
+   *   Some(Reflect) if a matching type is found, None otherwise
    */
   private[schema] def typeSearch[F[_, _]](root: Reflect[F, ?], searchTypeId: TypeId[?]): Option[Reflect[F, ?]] = {
     // Thread-local visited set for cycle detection in recursive types
@@ -1873,12 +1876,15 @@ object Reflect {
 
   /**
    * Performs depth-first search through the type graph to find the first type
-   * matching the given SchemaRepr pattern. Uses structural matching against
-   * the type structure.
+   * matching the given SchemaRepr pattern. Uses structural matching against the
+   * type structure.
    *
-   * @param root The starting Reflect node to search from
-   * @param pattern The SchemaRepr pattern to match against
-   * @return Some(Reflect) if a matching type is found, None otherwise
+   * @param root
+   *   The starting Reflect node to search from
+   * @param pattern
+   *   The SchemaRepr pattern to match against
+   * @return
+   *   Some(Reflect) if a matching type is found, None otherwise
    */
   private[schema] def schemaSearch[F[_, _]](root: Reflect[F, ?], pattern: SchemaRepr): Option[Reflect[F, ?]] = {
     // Thread-local visited set for cycle detection in recursive types
@@ -1998,42 +2004,42 @@ object Reflect {
   }
 
   /**
-   * Checks if a primitive type name matches a PrimitiveType.
-   * Case-insensitive comparison.
+   * Checks if a primitive type name matches a PrimitiveType. Case-insensitive
+   * comparison.
    */
   private def primitiveTypeNameMatches(name: String, pt: PrimitiveType[?]): Boolean = {
     val lowerName = name.toLowerCase
     pt match {
-      case _: PrimitiveType.Unit.type     => lowerName == "unit"
-      case _: PrimitiveType.Boolean       => lowerName == "boolean"
-      case _: PrimitiveType.Byte          => lowerName == "byte"
-      case _: PrimitiveType.Short         => lowerName == "short"
-      case _: PrimitiveType.Int           => lowerName == "int"
-      case _: PrimitiveType.Long          => lowerName == "long"
-      case _: PrimitiveType.Float         => lowerName == "float"
-      case _: PrimitiveType.Double        => lowerName == "double"
-      case _: PrimitiveType.Char          => lowerName == "char"
-      case _: PrimitiveType.String        => lowerName == "string"
-      case _: PrimitiveType.BigInt        => lowerName == "bigint"
-      case _: PrimitiveType.BigDecimal    => lowerName == "bigdecimal"
-      case _: PrimitiveType.DayOfWeek     => lowerName == "dayofweek"
-      case _: PrimitiveType.Duration      => lowerName == "duration"
-      case _: PrimitiveType.Instant       => lowerName == "instant"
-      case _: PrimitiveType.LocalDate     => lowerName == "localdate"
-      case _: PrimitiveType.LocalDateTime => lowerName == "localdatetime"
-      case _: PrimitiveType.LocalTime     => lowerName == "localtime"
-      case _: PrimitiveType.Month         => lowerName == "month"
-      case _: PrimitiveType.MonthDay      => lowerName == "monthday"
+      case _: PrimitiveType.Unit.type      => lowerName == "unit"
+      case _: PrimitiveType.Boolean        => lowerName == "boolean"
+      case _: PrimitiveType.Byte           => lowerName == "byte"
+      case _: PrimitiveType.Short          => lowerName == "short"
+      case _: PrimitiveType.Int            => lowerName == "int"
+      case _: PrimitiveType.Long           => lowerName == "long"
+      case _: PrimitiveType.Float          => lowerName == "float"
+      case _: PrimitiveType.Double         => lowerName == "double"
+      case _: PrimitiveType.Char           => lowerName == "char"
+      case _: PrimitiveType.String         => lowerName == "string"
+      case _: PrimitiveType.BigInt         => lowerName == "bigint"
+      case _: PrimitiveType.BigDecimal     => lowerName == "bigdecimal"
+      case _: PrimitiveType.DayOfWeek      => lowerName == "dayofweek"
+      case _: PrimitiveType.Duration       => lowerName == "duration"
+      case _: PrimitiveType.Instant        => lowerName == "instant"
+      case _: PrimitiveType.LocalDate      => lowerName == "localdate"
+      case _: PrimitiveType.LocalDateTime  => lowerName == "localdatetime"
+      case _: PrimitiveType.LocalTime      => lowerName == "localtime"
+      case _: PrimitiveType.Month          => lowerName == "month"
+      case _: PrimitiveType.MonthDay       => lowerName == "monthday"
       case _: PrimitiveType.OffsetDateTime => lowerName == "offsetdatetime"
-      case _: PrimitiveType.OffsetTime    => lowerName == "offsettime"
-      case _: PrimitiveType.Period        => lowerName == "period"
-      case _: PrimitiveType.Year          => lowerName == "year"
-      case _: PrimitiveType.YearMonth     => lowerName == "yearmonth"
-      case _: PrimitiveType.ZoneId        => lowerName == "zoneid"
-      case _: PrimitiveType.ZoneOffset    => lowerName == "zoneoffset"
-      case _: PrimitiveType.ZonedDateTime => lowerName == "zoneddatetime"
-      case _: PrimitiveType.Currency      => lowerName == "currency"
-      case _: PrimitiveType.UUID          => lowerName == "uuid"
+      case _: PrimitiveType.OffsetTime     => lowerName == "offsettime"
+      case _: PrimitiveType.Period         => lowerName == "period"
+      case _: PrimitiveType.Year           => lowerName == "year"
+      case _: PrimitiveType.YearMonth      => lowerName == "yearmonth"
+      case _: PrimitiveType.ZoneId         => lowerName == "zoneid"
+      case _: PrimitiveType.ZoneOffset     => lowerName == "zoneoffset"
+      case _: PrimitiveType.ZonedDateTime  => lowerName == "zoneddatetime"
+      case _: PrimitiveType.Currency       => lowerName == "currency"
+      case _: PrimitiveType.UUID           => lowerName == "uuid"
     }
   }
 }

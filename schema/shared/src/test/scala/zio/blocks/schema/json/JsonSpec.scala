@@ -2754,8 +2754,8 @@ object JsonSpec extends SchemaBaseSpec {
       },
       test("TypeSearch returns error without Schema context") {
         import zio.blocks.typeid.TypeId
-        val json = Json.Object("name" -> Json.String("test"))
-        val path = DynamicOptic.root.search(TypeId.of[String])
+        val json   = Json.Object("name" -> Json.String("test"))
+        val path   = DynamicOptic.root.search(TypeId.of[String])
         val result = json.get(path)
         assertTrue(result.isFailure)
       },
@@ -2832,9 +2832,9 @@ object JsonSpec extends SchemaBaseSpec {
         assertTrue(result1.toChunk.isEmpty && result2.toChunk.length == 1)
       },
       test("SchemaSearch with Optional pattern matches Null") {
-        val json    = Json.Object("value" -> Json.Null)
-        val path    = DynamicOptic.root.searchSchema(SchemaRepr.Optional(SchemaRepr.Primitive("string")))
-        val result  = json.get(path)
+        val json   = Json.Object("value" -> Json.Null)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Optional(SchemaRepr.Primitive("string")))
+        val result = json.get(path)
         assertTrue(result.toChunk.toVector == Vector(Json.Null))
       },
       test("modify with SchemaSearch returns unchanged when no matches") {
@@ -2850,7 +2850,7 @@ object JsonSpec extends SchemaBaseSpec {
         assertTrue(result == json)
       },
       test("SchemaSearch with numeric primitives matches Number") {
-        val json   = Json.Object("value" -> Json.Number(42))
+        val json       = Json.Object("value" -> Json.Number(42))
         val intPath    = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
         val longPath   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("long"))
         val doublePath = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("double"))
@@ -2866,7 +2866,7 @@ object JsonSpec extends SchemaBaseSpec {
         val json = Json.Object(
           "users" -> Json.Array(
             Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30)),
-            Json.Object("name" -> Json.String("Bob"), "age" -> Json.Number(25))
+            Json.Object("name" -> Json.String("Bob"), "age"   -> Json.Number(25))
           ),
           "metadata" -> Json.Object("title" -> Json.String("User List"))
         )
@@ -2877,7 +2877,7 @@ object JsonSpec extends SchemaBaseSpec {
       test("large recursive structure does not stack overflow") {
         // Create a deeply nested structure with 500 levels
         var current: Json = Json.String("leaf")
-        var i = 0
+        var i             = 0
         while (i < 500) {
           current = Json.Object("child" -> current)
           i += 1

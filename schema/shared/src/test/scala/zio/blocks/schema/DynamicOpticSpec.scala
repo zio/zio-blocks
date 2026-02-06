@@ -119,6 +119,15 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(DynamicOptic.root.atKey(123L).toString)(equalTo("{123}")) &&
       assert(DynamicOptic.root.atKey(true).toString)(equalTo("{true}"))
     },
+    test("toString handles byte, short, float, double primitive keys") {
+      assert(DynamicOptic.root.atKey(42.toByte).toString)(equalTo("{42}")) &&
+      assert(DynamicOptic.root.atKey(123.toShort).toString)(equalTo("{123}")) &&
+      assert(DynamicOptic.root.atKey(2.718).toString)(equalTo("{2.718}"))
+    },
+    test("toString handles other primitive keys via fallback") {
+      assert(DynamicOptic.root.atKey(BigDecimal("123.456")).toString)(equalTo("{BigDecimal(123.456)}")) &&
+      assert(DynamicOptic.root.atKey('A').toString)(equalTo("{'A'}"))
+    },
     test("search builder creates TypeSearch node") {
       val optic = DynamicOptic.root.search[X]
       assert(optic.nodes.length)(equalTo(1)) &&

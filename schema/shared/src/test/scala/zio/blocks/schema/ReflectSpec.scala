@@ -935,8 +935,8 @@ object ReflectSpec extends SchemaBaseSpec {
       test("TypeSearch handles recursive types without infinite loop") {
         // Create a recursive structure using Deferred
         lazy val recursiveSchema: Schema[RecursiveNode] = Schema.derived[RecursiveNode]
-        val optic  = DynamicOptic.root.search[String]
-        val result = recursiveSchema.reflect.get(optic)
+        val optic                                       = DynamicOptic.root.search[String]
+        val result                                      = recursiveSchema.reflect.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
       },
       test("TypeSearch with path composition: field then search") {
@@ -1003,9 +1003,9 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("SchemaSearch handles recursive types without infinite loop") {
         lazy val recursiveSchema: Schema[RecursiveNode] = Schema.derived[RecursiveNode]
-        val pattern = SchemaRepr.Primitive("string")
-        val optic   = DynamicOptic.root.searchSchema(pattern)
-        val result  = recursiveSchema.reflect.get(optic)
+        val pattern                                     = SchemaRepr.Primitive("string")
+        val optic                                       = DynamicOptic.root.searchSchema(pattern)
+        val result                                      = recursiveSchema.reflect.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
       },
       test("SchemaSearch with path composition works correctly") {

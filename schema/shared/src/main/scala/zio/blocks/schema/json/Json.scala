@@ -2386,9 +2386,10 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Iterative stack-based depth-first traversal to collect all JSON values matching a SchemaRepr pattern.
-   * Order is depth-first, left-to-right (children are pushed in reverse order).
-   * The root values themselves are included if they match the pattern.
+   * Iterative stack-based depth-first traversal to collect all JSON values
+   * matching a SchemaRepr pattern. Order is depth-first, left-to-right
+   * (children are pushed in reverse order). The root values themselves are
+   * included if they match the pattern.
    */
   private def schemaSearchCollectJson(roots: Chunk[Json], pattern: SchemaRepr): Chunk[Json] = {
     // Use a mutable list stack for iteration (avoids recursion stack overflow)
@@ -2422,9 +2423,9 @@ object Json {
   }
 
   /**
-   * Modifies all JSON values matching a SchemaRepr pattern and continues with remaining path nodes.
-   * Uses recursive approach that traverses the entire structure, applying modifications
-   * to matching values.
+   * Modifies all JSON values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. Uses recursive approach that traverses the entire
+   * structure, applying modifications to matching values.
    */
   private def schemaSearchModifyJson(
     json: Json,
@@ -2473,9 +2474,10 @@ object Json {
   }
 
   /**
-   * Deletes all JSON values matching a SchemaRepr pattern and continues with remaining path nodes.
-   * If SchemaSearch is the last node, matching values are removed from their containers.
-   * Otherwise, deletion continues recursively through matching values.
+   * Deletes all JSON values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. If SchemaSearch is the last node, matching values are
+   * removed from their containers. Otherwise, deletion continues recursively
+   * through matching values.
    */
   private def schemaSearchDeleteJson(
     json: Json,
@@ -2539,9 +2541,9 @@ object Json {
         value match {
           case obj: Object =>
             val newFields = obj.value.map { case (name, v) =>
-              val selfResult    = processValue(v)
-              val childResult   = deleteMatchingRecurse(v)
-              val combinedOpt   = selfResult.orElse(childResult)
+              val selfResult  = processValue(v)
+              val childResult = deleteMatchingRecurse(v)
+              val combinedOpt = selfResult.orElse(childResult)
               combinedOpt match {
                 case Some(modified) => (name, modified)
                 case None           => (name, v)
@@ -2551,9 +2553,9 @@ object Json {
 
           case arr: Array =>
             val newElems = arr.value.map { e =>
-              val selfResult    = processValue(e)
-              val childResult   = deleteMatchingRecurse(e)
-              val combinedOpt   = selfResult.orElse(childResult)
+              val selfResult  = processValue(e)
+              val childResult = deleteMatchingRecurse(e)
+              val combinedOpt = selfResult.orElse(childResult)
               combinedOpt.getOrElse(e)
             }
             if (found) Some(new Array(newElems)) else None
