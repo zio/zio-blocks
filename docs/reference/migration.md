@@ -118,12 +118,12 @@ Migration
   .transformField(path, transform, reverseTransform)
   .mandateField(path, default)
   .optionalizeField(path)
-  .changeType(path, converter, reverseConverter)
+  .changeFieldType(path, converter, reverseConverter)
   .joinFields(targetPath, sourcePaths, combiner, splitter)
   .splitField(sourcePath, targetPaths, splitter, combiner)
   // Enum operations
-  .renameCase(path, from, to)
-  .transformCase(path, caseName, nestedActions)
+  .renameCaseAt(path, from, to)
+  .transformCaseAt(path, caseName, nestedActions)
   // Collection operations
   .transformElements(path, transform, reverseTransform)
   .transformKeys(path, transform, reverseTransform)

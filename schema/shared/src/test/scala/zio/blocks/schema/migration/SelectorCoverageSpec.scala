@@ -53,12 +53,12 @@ object SelectorCoverageSpec extends SchemaBaseSpec {
     ),
     suite("Elements selector")(
       test("toOptic returns elements node") {
-        val sel   = Selector.elements[Int, Int]
+        val sel   = Selector.elements[Int]
         val optic = sel.toOptic
         assertTrue(optic.nodes.length == 1 && optic.nodes.head == DynamicOptic.Node.Elements)
       },
       test("Elements equality") {
-        assertTrue(Selector.Elements[Int, Int]() == Selector.Elements[Int, Int]())
+        assertTrue(Selector.Elements[Int]() == Selector.Elements[Int]())
       }
     ),
     suite("MapKeys selector")(
@@ -95,7 +95,7 @@ object SelectorCoverageSpec extends SchemaBaseSpec {
     ),
     suite("Composed with special selectors")(
       test("field then elements") {
-        val sel   = Selector.field[Any, Seq[Int]]("items").andThen(Selector.elements[Int, Int])
+        val sel   = Selector.field[Any, Seq[Int]]("items").andThen(Selector.elements[Int])
         val optic = sel.toOptic
         assertTrue(
           optic.nodes.length == 2 &&

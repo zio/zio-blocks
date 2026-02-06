@@ -49,7 +49,7 @@ object Selector {
   /**
    * Create a selector for sequence elements.
    */
-  def elements[A, B]: Selector[Seq[A], B] = Elements()
+  def elements[A]: Selector[Seq[A], A] = Elements()
 
   /**
    * Create a selector for map keys.
@@ -82,7 +82,7 @@ object Selector {
     }
   }
 
-  private[migration] final case class Elements[A, B]() extends Selector[Seq[A], B] {
+  private[migration] final case class Elements[A]() extends Selector[Seq[A], A] {
     def toOptic: DynamicOptic = DynamicOptic.elements
   }
 

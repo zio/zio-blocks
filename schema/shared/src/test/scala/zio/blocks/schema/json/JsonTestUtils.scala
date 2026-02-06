@@ -13,7 +13,7 @@ import scala.util.Try
 
 object JsonTestUtils {
   private def normalizeNewlines(s: String): String =
-    s.replace("\r\n", "\n")
+    s.replace("\r\n", "\n").replace("\r", "\n")
 
   def roundTrip[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     roundTrip(value, expectedJson, getOrDeriveCodec(schema))

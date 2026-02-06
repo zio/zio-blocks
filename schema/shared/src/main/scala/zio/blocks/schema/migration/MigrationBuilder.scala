@@ -508,8 +508,8 @@ class MigrationBuilder[A, B](
       case MigrationAction.Mandate(at, default) =>
         MigrationAction.Mandate(at, resolveExprStrict(targetSchema, at, default))
 
-      case a: MigrationAction.Optionalize =>
-        a
+      case MigrationAction.Optionalize(at, defaultForReverse) =>
+        MigrationAction.Optionalize(at, resolveExprBestEffort(sourceSchema, at, defaultForReverse))
 
       case MigrationAction.ChangeType(at, converter, reverseConverter) =>
         MigrationAction.ChangeType(

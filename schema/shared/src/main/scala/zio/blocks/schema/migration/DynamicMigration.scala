@@ -128,8 +128,8 @@ object DynamicMigration {
       }
 
     case MigrationAction.TransformValue(at, transform, _) =>
-      modifyAtPathWithParentContext(value, at) { (_, targetValue) =>
-        transform.eval(targetValue).left.map(wrapExprError(at, "TransformValue"))
+      modifyAtPathWithParentContext(value, at) { (context, _) =>
+        transform.eval(context).left.map(wrapExprError(at, "TransformValue"))
       }
 
     case MigrationAction.Mandate(at, default) =>
