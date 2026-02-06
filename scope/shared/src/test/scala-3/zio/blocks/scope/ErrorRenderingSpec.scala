@@ -509,6 +509,58 @@ object ErrorRenderingSpec extends ZIOSpecDefault {
           output.contains("not a class")
         )
       }
+    ),
+    suite("LeakWarning")(
+      test("exact output for simple leak") {
+        val warning  = ScopeMacroWarning.LeakWarning("scoped", "parent.Tag")
+        val output   = warning.render(color = false)
+        val expected =
+          """── Scope Warning ───────────────────────────────────────────────────────────────
+            |
+            |  leak(scoped)
+            |       ^
+            |       |
+            |
+            |  Warning: scoped is being leaked from scope parent.Tag.
+            |  This may result in undefined behavior.
+            |
+            |  Hint:
+            |     If you know this data type is not resourceful, then add a given ScopeEscape
+            |     for it so you do not need to leak it.
+            |
+            |────────────────────────────────────────────────────────────────────────────────""".stripMargin
+        assertTrue(output == expected)
+      },
+      test("exact output for chained expression") {
+        val warning  = ScopeMacroWarning.LeakWarning("$[Request].body.getInputStream()", "parent.Tag")
+        val output   = warning.render(color = false)
+        val expected =
+          """── Scope Warning ───────────────────────────────────────────────────────────────
+            |
+            |  leak($[Request].body.getInputStream())
+            |       ^
+            |       |
+            |
+            |  Warning: $[Request].body.getInputStream() is being leaked from scope parent.Tag.
+            |  This may result in undefined behavior.
+            |
+            |  Hint:
+            |     If you know this data type is not resourceful, then add a given ScopeEscape
+            |     for it so you do not need to leak it.
+            |
+            |────────────────────────────────────────────────────────────────────────────────""".stripMargin
+        assertTrue(output == expected)
+      },
+      test("warning with colors contains ANSI codes") {
+        val warning = ScopeMacroWarning.LeakWarning("scoped", "parent.Tag")
+        val output  = warning.render(color = true)
+        assertTrue(
+          output.contains("\u001b["),
+          output.contains("\u001b[0m"),
+          output.contains("scoped"),
+          output.contains("is being leaked")
+        )
+      }
     )
   )
 }

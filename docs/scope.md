@@ -333,6 +333,74 @@ parent.run { // implicit parentScope: Scope.Has[Resource]
 
 **Unscoped types** include all primitives, String, collections of Unscoped elements, and tuples of Unscoped elements. Resource types (streams, connections, file handles) are NOT Unscoped and stay scoped.
 
+### Legacy Code Interop
+
+Sometimes you need to pass a scoped value to legacy code, third-party libraries, or Java APIs that cannot operate with scoped values. Scope provides `leak` for these cases:
+
+```scala
+import zio.blocks.scope._
+
+class Request(val body: InputStream)
+
+// Third-party Java library we can't modify
+object LegacyJavaProcessor {
+  def process(stream: InputStream): Unit = ???
+}
+
+def processWithLegacy()(using scope: Scope.Has[Request]): Unit = {
+  val request = $[Request]
+  
+  // Leaking bypasses scope safety — emits a compiler warning
+  val rawBody: InputStream = leak(request $ (_.body))
+  LegacyJavaProcessor.process(rawBody)
+}
+```
+
+**`leak` emits a compiler warning** to ensure you're aware of the safety bypass:
+
+```
+── Scope Warning ───────────────────────────────────────────────────────────────
+
+  leak(request $ (_.body))
+       ^
+       |
+
+  Warning: request $ (_.body) is being leaked from scope Tag.
+  This may result in undefined behavior.
+
+  Hint:
+     If you know this data type is not resourceful, then add a given ScopeEscape
+     for it so you do not need to leak it.
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+**Suppressing the warning**: Use `@nowarn` when you've verified the leak is safe:
+
+```scala
+import scala.annotation.nowarn
+
+// Suppress for a single expression
+val rawBody: InputStream = leak(request $ (_.body)): @nowarn("msg=is being leaked")
+
+// Or suppress for an entire method/class
+@nowarn("msg=is being leaked")
+def legacyInterop()(using Scope.Has[Request]): Unit = {
+  val stream = leak($[Request] $ (_.body))
+  LegacyJavaProcessor.process(stream)
+}
+```
+
+**Better alternative**: If a type is safe to escape (data-only, no cleanup needed), define a `ScopeEscape` instance:
+
+```scala
+// If MyData doesn't hold resources, mark it as safe to escape
+given ScopeEscape.Aux[MyData, Any, MyData] = ScopeEscape.unscoped[MyData, Any]
+
+// Now no leak needed — MyData automatically unscopes
+val data: MyData = scoped $ (_.getData)  // Returns raw MyData, no warning
+```
+
 ### Scope.Closeable
 
 `injected` returns a `Scope.Closeable` — a scope that can be explicitly closed:
@@ -968,6 +1036,7 @@ inline def injected[T](using Scope.Any): Scope.Closeable[T, ?]
 inline def injected[T](wires: Wire[?,?]*)(using Scope.Any): Scope.Closeable[T, ?]
 inline def injected[T](value: T)(using Scope.Any, IsNominalType[T]): Scope.Closeable[T, ?]
 inline def $[T](using Scope.Has[T], IsNominalType[T]): T @@ scope.Tag
+inline def leak[A, S](scoped: A @@ S): A  // Emits warning, for legacy interop
 def defer(finalizer: => Unit)(using Scope.Any): Unit
 
 // Scala 2
@@ -977,6 +1046,7 @@ def injected[T](implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
 def injected[T](wires: Wire[_,_]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] = macro ...
 def injected[T](value: T)(implicit scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, _]
 def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag
+def leak[A, S](scoped: A @@ S): A = macro ...  // Emits warning, for legacy interop
 def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit
 ```
 
@@ -1082,6 +1152,10 @@ Scope depends on:
 - **`scoped.map(f)`** — Transform scoped value, preserving scope
 - **`scoped.flatMap(f)`** — Chain scoped operations (Scala 3: union tags; Scala 2: Any)
 - **`Unscoped[A]`** — Marker for types that can escape unscoped (primitives, String, collections)
-- **`AutoUnscoped[B, S]`** — Typeclass controlling what types can escape the scope
+- **`ScopeEscape[B, S]`** — Typeclass controlling what types can escape the scope
+
+### Legacy Interop
+
+- **`leak(scoped)`** — Unwrap a scoped value, emitting a compiler warning (for legacy/Java interop)
 
 **Key guarantee**: Resources cannot accidentally escape their scope — use-after-close bugs are compile-time errors.

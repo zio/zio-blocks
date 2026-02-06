@@ -3,9 +3,10 @@ package zio.blocks.scope
 import scala.annotation.nowarn
 import zio.test._
 
+@nowarn("msg=is being leaked")
 object LeakSpec extends ZIOSpecDefault {
 
-  given Scope.Any = Scope.global
+  implicit val globalScope: Scope.Any = Scope.global
 
   class Resource(val value: Int) {
     def getData(): String = s"data-$value"
@@ -19,19 +20,19 @@ object LeakSpec extends ZIOSpecDefault {
     suite("leak function")(
       test("leak unwraps scoped value to raw value") {
         val closeable = injected(new Resource(123))
-        closeable.run {
+        closeable.run { implicit scope =>
           val scoped = $[Resource]
           // leak should return the raw Resource
-          val raw: Resource = leak(scoped): @nowarn("msg=is being leaked")
+          val raw: Resource = leak(scoped)
           assertTrue(raw.value == 123)
         }
       },
       test("leak works with chained access") {
         val closeable = injected(new Request)
-        closeable.run {
+        closeable.run { implicit scope =>
           val request = $[Request]
           // Simulate $[Request].body.getData() pattern
-          val data: String = (leak(request.map(_.body)): @nowarn("msg=is being leaked")) match {
+          val data: String = leak(request.map(_.body)) match {
             case body => body.getData()
           }
           assertTrue(data == "data-42")
@@ -41,9 +42,9 @@ object LeakSpec extends ZIOSpecDefault {
         def legacyApi(resource: Resource): Int = resource.value * 2
 
         val closeable = injected(new Resource(21))
-        closeable.run {
+        closeable.run { implicit scope =>
           val scoped = $[Resource]
-          val result = legacyApi(leak(scoped): @nowarn("msg=is being leaked"))
+          val result = legacyApi(leak(scoped))
           assertTrue(result == 42)
         }
       }

@@ -558,6 +558,64 @@ private[scope] object MacroCore {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Warning model
+  // ─────────────────────────────────────────────────────────────────────────
+
+  sealed trait ScopeMacroWarning {
+    def render(color: Boolean): String
+  }
+
+  object ScopeMacroWarning {
+
+    final case class LeakWarning(
+      sourceCode: String,
+      scopeName: String
+    ) extends ScopeMacroWarning {
+      def render(color: Boolean): String =
+        WarningRenderer.renderLeakWarning(sourceCode, scopeName, color)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Warning rendering
+  // ─────────────────────────────────────────────────────────────────────────
+
+  object WarningRenderer {
+    import Colors.*
+
+    private val lineWidth = 80
+
+    private def header(title: String, color: Boolean): String = {
+      val sep = "─" * (lineWidth - title.length - 4)
+      s"${gray("──", color)} ${bold(title, color)} ${gray(sep, color)}"
+    }
+
+    private def footer(color: Boolean): String =
+      gray("─" * lineWidth, color)
+
+    def renderLeakWarning(sourceCode: String, scopeName: String, color: Boolean): String = {
+      // Build the pointer line
+      val caretLine   = " " * ("leak(".length) + "^"
+      val pointerLine = " " * ("leak(".length) + "|"
+
+      s"""${header("Scope Warning", color)}
+         |
+         |  leak($sourceCode)
+         |  $caretLine
+         |  $pointerLine
+         |
+         |  ${yellow("Warning:", color)} ${cyan(sourceCode, color)} is being leaked from scope ${cyan(scopeName, color)}.
+         |  This may result in undefined behavior.
+         |
+         |  ${yellow("Hint:", color)}
+         |     If you know this data type is not resourceful, then add a ${cyan("given ScopeEscape", color)}
+         |     for it so you do not need to leak it.
+         |
+         |${footer(color)}""".stripMargin
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Abort helper
   // ─────────────────────────────────────────────────────────────────────────
 
