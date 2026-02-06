@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.patch.LCS
 
 /**
@@ -20,71 +20,54 @@ object JsonDiffer {
    *   A JsonPatch that transforms source into target
    */
   def diff(source: Json, target: Json): JsonPatch =
-    if (source == target) {
-      JsonPatch.empty
-    } else {
-      (source, target) match {
-        case (Json.Object(oldFields), Json.Object(newFields)) =>
-          diffObject(oldFields, newFields)
-
-        case (Json.Array(oldElems), Json.Array(newElems)) =>
-          diffArray(oldElems, newElems)
-
-        case (oldStr: Json.String, newStr: Json.String) =>
-          diffString(oldStr, newStr)
-
-        case (oldNum: Json.Number, newNum: Json.Number) =>
-          diffNumber(oldNum, newNum)
-
-        case (Json.Boolean(oldVal), Json.Boolean(newVal)) =>
-          if (oldVal == newVal) JsonPatch.empty else JsonPatch.root(JsonPatch.Op.Set(target))
-
-        case (Json.Null, Json.Null) =>
-          JsonPatch.empty
-
-        case _ =>
-          // Type mismatch - replace entirely
-          JsonPatch.root(JsonPatch.Op.Set(target))
+    if (source == target) JsonPatch.empty
+    else if (source.jsonType ne target.jsonType) JsonPatch.root(new JsonPatch.Op.Set(target))
+    else {
+      source match {
+        case obj: Json.Object   => diffObject(obj.value, target.asInstanceOf[Json.Object].value)
+        case arr: Json.Array    => diffArray(arr.value, target.asInstanceOf[Json.Array].value)
+        case str: Json.String   => diffString(str, target.asInstanceOf[Json.String])
+        case num: Json.Number   => diffNumber(num.value, target.asInstanceOf[Json.Number].value)
+        case bool: Json.Boolean =>
+          val oldVal = bool.value
+          val newVal = target.asInstanceOf[Json.Boolean].value
+          if (oldVal == newVal) JsonPatch.empty
+          else JsonPatch.root(new JsonPatch.Op.Set(target))
+        case _ => JsonPatch.empty
       }
     }
-
-  // Diff Helpers
 
   /**
    * Diff two JSON numbers by computing their delta. Uses NumberDelta to
    * represent the change.
    */
-  private def diffNumber(oldNum: Json.Number, newNum: Json.Number): JsonPatch = {
-    val oldVal = oldNum.value
-    val newVal = newNum.value
-    val delta  = newVal - oldVal
-    JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(delta)))
-  }
+  private[this] def diffNumber(oldVal: BigDecimal, newVal: BigDecimal): JsonPatch =
+    if (oldVal == newVal) JsonPatch.empty
+    else JsonPatch.root(new JsonPatch.Op.PrimitiveDelta(new JsonPatch.PrimitiveOp.NumberDelta(newVal - oldVal)))
 
   /**
    * Diff two JSON strings using LCS algorithm. Uses StringEdit when more
    * compact than Set.
    */
-  private def diffString(oldStr: Json.String, newStr: Json.String): JsonPatch =
-    if (oldStr.value == newStr.value) {
-      JsonPatch.empty
-    } else {
+  private[this] def diffString(oldStr: Json.String, newStr: Json.String): JsonPatch =
+    if (oldStr.value == newStr.value) JsonPatch.empty
+    else {
       val edits = computeStringEdits(oldStr.value, newStr.value)
-
       // Calculate the "size" of the edit operations vs just setting the new string.
       // Deletes only store metadata, so they count as a single unit regardless of length.
-      val editSize = edits.foldLeft(0) {
-        case (acc, JsonPatch.StringOp.Insert(_, text))    => acc + text.length
-        case (acc, JsonPatch.StringOp.Delete(_, _))       => acc + 1
-        case (acc, JsonPatch.StringOp.Append(text))       => acc + text.length
-        case (acc, JsonPatch.StringOp.Modify(_, _, text)) => acc + text.length
+      val editSize = edits.foldLeft(0) { (acc, edit) =>
+        acc + (edit match {
+          case ins: JsonPatch.StringOp.Insert => ins.text.length
+          case app: JsonPatch.StringOp.Append => app.text.length
+          case mod: JsonPatch.StringOp.Modify => mod.text.length
+          case _                              => 1
+        })
       }
-
-      if (edits.nonEmpty && editSize < newStr.value.length) {
-        JsonPatch.root(JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.StringEdit(edits)))
+      JsonPatch.root(if (edits.nonEmpty && editSize < newStr.value.length) {
+        new JsonPatch.Op.PrimitiveDelta(new JsonPatch.PrimitiveOp.StringEdit(edits))
       } else {
-        JsonPatch.root(JsonPatch.Op.Set(newStr))
-      }
+        new JsonPatch.Op.Set(newStr)
+      })
     }
 
   /**
@@ -92,30 +75,25 @@ object JsonDiffer {
    * Insert/Delete operations with indices adjusted for previously applied
    * edits.
    */
-  private def computeStringEdits(oldStr: String, newStr: String): Vector[JsonPatch.StringOp] = {
-    if (oldStr == newStr) return Vector.empty
-    if (oldStr.isEmpty) return Vector(JsonPatch.StringOp.Insert(0, newStr))
-    if (newStr.isEmpty) return Vector(JsonPatch.StringOp.Delete(0, oldStr.length))
-
-    val lcs   = LCS.stringLCS(oldStr, newStr)
-    val edits = Vector.newBuilder[JsonPatch.StringOp]
-
+  private[this] def computeStringEdits(oldStr: String, newStr: String): Chunk[JsonPatch.StringOp] = {
+    if (oldStr == newStr) return Chunk.empty
+    if (oldStr.isEmpty) return Chunk.single(new JsonPatch.StringOp.Insert(0, newStr))
+    if (newStr.isEmpty) return Chunk.single(new JsonPatch.StringOp.Delete(0, oldStr.length))
+    val lcs    = LCS.stringLCS(oldStr, newStr)
+    val edits  = ChunkBuilder.make[JsonPatch.StringOp]()
     var oldIdx = 0
     var newIdx = 0
     var lcsIdx = 0
     var cursor = 0 // current index in the string after applying previous edits
-
     while (lcsIdx < lcs.length) {
       val targetChar = lcs.charAt(lcsIdx)
-
       // Delete any characters in the old string that do not appear before the next LCS character.
       val deleteStart = oldIdx
       while (oldIdx < oldStr.length && oldStr.charAt(oldIdx) != targetChar) {
         oldIdx += 1
       }
       val deleteLen = oldIdx - deleteStart
-      if (deleteLen > 0) edits.addOne(JsonPatch.StringOp.Delete(cursor, deleteLen))
-
+      if (deleteLen > 0) edits.addOne(new JsonPatch.StringOp.Delete(cursor, deleteLen))
       // Insert characters from the new string that appear before the next LCS character.
       val insertStart = newIdx
       while (newIdx < newStr.length && newStr.charAt(newIdx) != targetChar) {
@@ -123,29 +101,25 @@ object JsonDiffer {
       }
       if (newIdx > insertStart) {
         val text = newStr.substring(insertStart, newIdx)
-        edits.addOne(JsonPatch.StringOp.Insert(cursor, text))
+        edits.addOne(new JsonPatch.StringOp.Insert(cursor, text))
         cursor += text.length
       }
-
       // Consume the matching LCS character.
       oldIdx += 1
       newIdx += 1
       cursor += 1
       lcsIdx += 1
     }
-
     // Delete any trailing characters left in the old string.
     if (oldIdx < oldStr.length) {
       val deleteLen = oldStr.length - oldIdx
-      edits.addOne(JsonPatch.StringOp.Delete(cursor, deleteLen))
+      edits.addOne(new JsonPatch.StringOp.Delete(cursor, deleteLen))
     }
-
     // Insert any trailing characters from the new string.
     if (newIdx < newStr.length) {
       val text = newStr.substring(newIdx)
-      if (text.nonEmpty) edits.addOne(JsonPatch.StringOp.Insert(cursor, text))
+      if (text.nonEmpty) edits.addOne(new JsonPatch.StringOp.Insert(cursor, text))
     }
-
     edits.result()
   }
 
@@ -154,25 +128,24 @@ object JsonDiffer {
    * Insert/Delete/Append operations that describe how to transform the old
    * elements into the new ones.
    */
-  private def diffArray(oldElems: Chunk[Json], newElems: Chunk[Json]): JsonPatch =
-    if (oldElems == newElems) {
-      JsonPatch.empty
-    } else if (oldElems.isEmpty) {
-      JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(newElems))))
+  private[this] def diffArray(oldElems: Chunk[Json], newElems: Chunk[Json]): JsonPatch =
+    if (oldElems == newElems) JsonPatch.empty
+    else if (oldElems.isEmpty) {
+      JsonPatch.root(new JsonPatch.Op.ArrayEdit(Chunk.single(new JsonPatch.ArrayOp.Append(newElems))))
     } else if (newElems.isEmpty) {
-      JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, oldElems.length))))
+      JsonPatch.root(new JsonPatch.Op.ArrayEdit(Chunk.single(new JsonPatch.ArrayOp.Delete(0, oldElems.length))))
     } else {
       val arrayOps = computeArrayOps(oldElems, newElems)
       if (arrayOps.isEmpty) JsonPatch.empty
-      else JsonPatch.root(JsonPatch.Op.ArrayEdit(arrayOps))
+      else JsonPatch.root(new JsonPatch.Op.ArrayEdit(arrayOps))
     }
 
   /**
    * Convert the difference between two arrays into ArrayOps using LCS
    * alignment.
    */
-  private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Vector[JsonPatch.ArrayOp] = {
-    val ops       = Vector.newBuilder[JsonPatch.ArrayOp]
+  private[this] def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Chunk[JsonPatch.ArrayOp] = {
+    val ops       = ChunkBuilder.make[JsonPatch.ArrayOp]()
     val matches   = LCS.indicesLCS(oldElems, newElems)(_ == _)
     var oldIdx    = 0
     var newIdx    = 0
@@ -181,15 +154,15 @@ object JsonDiffer {
 
     def emitDelete(count: Int): Unit =
       if (count > 0) {
-        ops.addOne(JsonPatch.ArrayOp.Delete(cursor, count))
+        ops.addOne(new JsonPatch.ArrayOp.Delete(cursor, count))
         curLength -= count
       }
 
     def emitInsert(values: Chunk[Json]): Unit =
       if (values.nonEmpty) {
         val insertionIndex = cursor
-        if (insertionIndex == curLength) ops.addOne(JsonPatch.ArrayOp.Append(values))
-        else ops.addOne(JsonPatch.ArrayOp.Insert(insertionIndex, values))
+        if (insertionIndex == curLength) ops.addOne(new JsonPatch.ArrayOp.Append(values))
+        else ops.addOne(new JsonPatch.ArrayOp.Insert(insertionIndex, values))
         cursor += values.length
         curLength += values.length
       }
@@ -197,15 +170,12 @@ object JsonDiffer {
     matches.foreach { case (matchOld, matchNew) =>
       emitDelete(matchOld - oldIdx)
       emitInsert(newElems.slice(newIdx, matchNew))
-
       oldIdx = matchOld + 1
       newIdx = matchNew + 1
       cursor += 1
     }
-
     emitDelete(oldElems.length - oldIdx)
     emitInsert(newElems.slice(newIdx, newElems.length))
-
     ops.result()
   }
 
@@ -213,41 +183,27 @@ object JsonDiffer {
    * Diff two JSON objects by comparing fields. Produces Add, Remove, and Modify
    * operations.
    */
-  private def diffObject(
-    oldFields: Chunk[(String, Json)],
-    newFields: Chunk[(String, Json)]
-  ): JsonPatch = {
+  private[this] def diffObject(oldFields: Chunk[(String, Json)], newFields: Chunk[(String, Json)]): JsonPatch = {
     val oldMap = oldFields.toMap
     val newMap = newFields.toMap
-
-    val ops = Vector.newBuilder[JsonPatch.ObjectOp]
-
-    // Find modified and added fields
+    val ops    = ChunkBuilder.make[JsonPatch.ObjectOp]()
     for ((fieldName, newValue) <- newFields) {
       oldMap.get(fieldName) match {
-        case Some(oldValue) if oldValue != newValue =>
-          // Field exists in both but has different value - recursively diff
-          val fieldPatch = diff(oldValue, newValue)
-          if (!fieldPatch.isEmpty) {
-            ops.addOne(JsonPatch.ObjectOp.Modify(fieldName, fieldPatch))
+        case Some(oldValue) =>
+          if (oldValue != newValue) {
+            val fieldPatch = diff(oldValue, newValue)
+            if (!fieldPatch.isEmpty) {
+              ops.addOne(new JsonPatch.ObjectOp.Modify(fieldName, fieldPatch))
+            }
           }
-        case None =>
-          // Field only in new object - add it
-          ops.addOne(JsonPatch.ObjectOp.Add(fieldName, newValue))
-        case _ =>
-        // Field unchanged - skip
+        case _ => ops.addOne(new JsonPatch.ObjectOp.Add(fieldName, newValue))
       }
     }
-
-    // Find removed fields
     for ((fieldName, _) <- oldFields) {
-      if (!newMap.contains(fieldName)) {
-        ops.addOne(JsonPatch.ObjectOp.Remove(fieldName))
-      }
+      if (!newMap.contains(fieldName)) ops.addOne(new JsonPatch.ObjectOp.Remove(fieldName))
     }
-
     val result = ops.result()
     if (result.isEmpty) JsonPatch.empty
-    else JsonPatch.root(JsonPatch.Op.ObjectEdit(result))
+    else JsonPatch.root(new JsonPatch.Op.ObjectEdit(result))
   }
 }

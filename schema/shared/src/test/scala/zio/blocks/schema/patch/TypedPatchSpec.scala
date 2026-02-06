@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -319,22 +320,22 @@ object TypedPatchSpec extends SchemaBaseSpec {
 
         // Create nested patch using low-level API
         val addressPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("street"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("street"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("city"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("city"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("LA")))
             )
           )
         )
 
         val mainPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("address"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("address"))),
               DynamicPatch.Operation.Patch(addressPatch)
             )
           )
@@ -370,22 +371,22 @@ object TypedPatchSpec extends SchemaBaseSpec {
 
         // p2: Nested patch for stats
         val statsPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("views"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("views"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(50))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("downloads"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("downloads"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(25))
             )
           )
         )
 
         val p2DynamicPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("stats"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("stats"))),
               DynamicPatch.Operation.Patch(statsPatch)
             )
           )
@@ -415,9 +416,9 @@ object TypedPatchSpec extends SchemaBaseSpec {
 
         // Level 3: innermost patch
         val innerPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("value"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(90))
             )
           )
@@ -425,13 +426,13 @@ object TypedPatchSpec extends SchemaBaseSpec {
 
         // Level 2: middle patch
         val middlePatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("inner"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("inner"))),
               DynamicPatch.Operation.Patch(innerPatch)
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("label"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("label"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("updated")))
             )
           )
@@ -439,9 +440,9 @@ object TypedPatchSpec extends SchemaBaseSpec {
 
         // Level 1: outer patch
         val outerPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("middle"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("middle"))),
               DynamicPatch.Operation.Patch(middlePatch)
             )
           )

@@ -3,8 +3,8 @@ package zio.blocks.scope
 /**
  * Typeclass that determines how a value is unscoped when extracted via `$`.
  *
- * If `A` has an [[Unscoped]] instance, `Out = A` (raw value). Otherwise, `Out
- * = A @@ S` (re-scoped with scope).
+ * If `A` has an [[Unscoped]] instance, `Out = A` (raw value). Otherwise,
+ * `Out = A @@ S` (re-scoped with scope).
  *
  * This enables conditional unscoping: data types escape freely, resource types
  * stay tracked.

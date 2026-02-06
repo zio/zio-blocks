@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.DynamicValueGen._
 import zio.test._
@@ -754,26 +755,26 @@ object PatchLawsSpec extends SchemaBaseSpec {
 
         // Create a nested patch manually
         val addressPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("street"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("street"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("city"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("city"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("LA")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("zip"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("zip"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("90002")))
             )
           )
         )
 
         val dynamicPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("address"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("address"))),
               DynamicPatch.Operation.Patch(addressPatch)
             )
           )
@@ -799,22 +800,22 @@ object PatchLawsSpec extends SchemaBaseSpec {
 
         // p2: change stats using nested patch
         val statsPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("views"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("views"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(50))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("likes"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("likes"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
             )
           )
         )
 
         val p2DynamicPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("stats"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("stats"))),
               DynamicPatch.Operation.Patch(statsPatch)
             )
           )
@@ -866,27 +867,27 @@ object PatchLawsSpec extends SchemaBaseSpec {
 
         // Create 3-level nested patch
         val level3Patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("value"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
             )
           )
         )
 
         val level2Patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("level3"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("level3"))),
               DynamicPatch.Operation.Patch(level3Patch)
             )
           )
         )
 
         val level1Patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("level2"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("level2"))),
               DynamicPatch.Operation.Patch(level2Patch)
             )
           )
@@ -904,11 +905,11 @@ object PatchLawsSpec extends SchemaBaseSpec {
         val original = Container(42)
 
         // Empty nested patch
-        val emptyNestedPatch = DynamicPatch(Vector.empty)
+        val emptyNestedPatch = DynamicPatch(Chunk.empty)
         val dynamicPatch     = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("value"))),
               DynamicPatch.Operation.Patch(emptyNestedPatch)
             )
           )
@@ -928,20 +929,20 @@ object PatchLawsSpec extends SchemaBaseSpec {
 
         // Nested patch with invalid field
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("nonexistent"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("nonexistent"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(999)))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("x"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("x"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
             )
           )
         )
 
         val dynamicPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root,
               DynamicPatch.Operation.Patch(nestedPatch)
