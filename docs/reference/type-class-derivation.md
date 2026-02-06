@@ -1376,6 +1376,124 @@ First, we retrieve the `Gen` instance for the wrapped (underlying) type `B`. The
 
 Please note that in a production implementation, you should include safeguards to prevent infinite retries in the event of persistent validation failures.
 
+### Example Usages
+
+To see how this derivation works in practice, we can define some simple data types and then derive `Gen` instances for them using the `DeriveGen` object we implemented.
+
+1. Example 1: Simple `Person` Record with Two Primitive Fields:
+
+```scala mdoc:silent:nest
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+  implicit val gen: Gen[Person]       = schema.derive(DeriveGen)
+}
+```
+
+Now we can use the derived `Gen[Person]` instance to generate random `Person` values:
+
+```scala mdoc
+val random = new Random(42) // Seeded for reproducible output
+
+Person.gen.generate(random)
+Person.gen.generate(random)
+Person.gen.generate(random)
+```
+
+2. Simple Shape Variant (Circle, Rectangle)
+
+```scala mdoc:silent
+sealed trait Shape
+case class Circle(radius: Double)                   extends Shape
+case class Rectangle(width: Double, height: Double) extends Shape
+
+object Shape {
+  implicit val schema: Schema[Shape] = Schema.derived[Shape]
+  implicit val gen: Gen[Shape]       = schema.derive(DeriveGen)
+}
+```
+
+To generate random `Shape` values, we can do the following:
+
+```scala mdoc
+Shape.gen.generate(random)
+Shape.gen.generate(random)
+Shape.gen.generate(random)
+Shape.gen.generate(random)
+```
+
+3. Team with Sequence of Members (List)
+
+```scala mdoc:silent
+case class Team(members: List[String])
+
+object Team {
+  implicit val schema: Schema[Team] = Schema.derived[Team]
+  implicit val gen: Gen[Team]       = schema.derive(DeriveGen)
+}
+```
+
+Let's generate some random `Team` values:
+
+```scala mdoc
+Team.gen.generate(random)
+Team.gen.generate(random)
+Team.gen.generate(random)
+```
+
+4. Example 4: Recursive Tree
+
+```scala mdoc:silent
+case class Tree(value: Int, children: List[Tree])
+
+object Tree {
+  implicit val schema: Schema[Tree] = Schema.derived[Tree]
+  implicit val gen: Gen[Tree]       = schema.derive(DeriveGen)
+}
+```
+
+The `Tree` is a record with a recursive field `children` of type `List[Tree]`. Let's see how the derived `Gen[Tree]` instance handles this recursive structure:
+
+```scala mdoc
+Tree.gen.generate(random)
+```
+
+5. Example 5: DynamicValue Example
+
+```scala mdoc:silent
+implicit val dynamicGen: Gen[DynamicValue] = Schema.dynamic.derive(DeriveGen)
+```
+
+Let's generate some random `DynamicValue` instances:
+
+```scala mdoc
+dynamicGen.generate(random)
+dynamicGen.generate(random)
+dynamicGen.generate(random)
+```
+
+6. Example 6: Simple Email Wrapper Type
+
+```scala mdoc:silent
+case class Email(value: String)
+
+object Email {
+  implicit val schema: Schema[Email] = Schema[String].transform(
+    Email(_),
+    _.value
+  )
+  implicit val gen: Gen[Email] = schema.derive(DeriveGen)
+}
+```
+
+The `Email` type is a simple wrapper around `String`. Let's see how it generates random `Email` values:
+
+```scala mdoc
+Email.gen.generate(random)
+Email.gen.generate(random)
+```
+
 ## Derivation Process In-Depth
 
 Until know, we learned how to implement the `Deriver` methods for different schema patterns. But we haven't yet discussed how the overall derivation process works. In this section, we will go through the main steps of derivation in detail.
