@@ -3,7 +3,6 @@ app: scala-quickstart
 environments:
   local:
     server: local
-    componentPresets: debug
 
 includes:
 - common-*/golem.yaml

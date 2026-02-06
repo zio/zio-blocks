@@ -160,7 +160,6 @@ app: scala-demo
 environments:
   local:
     server: local
-    componentPresets: debug
 
 includes:
 - .golem/common-*/golem.yaml

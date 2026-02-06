@@ -3,7 +3,6 @@ app: scala-examples
 environments:
   local:
     server: local
-    componentPresets: debug
 
 includes:
 - .golem/common-scala-js/golem.yaml
