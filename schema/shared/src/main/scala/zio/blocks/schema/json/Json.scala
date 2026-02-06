@@ -191,8 +191,11 @@ sealed trait Json {
   /** Recursively removes empty objects and arrays. */
   def dropEmpty: Json = this
 
-  /** Applies sortKeys, dropNulls, and dropEmpty. */
-  def normalize: Json = sortKeys.dropNulls.dropEmpty
+  /**
+   * Applies dropNulls, dropEmpty, and sortKeys, but more efficiently than just
+   * their calls in a sequence.
+   */
+  def normalize: Json = this
 
   // ─────────────────────────────────────────────────────────────────────────
   // Encoding
@@ -488,29 +491,113 @@ object Json {
       JsonSelection.fail(SchemaError(s"Key '$key' not found"))
     }
 
-    override def sortKeys: Json =
-      new Object(value.map { case (k, v) => (k, v.sortKeys) }.sortBy(_._1)(Ordering.String))
+    override def sortKeys: Json = {
+      val len = value.length
+      if (len == 0) return this
+      val arr = new scala.Array[(java.lang.String, Json)](len)
+      var idx = 0
+      while (idx < len) {
+        val kv = value(idx)
+        val v1 = kv._2
+        val v2 = v1.sortKeys
+        arr(idx) =
+          if (v1 eq v2) kv
+          else (kv._1, v2)
+        idx += 1
+      }
+      java.util.Arrays.sort(
+        arr,
+        0,
+        arr.length,
+        new Ordering[(java.lang.String, Json)] {
+          override def compare(x: (java.lang.String, Json), y: (java.lang.String, Json)): Int = x._1.compareTo(y._1)
+        }
+      )
+      new Object(Chunk.fromArray(arr))
+    }
 
-    override def dropNulls: Json =
-      new Object(value.collect { case kv if kv._2.jsonType ne JsonType.Null => (kv._1, kv._2.dropNulls) })
+    override def dropNulls: Json = {
+      val len = value.length
+      if (len == 0) return this
+      var arr       = new scala.Array[(java.lang.String, Json)](len)
+      var size, idx = 0
+      while (idx < len) {
+        val kv = value(idx)
+        val v1 = kv._2
+        if (v1 ne Json.Null) {
+          val v2 = v1.dropNulls
+          arr(size) =
+            if (v1 eq v2) kv
+            else (kv._1, v2)
+          size += 1
+        }
+        idx += 1
+      }
+      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      new Object(Chunk.fromArray(arr))
+    }
 
     override def dropEmpty: Json = {
-      val len    = value.length
-      val fields = ChunkBuilder.make[(java.lang.String, Json)](len)
-      var idx    = 0
+      val len = value.length
+      if (len == 0) return this
+      var arr       = new scala.Array[(java.lang.String, Json)](len)
+      var size, idx = 0
       while (idx < len) {
-        val kv     = value(idx)
-        val newVal = kv._2.dropEmpty
+        val kv = value(idx)
+        val v1 = kv._2
+        val v2 = v1.dropEmpty
         if (
-          newVal match {
+          v2 match {
             case obj: Object => obj.value.nonEmpty
             case arr: Array  => arr.value.nonEmpty
             case _           => true
           }
-        ) fields.addOne((kv._1, newVal))
+        ) {
+          arr(size) =
+            if (v1 eq v2) kv
+            else (kv._1, v2)
+          size += 1
+        }
         idx += 1
       }
-      new Object(fields.result())
+      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      new Object(Chunk.fromArray(arr))
+    }
+
+    override def normalize: Json = {
+      val len = value.length
+      if (len == 0) return this
+      var arr       = new scala.Array[(java.lang.String, Json)](len)
+      var size, idx = 0
+      while (idx < len) {
+        val kv = value(idx)
+        val v1 = kv._2
+        val v2 = v1.normalize
+        if (
+          v2 match {
+            case obj: Object  => obj.value.nonEmpty
+            case arr: Array   => arr.value.nonEmpty
+            case _: Null.type => false
+            case _            => true
+          }
+        ) {
+          arr(size) =
+            if (v1 eq v2) kv
+            else (kv._1, v2)
+          size += 1
+        }
+        idx += 1
+      }
+      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      java.util.Arrays.sort(
+        arr,
+        0,
+        arr.length,
+        new Ordering[(java.lang.String, Json)] {
+          override def compare(x: (java.lang.String, Json), y: (java.lang.String, Json)): Int = x._1.compareTo(y._1)
+        }
+      )
+      new Object(Chunk.fromArray(arr))
     }
 
     override def compare(that: Json): Int = that match {
@@ -576,17 +663,80 @@ object Json {
       if (index >= 0 && index < value.length) JsonSelection.succeed(value(index))
       else JsonSelection.fail(SchemaError(s"Index $index out of bounds (size: ${value.length})").atIndex(index))
 
-    override def sortKeys: Json = new Array(value.map(_.sortKeys))
+    override def sortKeys: Json = {
+      val len = value.length
+      if (len == 0) return this
+      val arr = new scala.Array[Json](len)
+      var idx = 0
+      while (idx < len) {
+        arr(idx) = value(idx).sortKeys
+        idx += 1
+      }
+      new Array(Chunk.fromArray(arr))
+    }
 
-    override def dropNulls: Json = new Array(value.collect { case x if !x.is(JsonType.Null) => x.dropNulls })
+    override def dropNulls: Json = {
+      val len = value.length
+      if (len == 0) return this
+      var arr       = new scala.Array[Json](len)
+      var size, idx = 0
+      while (idx < len) {
+        val v = value(idx).dropNulls
+        if (v ne Json.Null) {
+          arr(size) = v
+          size += 1
+        }
+        idx += 1
+      }
+      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      new Array(Chunk.fromArray(arr))
+    }
 
     override def dropEmpty: Json = {
-      val processed = value.map(_.dropEmpty)
-      new Array(processed.filterNot {
-        case obj: Object => obj.value.isEmpty
-        case arr: Array  => arr.value.isEmpty
-        case _           => false
-      })
+      val len = value.length
+      if (len == 0) return this
+      var arr       = new scala.Array[Json](len)
+      var size, idx = 0
+      while (idx < len) {
+        val v = value(idx).dropEmpty
+        if (
+          v match {
+            case obj: Object => obj.value.nonEmpty
+            case arr: Array  => arr.value.nonEmpty
+            case _           => true
+          }
+        ) {
+          arr(size) = v
+          size += 1
+        }
+        idx += 1
+      }
+      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      new Array(Chunk.fromArray(arr))
+    }
+
+    override def normalize: Json = {
+      val len = value.length
+      if (len == 0) return this
+      var arr       = new scala.Array[Json](len)
+      var size, idx = 0
+      while (idx < len) {
+        val v = value(idx).normalize
+        if (
+          v match {
+            case obj: Object  => obj.value.nonEmpty
+            case arr: Array   => arr.value.nonEmpty
+            case _: Null.type => false
+            case _            => true
+          }
+        ) {
+          arr(size) = v
+          size += 1
+        }
+        idx += 1
+      }
+      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      new Array(Chunk.fromArray(arr))
     }
 
     override def compare(that: Json): Int = that match {
@@ -1040,7 +1190,7 @@ object Json {
   private def projectImpl(json: Json, paths: Seq[DynamicOptic]): Json = {
     if (paths.isEmpty) return Null
     // For each path, get the value and build a sparse result
-    fromKVUnsafe(paths.flatMap(p => json.get(p).toVector.map(v => (p, v))))
+    fromKVUnsafe(paths.flatMap(p => json.get(p).toChunk.map(v => (p, v))))
   }
 
   private def partitionImpl(
@@ -1206,7 +1356,7 @@ object Json {
     path: DynamicOptic,
     p: (DynamicOptic, Json) => scala.Boolean
   ): JsonSelection = {
-    val results = Vector.newBuilder[Json]
+    val results = ChunkBuilder.make[Json]()
 
     def collect(j: Json, currentPath: DynamicOptic): Unit = {
       if (p(currentPath, j)) results.addOne(j)
@@ -1463,7 +1613,7 @@ object Json {
       }
       idx += 1
     }
-    JsonSelection.succeedMany(jsons.toVector)
+    JsonSelection.succeedMany(jsons)
   }
 
   /**
