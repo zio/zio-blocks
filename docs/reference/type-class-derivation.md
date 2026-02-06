@@ -982,6 +982,51 @@ def derivePrimitive[A](
 
 To handle all primitive types, you would want to implement cases for each primitive type defined in your schema system. In a real implementation, you might also want to consider using modifiers to allow users to specify constraints on the generated values (e.g., string length, numeric ranges, etc.).
 
+### Record Derivation
+
+The `deriveRecord` method is responsible for deriving a `Gen` instance for record types, such as case classes and tuples. The strategy for deriving a record type involves three main steps:
+
+```scala
+def deriveRecord[F[_, _], A](
+  fields: IndexedSeq[Term[F, A, ?]],
+  typeId: TypeId[A],
+  binding: Binding[BindingType.Record, A],
+  doc: Doc,
+  modifiers: Seq[Modifier.Reflect],
+  defaultValue: Option[A],
+  examples: Seq[A]
+)(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] =
+  Lazy {
+    // Get Gen instances for each field
+    val fieldGens: IndexedSeq[Lazy[Gen[Any]]] = fields.map { field =>
+      D.instance(field.value.metadata).asInstanceOf[Lazy[Gen[Any]]]
+    }
+
+    // Build Reflect.Record to access registers and constructor
+    val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
+    val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+    val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
+
+    new Gen[A] {
+      def generate(random: Random): A = {
+        // Create registers to hold field values
+        val registers = Registers(recordReflect.usedRegisters)
+
+        // Generate each field and store in registers
+        fields.indices.foreach { i =>
+          val value = fieldGens(i).force.generate(random)
+          recordReflect.registers(i).set(registers, RegisterOffset.Zero, value)
+        }
+
+        // Construct the record from registers
+        recordBinding.constructor.construct(registers, RegisterOffset.Zero)
+      }
+    }
+  }
+```
+
+As shown above, the implementation of the `deriveRecord` method for `Gen` is structurally similar to the `deriveRecord` method used in `Show` derivation. The primary difference is the data flow: instead of deconstructing an existing record to access its fields, we generate random values for each field. We then use `Register#set` to store these values in the registers before invoking the `constructor` from the `Binding` to create an instance of type `A`.
+
 ## Derivation Process Overview including Internal Mechanics
 
 ### PHASE 1: Deriving the Schema for the Target Type
