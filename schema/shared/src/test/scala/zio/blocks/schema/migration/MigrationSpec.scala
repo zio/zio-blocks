@@ -2181,6 +2181,60 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = expr.eval(DynamicValue.Null)
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(4.0f))))
       },
+      test("Arithmetic Subtract with Float") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(5.5f))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(2.0f))),
+          MigrationExpr.ArithmeticOp.Subtract
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(3.5f))))
+      },
+      test("Arithmetic Multiply with Float") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(2.5f))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(4.0f))),
+          MigrationExpr.ArithmeticOp.Multiply
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(10.0f))))
+      },
+      test("Arithmetic Divide with Float") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(9.0f))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(3.0f))),
+          MigrationExpr.ArithmeticOp.Divide
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Float(3.0f))))
+      },
+      test("Arithmetic Add with Long") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(100L))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(50L))),
+          MigrationExpr.ArithmeticOp.Add
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(150L))))
+      },
+      test("Arithmetic Subtract with Long") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(100L))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(30L))),
+          MigrationExpr.ArithmeticOp.Subtract
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Long(70L))))
+      },
+      test("Arithmetic Divide by zero with Long fails") {
+        val expr = MigrationExpr.Arithmetic(
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(100L))),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L))),
+          MigrationExpr.ArithmeticOp.Divide
+        )
+        val result = expr.eval(DynamicValue.Null)
+        assertTrue(result.isLeft)
+      },
       test("Arithmetic with BigDecimal fails gracefully") {
         val expr = MigrationExpr.Arithmetic(
           MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(100)))),
