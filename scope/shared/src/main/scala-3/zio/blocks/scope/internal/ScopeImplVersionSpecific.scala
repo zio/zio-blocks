@@ -5,12 +5,14 @@ import zio.blocks.context.Context
 import zio.blocks.scope.Scope
 import java.util.concurrent.atomic.AtomicBoolean
 
-private[scope] final class ScopeImplScala3[H, T](
-  parent: Scope[?],
+private[scope] final class ScopeImplScala3[H, T, ParentTag](
+  parent: Scope[?] { type Tag = ParentTag },
   context: Context[H],
   finalizers: Finalizers,
   private[internal] val errorReporter: Chunk[Throwable] => Unit = ScopeImplScala3.defaultErrorReporter
 ) extends ScopeImpl[H, T](parent, context, finalizers) {
+
+  type Tag = ParentTag | this.type
 
   private val runCalled = new AtomicBoolean(false)
 
