@@ -187,7 +187,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ## TODOs
 
-- [ ] 1. Project Setup: Create mediatype module structure
+- [x] 1. Project Setup: Create mediatype module structure
 
   **What to do**:
   - Add `mediatype` crossProject to build.sbt following chunk/schema patterns

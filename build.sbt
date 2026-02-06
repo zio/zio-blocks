@@ -70,6 +70,8 @@ lazy val root = project
     streams.js,
     chunk.jvm,
     chunk.js,
+    mediatype.jvm,
+    mediatype.js,
     markdown.jvm,
     markdown.js,
     scalaNextTests.jvm,
@@ -242,6 +244,23 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 88,
     coverageMinimumBranchTotal := 85
+  )
+
+lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-mediatype"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.mediatype"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 95,
+    coverageMinimumBranchTotal := 90
   )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
