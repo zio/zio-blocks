@@ -142,11 +142,23 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result   = patch(original)
         assertTrue(result == Right(longVal(1500L)))
       },
+      test("applies negative LongDelta (decrement)") {
+        val original = longVal(1000L)
+        val patch    = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-500L)))
+        val result   = patch(original)
+        assertTrue(result == Right(longVal(500L)))
+      },
       test("applies DoubleDelta to Double") {
         val original = doubleVal(3.0)
         val patch    = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(1.5)))
         val result   = patch(original)
         assertTrue(result == Right(doubleVal(4.5)))
+      },
+      test("applies negative DoubleDelta (decrement)") {
+        val original = doubleVal(5.0)
+        val patch    = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-2.5)))
+        val result   = patch(original)
+        assertTrue(result == Right(doubleVal(2.5)))
       },
       test("applies StringEdit Insert") {
         val original = stringVal("Hello World")
@@ -452,6 +464,63 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(0, 10)))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails on SeqOp.Modify with out-of-bounds index") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(
+            Chunk(
+              DynamicPatch.SeqOp.Modify(10, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
+            )
+          )
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails on SeqOp.Modify with negative index") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(
+            Chunk(
+              DynamicPatch.SeqOp.Modify(-1, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
+            )
+          )
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails on MapOp.Modify when key not found") {
+        val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.MapEdit(
+            Chunk(
+              DynamicPatch.MapOp.Modify(
+                stringVal("nonexistent"),
+                DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
+              )
+            )
+          )
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails when applying Elements node to non-sequence (Record)") {
+        val original = personRecord("Alice", 30)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails when applying Elements node to non-sequence (Primitive)") {
+        val original = intVal(42)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -1555,9 +1624,18 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(100L)))
         assertTrue(patch.toString.contains("+=") && patch.toString.contains("100"))
       },
+      test("renders LongDelta negative") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-100L)))
+        assertTrue(patch.toString.contains("-=") && patch.toString.contains("100"))
+      },
       test("renders DoubleDelta") {
         val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(3.14)))
         assertTrue(patch.toString.contains("+=") && patch.toString.contains("3.14"))
+      },
+      test("renders DoubleDelta negative") {
+        val patch =
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-3.14)))
+        assertTrue(patch.toString.contains("-=") && patch.toString.contains("3.14"))
       },
       test("renders FloatDelta") {
         val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f)))
@@ -1649,6 +1727,42 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(patch.toString.contains("~") && patch.toString.contains("new"))
+      },
+      test("renders StringEdit with escaped quotes") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(0, "say \"hello\"")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\\""))
+      },
+      test("renders StringEdit with escaped backslash") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(0, "path\\to\\file")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\\\"))
+      },
+      test("renders StringEdit with escaped newline") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append("line1\nline2")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\n"))
+      },
+      test("renders StringEdit with escaped tab") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append("col1\tcol2")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\t"))
       },
       test("renders empty patch") {
         val patch = DynamicPatch.empty
@@ -2218,7 +2332,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val patch2 = DynamicPatch(
           DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string")),
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Append("!")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append("!")))
           )
         )
 

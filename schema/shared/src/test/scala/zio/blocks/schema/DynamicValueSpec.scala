@@ -2873,8 +2873,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(result.toChunk == Chunk(stringVal))
       },
       test("SchemaSearch finds multiple matches") {
-        val rec  = DynamicValue.Record("name" -> stringVal, "title" -> DynamicValue.string("Dr."))
-        val path = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val rec    = DynamicValue.Record("name" -> stringVal, "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
         val result = rec.get(path)
         assertTrue(result.toChunk.length == 2)
       },
@@ -2911,13 +2911,13 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("SchemaSearch ordering is depth-first, left-to-right") {
         // Structure: { a: { x: "first" }, b: "second" }
-        val inner  = DynamicValue.Record("x" -> DynamicValue.string("first"))
-        val rec    = DynamicValue.Record("a" -> inner, "b" -> DynamicValue.string("second"))
-        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
-        val result = rec.get(path)
+        val inner   = DynamicValue.Record("x" -> DynamicValue.string("first"))
+        val rec     = DynamicValue.Record("a" -> inner, "b" -> DynamicValue.string("second"))
+        val path    = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result  = rec.get(path)
         val strings = result.toChunk.map {
           case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-          case _                                                 => ""
+          case _                                                => ""
         }
         assertTrue(strings == Chunk("first", "second"))
       },
@@ -2941,8 +2941,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(result.toChunk.length == 1)
       },
       test("modify with SchemaSearch updates all matching values") {
-        val rec  = DynamicValue.Record("name" -> stringVal, "title" -> DynamicValue.string("Dr."))
-        val path = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val rec    = DynamicValue.Record("name" -> stringVal, "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
         val result = rec.modify(path)(_ => DynamicValue.string("REPLACED"))
         assertTrue(
           result.get("name").one == Right(DynamicValue.string("REPLACED")) &&
@@ -2960,20 +2960,21 @@ object DynamicValueSpec extends SchemaBaseSpec {
         )
       },
       test("modify with SchemaSearch followed by field access") {
-        val person1 = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
-        val person2 = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
-        val outer   = DynamicValue.Record("p1" -> person1, "p2" -> person2)
-        val personPattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
-        val path    = DynamicOptic.root.searchSchema(personPattern).field("age")
-        val result  = outer.modify(path)(_ => DynamicValue.int(0))
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.modify(path)(_ => DynamicValue.int(0))
         assertTrue(
           result.get("p1").one.flatMap(_.get("age").one) == Right(DynamicValue.int(0)) &&
             result.get("p2").one.flatMap(_.get("age").one) == Right(DynamicValue.int(0))
         )
       },
       test("delete with SchemaSearch removes matching values from record") {
-        val rec  = DynamicValue.Record("name" -> stringVal, "count" -> intVal, "title" -> DynamicValue.string("Dr."))
-        val path = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val rec    = DynamicValue.Record("name" -> stringVal, "count" -> intVal, "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
         val result = rec.delete(path)
         assertTrue(
           result.fields.length == 1 &&
@@ -2987,12 +2988,13 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(result.elements == Chunk(intVal))
       },
       test("delete with SchemaSearch followed by field access") {
-        val person1 = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
-        val person2 = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
-        val outer   = DynamicValue.Record("p1" -> person1, "p2" -> person2)
-        val personPattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
-        val path    = DynamicOptic.root.searchSchema(personPattern).field("age")
-        val result  = outer.delete(path)
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.delete(path)
         assertTrue(
           result.get("p1").one.map(_.fields.length) == Right(1) &&
             result.get("p2").one.map(_.fields.length) == Right(1)

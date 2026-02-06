@@ -83,7 +83,7 @@ object SchemaRepr {
   private def renderTo(sb: StringBuilder, repr: SchemaRepr): Unit = repr match {
     case Nominal(name)   => sb.append(name)
     case Primitive(name) => sb.append(name)
-    case Record(fields) =>
+    case Record(fields)  =>
       sb.append("record { ")
       var first = true
       fields.foreach { case (name, fieldRepr) =>
@@ -132,12 +132,12 @@ object SchemaRepr {
       typeId = TypeId.of[(String, SchemaRepr)],
       recordBinding = new Binding.Record(
         constructor = new Constructor[(String, SchemaRepr)] {
-          def usedRegisters: RegisterOffset                                        = 2
+          def usedRegisters: RegisterOffset                                          = 2
           def construct(in: Registers, offset: RegisterOffset): (String, SchemaRepr) =
             (in.getObject(offset + 0).asInstanceOf[String], in.getObject(offset + 1).asInstanceOf[SchemaRepr])
         },
         deconstructor = new Deconstructor[(String, SchemaRepr)] {
-          def usedRegisters: RegisterOffset                                                     = 2
+          def usedRegisters: RegisterOffset                                                       = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: (String, SchemaRepr)): Unit = {
             out.setObject(offset + 0, in._1)
             out.setObject(offset + 1, in._2)

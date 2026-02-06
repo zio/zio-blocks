@@ -1302,13 +1302,14 @@ object DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Iterative stack-based depth-first traversal to collect all values matching a SchemaRepr pattern.
-   * Order is depth-first, left-to-right (children are pushed in reverse order).
-   * The root value itself is included if it matches the pattern.
+   * Iterative stack-based depth-first traversal to collect all values matching
+   * a SchemaRepr pattern. Order is depth-first, left-to-right (children are
+   * pushed in reverse order). The root value itself is included if it matches
+   * the pattern.
    */
   private def schemaSearchCollect(root: DynamicValue, pattern: SchemaRepr): Chunk[DynamicValue] = {
     // Use a mutable list stack for iteration (avoids recursion stack overflow)
-    var stack: List[DynamicValue]                             = List(root)
+    var stack: List[DynamicValue]                                   = List(root)
     val results: scala.collection.mutable.ArrayBuffer[DynamicValue] = scala.collection.mutable.ArrayBuffer.empty
 
     while (stack.nonEmpty) {
@@ -1343,9 +1344,9 @@ object DynamicValue {
   }
 
   /**
-   * Modifies all values matching a SchemaRepr pattern and continues with remaining path nodes.
-   * Uses recursive approach that traverses the entire structure, applying modifications
-   * to matching values.
+   * Modifies all values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. Uses recursive approach that traverses the entire
+   * structure, applying modifications to matching values.
    */
   private def schemaSearchModify(
     dv: DynamicValue,
@@ -1405,9 +1406,10 @@ object DynamicValue {
   }
 
   /**
-   * Deletes all values matching a SchemaRepr pattern and continues with remaining path nodes.
-   * If SchemaSearch is the last node, matching values are removed from their containers.
-   * Otherwise, deletion continues recursively through matching values.
+   * Deletes all values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. If SchemaSearch is the last node, matching values are
+   * removed from their containers. Otherwise, deletion continues recursively
+   * through matching values.
    */
   private def schemaSearchDelete(
     dv: DynamicValue,
@@ -1495,9 +1497,9 @@ object DynamicValue {
         value match {
           case r: Record =>
             val newFields = r.fields.map { case (name, v) =>
-              val selfResult    = processValue(v)
-              val childResult   = deleteMatchingRecurse(v)
-              val combinedOpt   = selfResult.orElse(childResult)
+              val selfResult  = processValue(v)
+              val childResult = deleteMatchingRecurse(v)
+              val combinedOpt = selfResult.orElse(childResult)
               combinedOpt match {
                 case Some(modified) => (name, modified)
                 case None           => (name, v)
@@ -1513,18 +1515,18 @@ object DynamicValue {
 
           case s: Sequence =>
             val newElems = s.elements.map { e =>
-              val selfResult    = processValue(e)
-              val childResult   = deleteMatchingRecurse(e)
-              val combinedOpt   = selfResult.orElse(childResult)
+              val selfResult  = processValue(e)
+              val childResult = deleteMatchingRecurse(e)
+              val combinedOpt = selfResult.orElse(childResult)
               combinedOpt.getOrElse(e)
             }
             if (found) Some(Sequence(newElems)) else None
 
           case m: Map =>
             val newEntries = m.entries.map { case (k, v) =>
-              val selfResult    = processValue(v)
-              val childResult   = deleteMatchingRecurse(v)
-              val combinedOpt   = selfResult.orElse(childResult)
+              val selfResult  = processValue(v)
+              val childResult = deleteMatchingRecurse(v)
+              val combinedOpt = selfResult.orElse(childResult)
               combinedOpt match {
                 case Some(modified) => (k, modified)
                 case None           => (k, v)

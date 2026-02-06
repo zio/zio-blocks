@@ -3,9 +3,9 @@ package zio.blocks.schema
 /**
  * Pure Scala parser for schema representation syntax.
  *
- * This parser converts a schema string (e.g., "record { name: string, age: int }")
- * into a SchemaRepr. Used by the path interpolator to parse schema searches like
- * `p"#Person"` or `p"#record { name: string }"`.
+ * This parser converts a schema string (e.g., "record { name: string, age: int
+ * }") into a SchemaRepr. Used by the path interpolator to parse schema searches
+ * like `p"#Person"` or `p"#record { name: string }"`.
  */
 private[schema] object SchemaParser {
 
@@ -76,8 +76,8 @@ private[schema] object SchemaParser {
   )
 
   /**
-   * Parse a schema string into a SchemaRepr.
-   * Returns Left with error if parsing fails, Right with SchemaRepr on success.
+   * Parse a schema string into a SchemaRepr. Returns Left with error if parsing
+   * fails, Right with SchemaRepr on success.
    */
   def parse(input: String): Either[ParseError, SchemaRepr] = {
     val ctx = new ParseContext(input)
@@ -132,13 +132,13 @@ private[schema] object SchemaParser {
     if (ident.isEmpty) return new Left(new ParseError.InvalidIdentifier(start))
 
     ident match {
-      case "record"                   => parseRecord(ctx)
-      case "variant"                  => parseVariant(ctx)
-      case "list" | "set" | "vector"  => parseSequence(ctx)
-      case "map"                      => parseMap(ctx)
-      case "option"                   => parseOptional(ctx)
-      case name if isPrimitive(name)  => new Right(SchemaRepr.Primitive(name))
-      case name                       => new Right(SchemaRepr.Nominal(name))
+      case "record"                  => parseRecord(ctx)
+      case "variant"                 => parseVariant(ctx)
+      case "list" | "set" | "vector" => parseSequence(ctx)
+      case "map"                     => parseMap(ctx)
+      case "option"                  => parseOptional(ctx)
+      case name if isPrimitive(name) => new Right(SchemaRepr.Primitive(name))
+      case name                      => new Right(SchemaRepr.Nominal(name))
     }
   }
 
@@ -273,7 +273,7 @@ private[schema] object SchemaParser {
     ctx.skipWhitespace()
 
     parseSchema(ctx) match {
-      case Left(err) => new Left(err)
+      case Left(err)  => new Left(err)
       case Right(key) =>
         ctx.skipWhitespace()
         if (ctx.atEnd || ctx.current != ',')
@@ -286,7 +286,7 @@ private[schema] object SchemaParser {
           ctx.skipWhitespace()
 
           parseSchema(ctx) match {
-            case Left(err) => new Left(err)
+            case Left(err)    => new Left(err)
             case Right(value) =>
               ctx.skipWhitespace()
               if (ctx.atEnd || ctx.current != ')')
