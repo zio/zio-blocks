@@ -7,7 +7,7 @@
 > **Deliverables**:
 > - `MediaType` case class with full MIME type representation
 > - Generated predefined types with camelCase names (from mime-db)
-> - `mt"..."` string interpolator with compile-time validation
+> - `mediaType"..."` string interpolator with compile-time validation
 > - File extension lookup (`MediaType.forFileExtension`)
 > - Generator tool in project/ directory
 > 
@@ -30,9 +30,9 @@ Create a new micro lib inside of blocks that offers MIME type support called "me
 **Key Discussions**:
 - Module name: `mediatype` (package: `zio.blocks.mediatype`, artifact: `zio-blocks-mediatype`)
 - Cross-platform: JVM + JS
-- Interpolator syntax: `mt"..."` (short form)
+- Interpolator syntax: `mediaType"..."` (explicit form)
 - Unknown types in interpolator: ALLOWED (creates new MediaType at compile-time)
-- Parameters in interpolator: Supported (e.g., `mt"text/html; charset=utf-8"`)
+- Parameters in interpolator: Supported (e.g., `mediaType"text/html; charset=utf-8"`)
 
 - Inline macros: No typelevel/literally dependency
 - All ~10K types from mime-db
@@ -70,17 +70,17 @@ Create a pure media type micro library with compile-time validated interpolators
 - [ ] `sbt ++3.7.4; mediatypeJVM/test` passes
 - [ ] `sbt ++2.13.x; mediatypeJVM/test` passes
 - [ ] `sbt ++3.7.4; mediatypeJS/test` passes
-- [ ] `mt"application/json"` compiles and returns predefined instance
-- [ ] `mt"custom/type"` compiles and creates new instance
-- [ ] `mt"invalid"` fails to compile with clear error
+- [ ] `mediaType"application/json"` compiles and returns predefined instance
+- [ ] `mediaType"custom/type"` compiles and creates new instance
+- [ ] `mediaType"invalid"` fails to compile with clear error
 - [ ] All ~10K mime-db types generated with camelCase names
 - [ ] `MediaType.forFileExtension("json")` returns `Some(MediaType.application.json)`
 
 ### Must Have
 - MediaType case class with: mainType, subType, compressible, binary, fileExtensions, extensions, parameters
 - Generated predefined types grouped by mainType (application, text, image, etc.)
-- `mt"..."` interpolator with compile-time validation
-- Interpolator supports parameters: `mt"text/html; charset=utf-8"`
+- `mediaType"..."` interpolator with compile-time validation
+- Interpolator supports parameters: `mediaType"text/html; charset=utf-8"`
 - Unknown types allowed in interpolator
 - `matches()` method for wildcard-aware matching
 - `parse()` method for runtime parsing
@@ -628,7 +628,7 @@ Parallel Speedup: ~40% faster than sequential
     import scala.quoted.*
     
     extension (inline ctx: StringContext)
-      inline def mt(inline args: Any*): MediaType =
+      inline def mediaType(inline args: Any*): MediaType =
         ${MediaTypeLiteral.apply('ctx, 'args)}
     
     object MediaTypeLiteral {
@@ -640,7 +640,7 @@ Parallel Speedup: ~40% faster than sequential
     - Map to predefined instance if exists
     - Create new instance if unknown but valid format
     - Fail compilation if malformed
-  - Support parameters: `mt"text/html; charset=utf-8"`
+  - Support parameters: `mediaType"text/html; charset=utf-8"`
 
   **Must NOT do**:
   - Allow variable interpolation (only literals)
@@ -665,11 +665,36 @@ Parallel Speedup: ~40% faster than sequential
   **Acceptance Criteria**:
 
   **TDD:**
-  - [ ] Test: `mt"application/json"` compiles to `MediaType.application.json`
-  - [ ] Test: `mt"custom/unknown"` compiles to new MediaType
-  - [ ] Test: `mt"text/html; charset=utf-8"` compiles with parameters
-  - [ ] Test: `mt"invalid"` fails to compile (verify with `assertDoesNotCompile`)
+  - [ ] Test: `mediaType"application/json"` compiles to `MediaType.application.json`
+  - [ ] Test: `mediaType"custom/unknown"` compiles to new MediaType
+  - [ ] Test: `mediaType"text/html; charset=utf-8"` compiles with parameters
+  - [ ] Test: `mediaType"invalid"` fails to compile with EXPLICIT error message check
+  - [ ] Test: `mediaType"no-slash"` fails with error containing "must contain '/'"
+  - [ ] Test: `mediaType""` fails with error containing "empty" or similar
   - [ ] `sbt '++3.7.4; mediatypeJVM/testOnly *InterpolatorSpec'` → PASS
+
+  **Negative Test Pattern (MANDATORY):**
+  Use `typeCheck` or `typeCheckErrors` to verify error messages explicitly:
+  ```scala
+  // Scala 3 pattern using typeCheckErrors
+  test("invalid media type produces clear error") {
+    val errors = typeCheckErrors("""mediaType"invalid"""")
+    assertTrue(errors.exists(_.message.contains("must contain '/'")))
+  }
+  
+  // Or using assertDoesNotCompile with message check
+  test("empty string rejected with clear message") {
+    val result = typeCheck("""mediaType""""")
+    assertTrue(result.isLeft)
+    assertTrue(result.left.get.contains("empty"))
+  }
+  ```
+  
+  **Error messages MUST be user-friendly:**
+  - `mediaType"invalid"` → "Invalid media type: must contain '/' separator"
+  - `mediaType""` → "Invalid media type: cannot be empty"
+  - `mediaType"foo/"` → "Invalid media type: subtype cannot be empty"
+  - `mediaType"/bar"` → "Invalid media type: main type cannot be empty"
 
   **Agent-Executed QA Scenarios:**
 
@@ -678,27 +703,28 @@ Parallel Speedup: ~40% faster than sequential
     Tool: Bash (sbt test)
     Preconditions: Scala 3 interpolator implemented
     Steps:
-      1. Test uses: val x = mt"application/json"
+      1. Test uses: val x = mediaType"application/json"
       2. Test asserts: x eq MediaType.application.json (reference equality)
       3. Run: sbt '++3.7.4; mediatypeJVM/testOnly *InterpolatorSpec'
       4. Assert: Exit code 0
     Expected Result: Interpolator returns predefined instances
     Evidence: Test output
 
-  Scenario: Malformed input fails compilation
+  Scenario: Malformed input fails compilation with clear error messages
     Tool: Bash (sbt)
     Preconditions: Interpolator validation implemented
     Steps:
-      1. Test uses: assertDoesNotCompile("""mt"invalid"""")
-      2. Test uses: assertDoesNotCompile("""mt"no-slash-here"""")
-      3. Run: sbt '++3.7.4; mediatypeJVM/testOnly *InterpolatorSpec'
-      4. Assert: Exit code 0 (tests verify compile failure)
-    Expected Result: Invalid inputs rejected at compile time
-    Evidence: Test output
+      1. Test uses typeCheckErrors to capture compile error
+      2. Test asserts error message contains expected substring
+      3. Test covers: missing slash, empty string, empty main type, empty subtype
+      4. Run: sbt '++3.7.4; mediatypeJVM/testOnly *InterpolatorSpec'
+      5. Assert: Exit code 0 (tests verify compile failure WITH message check)
+    Expected Result: Invalid inputs rejected with helpful error messages
+    Evidence: Test output showing error message assertions pass
   ```
 
   **Commit**: YES
-  - Message: `feat(mediatype): implement mt string interpolator for Scala 3`
+  - Message: `feat(mediatype): implement mediaType string interpolator for Scala 3`
   - Files: `scala-3/MediaTypeLiteral.scala`, `InterpolatorSpec.scala`
 
 ---
@@ -716,14 +742,16 @@ Parallel Speedup: ~40% faster than sequential
     }
     
     implicit class MediaTypeStringContext(val sc: StringContext) extends AnyVal {
-      def mt(args: Any*): MediaType = macro MediaTypeLiteral.apply
+      def mediaType(args: Any*): MediaType = macro MediaTypeLiteral.apply
     }
     ```
   - Same validation logic as Scala 3
   - Same compile-time behavior
+  - Same error messages as Scala 3
 
   **Must NOT do**:
   - Differ in behavior from Scala 3 version
+  - Differ in error messages from Scala 3 version
 
   **Recommended Agent Profile**:
   - **Category**: `ultrabrain`
@@ -744,8 +772,29 @@ Parallel Speedup: ~40% faster than sequential
   **Acceptance Criteria**:
 
   **TDD:**
-  - [ ] Same tests as Task 6 but run with Scala 2.13
+  - [ ] Test: `mediaType"application/json"` compiles to `MediaType.application.json`
+  - [ ] Test: `mediaType"custom/unknown"` compiles to new MediaType
+  - [ ] Test: `mediaType"text/html; charset=utf-8"` compiles with parameters
+  - [ ] Test: `mediaType"invalid"` fails with error containing "must contain '/'"
+  - [ ] Test: `mediaType""` fails with error containing "empty"
   - [ ] `sbt '++2.13.16; mediatypeJVM/testOnly *InterpolatorSpec'` → PASS
+
+  **Negative Test Pattern (MANDATORY - same as Scala 3):**
+  Use `typeCheck` or compile-time error checking to verify error messages:
+  ```scala
+  // Scala 2 pattern
+  test("invalid media type produces clear error") {
+    val result = typeCheck("""mediaType"invalid"""")
+    assert(result.isLeft)
+    assert(result.left.get.contains("must contain '/'"))
+  }
+  ```
+  
+  **Error messages MUST match Scala 3 exactly:**
+  - `mediaType"invalid"` → "Invalid media type: must contain '/' separator"
+  - `mediaType""` → "Invalid media type: cannot be empty"
+  - `mediaType"foo/"` → "Invalid media type: subtype cannot be empty"
+  - `mediaType"/bar"` → "Invalid media type: main type cannot be empty"
 
   **Agent-Executed QA Scenarios:**
 
@@ -757,12 +806,13 @@ Parallel Speedup: ~40% faster than sequential
       1. Run: sbt '++2.13.16; mediatypeJVM/testOnly *InterpolatorSpec'
       2. Assert: Exit code 0
       3. Assert: Same test cases pass as Scala 3
-    Expected Result: Identical behavior across Scala versions
-    Evidence: Test output
+      4. Assert: Error messages match Scala 3 exactly
+    Expected Result: Identical behavior and error messages across Scala versions
+    Evidence: Test output showing error message assertions pass
   ```
 
   **Commit**: YES
-  - Message: `feat(mediatype): implement mt string interpolator for Scala 2`
+  - Message: `feat(mediatype): implement mediaType string interpolator for Scala 2`
   - Files: `scala-2/MediaTypeLiteral.scala`
 
 ---
@@ -857,7 +907,7 @@ sbt '++3.7.4; mediatypeJS/test'       # Expected: All tests pass
 sbt '++2.13.16; mediatypeJS/test'     # Expected: All tests pass
 
 # Interpolator works
-# In test: mt"application/json" eq MediaType.application.json
+# In test: mediaType"application/json" eq MediaType.application.json
 
 # Generator works
 sbt generateMediaTypes                 # Expected: MediaTypes.scala generated
