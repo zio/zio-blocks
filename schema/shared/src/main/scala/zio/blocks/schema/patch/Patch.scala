@@ -88,8 +88,8 @@ object Patch {
     val schemaA      = new Schema(optic.focus)
     val path         = optic.toDynamic
     val dynamicValue = schemaA.toDynamicValue(value)
-    val op           = Patch.DynamicPatchOp(path, Patch.Operation.Set(dynamicValue))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op           = new Patch.DynamicPatchOp(path, new Patch.Operation.Set(dynamicValue))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Set a field value using a Lens.
@@ -117,9 +117,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Append(dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Append(dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Append elements to the end of a List.
@@ -129,9 +129,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Append(dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Append(dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Append elements to the end of a Seq.
@@ -141,9 +141,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Append(dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Append(dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Append elements to the end of an IndexedSeq.
@@ -155,9 +155,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Append(dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Append(dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Append elements to the end of a LazyList.
@@ -169,9 +169,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Append(dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Append(dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Inserts elements at a specific index in a sequence. */
@@ -183,9 +183,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Insert elements at a specific index in a List.
@@ -197,9 +197,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Insert elements at a specific index in a Seq.
@@ -211,9 +211,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Insert elements at a specific index in an IndexedSeq.
@@ -225,9 +225,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Insert elements at a specific index in a LazyList.
@@ -239,9 +239,9 @@ object Patch {
     val schemaA         = new Schema(seqReflect.element)
     val path            = optic.toDynamic
     val dynamicElements = Chunk.from(elements.map(schemaA.toDynamicValue))
-    val seqOp           = Patch.SeqOp.Insert(index, dynamicElements)
-    val op              = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp           = new Patch.SeqOp.Insert(index, dynamicElements)
+    val op              = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Deletes elements from a sequence starting at the given index. */
@@ -250,9 +250,9 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val seqOp   = Patch.SeqOp.Delete(index, count)
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp   = new Patch.SeqOp.Delete(index, count)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Delete elements from a List starting at the given index.
@@ -261,9 +261,9 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val seqOp   = Patch.SeqOp.Delete(index, count)
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp   = new Patch.SeqOp.Delete(index, count)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Delete elements from a Seq starting at the given index.
@@ -272,9 +272,9 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val seqOp   = Patch.SeqOp.Delete(index, count)
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp   = new Patch.SeqOp.Delete(index, count)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Delete elements from an IndexedSeq starting at the given index.
@@ -283,9 +283,9 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val seqOp   = Patch.SeqOp.Delete(index, count)
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp   = new Patch.SeqOp.Delete(index, count)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Delete elements from a LazyList starting at the given index.
@@ -294,9 +294,9 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val seqOp   = Patch.SeqOp.Delete(index, count)
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.SequenceEdit(Vector(seqOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val seqOp   = new Patch.SeqOp.Delete(index, count)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.SequenceEdit(Chunk.single(seqOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /**
@@ -319,7 +319,7 @@ object Patch {
         val fullPath = new DynamicOptic((basePath.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
         Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
-      Patch(DynamicPatch(combinedOps), schemaS)
+      new Patch(new DynamicPatch(combinedOps), schemaS)
     }
   }
 
@@ -338,7 +338,7 @@ object Patch {
         val fullPath = new DynamicOptic((basePath.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
         Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
-      Patch(DynamicPatch(combinedOps), schemaS)
+      new Patch(new DynamicPatch(combinedOps), schemaS)
     }
   }
 
@@ -357,7 +357,7 @@ object Patch {
         val fullPath = new DynamicOptic((basePath.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
         Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
-      Patch(DynamicPatch(combinedOps), schemaS)
+      new Patch(new DynamicPatch(combinedOps), schemaS)
     }
   }
 
@@ -376,7 +376,7 @@ object Patch {
         val fullPath = new DynamicOptic((basePath.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
         Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
-      Patch(DynamicPatch(combinedOps), schemaS)
+      new Patch(new DynamicPatch(combinedOps), schemaS)
     }
   }
 
@@ -395,7 +395,7 @@ object Patch {
         val fullPath = new DynamicOptic((basePath.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
         Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
-      Patch(DynamicPatch(combinedOps), schemaS)
+      new Patch(new DynamicPatch(combinedOps), schemaS)
     }
   }
 
@@ -408,9 +408,9 @@ object Patch {
     val path         = optic.toDynamic
     val dynamicKey   = schemaK.toDynamicValue(key)
     val dynamicValue = schemaV.toDynamicValue(value)
-    val mapOp        = Patch.MapOp.Add(dynamicKey, dynamicValue)
-    val op           = Patch.DynamicPatchOp(path, Patch.Operation.MapEdit(Vector(mapOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val mapOp        = new Patch.MapOp.Add(dynamicKey, dynamicValue)
+    val op           = new Patch.DynamicPatchOp(path, new Patch.Operation.MapEdit(Chunk.single(mapOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Removes a key from a map. */
@@ -420,9 +420,9 @@ object Patch {
     val schemaK    = new Schema(mapReflect.key)
     val path       = optic.toDynamic
     val dynamicKey = schemaK.toDynamicValue(key)
-    val mapOp      = Patch.MapOp.Remove(dynamicKey)
-    val op         = Patch.DynamicPatchOp(path, Patch.Operation.MapEdit(Vector(mapOp)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val mapOp      = new Patch.MapOp.Remove(dynamicKey)
+    val op         = new Patch.DynamicPatchOp(path, new Patch.Operation.MapEdit(Chunk.single(mapOp)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Modifies the value at a key in a map using a nested patch. */
@@ -445,7 +445,7 @@ object Patch {
           new DynamicOptic((basePath.nodes :+ DynamicOptic.Node.AtMapKey(dynamicKey)) ++ nestedOp.path.nodes)
         Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
-      Patch(DynamicPatch(combinedOps), schemaS)
+      new Patch(new DynamicPatch(combinedOps), schemaS)
     }
   }
 
@@ -453,72 +453,76 @@ object Patch {
   def increment[S](optic: Optic[S, Int], delta: Int): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.IntDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a Long field by a delta value.
   def increment[S](optic: Optic[S, Long], delta: Long): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.LongDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a Double field by a delta value.
   def increment[S](optic: Optic[S, Double], delta: Double): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.DoubleDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a Float field by a delta value.
   def increment[S](optic: Optic[S, Float], delta: Float): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.FloatDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a Short field by a delta value.
   def increment[S](optic: Optic[S, Short], delta: Short): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ShortDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.ShortDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a Byte field by a delta value.
   def increment[S](optic: Optic[S, Byte], delta: Byte): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ByteDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.ByteDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a BigInt field by a delta value.
   def increment[S](optic: Optic[S, BigInt], delta: BigInt): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.BigIntDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Increment a BigDecimal field by a delta value.
   def increment[S](optic: Optic[S, BigDecimal], delta: BigDecimal): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(delta)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.BigDecimalDelta(delta)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Adds a duration to a temporal field. */
   def addDuration[S](optic: Optic[S, java.time.Instant], duration: java.time.Duration): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.InstantDelta(duration)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.InstantDelta(duration)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Add a duration to a Duration field.
@@ -527,16 +531,18 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DurationDelta(duration)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.DurationDelta(duration)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Adds a period to a date field. */
   def addPeriod[S](optic: Optic[S, java.time.LocalDate], period: java.time.Period): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateDelta(period)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.LocalDateDelta(period)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Add a period and duration to a LocalDateTime field.
@@ -548,8 +554,11 @@ object Patch {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
     val op      =
-      Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+      Patch.DynamicPatchOp(
+        path,
+        new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.LocalDateTimeDelta(period, duration))
+      )
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Add a period to a Period field.
@@ -558,16 +567,17 @@ object Patch {
   ): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.PeriodDelta(period)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      =
+      new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.PeriodDelta(period)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   /** Edits a string field using a sequence of insert/delete operations. */
-  def editString[S](optic: Optic[S, String], edits: Vector[Patch.StringOp]): Patch[S] = {
+  def editString[S](optic: Optic[S, String], edits: Chunk[Patch.StringOp]): Patch[S] = {
     val schemaS = new Schema(optic.source)
     val path    = optic.toDynamic
-    val op      = Patch.DynamicPatchOp(path, Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(edits)))
-    Patch(DynamicPatch(Vector(op)), schemaS)
+    val op      = new Patch.DynamicPatchOp(path, new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.StringEdit(edits)))
+    new Patch(new DynamicPatch(Chunk.single(op)), schemaS)
   }
 
   // Replace a field value using a Lens.

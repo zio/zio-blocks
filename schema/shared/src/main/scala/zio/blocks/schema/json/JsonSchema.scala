@@ -1,8 +1,7 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{Chunk, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
-
 import java.net.URI
 import java.util.regex.{Pattern, PatternSyntaxException}
 import scala.util.control.NonFatal
@@ -709,7 +708,7 @@ object JsonSchema {
   ) extends JsonSchema {
 
     override def toJson: Json = {
-      val fields = Chunk.newBuilder[(String, Json)]
+      val fields = ChunkBuilder.make[(String, Json)]()
 
       // Core vocabulary
       $id.foreach(v => fields += ("$id" -> Json.String(v.value)))

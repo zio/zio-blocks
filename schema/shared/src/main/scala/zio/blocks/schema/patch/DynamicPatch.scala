@@ -12,7 +12,7 @@ import java.lang
  * An untyped patch that operates on DynamicValue. Patches are serializable and
  * can be composed.
  */
-final case class DynamicPatch(ops: Vector[DynamicPatch.DynamicPatchOp]) {
+final case class DynamicPatch(ops: Chunk[DynamicPatch.DynamicPatchOp]) {
 
   /** Apply this patch to a DynamicValue.`value` and `mode`. */
   def apply(value: DynamicValue, mode: PatchMode = PatchMode.Strict): Either[SchemaError, DynamicValue] = {
@@ -50,15 +50,15 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.DynamicPatchOp]) {
 object DynamicPatch {
 
   /** Empty patch - identity element for composition. */
-  val empty: DynamicPatch = DynamicPatch(Vector.empty)
+  val empty: DynamicPatch = DynamicPatch(Chunk.empty)
 
   /** Create a patch with a single operation at the root. */
   def root(operation: Operation): DynamicPatch =
-    new DynamicPatch(Vector(new DynamicPatchOp(DynamicOptic.root, operation)))
+    new DynamicPatch(Chunk.single(new DynamicPatchOp(DynamicOptic.root, operation)))
 
   /** Create a patch with a single operation at the given path. */
   def apply(path: DynamicOptic, operation: Operation): DynamicPatch =
-    new DynamicPatch(Vector(new DynamicPatchOp(path, operation)))
+    new DynamicPatch(Chunk.single(new DynamicPatchOp(path, operation)))
 
   private[patch] def renderOp(sb: lang.StringBuilder, op: DynamicPatchOp, indent: String): Unit = {
     val pathStr = op.path.toString
@@ -462,7 +462,7 @@ object DynamicPatch {
 
   private[this] def applyStringEdits(
     str: String,
-    ops: Vector[StringOp],
+    ops: Chunk[StringOp],
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = {
     var result = str
@@ -499,7 +499,7 @@ object DynamicPatch {
 
   private[this] def applySequenceEdit(
     value: DynamicValue,
-    ops: Vector[SeqOp],
+    ops: Chunk[SeqOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] =
@@ -511,7 +511,7 @@ object DynamicPatch {
 
   private[this] def applySeqOps(
     elements: Chunk[DynamicValue],
-    ops: Vector[SeqOp],
+    ops: Chunk[SeqOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = {
@@ -577,7 +577,7 @@ object DynamicPatch {
 
   private[this] def applyMapEdit(
     value: DynamicValue,
-    ops: Vector[MapOp],
+    ops: Chunk[MapOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = value match {
@@ -587,7 +587,7 @@ object DynamicPatch {
 
   private[this] def applyMapOps(
     entries: Chunk[(DynamicValue, DynamicValue)],
-    ops: Vector[MapOp],
+    ops: Chunk[MapOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = {
@@ -657,13 +657,13 @@ object DynamicPatch {
      * Apply sequence edit operations. Used for inserting, appending, deleting,
      * or modifying sequence elements.
      */
-    final case class SequenceEdit(ops: Vector[SeqOp]) extends Operation
+    final case class SequenceEdit(ops: Chunk[SeqOp]) extends Operation
 
     /**
      * Apply map edit operations. Used for adding, removing, or modifying map
      * entries.
      */
-    final case class MapEdit(ops: Vector[MapOp]) extends Operation
+    final case class MapEdit(ops: Chunk[MapOp]) extends Operation
 
     /**
      * Apply a nested patch. Used to group multiple operations that share a
@@ -695,7 +695,7 @@ object DynamicPatch {
 
     final case class BigDecimalDelta(delta: BigDecimal) extends PrimitiveOp
 
-    final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
+    final case class StringEdit(ops: Chunk[StringOp]) extends PrimitiveOp
 
     final case class InstantDelta(delta: java.time.Duration) extends PrimitiveOp
 
@@ -1117,13 +1117,13 @@ object DynamicPatch {
   implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
-        fields = Vector(Schema[Vector[StringOp]].reflect.asTerm("ops")),
+        fields = Vector(Schema[Chunk[StringOp]].reflect.asTerm("ops")),
         typeId = TypeId.of[PrimitiveOp.StringEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.StringEdit =
-              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Vector[StringOp]])
+              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
           },
           deconstructor = new Deconstructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1681,13 +1681,13 @@ object DynamicPatch {
   implicit lazy val operationSequenceEditSchema: Schema[Operation.SequenceEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.SequenceEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Vector[SeqOp]].reflect).asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Chunk[SeqOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Operation.SequenceEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.SequenceEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.SequenceEdit =
-              Operation.SequenceEdit(in.getObject(offset).asInstanceOf[Vector[SeqOp]])
+              Operation.SequenceEdit(in.getObject(offset).asInstanceOf[Chunk[SeqOp]])
           },
           deconstructor = new Deconstructor[Operation.SequenceEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1702,13 +1702,13 @@ object DynamicPatch {
   implicit lazy val operationMapEditSchema: Schema[Operation.MapEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.MapEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Vector[MapOp]].reflect).asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Chunk[MapOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Operation.MapEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.MapEdit] {
             def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.MapEdit =
-              Operation.MapEdit(in.getObject(offset).asInstanceOf[Vector[MapOp]])
+              Operation.MapEdit(in.getObject(offset).asInstanceOf[Chunk[MapOp]])
           },
           deconstructor = new Deconstructor[Operation.MapEdit] {
             def usedRegisters: RegisterOffset                                                    = RegisterOffset(objects = 1)
@@ -1830,13 +1830,13 @@ object DynamicPatch {
   implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatch](
-        fields = Vector(Reflect.Deferred(() => Schema[Vector[DynamicPatchOp]].reflect).asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Chunk[DynamicPatchOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[DynamicPatch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[DynamicPatch] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): DynamicPatch =
-              DynamicPatch(in.getObject(offset).asInstanceOf[Vector[DynamicPatchOp]])
+              DynamicPatch(in.getObject(offset).asInstanceOf[Chunk[DynamicPatchOp]])
           },
           deconstructor = new Deconstructor[DynamicPatch] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)

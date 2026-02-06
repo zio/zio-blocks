@@ -99,7 +99,7 @@ object SerializationSpec extends SchemaBaseSpec {
         val op = DynamicPatch.DynamicPatchOp(
           DynamicOptic(Vector(DynamicOptic.Node.Field("tags"))),
           DynamicPatch.Operation.SequenceEdit(
-            Vector(DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("new")))))
+            Chunk(DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("new")))))
           )
         )
         roundTrip(
@@ -111,8 +111,8 @@ object SerializationSpec extends SchemaBaseSpec {
         val key   = DynamicValue.Primitive(PrimitiveValue.String("key1"))
         val value = DynamicValue.Primitive(PrimitiveValue.Int(100))
         val op    = DynamicPatch.DynamicPatchOp(
-          DynamicOptic(Vector(DynamicOptic.Node.Field("metadata"))),
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(key, value)))
+          DynamicOptic(Chunk(DynamicOptic.Node.Field("metadata"))),
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(key, value)))
         )
         roundTrip(
           op,
@@ -129,9 +129,9 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with single operation") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("age"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("age"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
             )
           )
@@ -143,13 +143,13 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with multiple operations") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("name"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("name"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("age"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("age"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
             )
           )
@@ -161,13 +161,13 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with nested record operations") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("street"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("street"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("123 Main St")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("zipCode"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("zipCode"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10000))
             )
           )
@@ -179,11 +179,11 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with sequence operations") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("items"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("items"))),
               DynamicPatch.Operation.SequenceEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1)))),
                   DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.Int(0))))
                 )
@@ -198,11 +198,11 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with map operations") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("metadata"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("metadata"))),
               DynamicPatch.Operation.MapEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.MapOp.Add(
                     DynamicValue.Primitive(PrimitiveValue.String("key1")),
                     DynamicValue.Primitive(PrimitiveValue.Int(100))
@@ -222,16 +222,16 @@ object SerializationSpec extends SchemaBaseSpec {
     suite("Complex nested patch serialization")(
       test("Deeply nested patch with multiple operation types") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             // Set a nested field
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("company"), DynamicOptic.Node.Field("name"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("company"), DynamicOptic.Node.Field("name"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Acme Corp")))
             ),
             // Modify an array element
             DynamicPatch.DynamicPatchOp(
               DynamicOptic(
-                Vector(
+                Chunk(
                   DynamicOptic.Node.Field("company"),
                   DynamicOptic.Node.Field("employees"),
                   DynamicOptic.Node.AtIndex(0),
@@ -242,9 +242,9 @@ object SerializationSpec extends SchemaBaseSpec {
             ),
             // Append to a sequence
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("tags"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("tags"))),
               DynamicPatch.Operation.SequenceEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.SeqOp.Append(
                     Chunk(
                       DynamicValue.Primitive(PrimitiveValue.String("important"))
@@ -264,7 +264,7 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("Patch with all PrimitiveOp types") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root,
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
@@ -299,13 +299,11 @@ object SerializationSpec extends SchemaBaseSpec {
       test("Large patch with many operations") {
         val ops = (0 until 20).map { i =>
           DynamicPatch.DynamicPatchOp(
-            DynamicOptic(Vector(DynamicOptic.Node.Field(s"field$i"))),
+            DynamicOptic(Chunk(DynamicOptic.Node.Field(s"field$i"))),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(i))
           )
-        }.toVector
-
-        val patch = DynamicPatch(ops)
-
+        }
+        val patch = DynamicPatch(Chunk.from(ops))
         // Just verify it can be encoded and decoded without checking exact JSON
         import zio.blocks.schema.json._
         val schema  = Schema[DynamicPatch]
@@ -318,7 +316,7 @@ object SerializationSpec extends SchemaBaseSpec {
     suite("Edge cases")(
       test("DynamicOptic.Node with unicode field names") {
         val op = DynamicPatch.DynamicPatchOp(
-          DynamicOptic(Vector(DynamicOptic.Node.Field("名前"), DynamicOptic.Node.Field("年齢"))),
+          DynamicOptic(Chunk(DynamicOptic.Node.Field("名前"), DynamicOptic.Node.Field("年齢"))),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
         )
         val json =
@@ -327,7 +325,7 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with empty string field names") {
         val op = DynamicPatch.DynamicPatchOp(
-          DynamicOptic(Vector(DynamicOptic.Node.Field(""))),
+          DynamicOptic(Chunk(DynamicOptic.Node.Field(""))),
           DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(42)))
         )
         val json = """{"path":{"nodes":[{"Field":{"name":""}}]},"operation":{"Set":{"value":42}}}"""
@@ -345,7 +343,7 @@ object SerializationSpec extends SchemaBaseSpec {
         roundTrip(path: DynamicOptic.Node, json)
       },
       test("Very deep nesting") {
-        val deepPath = Vector(
+        val deepPath = Chunk(
           DynamicOptic.Node.Field("level1"),
           DynamicOptic.Node.Field("level2"),
           DynamicOptic.Node.Field("level3"),
@@ -369,13 +367,13 @@ object SerializationSpec extends SchemaBaseSpec {
     suite("Stability tests")(
       test("Roundtrip preserves patch equality") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("name"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("name"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("age"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("age"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
             )
           )
@@ -387,22 +385,22 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with Operation.Patch (nested patch)") {
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("street"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("street"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
             ),
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("city"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("city"))),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("LA")))
             )
           )
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("address"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("address"))),
               DynamicPatch.Operation.Patch(nestedPatch)
             )
           )
@@ -414,27 +412,27 @@ object SerializationSpec extends SchemaBaseSpec {
       },
       test("DynamicPatch with recursive Operation.Patch (3 levels)") {
         val level3 = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("value"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("value"))),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
             )
           )
         )
 
         val level2 = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("inner"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("inner"))),
               DynamicPatch.Operation.Patch(level3)
             )
           )
         )
 
         val level1 = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("outer"))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("outer"))),
               DynamicPatch.Operation.Patch(level2)
             )
           )

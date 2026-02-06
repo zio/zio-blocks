@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.Schema
 
 import java.time._
@@ -166,7 +166,7 @@ object JsonEncoder {
       def encode(map: Map[String, V]): Json =
         new Json.Object(
           map
-            .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
+            .foldLeft(ChunkBuilder.make[(String, Json)](map.size)) { (acc, kv) =>
               acc.addOne((kv._1, valueEncoder.encode(kv._2)))
             }
             .result()
@@ -181,7 +181,7 @@ object JsonEncoder {
       def encode(map: Map[K, V]): Json =
         new Json.Object(
           map
-            .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
+            .foldLeft(ChunkBuilder.make[(String, Json)](map.size)) { (acc, kv) =>
               acc.addOne((keyKeyable.asKey(kv._1), valueEncoder.encode(kv._2)))
             }
             .result()

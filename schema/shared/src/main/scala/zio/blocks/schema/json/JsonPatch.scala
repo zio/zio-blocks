@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -15,7 +15,7 @@ import java.lang
  * @param ops
  *   The sequence of patch operations to apply
  */
-final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
+final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
 
   /**
    * Composes two patches. The result applies this patch first, then that patch.
@@ -83,7 +83,7 @@ final case class JsonPatch(ops: Vector[JsonPatch.JsonPatchOp]) {
 object JsonPatch {
 
   /** Empty patch - identity element for composition. */
-  val empty: JsonPatch = new JsonPatch(Vector.empty)
+  val empty: JsonPatch = new JsonPatch(Chunk.empty)
 
   /**
    * Converts a DynamicPatch to a JsonPatch.
@@ -99,7 +99,7 @@ object JsonPatch {
    *   Either an error for unsupported operations, or the equivalent JsonPatch
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[SchemaError, JsonPatch] = {
-    val builder = Vector.newBuilder[JsonPatchOp]
+    val builder = ChunkBuilder.make[JsonPatchOp]()
     val ops     = patch.ops
     val len     = ops.length
     var idx     = 0
@@ -340,7 +340,7 @@ object JsonPatch {
    */
   private[this] def applyStringOps(
     str: String,
-    ops: Vector[StringOp],
+    ops: Chunk[StringOp],
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] = {
     var result = str
@@ -386,7 +386,7 @@ object JsonPatch {
    */
   private[this] def applyArrayEdit(
     value: Json,
-    ops: Vector[ArrayOp],
+    ops: Chunk[ArrayOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] = value match {
@@ -399,7 +399,7 @@ object JsonPatch {
    */
   private[this] def applyArrayOps(
     elements: Chunk[Json],
-    ops: Vector[ArrayOp],
+    ops: Chunk[ArrayOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] = {
@@ -476,7 +476,7 @@ object JsonPatch {
    */
   private[this] def applyObjectEdit(
     value: Json,
-    ops: Vector[ObjectOp],
+    ops: Chunk[ObjectOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] = value match {
@@ -489,7 +489,7 @@ object JsonPatch {
    */
   private[this] def applyObjectOps(
     fields: Chunk[(String, Json)],
-    ops: Vector[ObjectOp],
+    ops: Chunk[ObjectOp],
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] = {
@@ -551,7 +551,7 @@ object JsonPatch {
    * @return
    *   A new patch with the operation at the root path
    */
-  def root(operation: Op): JsonPatch = new JsonPatch(Vector(new JsonPatchOp(DynamicOptic.root, operation)))
+  def root(operation: Op): JsonPatch = new JsonPatch(Chunk.single(new JsonPatchOp(DynamicOptic.root, operation)))
 
   /**
    * Creates a patch with a single operation at the given path.
@@ -563,7 +563,8 @@ object JsonPatch {
    * @return
    *   A new patch with the operation at the specified path
    */
-  def apply(path: DynamicOptic, operation: Op): JsonPatch = new JsonPatch(Vector(new JsonPatchOp(path, operation)))
+  def apply(path: DynamicOptic, operation: Op): JsonPatch =
+    new JsonPatch(Chunk.single(new JsonPatchOp(path, operation)))
 
   private def renderOp(sb: lang.StringBuilder, op: JsonPatchOp, indent: String): Unit = {
     val pathStr = renderPath(op.path.nodes)
@@ -781,14 +782,14 @@ object JsonPatch {
     case _                                                                   => new Left(SchemaError(s"JSON object keys must be strings, got: ${key.getClass.getSimpleName}"))
   }
 
-  private[this] def sequenceAll[A](results: Vector[Either[SchemaError, A]]): Either[SchemaError, Vector[A]] = {
-    val builder = Vector.newBuilder[A]
+  private[this] def sequenceAll[A](results: Chunk[Either[SchemaError, A]]): Either[SchemaError, Chunk[A]] = {
+    val builder = ChunkBuilder.make[A]()
     val len     = results.length
     var idx     = 0
     while (idx < len) {
       results(idx) match {
         case Right(value) => builder.addOne(value)
-        case l            => return l.asInstanceOf[Either[SchemaError, Vector[A]]]
+        case l            => return l.asInstanceOf[Either[SchemaError, Chunk[A]]]
       }
       idx += 1
     }
@@ -838,7 +839,7 @@ object JsonPatch {
      * @param ops
      *   The array operations to apply in sequence
      */
-    final case class ArrayEdit(ops: Vector[ArrayOp]) extends Op
+    final case class ArrayEdit(ops: Chunk[ArrayOp]) extends Op
 
     /**
      * Applies object edit operations. Used for adding, removing, or modifying
@@ -847,7 +848,7 @@ object JsonPatch {
      * @param ops
      *   The object operations to apply in sequence
      */
-    final case class ObjectEdit(ops: Vector[ObjectOp]) extends Op
+    final case class ObjectEdit(ops: Chunk[ObjectOp]) extends Op
 
     /**
      * Groups operations that share a common path prefix.
@@ -878,7 +879,7 @@ object JsonPatch {
      * @param ops
      *   The string operations to apply in sequence
      */
-    final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp
+    final case class StringEdit(ops: Chunk[StringOp]) extends PrimitiveOp
   }
 
   // String Operations
@@ -1190,13 +1191,13 @@ object JsonPatch {
   implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
-        fields = Vector(Schema[Vector[StringOp]].reflect.asTerm("ops")),
+        fields = Vector(Schema[Chunk[StringOp]].reflect.asTerm("ops")),
         typeId = TypeId.of[PrimitiveOp.StringEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.StringEdit =
-              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Vector[StringOp]])
+              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
           },
           deconstructor = new Deconstructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1550,13 +1551,13 @@ object JsonPatch {
   implicit lazy val opArrayEditSchema: Schema[Op.ArrayEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.ArrayEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Vector[ArrayOp]].reflect).asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Chunk[ArrayOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Op.ArrayEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.ArrayEdit] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.ArrayEdit =
-              Op.ArrayEdit(in.getObject(offset).asInstanceOf[Vector[ArrayOp]])
+              Op.ArrayEdit(in.getObject(offset).asInstanceOf[Chunk[ArrayOp]])
           },
           deconstructor = new Deconstructor[Op.ArrayEdit] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -1571,13 +1572,13 @@ object JsonPatch {
   implicit lazy val opObjectEditSchema: Schema[Op.ObjectEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.ObjectEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Vector[ObjectOp]].reflect).asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Chunk[ObjectOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Op.ObjectEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.ObjectEdit] {
             def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.ObjectEdit =
-              Op.ObjectEdit(in.getObject(offset).asInstanceOf[Vector[ObjectOp]])
+              Op.ObjectEdit(in.getObject(offset).asInstanceOf[Chunk[ObjectOp]])
           },
           deconstructor = new Deconstructor[Op.ObjectEdit] {
             def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -1704,13 +1705,13 @@ object JsonPatch {
   implicit lazy val schema: Schema[JsonPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, JsonPatch](
-        fields = Vector(Reflect.Deferred(() => Schema[Vector[JsonPatchOp]].reflect).asTerm("ops")),
+        fields = Vector(Reflect.Deferred(() => Schema[Chunk[JsonPatchOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[JsonPatch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[JsonPatch] {
             def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): JsonPatch =
-              JsonPatch(in.getObject(offset).asInstanceOf[Vector[JsonPatchOp]])
+              JsonPatch(in.getObject(offset).asInstanceOf[Chunk[JsonPatchOp]])
           },
           deconstructor = new Deconstructor[JsonPatch] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)

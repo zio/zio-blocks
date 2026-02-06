@@ -67,30 +67,30 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("patch uses Strict mode by default") {
       val json = Json.Object("a" -> Json.Number(1))
       // Create a patch that adds a key that already exists
-      val patch  = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("a", Json.Number(2)))))
+      val patch  = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("a", Json.Number(2)))))
       val result = json.patch(patch)
       assertTrue(result.isLeft) // Should fail in Strict mode
     },
     test("patch with Lenient mode skips failing operations") {
       val json = Json.Object("a" -> Json.Number(1))
       // Create a patch that adds a key that already exists
-      val patch  = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("a", Json.Number(2)))))
+      val patch  = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("a", Json.Number(2)))))
       val result = json.patch(patch, PatchMode.Lenient)
       assertTrue(result == Right(json)) // Original unchanged, operation skipped
     },
     test("patch with Clobber mode overwrites") {
       val json = Json.Object("a" -> Json.Number(1))
       // Create a patch that adds a key that already exists
-      val patch  = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("a", Json.Number(2)))))
+      val patch  = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("a", Json.Number(2)))))
       val result = json.patch(patch, PatchMode.Clobber)
       assertTrue(result == Right(Json.Object("a" -> Json.Number(2)))) // Overwrites
     },
     test("patch applies multiple operations") {
       val json  = Json.Object("x" -> Json.Number(1))
       val patch = JsonPatch(
-        Vector(
-          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Vector(ObjectOp.Add("y", Json.Number(2))))),
-          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Vector(ObjectOp.Add("z", Json.Number(3)))))
+        Chunk(
+          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Chunk(ObjectOp.Add("y", Json.Number(2))))),
+          JsonPatchOp(DynamicOptic.root, Op.ObjectEdit(Chunk(ObjectOp.Add("z", Json.Number(3)))))
         )
       )
       val result   = json.patch(patch)
@@ -135,7 +135,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val jsonPatch = JsonPatch.root(
         Op.PrimitiveDelta(
           PrimitiveOp.StringEdit(
-            Vector(
+            Chunk(
               StringOp.Insert(0, "hello"),
               StringOp.Delete(5, 3)
             )
@@ -153,7 +153,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("ArrayEdit converts to SequenceEdit") {
       val jsonPatch = JsonPatch.root(
         Op.ArrayEdit(
-          Vector(
+          Chunk(
             ArrayOp.Append(Chunk(Json.Number(1))),
             ArrayOp.Insert(0, Chunk(Json.Number(2))),
             ArrayOp.Delete(1, 1)
@@ -171,7 +171,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("ObjectEdit converts to MapEdit with string keys") {
       val jsonPatch = JsonPatch.root(
         Op.ObjectEdit(
-          Vector(
+          Chunk(
             ObjectOp.Add("name", Json.String("Alice")),
             ObjectOp.Remove("age")
           )
@@ -330,7 +330,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("non-string map keys fail with SchemaError") {
       val dynamicPatch = DynamicPatch.root(
         DynamicPatch.Operation.MapEdit(
-          Vector(
+          Chunk(
             DynamicPatch.MapOp.Add(
               DynamicValue.Primitive(new PrimitiveValue.Int(42)), // Non-string key
               DynamicValue.string("value")
@@ -347,7 +347,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("string map keys succeed") {
       val dynamicPatch = DynamicPatch.root(
         DynamicPatch.Operation.MapEdit(
-          Vector(
+          Chunk(
             DynamicPatch.MapOp.Add(
               DynamicValue.string("name"),
               DynamicValue.string("Alice")
@@ -382,7 +382,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val original = JsonPatch.root(
         Op.PrimitiveDelta(
           PrimitiveOp.StringEdit(
-            Vector(
+            Chunk(
               StringOp.Insert(0, "hello"),
               StringOp.Delete(5, 2),
               StringOp.Append(" world"),
@@ -397,7 +397,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("roundtrip preserves ArrayEdit") {
       val original = JsonPatch.root(
         Op.ArrayEdit(
-          Vector(
+          Chunk(
             ArrayOp.Insert(0, Chunk(Json.Number(1), Json.Number(2))),
             ArrayOp.Append(Chunk(Json.String("end"))),
             ArrayOp.Delete(2, 1),
@@ -411,7 +411,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     test("roundtrip preserves ObjectEdit") {
       val original = JsonPatch.root(
         Op.ObjectEdit(
-          Vector(
+          Chunk(
             ObjectOp.Add("name", Json.String("Alice")),
             ObjectOp.Remove("age"),
             ObjectOp.Modify("address", JsonPatch.root(Op.Set(Json.String("123 Main St"))))
@@ -423,7 +423,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     },
     test("roundtrip preserves Nested operation") {
       val innerPatch = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatchOp(DynamicOptic.root, Op.Set(Json.Number(42))),
           JsonPatchOp(DynamicOptic.root, Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(10))))
         )
@@ -434,17 +434,17 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
     },
     test("roundtrip preserves complex nested structures") {
       val original = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatchOp(
             DynamicOptic.root,
             Op.ObjectEdit(
-              Vector(
+              Chunk(
                 ObjectOp.Add("users", Json.Array()),
                 ObjectOp.Modify(
                   "config",
                   JsonPatch.root(
                     Op.ObjectEdit(
-                      Vector(
+                      Chunk(
                         ObjectOp.Add("debug", Json.Boolean(true))
                       )
                     )
@@ -456,7 +456,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
           JsonPatchOp(
             DynamicOptic.root,
             Op.ArrayEdit(
-              Vector(
+              Chunk(
                 ArrayOp.Append(Chunk(Json.Object("id" -> Json.Number(1))))
               )
             )
