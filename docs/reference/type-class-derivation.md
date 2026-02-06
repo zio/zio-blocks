@@ -54,8 +54,6 @@ This manual approach is not only time-consuming but also prone to errors and inc
 
 The `Deriver` trait provides a powerful and flexible way to automatically derive type class instances for any data type with an associated `Schema`. By implementing just seven methods, you can enable full derivation for primitive types, records, variants, sequences, maps, dynamic values, and wrappers.
 
-### The Core Insight
-
 ZIO Blocks recognizes that all data types reduce to a small set of structural patterns (as outlined in the `Reflect` documentation):
 
 | Pattern       | Description                     | Examples                           |
@@ -116,7 +114,7 @@ The other methods follow a similar pattern, each tailored to the specific struct
 
 The underlying derivation engine takes care of traversing the schema structure, applying the appropriate derivation method for each structural pattern, and composing the resulting type class instances together. This means that once you've implemented a `Deriver` for a specific type class, you can automatically derive instances for any data type with a schema, without writing any additional boilerplate code.
 
-## Example: Deriving a `Show` Type Class Instance
+## Example 1: Deriving a `Show` Type Class Instance
 
 Let's say we want to derive a `Show` type class instance for any type of type `A`:
 
@@ -670,7 +668,7 @@ def deriveWrapper[F[_, _], A, B](
 
 The derivation process for wrapper types involves unwrapping the value to access the underlying type. We extract the type class instance for the wrapped type, and at runtime we use the `unwrap` function from the binding to get the underlying value. If unwrapping is successful, we show the underlying value using its type class instance. If unwrapping fails, we handle the error case accordingly (e.g., by returning an error message).
 
-## Example: Deriving a `Gen` Type Class Instance
+## Example 2: Deriving a `Gen` Type Class Instance
 
 Let's say we want to derive a `Gen` type class instance for any type `A`:
 
@@ -1228,7 +1226,9 @@ First, we retrieve the `Gen` instance for the wrapped (underlying) type `B`. The
 
 Please note that in a production implementation, you should include safeguards to prevent infinite retries in the event of persistent validation failures.
 
-## Derivation Process Overview including Internal Mechanics
+## Derivation Process In-Depth
+
+Until know, we learned how to implement the `Deriver` methods for different schema patterns. But we haven't yet discussed how the overall derivation process works. In this section, we will go through the main steps of derivation in detail.
 
 ### PHASE 1: Deriving the Schema for the Target Type
 
