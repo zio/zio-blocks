@@ -82,15 +82,15 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
     @@.scoped(f(@@.unscoped(scoped)))
 
   /**
-   * FlatMaps over a scoped value, narrowing to the inner scope.
+   * FlatMaps over a scoped value, combining tags via intersection.
    *
    * @param f
    *   Function returning a scoped result
    * @return
-   *   Result with the narrower tag T
+   *   Result with the combined tag S with T
    */
-  def flatMap[B, T <: S](f: A => B @@ T): B @@ T =
-    f(@@.unscoped(scoped))
+  def flatMap[B, T](f: A => B @@ T): B @@ (S with T) =
+    @@.scoped(@@.unscoped(f(@@.unscoped(scoped))))
 
   /** Extracts the first element of a scoped tuple. */
   def _1[X, Y](implicit ev: A =:= (X, Y)): X @@ S =

@@ -87,14 +87,14 @@ object @@ {
       f(scoped)
 
     /**
-     * FlatMaps over a scoped value, narrowing to the inner scope.
+     * FlatMaps over a scoped value, combining tags via intersection.
      *
      * @param f
      *   Function returning a scoped result
      * @return
-     *   Result with the narrower tag T
+     *   Result with the combined tag S & T
      */
-    inline def flatMap[B, T <: S](inline f: A => B @@ T): B @@ T =
+    inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S & T) =
       f(scoped)
 
     /** Extracts the first element of a scoped tuple. */
