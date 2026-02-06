@@ -57,12 +57,12 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           // Get a scoped value from closeable1's scope
           var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
-          closeable1.run {
+          closeable1.use {
             escapedValue = $[Resource1]
           }
 
           // Try to use it with closeable2's scope - should fail
-          closeable2.run {
+          closeable2.use {
             // closeable2.Tag is not a supertype of closeable1.Tag
             escapedValue $ (_.value)
           }
@@ -91,12 +91,12 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           // Get a scoped value from closeable1's scope
           var escapedValue: Resource1 @@ closeable1.Tag = null.asInstanceOf[Resource1 @@ closeable1.Tag]
-          closeable1.run {
+          closeable1.use {
             escapedValue = $[Resource1]
           }
 
           // Try to use .get with closeable2's scope - should fail
-          closeable2.run {
+          closeable2.use {
             // closeable2.Tag is not a supertype of closeable1.Tag
             escapedValue.get
           }
@@ -113,7 +113,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
 
           given Scope.Any = Scope.global
           val closeable = injected(new Resource)
-          closeable.run {
+          closeable.use {
             val scoped = $[Resource]
             // Resource is not Unscoped, so .get returns Resource @@ Tag, not raw Resource
             val raw: Resource = scoped.get  // Should fail: type mismatch
@@ -126,7 +126,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
       test("map preserves tag type") {
         // Verify that map returns a scoped value
         val closeable = injected(new MockResource)
-        closeable.run {
+        closeable.use {
           val scoped = $[MockResource]
           val mapped = scoped.map(_.getData())
           // mapped is Int @@ Tag - verify we can use .get to extract
@@ -154,7 +154,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
     suite("Unscoped types escape")(
       test("Int escapes unscoped via $ operator") {
         val closeable = injected(new MockResource)
-        closeable.run {
+        closeable.use {
           val scoped = $[MockResource]
           val n: Int = scoped $ (_.getData())
           assertTrue(n == 42)
@@ -165,7 +165,7 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
         class Outer { def inner: Inner = new Inner }
 
         val closeable = injected(new Outer)
-        closeable.run {
+        closeable.use {
           val scoped = $[Outer]
 
           // inner is not Unscoped, so it stays scoped (can't assign to raw Inner)

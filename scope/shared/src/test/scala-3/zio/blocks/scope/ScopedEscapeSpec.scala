@@ -23,7 +23,7 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
     suite("$[T] returns scoped value")(
       test("$[T] returns scoped service from scope") {
         val closeable = injected(new MockInputStream)
-        closeable.run {
+        closeable.use {
           val scopedStream = $[MockInputStream]
           // Verify it's scoped by using $ operator
           val n: Int = scopedStream $ (_.read())
@@ -34,7 +34,7 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
     suite("$ operator with Unscoped types")(
       test("Unscoped types escape unscoped via $ operator") {
         val closeable = injected(new MockInputStream)
-        closeable.run {
+        closeable.use {
           val scopedStream = $[MockInputStream]
 
           val n: Int             = scopedStream $ (_.read())
@@ -45,7 +45,7 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
       },
       test("String escapes unscoped") {
         val closeable = injected(MockResponse.ok("hello"))
-        closeable.run {
+        closeable.use {
           val scopedResp = $[MockResponse]
 
           val data: String = scopedResp $ (_.data)
@@ -57,7 +57,7 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
     suite("$ operator with resourceful types")(
       test("Resourceful types stay scoped") {
         val closeable = injected(new MockRequest(new MockInputStream))
-        closeable.run {
+        closeable.use {
           val scopedReq = $[MockRequest]
 
           // body is not Unscoped, so it stays scoped
@@ -72,7 +72,7 @@ object ScopedEscapeSpec extends ZIOSpecDefault {
     suite("For-comprehension support")(
       test("map preserves tag") {
         val closeable = injected(new MockRequest(new MockInputStream))
-        closeable.run {
+        closeable.use {
           val request = $[MockRequest]
 
           val body = request.map(_.body)

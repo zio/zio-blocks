@@ -5,6 +5,46 @@ import scala.reflect.macros.whitebox
 private[scope] object ScopedMacros {
 
   /**
+   * Checks if a scoped value with tag S can be accessed from a scope with the given Tag type.
+   *
+   * For path-dependent types with bounds (like `type Tag >: tail.Tag`), we check:
+   * 1. Direct subtyping: S <:< Tag
+   * 2. Bound subtyping: S <:< Tag's lower bound
+   * 3. Hierarchy walking: For :: scopes, walk the tail chain to find matching tags
+   */
+  private def checkTagAccess(c: whitebox.Context)(sTpe: c.Type, scopeTpe: c.Type): Boolean = {
+    import c.universe._
+
+    val tagMember = scopeTpe.member(TypeName("Tag"))
+    if (tagMember == NoSymbol) return false
+
+    val tagTpe = tagMember.asType.toType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
+
+    // Direct check
+    if (sTpe <:< tagTpe) return true
+
+    // Check lower bound of the Tag type member
+    val tagTypeInfo = tagMember.asType.typeSignature
+    tagTypeInfo match {
+      case TypeBounds(lo, _) if lo != NoType && !(lo =:= typeOf[Nothing]) =>
+        val lowerBound = lo.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
+        if (sTpe <:< lowerBound) return true
+      case _ => // No usable bounds
+    }
+
+    // For :: scopes, walk the tail hierarchy
+    if (scopeTpe.baseClasses.exists(_.fullName == "zio.blocks.scope.Scope.$colon$colon")) {
+      val tailMember = scopeTpe.member(TermName("tail"))
+      if (tailMember != NoSymbol) {
+        val tailTpe = tailMember.typeSignature.resultType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
+        if (checkTagAccess(c)(sTpe, tailTpe)) return true
+      }
+    }
+
+    false
+  }
+
+  /**
    * Macro implementation for the `$` operator that verifies at compile time
    * that the scope's Tag is a supertype of S.
    *
@@ -31,8 +71,8 @@ private[scope] object ScopedMacros {
 
     val tagTpe = tagMember.asType.toType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
 
-    // Check that Tag >: S (i.e., S <:< Tag)
-    if (!(sTpe <:< tagTpe)) {
+    // Check that Tag >: S (i.e., S <:< Tag) using hierarchy-aware check
+    if (!checkTagAccess(c)(sTpe, scopeTpe)) {
       c.abort(
         c.enclosingPosition,
         s"Scoped value with tag $sTpe cannot be accessed with scope having Tag = $tagTpe. " +
@@ -85,8 +125,8 @@ private[scope] object ScopedMacros {
 
     val tagTpe = tagMember.asType.toType.asSeenFrom(scopeTpe, scopeTpe.typeSymbol)
 
-    // Check that Tag >: S (i.e., S <:< Tag)
-    if (!(sTpe <:< tagTpe)) {
+    // Check that Tag >: S (i.e., S <:< Tag) using hierarchy-aware check
+    if (!checkTagAccess(c)(sTpe, scopeTpe)) {
       c.abort(
         c.enclosingPosition,
         s"Scoped value with tag $sTpe cannot be accessed with scope having Tag = $tagTpe. " +
