@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.patch.LCS
 
 /**
@@ -92,22 +92,18 @@ object JsonDiffer {
    * Insert/Delete operations with indices adjusted for previously applied
    * edits.
    */
-  private def computeStringEdits(oldStr: String, newStr: String): Vector[JsonPatch.StringOp] = {
-    if (oldStr == newStr) return Vector.empty
-    if (oldStr.isEmpty) return Vector(JsonPatch.StringOp.Insert(0, newStr))
-    if (newStr.isEmpty) return Vector(JsonPatch.StringOp.Delete(0, oldStr.length))
-
-    val lcs   = LCS.stringLCS(oldStr, newStr)
-    val edits = Vector.newBuilder[JsonPatch.StringOp]
-
+  private def computeStringEdits(oldStr: String, newStr: String): Chunk[JsonPatch.StringOp] = {
+    if (oldStr == newStr) return Chunk.empty
+    if (oldStr.isEmpty) return Chunk.single(JsonPatch.StringOp.Insert(0, newStr))
+    if (newStr.isEmpty) return Chunk.single(JsonPatch.StringOp.Delete(0, oldStr.length))
+    val lcs    = LCS.stringLCS(oldStr, newStr)
+    val edits  = ChunkBuilder.make[JsonPatch.StringOp]()
     var oldIdx = 0
     var newIdx = 0
     var lcsIdx = 0
     var cursor = 0 // current index in the string after applying previous edits
-
     while (lcsIdx < lcs.length) {
       val targetChar = lcs.charAt(lcsIdx)
-
       // Delete any characters in the old string that do not appear before the next LCS character.
       val deleteStart = oldIdx
       while (oldIdx < oldStr.length && oldStr.charAt(oldIdx) != targetChar) {
@@ -115,7 +111,6 @@ object JsonDiffer {
       }
       val deleteLen = oldIdx - deleteStart
       if (deleteLen > 0) edits.addOne(JsonPatch.StringOp.Delete(cursor, deleteLen))
-
       // Insert characters from the new string that appear before the next LCS character.
       val insertStart = newIdx
       while (newIdx < newStr.length && newStr.charAt(newIdx) != targetChar) {
@@ -126,26 +121,22 @@ object JsonDiffer {
         edits.addOne(JsonPatch.StringOp.Insert(cursor, text))
         cursor += text.length
       }
-
       // Consume the matching LCS character.
       oldIdx += 1
       newIdx += 1
       cursor += 1
       lcsIdx += 1
     }
-
     // Delete any trailing characters left in the old string.
     if (oldIdx < oldStr.length) {
       val deleteLen = oldStr.length - oldIdx
       edits.addOne(JsonPatch.StringOp.Delete(cursor, deleteLen))
     }
-
     // Insert any trailing characters from the new string.
     if (newIdx < newStr.length) {
       val text = newStr.substring(newIdx)
       if (text.nonEmpty) edits.addOne(JsonPatch.StringOp.Insert(cursor, text))
     }
-
     edits.result()
   }
 
@@ -155,24 +146,23 @@ object JsonDiffer {
    * elements into the new ones.
    */
   private def diffArray(oldElems: Chunk[Json], newElems: Chunk[Json]): JsonPatch =
-    if (oldElems == newElems) {
-      JsonPatch.empty
-    } else if (oldElems.isEmpty) {
-      JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(newElems))))
+    if (oldElems == newElems) JsonPatch.empty
+    else if (oldElems.isEmpty) {
+      JsonPatch.root(new JsonPatch.Op.ArrayEdit(Chunk.single(new JsonPatch.ArrayOp.Append(newElems))))
     } else if (newElems.isEmpty) {
-      JsonPatch.root(JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, oldElems.length))))
+      JsonPatch.root(new JsonPatch.Op.ArrayEdit(Chunk.single(new JsonPatch.ArrayOp.Delete(0, oldElems.length))))
     } else {
       val arrayOps = computeArrayOps(oldElems, newElems)
       if (arrayOps.isEmpty) JsonPatch.empty
-      else JsonPatch.root(JsonPatch.Op.ArrayEdit(arrayOps))
+      else JsonPatch.root(new JsonPatch.Op.ArrayEdit(arrayOps))
     }
 
   /**
    * Convert the difference between two arrays into ArrayOps using LCS
    * alignment.
    */
-  private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Vector[JsonPatch.ArrayOp] = {
-    val ops       = Vector.newBuilder[JsonPatch.ArrayOp]
+  private def computeArrayOps(oldElems: Chunk[Json], newElems: Chunk[Json]): Chunk[JsonPatch.ArrayOp] = {
+    val ops       = ChunkBuilder.make[JsonPatch.ArrayOp]()
     val matches   = LCS.indicesLCS(oldElems, newElems)(_ == _)
     var oldIdx    = 0
     var newIdx    = 0
@@ -181,15 +171,15 @@ object JsonDiffer {
 
     def emitDelete(count: Int): Unit =
       if (count > 0) {
-        ops.addOne(JsonPatch.ArrayOp.Delete(cursor, count))
+        ops.addOne(new JsonPatch.ArrayOp.Delete(cursor, count))
         curLength -= count
       }
 
     def emitInsert(values: Chunk[Json]): Unit =
       if (values.nonEmpty) {
         val insertionIndex = cursor
-        if (insertionIndex == curLength) ops.addOne(JsonPatch.ArrayOp.Append(values))
-        else ops.addOne(JsonPatch.ArrayOp.Insert(insertionIndex, values))
+        if (insertionIndex == curLength) ops.addOne(new JsonPatch.ArrayOp.Append(values))
+        else ops.addOne(new JsonPatch.ArrayOp.Insert(insertionIndex, values))
         cursor += values.length
         curLength += values.length
       }
@@ -197,15 +187,12 @@ object JsonDiffer {
     matches.foreach { case (matchOld, matchNew) =>
       emitDelete(matchOld - oldIdx)
       emitInsert(newElems.slice(newIdx, matchNew))
-
       oldIdx = matchOld + 1
       newIdx = matchNew + 1
       cursor += 1
     }
-
     emitDelete(oldElems.length - oldIdx)
     emitInsert(newElems.slice(newIdx, newElems.length))
-
     ops.result()
   }
 
@@ -213,41 +200,27 @@ object JsonDiffer {
    * Diff two JSON objects by comparing fields. Produces Add, Remove, and Modify
    * operations.
    */
-  private def diffObject(
-    oldFields: Chunk[(String, Json)],
-    newFields: Chunk[(String, Json)]
-  ): JsonPatch = {
+  private def diffObject(oldFields: Chunk[(String, Json)], newFields: Chunk[(String, Json)]): JsonPatch = {
     val oldMap = oldFields.toMap
     val newMap = newFields.toMap
-
-    val ops = Vector.newBuilder[JsonPatch.ObjectOp]
-
-    // Find modified and added fields
+    val ops    = ChunkBuilder.make[JsonPatch.ObjectOp]()
     for ((fieldName, newValue) <- newFields) {
       oldMap.get(fieldName) match {
-        case Some(oldValue) if oldValue != newValue =>
-          // Field exists in both but has different value - recursively diff
-          val fieldPatch = diff(oldValue, newValue)
-          if (!fieldPatch.isEmpty) {
-            ops.addOne(JsonPatch.ObjectOp.Modify(fieldName, fieldPatch))
+        case Some(oldValue) =>
+          if (oldValue != newValue) {
+            val fieldPatch = diff(oldValue, newValue)
+            if (!fieldPatch.isEmpty) {
+              ops.addOne(JsonPatch.ObjectOp.Modify(fieldName, fieldPatch))
+            }
           }
-        case None =>
-          // Field only in new object - add it
-          ops.addOne(JsonPatch.ObjectOp.Add(fieldName, newValue))
-        case _ =>
-        // Field unchanged - skip
+        case _ => ops.addOne(JsonPatch.ObjectOp.Add(fieldName, newValue))
       }
     }
-
-    // Find removed fields
     for ((fieldName, _) <- oldFields) {
-      if (!newMap.contains(fieldName)) {
-        ops.addOne(JsonPatch.ObjectOp.Remove(fieldName))
-      }
+      if (!newMap.contains(fieldName)) ops.addOne(JsonPatch.ObjectOp.Remove(fieldName))
     }
-
     val result = ops.result()
     if (result.isEmpty) JsonPatch.empty
-    else JsonPatch.root(JsonPatch.Op.ObjectEdit(result))
+    else JsonPatch.root(new JsonPatch.Op.ObjectEdit(result))
   }
 }

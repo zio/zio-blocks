@@ -1504,7 +1504,7 @@ object Json {
       jsons = node match {
         case field: DynamicOptic.Node.Field =>
           val name    = field.name
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case obj: Object =>
               var kv: (java.lang.String, Json) = null
@@ -1539,14 +1539,14 @@ object Json {
             case _          => Chunk.empty[Json]
           }
         case _: DynamicOptic.Node.MapKeys.type =>
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case obj: Object => obj.value.foreach(kv => results.addOne(new String(kv._1)))
             case _           => ()
           }
           results.result()
         case _: DynamicOptic.Node.MapValues.type =>
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case obj: Object => obj.value.foreach(kv => results.addOne(kv._2))
             case _           => ()
@@ -1554,7 +1554,7 @@ object Json {
           results.result()
         case atIndices: DynamicOptic.Node.AtIndices =>
           val indices = atIndices.index
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case arr: Array =>
               indices.foreach {
@@ -1569,7 +1569,7 @@ object Json {
           atMapKey.key match {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
               val name    = pv.value
-              val results = Chunk.newBuilder[Json]
+              val results = ChunkBuilder.make[Json]()
               jsons.foreach {
                 case obj: Object =>
                   var kv: (java.lang.String, Json) = null
@@ -1597,7 +1597,7 @@ object Json {
           }
           jsons.flatMap {
             case obj: Object =>
-              val results = Chunk.newBuilder[Json]
+              val results = ChunkBuilder.make[Json]()
               val kvs     = obj.value
               val len     = kvs.length
               var idx     = 0
@@ -1817,7 +1817,7 @@ object Json {
         case _: DynamicOptic.Node.Elements.type =>
           json match {
             case arr: Array =>
-              val builder = Chunk.newBuilder[Json]
+              val builder = ChunkBuilder.make[Json]()
               val elems   = arr.value
               val len     = elems.length
               var idx     = 0
@@ -1835,7 +1835,7 @@ object Json {
         case _: DynamicOptic.Node.MapValues.type =>
           json match {
             case obj: Object =>
-              val builder = Chunk.newBuilder[(java.lang.String, Json)]
+              val builder = ChunkBuilder.make[(java.lang.String, Json)]()
               val fields  = obj.value
               val len     = fields.length
               var idx     = 0

@@ -152,7 +152,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = stringVal("Hello World")
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(5, " Beautiful")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(5, " Beautiful")))
           )
         )
         val result = patch(original)
@@ -162,7 +162,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = stringVal("Hello Beautiful World")
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Delete(5, 10)))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Delete(5, 10)))
           )
         )
         val result = patch(original)
@@ -173,7 +173,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
             DynamicPatch.PrimitiveOp.StringEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.StringOp.Insert(1, "X"), // "aXbc"
                 DynamicPatch.StringOp.Delete(3, 1)    // "aXb"
               )
@@ -187,7 +187,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = stringVal("Hello")
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Append(" Golem")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append(" Golem")))
           )
         )
         val result = patch(original)
@@ -197,7 +197,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = stringVal("Hello World")
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Modify(6, 5, "everyone")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Modify(6, 5, "everyone")))
           )
         )
         val result = patch(original)
@@ -214,7 +214,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Append") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Append(Chunk(intVal(3), intVal(4)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Append(Chunk(intVal(3), intVal(4)))))
         )
         val result = patch(original)
         assertTrue(
@@ -224,7 +224,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Append to empty sequence") {
         val original = DynamicValue.Sequence(Chunk.empty)
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Append(Chunk(intVal(1)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Append(Chunk(intVal(1)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1)))))
@@ -232,7 +232,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Insert at beginning") {
         val original = DynamicValue.Sequence(Chunk(intVal(2), intVal(3)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(0, Chunk(intVal(1)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Insert(0, Chunk(intVal(1)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))))
@@ -240,7 +240,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Insert in middle") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(3)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(1, Chunk(intVal(2)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Insert(1, Chunk(intVal(2)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))))
@@ -248,7 +248,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Insert at end") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(2, Chunk(intVal(3)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Insert(2, Chunk(intVal(3)))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))))
@@ -256,7 +256,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Delete") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3), intVal(4)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(1, 2)))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(1, 2)))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(4)))))
@@ -264,7 +264,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Delete at beginning") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(0, 1)))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(0, 1)))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(2), intVal(3)))))
@@ -273,7 +273,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.SequenceEdit(
-            Vector(
+            Chunk(
               DynamicPatch.SeqOp.Modify(1, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10)))
             )
           )
@@ -285,7 +285,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.SequenceEdit(
-            Vector(
+            Chunk(
               DynamicPatch.SeqOp.Append(Chunk(intVal(3))),
               DynamicPatch.SeqOp.Insert(0, Chunk(intVal(0)))
             )
@@ -301,7 +301,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Add to empty map") {
         val original = DynamicValue.Map(Chunk.empty)
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("key"), intVal(42))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(stringVal("key"), intVal(42))))
         )
         val result = patch(original)
         assertTrue(
@@ -311,7 +311,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("applies Add to existing map") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("b"), intVal(2))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(stringVal("b"), intVal(2))))
         )
         val result = patch(original)
         assertTrue(
@@ -333,7 +333,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         val patch = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Remove(stringVal("a"))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Remove(stringVal("a"))))
         )
         val result = patch(original)
         assertTrue(result == Right(DynamicValue.Map(Chunk(stringVal("b") -> intVal(2)))))
@@ -342,7 +342,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Map(Chunk(stringVal("count") -> intVal(10)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.MapEdit(
-            Vector(
+            Chunk(
               DynamicPatch.MapOp
                 .Modify(
                   stringVal("count"),
@@ -358,7 +358,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.MapEdit(
-            Vector(
+            Chunk(
               DynamicPatch.MapOp.Add(stringVal("b"), intVal(2)),
               DynamicPatch.MapOp.Remove(stringVal("a"))
             )
@@ -418,7 +418,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("fails on non-existent map key for Remove") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -426,7 +426,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("fails on duplicate key for Add") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("a"), intVal(2))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(stringVal("a"), intVal(2))))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -443,7 +443,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("fails on invalid Insert index") {
         val original = DynamicValue.Sequence(Chunk(intVal(1)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(10, Chunk(intVal(2)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Insert(10, Chunk(intVal(2)))))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -451,7 +451,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("fails on invalid Delete range") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(0, 10)))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(0, 10)))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -461,7 +461,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("skips operation on missing field") {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(DynamicOptic.root.field("nonexistent"), DynamicPatch.Operation.Set(intVal(99))),
             DynamicPatch.DynamicPatchOp(DynamicOptic.root.field("age"), DynamicPatch.Operation.Set(intVal(31)))
           )
@@ -473,7 +473,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.MapEdit(
-            Vector(
+            Chunk(
               DynamicPatch.MapOp.Remove(stringVal("nonexistent")),
               DynamicPatch.MapOp.Add(stringVal("b"), intVal(2))
             )
@@ -495,7 +495,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.MapEdit(
-            Vector(
+            Chunk(
               DynamicPatch.MapOp.Add(stringVal("a"), intVal(99)),
               DynamicPatch.MapOp.Add(stringVal("b"), intVal(2))
             )
@@ -518,7 +518,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("overwrites on duplicate key for Add") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("a"), intVal(99))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(stringVal("a"), intVal(99))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Map(Chunk(stringVal("a") -> intVal(99)))))
@@ -526,7 +526,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("succeeds on Remove non-existent key (no-op)") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(original))
@@ -534,7 +534,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("clamps Insert index to valid range") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(100, Chunk(intVal(3)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Insert(100, Chunk(intVal(3)))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(
@@ -544,7 +544,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("clamps Delete range to valid range") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(1, 100)))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(1, 100)))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1)))))
@@ -595,7 +595,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         val patch = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(stringVal("person1")), DynamicOptic.Node.Field("name"))),
+          DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(stringVal("person1")), DynamicOptic.Node.Field("name"))),
           DynamicPatch.Operation.Set(stringVal("Alicia"))
         )
         val result = patch(original)
@@ -625,7 +625,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
         val patch = DynamicPatch(
           DynamicOptic(
-            Vector(
+            Chunk(
               DynamicOptic.Node.Field("data"),
               DynamicOptic.Node.AtIndex(0),
               DynamicOptic.Node.AtMapKey(stringVal("value"))
@@ -705,7 +705,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("DynamicPatch roundtrips through JSON") {
         roundTrip(
           DynamicPatch(
-            Vector(
+            Chunk(
               DynamicPatch.DynamicPatchOp(DynamicOptic.root.field("name"), DynamicPatch.Operation.Set(stringVal("Bob")))
             )
           ),
@@ -741,7 +741,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = stringVal("Hello")
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(5, " 世界")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(5, " 世界")))
           )
         )
         val result = patch(original)
@@ -751,7 +751,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = stringVal("")
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(0, "Hello")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(0, "Hello")))
           )
         )
         val result = patch(original)
@@ -769,14 +769,14 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("Sequence operation on non-sequence fails") {
         val original = intVal(42)
         val patch    =
-          DynamicPatch.root(DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Append(Chunk(intVal(1))))))
+          DynamicPatch.root(DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Append(Chunk(intVal(1))))))
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("Map operation on non-map fails") {
         val original = intVal(42)
         val patch    =
-          DynamicPatch.root(DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("a"), intVal(1)))))
+          DynamicPatch.root(DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(stringVal("a"), intVal(1)))))
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
       }
@@ -799,7 +799,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Nested patch: Update all address fields using Operation.Patch
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("street"),
               DynamicPatch.Operation.Set(stringVal("456 Elm"))
@@ -816,7 +816,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address"),
               DynamicPatch.Operation.Patch(nestedPatch)
@@ -857,7 +857,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Flat approach: Each operation has full path
         val flatPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address").field("street"),
               DynamicPatch.Operation.Set(stringVal("456 Elm"))
@@ -875,7 +875,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Nested approach: Path to parent + nested patch for children
         val nestedPatchOps = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("street"),
               DynamicPatch.Operation.Set(stringVal("456 Elm"))
@@ -892,7 +892,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address"),
               DynamicPatch.Operation.Patch(nestedPatchOps)
@@ -921,9 +921,9 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
 
-        val emptyNestedPatch = DynamicPatch(Vector.empty)
+        val emptyNestedPatch = DynamicPatch(Chunk.empty)
         val patch            = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address"),
               DynamicPatch.Operation.Patch(emptyNestedPatch)
@@ -947,7 +947,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val singleOpPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("city"),
               DynamicPatch.Operation.Set(stringVal("LA"))
@@ -956,7 +956,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address"),
               DynamicPatch.Operation.Patch(singleOpPatch)
@@ -991,7 +991,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("count"),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
@@ -1004,7 +1004,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("stats"),
               DynamicPatch.Operation.Patch(nestedPatch)
@@ -1039,7 +1039,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Nested patch tries to set a non-existent field
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("nonexistent"),
               DynamicPatch.Operation.Set(stringVal("value"))
@@ -1048,7 +1048,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address"),
               DynamicPatch.Operation.Patch(nestedPatch)
@@ -1072,7 +1072,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Nested patch tries to set a non-existent field
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("nonexistent"),
               DynamicPatch.Operation.Set(stringVal("value"))
@@ -1081,7 +1081,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("address"),
               DynamicPatch.Operation.Patch(nestedPatch)
@@ -1119,7 +1119,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Level 3: Patch for team (innermost)
         val teamPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("members"),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(2))
@@ -1133,7 +1133,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Level 2: Patch for department (wraps team patch)
         val departmentPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("team"),
               DynamicPatch.Operation.Patch(teamPatch)
@@ -1143,12 +1143,12 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Level 1: Patch for company (wraps department patch)
         val companyPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("company"),
               DynamicPatch.Operation.Patch(
                 DynamicPatch(
-                  Vector(
+                  Chunk(
                     DynamicPatch.DynamicPatchOp(
                       DynamicOptic.root.field("department"),
                       DynamicPatch.Operation.Patch(departmentPatch)
@@ -1201,7 +1201,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val nestedPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("name"),
               DynamicPatch.Operation.Set(stringVal("Bob"))
@@ -1213,7 +1213,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("tags"),
               DynamicPatch.Operation.SequenceEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.SeqOp.Append(Chunk(stringVal("premium"), stringVal("verified")))
                 )
               )
@@ -1226,7 +1226,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("user"),
               DynamicPatch.Operation.Patch(nestedPatch)
@@ -1277,7 +1277,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Update Bob's record (index 1) using nested patch
         val userPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("name"),
               DynamicPatch.Operation.Set(stringVal("Robert"))
@@ -1290,7 +1290,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("users").at(1),
               DynamicPatch.Operation.Patch(userPatch)
@@ -1346,7 +1346,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Update theme settings using nested patch
         val themePatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("color"),
               DynamicPatch.Operation.Set(stringVal("red"))
@@ -1359,9 +1359,9 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
-              DynamicOptic(Vector(DynamicOptic.Node.Field("settings"), DynamicOptic.Node.AtMapKey(stringVal("theme")))),
+              DynamicOptic(Chunk(DynamicOptic.Node.Field("settings"), DynamicOptic.Node.AtMapKey(stringVal("theme")))),
               DynamicPatch.Operation.Patch(themePatch)
             )
           )
@@ -1416,7 +1416,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Patch for metadata.author
         val authorPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("name"),
               DynamicPatch.Operation.Set(stringVal("Alice Smith"))
@@ -1430,7 +1430,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Patch for stats
         val statsPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("views"),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(500))
@@ -1444,7 +1444,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
 
         // Combine everything
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("metadata").field("version"),
               DynamicPatch.Operation.Set(stringVal("2.0.0"))
@@ -1621,7 +1621,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders StringEdit with Insert") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Insert(5, "hello")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(5, "hello")))
           )
         )
         assertTrue(patch.toString.contains("[5") && patch.toString.contains("hello"))
@@ -1629,7 +1629,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders StringEdit with Delete") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Delete(0, 5)))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Delete(0, 5)))
           )
         )
         assertTrue(patch.toString.contains("-") && patch.toString.contains("[0"))
@@ -1637,7 +1637,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders StringEdit with Append") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Append(" suffix")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append(" suffix")))
           )
         )
         assertTrue(patch.toString.contains("+") && patch.toString.contains("suffix"))
@@ -1645,7 +1645,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders StringEdit with Modify") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.PrimitiveDelta(
-            DynamicPatch.PrimitiveOp.StringEdit(Vector(DynamicPatch.StringOp.Modify(2, 3, "new")))
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Modify(2, 3, "new")))
           )
         )
         assertTrue(patch.toString.contains("~") && patch.toString.contains("new"))
@@ -1657,7 +1657,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders SequenceEdit with Modify") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.SequenceEdit(
-            Vector(DynamicPatch.SeqOp.Modify(0, DynamicPatch.Operation.Set(intVal(99))))
+            Chunk(DynamicPatch.SeqOp.Modify(0, DynamicPatch.Operation.Set(intVal(99))))
           )
         )
         assertTrue(patch.toString.contains("~") && patch.toString.contains("[0"))
@@ -1665,7 +1665,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders SequenceEdit with nested operation") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.SequenceEdit(
-            Vector(
+            Chunk(
               DynamicPatch.SeqOp.Modify(
                 0,
                 DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
@@ -1678,11 +1678,11 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("renders MapEdit with Modify") {
         val patch = DynamicPatch.root(
           DynamicPatch.Operation.MapEdit(
-            Vector(
+            Chunk(
               DynamicPatch.MapOp.Modify(
                 stringVal("key"),
                 DynamicPatch(
-                  Vector(DynamicPatch.DynamicPatchOp(DynamicOptic.root, DynamicPatch.Operation.Set(intVal(1))))
+                  Chunk(DynamicPatch.DynamicPatchOp(DynamicOptic.root, DynamicPatch.Operation.Set(intVal(1))))
                 )
               )
             )
@@ -1695,7 +1695,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("clobber mode clamps insert index") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(100, Chunk(intVal(99)))))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Insert(100, Chunk(intVal(99)))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(99)))))
@@ -1703,7 +1703,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("clobber mode handles delete out of bounds") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
-          DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(100, 5)))
+          DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(100, 5)))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))))
@@ -1715,7 +1715,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         val patch = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Add(stringVal("a"), intVal(99))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Add(stringVal("a"), intVal(99))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(DynamicValue.Map(Chunk(stringVal("a") -> intVal(99)))))
@@ -1727,7 +1727,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         val patch = DynamicPatch.root(
-          DynamicPatch.Operation.MapEdit(Vector(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
+          DynamicPatch.Operation.MapEdit(Chunk(DynamicPatch.MapOp.Remove(stringVal("nonexistent"))))
         )
         val result = patch(original, PatchMode.Clobber)
         assertTrue(result == Right(original))
@@ -1737,7 +1737,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("Wrapped node applies operation to value") {
         val original = intVal(42)
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.Wrapped)),
+          DynamicOptic(Chunk(DynamicOptic.Node.Wrapped)),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(8))
         )
         val result = patch(original)
@@ -1746,7 +1746,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("Wrapped node navigates deeper") {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.Wrapped, DynamicOptic.Node.Field("age"))),
+          DynamicOptic(Chunk(DynamicOptic.Node.Wrapped, DynamicOptic.Node.Field("age"))),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
         )
         val result = patch(original)
@@ -1757,7 +1757,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("AtIndices is not supported") {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2), intVal(3)))
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Chunk(0, 2)))),
+          DynamicOptic(Chunk(DynamicOptic.Node.AtIndices(Chunk(0, 2)))),
           DynamicPatch.Operation.Set(intVal(99))
         )
         val result = patch(original)
@@ -1766,7 +1766,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("MapKeys is not supported") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.MapKeys)),
+          DynamicOptic(Chunk(DynamicOptic.Node.MapKeys)),
           DynamicPatch.Operation.Set(stringVal("b"))
         )
         val result = patch(original)
@@ -1775,7 +1775,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("MapValues is not supported") {
         val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.MapValues)),
+          DynamicOptic(Chunk(DynamicOptic.Node.MapValues)),
           DynamicPatch.Operation.Set(intVal(99))
         )
         val result = patch(original)
