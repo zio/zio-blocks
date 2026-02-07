@@ -73,8 +73,7 @@ Scope makes "what scope this value belongs to" part of the value's type via the 
 - `$[T]` returns a **scoped value**: `T @@ Tag`
 - `T @@ Tag` **hides all methods** on `T`
 - You can only use a scoped value by calling `scoped $ (_.method(...))`
-- `$` (and `.get`) require `ScopeProof[Tag]`, which is derived **only** from `Scope.Permit[Tag]`
-- `Scope.Permit[Tag]` is an **unforgeable token** provided by `.use`
+- `$` (and `.get`) require `Scope.Permit[Tag]`, an **unforgeable token** provided only by `.use`
 
 Concretely:
 
@@ -113,10 +112,10 @@ val escaped: TempFile @@ ? =
   }
 
 // escaped.write("x")          // DOES NOT COMPILE (methods hidden)
-// escaped $ (_.write("x"))    // DOES NOT COMPILE: no ScopeProof for that Tag outside `.use`
+// escaped $ (_.write("x"))    // DOES NOT COMPILE: no Scope.Permit for that Tag outside `.use`
 ```
 
-That last line fails specifically because `ScopeProof[S]` is only available inside `.use`, where the library provides:
+That last line fails specifically because `Scope.Permit[S]` is only available inside `.use`, where the library provides:
 
 - `Scope.Permit[self.Tag]` (the unforgeable capability)
 - `Context[Head] @@ self.Tag`
@@ -124,8 +123,8 @@ That last line fails specifically because `ScopeProof[S]` is only available insi
 
 So the compiler enforces the core guarantee:
 
-- **Inside** `.use`: you have `Scope.Permit[Tag]` ⇒ you get `ScopeProof[Tag]` ⇒ you can use scoped values via `$`.
-- **Outside** `.use`: you do *not* have `Scope.Permit[Tag]` ⇒ you cannot obtain `ScopeProof[Tag]` ⇒ you cannot use scoped values.
+- **Inside** `.use`: you have `Scope.Permit[Tag]` ⇒ you can use scoped values via `$`.
+- **Outside** `.use`: you do *not* have `Scope.Permit[Tag]` ⇒ you cannot use scoped values.
 
 **What you get:**
 - Construction correctness (like other DI approaches)

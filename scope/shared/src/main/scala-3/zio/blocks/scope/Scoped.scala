@@ -40,27 +40,6 @@ package zio.blocks.scope
 opaque infix type @@[+A, +S] = A
 
 /**
- * Evidence that we have access to a scope with tag `S`.
- *
- * `ScopeProof[S]` is derived from `Scope.Permit[S]`, which is only available
- * inside a `.use` block. This ensures that operations requiring scope access
- * (like `$` and `.get` on scoped values) can only be called within a valid
- * scope context.
- *
- * @tparam S
- *   the scope tag this proof is valid for
- */
-sealed trait ScopeProof[-S]
-
-object ScopeProof {
-
-  /** Scope.Permit provides scope proof. */
-  given fromPermit[S](using Scope.Permit[S]): ScopeProof[S] = instance.asInstanceOf[ScopeProof[S]]
-
-  private[scope] val instance: ScopeProof[Any] = new ScopeProof[Any] {}
-}
-
-/**
  * Companion object for the `@@` opaque type, providing factory methods and
  * extension operations.
  */
