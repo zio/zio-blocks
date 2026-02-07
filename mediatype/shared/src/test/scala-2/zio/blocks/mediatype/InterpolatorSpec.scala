@@ -65,6 +65,54 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
           mediaType"application/"
           """
         }.map(result => assertTrue(result.isLeft && result.left.get.contains("subtype cannot be empty")))
+      },
+      test("whitespace-only string produces clear error") {
+        typeCheck {
+          """
+          import zio.blocks.mediatype._
+          mediaType"   "
+          """
+        }.map(result => assertTrue(result.isLeft && result.left.get.contains("must contain '/'")))
+      },
+      test("only slash produces clear error") {
+        typeCheck {
+          """
+          import zio.blocks.mediatype._
+          mediaType"/"
+          """
+        }.map(result => assertTrue(result.isLeft && result.left.get.contains("main type cannot be empty")))
+      },
+      test("trailing whitespace in main type produces clear error") {
+        typeCheck {
+          """
+          import zio.blocks.mediatype._
+          mediaType"  /json"
+          """
+        }.map(result => assertTrue(result.isLeft && result.left.get.contains("main type cannot be empty")))
+      },
+      test("trailing whitespace in subtype produces clear error") {
+        typeCheck {
+          """
+          import zio.blocks.mediatype._
+          mediaType"text/  "
+          """
+        }.map(result => assertTrue(result.isLeft && result.left.get.contains("subtype cannot be empty")))
+      },
+      test("variable interpolation is rejected") {
+        typeCheck {
+          """
+          import zio.blocks.mediatype._
+          val x = "json"
+          mediaType"application/$x"
+          """
+        }.map(result => assertTrue(result.isLeft && result.left.get.contains("does not support variable interpolation")))
+      },
+      test("multiple slashes handled correctly") {
+        val mt = mediaType"text/vnd.api+json"
+        assertTrue(
+          mt.mainType == "text",
+          mt.subType == "vnd.api+json"
+        )
       }
     )
   )
