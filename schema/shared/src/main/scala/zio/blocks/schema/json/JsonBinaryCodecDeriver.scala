@@ -1929,11 +1929,14 @@ class JsonBinaryCodecDeriver private[json] (
             override def encodeValue(x: A, out: JsonWriter): Unit = {
               out.writeObjectStart()
               if (discriminatorField ne null) discriminatorField.writeKeyAndValue(out)
+              val len = fieldInfos.length
+              if (len > 0 && usedRegisters == 0) {
+                usedRegisters = fieldInfos(len - 1).usedRegisters // delayed initialization for recursive records
+              }
               val top = out.push(usedRegisters)
               try {
                 val regs = out.registers
                 deconstructor.deconstruct(regs, top, x)
-                val len = fieldInfos.length
                 var idx = 0
                 while (idx < len) {
                   val fieldInfo = fieldInfos(idx)
