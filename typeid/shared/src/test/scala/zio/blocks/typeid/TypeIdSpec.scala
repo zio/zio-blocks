@@ -594,7 +594,7 @@ object TypeIdSpec extends ZIOSpecDefault {
             Owner.Root / "test",
             Nil,
             Nil,
-            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(listInt))
+            TypeDefKind.Trait(isSealed = false, bases = List(listInt))
           )
           assertTrue(TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.list, Set.empty))
         },
@@ -605,7 +605,7 @@ object TypeIdSpec extends ZIOSpecDefault {
             Owner.Root / "test",
             Nil,
             Nil,
-            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(stringParent))
+            TypeDefKind.Trait(isSealed = false, bases = List(stringParent))
           )
           assertTrue(!TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.int, Set.empty))
         }

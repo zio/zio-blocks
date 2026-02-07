@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
@@ -47,56 +48,56 @@ object LCSSpec extends SchemaBaseSpec {
     ),
     suite("indicesLCS")(
       test("empty sequences") {
-        val result = LCS.indicesLCS(Vector.empty[Int], Vector.empty[Int])(_ == _)
-        assertTrue(result == Vector.empty)
+        val result = LCS.indicesLCS(Chunk.empty[Int], Chunk.empty[Int])(_ == _)
+        assertTrue(result == Chunk.empty)
       },
       test("one empty sequence") {
-        val result1 = LCS.indicesLCS(Vector(1, 2, 3), Vector.empty[Int])(_ == _)
-        val result2 = LCS.indicesLCS(Vector.empty[Int], Vector(1, 2, 3))(_ == _)
-        assertTrue(result1 == Vector.empty) &&
-        assertTrue(result2 == Vector.empty)
+        val result1 = LCS.indicesLCS(Chunk(1, 2, 3), Chunk.empty[Int])(_ == _)
+        val result2 = LCS.indicesLCS(Chunk.empty[Int], Chunk(1, 2, 3))(_ == _)
+        assertTrue(result1 == Chunk.empty) &&
+        assertTrue(result2 == Chunk.empty)
       },
       test("identical sequences") {
-        val result = LCS.indicesLCS(Vector(1, 2, 3), Vector(1, 2, 3))(_ == _)
-        assertTrue(result == Vector((0, 0), (1, 1), (2, 2)))
+        val result = LCS.indicesLCS(Chunk(1, 2, 3), Chunk(1, 2, 3))(_ == _)
+        assertTrue(result == Chunk((0, 0), (1, 1), (2, 2)))
       },
       test("no common elements") {
-        val result = LCS.indicesLCS(Vector(1, 2, 3), Vector(4, 5, 6))(_ == _)
-        assertTrue(result == Vector.empty)
+        val result = LCS.indicesLCS(Chunk(1, 2, 3), Chunk(4, 5, 6))(_ == _)
+        assertTrue(result == Chunk.empty)
       },
       test("single common element") {
-        val result = LCS.indicesLCS(Vector(1, 2, 3), Vector(4, 2, 5))(_ == _)
-        assertTrue(result == Vector((1, 1)))
+        val result = LCS.indicesLCS(Chunk(1, 2, 3), Chunk(4, 2, 5))(_ == _)
+        assertTrue(result == Chunk((1, 1)))
       },
       test("subsequence at start") {
-        val result = LCS.indicesLCS(Vector(1, 2, 3, 4), Vector(1, 2, 5, 6))(_ == _)
-        assertTrue(result == Vector((0, 0), (1, 1)))
+        val result = LCS.indicesLCS(Chunk(1, 2, 3, 4), Chunk(1, 2, 5, 6))(_ == _)
+        assertTrue(result == Chunk((0, 0), (1, 1)))
       },
       test("subsequence at end") {
-        val result = LCS.indicesLCS(Vector(1, 2, 3, 4), Vector(5, 6, 3, 4))(_ == _)
-        assertTrue(result == Vector((2, 2), (3, 3)))
+        val result = LCS.indicesLCS(Chunk(1, 2, 3, 4), Chunk(5, 6, 3, 4))(_ == _)
+        assertTrue(result == Chunk((2, 2), (3, 3)))
       },
       test("interleaved subsequence") {
-        val result = LCS.indicesLCS(Vector(1, 9, 2, 8, 3), Vector(1, 2, 3))(_ == _)
-        assertTrue(result == Vector((0, 0), (2, 1), (4, 2)))
+        val result = LCS.indicesLCS(Chunk(1, 9, 2, 8, 3), Chunk(1, 2, 3))(_ == _)
+        assertTrue(result == Chunk((0, 0), (2, 1), (4, 2)))
       },
       test("with custom equality") {
         // Case-insensitive string comparison
         val result = LCS.indicesLCS(
-          Vector("A", "B", "C"),
-          Vector("a", "b", "c")
+          Chunk("A", "B", "C"),
+          Chunk("a", "b", "c")
         )(_.equalsIgnoreCase(_))
-        assertTrue(result == Vector((0, 0), (1, 1), (2, 2)))
+        assertTrue(result == Chunk((0, 0), (1, 1), (2, 2)))
       },
       test("with duplicates - picks first match") {
-        val result = LCS.indicesLCS(Vector(1, 1, 2), Vector(1, 2, 2))(_ == _)
+        val result = LCS.indicesLCS(Chunk(1, 1, 2), Chunk(1, 2, 2))(_ == _)
         // LCS is [1, 2], matching indices should be valid
         assertTrue(result.length == 2) &&
         assertTrue(result.map(_._1).forall(i => i >= 0 && i < 3)) &&
         assertTrue(result.map(_._2).forall(i => i >= 0 && i < 3))
       },
       test("indices are in ascending order") {
-        val result     = LCS.indicesLCS(Vector(3, 1, 4, 1, 5, 9), Vector(1, 4, 5))(_ == _)
+        val result     = LCS.indicesLCS(Chunk(3, 1, 4, 1, 5, 9), Chunk(1, 4, 5))(_ == _)
         val oldIndices = result.map(_._1)
         val newIndices = result.map(_._2)
         assertTrue(oldIndices == oldIndices.sorted) &&
@@ -104,11 +105,11 @@ object LCSSpec extends SchemaBaseSpec {
       },
       test("works with complex types") {
         case class Item(id: Int, name: String)
-        val old  = Vector(Item(1, "a"), Item(2, "b"), Item(3, "c"))
-        val new_ = Vector(Item(1, "x"), Item(4, "d"), Item(3, "c"))
+        val old  = Chunk(Item(1, "a"), Item(2, "b"), Item(3, "c"))
+        val new_ = Chunk(Item(1, "x"), Item(4, "d"), Item(3, "c"))
         // Compare by id only
         val result = LCS.indicesLCS(old, new_)(_.id == _.id)
-        assertTrue(result == Vector((0, 0), (2, 2)))
+        assertTrue(result == Chunk((0, 0), (2, 2)))
       }
     ),
     suite("property-based")(
@@ -132,8 +133,8 @@ object LCSSpec extends SchemaBaseSpec {
       },
       test("indicesLCS produces valid indices") {
         check(Gen.listOf(Gen.int(-10, 10)), Gen.listOf(Gen.int(-10, 10))) { (l1, l2) =>
-          val v1     = l1.toVector
-          val v2     = l2.toVector
+          val v1     = Chunk.from(l1)
+          val v2     = Chunk.from(l2)
           val result = LCS.indicesLCS(v1, v2)(_ == _)
           assertTrue(result.forall { case (i, j) =>
             i >= 0 && i < v1.length && j >= 0 && j < v2.length && v1(i) == v2(j)
@@ -142,8 +143,8 @@ object LCSSpec extends SchemaBaseSpec {
       },
       test("indicesLCS indices are strictly increasing") {
         check(Gen.listOf(Gen.int(-10, 10)), Gen.listOf(Gen.int(-10, 10))) { (l1, l2) =>
-          val v1         = l1.toVector
-          val v2         = l2.toVector
+          val v1         = Chunk.from(l1)
+          val v2         = Chunk.from(l2)
           val result     = LCS.indicesLCS(v1, v2)(_ == _)
           val oldIndices = result.map(_._1)
           val newIndices = result.map(_._2)
@@ -166,6 +167,6 @@ object LCSSpec extends SchemaBaseSpec {
     subIdx == sub.length
   }
 
-  private def isStrictlyIncreasing(v: Vector[Int]): Boolean =
+  private def isStrictlyIncreasing(v: Chunk[Int]): Boolean =
     v.length <= 1 || v.zip(v.drop(1)).forall { case (a, b) => a < b }
 }

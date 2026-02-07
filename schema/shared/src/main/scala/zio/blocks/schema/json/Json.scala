@@ -7,6 +7,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
+import java.util
 import scala.util.control.NonFatal
 
 /**
@@ -306,7 +307,7 @@ sealed trait Json {
    *   {{{json.select(JsonType.Object) // selection if json is object, else empty}}}
    */
   def select(jsonType: JsonType): JsonSelection =
-    if (this.jsonType == jsonType) JsonSelection.succeed(this)
+    if (this.jsonType eq jsonType) JsonSelection.succeed(this)
     else JsonSelection.empty
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -505,7 +506,7 @@ object Json {
           else (kv._1, v2)
         idx += 1
       }
-      java.util.Arrays.sort(
+      util.Arrays.sort(
         arr,
         0,
         arr.length,
@@ -533,7 +534,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Object(Chunk.fromArray(arr))
     }
 
@@ -560,7 +561,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Object(Chunk.fromArray(arr))
     }
 
@@ -588,8 +589,8 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
-      java.util.Arrays.sort(
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
+      util.Arrays.sort(
         arr,
         0,
         arr.length,
@@ -688,7 +689,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Array(Chunk.fromArray(arr))
     }
 
@@ -711,7 +712,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Array(Chunk.fromArray(arr))
     }
 
@@ -735,7 +736,7 @@ object Json {
         }
         idx += 1
       }
-      if (arr.length != size) arr = java.util.Arrays.copyOf(arr, size)
+      if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
       new Array(Chunk.fromArray(arr))
     }
 
@@ -947,7 +948,7 @@ object Json {
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
     case DynamicValue.Null                     => Null
     case v: DynamicValue.Primitive             => fromPrimitiveValue(v.value)
-    case v: DynamicValue.Record                => new Object(v.fields.map { case (k, v) => (k, fromDynamicValue(v)) })
+    case v: DynamicValue.Record                => new Object(v.fields.map(kv => (kv._1, fromDynamicValue(kv._2))))
     case DynamicValue.Variant(caseName, value) => new Object(Chunk.single((caseName, fromDynamicValue(value))))
     case v: DynamicValue.Sequence              => new Array(v.elements.map(fromDynamicValue))
     case v: DynamicValue.Map                   =>
@@ -962,8 +963,8 @@ object Json {
           (k.value, fromDynamicValue(v))
         })
       } else {
-        new Array(entries.map { case (k, v) =>
-          new Object(Chunk(("key", fromDynamicValue(k)), ("value", fromDynamicValue(v))))
+        new Array(entries.map { kv =>
+          new Object(Chunk(("key", fromDynamicValue(kv._1)), ("value", fromDynamicValue(kv._2))))
         })
       }
   }
@@ -1015,7 +1016,7 @@ object Json {
         else new DynamicValue.Primitive(new PrimitiveValue.Long(longValue))
       } else new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
     case arr: Array  => new DynamicValue.Sequence(arr.value.map(toDynamicValue))
-    case obj: Object => new DynamicValue.Record(obj.value.map { case (k, v) => (k, toDynamicValue(v)) })
+    case obj: Object => new DynamicValue.Record(obj.value.map(kv => (kv._1, toDynamicValue(kv._2))))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1236,7 +1237,7 @@ object Json {
       path,
       json,
       json match {
-        case obj: Object => obj.value.foldLeft(z) { case (acc, (k, v)) => foldUpImpl(v, path.field(k), acc, f) }
+        case obj: Object => obj.value.foldLeft(z)((acc, kv) => foldUpImpl(kv._2, path.field(kv._1), acc, f))
         case arr: Array  =>
           arr.value.foldLeft(z) {
             var idx = -1
@@ -1251,7 +1252,7 @@ object Json {
   private def foldDownImpl[B](json: Json, path: DynamicOptic, z: B, f: (DynamicOptic, Json, B) => B): B = {
     val afterThis = f(path, json, z)
     json match {
-      case obj: Object => obj.value.foldLeft(afterThis) { case (acc, (k, v)) => foldDownImpl(v, path.field(k), acc, f) }
+      case obj: Object => obj.value.foldLeft(afterThis)((acc, kv) => foldDownImpl(kv._2, path.field(kv._1), acc, f))
       case arr: Array  =>
         arr.value.foldLeft(afterThis) {
           var idx = -1
@@ -1361,7 +1362,7 @@ object Json {
     def collect(j: Json, currentPath: DynamicOptic): Unit = {
       if (p(currentPath, j)) results.addOne(j)
       j match {
-        case obj: Object => obj.value.foreach { case (k, v) => collect(v, currentPath.field(k)) }
+        case obj: Object => obj.value.foreach(kv => collect(kv._2, currentPath.field(kv._1)))
         case arr: Array  =>
           arr.value.foreach {
             var idx = -1
@@ -1425,7 +1426,7 @@ object Json {
     val len = kvs.length
     if (len == 0) return Null
     if (len == 1 && kvs.head._1.nodes.isEmpty) return kvs.head._2 // Simple case: single root value
-    kvs.foldLeft[Json](Null) { case (acc, (path, value)) => setOrCreatePath(acc, path, value) }
+    kvs.foldLeft[Json](Null)((acc, pv) => setOrCreatePath(acc, pv._1, pv._2))
   }
 
   private[this] def setOrCreatePath(json: Json, path: DynamicOptic, value: Json): Json = {
@@ -1499,11 +1500,10 @@ object Json {
     var jsons = Chunk.single(json)
     var idx   = 0
     while (idx < len) {
-      val node = nodes(idx)
-      jsons = node match {
+      jsons = nodes(idx) match {
         case field: DynamicOptic.Node.Field =>
           val name    = field.name
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case obj: Object =>
               var kv: (java.lang.String, Json) = null
@@ -1538,14 +1538,14 @@ object Json {
             case _          => Chunk.empty[Json]
           }
         case _: DynamicOptic.Node.MapKeys.type =>
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case obj: Object => obj.value.foreach(kv => results.addOne(new String(kv._1)))
             case _           => ()
           }
           results.result()
         case _: DynamicOptic.Node.MapValues.type =>
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case obj: Object => obj.value.foreach(kv => results.addOne(kv._2))
             case _           => ()
@@ -1553,7 +1553,7 @@ object Json {
           results.result()
         case atIndices: DynamicOptic.Node.AtIndices =>
           val indices = atIndices.index
-          val results = Chunk.newBuilder[Json]
+          val results = ChunkBuilder.make[Json]()
           jsons.foreach {
             case arr: Array =>
               indices.foreach {
@@ -1568,7 +1568,7 @@ object Json {
           atMapKey.key match {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
               val name    = pv.value
-              val results = Chunk.newBuilder[Json]
+              val results = ChunkBuilder.make[Json]()
               jsons.foreach {
                 case obj: Object =>
                   var kv: (java.lang.String, Json) = null
@@ -1589,25 +1589,25 @@ object Json {
           }
         case atMapKeys: DynamicOptic.Node.AtMapKeys =>
           val keys    = atMapKeys.keys
-          val keyStrs = new java.util.HashSet[java.lang.String](keys.size)
+          val keyStrs = new util.HashSet[java.lang.String](keys.size)
           keys.foreach {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
             case _                                                 => ()
           }
-          jsons.flatMap {
+          val results = ChunkBuilder.make[Json]()
+          jsons.foreach {
             case obj: Object =>
-              val results = Chunk.newBuilder[Json]
-              val kvs     = obj.value
-              val len     = kvs.length
-              var idx     = 0
+              val kvs = obj.value
+              val len = kvs.length
+              var idx = 0
               while (idx < len) {
                 val kv = kvs(idx)
                 if (keyStrs.contains(kv._1)) results.addOne(kv._2)
                 idx += 1
               }
-              results.result()
-            case _ => Chunk.empty[Json]
+            case _ => ()
           }
+          results.result()
         case _ => // Case and Wrapped are not applicable to raw JSON
           jsons
       }
@@ -1669,8 +1669,8 @@ object Json {
           case arr: Array =>
             new Some(new Array(arr.value.map { elem =>
               modifyAtPathRecursive(elem, nodes, nodeIdx + 1, f) match {
-                case Some(j) => j
-                case _       => elem
+                case Some(json) => json
+                case _          => elem
               }
             }))
           case _ => None
@@ -1682,8 +1682,8 @@ object Json {
               (
                 k,
                 modifyAtPathRecursive(v, nodes, nodeIdx + 1, f) match {
-                  case Some(j) => j
-                  case _       => v
+                  case Some(json) => json
+                  case _          => v
                 }
               )
             }))
@@ -1699,8 +1699,8 @@ object Json {
                 idx += 1
                 if (indexSet.contains(idx)) {
                   modifyAtPathRecursive(elem, nodes, nodeIdx + 1, f) match {
-                    case Some(j) => j
-                    case _       => elem
+                    case Some(json) => json
+                    case _          => elem
                   }
                 } else elem
             }))
@@ -1731,23 +1731,25 @@ object Json {
           case _ => None
         }
       case atMapKeys: DynamicOptic.Node.AtMapKeys =>
-        val keyStrs = new java.util.HashSet[java.lang.String]
+        val keyStrs = new util.HashSet[java.lang.String]
         atMapKeys.keys.foreach {
           case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
           case _                                                 => ()
         }
         json match {
           case obj: Object =>
-            new Some(new Object(obj.value.map { case (k, v) =>
+            new Some(new Object(obj.value.map { kv =>
+              val k = kv._1
               if (keyStrs.contains(k)) {
+                val v = kv._2
                 (
                   k,
                   modifyAtPathRecursive(v, nodes, nodeIdx + 1, f) match {
-                    case Some(j) => j
-                    case _       => v
+                    case Some(json) => json
+                    case _          => v
                   }
                 )
-              } else (k, v)
+              } else kv
             }))
           case _ => None
         }
@@ -1816,7 +1818,7 @@ object Json {
         case _: DynamicOptic.Node.Elements.type =>
           json match {
             case arr: Array =>
-              val builder = Chunk.newBuilder[Json]
+              val builder = ChunkBuilder.make[Json]()
               val elems   = arr.value
               val len     = elems.length
               var idx     = 0
@@ -1834,7 +1836,7 @@ object Json {
         case _: DynamicOptic.Node.MapValues.type =>
           json match {
             case obj: Object =>
-              val builder = Chunk.newBuilder[(java.lang.String, Json)]
+              val builder = ChunkBuilder.make[(java.lang.String, Json)]()
               val fields  = obj.value
               val len     = fields.length
               var idx     = 0
@@ -1904,34 +1906,31 @@ object Json {
           case arr: Array =>
             val index = atIndex.index
             val elems = arr.value
-            if (isLast) {
-              // Delete this element
-              if (index >= 0 && index < elems.length) new Some(new Array(elems.take(index) ++ elems.drop(index + 1)))
-              else None
-            } else {
-              // Navigate into the element and continue
-              if (index >= 0 && index < elems.length) {
+            if (index >= 0 && index < elems.length) {
+              if (isLast) {
+                // Delete this element
+                new Some(new Array(elems.take(index) ++ elems.drop(index + 1)))
+              } else {
+                // Navigate into the element and continue
                 deleteAtPathRecursive(elems(index), nodes, idx + 1) match {
                   case Some(newValue) => new Some(new Array(elems.updated(index, newValue)))
                   case _              => None
                 }
-              } else None
-            }
+              }
+            } else None
           case _ => None
         }
       case _: DynamicOptic.Node.Elements.type =>
-        if (isLast) {
-          // Delete all elements
-          json match {
-            case _: Array => new Some(Array.empty)
-            case _        => None
-          }
-        } else {
-          // Apply delete to each element
-          json match {
-            case arr: Array => new Some(new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1))))
-            case _          => None
-          }
+        json match {
+          case arr: Array =>
+            new Some(if (isLast) {
+              // Delete all elements
+              Array.empty
+            } else {
+              // Apply delete to each element
+              new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1)))
+            })
+          case _ => None
         }
       case _ => None // Other node types not supported for delete
     }
@@ -1975,8 +1974,9 @@ object Json {
                 else fieldIdx += 1
               }
               if (found) {
-                insertAtPathRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value).map { newValue =>
-                  new Object(fields.updated(fieldIdx, (name, newValue)))
+                insertAtPathRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value) match {
+                  case Some(newValue) => new Some(new Object(fields.updated(fieldIdx, (name, newValue))))
+                  case _              => None
                 }
               } else None
             }
@@ -1995,8 +1995,9 @@ object Json {
             } else {
               // Navigate into the element and continue
               if (index >= 0 && index < elems.length) {
-                insertAtPathRecursive(elems(index), nodes, nodeIdx + 1, value).map { newValue =>
-                  new Array(elems.updated(index, newValue))
+                insertAtPathRecursive(elems(index), nodes, nodeIdx + 1, value) match {
+                  case Some(newValue) => new Some(new Array(elems.updated(index, newValue)))
+                  case _              => None
                 }
               } else None
             }
@@ -2041,8 +2042,9 @@ object Json {
                 else fieldIdx += 1
               }
               if (found) {
-                insertAtPathOrFailRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value).map { newValue =>
-                  new Object(fields.updated(fieldIdx, (name, newValue)))
+                insertAtPathOrFailRecursive(fields(fieldIdx)._2, nodes, nodeIdx + 1, value) match {
+                  case Right(newValue) => new Right(new Object(fields.updated(fieldIdx, (name, newValue))))
+                  case l               => l
                 }
               } else new Left(SchemaError(s"Field '$name' not found"))
             }
@@ -2059,8 +2061,9 @@ object Json {
               } else new Left(SchemaError(s"Index $index out of bounds for insert (size: ${elems.length})"))
             } else {
               if (index >= 0 && index < elems.length) {
-                insertAtPathOrFailRecursive(elems(index), nodes, nodeIdx + 1, value).map { newValue =>
-                  new Array(elems.updated(index, newValue))
+                insertAtPathOrFailRecursive(elems(index), nodes, nodeIdx + 1, value) match {
+                  case Right(newValue) => new Right(new Array(elems.updated(index, newValue)))
+                  case l               => l
                 }
               } else new Left(SchemaError(s"Index $index out of bounds (size: ${elems.length})"))
             }
@@ -2279,56 +2282,67 @@ object Json {
     )
   )
 
-  implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json]() {
+  implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
     override def decodeValue(in: JsonReader, default: Json): Json = {
-      val b = in.nextToken()
-      if (b == '"') {
+      var x = in.nextToken().toInt
+      if (x == '"') {
         in.rollbackToken()
         new String(in.readString(null))
-      } else if (b == 'f' || b == 't') {
+      } else if (x == 'f' || x == 't') {
         in.rollbackToken()
         Boolean.apply(in.readBoolean())
-      } else if (b >= '0' && b <= '9' || b == '-') {
+      } else if (x >= '0' && x <= '9' || x == '-') {
         in.rollbackToken()
         new Number(in.readBigDecimal(null))
-      } else if (b == '[') {
+      } else if (x == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
           in.rollbackToken()
-          val builder     = ChunkBuilder.make[Json]()
-          var idx, errIdx = 0
+          var arr    = new scala.Array[Json](4)
+          var errIdx = 0
+          x = 0
           try {
             while ({
-              errIdx = idx
-              builder.addOne(decodeValue(in, default))
+              errIdx = x
+              arr(x) = decodeValue(in, default)
+              x += 1
               errIdx = -1
-              idx += 1
               in.isNextToken(',')
-            }) ()
+            }) {
+              if (arr.length == x) arr = util.Arrays.copyOf(arr, x << 1)
+            }
           } catch {
             case error if NonFatal(error) && errIdx >= 0 => in.decodeError(new DynamicOptic.Node.AtIndex(errIdx), error)
           }
-          if (in.isCurrentToken(']')) new Array(builder.result())
-          else in.arrayEndOrCommaError()
+          if (in.isCurrentToken(']')) {
+            if (arr.length != x) arr = util.Arrays.copyOf(arr, x)
+            new Array(Chunk.fromArray(arr))
+          } else in.arrayEndOrCommaError()
         }
-      } else if (b == '{') {
+      } else if (x == '{') {
         if (in.isNextToken('}')) Object.empty
         else {
           in.rollbackToken()
-          val builder               = ChunkBuilder.make[(java.lang.String, Json)]()
+          var arr                   = new scala.Array[(java.lang.String, Json)](4)
           var key: java.lang.String = null
+          x = 0
           try {
             while ({
               key = in.readKeyAsString()
-              builder.addOne((key, decodeValue(in, default)))
+              arr(x) = new Tuple2(key, decodeValue(in, default))
+              x += 1
               key = null
               in.isNextToken(',')
-            }) ()
+            }) {
+              if (arr.length == x) arr = util.Arrays.copyOf(arr, x << 1)
+            }
           } catch {
             case error if NonFatal(error) && (key ne null) => in.decodeError(new DynamicOptic.Node.Field(key), error)
           }
-          if (in.isCurrentToken('}')) new Object(builder.result())
-          else in.objectEndOrCommaError()
+          if (in.isCurrentToken('}')) {
+            if (arr.length != x) arr = util.Arrays.copyOf(arr, x)
+            new Object(Chunk.fromArray(arr))
+          } else in.objectEndOrCommaError()
         }
       } else {
         in.rollbackToken()
@@ -2342,24 +2356,13 @@ object Json {
       case num: Number   => out.writeVal(num.value)
       case arr: Array    =>
         out.writeArrayStart()
-        val vs  = arr.value
-        val len = vs.length
-        var idx = 0
-        while (idx < len) {
-          encodeValue(vs(idx), out)
-          idx += 1
-        }
+        arr.value.foreach(encodeValue(_, out))
         out.writeArrayEnd()
       case obj: Object =>
         out.writeObjectStart()
-        val kvs = obj.value
-        val len = kvs.length
-        var idx = 0
-        while (idx < len) {
-          val kv = kvs(idx)
+        obj.value.foreach { kv =>
           out.writeKey(kv._1)
           encodeValue(kv._2, out)
-          idx += 1
         }
         out.writeObjectEnd()
       case _ => out.writeNull()

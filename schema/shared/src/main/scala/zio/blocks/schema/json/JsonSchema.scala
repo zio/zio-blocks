@@ -1,8 +1,7 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{Chunk, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
-
 import java.net.URI
 import java.util.regex.{Pattern, PatternSyntaxException}
 import scala.util.control.NonFatal
@@ -20,7 +19,7 @@ object NonNegativeInt extends NonNegativeIntCompanionVersionSpecific {
 
   /** Creates a NonNegativeInt from a runtime value, returning Option. */
   def apply(n: Int): Option[NonNegativeInt] =
-    if (n >= 0) Some(new NonNegativeInt(n)) else None
+    if (n >= 0) new Some(new NonNegativeInt(n)) else None
 
   def unsafe(n: Int): NonNegativeInt = {
     require(n >= 0, s"NonNegativeInt requires n >= 0, got $n")
@@ -42,7 +41,7 @@ object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
    * Creates a PositiveNumber from a runtime BigDecimal value, returning Option.
    */
   def apply(n: BigDecimal): Option[PositiveNumber] =
-    if (n > 0) Some(new PositiveNumber(n)) else None
+    if (n > 0) new Some(new PositiveNumber(n)) else None
 
   def unsafe(n: BigDecimal): PositiveNumber = {
     require(n > 0, s"PositiveNumber requires n > 0, got $n")
@@ -50,7 +49,7 @@ object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
   }
 
   def fromInt(n: Int): Option[PositiveNumber] =
-    if (n > 0) Some(new PositiveNumber(BigDecimal(n))) else None
+    if (n > 0) new Some(new PositiveNumber(BigDecimal(n))) else None
 }
 
 /**
@@ -60,9 +59,9 @@ final case class RegexPattern(value: String) extends AnyVal {
 
   /** Compiles the pattern to a Java Pattern for validation. */
   def compiled: Either[String, Pattern] =
-    try Right(Pattern.compile(value))
+    try new Right(Pattern.compile(value))
     catch {
-      case e: PatternSyntaxException => Left(e.getMessage)
+      case e: PatternSyntaxException => new Left(e.getMessage)
     }
 }
 
@@ -72,7 +71,7 @@ object RegexPattern {
   def apply(value: String): Either[String, RegexPattern] =
     try {
       Pattern.compile(value)
-      Right(new RegexPattern(value))
+      new Right(new RegexPattern(value))
     } catch {
       case e: PatternSyntaxException => Left(e.getMessage)
     }
@@ -88,9 +87,9 @@ final case class UriReference(value: String) extends AnyVal {
 
   /** Attempts to resolve this reference against a base URI. */
   def resolve(base: URI): Either[String, URI] =
-    try Right(base.resolve(value))
+    try new Right(base.resolve(value))
     catch {
-      case e if NonFatal(e) => Left(e.getMessage)
+      case e if NonFatal(e) => new Left(e.getMessage)
     }
 }
 
@@ -156,9 +155,7 @@ private[json] object FormatValidator {
     }
 
   private val dateTimePattern: Pattern =
-    Pattern.compile(
-      "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$"
-    )
+    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$")
 
   private val datePattern: Pattern =
     Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
@@ -203,94 +200,70 @@ private[json] object FormatValidator {
     Pattern.compile("^(/([^~/]|~0|~1)*)*$")
 
   private def validateDateTime(value: String): Option[String] =
-    if (dateTimePattern.matcher(value).matches()) {
-      validateDateTimeSemantics(value)
-    } else {
-      Some(s"String '$value' is not a valid date-time (RFC 3339)")
-    }
+    if (dateTimePattern.matcher(value).matches()) validateDateTimeSemantics(value)
+    else new Some(s"String '$value' is not a valid date-time (RFC 3339)")
 
-  private def validateDateTimeSemantics(value: String): Option[String] = {
-    val datePart = value.substring(0, 10)
-    validateDateSemantics(datePart)
-  }
+  private def validateDateTimeSemantics(value: String): Option[String] =
+    validateDateSemantics(value.substring(0, 10))
 
   private def validateDate(value: String): Option[String] =
-    if (datePattern.matcher(value).matches()) {
-      validateDateSemantics(value)
-    } else {
-      Some(s"String '$value' is not a valid date (RFC 3339)")
-    }
+    if (datePattern.matcher(value).matches()) validateDateSemantics(value)
+    else new Some(s"String '$value' is not a valid date (RFC 3339)")
 
   private def validateDateSemantics(value: String): Option[String] =
     try {
       val year  = value.substring(0, 4).toInt
       val month = value.substring(5, 7).toInt
       val day   = value.substring(8, 10).toInt
-
-      if (month < 1 || month > 12) {
-        Some(s"Invalid month $month in date '$value'")
-      } else {
+      if (month < 1 || month > 12) new Some(s"Invalid month $month in date '$value'")
+      else {
         val maxDays = month match {
           case 2                           => if (isLeapYear(year)) 29 else 28
           case 4 | 6 | 9 | 11              => 30
           case 1 | 3 | 5 | 7 | 8 | 10 | 12 => 31
           case _                           => 0
         }
-        if (day < 1 || day > maxDays) {
-          Some(s"Invalid day $day for month $month in date '$value'")
-        } else {
-          None
-        }
+        if (day < 1 || day > maxDays) new Some(s"Invalid day $day for month $month in date '$value'")
+        else None
       }
     } catch {
-      case _: NumberFormatException => Some(s"String '$value' is not a valid date")
+      case _: NumberFormatException => new Some(s"String '$value' is not a valid date")
     }
 
   private def isLeapYear(year: Int): scala.Boolean =
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 
   private def validateTime(value: String): Option[String] =
-    if (timePattern.matcher(value).matches()) {
-      validateTimeSemantics(value)
-    } else {
-      Some(s"String '$value' is not a valid time (RFC 3339)")
-    }
+    if (timePattern.matcher(value).matches()) validateTimeSemantics(value)
+    else new Some(s"String '$value' is not a valid time (RFC 3339)")
 
   private def validateTimeSemantics(value: String): Option[String] =
     try {
       val hour   = value.substring(0, 2).toInt
       val minute = value.substring(3, 5).toInt
       val second = value.substring(6, 8).toInt
-
-      if (hour < 0 || hour > 23) {
-        Some(s"Invalid hour $hour in time '$value'")
-      } else if (minute < 0 || minute > 59) {
-        Some(s"Invalid minute $minute in time '$value'")
-      } else if (second < 0 || second > 60) { // 60 allowed for leap seconds
-        Some(s"Invalid second $second in time '$value'")
-      } else {
-        None
-      }
+      if (hour < 0 || hour > 23) new Some(s"Invalid hour $hour in time '$value'")
+      else if (minute < 0 || minute > 59) new Some(s"Invalid minute $minute in time '$value'")
+      else if (second < 0 || second > 60) { // 60 allowed for leap seconds
+        new Some(s"Invalid second $second in time '$value'")
+      } else None
     } catch {
-      case _: NumberFormatException => Some(s"String '$value' is not a valid time")
+      case _: NumberFormatException => new Some(s"String '$value' is not a valid time")
     }
 
   private def validateEmail(value: String): Option[String] =
     if (emailPattern.matcher(value).matches() && value.length <= 254) None
-    else Some(s"String '$value' is not a valid email address")
+    else new Some(s"String '$value' is not a valid email address")
 
   private def validateUuid(value: String): Option[String] =
     if (uuidPattern.matcher(value).matches()) None
-    else Some(s"String '$value' is not a valid UUID (RFC 4122)")
+    else new Some(s"String '$value' is not a valid UUID (RFC 4122)")
 
   private def validateUri(value: String): Option[String] =
     try {
       val uri = new URI(value)
-      if (uri.getScheme == null) {
-        Some(s"String '$value' is not a valid URI (missing scheme)")
-      } else {
-        None
-      }
+      if (uri.getScheme == null) new Some(s"String '$value' is not a valid URI (missing scheme)")
+      else None
     } catch {
       case e if NonFatal(e) => Some(s"String '$value' is not a valid URI: ${e.getMessage}")
     }
@@ -300,36 +273,36 @@ private[json] object FormatValidator {
       new URI(value)
       None
     } catch {
-      case e if NonFatal(e) => Some(s"String '$value' is not a valid URI-reference: ${e.getMessage}")
+      case e if NonFatal(e) => new Some(s"String '$value' is not a valid URI-reference: ${e.getMessage}")
     }
 
   private def validateIpv4(value: String): Option[String] =
     if (ipv4Pattern.matcher(value).matches()) None
-    else Some(s"String '$value' is not a valid IPv4 address")
+    else new Some(s"String '$value' is not a valid IPv4 address")
 
   private def validateIpv6(value: String): Option[String] =
     if (ipv6Pattern.matcher(value).matches()) None
-    else Some(s"String '$value' is not a valid IPv6 address")
+    else new Some(s"String '$value' is not a valid IPv6 address")
 
   private def validateHostname(value: String): Option[String] =
     if (hostnamePattern.matcher(value).matches() && value.length <= 253) None
-    else Some(s"String '$value' is not a valid hostname (RFC 1123)")
+    else new Some(s"String '$value' is not a valid hostname (RFC 1123)")
 
   private def validateRegex(value: String): Option[String] =
     try {
       Pattern.compile(value)
       None
     } catch {
-      case e: PatternSyntaxException => Some(s"String '$value' is not a valid regex: ${e.getMessage}")
+      case e: PatternSyntaxException => new Some(s"String '$value' is not a valid regex: ${e.getMessage}")
     }
 
   private def validateDuration(value: String): Option[String] =
     if (durationPattern.matcher(value).matches() && value != "P" && value != "PT") None
-    else Some(s"String '$value' is not a valid ISO 8601 duration")
+    else new Some(s"String '$value' is not a valid ISO 8601 duration")
 
   private def validateJsonPointer(value: String): Option[String] =
     if (value.isEmpty || jsonPointerPattern.matcher(value).matches()) None
-    else Some(s"String '$value' is not a valid JSON Pointer (RFC 6901)")
+    else new Some(s"String '$value' is not a valid JSON Pointer (RFC 6901)")
 }
 
 /**
@@ -394,14 +367,14 @@ final case class EvaluationResult(
 
   def toSchemaError: Option[SchemaError] =
     if (errors.isEmpty) None
-    else Some(new SchemaError(new ::(errors.head, errors.tail)))
+    else new Some(new SchemaError(new ::(errors.head, errors.tail)))
 }
 
 object EvaluationResult {
-  val empty: EvaluationResult = EvaluationResult(Nil, Set.empty, Set.empty)
+  val empty: EvaluationResult = new EvaluationResult(Nil, Set.empty, Set.empty)
 
   def fromError(trace: List[DynamicOptic.Node], message: String): EvaluationResult =
-    EvaluationResult(
+    new EvaluationResult(
       List(SchemaError.expectationMismatch(trace, message).errors.head),
       Set.empty,
       Set.empty
@@ -472,16 +445,12 @@ sealed trait JsonSchema extends Product with Serializable {
     case (JsonSchema.True, s)                           => s
     case (s, JsonSchema.True)                           => s
     case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
-      (s1.allOf, s2.allOf) match {
-        case (Some(a1), Some(a2)) =>
-          JsonSchema.Object(allOf = Some(new ::(a1.head, a1.tail ++ a2.toList)))
-        case (Some(a1), None) =>
-          JsonSchema.Object(allOf = Some(new ::(s2, a1.toList)))
-        case (None, Some(a2)) =>
-          JsonSchema.Object(allOf = Some(new ::(s1, a2.toList)))
-        case (None, None) =>
-          JsonSchema.Object(allOf = Some(new ::(s1, s2 :: Nil)))
-      }
+      JsonSchema.Object(allOf = new Some((s1.allOf, s2.allOf) match {
+        case (Some(a1), Some(a2)) => new ::(a1.head, a1.tail ++ a2)
+        case (Some(a1), _)        => new ::(s2, a1)
+        case (_, Some(a2))        => new ::(s1, a2)
+        case _                    => new ::(s1, s2 :: Nil)
+      }))
   }
 
   /** Combine with another schema using anyOf. */
@@ -491,16 +460,12 @@ sealed trait JsonSchema extends Product with Serializable {
     case (JsonSchema.False, s)                          => s
     case (s, JsonSchema.False)                          => s
     case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
-      (s1.anyOf, s2.anyOf) match {
-        case (Some(a1), Some(a2)) =>
-          JsonSchema.Object(anyOf = Some(new ::(a1.head, a1.tail ++ a2.toList)))
-        case (Some(a1), None) =>
-          JsonSchema.Object(anyOf = Some(new ::(s2, a1.toList)))
-        case (None, Some(a2)) =>
-          JsonSchema.Object(anyOf = Some(new ::(s1, a2.toList)))
-        case (None, None) =>
-          JsonSchema.Object(anyOf = Some(new ::(s1, s2 :: Nil)))
-      }
+      JsonSchema.Object(anyOf = Some((s1.anyOf, s2.anyOf) match {
+        case (Some(a1), Some(a2)) => new ::(a1.head, a1.tail ++ a2)
+        case (Some(a1), None)     => new ::(s2, a1)
+        case (None, Some(a2))     => new ::(s1, a2)
+        case (None, None)         => new ::(s1, s2 :: Nil)
+      }))
   }
 
   /** Negate this schema. */
@@ -709,7 +674,7 @@ object JsonSchema {
   ) extends JsonSchema {
 
     override def toJson: Json = {
-      val fields = Chunk.newBuilder[(String, Json)]
+      val fields = ChunkBuilder.make[(String, Json)]()
 
       // Core vocabulary
       $id.foreach(v => fields += ("$id" -> Json.String(v.value)))
@@ -718,14 +683,10 @@ object JsonSchema {
       $dynamicAnchor.foreach(v => fields += ("$dynamicAnchor" -> Json.String(v.value)))
       $ref.foreach(v => fields += ("$ref" -> Json.String(v.value)))
       $dynamicRef.foreach(v => fields += ("$dynamicRef" -> Json.String(v.value)))
-      $vocabulary.foreach { v =>
-        val vocabObj = Json.Object(Chunk.from(v.map { case (uri, req) => (uri.toString, Json.Boolean(req)) }))
-        fields += ("$vocabulary" -> vocabObj)
-      }
-      $defs.foreach { d =>
-        val defsObj = Json.Object(Chunk.from(d.map { case (name, schema) => (name, schema.toJson) }))
-        fields += ("$defs" -> defsObj)
-      }
+      $vocabulary.foreach(v =>
+        fields += ("$vocabulary" -> toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply))
+      )
+      $defs.foreach(d => fields += ("$defs" -> toJsonObject[String, JsonSchema](d, identity, _.toJson)))
       $comment.foreach(v => fields += ("$comment" -> Json.String(v)))
 
       // Applicator vocabulary (Composition)
@@ -740,23 +701,18 @@ object JsonSchema {
       `else`.foreach(v => fields += ("else" -> v.toJson))
 
       // Applicator vocabulary (Object)
-      properties.foreach { p =>
-        val propsObj = Json.Object(Chunk.from(p.map { case (name, schema) => (name, schema.toJson) }))
-        fields += ("properties" -> propsObj)
-      }
-      patternProperties.foreach { p =>
-        val propsObj = Json.Object(Chunk.from(p.map { case (pattern, schema) => (pattern.value, schema.toJson) }))
-        fields += ("patternProperties" -> propsObj)
-      }
+      properties.foreach(p => fields += ("properties" -> toJsonObject[String, JsonSchema](p, identity, _.toJson)))
+      patternProperties.foreach(p =>
+        fields += ("patternProperties" -> toJsonObject[RegexPattern, JsonSchema](p, _.value, _.toJson))
+      )
       additionalProperties.foreach(v => fields += ("additionalProperties" -> v.toJson))
       propertyNames.foreach(v => fields += ("propertyNames" -> v.toJson))
-      dependentSchemas.foreach { d =>
-        val depsObj = Json.Object(Chunk.from(d.map { case (name, schema) => (name, schema.toJson) }))
-        fields += ("dependentSchemas" -> depsObj)
-      }
+      dependentSchemas.foreach(d =>
+        fields += ("dependentSchemas" -> toJsonObject[String, JsonSchema](d, identity, _.toJson))
+      )
 
       // Applicator vocabulary (Array)
-      prefixItems.foreach(v => fields += ("prefixItems" -> Json.Array(v.map(_.toJson): _*)))
+      prefixItems.foreach(v => fields += ("prefixItems" -> Json.Array(Chunk.from(v).map(_.toJson))))
       items.foreach(v => fields += ("items" -> v.toJson))
       contains.foreach(v => fields += ("contains" -> v.toJson))
 
@@ -766,7 +722,7 @@ object JsonSchema {
 
       // Validation vocabulary (Type)
       `type`.foreach(v => fields += ("type" -> v.toJson))
-      `enum`.foreach(v => fields += ("enum" -> Json.Array(v: _*)))
+      `enum`.foreach(v => fields += ("enum" -> Json.Array(Chunk.from(v))))
       const.foreach(v => fields += ("const" -> v))
 
       // Validation vocabulary (Numeric)
@@ -791,12 +747,10 @@ object JsonSchema {
       // Validation vocabulary (Object)
       minProperties.foreach(v => fields += ("minProperties" -> Json.Number(v.value)))
       maxProperties.foreach(v => fields += ("maxProperties" -> Json.Number(v.value)))
-      required.foreach(v => fields += ("required" -> Json.Array(v.toSeq.map(Json.String(_)): _*)))
+      required.foreach(v => fields += ("required" -> Json.Array(Chunk.from(v).map(Json.String(_)))))
       dependentRequired.foreach { d =>
-        val depsObj = Json.Object(Chunk.from(d.map { case (name, reqs) =>
-          (name, Json.Array(reqs.toSeq.map(Json.String(_)): _*))
-        }))
-        fields += ("dependentRequired" -> depsObj)
+        fields += ("dependentRequired" ->
+          toJsonObject[String, Set[String]](d, identity, reqs => Json.Array(Chunk.from(reqs).map(Json.String(_)))))
       }
 
       // Format vocabulary
@@ -814,18 +768,21 @@ object JsonSchema {
       deprecated.foreach(v => fields += ("deprecated" -> Json.Boolean(v)))
       readOnly.foreach(v => fields += ("readOnly" -> Json.Boolean(v)))
       writeOnly.foreach(v => fields += ("writeOnly" -> Json.Boolean(v)))
-      examples.foreach(v => fields += ("examples" -> Json.Array(v: _*)))
+      examples.foreach(v => fields += ("examples" -> Json.Array(Chunk.from(v))))
 
       // Extensions
-      extensions.foreach { case (k, v) => fields += (k -> v) }
+      fields.addAll(extensions)
 
-      Json.Object(fields.result())
+      new Json.Object(fields.result())
     }
 
     override def check(json: Json): Option[SchemaError] = check(json, ValidationOptions.default)
 
     override def check(json: Json, options: ValidationOptions): Option[SchemaError] =
       checkWithEvaluation(json, options, Nil).toSchemaError
+
+    private[this] def toJsonObject[K1, V1](m: ChunkMap[K1, V1], f: K1 => String, g: V1 => Json): Json.Object =
+      new Json.Object(Chunk.from(m).map(kv => (f(kv._1), g(kv._2))))
 
     /**
      * Internal validation that tracks evaluated properties and items for
@@ -838,33 +795,26 @@ object JsonSchema {
     ): EvaluationResult = {
       var result = EvaluationResult.empty
 
-      def addError(message: String): Unit =
-        result = result.addError(trace, message)
+      def addError(message: String): Unit = result = result.addError(trace, message)
 
-      def collectFromSchema(schema: JsonSchema, j: Json): EvaluationResult =
-        schema match {
-          case s: Object => s.checkWithEvaluation(j, options, trace)
-          case _         =>
-            schema.check(j, options) match {
-              case Some(e) => EvaluationResult(e.errors.toList, Set.empty, Set.empty)
-              case None    => EvaluationResult.empty
-            }
-        }
+      def collectFromSchema(schema: JsonSchema, j: Json): EvaluationResult = schema match {
+        case s: Object => s.checkWithEvaluation(j, options, trace)
+        case _         =>
+          schema.check(j, options) match {
+            case Some(e) => new EvaluationResult(e.errors, Set.empty, Set.empty)
+            case None    => EvaluationResult.empty
+          }
+      }
 
       // Handle $ref first
       $ref.foreach { refUri =>
-        if (refUri.value.startsWith("#/$defs/")) {
-          val defName = refUri.value.substring(8)
-          $defs.flatMap(_.get(defName)) match {
-            case Some(refSchema) =>
-              val refResult = collectFromSchema(refSchema, json)
-              result = result ++ refResult
-            case None =>
-              addError(s"Cannot resolve $$ref: ${refUri.value}")
+        val refUriVal = refUri.value
+        if (refUriVal.startsWith("#/$defs/")) {
+          $defs.flatMap(_.get(refUriVal.substring(8))) match {
+            case Some(refSchema) => result = result ++ collectFromSchema(refSchema, json)
+            case None            => addError(s"Cannot resolve $$ref: $refUriVal")
           }
-        } else {
-          addError(s"Unsupported $$ref format: ${refUri.value}")
-        }
+        } else addError(s"Unsupported $$ref format: $refUriVal")
       }
 
       // Type validation
@@ -1546,7 +1496,7 @@ object JsonSchema {
         "writeOnly",
         "examples"
       )
-      val extensions = ChunkMap.from(fieldMap.filterNot { case (k, _) => knownKeys.contains(k) })
+      val extensions = ChunkMap.from(fieldMap).filterNot(kv => knownKeys.contains(kv._1))
 
       Object(
         $id = getString("$id").map(UriReference(_)),

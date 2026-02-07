@@ -238,7 +238,7 @@ private[scope] object MacroCore {
         // Fallback: try to get from member type
         val inMember = other.typeSymbol.typeMember("In")
         if (inMember != Symbol.noSymbol) {
-          inMember.info match {
+          other.memberType(inMember) match {
             case TypeBounds(lo, hi) if lo =:= hi => lo
             case TypeBounds(_, hi)               => hi
             case t                               => t

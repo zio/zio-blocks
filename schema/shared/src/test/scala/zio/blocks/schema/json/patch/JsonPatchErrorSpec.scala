@@ -124,55 +124,55 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("StringEdit on non-string produces SchemaError") {
       val original = Json.Number(42)
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Append("text")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Append("text")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected String")
     },
     test("StringEdit on object produces SchemaError") {
       val original = Json.Object("a" -> Json.String("x"))
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Append("text")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Append("text")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected String")
     },
     test("StringEdit on array produces SchemaError") {
       val original = Json.Array(Json.String("x"))
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Append("text")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Append("text")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected String")
     },
     test("ArrayEdit on non-array produces SchemaError") {
       val original = Json.String("not an array")
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Number(1))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Append(Chunk(Json.Number(1))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected Array")
     },
     test("ArrayEdit on object produces SchemaError") {
       val original = Json.Object("a" -> Json.Number(1))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Number(1))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Append(Chunk(Json.Number(1))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected Array")
     },
     test("ArrayEdit on number produces SchemaError") {
       val original = Json.Number(42)
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Number(1))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Append(Chunk(Json.Number(1))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected Array")
     },
     test("ObjectEdit on non-object produces SchemaError") {
       val original = Json.Array(Json.Number(1))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("key", Json.String("value")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("key", Json.String("value")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected Object")
     },
     test("ObjectEdit on string produces SchemaError") {
       val original = Json.String("not an object")
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("key", Json.String("value")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("key", Json.String("value")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected Object")
     },
     test("ObjectEdit on number produces SchemaError") {
       val original = Json.Number(42)
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("key", Json.String("value")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("key", Json.String("value")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "Expected Object")
     }
@@ -183,68 +183,68 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private lazy val outOfBoundsSuite = suite("Out of Bounds")(
     test("Array insert at negative index fails in Strict mode") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(-1, Chunk(Json.Number(0))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(-1, Chunk(Json.Number(0))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("Array insert past end fails in Strict mode") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(10, Chunk(Json.Number(0))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(10, Chunk(Json.Number(0))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("Array delete past end fails in Strict mode") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Delete(5, 1))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Delete(5, 1))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("Array delete with count past end fails in Strict mode") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Delete(1, 5))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Delete(1, 5))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("Array modify at out of bounds index fails") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Modify(10, Op.Set(Json.Number(100))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Modify(10, Op.Set(Json.Number(100))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("String insert at negative index fails") {
       val original = Json.String("hello")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Insert(-1, "x")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Insert(-1, "x")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("String insert past end is allowed") {
       // Inserting at position = length is valid (inserts at end)
       val original = Json.String("hello")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Insert(5, "!")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Insert(5, "!")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertSuccess(result, Json.String("hello!"))
     },
     test("String insert way past end fails") {
       val original = Json.String("hello")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Insert(100, "x")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Insert(100, "x")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("String delete past end fails") {
       val original = Json.String("hello")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Delete(10, 1)))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Delete(10, 1)))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("String delete with length past end fails") {
       val original = Json.String("hello")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Delete(3, 10)))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Delete(3, 10)))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("String modify past end fails") {
       val original = Json.String("hello")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Modify(10, 1, "x")))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Modify(10, 1, "x")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     }
@@ -263,20 +263,20 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private lazy val objectOpAddModeSuite = suite("ObjectOp.Add on existing key")(
     test("Strict fails when key exists") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("name", Json.String("Bob")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("name", Json.String("Bob")))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "already exists")
     },
     test("Lenient fails when key exists") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("name", Json.String("Bob")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("name", Json.String("Bob")))))
       val result   = patch.apply(original, PatchMode.Lenient)
       // Lenient returns error but caller skips - result is unchanged
       assertSuccess(result, Json.Object("name" -> Json.String("Alice")))
     },
     test("Clobber overwrites when key exists") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("name", Json.String("Bob")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("name", Json.String("Bob")))))
       val result   = patch.apply(original, PatchMode.Clobber)
       assertSuccess(result, Json.Object("name" -> Json.String("Bob")))
     }
@@ -285,20 +285,20 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private lazy val objectOpRemoveModeSuite = suite("ObjectOp.Remove on missing key")(
     test("Strict fails when key missing") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Remove("age"))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Remove("age"))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "not found")
     },
     test("Lenient skips when key missing") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Remove("age"))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Remove("age"))))
       val result   = patch.apply(original, PatchMode.Lenient)
       // Lenient skips the operation - object unchanged
       assertSuccess(result, Json.Object("name" -> Json.String("Alice")))
     },
     test("Clobber is no-op when key missing") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Remove("age"))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Remove("age"))))
       val result   = patch.apply(original, PatchMode.Clobber)
       // Clobber ignores error - object unchanged
       assertSuccess(result, Json.Object("name" -> Json.String("Alice")))
@@ -308,27 +308,27 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private lazy val arrayOpInsertModeSuite = suite("ArrayOp.Insert out of bounds")(
     test("Strict fails on out of bounds insert") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(100, Chunk(Json.Number(3))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(100, Chunk(Json.Number(3))))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("Lenient skips out of bounds insert") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(100, Chunk(Json.Number(3))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(100, Chunk(Json.Number(3))))))
       val result   = patch.apply(original, PatchMode.Lenient)
       // Lenient skips - array unchanged
       assertSuccess(result, Json.Array(Json.Number(1), Json.Number(2)))
     },
     test("Clobber clamps out of bounds insert to end") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(100, Chunk(Json.Number(3))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(100, Chunk(Json.Number(3))))))
       val result   = patch.apply(original, PatchMode.Clobber)
       // Clobber clamps to valid index - inserts at end
       assertSuccess(result, Json.Array(Json.Number(1), Json.Number(2), Json.Number(3)))
     },
     test("Clobber clamps negative insert to beginning") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(-5, Chunk(Json.Number(0))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(-5, Chunk(Json.Number(0))))))
       val result   = patch.apply(original, PatchMode.Clobber)
       // Clobber clamps to valid index - inserts at beginning
       assertSuccess(result, Json.Array(Json.Number(0), Json.Number(1), Json.Number(2)))
@@ -338,27 +338,27 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private lazy val arrayOpDeleteModeSuite = suite("ArrayOp.Delete out of bounds")(
     test("Strict fails on out of bounds delete") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Delete(5, 1))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Delete(5, 1))))
       val result   = patch.apply(original, PatchMode.Strict)
       assertError(result, "out of bounds")
     },
     test("Lenient skips out of bounds delete") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Delete(5, 1))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Delete(5, 1))))
       val result   = patch.apply(original, PatchMode.Lenient)
       // Lenient skips - array unchanged
       assertSuccess(result, Json.Array(Json.Number(1), Json.Number(2)))
     },
     test("Clobber clamps out of bounds delete") {
       val original = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Delete(1, 10))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Delete(1, 10))))
       val result   = patch.apply(original, PatchMode.Clobber)
       // Clobber clamps - deletes what it can
       assertSuccess(result, Json.Array(Json.Number(1)))
     },
     test("Clobber handles negative start index") {
       val original = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Delete(-5, 2))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Delete(-5, 2))))
       val result   = patch.apply(original, PatchMode.Clobber)
       // Clobber clamps both start and end to 0, so nothing is deleted
       assertSuccess(result, Json.Array(Json.Number(1), Json.Number(2), Json.Number(3)))
@@ -368,7 +368,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
   private lazy val modeEquivalenceSuite = suite("Mode equivalence when valid")(
     test("When Strict succeeds, Lenient produces same result") {
       val original = Json.Object("name" -> Json.String("Alice"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("age", Json.Number(30)))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("age", Json.Number(30)))))
 
       val strictResult  = patch.apply(original, PatchMode.Strict)
       val lenientResult = patch.apply(original, PatchMode.Lenient)
@@ -378,7 +378,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("When Strict succeeds, Clobber produces same result") {
       val original = Json.Array(Json.Number(1), Json.Number(2))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(1, Chunk(Json.Number(5))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(1, Chunk(Json.Number(5))))))
 
       val strictResult  = patch.apply(original, PatchMode.Strict)
       val clobberResult = patch.apply(original, PatchMode.Clobber)
@@ -412,7 +412,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("All modes produce same result for valid Append") {
       val original = Json.Array(Json.Number(1))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Append(Chunk(Json.Number(2))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Append(Chunk(Json.Number(2))))))
 
       val strictResult  = patch.apply(original, PatchMode.Strict)
       val lenientResult = patch.apply(original, PatchMode.Lenient)
@@ -465,7 +465,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("Object key already exists error contains key name") {
       val original = Json.Object("key" -> Json.String("value"))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Add("key", Json.String("new")))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("key", Json.String("new")))))
       val result   = patch.apply(original, PatchMode.Strict)
       result match {
         case Left(err) =>
@@ -477,7 +477,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("Object key not found error contains key name") {
       val original = Json.Object("a" -> Json.Number(1))
-      val patch    = JsonPatch.root(Op.ObjectEdit(Vector(ObjectOp.Remove("nonexistent"))))
+      val patch    = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Remove("nonexistent"))))
       val result   = patch.apply(original, PatchMode.Strict)
       result match {
         case Left(err) =>
@@ -489,7 +489,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("String operation out of bounds error contains position info") {
       val original = Json.String("short")
-      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Delete(10, 5)))))
+      val patch    = JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Delete(10, 5)))))
       val result   = patch.apply(original, PatchMode.Strict)
       result match {
         case Left(err) =>
@@ -501,7 +501,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     },
     test("Array insert out of bounds error contains position info") {
       val original = Json.Array(Json.Number(1))
-      val patch    = JsonPatch.root(Op.ArrayEdit(Vector(ArrayOp.Insert(100, Chunk(Json.Number(2))))))
+      val patch    = JsonPatch.root(Op.ArrayEdit(Chunk(ArrayOp.Insert(100, Chunk(Json.Number(2))))))
       val result   = patch.apply(original, PatchMode.Strict)
       result match {
         case Left(err) =>
@@ -526,7 +526,7 @@ object JsonPatchErrorSpec extends SchemaBaseSpec {
     test("AtMapKey navigation fails with appropriate error") {
       val original   = Json.Object("a" -> Json.Number(1))
       val dynamicKey = DynamicValue.Primitive(PrimitiveValue.String("key"))
-      val path       = DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(dynamicKey)))
+      val path       = DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(dynamicKey)))
       val patch      = JsonPatch(path, Op.Set(Json.Number(1)))
       val result     = patch.apply(original, PatchMode.Strict)
       assertError(result, "AtMapKey not supported")

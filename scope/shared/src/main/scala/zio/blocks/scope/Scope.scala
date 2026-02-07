@@ -13,6 +13,10 @@ import zio.blocks.scope.internal.Finalizers
  * prevents lifecycle errors where resources are used outside their intended
  * scope.
  *
+ * The `Tag` type member provides compile-time scope identity for preventing
+ * resource escape. Values scoped with `A @@ scope.Tag` can only be accessed
+ * through the `$` operator when the matching scope is in context.
+ *
  * @example
  *   {{{
  *   // Scala 3
@@ -28,6 +32,22 @@ import zio.blocks.scope.internal.Finalizers
  *   `Context[Database] :: Context[Config] :: TNil`)
  */
 sealed trait Scope[+Stack] extends ScopeVersionSpecific[Stack] {
+
+  /**
+   * Path-dependent type that identifies this scope at the type level.
+   *
+   * Child scopes have tags that are SUPERtypes of their parent's tag (via
+   * union: `Tag = ParentTag | this.type`). This enables child scopes to use
+   * parent-scoped values: when accessing a value scoped with `ParentTag`, the
+   * `$` operator requires `scope.Tag >: ParentTag`, which is satisfied by child
+   * scopes since `ParentTag <: (ParentTag | this.type)`.
+   *
+   * The global scope has `Tag = this.type` (a singleton type). Each child
+   * scope's Tag includes the parent's Tag in a union, forming a chain where
+   * deeper scopes have "wider" tags that encompass all ancestor scopes.
+   */
+  type Tag
+
   private[scope] def getImpl[T](nom: IsNominalType[T]): T
 
   /**
@@ -143,6 +163,8 @@ object Scope {
   }
 
   private final class GlobalScope extends Scope[TNil] {
+    type Tag = this.type
+
     private val finalizers = new Finalizers
 
     private[scope] def getImpl[T](nom: IsNominalType[T]): T =

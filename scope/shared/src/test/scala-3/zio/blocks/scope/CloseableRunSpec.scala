@@ -64,7 +64,7 @@ object CloseableRunSpec extends ZIOSpecDefault {
       val reportedErrors                         = ArrayBuffer.empty[Chunk[Throwable]]
       val testReporter: Chunk[Throwable] => Unit = (errors: Chunk[Throwable]) => { reportedErrors += errors; () }
       finalizers.add(throw new RuntimeException("finalizer error"))
-      val closeable = new ScopeImplScala3[Config, TNil](parent, Context(config), finalizers, testReporter)
+      val closeable = new ScopeImplScala3[Config, TNil, parent.Tag](parent, Context(config), finalizers, testReporter)
 
       val result = closeable.run(42)
 
@@ -123,6 +123,86 @@ object CloseableRunSpec extends ZIOSpecDefault {
         case _: RuntimeException => ()
       }
       assertTrue(cleaned)
+    },
+    test("user-registered finalizers run before AutoCloseable.close()") {
+      // When injecting an AutoCloseable, its close() is registered first.
+      // User-registered finalizers (via defer) are added later.
+      // Since finalizers run in LIFO order, user finalizers should run
+      // BEFORE close(), allowing them to use the resource safely.
+      val order = ArrayBuffer.empty[String]
+
+      class Resource extends AutoCloseable {
+        var closed      = false
+        def use(): Unit = {
+          if (closed) throw new IllegalStateException("Resource already closed!")
+          order += "use"
+        }
+        def close(): Unit = {
+          closed = true
+          order += "close"
+        }
+      }
+
+      given Scope.Any = Scope.global
+
+      val resource  = new Resource
+      val closeable = injected(resource)
+
+      closeable.run {
+        // Register a finalizer that uses the resource
+        defer(resource.use())
+        order += "body"
+      }
+
+      // Expected order: body executed, then user finalizer (use), then close
+      assertTrue(
+        order.toList == List("body", "use", "close"),
+        !resource.closed || order.indexOf("use") < order.indexOf("close")
+      )
+    },
+    test("injected[T] wireable: user finalizers run before AutoCloseable.close()") {
+      // Same test but using injected[T] with wireable construction
+      // instead of injected(value)
+      val order = ArrayBuffer.empty[String]
+
+      given Scope.Any = Scope.global
+
+      // Use a static holder to track order across the test
+      OrderTracker.order = order
+
+      val closeable = injected[OrderTrackingResource]
+
+      closeable.run {
+        val resource = $[OrderTrackingResource]
+        // Register a finalizer that uses the resource
+        defer(resource $ (_.use()))
+        order += "body"
+      }
+
+      // Expected order: body executed, then user finalizer (use), then close
+      assertTrue(
+        order.toList == List("body", "use", "close"),
+        order.indexOf("use") < order.indexOf("close")
+      )
     }
   )
+}
+
+// Helper object for test communication
+object OrderTracker {
+  var order: ArrayBuffer[String] = ArrayBuffer.empty
+}
+
+// Helper class for wireable construction test - must be top-level for macro
+class OrderTrackingResource extends AutoCloseable {
+  private val order = OrderTracker.order
+  var closed        = false
+  def use(): Unit   = {
+    if (closed) throw new IllegalStateException("Resource already closed!")
+    order += "use"
+  }
+  def close(): Unit = {
+    closed = true
+    order += "close"
+  }
 }
