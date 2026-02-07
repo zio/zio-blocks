@@ -513,7 +513,7 @@ object TypeIdMacros {
   private def buildOwner(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
-    sealed trait SegmentInfo
+    sealed trait SegmentInfo { def name: String }
     case class PkgSegment(name: String)  extends SegmentInfo
     case class TermSegment(name: String) extends SegmentInfo
     case class TypeSegment(name: String) extends SegmentInfo
@@ -546,7 +546,7 @@ object TypeIdMacros {
       val base              =
         if (pkgPrefix.isEmpty) q"_root_.zio.blocks.typeid.Owner.Root"
         else {
-          val path = pkgPrefix.map { case PkgSegment(n) => n; case _ => "" }.mkString(".")
+          val path = pkgPrefix.map(_.name).mkString(".")
           q"_root_.zio.blocks.typeid.Owner.fromPackagePath($path)"
         }
       rest.foldLeft(base: c.Tree) {
