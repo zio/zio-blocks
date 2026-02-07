@@ -24,3 +24,5 @@ final case class MediaType(
     mainTypeMatches && subTypeMatches && parametersMatch
   }
 }
+
+object MediaType

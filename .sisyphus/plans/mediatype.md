@@ -253,7 +253,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 2. Implement MediaType case class
+- [x] 2. Implement MediaType case class
 
   **What to do**:
   - Write failing tests first for:
@@ -332,7 +332,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 3. Create Generator Tool
+- [x] 3. Create Generator Tool
 
   **What to do**:
   - Create `project/GenerateMediaTypes.scala` following zio-http's pattern
@@ -421,7 +421,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 4. Generate Predefined MediaTypes
+- [x] 4. Generate Predefined MediaTypes
 
   **What to do**:
   - Run the generator: `sbt generateMediaTypes`

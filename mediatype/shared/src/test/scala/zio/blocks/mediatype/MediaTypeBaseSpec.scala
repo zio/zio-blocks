@@ -1,5 +1,6 @@
 package zio.blocks.mediatype
 
+import zio._
 import zio.test._
 
 trait MediaTypeBaseSpec extends ZIOSpecDefault {

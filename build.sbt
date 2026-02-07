@@ -3,6 +3,10 @@ import MimaSettings.mimaSettings
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
+lazy val generateMediaTypes = taskKey[File]("Generate MediaTypes.scala from mime-db")
+
+generateMediaTypes := GenerateMediaTypes.generateMediaTypesTask.value
+
 inThisBuild(
   List(
     name         := "ZIO Blocks",
