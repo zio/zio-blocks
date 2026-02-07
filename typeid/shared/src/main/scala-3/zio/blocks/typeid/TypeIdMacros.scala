@@ -419,9 +419,9 @@ object TypeIdMacros {
     "scala.Product",
     "scala.Equals",
     "scala.deriving.Mirror",
-    "scala.deriving.Mirror.Product",
-    "scala.deriving.Mirror.Singleton",
-    "scala.deriving.Mirror.Sum",
+    "scala.deriving.Mirror$.Product",
+    "scala.deriving.Mirror$.Singleton",
+    "scala.deriving.Mirror$.Sum",
     "java.io.Serializable"
   )
 
