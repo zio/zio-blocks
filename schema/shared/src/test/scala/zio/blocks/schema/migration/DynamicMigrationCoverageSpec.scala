@@ -193,8 +193,9 @@ object DynamicMigrationCoverageSpec extends SchemaBaseSpec {
     ),
     suite("ChangeType action")(
       test("converts field using converter expression") {
+        // ChangeType evaluates the converter against the field value itself
         val coerce = DynamicSchemaExpr.CoercePrimitive(
-          DynamicSchemaExpr.Path(DynamicOptic.root.field("age")),
+          DynamicSchemaExpr.Path(DynamicOptic.root),
           "Long"
         )
         val m      = DynamicMigration(MigrationAction.ChangeType(root.field("age"), coerce, litI))

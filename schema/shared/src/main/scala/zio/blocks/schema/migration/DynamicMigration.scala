@@ -153,8 +153,8 @@ object DynamicMigration {
       }
 
     case MigrationAction.ChangeType(at, converter, _) =>
-      modifyAtPathWithParentContext(value, at) { (context, _) =>
-        converter.eval(context).left.map(wrapExprError(at, "ChangeType"))
+      modifyAtPathWithParentContext(value, at) { (_, targetValue) =>
+        converter.eval(targetValue).left.map(wrapExprError(at, "ChangeType"))
       }
 
     case MigrationAction.Join(at, sourcePaths, combiner, _) =>
