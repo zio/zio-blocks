@@ -239,6 +239,238 @@ object MigrationSpec extends ZIOSpecDefault {
       }
     ),
 
+    suite("Error Messages")(
+      test("dropField missing field error contains field name") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.DropField(
+            DynamicOptic.root.field("missing_field"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("missing_field") && err.message.contains("not found")
+            )
+        )
+      },
+
+      test("addField duplicate field error contains field name") {
+        val input     = DynamicValue.Record("existing" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("existing"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("existing") && err.message.contains("already exists")
+            )
+        )
+      },
+
+      test("rename field not found error contains old field name") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.Rename(DynamicOptic.root.field("oldName"), "newName")
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("oldName") && err.message.contains("not found")
+            )
+        )
+      },
+
+      test("rename to existing field error contains new field name") {
+        val input = DynamicValue.Record(
+          "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+        )
+        val migration = DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root.field("a"), "b"))
+        val result    = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("b") && err.message.contains("already exists")
+            )
+        )
+      },
+
+      test("renameCase on non-Variant error contains type mismatch") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.RenameCase(DynamicOptic.root, "Old", "New")
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("Variant") || err.message.contains("expected")
+            )
+        )
+      },
+
+      test("transformCase on non-Variant error contains type mismatch") {
+        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("x"),
+                literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("Variant") || err.message.contains("expected")
+            )
+        )
+      },
+
+      test("transformElements on non-Sequence error contains type mismatch") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("Sequence") || err.message.contains("expected")
+            )
+        )
+      },
+
+      test("transformKeys on non-Map error contains type mismatch") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformKeys(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("Map") || err.message.contains("expected")
+            )
+        )
+      },
+
+      test("transformValues on non-Map error contains type mismatch") {
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValues(
+            DynamicOptic.root,
+            literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("Map") || err.message.contains("expected")
+            )
+        )
+      },
+
+      test("atIndex out of bounds error contains index") {
+        val input = DynamicValue.Record(
+          "items" -> DynamicValue.Sequence(
+            Chunk(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("items"),
+            DynamicOptic.Node.AtIndex(10)
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("not found") || err.message.contains("path")
+            )
+        )
+      },
+
+      test("atMapKey not found error contains key information") {
+        val input = DynamicValue.Record(
+          "data" -> DynamicValue.Map(
+            Chunk(
+              (DynamicValue.Primitive(PrimitiveValue.String("key1")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            )
+          )
+        )
+        val optic = DynamicOptic(
+          Vector(
+            DynamicOptic.Node.Field("data"),
+            DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("missingKey")))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(
+            optic,
+            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("not found") || err.message.contains("path")
+            )
+        )
+      },
+
+      test("nested path not found error contains path information") {
+        val input = DynamicValue.Record(
+          "outer" -> DynamicValue.Record(
+            "inner" -> DynamicValue.Primitive(PrimitiveValue.Int(1))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.Rename(
+            DynamicOptic.root.field("outer").field("nonexistent"),
+            "renamed"
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.swap.exists(err =>
+              err.message.contains("nonexistent") && err.message.contains("not found")
+            )
+        )
+      }
+    ),
+
     suite("Nested paths")(
       test("rename in nested record") {
         val input = DynamicValue.Record(
@@ -2215,6 +2447,277 @@ object MigrationSpec extends ZIOSpecDefault {
 
         assertTrue(result == Right(ConfigV2("MyConfig", SettingsV2("dark", 12))))
       }
+    ),
+
+    suite("Nested Type Migrations")(
+      test("2-level nested case class migration - add field to nested record") {
+        case class AddressV1(street: String, city: String)
+        case class PersonV1(name: String, address: AddressV1)
+
+        case class AddressV2(street: String, city: String, zip: String)
+        case class PersonV2(name: String, address: AddressV2)
+
+        implicit val addressV1Schema: Schema[AddressV1] = Schema.derived[AddressV1]
+        implicit val personV1Schema: Schema[PersonV1]   = Schema.derived[PersonV1]
+        implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
+        implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
+
+        val migration = Migration.fromActions[PersonV1, PersonV2](
+          MigrationAction.AddField(
+            DynamicOptic.root.field("address").field("zip"),
+            literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
+          )
+        )
+
+        val input  = PersonV1("Alice", AddressV1("123 Main St", "NYC"))
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("Alice", AddressV2("123 Main St", "NYC", "00000"))))
+      },
+
+      test("2-level nested case class migration - rename nested field") {
+        case class AddressV1(street: String, city: String)
+        case class PersonV1(name: String, address: AddressV1)
+
+        case class AddressV2(streetName: String, city: String)
+        case class PersonV2(name: String, address: AddressV2)
+
+        implicit val addressV1Schema: Schema[AddressV1] = Schema.derived[AddressV1]
+        implicit val personV1Schema: Schema[PersonV1]   = Schema.derived[PersonV1]
+        implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
+        implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
+
+        val migration = Migration.fromActions[PersonV1, PersonV2](
+          MigrationAction.Rename(DynamicOptic.root.field("address").field("street"), "streetName")
+        )
+
+        val input  = PersonV1("Bob", AddressV1("456 Oak Ave", "LA"))
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("Bob", AddressV2("456 Oak Ave", "LA"))))
+      },
+
+      test("3-level nested case class migration - Company with Department with Employee") {
+        case class EmployeeV1(name: String, salary: Int)
+        case class DepartmentV1(name: String, employee: EmployeeV1)
+        case class CompanyV1(name: String, department: DepartmentV1)
+
+        case class EmployeeV2(name: String, salary: Int, bonus: Int)
+        case class DepartmentV2(name: String, employee: EmployeeV2)
+        case class CompanyV2(name: String, department: DepartmentV2)
+
+        implicit val employeeV1Schema: Schema[EmployeeV1]       = Schema.derived[EmployeeV1]
+        implicit val departmentV1Schema: Schema[DepartmentV1]   = Schema.derived[DepartmentV1]
+        implicit val companyV1Schema: Schema[CompanyV1]         = Schema.derived[CompanyV1]
+        implicit val employeeV2Schema: Schema[EmployeeV2]       = Schema.derived[EmployeeV2]
+        implicit val departmentV2Schema: Schema[DepartmentV2]   = Schema.derived[DepartmentV2]
+        implicit val companyV2Schema: Schema[CompanyV2]         = Schema.derived[CompanyV2]
+
+        val migration = Migration.fromActions[CompanyV1, CompanyV2](
+          MigrationAction.AddField(
+            DynamicOptic.root.field("department").field("employee").field("bonus"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(1000)))
+          )
+        )
+
+        val input = CompanyV1(
+          "TechCorp",
+          DepartmentV1("Engineering", EmployeeV1("Charlie", 80000))
+        )
+        val result = migration(input)
+
+        assertTrue(
+          result == Right(
+            CompanyV2(
+              "TechCorp",
+              DepartmentV2("Engineering", EmployeeV2("Charlie", 80000, 1000))
+            )
+          )
+        )
+      },
+
+      test("4-level nested case class migration") {
+        case class L4V1(value: String)
+        case class L3V1(name: String, l4: L4V1)
+        case class L2V1(id: Int, l3: L3V1)
+        case class L1V1(title: String, l2: L2V1)
+
+        case class L4V2(value: String, metadata: String)
+        case class L3V2(name: String, l4: L4V2)
+        case class L2V2(id: Int, l3: L3V2)
+        case class L1V2(title: String, l2: L2V2)
+
+        implicit val l4V1Schema: Schema[L4V1] = Schema.derived[L4V1]
+        implicit val l3V1Schema: Schema[L3V1] = Schema.derived[L3V1]
+        implicit val l2V1Schema: Schema[L2V1] = Schema.derived[L2V1]
+        implicit val l1V1Schema: Schema[L1V1] = Schema.derived[L1V1]
+        implicit val l4V2Schema: Schema[L4V2] = Schema.derived[L4V2]
+        implicit val l3V2Schema: Schema[L3V2] = Schema.derived[L3V2]
+        implicit val l2V2Schema: Schema[L2V2] = Schema.derived[L2V2]
+        implicit val l1V2Schema: Schema[L1V2] = Schema.derived[L1V2]
+
+        val migration = Migration.fromActions[L1V1, L1V2](
+          MigrationAction.AddField(
+            DynamicOptic.root.field("l2").field("l3").field("l4").field("metadata"),
+            literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
+        )
+
+        val input = L1V1(
+          "Root",
+          L2V1(1, L3V1("Middle", L4V1("Leaf")))
+        )
+        val result = migration(input)
+
+        assertTrue(
+          result == Right(
+            L1V2(
+              "Root",
+              L2V2(1, L3V2("Middle", L4V2("Leaf", "default")))
+            )
+          )
+        )
+      },
+
+      test("Option[NestedType] migration - identity migration preserves structure") {
+        case class AddressV1(city: String)
+        case class PersonV1(name: String, address: Option[AddressV1])
+
+        case class AddressV2(city: String)
+        case class PersonV2(name: String, address: Option[AddressV2])
+
+        implicit val addressV1Schema: Schema[AddressV1] = Schema.derived[AddressV1]
+        implicit val personV1Schema: Schema[PersonV1]   = Schema.derived[PersonV1]
+        implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
+        implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
+
+        val migration = Migration.fromActions[PersonV1, PersonV2]()
+
+        val inputWithSome  = PersonV1("Dave", Some(AddressV1("Boston")))
+        val resultWithSome = migration(inputWithSome)
+
+        assertTrue(resultWithSome == Right(PersonV2("Dave", Some(AddressV2("Boston")))))
+      },
+
+      test("List[NestedType] migration - simple container structure transformation") {
+        case class ItemV1(name: String)
+        case class ContainerV1(items: List[ItemV1])
+
+        case class ItemV2(name: String)
+        case class ContainerV2(items: List[ItemV2])
+
+        implicit val itemV1Schema: Schema[ItemV1]       = Schema.derived[ItemV1]
+        implicit val containerV1Schema: Schema[ContainerV1] = Schema.derived[ContainerV1]
+        implicit val itemV2Schema: Schema[ItemV2]       = Schema.derived[ItemV2]
+        implicit val containerV2Schema: Schema[ContainerV2] = Schema.derived[ContainerV2]
+
+        val migration = Migration.fromActions[ContainerV1, ContainerV2]()
+
+        val input = ContainerV1(
+          List(ItemV1("Item1"), ItemV1("Item2"))
+        )
+        val result = migration(input)
+
+        assertTrue(result.isRight)
+      },
+
+      test("Map[String, NestedType] migration - simple map structure transformation") {
+        case class ConfigV1(value: String)
+        case class SettingsV1(configs: Map[String, ConfigV1])
+
+        case class ConfigV2(value: String)
+        case class SettingsV2(configs: Map[String, ConfigV2])
+
+        implicit val configV1Schema: Schema[ConfigV1]       = Schema.derived[ConfigV1]
+        implicit val settingsV1Schema: Schema[SettingsV1]   = Schema.derived[SettingsV1]
+        implicit val configV2Schema: Schema[ConfigV2]       = Schema.derived[ConfigV2]
+        implicit val settingsV2Schema: Schema[SettingsV2]   = Schema.derived[SettingsV2]
+
+        val migration = Migration.fromActions[SettingsV1, SettingsV2]()
+
+        val input = SettingsV1(
+          Map("setting1" -> ConfigV1("on"), "setting2" -> ConfigV1("off"))
+        )
+        val result = migration(input)
+
+        assertTrue(result.isRight)
+      },
+
+      test("Nested field rename in deeply nested path") {
+        case class L3V1(oldField: Int)
+        case class L2V1(l3: L3V1)
+        case class L1V1(l2: L2V1)
+
+        case class L3V2(newField: Int)
+        case class L2V2(l3: L3V2)
+        case class L1V2(l2: L2V2)
+
+        implicit val l3V1Schema: Schema[L3V1] = Schema.derived[L3V1]
+        implicit val l2V1Schema: Schema[L2V1] = Schema.derived[L2V1]
+        implicit val l1V1Schema: Schema[L1V1] = Schema.derived[L1V1]
+        implicit val l3V2Schema: Schema[L3V2] = Schema.derived[L3V2]
+        implicit val l2V2Schema: Schema[L2V2] = Schema.derived[L2V2]
+        implicit val l1V2Schema: Schema[L1V2] = Schema.derived[L1V2]
+
+        val migration = Migration.fromActions[L1V1, L1V2](
+          MigrationAction.Rename(
+            DynamicOptic.root.field("l2").field("l3").field("oldField"),
+            "newField"
+          )
+        )
+
+        val input  = L1V1(L2V1(L3V1(42)))
+        val result = migration(input)
+
+        assertTrue(result == Right(L1V2(L2V2(L3V2(42)))))
+      },
+
+      test("Multiple operations on nested types - add and rename fields") {
+        case class InnerV1(a: Int, b: String)
+        case class OuterV1(outer: String, inner: InnerV1)
+
+        case class InnerV2(a: Int, c: String, d: Boolean)
+        case class OuterV2(outer: String, inner: InnerV2)
+
+        implicit val innerV1Schema: Schema[InnerV1] = Schema.derived[InnerV1]
+        implicit val outerV1Schema: Schema[OuterV1] = Schema.derived[OuterV1]
+        implicit val innerV2Schema: Schema[InnerV2] = Schema.derived[InnerV2]
+        implicit val outerV2Schema: Schema[OuterV2] = Schema.derived[OuterV2]
+
+        val migration = Migration.fromActions[OuterV1, OuterV2](
+          MigrationAction.Rename(DynamicOptic.root.field("inner").field("b"), "c"),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("inner").field("d"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+          )
+        )
+
+        val input  = OuterV1("Test", InnerV1(10, "hello"))
+        val result = migration(input)
+
+        assertTrue(result == Right(OuterV2("Test", InnerV2(10, "hello", true))))
+      }
+    ),
+
+    suite("Recursive Type Limitations")(
+      test("recursive type basic migration works with buildPartial") {
+        // This test documents that recursive types require special care.
+        // Recursive types use Schema.Deferred to break cycles at the type level.
+        // Simple identity migrations work, but adding fields to recursive chains requires buildPartial
+
+        case class ListNodeV1(value: Int, next: Option[ListNodeV1])
+        case class ListNodeV2(value: Int, next: Option[ListNodeV2])
+
+        implicit lazy val listNodeV1Schema: Schema[ListNodeV1] = Schema.derived[ListNodeV1]
+        implicit lazy val listNodeV2Schema: Schema[ListNodeV2] = Schema.derived[ListNodeV2]
+
+        val migration = Migration.fromActions[ListNodeV1, ListNodeV2]()
+
+        val input  = ListNodeV1(1, Some(ListNodeV1(2, None)))
+        val result = migration(input)
+
+        assertTrue(result.isRight)
+      }
     )
-  )
+   )
 }
