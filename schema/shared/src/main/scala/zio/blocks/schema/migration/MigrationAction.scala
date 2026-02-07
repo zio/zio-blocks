@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, Schema, SchemaExpr}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue}
 
 /**
  * Represents a single migration action that operates at a specific path. All
@@ -37,7 +37,7 @@ object MigrationAction {
    */
   final case class AddField(
     at: DynamicOptic,
-    default: SchemaExpr[_, _]
+    default: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = DropField(at, default)
 
@@ -59,7 +59,7 @@ object MigrationAction {
    */
   final case class DropField(
     at: DynamicOptic,
-    defaultForReverse: SchemaExpr[_, _]
+    defaultForReverse: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = AddField(at, defaultForReverse)
 
@@ -105,7 +105,7 @@ object MigrationAction {
    */
   final case class TransformValue(
     at: DynamicOptic,
-    transform: SchemaExpr[?, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = TransformValue(at, transform) // Note: true reverse needs inverse function
   }
@@ -120,7 +120,7 @@ object MigrationAction {
    */
   final case class Mandate(
     at: DynamicOptic,
-    default: SchemaExpr[?, ?]
+    default: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = Optionalize(at)
   }
@@ -136,11 +136,7 @@ object MigrationAction {
   ) extends MigrationAction {
     override def reverse: MigrationAction = Mandate(
       at,
-      SchemaExpr(
-        DynamicSchemaExpr.Literal(DynamicValue.Record.empty),
-        Schema[Unit].transform[Any](_ => null.asInstanceOf[Any], _ => ()),
-        Schema[Unit].asInstanceOf[Schema[DynamicValue.Record]]
-      )
+      DynamicSchemaExpr.Literal(DynamicValue.Record.empty)
     )
   }
 
@@ -157,7 +153,7 @@ object MigrationAction {
   final case class Join(
     at: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
-    combiner: SchemaExpr[?, ?]
+    combiner: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = Split(at, sourcePaths, combiner) // Note: true reverse needs inverse
   }
@@ -175,7 +171,7 @@ object MigrationAction {
   final case class Split(
     at: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
-    splitter: SchemaExpr[?, ?]
+    splitter: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = Join(at, targetPaths, splitter) // Note: true reverse needs inverse
   }
@@ -190,7 +186,7 @@ object MigrationAction {
    */
   final case class ChangeType(
     at: DynamicOptic,
-    converter: SchemaExpr[?, ?]
+    converter: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = ChangeType(at, converter) // Note: true reverse needs inverse
   }
@@ -243,7 +239,7 @@ object MigrationAction {
    */
   final case class TransformElements(
     at: DynamicOptic,
-    transform: SchemaExpr[?, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = TransformElements(at, transform) // Note: true reverse needs inverse
   }
@@ -260,7 +256,7 @@ object MigrationAction {
    */
   final case class TransformKeys(
     at: DynamicOptic,
-    transform: SchemaExpr[?, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = TransformKeys(at, transform) // Note: true reverse needs inverse
   }
@@ -275,7 +271,7 @@ object MigrationAction {
    */
   final case class TransformValues(
     at: DynamicOptic,
-    transform: SchemaExpr[_, _]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     override def reverse: MigrationAction = TransformValues(at, transform) // Note: true reverse needs inverse
   }
