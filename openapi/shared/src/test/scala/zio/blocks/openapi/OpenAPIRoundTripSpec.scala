@@ -229,7 +229,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             )
           ),
           discriminator = Some(
-            Discriminator(
+            OpenAPIDiscriminator(
               propertyName = "type",
               mapping = Map("user" -> "#/components/schemas/User")
             )
@@ -257,8 +257,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
 
         assertTrue(result == Right(original))
       },
-      test("Discriminator round-trips") {
-        val original = Discriminator(
+      test("OpenAPIDiscriminator round-trips") {
+        val original = OpenAPIDiscriminator(
           propertyName = "petType",
           mapping = Map(
             "dog" -> "#/components/schemas/Dog",
@@ -266,8 +266,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           )
         )
 
-        val dv     = Schema[Discriminator].toDynamicValue(original)
-        val result = Schema[Discriminator].fromDynamicValue(dv)
+        val dv     = Schema[OpenAPIDiscriminator].toDynamicValue(original)
+        val result = Schema[OpenAPIDiscriminator].fromDynamicValue(dv)
 
         assertTrue(result == Right(original))
       },
@@ -361,7 +361,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           schema = Some(Json.Object("type" -> Json.String("string"))),
           example = Some(Json.String("Bearer token")),
           examples = Map("auth" -> Json.String("Bearer xyz")),
-          content = Map.empty,
+          content = Map.empty[String, Json],
           extensions = Map("x-header-id" -> Json.String("auth-1"))
         )
 
@@ -378,8 +378,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             "application/json" -> MediaType(
               schema = Some(Json.Object("type" -> Json.String("object"))),
               example = Some(Json.Object("name" -> Json.String("test"))),
-              examples = Map.empty,
-              encoding = Map.empty
+              examples = Map.empty[String, ReferenceOr[Example]],
+              encoding = Map.empty[String, Encoding]
             )
           ),
           description = Some("User object"),
@@ -407,7 +407,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           encoding = Map(
             "field1" -> Encoding(
               contentType = Some("application/json"),
-              headers = Map.empty,
+              headers = Map.empty[String, ReferenceOr[Header]],
               style = Some("form"),
               explode = Some(true),
               allowReserved = false,
@@ -449,9 +449,9 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             "200" -> ReferenceOr.Value(
               Response(
                 description = "Success",
-                headers = Map.empty,
-                content = Map.empty,
-                links = Map.empty
+                headers = Map.empty[String, ReferenceOr[Header]],
+                content = Map.empty[String, MediaType],
+                links = Map.empty[String, ReferenceOr[Link]]
               )
             ),
             "404" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/NotFound"))
@@ -946,7 +946,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("extensions preserved on RequestBody") {
         val original = RequestBody(
-          content = Map.empty,
+          content = Map.empty[String, MediaType],
           extensions = Map("x-body-id" -> Json.String("req-1"))
         )
         val dv     = Schema[RequestBody].toDynamicValue(original)
@@ -1026,7 +1026,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("extensions preserved on OAuthFlow") {
         val original = OAuthFlow(
-          scopes = Map.empty,
+          scopes = Map.empty[String, String],
           extensions = Map("x-flow-id" -> Json.String("flow-1"))
         )
         val dv     = Schema[OAuthFlow].toDynamicValue(original)
