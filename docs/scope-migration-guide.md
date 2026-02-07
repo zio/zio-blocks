@@ -13,7 +13,7 @@ This guide explains how the Scope library is evolving from its current design to
 | Scope structure | HList with `Context[H]` at each level | Two-parameter `Scope[ParentTag, Tag]` |
 | Resource creation | `injected[T](wires...)` | `scope.create(factory)` |
 | Method access | `scoped $ (_.method())` | `scope.$(scoped)(_.method())` |
-| `map`/`flatMap` | Eager execution | Deferred (free monad) |
+| `map`/`flatMap` | Eager execution | Scoped (free monad) |
 | Wire output | `Context[Out]` (multiple values) | `Out` (single value) |
 
 ---
@@ -238,14 +238,14 @@ inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S & T) = f(scoped)
 
 These execute immediately, which is problematic — you could use `map` to access a value outside any scope.
 
-**New:** Deferred execution via free monad
+**New:** Scoped execution via free monad
 
 ```scala
-def map[B](f: A => B): Deferred[S, B] = 
-  Deferred.Map(Deferred.Pure(scoped), f)
+def map[B](f: A => B): Scoped[S, B] = 
+  Scoped.Map(Scoped.Pure(scoped), f)
 
-def flatMap[B, T](f: A => B @@ T): Deferred[S & T, B] = 
-  Deferred.FlatMap(Deferred.Pure(scoped), f)
+def flatMap[B, T](f: A => B @@ T): Scoped[S & T, B] = 
+  Scoped.FlatMap(Scoped.Pure(scoped), f)
 ```
 
 To execute, you need a scope:
@@ -261,7 +261,7 @@ scope.scoped { s =>
 }
 ```
 
-**Why:** The current design allows `map` to execute anywhere, even outside scopes. The new design makes all operations on scoped values produce inert `Deferred` trees that require a scope to interpret.
+**Why:** The current design allows `map` to execute anywhere, even outside scopes. The new design makes all operations on scoped values produce inert `Scoped` trees that require a scope to interpret.
 
 ---
 
@@ -374,8 +374,8 @@ val result: Result @@ Tag = for {
 ### After: For-comprehension
 
 ```scala
-// New (deferred, safe)
-val program: Deferred[Tag, Result] = for {
+// New (Scoped, safe)
+val program: Scoped[Tag, Result] = for {
   a <- scopedA.map(identity)
   b <- scopedB.map(identity)
 } yield process(a, b)
@@ -392,7 +392,7 @@ val result: Result = scope { program }  // Execute in scope
 3. **`Scope.Has[T]`** — Removed; no longer store services in scope
 4. **`$[T]` macro** — Replaced by `scope.create(Factory[T])`
 5. **`scoped $ f`** — Replaced by `scope.$(scoped)(f)`
-6. **`@@.map`/`@@.flatMap`** — Now return `Deferred` instead of `@@`
+6. **`@@.map`/`@@.flatMap`** — Now return `Scoped` instead of `@@`
 7. **`.use`** — Replaced by `.scoped` with SAM parameter
 8. **`Wire.construct`** — Returns `Out` instead of `Context[Out]`
 9. **`injected[T](wires...)`** — Replaced by `scope.create(factory)`
@@ -406,7 +406,7 @@ The fundamental improvement is **compile-time safety that cannot be circumvented
 | Scenario | Current | New |
 |----------|---------|-----|
 | Leak permit from `.use` | ✅ Compiles, unsafe | ❌ Impossible |
-| Use `map` outside scope | ✅ Compiles, unsafe | ✅ Compiles, but produces inert `Deferred` |
+| Use `map` outside scope | ✅ Compiles, unsafe | ✅ Compiles, but produces inert `Scoped` |
 | Access child resource from parent | ❌ Compile error | ❌ Compile error |
 | Access parent resource from child | ✅ Works | ✅ Works |
 

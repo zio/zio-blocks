@@ -20,48 +20,33 @@ A value `A @@ S` is a value of type `A` "locked" to scope tag `S`. The opaque ty
 
 ```scala
 extension [A, S](scoped: A @@ S) {
-  def map[B](f: A => B): Deferred[S, B] = 
-    Deferred.Map(Deferred.Pure(scoped), f)
+  def map[B](f: A => B): Scoped[S, B] = Scoped { _ => @@.scoped(f(@@.unscoped(scoped))) }    
   
-  def flatMap[B, T](f: A => B @@ T): Deferred[S & T, B] = 
-    Deferred.FlatMap(Deferred.Pure(scoped), f)
+  def flatMap[B, T](f: A => B @@ T): Scoped[S & T, B] = Scoped { _ => @@.scoped(@@.unscoped(f(@@.unscoped(scoped)))) }
 }
 ```
 
-These build a `Deferred` tree — they don't execute. Execution requires a `Scope`.
+These build a `Scoped` tree — they don't execute. Execution requires a `Scope`.
 
 ---
 
-### `Deferred[-Tag, +A]` — Deferred Computations
+### `Scoped[-Tag, +A]` — Scoped Computations
 
 ```scala
-sealed trait Deferred[-Tag, +A] {
-  def map[B](f: A => B): Deferred[Tag, B] = 
-    Deferred.Map(this, f)
+final case class Scoped[-Tag, +A](execute: Scope[?, Tag] => A) {
+  def map[B](f: A => B): Scoped[Tag, B] = ...
   
-  def flatMap[B, T](f: A => Deferred[T, B]): Deferred[Tag & T, B] = 
-    Deferred.Chain(this, f)
-}
-
-object Deferred {
-  final case class Pure[S, A](value: A @@ S) extends Deferred[S, A]
-  final case class Map[S, A, B](source: Deferred[S, A], f: A => B) extends Deferred[S, B]
-  final case class FlatMap[S, T, A, B](source: Deferred[S, A], f: A => B @@ T) extends Deferred[S & T, B]
-  final case class Chain[S, T, A, B](source: Deferred[S, A], f: A => Deferred[T, B]) extends Deferred[S & T, B]
+  def flatMap[B, T](f: A => B @@ T): Scoped[Tag & T, B] = ...
 }
 ```
 
-A **free monad** representing operations on scoped values. The tree is pure data — no effects until interpreted by a `Scope`.
+**Contravariance in `Tag`:** A `Scoped[Parent, A]` can be executed by any scope with `Tag <: Parent`. Child scopes have more access than parents (their tag is a subtype), so they can execute parent-level Scoped computations.
 
-**Contravariance in `Tag`:** A `Deferred[Parent, A]` can be executed by any scope with `Tag <: Parent`. Child scopes have more access than parents (their tag is a subtype), so they can execute parent-level deferred computations.
-
-**Note:** There are two flatMap-like operations:
-- `@@.flatMap`: Takes `A => B @@ T`, produces `Deferred[S & T, B]`
-- `Deferred.flatMap`: Takes `A => Deferred[T, B]`, chains deferred computations
 
 ---
 
 ### `Scope[ParentTag, Tag <: ParentTag]` — Runtime Scope
+
 
 ```scala
 final class Scope[ParentTag, Tag <: ParentTag] private[scope] (
@@ -69,31 +54,35 @@ final class Scope[ParentTag, Tag <: ParentTag] private[scope] (
 ) {
   
   /** Create a value in this scope, tagged with this scope's Tag */
-  def create[A](factory: Factory[A]): A @@ Tag
+  def create[A](factory: Factory[A]): A @@ Tag = @@.scoped(factory.make(this))
   
   /** Apply a function to a scoped value, escaping if possible */
   def $[A, B, S](scoped: A @@ S)(f: A => B)(using 
     Tag <:< S,
     escape: ScopeEscape[B, S]
-  ): escape.Out
+  ): escape.Out = self { scoped.map(f) }
   
-  /** Execute a deferred computation */
-  def apply[A, S](deferred: Deferred[S, A])(using 
+  /** Execute a Scoped computation */
+  def apply[A, S](scoped: Scoped[S, A])(using 
     Tag <:< S,
     escape: ScopeEscape[A, S]
-  ): escape.Out
+  ): escape.Out = escape(@@.unscoped(scoped.execute(this)))
   
-  /** Create a child scope with fresh existential tag */
-  def scoped[A](f: ScopedFunction[Tag, A]): A
+  /** Create a child scope with fresh existential tag*/
+  def scoped[A](f: ScopedFunction[Tag, A]): A = {
+    val childScope = new Scope[Tag, f.Tag](new Finalizers)
+    try f.apply(childScope)
+    finally childScope.close() // TODO: Don't lose errors!
+  }
   
   /** Register a finalizer */
-  def defer(f: => Unit): Unit
+  def defer(f: => Unit): Unit = finalizers.add(f)
   
-  private[scope] def close(): Chunk[Throwable]
+  private[scope] def close(): Chunk[Throwable] = finalizers.close()
 }
 
 object Scope {
-  type GlobalTag
+  type GlobalTag // = Any???
   
   val global: Scope[GlobalTag, GlobalTag] = new Scope(new Finalizers)
 }
@@ -105,7 +94,7 @@ object Scope {
 |--------|---------|
 | `create` | Instantiate a factory, tag result with scope's Tag |
 | `$` | Apply function to scoped value, escape if Unscoped |
-| `apply` | Interpret a `Deferred` tree |
+| `apply` | Interpret a `Scoped` tree |
 | `scoped` | Create child scope with existential tag |
 | `defer` | Register cleanup action |
 
@@ -125,15 +114,6 @@ abstract class ScopedFunction[ParentTag, +A] {
 
 When you write a lambda for `scoped`, Scala creates an anonymous class with a **fresh `Tag` type**. This type is existential — it exists but cannot be named outside the lambda body.
 
-**Implementation of `scoped`:**
-
-```scala
-def scoped[A](f: ScopedFunction[Tag, A]): A = {
-  val childScope = new Scope[Tag, f.Tag](new Finalizers)
-  try f.apply(childScope)
-  finally childScope.close()
-}
-```
 
 ---
 
@@ -163,6 +143,7 @@ sealed trait Factory[+A] {
 ```
 
 A factory has all dependencies resolved. When `make` is called, it:
+
 1. Creates the value
 2. Registers finalizers (e.g., `AutoCloseable.close()`)
 
@@ -238,19 +219,19 @@ Scope.global.scoped { parent =>
 }
 ```
 
-### Deferred Prevents Eager Access
+### Scoped Prevents Eager Access
 
 ```scala
 val scoped: A @@ Tag = ...
 
 // Outside any scope:
-val deferred: Deferred[Tag, B] = scoped.map(_.method())  // Just data!
+val deferred: Scoped[Tag, B] = scoped.map(_.method())  // Just data!
 
 // To execute:
 scope { deferred }  // Only works inside a scope with matching Tag
 ```
 
-The free monad pattern ensures operations are **descriptions**, not **executions**. Execution is gated by scope availability.
+The scoped monad ensures operations are **descriptions**, not **executions**. Execution is gated by scope availability.
 
 ### Covariant Tags in Scope Hierarchy
 
@@ -300,19 +281,19 @@ Scope.global.scoped { appScope =>
 }
 ```
 
-### For-Comprehension with Deferred
+### For-Comprehension with Scoped
 
 ```scala
 Scope.global.scoped { scope =>
   val db: Database @@ scope.Tag = scope.create(Factory[Database])
   val cache: Cache @@ scope.Tag = scope.create(Factory[Cache])
   
-  val program: Deferred[scope.Tag, Result] = for {
+  val program: Scoped[scope.Tag, Result] = for {
     conn <- db.map(_.connect())
     data <- cache.map(_.get("key"))
   } yield process(conn, data)
   
-  // Execute the deferred computation
+  // Execute the Scoped computation
   val result: Result = scope { program }
 }
 ```
@@ -326,7 +307,7 @@ val leaked: Database @@ ? = Scope.global.scoped { scope =>
 
 // leaked.query(...)        // Won't compile: methods hidden
 // scope.$(leaked)(...)     // Won't compile: no scope with matching Tag
-// leaked.map(...)          // Creates Deferred[?, B] — can't execute!
+// leaked.map(...)          // Creates Scoped[?, B] — can't execute!
 ```
 
 ---
@@ -336,7 +317,7 @@ val leaked: Database @@ ? = Scope.global.scoped { scope =>
 | Type | Purpose |
 |------|---------|
 | `A @@ S` | Value locked to scope tag `S` |
-| `Deferred[-Tag, +A]` | Free monad for deferred operations |
+| `Scoped[-Tag, +A]` | Free monad for Scoped operations |
 | `Scope[ParentTag, Tag]` | Runtime scope with tag hierarchy |
 | `ScopedFunction[P, A]` | SAM with existential Tag for safe scoping |
 | `Factory[A]` | Fully resolved recipe to create `A` |
@@ -346,5 +327,5 @@ val leaked: Database @@ ? = Scope.global.scoped { scope =>
 **Core invariants:**
 1. `Tag <: ParentTag` — child tags are subtypes of parent tags
 2. Existential tags are unknowable outside their lambda
-3. `Deferred` is pure data until interpreted by matching `Scope`
+3. `Scoped` is pure data until interpreted by matching `Scope`
 4. `ScopeEscape` controls what crosses scope boundaries
