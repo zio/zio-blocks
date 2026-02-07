@@ -251,9 +251,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("missing_field") && err.message.contains("not found")
-            )
+            result.swap.exists(err => err.message.contains("missing_field") && err.message.contains("not found"))
         )
       },
 
@@ -268,9 +266,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("existing") && err.message.contains("already exists")
-            )
+            result.swap.exists(err => err.message.contains("existing") && err.message.contains("already exists"))
         )
       },
 
@@ -282,9 +278,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("oldName") && err.message.contains("not found")
-            )
+            result.swap.exists(err => err.message.contains("oldName") && err.message.contains("not found"))
         )
       },
 
@@ -297,9 +291,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result    = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("b") && err.message.contains("already exists")
-            )
+            result.swap.exists(err => err.message.contains("b") && err.message.contains("already exists"))
         )
       },
 
@@ -311,9 +303,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("Variant") || err.message.contains("expected")
-            )
+            result.swap.exists(err => err.message.contains("Variant") || err.message.contains("expected"))
         )
       },
 
@@ -333,9 +323,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("Variant") || err.message.contains("expected")
-            )
+            result.swap.exists(err => err.message.contains("Variant") || err.message.contains("expected"))
         )
       },
 
@@ -350,9 +338,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("Sequence") || err.message.contains("expected")
-            )
+            result.swap.exists(err => err.message.contains("Sequence") || err.message.contains("expected"))
         )
       },
 
@@ -367,9 +353,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("Map") || err.message.contains("expected")
-            )
+            result.swap.exists(err => err.message.contains("Map") || err.message.contains("expected"))
         )
       },
 
@@ -384,9 +368,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("Map") || err.message.contains("expected")
-            )
+            result.swap.exists(err => err.message.contains("Map") || err.message.contains("expected"))
         )
       },
 
@@ -414,9 +396,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("not found") || err.message.contains("path")
-            )
+            result.swap.exists(err => err.message.contains("not found") || err.message.contains("path"))
         )
       },
 
@@ -443,9 +423,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("not found") || err.message.contains("path")
-            )
+            result.swap.exists(err => err.message.contains("not found") || err.message.contains("path"))
         )
       },
 
@@ -464,9 +442,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
         assertTrue(
           result.isLeft &&
-            result.swap.exists(err =>
-              err.message.contains("nonexistent") && err.message.contains("not found")
-            )
+            result.swap.exists(err => err.message.contains("nonexistent") && err.message.contains("not found"))
         )
       }
     ),
@@ -2506,12 +2482,12 @@ object MigrationSpec extends ZIOSpecDefault {
         case class DepartmentV2(name: String, employee: EmployeeV2)
         case class CompanyV2(name: String, department: DepartmentV2)
 
-        implicit val employeeV1Schema: Schema[EmployeeV1]       = Schema.derived[EmployeeV1]
-        implicit val departmentV1Schema: Schema[DepartmentV1]   = Schema.derived[DepartmentV1]
-        implicit val companyV1Schema: Schema[CompanyV1]         = Schema.derived[CompanyV1]
-        implicit val employeeV2Schema: Schema[EmployeeV2]       = Schema.derived[EmployeeV2]
-        implicit val departmentV2Schema: Schema[DepartmentV2]   = Schema.derived[DepartmentV2]
-        implicit val companyV2Schema: Schema[CompanyV2]         = Schema.derived[CompanyV2]
+        implicit val employeeV1Schema: Schema[EmployeeV1]     = Schema.derived[EmployeeV1]
+        implicit val departmentV1Schema: Schema[DepartmentV1] = Schema.derived[DepartmentV1]
+        implicit val companyV1Schema: Schema[CompanyV1]       = Schema.derived[CompanyV1]
+        implicit val employeeV2Schema: Schema[EmployeeV2]     = Schema.derived[EmployeeV2]
+        implicit val departmentV2Schema: Schema[DepartmentV2] = Schema.derived[DepartmentV2]
+        implicit val companyV2Schema: Schema[CompanyV2]       = Schema.derived[CompanyV2]
 
         val migration = Migration.fromActions[CompanyV1, CompanyV2](
           MigrationAction.AddField(
@@ -2606,9 +2582,9 @@ object MigrationSpec extends ZIOSpecDefault {
         case class ItemV2(name: String)
         case class ContainerV2(items: List[ItemV2])
 
-        implicit val itemV1Schema: Schema[ItemV1]       = Schema.derived[ItemV1]
+        implicit val itemV1Schema: Schema[ItemV1]           = Schema.derived[ItemV1]
         implicit val containerV1Schema: Schema[ContainerV1] = Schema.derived[ContainerV1]
-        implicit val itemV2Schema: Schema[ItemV2]       = Schema.derived[ItemV2]
+        implicit val itemV2Schema: Schema[ItemV2]           = Schema.derived[ItemV2]
         implicit val containerV2Schema: Schema[ContainerV2] = Schema.derived[ContainerV2]
 
         val migration = Migration.fromActions[ContainerV1, ContainerV2]()
@@ -2628,10 +2604,10 @@ object MigrationSpec extends ZIOSpecDefault {
         case class ConfigV2(value: String)
         case class SettingsV2(configs: Map[String, ConfigV2])
 
-        implicit val configV1Schema: Schema[ConfigV1]       = Schema.derived[ConfigV1]
-        implicit val settingsV1Schema: Schema[SettingsV1]   = Schema.derived[SettingsV1]
-        implicit val configV2Schema: Schema[ConfigV2]       = Schema.derived[ConfigV2]
-        implicit val settingsV2Schema: Schema[SettingsV2]   = Schema.derived[SettingsV2]
+        implicit val configV1Schema: Schema[ConfigV1]     = Schema.derived[ConfigV1]
+        implicit val settingsV1Schema: Schema[SettingsV1] = Schema.derived[SettingsV1]
+        implicit val configV2Schema: Schema[ConfigV2]     = Schema.derived[ConfigV2]
+        implicit val settingsV2Schema: Schema[SettingsV2] = Schema.derived[SettingsV2]
 
         val migration = Migration.fromActions[SettingsV1, SettingsV2]()
 
@@ -2719,5 +2695,5 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(result.isRight)
       }
     )
-   )
+  )
 }
