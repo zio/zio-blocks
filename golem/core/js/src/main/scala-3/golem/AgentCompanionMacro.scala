@@ -346,26 +346,6 @@ private[golem] object AgentCompanionMacro {
           MethodData(m, params, accessMode, inputType, outputType)
       }
 
-    val triggerType: TypeRepr =
-      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, m) =>
-        val triggerTpe =
-          MethodType(m.params.map(_._1))(_ => m.params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
-        Refinement(acc, m.method.name, triggerTpe)
-      }
-
-    val scheduleType: TypeRepr =
-      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, m) =>
-        val scheduleTpe =
-          MethodType("datetime" :: m.params.map(_._1))(
-            _ => TypeRepr.of[Datetime] :: m.params.map(_._2),
-            _ => TypeRepr.of[scala.concurrent.Future[Unit]]
-          )
-        Refinement(acc, m.method.name, scheduleTpe)
-      }
-
-    val refinedType =
-      Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
-
     val resolvedSym =
       Symbol.newVal(
         Symbol.spliceOwner,
@@ -387,14 +367,14 @@ private[golem] object AgentCompanionMacro {
     val baseRef = Ref(baseDynSym).asExprOf[js.Dynamic]
 
     val triggerSym =
-      Symbol.newVal(Symbol.spliceOwner, "$trigger", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
-    val triggerVal = ValDef(triggerSym, Some('{ js.Dynamic.literal() }.asTerm))
-    val triggerRef = Ref(triggerSym).asExprOf[js.Dynamic]
+      Symbol.newVal(Symbol.spliceOwner, "$trigger", TypeRepr.of[AgentMethodProxy], Flags.EmptyFlags, Symbol.noSymbol)
+    val triggerVal = ValDef(triggerSym, Some('{ new AgentMethodProxy() }.asTerm))
+    val triggerRef = Ref(triggerSym).asExprOf[AgentMethodProxy]
 
     val scheduleSym =
-      Symbol.newVal(Symbol.spliceOwner, "$schedule", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
-    val scheduleVal = ValDef(scheduleSym, Some('{ js.Dynamic.literal() }.asTerm))
-    val scheduleRef = Ref(scheduleSym).asExprOf[js.Dynamic]
+      Symbol.newVal(Symbol.spliceOwner, "$schedule", TypeRepr.of[AgentMethodProxy], Flags.EmptyFlags, Symbol.noSymbol)
+    val scheduleVal = ValDef(scheduleSym, Some('{ new AgentMethodProxy() }.asTerm))
+    val scheduleRef = Ref(scheduleSym).asExprOf[AgentMethodProxy]
 
     def findMethod[In: Type, Out: Type](
       methodName: String
@@ -424,48 +404,6 @@ private[golem] object AgentCompanionMacro {
               '{ Vector[Any](${ Varargs(elements) }*) }.asExprOf[input]
           }
       }
-
-    def encodeTypeName(tpe0: TypeRepr): String = {
-      val tpe = tpe0.dealias.widen
-      if tpe =:= TypeRepr.of[Unit] then "V"
-      else if tpe =:= TypeRepr.of[Boolean] then "Z"
-      else if tpe =:= TypeRepr.of[Byte] then "B"
-      else if tpe =:= TypeRepr.of[Short] then "S"
-      else if tpe =:= TypeRepr.of[Char] then "C"
-      else if tpe =:= TypeRepr.of[Int] then "I"
-      else if tpe =:= TypeRepr.of[Long] then "J"
-      else if tpe =:= TypeRepr.of[Float] then "F"
-      else if tpe =:= TypeRepr.of[Double] then "D"
-      else if tpe =:= TypeRepr.of[String] then "T"
-      else
-        tpe match {
-          case AppliedType(arr, List(elem)) if arr.typeSymbol.fullName == "scala.Array" =>
-            "A" + encodeTypeName(elem)
-          case AppliedType(constructor, _) =>
-            encodeTypeName(constructor)
-          case _ =>
-            val full = tpe.typeSymbol.fullName
-            if full.startsWith("scala.scalajs.") then "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
-            else if full.startsWith("scala.collection.immutable.") then
-              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
-            else if full.startsWith("scala.collection.mutable.") then
-              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
-            else if full.startsWith("scala.collection.") then
-              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
-            else if full.startsWith("scala.") then "s_" + full.stripPrefix("scala.").replace('.', '_')
-            else if full.startsWith("java.lang.") then "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
-            else if full.startsWith("java.util.") then "ju_" + full.stripPrefix("java.util.").replace('.', '_')
-            else if full == "" || full == "<none>" then "O"
-            else "L" + full.replace('.', '_')
-        }
-    }
-
-    def scalaJsMethodName(name: String, paramTypes: List[TypeRepr], resultType: TypeRepr): String = {
-      val paramTypeNames = paramTypes.map(encodeTypeName)
-      val resultTypeName = encodeTypeName(resultType)
-      if paramTypeNames.isEmpty then s"${name}__${resultTypeName}"
-      else s"${name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
-    }
 
     def buildFn(method: MethodData, op: String): Expr[js.Any] = {
       val methodName = method.method.name
@@ -553,34 +491,25 @@ private[golem] object AgentCompanionMacro {
 
     val triggerUpdates: List[Statement] =
       methods.map { m =>
-        val jsName = scalaJsMethodName(m.method.name, m.params.map(_._2), TypeRepr.of[scala.concurrent.Future[Unit]])
-        val fn     = buildFn(m, "trigger")
-        '{ $triggerRef.updateDynamic(${ Expr(jsName) })($fn) }.asTerm
+        val plainName = Expr(m.method.name)
+        val fn        = buildFn(m, "trigger")
+        '{ $triggerRef.register($plainName, $fn) }.asTerm
       }
 
     val scheduleUpdates: List[Statement] =
       methods.map { m =>
-        val jsName =
-          scalaJsMethodName(
-            m.method.name,
-            TypeRepr.of[Datetime] :: m.params.map(_._2),
-            TypeRepr.of[scala.concurrent.Future[Unit]]
-          )
-        val fn = buildFn(m, "schedule")
-        '{ $scheduleRef.updateDynamic(${ Expr(jsName) })($fn) }.asTerm
+        val plainName = Expr(m.method.name)
+        val fn        = buildFn(m, "schedule")
+        '{ $scheduleRef.register($plainName, $fn) }.asTerm
       }
 
-    val attachTrigger  = '{ $baseRef.updateDynamic("trigger")($triggerRef) }.asTerm
-    val attachSchedule = '{ $baseRef.updateDynamic("schedule")($scheduleRef) }.asTerm
+    val attachTrigger  = '{ $baseRef.updateDynamic("trigger")($triggerRef.asInstanceOf[js.Any]) }.asTerm
+    val attachSchedule = '{ $baseRef.updateDynamic("schedule")($scheduleRef.asInstanceOf[js.Any]) }.asTerm
 
-    refinedType.asType match {
-      case '[t] =>
-        val casted = Typed(baseRef.asTerm, Inferred(refinedType)).asExprOf[t]
-        Block(
-          resolvedVal :: baseVal :: baseDynVal :: triggerVal :: scheduleVal :: (triggerUpdates ++ scheduleUpdates :+ attachTrigger :+ attachSchedule),
-          casted.asTerm
-        ).asExprOf[t].asExprOf[Trait]
-    }
+    Block(
+      resolvedVal :: baseVal :: baseDynVal :: triggerVal :: scheduleVal :: (triggerUpdates ++ scheduleUpdates :+ attachTrigger :+ attachSchedule),
+      Ref(baseSym)
+    ).asExprOf[Trait]
   }
 
   private enum MethodParamAccess {
@@ -659,37 +588,24 @@ private[golem] object AgentCompanionMacro {
     val methods =
       traitSymbol.methodMembers.collect {
         case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
-          val params                                    = extractParameters(m)
-          val accessMode                                = methodAccess(params)
-          val inputType                                 = inputTypeFor(accessMode, params)
-          val (outputType, _) /* Future[Out] or Unit */ =
-            returnAndOutputTypeFor(m)
-          (m, params, accessMode, inputType, outputType)
+          val params = extractParameters(m)
+          (m, params)
       }
 
+    // Build a refined type on AgentMethodProxy (which has applyDynamic) so the
+    // compiler knows about the available trigger methods and can dispatch them.
     val triggerType: TypeRepr =
-      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
+      methods.foldLeft(TypeRepr.of[AgentMethodProxy]) { case (acc, (method, params)) =>
         val triggerTpe =
           MethodType(params.map(_._1))(_ => params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
         Refinement(acc, method.name, triggerTpe)
       }
 
-    val scheduleType: TypeRepr =
-      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
-        val scheduleTpe =
-          MethodType("datetime" :: params.map(_._1))(
-            _ => TypeRepr.of[Datetime] :: params.map(_._2),
-            _ => TypeRepr.of[scala.concurrent.Future[Unit]]
-          )
-        Refinement(acc, method.name, scheduleTpe)
-      }
+    // Access via js.Dynamic (trigger is attached at runtime by attachTriggerSchedule)
+    val proxy = '{ $agent.asInstanceOf[js.Dynamic].selectDynamic("trigger").asInstanceOf[AgentMethodProxy] }
 
-    val refinedType =
-      Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
-    refinedType.asType match {
-      case '[t] =>
-        val typedAgent = Typed(agent.asTerm, Inferred(refinedType)).asExprOf[t]
-        Select.unique(typedAgent.asTerm, "trigger").asExprOf[Selectable]
+    triggerType.asType match {
+      case '[t] => '{ $proxy.asInstanceOf[t] }.asExprOf[Selectable]
     }
   }
 
@@ -704,23 +620,14 @@ private[golem] object AgentCompanionMacro {
     val methods =
       traitSymbol.methodMembers.collect {
         case m if m.flags.is(Flags.Deferred) && m.isDefDef && m.name != "new" =>
-          val params                                    = extractParameters(m)
-          val accessMode                                = methodAccess(params)
-          val inputType                                 = inputTypeFor(accessMode, params)
-          val (outputType, _) /* Future[Out] or Unit */ =
-            returnAndOutputTypeFor(m)
-          (m, params, accessMode, inputType, outputType)
+          val params = extractParameters(m)
+          (m, params)
       }
 
-    val triggerType: TypeRepr =
-      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
-        val triggerTpe =
-          MethodType(params.map(_._1))(_ => params.map(_._2), _ => TypeRepr.of[scala.concurrent.Future[Unit]])
-        Refinement(acc, method.name, triggerTpe)
-      }
-
+    // Build a refined type on AgentMethodProxy (which has applyDynamic) so the
+    // compiler knows about the available schedule methods and can dispatch them.
     val scheduleType: TypeRepr =
-      methods.foldLeft(TypeRepr.of[Selectable]) { case (acc, (method, params, _, _, _)) =>
+      methods.foldLeft(TypeRepr.of[AgentMethodProxy]) { case (acc, (method, params)) =>
         val scheduleTpe =
           MethodType("datetime" :: params.map(_._1))(
             _ => TypeRepr.of[Datetime] :: params.map(_._2),
@@ -729,12 +636,11 @@ private[golem] object AgentCompanionMacro {
         Refinement(acc, method.name, scheduleTpe)
       }
 
-    val refinedType =
-      Refinement(Refinement(traitRepr, "trigger", triggerType), "schedule", scheduleType)
-    refinedType.asType match {
-      case '[t] =>
-        val typedAgent = Typed(agent.asTerm, Inferred(refinedType)).asExprOf[t]
-        Select.unique(typedAgent.asTerm, "schedule").asExprOf[Selectable]
+    // Access via js.Dynamic (schedule is attached at runtime by attachTriggerSchedule)
+    val proxy = '{ $agent.asInstanceOf[js.Dynamic].selectDynamic("schedule").asInstanceOf[AgentMethodProxy] }
+
+    scheduleType.asType match {
+      case '[t] => '{ $proxy.asInstanceOf[t] }.asExprOf[Selectable]
     }
   }
 }

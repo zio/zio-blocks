@@ -291,49 +291,6 @@ object AgentCompanionMacro {
         case _        => appliedType(typeOf[Vector[_]].typeConstructor, List(typeOf[Any]))
       }
 
-    def methodTypeName(tpe0: Type): String = {
-      val tpe = tpe0.dealias.widen
-      if (tpe =:= typeOf[Unit]) "V"
-      else if (tpe =:= typeOf[Boolean]) "Z"
-      else if (tpe =:= typeOf[Byte]) "B"
-      else if (tpe =:= typeOf[Short]) "S"
-      else if (tpe =:= typeOf[Char]) "C"
-      else if (tpe =:= typeOf[Int]) "I"
-      else if (tpe =:= typeOf[Long]) "J"
-      else if (tpe =:= typeOf[Float]) "F"
-      else if (tpe =:= typeOf[Double]) "D"
-      else if (tpe =:= typeOf[String]) "T"
-      else {
-        tpe match {
-          case TypeRef(_, sym, List(elem)) if sym.fullName == "scala.Array" =>
-            "A" + methodTypeName(elem)
-          case TypeRef(_, sym, _) =>
-            val full = sym.fullName
-            if (full.startsWith("scala.scalajs.")) "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
-            else if (full.startsWith("scala.collection.immutable."))
-              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
-            else if (full.startsWith("scala.collection.mutable."))
-              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
-            else if (full.startsWith("scala.collection."))
-              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
-            else if (full.startsWith("scala.")) "s_" + full.stripPrefix("scala.").replace('.', '_')
-            else if (full.startsWith("java.lang.")) "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
-            else if (full.startsWith("java.util.")) "ju_" + full.stripPrefix("java.util.").replace('.', '_')
-            else if (full == "" || full == "<none>") "O"
-            else "L" + full.replace('.', '_')
-          case _ =>
-            "O"
-        }
-      }
-    }
-
-    def scalaJsMethodName(name: String, paramTypes: List[Type], resultType: Type): String = {
-      val paramTypeNames = paramTypes.map(methodTypeName)
-      val resultTypeName = methodTypeName(resultType)
-      if (paramTypeNames.isEmpty) s"${name}__${resultTypeName}"
-      else s"${name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
-    }
-
     def buildInputValueExpr(argNames: List[TermName], accessMode: Int): Tree =
       accessMode match {
         case 0 => q"()"
@@ -357,13 +314,12 @@ object AgentCompanionMacro {
       val params     = paramsFor(m)
       val accessMode = if (params.isEmpty) 0 else if (params.length == 1) 1 else 2
       val inputTpe   = inputTypeFor(params)
-      val jsName     =
-        scalaJsMethodName(m.name.decodedName.toString, params.map(_._2), typeOf[scala.concurrent.Future[Unit]])
+      val plainName  = m.name.decodedName.toString
 
       val argNames   = params.zipWithIndex.map { case ((n, _), idx) => TermName(s"${n.decodedName.toString}_$idx") }
       val args       = params.zip(argNames).map { case ((_, tpe), nm) => q"val $nm: $tpe" }
       val inputVal   = buildInputValueExpr(argNames, accessMode)
-      val methodExpr = findMethodExpr(inputTpe, m.name.decodedName.toString)
+      val methodExpr = findMethodExpr(inputTpe, plainName)
       val body       = q"$resolvedTree.trigger[$inputTpe]($methodExpr, $inputVal)"
 
       val fn   = q"(..$args) => $body"
@@ -375,26 +331,21 @@ object AgentCompanionMacro {
         case n =>
           c.abort(c.enclosingPosition, s"Unsupported agent method arity for trigger.${m.name}: $n (supported: 0-3)")
       }
-      q"$triggerName.updateDynamic($jsName)($jsFn)"
+      q"$triggerName.updateDynamic($plainName)($jsFn)"
     }
 
     val scheduleUpdates: List[Tree] = methods.map { m =>
       val params     = paramsFor(m)
       val accessMode = if (params.isEmpty) 0 else if (params.length == 1) 1 else 2
       val inputTpe   = inputTypeFor(params)
-      val jsName     =
-        scalaJsMethodName(
-          m.name.decodedName.toString,
-          typeOf[_root_.golem.Datetime] :: params.map(_._2),
-          typeOf[scala.concurrent.Future[Unit]]
-        )
+      val plainName  = m.name.decodedName.toString
 
       val dtName   = TermName("datetime")
       val argNames = params.zipWithIndex.map { case ((n, _), idx) => TermName(s"${n.decodedName.toString}_$idx") }
       val args     =
         (q"val $dtName: _root_.golem.Datetime") +: params.zip(argNames).map { case ((_, tpe), nm) => q"val $nm: $tpe" }
       val inputVal   = buildInputValueExpr(argNames, accessMode)
-      val methodExpr = findMethodExpr(inputTpe, m.name.decodedName.toString)
+      val methodExpr = findMethodExpr(inputTpe, plainName)
       val body       = q"$resolvedTree.schedule[$inputTpe]($methodExpr, $dtName, $inputVal)"
 
       val fn   = q"(..$args) => $body"
@@ -409,7 +360,7 @@ object AgentCompanionMacro {
             s"Unsupported agent method arity for schedule.${m.name}: $n (supported: 1-4 including datetime)"
           )
       }
-      q"$scheduleName.updateDynamic($jsName)($jsFn)"
+      q"$scheduleName.updateDynamic($plainName)($jsFn)"
     }
 
     val refinedType = tq"$traitTpe with _root_.golem.TriggerSchedule"
