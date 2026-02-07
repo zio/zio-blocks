@@ -1,3 +1,3 @@
 package zio.blocks
 
-package object mediatype extends MediaTypeLiteral
+package object mediatype extends MediaTypeInterpolator

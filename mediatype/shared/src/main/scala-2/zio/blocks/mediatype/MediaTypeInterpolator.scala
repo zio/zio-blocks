@@ -3,7 +3,7 @@ package zio.blocks.mediatype
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
-trait MediaTypeLiteral {
+trait MediaTypeInterpolator {
 
   implicit class MediaTypeStringContext(val sc: StringContext) {
     def mediaType(args: Any*): MediaType = macro MediaTypeMacros.mediaTypeImpl
