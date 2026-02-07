@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, SchemaError, SchemaExpr}
+import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError, SchemaExpr}
 
 /**
  * A pure, serializable migration that operates on `DynamicValue`. This is the
@@ -133,8 +133,8 @@ private[migration] object ActionExecutor {
     expr: SchemaExpr[_, _],
     at: zio.blocks.schema.DynamicOptic
   ): Either[SchemaError, DynamicValue] =
-    expr match {
-      case SchemaExpr.Literal(dynamicValue) =>
+    expr.dynamic match {
+      case DynamicSchemaExpr.Literal(dynamicValue) =>
         Right(dynamicValue)
       case other =>
         Left(

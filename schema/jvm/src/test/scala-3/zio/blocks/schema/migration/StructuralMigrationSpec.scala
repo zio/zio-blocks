@@ -21,8 +21,8 @@ import zio.blocks.schema.*
  */
 object StructuralMigrationSpec extends ZIOSpecDefault {
 
-  private def literal(dv: DynamicValue): SchemaExpr[Any, Any] =
-    SchemaExpr.Literal[Any, Any](dv)
+  private def literal(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
+    SchemaExpr.Literal(dv)
 
   def spec: Spec[TestEnvironment, Any] = suite("StructuralMigrationSpec")(
     suite("Structural → Case Class (PRIMARY USE CASE: migrating from old versions)")(
