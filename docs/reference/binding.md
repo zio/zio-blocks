@@ -119,9 +119,7 @@ final case class Variant[A](
 import zio.blocks.schema.binding._
 
 sealed trait Shape extends Product with Serializable
-
 case class Circle(radius: Double) extends Shape
-
 case class Rectangle(width: Double, height: Double) extends Shape
 
 val shapeBinding = Binding.Variant[Shape](
@@ -302,10 +300,10 @@ final case class Wrapper[A, B](
 
 **Components:**
 
-- `wrap`: Converts from the underlying type `B` to the wrapper type `A`, returning `Right(a)` on success or `Left(SchemaError)` on failure
-- `unwrap`: Extracts the underlying `B` from an `A`, returning `Right(b)` on success or `Left(SchemaError)` on failure
+- `wrap`: Converts from the underlying type `B` to the wrapper type `A`
+- `unwrap`: Extracts the underlying `B` from an `A`
 
-Here is an example of a `Binding.Wrapper` for an `Email` newtype with validation:
+Here is an example of a `Binding.Wrapper` for an `Email` newtype:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -314,13 +312,9 @@ import zio.blocks.schema.binding._
 case class Email(value: String)
 
 object Email {
-  private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
   new Binding.Wrapper[Email, String](
-    wrap = {
-      case x@EmailRegex(_*) => Right(new Email(x))
-      case _ => Left(SchemaError.validationFailed("Expected valid email format"))
-    },
-    email => Right(email.value)
+    wrap = value => new Email(value),
+    unwrap = email => email.value
   )
 }
 ```
