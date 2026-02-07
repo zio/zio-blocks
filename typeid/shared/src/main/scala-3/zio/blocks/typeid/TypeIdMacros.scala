@@ -990,14 +990,19 @@ object TypeIdMacros {
     val (name, ownerExpr) = if (isEnumValue) {
       (termSymbol.name, buildOwner(termSymbol.owner))
     } else {
-      val rawName           = typeSymbol.name
-      val nm                = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
-      val directOwner       = typeSymbol.owner
-      val resolvedOwnerExpr = tpe match {
-        case tr: TypeRef => resolveOwnerExprFromTypeRef(tr, directOwner)
-        case _           => buildOwner(directOwner)
+      val rawName     = typeSymbol.name
+      val nm          = if (typeSymbol.flags.is(Flags.Module)) rawName.stripSuffix("$") else rawName
+      val directOwner = typeSymbol.owner
+      tpe match {
+        case tr: TypeRef =>
+          resolveNewtypeQualifier(tr) match {
+            case Some((qualifierName, qualifierOwner)) =>
+              (qualifierName, buildOwner(qualifierOwner))
+            case None =>
+              (nm, resolveOwnerExprFromTypeRef(tr, directOwner))
+          }
+        case _ => (nm, buildOwner(directOwner))
       }
-      (nm, resolvedOwnerExpr)
     }
     val typeParamsExpr  = buildTypeParams(typeSymbol)
     val annotationsExpr = buildAnnotations(if (isEnumValue) termSymbol else typeSymbol)
@@ -1250,14 +1255,17 @@ object TypeIdMacros {
       case "Null"    => return '{ zio.blocks.typeid.TypeRepr.NullType }
       case _         =>
         def createFreshTypeId(): Expr[TypeId[Nothing]] = {
-          val ownerExpr = buildOwner(sym.owner)
+          val (resolvedName, resolvedOwnerExpr) = resolveNewtypeQualifier(tref) match {
+            case Some((qualifierName, qualifierOwner)) => (qualifierName, buildOwner(qualifierOwner))
+            case None                                  => (name, buildOwner(sym.owner))
+          }
           if (sym.isAliasType) {
             val aliasedType = tref.translucentSuperType.dealias
             val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(sym.fullName))
-            '{ TypeId.alias[Nothing](${ Expr(name) }, $ownerExpr, Nil, $aliasedExpr, Nil, Nil) }
+            '{ TypeId.alias[Nothing](${ Expr(resolvedName) }, $resolvedOwnerExpr, Nil, $aliasedExpr, Nil, Nil) }
           } else {
             val defKindExpr = buildDefKindShallow(sym)
-            '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, $defKindExpr) }
+            '{ TypeId.nominal[Nothing](${ Expr(resolvedName) }, $resolvedOwnerExpr, $defKindExpr) }
           }
         }
 
@@ -1426,16 +1434,38 @@ object TypeIdMacros {
     '{ TermPath(${ Expr.ofList(segments) }) }
   }
 
-  private val zioPreludeNewtypeBases = Set(
+  private val newtypeBases = Set(
     "zio.prelude.NewtypeCustom",
     "zio.prelude.SubtypeCustom",
     "zio.prelude.Newtype",
     "zio.prelude.Subtype",
-    "zio.prelude.NewtypeVersionSpecific"
+    "zio.prelude.NewtypeVersionSpecific",
+    "neotype.Newtype",
+    "neotype.Subtype"
   )
 
-  private def isZioPreludeNewtypeBase(using Quotes)(sym: quotes.reflect.Symbol): Boolean =
-    !sym.isNoSymbol && zioPreludeNewtypeBases.contains(sym.fullName)
+  private def isNewtypeBase(using Quotes)(sym: quotes.reflect.Symbol): Boolean =
+    !sym.isNoSymbol && newtypeBases.contains(sym.fullName)
+
+  /** Detects a newtype pattern (e.g., `CustomType.Type`) and returns the qualifier name and owner symbol. */
+  private def resolveNewtypeQualifier(using Quotes)(
+    tr: quotes.reflect.TypeRef
+  ): Option[(String, quotes.reflect.Symbol)] = {
+    import quotes.reflect.*
+
+    val directOwner    = tr.typeSymbol.owner
+    val ownerBases     = directOwner.typeRef.baseClasses.map(_.fullName)
+    val isNewtypeOwner = ownerBases.exists(newtypeBases.contains) || isNewtypeBase(directOwner)
+
+    if (isNewtypeOwner) {
+      tr.qualifier match {
+        case termRef: TermRef =>
+          val termSym = termRef.termSymbol
+          Some((termSym.name.stripSuffix("$"), termSym.owner))
+        case _ => None
+      }
+    } else None
+  }
 
   private def resolveOwnerExprFromTypeRef(using
     Quotes
@@ -1447,17 +1477,14 @@ object TypeIdMacros {
 
     val directOwner           = tr.typeSymbol.owner
     val ownerBases            = directOwner.typeRef.baseClasses.map(_.fullName)
-    val isPreludeNewtypeOwner = ownerBases.exists(zioPreludeNewtypeBases.contains) ||
-      isZioPreludeNewtypeBase(directOwner)
+    val isNewtypeOwner = ownerBases.exists(newtypeBases.contains) ||
+      isNewtypeBase(directOwner)
 
-    if (isPreludeNewtypeOwner) {
+    if (isNewtypeOwner) {
       tr.qualifier match {
         case termRef: TermRef =>
-          val termSym       = termRef.termSymbol
-          val termName      = termSym.name.stripSuffix("$")
-          val parentSegment = '{ Owner.Term(${ Expr(termName) }) }
-          val parentOwner   = buildOwner(termSym.owner)
-          '{ Owner($parentOwner.segments :+ $parentSegment) }
+          val termSym     = termRef.termSymbol
+          buildOwner(termSym.owner)
         case _ =>
           buildOwner(fallback)
       }
@@ -1474,18 +1501,16 @@ object TypeIdMacros {
   ): Owner = {
     import quotes.reflect.*
 
-    val directOwner           = tr.typeSymbol.owner
-    val ownerBases            = directOwner.typeRef.baseClasses.map(_.fullName)
-    val isPreludeNewtypeOwner = ownerBases.exists(zioPreludeNewtypeBases.contains) ||
-      isZioPreludeNewtypeBase(directOwner)
+    val directOwner    = tr.typeSymbol.owner
+    val ownerBases     = directOwner.typeRef.baseClasses.map(_.fullName)
+    val isNewtypeOwner = ownerBases.exists(newtypeBases.contains) ||
+      isNewtypeBase(directOwner)
 
-    if (isPreludeNewtypeOwner) {
+    if (isNewtypeOwner) {
       tr.qualifier match {
         case termRef: TermRef =>
-          val termSym     = termRef.termSymbol
-          val termName    = termSym.name.stripSuffix("$")
-          val parentOwner = analyzeOwner(termSym.owner)
-          Owner(parentOwner.segments :+ Owner.Term(termName))
+          val termSym = termRef.termSymbol
+          analyzeOwner(termSym.owner)
         case _ =>
           analyzeOwner(fallback)
       }
