@@ -35,7 +35,7 @@ component_dir="$app_dir/components-js/scala-quickstart-counter"
 agent_id="agent-$(date +%s)"
 
 # Build Scala.js up-front (no golem-cli needed). This ensures
-# `golem/quickstart/golem-temp/agent_guest.wasm` exists before golem-cli parses the app manifest.
+# `golem/quickstart/.generated/agent_guest.wasm` exists before golem-cli parses the app manifest.
 if ! ( cd "$component_dir" && bash "$app_dir/build-scalajs.sh" "$component" ); then
   echo "[quickstart-script-test] scala.js build failed; see output above." >&2
   exit 1

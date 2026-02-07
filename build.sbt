@@ -590,6 +590,7 @@ lazy val zioGolemExamples = project
     publish / skip                  := true,
     scalaJSUseMainModuleInitializer := false,
     golemBasePackage                := Some("golem.examples"),
+    golemComponentPathPrefix        := "../..",
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     Test / test := {
@@ -622,6 +623,7 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
     // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
     scalaJSUseMainModuleInitializer := true,
     golemBasePackage                := Some("golem.quickstart"),
+    golemComponentPathPrefix        := "../..",
     Compile / mainClass             := Some("golem.quickstart.Boot"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),

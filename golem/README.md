@@ -125,7 +125,7 @@ Notes:
 If you use custom Scala types as **constructor inputs** (`BaseAgent[MyInput]`) or **method parameters/return values**,
 the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
 
-You normally **do not** define `GolemSchema` directly — instead, derive/provide a `zio.blocks.schema.Schema[T]`,
+You normally **do not** define `GolemSchema` directly -- instead, derive/provide a `zio.blocks.schema.Schema[T]`,
 and `GolemSchema` will be derived automatically from it.
 
 For example (Scala 3):
@@ -184,7 +184,7 @@ object Example {
 |----------|---------|-------------|
 | `model`  | yes     | Types + schemas + annotations + agent metadata |
 | `core`   | yes     | Runtime client/server helpers (RPC, host API, transactions, snapshot helpers) |
-| `macros` | yes     | Compile-time derivation (analogous to Rust’s `golem-rust-macro`) |
+| `macros` | yes     | Compile-time derivation (analogous to Rust's `golem-rust-macro`) |
 | `tools`  | no      | Repo-local JVM helpers/tests (not part of the SDK surface) |
 | `examples` | no | Repo-local verification/harnesses (not user-facing) |
 
@@ -248,55 +248,30 @@ trait MyAgent {
 
 ## Running on Golem
 
-The Scala sbt/Mill plugins are **build adapters**: they generate the Scala.js bundle plus internal registration/shim artifacts used by the Scala.js guest runtime.
+The sbt/Mill plugins are **build adapters**: they generate the Scala.js bundle and write the base guest runtime (`agent_guest.wasm`) to `.generated/`. **`golem-cli` is the driver** for build/deploy/invoke/repl.
 
-**`golem-cli` is the driver** for scaffolding/build/deploy/invoke/repl (this matches how golem apps are intended to be operated).
+```bash
+cd <your-app-dir>
+golem-cli build --yes
+golem-cli deploy --yes
+golem-cli repl org:component
+```
+
+See `golem/gettingStarted/` for a standalone example or `golem/examples/` for the monorepo setup.
 
 ### Base guest runtime (agent_guest.wasm)
 
-The QuickJS guest runtime (`agent_guest.wasm`) is an SDK artifact, not a user project file. The sbt/Mill plugins embed a known-good copy and automatically write it to `golem-temp/agent_guest.wasm` when you compile or link Scala.js.
+The `agent_guest.wasm` is an SDK artifact embedded in the sbt/Mill plugins. It is automatically written to `.generated/agent_guest.wasm` when you compile or link Scala.js. User projects do not need to manage this file.
 
-To regenerate the base runtime (when upgrading Golem/WIT versions):
+To regenerate when upgrading Golem/WIT versions:
 
 ```bash
 ./golem/tools/generate-agent-guest-wasm.sh v1.4.1
 ```
 
-This script expects a local checkout of the Golem WIT definitions at:
-`golem/tools/wit-<tag>/wit` (or set `GOLEM_WIT_DIR` to a custom path).
-
-That script stages a deterministic WIT package using `golem/tools/agent-wit/agent.wit` plus its dependencies, then runs `wasm-rquickjs generate-wrapper-crate` (with `--js-modules 'user=@composition'`) and `cargo component build`.
-
-**Why the wrapper command differs from the TS SDK:** the Scala SDK is bundled into the user’s Scala.js output and injected by `golem-cli` (the `scala.js` module). So the base guest runtime only needs the `@composition` placeholder. In the TS SDK, the base runtime embeds `@golemcloud/golem-ts-sdk` as an external JS module, which is why their `generate-wrapper-crate` includes `--js-modules '@golemcloud/golem-ts-sdk=dist/index.mjs'`.
-
-The base WIT definition is owned by the SDK (`golem/tools/agent-wit/agent.wit`), so user projects do not need a local "base WIT directory".
-
-### sbt (example)
-
-In a Golem app manifest (`golem.yaml`), define a Scala template (e.g. `template: scala.js`) whose first build step
-invokes sbt to compile Scala to a single JS module, then run the standard QuickJS wrapping steps unchanged.
-
-Then run golem-cli from the app directory (the module root that contains `golem.yaml`;
-`.golem/` is generated and should not be hand-edited):
-
-```bash
-GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
-cd <your-app-dir>
-env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy org:component
-env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl org:component --disable-stream
-```
-
-### Mill (example)
-
-The same approach applies: the `scala.js` template can invoke `mill` instead of `sbt` to produce the JS module.
-
 ### Golem AI provider dependencies
 
-Golem AI exposes a unified API, but you must still add the provider WASM as a
-component dependency in your app manifest. Add a `dependencies:` section under
-your component entry in `components-js/<component>/golem.yaml`.
-
-Example (Ollama provider for LLMs):
+To use Golem AI, add the provider WASM as a component dependency in your app manifest:
 
 ```yaml
 components:
@@ -312,13 +287,10 @@ components:
 The Scala SDK exposes host APIs in two layers:
 
 1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.3.0`).
-2) **Raw host modules** (forward‑compatible, mirrors JS/WIT surface):
-   - `golem.host.OplogApi` → `golem:api/oplog@1.3.0`
-   - `golem.host.ContextApi` → `golem:api/context@1.3.0`
-   - `golem.host.DurabilityApi` → `golem:durability/durability@1.3.0`
-   - `golem.host.Rdbms` → `golem:rdbms/*@0.0.1`
+2) **Raw host modules** (forward-compatible, mirrors JS/WIT surface):
+   - `golem.host.OplogApi`, `golem.host.ContextApi`, `golem.host.DurabilityApi`, `golem.host.Rdbms`
 
-Example (typed `HostApi`):
+Example:
 
 ```scala
 import golem.HostApi
@@ -327,20 +299,6 @@ val begin = HostApi.markBeginOperation()
 // ... do work ...
 HostApi.markEndOperation(begin)
 ```
-
-Example (raw module access):
-
-```scala
-import golem.host.{ContextApi, Rdbms}
-
-val span = ContextApi.startSpan("my-span")
-val pg   = Rdbms.postgresRaw // raw JS/WIT module (use provider-specific API)
-```
-
-Notes:
-
-- Raw modules intentionally return `Any` to avoid leaking `scala.scalajs.js.*` in public APIs.
-- If you need structured helpers, prefer `HostApi` where available; raw modules provide parity with TS/Rust when helpers are not yet wrapped.
 
 ## Dependencies
 
