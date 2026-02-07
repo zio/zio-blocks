@@ -208,21 +208,22 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-<<<<<<< HEAD
     coverageMinimumStmtTotal   := 86,
     coverageMinimumBranchTotal := 81,
     // Exclude macro implementation files from coverage - macros run at compile time, not runtime
     coverageExcludedFiles := Seq(
       ".*scala-2/zio/blocks/schema/comptime/.*",
       ".*scala-3/zio/blocks/schema/comptime/.*",
+      ".*BuildInfo.*",
       ".*Macros.*",
-      ".*BuildInfo.*"
+      ".*MacroUtils.*",
+      ".*CommonMacroOps.*",
+      ".*PathInterpolator.*",
+      ".*VersionSpecific.*",
+      ".*CompanionOptics.*",
+      ".*DerivedOptics.*",
+      ".*RegisterOffset.*"
     ).mkString(";")
-=======
-    coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 80,
-    coverageExcludedFiles      := ".*BuildInfo.*|.*Macros.*|.*MacroUtils.*|.*CommonMacroOps.*|.*PathInterpolator.*|.*VersionSpecific.*|.*CompanionOptics.*|.*DerivedOptics.*|.*RegisterOffset.*"
->>>>>>> 30506c01 (build: expand coverage exclusions for compile-time code)
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {

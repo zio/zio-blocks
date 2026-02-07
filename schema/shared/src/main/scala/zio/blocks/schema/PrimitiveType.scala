@@ -43,6 +43,11 @@ sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
       Seq.empty
     )
   )
+
+  /**
+   * Convert to NumericTypeTag for DynamicSchemaExpr.
+   */
+  def toTag: DynamicSchemaExpr.NumericTypeTag
 }
 
 object PrimitiveType {
@@ -86,6 +91,8 @@ object PrimitiveType {
 
     def typeId: TypeId[scala.Byte] = TypeId.byte
 
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.ByteTag
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -102,6 +109,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Short): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Short(value))
 
     def typeId: TypeId[scala.Short] = TypeId.short
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.ShortTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -120,6 +129,8 @@ object PrimitiveType {
 
     def typeId: TypeId[scala.Int] = TypeId.int
 
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.IntTag
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -136,6 +147,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Long): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Long(value))
 
     def typeId: TypeId[scala.Long] = TypeId.long
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.LongTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -154,6 +167,8 @@ object PrimitiveType {
 
     def typeId: TypeId[scala.Float] = TypeId.float
 
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.FloatTag
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -170,6 +185,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Double): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Double(value))
 
     def typeId: TypeId[scala.Double] = TypeId.double
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.DoubleTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -219,6 +236,8 @@ object PrimitiveType {
 
     def typeId: TypeId[scala.BigInt] = TypeId.bigInt
 
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.BigIntTag
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -236,6 +255,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(value))
 
     def typeId: TypeId[scala.BigDecimal] = TypeId.bigDecimal
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.BigDecimalTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
