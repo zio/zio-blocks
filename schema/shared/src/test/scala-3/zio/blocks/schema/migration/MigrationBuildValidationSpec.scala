@@ -5,8 +5,8 @@ import zio.blocks.schema.*
 
 object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
-  private def literal(dv: DynamicValue): SchemaExpr[Any, Any] =
-    SchemaExpr.Literal[Any, Any](dv)
+  private def literal(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
+    SchemaExpr.Literal(dv)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationBuildValidationSpec")(
     suite("build validation")(

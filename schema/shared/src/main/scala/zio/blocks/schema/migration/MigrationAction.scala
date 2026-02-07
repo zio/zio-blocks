@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, Schema, SchemaExpr}
 
 /**
  * Represents a single migration action that operates at a specific path. All
@@ -134,7 +134,14 @@ object MigrationAction {
   final case class Optionalize(
     at: DynamicOptic
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Mandate(at, SchemaExpr.Literal(DynamicValue.Record.empty))
+    override def reverse: MigrationAction = Mandate(
+      at,
+      SchemaExpr(
+        DynamicSchemaExpr.Literal(DynamicValue.Record.empty),
+        Schema[Unit].transform[Any](_ => null.asInstanceOf[Any], _ => ()),
+        Schema[Unit].asInstanceOf[Schema[DynamicValue.Record]]
+      )
+    )
   }
 
   /**
