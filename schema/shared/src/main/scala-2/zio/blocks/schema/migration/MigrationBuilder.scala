@@ -132,16 +132,10 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   /**
    * Transform a nested record field with its own migration.
    */
-  def transformNested[F1, F2](
-    source: A => F1,
-    target: B => F2
-  )(
-    nestedMigration: MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, _, _]
-  )(implicit
-    nestedSourceSchema: Schema[F1],
-    nestedTargetSchema: Schema[F2]
-  ): MigrationBuilder[A, B, _, _] = macro
-    MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  // format: off
+  def transformNested[F1, F2](source: A => F1, target: B => F2)(nestedMigration: MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, _, _])(implicit nestedSourceSchema: Schema[F1], nestedTargetSchema: Schema[F2]): MigrationBuilder[A, B, _, _] =
+    macro MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  // format: on
 
   /**
    * Apply an existing migration to a nested field. This is used for migration
@@ -154,12 +148,10 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    * @param migration
    *   The migration to apply to the nested field
    */
-  def migrateField[F1, F2](
-    source: A => F1,
-    target: B => F2,
-    migration: Migration[F1, F2]
-  ): MigrationBuilder[A, B, _, _] = macro
-    MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  // format: off
+  def migrateField[F1, F2](source: A => F1, target: B => F2, migration: Migration[F1, F2]): MigrationBuilder[A, B, _, _] =
+    macro MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  // format: on
 
   /**
    * Apply an existing migration to a nested field, summoning the migration from
@@ -172,13 +164,10 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    * @param migration
    *   The migration to apply to the nested field (implicit)
    */
-  def migrateField[F1, F2](
-    source: A => F1,
-    target: B => F2
-  )(implicit
-    migration: Migration[F1, F2]
-  ): MigrationBuilder[A, B, _, _] = macro
-    MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  // format: off
+  def migrateField[F1, F2](source: A => F1, target: B => F2)(implicit migration: Migration[F1, F2]): MigrationBuilder[A, B, _, _] =
+    macro MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  // format: on
 
   // ----- Enum operations -----
 
