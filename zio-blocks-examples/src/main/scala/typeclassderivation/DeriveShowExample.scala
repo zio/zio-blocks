@@ -264,13 +264,6 @@ object DeriveShowExample extends App {
     println("=" * 80)
   }
 
-  def printSection(title: String): Unit = {
-    println()
-    println("-" * 60)
-    println(title)
-    println("-" * 60)
-  }
-
   /**
    * Example 1: Simple Person Record with two primitive fields
    */
