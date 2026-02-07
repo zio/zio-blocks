@@ -1546,6 +1546,253 @@ Email.gen.generate(random)
 Email.gen.generate(random)
 ```
 
+## Custom Type-class Instances
+
+While automatic derivation generates type class instances for all substructures of a data type, there are times when you need to override the derived instance for a specific substructure. For example, you might want to use a custom `Show` instance for a particular field, provide a hand-written codec for a specific type that the deriver doesn't handle well, or inject a special implementation for testing purposes.
+
+The `DerivationBuilder` provides an `instance` method that allows you to override the automatically derived type class instance for any part of the schema tree. You access the `DerivationBuilder` by calling `Schema#deriving(deriver)` instead of `Schema#derive(deriver)`:
+
+```scala
+val schema: Schema[A] = ...
+val deriver: Deriver[TC] = ...
+
+// Using derive: fully automatic, no customization
+val tc: TC[A] = schema.derive(deriver)
+
+// Using deriving: returns a DerivationBuilder for customization
+val tc: TC[A] = schema.deriving(deriver)
+  .instance(...)   // override specific instances
+  .modifier(...)   // override specific modifiers
+  .derive           // finalize the derivation
+```
+
+The `DerivationBuilder` offers two overloaded `instance` methods for providing custom type class instances:
+
+```scala
+final case class DerivationBuilder[TC[_], A](...) {
+  def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A]
+  def instance[B](typeId: TypeId[B],  instance: => TC[B]): DerivationBuilder[TC, A]
+}
+```
+
+### Overriding by Optic
+
+The first overload takes an `Optic[A, B]` that precisely targets a specific location within the schema tree. This is useful when you want to override the instance for a particular field or case without affecting other occurrences of the same type:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema._
+import zio.blocks.typeid.TypeId
+
+case class Person(name: String, age: Int)
+
+object Person extends CompanionOptics[Person] {
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+
+  val name: Lens[Person, String] = $(_.name)
+  val age: Lens[Person, Int]     = $(_.age)
+}
+```
+
+Now we can override the `Show[String]` instance specifically for the `name` field of `Person`:
+
+```scala mdoc:silent:nest
+val customNameShow: Show[String] = new Show[String] {
+  def show(value: String): String = value.toUpperCase
+}
+
+val personShow: Show[Person] = Person.schema
+  .deriving(DeriveShow)
+  .instance(Person.name, customNameShow)
+  .derive
+```
+
+When we show a `Person`, the `name` field will use the custom `Show[String]` instance (showing it in uppercase), while the `age` field will use the automatically derived `Show[Int]` instance:
+
+```scala mdoc
+personShow.show(Person("Alice", 30))
+```
+
+You can also target deeper nested fields using composed optics. For example, if you have a `Company` that contains a `Person`, you can target the `name` field inside the nested `Person`:
+
+```scala mdoc:silent
+case class Company(ceo: Person, industry: String)
+
+object Company extends CompanionOptics[Company] {
+  implicit val schema: Schema[Company] = Schema.derived[Company]
+
+  val ceo: Lens[Company, Person]       = $(_.ceo)
+  val ceoName: Lens[Company, String]   = $(_.ceo.name)
+  val industry: Lens[Company, String]  = $(_.industry)
+}
+```
+
+```scala mdoc:silent:nest
+val companyShow: Show[Company] = Company.schema
+  .deriving(DeriveShow)
+  .instance(Company.ceoName, customNameShow)
+  .derive
+```
+
+In this case, the custom `Show[String]` instance only applies to the CEO's name. The `industry` field, which is also a `String`, will use the default derived `Show[String]` instance:
+
+```scala mdoc
+companyShow.show(Company(Person("Alice", 30), "tech"))
+```
+
+### Overriding by TypeId
+
+The second overload takes a `TypeId[B]` and applies the custom instance to **all occurrences** of type `B` anywhere in the schema tree. This is useful when you want to override the instance for a type globally, without having to specify each location:
+
+```scala mdoc:silent:nest
+val customIntShow: Show[Int] = new Show[Int] {
+  def show(value: Int): String = s"#$value"
+}
+
+val personShow: Show[Person] = Person.schema
+  .deriving(DeriveShow)
+  .instance(TypeId.int, customIntShow)
+  .derive
+```
+
+All `Int` fields in the `Person` schema (in this case, just `age`) will use the custom `Show[Int]` instance:
+
+```scala mdoc
+personShow.show(Person("Alice", 30))
+```
+
+### Resolution Order
+
+When the derivation engine encounters a schema node, it resolves the type class instance using the following priority order:
+
+1. **Optic-based override** (most precise): If an instance override was registered using an optic that matches the current path in the schema tree, that instance is used.
+2. **TypeId-based override** (more general): If no optic-based match is found, it checks for an instance override registered by type ID.
+3. **Automatic derivation** (default): If no override is found, the deriver's method (e.g., `derivePrimitive`, `deriveRecord`) is called to automatically derive the instance.
+
+This means you can set a global override by type and then selectively refine specific fields using optics:
+
+```scala mdoc:silent:nest
+val companyShow: Show[Company] = Company.schema
+  .deriving(DeriveShow)
+  .instance(TypeId.string, new Show[String] {
+    def show(value: String): String = s"'$value'"
+  })
+  .instance(Company.ceoName, new Show[String] {
+    def show(value: String): String = value.toUpperCase
+  })
+  .derive
+```
+
+In this example, all `String` fields use single quotes, except for the CEO's name which is shown in uppercase:
+
+```scala mdoc
+companyShow.show(Company(Person("Alice", 30), "tech"))
+```
+
+### Chaining Multiple Overrides
+
+The `instance` method returns a new `DerivationBuilder`, so you can chain multiple overrides fluently:
+
+```scala mdoc:silent:nest
+val personShow: Show[Person] = Person.schema
+  .deriving(DeriveShow)
+  .instance(Person.name, new Show[String] {
+    def show(value: String): String = s"<<$value>>"
+  })
+  .instance(Person.age, new Show[Int] {
+    def show(value: Int): String = s"age=$value"
+  })
+  .derive
+```
+
+```scala mdoc
+personShow.show(Person("Alice", 30))
+```
+
+## Custom Modifiers
+
+Modifiers are metadata annotations that influence how type class instances behave at runtime. For example, the `Modifier.rename` modifier tells a JSON codec to use a different field name during serialization, and `Modifier.transient` tells it to skip a field entirely.
+
+While modifiers can be attached to schemas directly using Scala annotations (e.g., `@Modifier.transient`) or the `Schema#modifier` method, the `DerivationBuilder` provides a way to inject modifiers **programmatically at derivation time** without modifying the schema itself. This is particularly useful when:
+
+- You don't control the schema definition (e.g., it comes from a library)
+- You need different modifiers for different derivation contexts (e.g., one JSON codec with renamed fields, another without)
+- You want to keep the schema clean and push format-specific concerns into the derivation layer
+
+The `DerivationBuilder` offers two overloaded `modifier` methods:
+
+```scala
+final case class DerivationBuilder[TC[_], A](...) {
+  def modifier[B](typeId: TypeId[B],  modifier: Modifier.Reflect): DerivationBuilder[TC, A]
+  def modifier[B](optic: Optic[A, B], modifier: Modifier)        : DerivationBuilder[TC, A]
+}
+```
+
+### Modifier Hierarchy
+
+ZIO Blocks has two categories of modifiers:
+
+- **`Modifier.Reflect`**: Type-level modifiers that apply to the schema node itself (e.g., `Modifier.config`).
+- **`Modifier.Term`**: Field-level or case-level modifiers that apply to a specific field of a record or case of a variant (e.g., `Modifier.transient`, `Modifier.rename`, `Modifier.alias`).
+
+Note that `Modifier.config` extends both `Modifier.Term` and `Modifier.Reflect`, so it can be used at both levels.
+
+### Adding Modifiers by Optic
+
+When you pass an optic and a `Modifier.Term` to the `modifier` method, the modifier is attached to the **term** (field or case) identified by the last segment of the optic path. When you pass a `Modifier.Reflect`, it is attached to the **schema node** targeted by the optic:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.json._
+
+case class User(
+  id: Long,
+  name: String,
+  email: String,
+  internalScore: Double
+)
+
+object User extends CompanionOptics[User] {
+  implicit val schema: Schema[User] = Schema.derived[User]
+
+  val id: Lens[User, Long]              = $(_.id)
+  val name: Lens[User, String]          = $(_.name)
+  val email: Lens[User, String]         = $(_.email)
+  val internalScore: Lens[User, Double] = $(_.internalScore)
+}
+```
+
+Now we can derive a JSON codec with custom modifiers, renaming fields and marking one as transient, without changing the schema itself:
+
+```scala mdoc:silent:nest
+val jsonCodec: JsonBinaryCodec[User] = User.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .modifier(User.name, Modifier.rename("full_name"))
+  .modifier(User.email, Modifier.alias("mail"))
+  .modifier(User.internalScore, Modifier.transient())
+  .derive
+```
+
+In this example:
+- The `name` field will be serialized as `full_name` in JSON.
+- The `email` field will accept both `email` and `mail` as keys during deserialization.
+- The `internalScore` field will be excluded from serialization entirely.
+
+```scala mdoc
+val user = User(1L, "Alice", "alice@example.com", 95.5)
+new String(jsonCodec.encode(user), "UTF-8")
+```
+
+### Adding Modifiers by TypeId
+
+The `modifier` method with `TypeId` allows you to add a `Modifier.Reflect` to all schema nodes of a given type. This is useful for attaching format-specific configuration metadata to all occurrences of a type:
+
+```scala mdoc:silent:nest
+val jsonCodec: JsonBinaryCodec[User] = User.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .modifier(TypeId.of[User], Modifier.config("json", "camelCase"))
+  .modifier(User.internalScore, Modifier.transient())
+  .derive
+```
+
 ## Derivation Process In-Depth
 
 Until know, we learned how to implement the `Deriver` methods for different schema patterns. But we haven't yet discussed how the overall derivation process works. In this section, we will go through the main steps of derivation in detail.
