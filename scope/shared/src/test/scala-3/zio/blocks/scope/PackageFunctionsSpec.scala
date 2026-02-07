@@ -59,7 +59,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val config = summon[Scope.Has[Config]].get[Config]
         val impl   = new DatabaseImpl(config)
         defer(impl.close())
-        Context[DatabaseTrait](impl)
+        impl
       }
     }
   }
@@ -371,86 +371,75 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     },
     suite("shared[T]")(
       test("derives wire for no-arg class") {
-        val wire             = shared[Config]
-        val parent           = Scope.global
-        val finalizers       = new Finalizers
-        val scope            = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-        given Scope.Has[Any] = scope
-        val ctx              = wire.construct
-        assertTrue(ctx.get[Config].debug == false)
+        val wire       = shared[Config]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
+        val config     = wire.make(scope)
+        assertTrue(config.debug == false)
       },
       test("derives wire for class with one dependency") {
-        val wire                = shared[SimpleService]
-        val parent              = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        given Scope.Has[Config] = scope
-        val ctx                 = wire.construct
-        assertTrue(ctx.get[SimpleService] != null)
+        val wire       = shared[SimpleService]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val configCtx  = Context(new Config)
+        val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
+        val svc        = wire.make(scope)
+        assertTrue(svc != null)
       },
       test("derives wire for class with two dependencies") {
-        val wire                           = shared[ServiceWith2Deps]
-        val parent                         = Scope.global
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Config).add(new Database)
-        val scope                          = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Database] = scope
-        val ctx                            = wire.construct
-        assertTrue(ctx.get[ServiceWith2Deps] != null)
+        val wire       = shared[ServiceWith2Deps]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Database)
+        val scope      = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wire.make(scope)
+        assertTrue(svc != null)
       },
       test("handles AutoCloseable") {
         val wire                       = shared[CloseableConfig]
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        given Scope.Has[Any]           = scope
-        val ctx                        = wire.construct
-        val instance                   = ctx.get[CloseableConfig]
+        val instance                   = wire.make(scope)
         assertTrue(!instance.closed)
         scope.close()
         assertTrue(instance.closed)
       },
       test("uses Wireable when available") {
-        val wire                = shared[DatabaseTrait]
-        val parent              = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        given Scope.Has[Config] = scope
-        val ctx                 = wire.construct
-        val db                  = ctx.get[DatabaseTrait]
+        val wire       = shared[DatabaseTrait]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val configCtx  = Context(new Config)
+        val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
+        val db         = wire.make(scope)
         assertTrue(db.query() == "querying with false")
       }
     ),
     suite("unique[T]")(
       test("derives wire for no-arg class") {
-        val wire             = unique[Config]
-        val parent           = Scope.global
-        val finalizers       = new Finalizers
-        val scope            = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-        given Scope.Has[Any] = scope
-        val ctx              = wire.construct
-        assertTrue(ctx.get[Config].debug == false)
+        val wire       = unique[Config]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
+        val config     = wire.make(scope)
+        assertTrue(config.debug == false)
       },
       test("derives wire for class with dependency") {
-        val wire                = unique[SimpleService]
-        val parent              = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        given Scope.Has[Config] = scope
-        val ctx                 = wire.construct
-        assertTrue(ctx.get[SimpleService] != null)
+        val wire       = unique[SimpleService]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val configCtx  = Context(new Config)
+        val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
+        val svc        = wire.make(scope)
+        assertTrue(svc != null)
       },
       test("handles AutoCloseable") {
         val wire                       = unique[CloseableConfig]
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        given Scope.Has[Any]           = scope
-        val ctx                        = wire.construct
-        val instance                   = ctx.get[CloseableConfig]
+        val instance                   = wire.make(scope)
         assertTrue(!instance.closed)
         scope.close()
         assertTrue(instance.closed)
@@ -482,32 +471,28 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
     ),
     suite("Wireable.from")(
       test("creates Wireable for no-arg class") {
-        val wireable         = Wireable.from[Config]
-        val parent           = Scope.global
-        val finalizers       = new Finalizers
-        val scope            = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-        given Scope.Has[Any] = scope
-        val ctx              = wireable.wire.construct
-        assertTrue(ctx.get[Config].debug == false)
+        val wireable   = Wireable.from[Config]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
+        val config     = wireable.wire.make(scope)
+        assertTrue(config.debug == false)
       },
       test("creates Wireable for class with dependency") {
-        val wireable            = Wireable.from[SimpleService]
-        val parent              = Scope.global
-        val finalizers          = new Finalizers
-        val configCtx           = Context(new Config)
-        val scope               = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        given Scope.Has[Config] = scope
-        val ctx                 = wireable.wire.construct
-        assertTrue(ctx.get[SimpleService] != null)
+        val wireable   = Wireable.from[SimpleService]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val configCtx  = Context(new Config)
+        val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
+        val svc        = wireable.wire.make(scope)
+        assertTrue(svc != null)
       },
       test("handles AutoCloseable") {
         val wireable                   = Wireable.from[CloseableConfig]
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        given Scope.Has[Any]           = scope
-        val ctx                        = wireable.wire.construct
-        val instance                   = ctx.get[CloseableConfig]
+        val instance                   = wireable.wire.make(scope)
         assertTrue(!instance.closed)
         scope.close()
         assertTrue(instance.closed)
@@ -520,9 +505,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers                                      = new Finalizers
         val configCtx                                       = Context(new Config)
         val scope                                           = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        given Scope.Has[Config]                             = scope
-        val ctx                                             = wire.construct
-        val db                                              = ctx.get[DatabaseTrait]
+        val db                                              = wire.make(scope)
         assertTrue(db.query() == "querying with false")
       }
     ),
@@ -530,40 +513,34 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       test("Wireable.from extracts Y from Scope.Has[Y] in using params") {
         // ServiceWithScopeHas(config: Config)(using Scope.Has[Database])
         // In should be Config & Database
-        val wireable                       = Wireable.from[ServiceWithScopeHas]
-        val parent                         = Scope.global
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Config).add(new Database)
-        val scope                          = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Database] = scope
-        val ctx                            = wireable.wire.construct
-        val svc                            = ctx.get[ServiceWithScopeHas]
+        val wireable   = Wireable.from[ServiceWithScopeHas]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Database)
+        val scope      = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wireable.wire.make(scope)
         assertTrue(svc.config != null && svc.db != null)
       },
       test("Wireable.from handles multiple Scope.Has params") {
         // ServiceWithMultipleScopeHas(using Scope.Has[Config], Scope.Has[Database])
         // In should be Config & Database
-        val wireable                       = Wireable.from[ServiceWithMultipleScopeHas]
-        val parent                         = Scope.global
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Config).add(new Database)
-        val scope                          = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Database] = scope
-        val ctx                            = wireable.wire.construct
-        val svc                            = ctx.get[ServiceWithMultipleScopeHas]
+        val wireable   = Wireable.from[ServiceWithMultipleScopeHas]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Database)
+        val scope      = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wireable.wire.make(scope)
         assertTrue(svc.config != null && svc.db != null)
       },
       test("Wireable.from handles mix of regular params, Scope.Has, and Scope.Any") {
         // ServiceWithMixedParams(cache: Cache)(using Scope.Has[Config], Scope.Any)
         // In should be Cache & Config
-        val wireable                    = Wireable.from[ServiceWithMixedParams]
-        val (parentScope, closeParent)  = Scope.createTestableScope()
-        val finalizers                  = new Finalizers
-        val depsCtx                     = Context(new Cache).add(new Config)
-        val scope                       = Scope.makeCloseable[Cache & Config, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Cache & Config] = scope
-        val ctx                         = wireable.wire.construct
-        val svc                         = ctx.get[ServiceWithMixedParams]
+        val wireable                   = Wireable.from[ServiceWithMixedParams]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Cache).add(new Config)
+        val scope                      = Scope.makeCloseable[Cache & Config, Scope.Global](parentScope, depsCtx, finalizers)
+        val svc                        = wireable.wire.make(scope)
         assertTrue(svc.cache != null && svc.config != null && !svc.cleanedUp)
         scope.close()
         assertTrue(svc.cleanedUp)
@@ -571,75 +548,63 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       test("Wireable.from extracts Y from Scope.Has[Y] in regular params") {
         // ServiceWithScopeHasInRegularParams(configScope: Scope.Has[Config], cache: Cache)
         // In should be Config & Cache
-        val wireable                    = Wireable.from[ServiceWithScopeHasInRegularParams]
-        val parent                      = Scope.global
-        val finalizers                  = new Finalizers
-        val depsCtx                     = Context(new Config).add(new Cache)
-        val scope                       = Scope.makeCloseable[Config & Cache, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Cache] = scope
-        val ctx                         = wireable.wire.construct
-        val svc                         = ctx.get[ServiceWithScopeHasInRegularParams]
+        val wireable   = Wireable.from[ServiceWithScopeHasInRegularParams]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Cache)
+        val scope      = Scope.makeCloseable[Config & Cache, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wireable.wire.make(scope)
         assertTrue(svc.config != null && svc.cache != null)
       },
       test("Wireable.from handles multiple param lists with Scope.Has") {
         // ServiceWithMultipleParamLists(cache: Cache)(dbScope: Scope.Has[Database])(using Scope.Any)
         // In should be Cache & Database
-        val wireable                      = Wireable.from[ServiceWithMultipleParamLists]
-        val (parentScope, closeParent)    = Scope.createTestableScope()
-        val finalizers                    = new Finalizers
-        val depsCtx                       = Context(new Cache).add(new Database)
-        val scope                         = Scope.makeCloseable[Cache & Database, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Cache & Database] = scope
-        val ctx                           = wireable.wire.construct
-        val svc                           = ctx.get[ServiceWithMultipleParamLists]
+        val wireable                   = Wireable.from[ServiceWithMultipleParamLists]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Cache).add(new Database)
+        val scope                      = Scope.makeCloseable[Cache & Database, Scope.Global](parentScope, depsCtx, finalizers)
+        val svc                        = wireable.wire.make(scope)
         assertTrue(svc.cache != null && svc.db != null && !svc.cleanedUp)
         scope.close()
         assertTrue(svc.cleanedUp)
       },
       test("shared[T] extracts Y from Scope.Has[Y] in using params") {
-        val wire                           = shared[ServiceWithScopeHas]
-        val parent                         = Scope.global
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Config).add(new Database)
-        val scope                          = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Database] = scope
-        val ctx                            = wire.construct
-        val svc                            = ctx.get[ServiceWithScopeHas]
+        val wire       = shared[ServiceWithScopeHas]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Database)
+        val scope      = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wire.make(scope)
         assertTrue(svc.config != null && svc.db != null)
       },
       test("shared[T] handles multiple Scope.Has params") {
-        val wire                           = shared[ServiceWithMultipleScopeHas]
-        val parent                         = Scope.global
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Config).add(new Database)
-        val scope                          = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Database] = scope
-        val ctx                            = wire.construct
-        val svc                            = ctx.get[ServiceWithMultipleScopeHas]
+        val wire       = shared[ServiceWithMultipleScopeHas]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Database)
+        val scope      = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wire.make(scope)
         assertTrue(svc.config != null && svc.db != null)
       },
       test("shared[T] handles mix of regular params, Scope.Has, and Scope.Any") {
-        val wire                        = shared[ServiceWithMixedParams]
-        val (parentScope, closeParent)  = Scope.createTestableScope()
-        val finalizers                  = new Finalizers
-        val depsCtx                     = Context(new Cache).add(new Config)
-        val scope                       = Scope.makeCloseable[Cache & Config, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Cache & Config] = scope
-        val ctx                         = wire.construct
-        val svc                         = ctx.get[ServiceWithMixedParams]
+        val wire                       = shared[ServiceWithMixedParams]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Cache).add(new Config)
+        val scope                      = Scope.makeCloseable[Cache & Config, Scope.Global](parentScope, depsCtx, finalizers)
+        val svc                        = wire.make(scope)
         assertTrue(svc.cache != null && svc.config != null && !svc.cleanedUp)
         scope.close()
         assertTrue(svc.cleanedUp)
       },
       test("unique[T] extracts Y from Scope.Has[Y] in using params") {
-        val wire                           = unique[ServiceWithScopeHas]
-        val parent                         = Scope.global
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Config).add(new Database)
-        val scope                          = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
-        given Scope.Has[Config & Database] = scope
-        val ctx                            = wire.construct
-        val svc                            = ctx.get[ServiceWithScopeHas]
+        val wire       = unique[ServiceWithScopeHas]
+        val parent     = Scope.global
+        val finalizers = new Finalizers
+        val depsCtx    = Context(new Config).add(new Database)
+        val scope      = Scope.makeCloseable[Config & Database, Scope.Global](parent, depsCtx, finalizers)
+        val svc        = wire.make(scope)
         assertTrue(svc.config != null && svc.db != null)
       }
     ),
@@ -647,14 +612,12 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       test("UserProfileService: regular params with Scope.Any") {
         // UserProfileService(database: Database, config: Config)(using Scope.Any)
         // In = Database & Config
-        val wireable                       = Wireable.from[UserProfileService]
-        val (parentScope, closeParent)     = Scope.createTestableScope()
-        val finalizers                     = new Finalizers
-        val depsCtx                        = Context(new Database).add(new Config)
-        val scope                          = Scope.makeCloseable[Database & Config, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Database & Config] = scope
-        val ctx                            = wireable.wire.construct
-        val svc                            = ctx.get[UserProfileService]
+        val wireable                   = Wireable.from[UserProfileService]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Database).add(new Config)
+        val scope                      = Scope.makeCloseable[Database & Config, Scope.Global](parentScope, depsCtx, finalizers)
+        val svc                        = wireable.wire.make(scope)
         assertTrue(svc.database != null && svc.config != null && !svc.cleanedUp)
         scope.close()
         assertTrue(svc.cleanedUp)
@@ -675,9 +638,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
             depsCtx,
             finalizers
           )
-        given Scope.Has[SocketStream & FileReader & FileWriter & MergeType] = scope
-        val ctx                                                             = wireable.wire.construct
-        val svc                                                             = ctx.get[MergeSort]
+        val svc = wireable.wire.make(scope)
         assertTrue(
           svc.socketStream.read() == 42 &&
             svc.fileReader.getChannel() == "ch1" &&
@@ -700,9 +661,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
             depsCtx,
             finalizers
           )
-        given Scope.Has[SocketStream & FileReader & FileWriter & MergeType] = scope
-        val ctx                                                             = wireable.wire.construct
-        val svc                                                             = ctx.get[MergeSort2]
+        val svc = wireable.wire.make(scope)
         assertTrue(
           svc.socketStream.read() == 42 &&
             svc.fileReader.getChannel() == "ch1" &&
@@ -715,14 +674,12 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       test("ComplexService: mix of value deps and Scope.Has in same param list") {
         // ComplexService(config: Config, dbScope: Scope.Has[Database], cache: Cache)(using Scope.Any)
         // In = Config & Database & Cache
-        val wireable                               = Wireable.from[ComplexService]
-        val (parentScope, closeParent)             = Scope.createTestableScope()
-        val finalizers                             = new Finalizers
-        val depsCtx                                = Context(new Config).add(new Database).add(new Cache)
-        val scope                                  = Scope.makeCloseable[Config & Database & Cache, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Config & Database & Cache] = scope
-        val ctx                                    = wireable.wire.construct
-        val svc                                    = ctx.get[ComplexService]
+        val wireable                   = Wireable.from[ComplexService]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Config).add(new Database).add(new Cache)
+        val scope                      = Scope.makeCloseable[Config & Database & Cache, Scope.Global](parentScope, depsCtx, finalizers)
+        val svc                        = wireable.wire.make(scope)
         assertTrue(
           svc.config != null &&
             svc.db != null &&
@@ -737,9 +694,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        given Scope.Has[Any]           = scope
-        val ctx                        = wireable.wire.construct
-        val svc                        = ctx.get[NoDepsService]
+        val svc                        = wireable.wire.make(scope)
         assertTrue(!svc.cleanedUp)
         scope.close()
         assertTrue(svc.cleanedUp)
@@ -750,9 +705,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers                 = new Finalizers
         val depsCtx                    = Context(new Config)
         val scope                      = Scope.makeCloseable[Config, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Config]        = scope
-        val ctx                        = wireable.wire.construct
-        val svc                        = ctx.get[AutoCloseableWithScopeHas]
+        val svc                        = wireable.wire.make(scope)
         assertTrue(svc.config != null && !svc.closed)
         scope.close()
         assertTrue(svc.closed)
@@ -771,20 +724,16 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
             depsCtx,
             finalizers
           )
-        given Scope.Has[SocketStream & FileReader & FileWriter & MergeType] = scope
-        val ctx                                                             = wire.construct
-        val svc                                                             = ctx.get[MergeSort]
+        val svc = wire.make(scope)
         assertTrue(svc.mergeType.name == "heap")
       },
       test("shared[ComplexService] works with mixed params") {
-        val wire                                   = shared[ComplexService]
-        val (parentScope, closeParent)             = Scope.createTestableScope()
-        val finalizers                             = new Finalizers
-        val depsCtx                                = Context(new Config).add(new Database).add(new Cache)
-        val scope                                  = Scope.makeCloseable[Config & Database & Cache, Scope.Global](parentScope, depsCtx, finalizers)
-        given Scope.Has[Config & Database & Cache] = scope
-        val ctx                                    = wire.construct
-        val svc                                    = ctx.get[ComplexService]
+        val wire                       = shared[ComplexService]
+        val (parentScope, closeParent) = Scope.createTestableScope()
+        val finalizers                 = new Finalizers
+        val depsCtx                    = Context(new Config).add(new Database).add(new Cache)
+        val scope                      = Scope.makeCloseable[Config & Database & Cache, Scope.Global](parentScope, depsCtx, finalizers)
+        val svc                        = wire.make(scope)
         assertTrue(svc.config != null && svc.db != null && svc.cache != null)
       },
       test("distinct types in scope are retrieved correctly") {

@@ -178,10 +178,7 @@ object AritySpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val depsCtx    = Context(new Config).add(new Database).add(new Cache)
         val scope      = Scope.makeCloseable[Config & Database & Cache, Scope.Global](parent, depsCtx, finalizers)
-
-        given Scope.Has[Config & Database & Cache] = scope
-        val ctx                                    = wire.construct
-        val svc                                    = ctx.get[ServiceWith3Deps]
+        val svc        = wire.make(scope)
 
         assertTrue(svc.config != null && svc.db != null && svc.cache != null)
       },
@@ -191,10 +188,7 @@ object AritySpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val depsCtx    = Context(new Config).add(new Database).add(new Cache).add(new Logger)
         val scope      = Scope.makeCloseable[Config & Database & Cache & Logger, Scope.Global](parent, depsCtx, finalizers)
-
-        given Scope.Has[Config & Database & Cache & Logger] = scope
-        val ctx                                             = wire.construct
-        val svc                                             = ctx.get[ServiceWith4Deps]
+        val svc        = wire.make(scope)
 
         assertTrue(svc.config != null && svc.db != null && svc.cache != null && svc.logger != null)
       },
@@ -205,10 +199,7 @@ object AritySpec extends ZIOSpecDefault {
         val depsCtx    = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
         val scope      =
           Scope.makeCloseable[Config & Database & Cache & Logger & Metrics, Scope.Global](parent, depsCtx, finalizers)
-
-        given Scope.Has[Config & Database & Cache & Logger & Metrics] = scope
-        val ctx                                                       = wire.construct
-        val svc                                                       = ctx.get[ServiceWith5Deps]
+        val svc = wire.make(scope)
 
         assertTrue(
           svc.config != null && svc.db != null && svc.cache != null && svc.logger != null && svc.metrics != null
@@ -226,10 +217,7 @@ object AritySpec extends ZIOSpecDefault {
             depsCtx,
             finalizers
           )
-
-        given Scope.Has[Config & Database & Cache & Logger & Metrics & Tracer] = scope
-        val ctx                                                                = wire.construct
-        val svc                                                                = ctx.get[ServiceWith6Deps]
+        val svc = wire.make(scope)
 
         assertTrue(
           svc.config != null && svc.db != null && svc.cache != null && svc.logger != null && svc.metrics != null && svc.tracer != null
@@ -313,12 +301,8 @@ object AritySpec extends ZIOSpecDefault {
         val depsCtx    = Context(new Config).add(new Database).add(new Cache).add(new Logger).add(new Metrics)
         val scope      =
           Scope.makeCloseable[Config & Database & Cache & Logger & Metrics, Scope.Global](parent, depsCtx, finalizers)
-
-        given Scope.Has[Config & Database & Cache & Logger & Metrics] = scope
-        val ctx1                                                      = wire.construct
-        val ctx2                                                      = wire.construct
-        val svc1                                                      = ctx1.get[ServiceWith5Deps]
-        val svc2                                                      = ctx2.get[ServiceWith5Deps]
+        val svc1 = wire.make(scope)
+        val svc2 = wire.make(scope)
 
         assertTrue(svc1 ne svc2)
       }
@@ -352,10 +336,7 @@ object AritySpec extends ZIOSpecDefault {
           Dep1 & Dep2 & Dep3 & Dep4 & Dep5 & Dep6 & Dep7 & Dep8 & Dep9 & Dep10 & Dep11 & Dep12 & Dep13 & Dep14 & Dep15 &
             Dep16 & Dep17 & Dep18 & Dep19 & Dep20
         val scope = Scope.makeCloseable[All20, Scope.Global](parent, depsCtx, finalizers)
-
-        given Scope.Has[All20] = scope
-        val ctx                = wire.construct
-        val svc                = ctx.get[ServiceWith20Deps]
+        val svc   = wire.make(scope)
 
         assertTrue(
           svc.d1.id == 1 && svc.d10.id == 10 && svc.d20.id == 20

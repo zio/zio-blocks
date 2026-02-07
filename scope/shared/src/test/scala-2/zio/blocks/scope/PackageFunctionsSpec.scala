@@ -211,7 +211,7 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       val config = scope.get[Config]
       val impl   = new DatabaseImpl(config)
       scope.defer(impl.close())
-      Context[DatabaseTrait](impl)
+      impl
     }
   }
 
@@ -273,9 +273,8 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val parent     = Scope.global
         val finalizers = new Finalizers
         val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-        // With whitebox macro, In type is inferred correctly - no cast needed
-        val ctx = wire.construct(scope)
-        assertTrue(ctx.get[Config].debug == false)
+        val config     = wire.make(scope)
+        assertTrue(config.debug == false)
       },
       test("derives wire for class with one dependency") {
         val wire       = shared[SimpleService]
@@ -283,8 +282,8 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val configCtx  = Context(new Config)
         val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        val ctx        = wire.construct(scope)
-        assertTrue(ctx.get[SimpleService] != null)
+        val svc        = wire.make(scope)
+        assertTrue(svc != null)
       },
       test("derives wire for class with two dependencies") {
         val wire       = shared[ServiceWith2Deps]
@@ -292,29 +291,26 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val depsCtx    = Context(new Config).add(new Database)
         val scope      = Scope.makeCloseable[Config with Database, Scope.Global](parent, depsCtx, finalizers)
-        val ctx        = wire.construct(scope)
-        assertTrue(ctx.get[ServiceWith2Deps] != null)
+        val svc        = wire.make(scope)
+        assertTrue(svc != null)
       },
       test("handles AutoCloseable") {
         val wire                       = shared[CloseableConfig]
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        val ctx                        = wire.construct(scope)
-        val instance                   = ctx.get[CloseableConfig]
+        val instance                   = wire.make(scope)
         assertTrue(!instance.closed)
         scope.close()
         assertTrue(instance.closed)
       },
       test("uses Wireable when available") {
-        // The In type from the implicit Wireable is now preserved by the whitebox macro
         val wire       = shared[DatabaseTrait]
         val parent     = Scope.global
         val finalizers = new Finalizers
         val configCtx  = Context(new Config)
         val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        val ctx        = wire.construct(scope)
-        val db         = ctx.get[DatabaseTrait]
+        val db         = wire.make(scope)
         assertTrue(db.query() == "querying with false")
       }
     ),
@@ -324,8 +320,8 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val parent     = Scope.global
         val finalizers = new Finalizers
         val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-        val ctx        = wire.construct(scope)
-        assertTrue(ctx.get[Config].debug == false)
+        val config     = wire.make(scope)
+        assertTrue(config.debug == false)
       },
       test("derives wire for class with dependency") {
         val wire       = unique[SimpleService]
@@ -333,16 +329,15 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val configCtx  = Context(new Config)
         val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        val ctx        = wire.construct(scope)
-        assertTrue(ctx.get[SimpleService] != null)
+        val svc        = wire.make(scope)
+        assertTrue(svc != null)
       },
       test("handles AutoCloseable") {
         val wire                       = unique[CloseableConfig]
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        val ctx                        = wire.construct(scope)
-        val instance                   = ctx.get[CloseableConfig]
+        val instance                   = wire.make(scope)
         assertTrue(!instance.closed)
         scope.close()
         assertTrue(instance.closed)
@@ -375,9 +370,8 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val parent     = Scope.global
         val finalizers = new Finalizers
         val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-        // With whitebox macro, wire type is inferred correctly - no cast needed
-        val ctx = wireable.wire.construct(scope)
-        assertTrue(ctx.get[Config].debug == false)
+        val config     = wireable.wire.make(scope)
+        assertTrue(config.debug == false)
       },
       test("creates Wireable for class with dependency") {
         val wireable   = Wireable.from[SimpleService]
@@ -385,17 +379,15 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val configCtx  = Context(new Config)
         val scope      = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        // In type is inferred as Config - wire works directly
-        val ctx = wireable.wire.construct(scope)
-        assertTrue(ctx.get[SimpleService] != null)
+        val svc        = wireable.wire.make(scope)
+        assertTrue(svc != null)
       },
       test("handles AutoCloseable") {
         val wireable                   = Wireable.from[CloseableConfig]
         val (parentScope, closeParent) = Scope.createTestableScope()
         val finalizers                 = new Finalizers
         val scope                      = Scope.makeCloseable[Any, Scope.Global](parentScope, Context.empty, finalizers)
-        val ctx                        = wireable.wire.construct(scope)
-        val instance                   = ctx.get[CloseableConfig]
+        val instance                   = wireable.wire.make(scope)
         assertTrue(!instance.closed)
         scope.close()
         assertTrue(instance.closed)
@@ -407,15 +399,11 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val finalizers                                      = new Finalizers
         val configCtx                                       = Context(new Config)
         val scope                                           = Scope.makeCloseable[Config, Scope.Global](parent, configCtx, finalizers)
-        val ctx                                             = wire.construct(scope)
-        val db                                              = ctx.get[DatabaseTrait]
+        val db                                              = wire.make(scope)
         assertTrue(db.query() == "querying with false")
       },
       test("In type is properly inferred by whitebox macro") {
-        // This test verifies that the In type member is correctly inferred
-        val wireable = Wireable.from[SimpleService]
-        // The wire should have type Wire[Config, SimpleService], not Wire[Any, SimpleService]
-        // This assignment would fail to compile if In was inferred as Any
+        val wireable                          = Wireable.from[SimpleService]
         val wire: Wire[Config, SimpleService] = wireable.wire
         assertTrue(wire != null)
       }

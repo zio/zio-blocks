@@ -39,10 +39,8 @@ object MemoizationSpec extends ZIOSpecDefault {
       val finalizers = new Finalizers
       val scope      = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
       val wire       = shared[SimpleService]
-      val ctx1       = wire.construct(scope)
-      val ctx2       = wire.construct(scope)
-      val svc1       = ctx1.get[SimpleService]
-      val svc2       = ctx2.get[SimpleService]
+      val svc1       = wire.make(scope)
+      val svc2       = wire.make(scope)
       assertTrue(
         (svc1.config eq config) && (svc2.config eq config) &&
           (svc1 ne svc2)
@@ -53,10 +51,8 @@ object MemoizationSpec extends ZIOSpecDefault {
       val finalizers = new Finalizers
       val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
       val wire       = unique[Config]
-      val ctx1       = wire.construct(scope)
-      val ctx2       = wire.construct(scope)
-      val cfg1       = ctx1.get[Config]
-      val cfg2       = ctx2.get[Config]
+      val cfg1       = wire.make(scope)
+      val cfg2       = wire.make(scope)
       assertTrue(cfg1 ne cfg2)
     },
     test("shared[T] uses same dependency instance for multiple services") {
@@ -70,8 +66,8 @@ object MemoizationSpec extends ZIOSpecDefault {
       val wire1 = shared[SimpleService]
       val wire2 = shared[ServiceWith2Deps]
 
-      val svc1 = wire1.construct(scope).get[SimpleService]
-      val svc2 = wire2.construct(scope).get[ServiceWith2Deps]
+      val svc1 = wire1.make(scope)
+      val svc2 = wire2.make(scope)
 
       assertTrue((svc1.config eq config) && (svc2.config eq config) && (svc2.db eq db))
     },
@@ -104,19 +100,17 @@ object MemoizationSpec extends ZIOSpecDefault {
 
       val configWire = shared[CountedConfig]
       val emptyScope = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val configCtx  = configWire.construct(emptyScope)
-      val cfg        = configCtx.get[CountedConfig]
+      val cfg        = configWire.make(emptyScope)
 
+      val configCtx   = Context(cfg)
       val configScope = Scope.makeCloseable[CountedConfig, Scope.Global](parent, configCtx, finalizers)
       val dbWire      = shared[CountedDatabase]
-      val dbCtx       = dbWire.construct(configScope)
-      val db          = dbCtx.get[CountedDatabase]
+      val db          = dbWire.make(configScope)
 
       val fullCtx   = configCtx.add(db)
       val fullScope = Scope.makeCloseable[CountedConfig with CountedDatabase, Scope.Global](parent, fullCtx, finalizers)
       val svcWire   = shared[CountedService]
-      val svcCtx    = svcWire.construct(fullScope)
-      val svc       = svcCtx.get[CountedService]
+      val svc       = svcWire.make(fullScope)
 
       assertTrue(
         ConstructionCounter.configCount == 1 &&
@@ -134,8 +128,7 @@ object MemoizationSpec extends ZIOSpecDefault {
       val scope          = Scope.makeCloseable[Config, Scope.Global](parent, Context(existingConfig), finalizers)
 
       val wire      = unique[Config]
-      val ctx       = wire.construct(scope)
-      val newConfig = ctx.get[Config]
+      val newConfig = wire.make(scope)
 
       assertTrue(newConfig ne existingConfig)
     },
@@ -165,24 +158,21 @@ object MemoizationSpec extends ZIOSpecDefault {
 
       val baseWire  = shared[BaseConfig]
       val baseScope = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val baseCtx   = baseWire.construct(baseScope)
-      val base      = baseCtx.get[BaseConfig]
+      val base      = baseWire.make(baseScope)
 
+      val baseCtx  = Context(base)
       val scope1   = Scope.makeCloseable[BaseConfig, Scope.Global](parent, baseCtx, finalizers)
       val leftWire = shared[LeftService]
-      val leftCtx  = leftWire.construct(scope1)
-      val left     = leftCtx.get[LeftService]
+      val left     = leftWire.make(scope1)
 
       val rightWire = shared[RightService]
-      val rightCtx  = rightWire.construct(scope1)
-      val right     = rightCtx.get[RightService]
+      val right     = rightWire.make(scope1)
 
       val fullCtx   = baseCtx.add(left).add(right)
       val fullScope =
         Scope.makeCloseable[BaseConfig with LeftService with RightService, Scope.Global](parent, fullCtx, finalizers)
       val topWire = shared[TopService]
-      val topCtx  = topWire.construct(fullScope)
-      val top     = topCtx.get[TopService]
+      val top     = topWire.make(fullScope)
 
       assertTrue(
         baseCount == 1 &&
@@ -210,12 +200,12 @@ object MemoizationSpec extends ZIOSpecDefault {
       val sharedWire = shared[TrackedResource]
       val uniqueWire = unique[TrackedResource]
 
-      sharedWire.construct(scope)
-      sharedWire.construct(scope)
+      sharedWire.make(scope)
+      sharedWire.make(scope)
       val sharedCountAfter2 = Counter.count
 
-      uniqueWire.construct(scope)
-      uniqueWire.construct(scope)
+      uniqueWire.make(scope)
+      uniqueWire.make(scope)
       val totalAfter4 = Counter.count
 
       assertTrue(sharedCountAfter2 == 2 && totalAfter4 == 4)

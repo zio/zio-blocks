@@ -1,6 +1,6 @@
 package zio.blocks.scope.internal
 
-import zio.blocks.context.{Context, IsNominalType}
+import zio.blocks.context.IsNominalType
 import zio.blocks.scope.{Scope, Wire, Wireable}
 import scala.quoted.*
 import scala.compiletime.summonInline
@@ -79,7 +79,7 @@ private[scope] object WireCodeGen {
         }
       }
 
-    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[Context[T]] = {
+    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
       val argListTerms: List[List[Term]] = paramLists.map { params =>
@@ -100,13 +100,10 @@ private[scope] object WireCodeGen {
         '{
           val instance = $instanceExpr
           $scopeExpr.defer(instance.asInstanceOf[AutoCloseable].close())
-          Context[T](instance)(using summonInline[IsNominalType[T]])
+          instance
         }
       } else {
-        '{
-          val instance = $instanceExpr
-          Context[T](instance)(using summonInline[IsNominalType[T]])
-        }
+        instanceExpr
       }
     }
 
@@ -214,7 +211,7 @@ private[scope] object WireCodeGen {
         }
       }
 
-    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[Context[T]] = {
+    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
       val argListTerms: List[List[Term]] = paramLists.map { params =>
@@ -235,13 +232,10 @@ private[scope] object WireCodeGen {
         '{
           val instance = $instanceExpr
           $scopeExpr.defer(instance.asInstanceOf[AutoCloseable].close())
-          Context[T](instance)(using summonInline[IsNominalType[T]])
+          instance
         }
       } else {
-        '{
-          val instance = $instanceExpr
-          Context[T](instance)(using summonInline[IsNominalType[T]])
-        }
+        instanceExpr
       }
     }
 

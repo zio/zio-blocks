@@ -155,12 +155,11 @@ private[scope] object ScopeMacros {
       q"""
         val instance = $ctorCall
         scope.defer(instance.asInstanceOf[AutoCloseable].close())
-        _root_.zio.blocks.context.Context[$tpe](instance)
+        instance
       """
     } else {
       q"""
-        val instance = $ctorCall
-        _root_.zio.blocks.context.Context[$tpe](instance)
+        $ctorCall
       """
     }
 
@@ -253,7 +252,8 @@ private[scope] object ScopeMacros {
           val w = $wireableTpe.wire.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $tpe]]
           val childScope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.Scope.Global](
             parentScope, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]], finalizers)
-          val ctx = w.constructFn(childScope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
+          val result = w.makeFn(childScope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
+          val ctx = _root_.zio.blocks.context.Context[$tpe](result)
           _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
         }
       """
@@ -302,7 +302,6 @@ private[scope] object ScopeMacros {
         val depName   = depTpe.toString
         val argName   = argNames(i)
         val wireName  = TermName(s"wire$i")
-        val ctxName   = TermName(s"ctx$i")
         val scopeName = TermName(s"scope$i")
 
         List(
@@ -314,8 +313,7 @@ private[scope] object ScopeMacros {
             _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]],
             finalizers
           )""",
-          q"val $ctxName = $wireName.constructFn($scopeName.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])",
-          q"val $argName = $ctxName.get[$depTpe]"
+          q"val $argName = $wireName.makeFn($scopeName.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])"
         )
       }
 

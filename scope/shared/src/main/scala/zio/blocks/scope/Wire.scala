@@ -1,7 +1,5 @@
 package zio.blocks.scope
 
-import zio.blocks.context.{Context, IsNominalType}
-
 /**
  * A recipe for constructing a service and its dependencies.
  *
@@ -25,7 +23,7 @@ import zio.blocks.context.{Context, IsNominalType}
  *     val config = $[Config]
  *     val db = Database.connect(config.url)
  *     defer(db.close())
- *     Context(db)
+ *     db
  *   }
  *
  *   // Scala 2: Manual wire with explicit scope
@@ -33,7 +31,7 @@ import zio.blocks.context.{Context, IsNominalType}
  *     val config = scope.get[Config]
  *     val db = Database.connect(config.url)
  *     scope.defer(db.close())
- *     Context(db)
+ *     db
  *   }
  *   }}}
  *
@@ -98,14 +96,14 @@ object Wire extends WireCompanionVersionSpecific {
    *   the service type produced
    */
   final class Shared[-In, +Out] private[scope] (
-    private[scope] val constructFn: Scope.Has[In] => Context[Out]
+    private[scope] val makeFn: Scope.Has[In] => Out
   ) extends Wire[In, Out] {
 
     def isShared: Boolean = true
 
     def shared: Shared[In, Out] = this
 
-    def unique: Unique[In, Out] = new Unique[In, Out](constructFn)
+    def unique: Unique[In, Out] = new Unique[In, Out](makeFn)
 
     /**
      * Constructs the service using the given scope.
@@ -113,9 +111,9 @@ object Wire extends WireCompanionVersionSpecific {
      * @param scope
      *   the scope providing dependencies
      * @return
-     *   a context containing the constructed service
+     *   the constructed service
      */
-    override def construct(implicit scope: Scope.Has[In]): Context[Out] = constructFn(scope)
+    override def make(scope: Scope.Has[In]): Out = makeFn(scope)
   }
 
   /**
@@ -127,7 +125,7 @@ object Wire extends WireCompanionVersionSpecific {
    *   val config = $[Config]
    *   val db = Database.connect(config.url)
    *   defer(db.close())
-   *   Context(db)
+   *   db
    * }
    * }}}
    *
@@ -137,7 +135,7 @@ object Wire extends WireCompanionVersionSpecific {
    *   val config = scope.get[Config]
    *   val db = Database.connect(config.url)
    *   scope.defer(db.close())
-   *   Context(db)
+   *   db
    * }
    * }}}
    */
@@ -156,12 +154,12 @@ object Wire extends WireCompanionVersionSpecific {
    *   the service type produced
    */
   final class Unique[-In, +Out] private[scope] (
-    private[scope] val constructFn: Scope.Has[In] => Context[Out]
+    private[scope] val makeFn: Scope.Has[In] => Out
   ) extends Wire[In, Out] {
 
     def isShared: Boolean = false
 
-    def shared: Shared[In, Out] = new Shared[In, Out](constructFn)
+    def shared: Shared[In, Out] = new Shared[In, Out](makeFn)
 
     def unique: Unique[In, Out] = this
 
@@ -171,9 +169,9 @@ object Wire extends WireCompanionVersionSpecific {
      * @param scope
      *   the scope providing dependencies
      * @return
-     *   a context containing the constructed service
+     *   the constructed service
      */
-    override def construct(implicit scope: Scope.Has[In]): Context[Out] = constructFn(scope)
+    override def make(scope: Scope.Has[In]): Out = makeFn(scope)
   }
 
   /**
@@ -182,14 +180,14 @@ object Wire extends WireCompanionVersionSpecific {
    * In Scala 3, use the context function syntax:
    * {{{
    * Wire.Unique[Config, RequestId] {
-   *   Context(RequestId.generate())
+   *   RequestId.generate()
    * }
    * }}}
    *
    * In Scala 2, use `fromFunction`:
    * {{{
    * Wire.Unique.fromFunction[Config, RequestId] { scope =>
-   *   Context(RequestId.generate())
+   *   RequestId.generate()
    * }
    * }}}
    */
@@ -209,13 +207,11 @@ object Wire extends WireCompanionVersionSpecific {
    *
    * @param t
    *   the value to inject
-   * @param ev
-   *   evidence that T is a nominal type
    * @tparam T
    *   the service type
    * @return
    *   a shared wire that provides the value
    */
-  def apply[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T] =
-    new Shared[Any, T]((_: Scope.Has[Any]) => Context(t))
+  def apply[T](t: T): Wire.Shared[Any, T] =
+    new Shared[Any, T]((_: Scope.Has[Any]) => t)
 }

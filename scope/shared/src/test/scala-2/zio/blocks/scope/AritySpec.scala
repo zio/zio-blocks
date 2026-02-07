@@ -178,8 +178,7 @@ object AritySpec extends ZIOSpecDefault {
         val finalizers = new Finalizers
         val depsCtx    = Context(new Config).add(new Database).add(new Cache)
         val scope      = Scope.makeCloseable[Config with Database with Cache, Scope.Global](parent, depsCtx, finalizers)
-        val ctx        = wire.construct(scope)
-        val svc        = ctx.get[ServiceWith3Deps]
+        val svc        = wire.make(scope)
         assertTrue(svc != null && svc.config != null && svc.db != null && svc.cache != null)
       },
       test("shared[T] works with 4 constructor parameters") {
@@ -189,8 +188,7 @@ object AritySpec extends ZIOSpecDefault {
         val depsCtx    = Context(new Config).add(new Database).add(new Cache).add(new Logger)
         val scope      =
           Scope.makeCloseable[Config with Database with Cache with Logger, Scope.Global](parent, depsCtx, finalizers)
-        val ctx = wire.construct(scope)
-        val svc = ctx.get[ServiceWith4Deps]
+        val svc = wire.make(scope)
         assertTrue(svc != null && svc.logger.prefix == "[LOG]")
       },
       test("shared[T] works with 5 constructor parameters") {
@@ -205,8 +203,7 @@ object AritySpec extends ZIOSpecDefault {
               depsCtx,
               finalizers
             )
-        val ctx = wire.construct(scope)
-        val svc = ctx.get[ServiceWith5Deps]
+        val svc = wire.make(scope)
         assertTrue(svc != null && svc.metrics.enabled)
       },
       test("shared[T] works with 6 constructor parameters") {
@@ -221,8 +218,7 @@ object AritySpec extends ZIOSpecDefault {
             depsCtx,
             finalizers
           )
-        val ctx = wire.construct(scope)
-        val svc = ctx.get[ServiceWith6Deps]
+        val svc = wire.make(scope)
         assertTrue(svc != null && svc.tracer.sampleRate == 0.1)
       },
       test("unique[T] works with 5 constructor parameters") {
@@ -238,10 +234,8 @@ object AritySpec extends ZIOSpecDefault {
               finalizers
             )
 
-        val ctx1 = wire.construct(scope)
-        val ctx2 = wire.construct(scope)
-        val svc1 = ctx1.get[ServiceWith5Deps]
-        val svc2 = ctx2.get[ServiceWith5Deps]
+        val svc1 = wire.make(scope)
+        val svc2 = wire.make(scope)
 
         assertTrue(svc1 ne svc2)
       },
@@ -348,8 +342,7 @@ object AritySpec extends ZIOSpecDefault {
             with Dep20,
           Scope.Global
         ](parent, depsCtx, finalizers)
-        val ctx = wire.construct(scope)
-        val svc = ctx.get[ServiceWith20Deps]
+        val svc = wire.make(scope)
         assertTrue(
           svc != null &&
             svc.d1.id == 1 &&

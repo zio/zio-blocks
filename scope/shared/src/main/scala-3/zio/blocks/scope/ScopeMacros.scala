@@ -180,7 +180,8 @@ private[scope] object ScopeMacros {
               val w           = $wireableE.wire.asInstanceOf[Wire.Shared[inType, T]]
               val childScope  =
                 Scope.makeCloseable[inType, Scope](parentScope, Context.empty.asInstanceOf[Context[inType]], finalizers)
-              val ctx = w.construct(using childScope)
+              val result = w.make(childScope)
+              val ctx    = Context[T](result)(using summonInline[IsNominalType[T]])
               Scope.makeCloseable(parentScope, ctx, finalizers)
             }
         }
@@ -303,8 +304,7 @@ private[scope] object ScopeMacros {
                 Context.empty.asInstanceOf[Context[Any]],
                 new Finalizers
               )
-              val ctx = wire.constructFn(depScope)
-              ctx.get[d](using summonInline[IsNominalType[d]])
+              wire.makeFn(depScope)
             }.asTerm
         }
 

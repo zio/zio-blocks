@@ -93,14 +93,14 @@ private[scope] object WireableMacros {
         _root_.zio.blocks.scope.Wire.Shared.fromFunction[$inType, $tpe] { scope =>
           val instance = $ctorCall
           scope.defer(instance.asInstanceOf[AutoCloseable].close())
-          _root_.zio.blocks.context.Context[$tpe](instance)
+          instance
         }
       """
     } else {
       q"""
         _root_.zio.blocks.scope.Wire.Shared.fromFunction[$inType, $tpe] { scope =>
           val instance = $ctorCall
-          _root_.zio.blocks.context.Context[$tpe](instance)
+          instance
         }
       """
     }

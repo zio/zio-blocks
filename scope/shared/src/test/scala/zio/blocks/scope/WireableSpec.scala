@@ -16,12 +16,10 @@ object WireableSpec extends ZIOSpecDefault {
         type In = Any
         def wire: Wire[Any, Config] = Wire(Config(debug = true))
       }
-      val parent                         = Scope.global
-      val finalizers                     = new Finalizers
-      implicit val scope: Scope.Has[Any] =
-        Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val ctx    = wireable.wire.construct
-      val config = ctx.get[Config]
+      val parent     = Scope.global
+      val finalizers = new Finalizers
+      val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
+      val config     = wireable.wire.make(scope)
       assertTrue(wireable.wire.isShared, config.debug)
     },
     test("Wireable.apply creates wireable from value") {

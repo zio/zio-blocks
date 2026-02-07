@@ -121,14 +121,12 @@ object Wireable extends WireableVersionSpecific {
    *
    * @param value
    *   the pre-existing value to wrap
-   * @param ev
-   *   evidence that T is a nominal type
    * @tparam T
    *   the service type
    * @return
    *   a wireable that provides the value with no dependencies
    */
-  def apply[T](value: T)(implicit ev: zio.blocks.context.IsNominalType[T]): Wireable.Typed[Any, T] =
+  def apply[T](value: T): Wireable.Typed[Any, T] =
     fromWire(Wire(value))
 
   /**
