@@ -280,6 +280,16 @@ object TypeIdMacros {
 
   given ToExpr[TypeDefKind] with {
     def apply(tdk: TypeDefKind)(using Quotes): Expr[TypeDefKind] = tdk match {
+      // Predefined val fast paths (emit field access instead of constructor)
+      case TypeDefKind.Class(false, false, false, false, Nil) => '{ TypeDefKind.basicClass }
+      case TypeDefKind.Class(true, false, false, false, Nil)  => '{ TypeDefKind.basicFinalClass }
+      case TypeDefKind.Class(false, false, true, false, Nil)  => '{ TypeDefKind.basicCaseClass }
+      case TypeDefKind.Class(true, false, true, false, Nil)   => '{ TypeDefKind.basicFinalCaseClass }
+      case TypeDefKind.Trait(false, Nil)                      => '{ TypeDefKind.unsealedTrait }
+      case TypeDefKind.Trait(true, Nil)                       => '{ TypeDefKind.sealedTrait }
+      case TypeDefKind.Object(Nil)                            => '{ TypeDefKind.basicObject }
+      case TypeDefKind.Enum(Nil)                              => '{ TypeDefKind.basicEnum }
+      // Generic cases
       case TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, bases) =>
         val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
         '{
@@ -548,7 +558,7 @@ object TypeIdMacros {
     val annotTypeId = TypeId.nominal[Any](
       annotName,
       annotOwner,
-      TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+      TypeDefKind.basicClass
     )
 
     val args = annot match {
@@ -590,7 +600,7 @@ object TypeIdMacros {
         val enumTypeId  = TypeId.nominal[Any](
           enumTypeSym.name,
           enumOwner,
-          TypeDefKind.Enum(Nil)
+          TypeDefKind.basicEnum
         )
         Some(AnnotationArg.EnumValue(enumTypeId, name))
 
@@ -600,7 +610,7 @@ object TypeIdMacros {
         val nestedTypeId   = TypeId.nominal[Any](
           nestedAnnotSym.name,
           nestedOwner,
-          TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+          TypeDefKind.basicClass
         )
         val nestedArgsData = nestedArgs.flatMap(a => analyzeAnnotationArg(a))
         Some(AnnotationArg.Nested(Annotation(nestedTypeId, nestedArgsData)))

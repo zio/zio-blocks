@@ -611,11 +611,8 @@ object TypeIdMacros {
     "java.io.Serializable"
   )
 
-  private def buildBaseTypes(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
-    import c.universe._
-
-    // Get base classes excluding the type itself and common types
-    val baseClasses = if (sym.isClass) {
+  private def filteredBaseClasses(c: blackbox.Context)(sym: c.Symbol): List[c.Symbol] =
+    if (sym.isClass) {
       sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else if (sym.isModule) {
       sym.asModule.moduleClass.asClass.baseClasses.filterNot(base =>
@@ -625,51 +622,64 @@ object TypeIdMacros {
       Nil
     }
 
-    val baseExprs = baseClasses.map { base =>
-      buildTypeReprFromSymbol(c)(base)
-    }
-
+  private def buildBaseTypesFromClasses(c: blackbox.Context)(baseClasses: List[c.Symbol]): c.Tree = {
+    import c.universe._
+    val baseExprs = baseClasses.map(base => buildTypeReprFromSymbol(c)(base))
     q"_root_.scala.List(..$baseExprs)"
   }
 
   private def buildObjectDefKind(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
-    val basesExpr = buildBaseTypes(c)(sym)
-    q"_root_.zio.blocks.typeid.TypeDefKind.Object(bases = $basesExpr)"
+    val baseClasses = filteredBaseClasses(c)(sym)
+    if (baseClasses.isEmpty) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.basicObject"
+    } else {
+      val basesExpr = buildBaseTypesFromClasses(c)(baseClasses)
+      q"_root_.zio.blocks.typeid.TypeDefKind.Object(bases = $basesExpr)"
+    }
   }
 
   private def buildClassDefKind(c: blackbox.Context)(classSym: c.universe.ClassSymbol): c.Tree = {
     import c.universe._
 
-    val basesExpr = buildBaseTypes(c)(classSym)
+    val baseClasses = filteredBaseClasses(c)(classSym)
 
     if (classSym.isTrait) {
-      // Trait
       val isSealed = classSym.isSealed
-      if (isSealed) {
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
+      if (baseClasses.isEmpty) {
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.sealedTrait"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.unsealedTrait"
       } else {
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
+        val basesExpr = buildBaseTypesFromClasses(c)(baseClasses)
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
       }
     } else {
-      // Class (regular, case, abstract, final, value)
       val isFinal    = classSym.isFinal
       val isAbstract = classSym.isAbstract && !classSym.isTrait
       val isCase     = classSym.isCaseClass
+      val isValue    = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
 
-      // Check if it's a value class (extends AnyVal)
-      val isValue = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
-
-      q"""
-        _root_.zio.blocks.typeid.TypeDefKind.Class(
-          isFinal = $isFinal,
-          isAbstract = $isAbstract,
-          isCase = $isCase,
-          isValue = $isValue,
-          bases = $basesExpr
-        )
-      """
+      if (baseClasses.isEmpty && !isAbstract && !isValue) {
+        (isFinal, isCase) match {
+          case (false, false) => q"_root_.zio.blocks.typeid.TypeDefKind.basicClass"
+          case (true, false)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalClass"
+          case (false, true)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicCaseClass"
+          case (true, true)   => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalCaseClass"
+        }
+      } else {
+        val basesExpr = buildBaseTypesFromClasses(c)(baseClasses)
+        q"""
+          _root_.zio.blocks.typeid.TypeDefKind.Class(
+            isFinal = $isFinal,
+            isAbstract = $isAbstract,
+            isCase = $isCase,
+            isValue = $isValue,
+            bases = $basesExpr
+          )
+        """
+      }
     }
   }
 
@@ -693,14 +703,17 @@ object TypeIdMacros {
   private def buildClassDefKindShallow(c: blackbox.Context)(classSym: c.universe.ClassSymbol): c.Tree = {
     import c.universe._
 
-    val basesExpr = buildBaseTypesMinimal(c)(classSym)
+    val baseClasses = filteredBaseClasses(c)(classSym)
 
     if (classSym.isTrait) {
       val isSealed = classSym.isSealed
-      if (isSealed) {
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
+      if (baseClasses.isEmpty) {
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.sealedTrait"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.unsealedTrait"
       } else {
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
+        val basesExpr = buildBaseTypesMinimalFromClasses(c)(baseClasses)
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
       }
     } else {
       val isFinal    = classSym.isFinal
@@ -708,35 +721,31 @@ object TypeIdMacros {
       val isCase     = classSym.isCaseClass
       val isValue    = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
 
-      q"""
-        _root_.zio.blocks.typeid.TypeDefKind.Class(
-          isFinal = $isFinal,
-          isAbstract = $isAbstract,
-          isCase = $isCase,
-          isValue = $isValue,
-          bases = $basesExpr
-        )
-      """
+      if (baseClasses.isEmpty && !isAbstract && !isValue) {
+        (isFinal, isCase) match {
+          case (false, false) => q"_root_.zio.blocks.typeid.TypeDefKind.basicClass"
+          case (true, false)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalClass"
+          case (false, true)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicCaseClass"
+          case (true, true)   => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalCaseClass"
+        }
+      } else {
+        val basesExpr = buildBaseTypesMinimalFromClasses(c)(baseClasses)
+        q"""
+          _root_.zio.blocks.typeid.TypeDefKind.Class(
+            isFinal = $isFinal,
+            isAbstract = $isAbstract,
+            isCase = $isCase,
+            isValue = $isValue,
+            bases = $basesExpr
+          )
+        """
+      }
     }
   }
 
-  private def buildBaseTypesMinimal(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+  private def buildBaseTypesMinimalFromClasses(c: blackbox.Context)(baseClasses: List[c.Symbol]): c.Tree = {
     import c.universe._
-
-    val baseClasses = if (sym.isClass) {
-      sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
-    } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base =>
-        base == sym || filteredBaseTypes.contains(base.fullName)
-      )
-    } else {
-      Nil
-    }
-
-    val baseExprs = baseClasses.map { base =>
-      buildTypeReprMinimal(c)(base)
-    }
-
+    val baseExprs = baseClasses.map(base => buildTypeReprMinimal(c)(base))
     q"_root_.scala.List(..$baseExprs)"
   }
 
@@ -804,7 +813,7 @@ object TypeIdMacros {
     val annotName      = annotSym.name.decodedName.toString
     val annotOwnerExpr = buildOwner(c)(annotSym.owner)
     val defKind        =
-      q"_root_.zio.blocks.typeid.TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)"
+      q"_root_.zio.blocks.typeid.TypeDefKind.basicClass"
     val annotTypeIdExpr =
       q"""
         _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](
