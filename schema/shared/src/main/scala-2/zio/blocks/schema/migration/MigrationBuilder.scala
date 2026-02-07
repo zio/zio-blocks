@@ -140,8 +140,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   )(implicit
     nestedSourceSchema: Schema[F1],
     nestedTargetSchema: Schema[F2]
-  ): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _, _] = macro
+    MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided]
 
   /**
    * Apply an existing migration to a nested field. This is used for migration
@@ -158,8 +158,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     source: A => F1,
     target: B => F2,
     migration: Migration[F1, F2]
-  ): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _, _] = macro
+    MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
 
   /**
    * Apply an existing migration to a nested field, summoning the migration from
@@ -177,8 +177,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     target: B => F2
   )(implicit
     migration: Migration[F1, F2]
-  ): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _, _] = macro
+    MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
 
   // ----- Enum operations -----
 
