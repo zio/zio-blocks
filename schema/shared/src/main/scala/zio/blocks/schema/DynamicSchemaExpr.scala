@@ -16,8 +16,10 @@ object DynamicSchemaExpr {
   }
 
   final case class Select(path: DynamicOptic) extends DynamicSchemaExpr {
-    def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
-      walkPath(Chunk(input), path.nodes, 0)
+    def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] = {
+      val result = walkPath(Chunk(input), path.nodes, 0)
+      result
+    }
 
     private def walkPath(
       current: Chunk[DynamicValue],
@@ -27,7 +29,9 @@ object DynamicSchemaExpr {
       if (idx >= nodes.length) return Right(current.toSeq)
       if (current.isEmpty) return Right(Seq.empty)
 
-      val node = nodes(idx)
+      val node   = nodes(idx)
+      val prefix = new DynamicOptic(nodes.take(idx + 1).toVector)
+
       node match {
         case DynamicOptic.Node.Field(name) =>
           val next = current.flatMap {
@@ -37,26 +41,60 @@ object DynamicSchemaExpr {
           walkPath(next, nodes, idx + 1)
 
         case DynamicOptic.Node.Case(expectedCase) =>
-          val next = current.flatMap {
-            case v: DynamicValue.Variant if v.caseNameValue == expectedCase => Chunk(v.value)
-            case _                                                          => Chunk.empty
+          var result: Chunk[DynamicValue] = Chunk.empty
+          var error: Option[SchemaError]  = None
+
+          current.foreach {
+            case v: DynamicValue.Variant if v.caseNameValue == expectedCase =>
+              result = result ++ Chunk(v.value)
+            case v: DynamicValue.Variant =>
+              val actualCase = v.caseNameValue match {
+                case "None" | "Some" => "Option"
+                case other           => other
+              }
+              error = Some(
+                SchemaError.message(
+                  s"UnexpectedCase: expected $expectedCase, got $actualCase",
+                  prefix
+                )
+              )
+            case _ =>
           }
-          walkPath(next, nodes, idx + 1)
+
+          if (error.isDefined) Left(error.get)
+          else walkPath(result, nodes, idx + 1)
 
         case DynamicOptic.Node.Elements =>
-          val next = current.flatMap {
+          val hasSequence = current.exists(_.isInstanceOf[DynamicValue.Sequence])
+          val next        = current.flatMap {
             case s: DynamicValue.Sequence => s.elements
             case _                        => Chunk.empty
           }
-          walkPath(next, nodes, idx + 1)
+          if (next.isEmpty && hasSequence) {
+            Left(SchemaError.message("EmptySequence", prefix))
+          } else {
+            walkPath(next, nodes, idx + 1)
+          }
 
         case DynamicOptic.Node.AtIndex(i) =>
-          val next = current.flatMap {
+          var outOfBoundsError: Option[SchemaError] = None
+          val next                                  = current.flatMap {
             case s: DynamicValue.Sequence if i >= 0 && i < s.elements.length =>
               Chunk(s.elements(i))
+            case s: DynamicValue.Sequence =>
+              outOfBoundsError = Some(
+                SchemaError.message(
+                  s"SequenceIndexOutOfBounds: index $i, size ${s.elements.length}",
+                  prefix
+                )
+              )
+              Chunk.empty
             case _ => Chunk.empty
           }
-          walkPath(next, nodes, idx + 1)
+          outOfBoundsError match {
+            case Some(err) => Left(err)
+            case None      => walkPath(next, nodes, idx + 1)
+          }
 
         case DynamicOptic.Node.AtIndices(indices) =>
           val next = current.flatMap {
@@ -71,7 +109,11 @@ object DynamicSchemaExpr {
             case m: DynamicValue.Map => m.entries.collect { case (k, v) if k == key => v }
             case _                   => Chunk.empty
           }
-          walkPath(next, nodes, idx + 1)
+          if (next.isEmpty && current.exists(_.isInstanceOf[DynamicValue.Map])) {
+            Left(SchemaError.message(s"MissingKey:${key.toString}", prefix))
+          } else {
+            walkPath(next, nodes, idx + 1)
+          }
 
         case DynamicOptic.Node.AtMapKeys(keys) =>
           val next = current.flatMap {
@@ -86,14 +128,22 @@ object DynamicSchemaExpr {
             case m: DynamicValue.Map => m.entries.map(_._1)
             case _                   => Chunk.empty
           }
-          walkPath(next, nodes, idx + 1)
+          if (next.isEmpty && current.exists(_.isInstanceOf[DynamicValue.Map])) {
+            Left(SchemaError.message("EmptyMap", prefix))
+          } else {
+            walkPath(next, nodes, idx + 1)
+          }
 
         case DynamicOptic.Node.MapValues =>
           val next = current.flatMap {
             case m: DynamicValue.Map => m.entries.map(_._2)
             case _                   => Chunk.empty
           }
-          walkPath(next, nodes, idx + 1)
+          if (next.isEmpty && current.exists(_.isInstanceOf[DynamicValue.Map])) {
+            Left(SchemaError.message("EmptyMap", prefix))
+          } else {
+            walkPath(next, nodes, idx + 1)
+          }
 
         case DynamicOptic.Node.Wrapped =>
           walkPath(current, nodes, idx + 1)

@@ -87,7 +87,11 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
     val path = SelectorMacros.toPath[A, Iterable[?]](at)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformElements(path, transform.toDynamic))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformElements(path, transform.toDynamic)
+    )
   }
 
   inline def transformKeys(
@@ -95,7 +99,11 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
     val path = SelectorMacros.toPath[A, Map[?, ?]](at)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformKeys(path, transform.toDynamic))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformKeys(path, transform.toDynamic)
+    )
   }
 
   inline def transformValues(
@@ -103,7 +111,11 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     transform: SchemaExpr[_, _]
   ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
     val path = SelectorMacros.toPath[A, Map[?, ?]](at)
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.TransformValues(path, transform.toDynamic))
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformValues(path, transform.toDynamic)
+    )
   }
 
   inline def build(using
