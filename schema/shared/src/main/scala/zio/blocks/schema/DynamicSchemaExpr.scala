@@ -245,7 +245,9 @@ object DynamicSchemaExpr {
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte((a / b).toByte)) }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte(Math.pow(a.toDouble, b.toDouble).toByte)) }
+        extract2(x, y).map { case (a, b) =>
+          DynamicValue.Primitive(PrimitiveValue.Byte(Math.pow(a.toDouble, b.toDouble).toByte))
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte((a % b).toByte)) }
 
@@ -267,7 +269,9 @@ object DynamicSchemaExpr {
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short((a / b).toShort)) }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short(Math.pow(a.toDouble, b.toDouble).toShort)) }
+        extract2(x, y).map { case (a, b) =>
+          DynamicValue.Primitive(PrimitiveValue.Short(Math.pow(a.toDouble, b.toDouble).toShort))
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short((a % b).toShort)) }
 
@@ -289,7 +293,9 @@ object DynamicSchemaExpr {
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(a / b)) }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(Math.pow(a.toDouble, b.toDouble).toInt)) }
+        extract2(x, y).map { case (a, b) =>
+          DynamicValue.Primitive(PrimitiveValue.Int(Math.pow(a.toDouble, b.toDouble).toInt))
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(a % b)) }
 
@@ -311,7 +317,9 @@ object DynamicSchemaExpr {
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(a / b)) }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(Math.pow(a.toDouble, b.toDouble).toLong)) }
+        extract2(x, y).map { case (a, b) =>
+          DynamicValue.Primitive(PrimitiveValue.Long(Math.pow(a.toDouble, b.toDouble).toLong))
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(a % b)) }
 
@@ -333,7 +341,9 @@ object DynamicSchemaExpr {
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(a / b)) }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(Math.pow(a.toDouble, b.toDouble).toFloat)) }
+        extract2(x, y).map { case (a, b) =>
+          DynamicValue.Primitive(PrimitiveValue.Float(Math.pow(a.toDouble, b.toDouble).toFloat))
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(a % b)) }
 
@@ -405,7 +415,10 @@ object DynamicSchemaExpr {
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (BigDecimal, BigDecimal)] =
         (x, y) match {
-          case (DynamicValue.Primitive(PrimitiveValue.BigDecimal(a)), DynamicValue.Primitive(PrimitiveValue.BigDecimal(b))) =>
+          case (
+                DynamicValue.Primitive(PrimitiveValue.BigDecimal(a)),
+                DynamicValue.Primitive(PrimitiveValue.BigDecimal(b))
+              ) =>
             Right((a, b))
           case _ => Left(s"Expected BigDecimal values, got: $x and $y")
         }
@@ -420,14 +433,14 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
+        xs      <- left.eval(input)
+        ys      <- right.eval(input)
         results <- {
           val computed = for {
             x <- xs
             y <- ys
           } yield operator.apply(x, y, numericType)
-          
+
           val errors = computed.collect { case Left(e) => e }
           if (errors.nonEmpty) Left(SchemaError.conversionFailed(Nil, errors.head))
           else Right(computed.collect { case Right(v) => v })
@@ -517,17 +530,17 @@ object DynamicSchemaExpr {
     private def applyOp(x: DynamicValue, y: DynamicValue, op: (Long, Long) => Long): DynamicValue = {
       val (lVal, lIsLong) = extractIntegral(x)
       val (rVal, rIsLong) = extractIntegral(y)
-      val result = op(lVal, rVal)
-      
+      val result          = op(lVal, rVal)
+
       if (lIsLong || rIsLong) DynamicValue.Primitive(PrimitiveValue.Long(result))
       else DynamicValue.Primitive(PrimitiveValue.Int(result.toInt))
     }
 
     private def applyShift(x: DynamicValue, y: DynamicValue, op: (Long, Int) => Long): DynamicValue = {
       val (lVal, lIsLong) = extractIntegral(x)
-      val (rVal, _) = extractIntegral(y)
-      val result = op(lVal, rVal.toInt)
-      
+      val (rVal, _)       = extractIntegral(y)
+      val result          = op(lVal, rVal.toInt)
+
       if (lIsLong) DynamicValue.Primitive(PrimitiveValue.Long(result))
       else DynamicValue.Primitive(PrimitiveValue.Int(result.toInt))
     }
@@ -566,14 +579,15 @@ object DynamicSchemaExpr {
       for {
         xs <- left.eval(input)
         ys <- right.eval(input)
-      } yield for {
-        x <- xs
-        y <- ys
-      } yield {
-        val xStr = extractString(x)
-        val yStr = extractString(y)
-        DynamicValue.Primitive(PrimitiveValue.String(xStr + yStr))
-      }
+      } yield
+        for {
+          x <- xs
+          y <- ys
+        } yield {
+          val xStr = extractString(x)
+          val yStr = extractString(y)
+          DynamicValue.Primitive(PrimitiveValue.String(xStr + yStr))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -589,14 +603,15 @@ object DynamicSchemaExpr {
       for {
         xs <- regex.eval(input)
         ys <- string.eval(input)
-      } yield for {
-        x <- xs
-        y <- ys
-      } yield {
-        val regexStr = extractString(x)
-        val str = extractString(y)
-        DynamicValue.Primitive(PrimitiveValue.Boolean(str.matches(regexStr)))
-      }
+      } yield
+        for {
+          x <- xs
+          y <- ys
+        } yield {
+          val regexStr = extractString(x)
+          val str      = extractString(y)
+          DynamicValue.Primitive(PrimitiveValue.Boolean(str.matches(regexStr)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -627,18 +642,19 @@ object DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
         strings <- string.eval(input)
-        starts <- start.eval(input)
-        ends <- end.eval(input)
-      } yield for {
-        s <- strings
-        st <- starts
-        en <- ends
-      } yield {
-        val str = extractString(s)
-        val startInt = extractInt(st)
-        val endInt = extractInt(en)
-        DynamicValue.Primitive(PrimitiveValue.String(str.substring(startInt, endInt)))
-      }
+        starts  <- start.eval(input)
+        ends    <- end.eval(input)
+      } yield
+        for {
+          s  <- strings
+          st <- starts
+          en <- ends
+        } yield {
+          val str      = extractString(s)
+          val startInt = extractInt(st)
+          val endInt   = extractInt(en)
+          DynamicValue.Primitive(PrimitiveValue.String(str.substring(startInt, endInt)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -703,19 +719,20 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        strings <- string.eval(input)
-        targets <- target.eval(input)
+        strings      <- string.eval(input)
+        targets      <- target.eval(input)
         replacements <- replacement.eval(input)
-      } yield for {
-        s <- strings
-        t <- targets
-        r <- replacements
-      } yield {
-        val str = extractString(s)
-        val targetStr = extractString(t)
-        val replStr = extractString(r)
-        DynamicValue.Primitive(PrimitiveValue.String(str.replace(targetStr, replStr)))
-      }
+      } yield
+        for {
+          s <- strings
+          t <- targets
+          r <- replacements
+        } yield {
+          val str       = extractString(s)
+          val targetStr = extractString(t)
+          val replStr   = extractString(r)
+          DynamicValue.Primitive(PrimitiveValue.String(str.replace(targetStr, replStr)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -729,16 +746,17 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        strings <- string.eval(input)
+        strings  <- string.eval(input)
         prefixes <- prefix.eval(input)
-      } yield for {
-        s <- strings
-        p <- prefixes
-      } yield {
-        val str = extractString(s)
-        val prefixStr = extractString(p)
-        DynamicValue.Primitive(PrimitiveValue.Boolean(str.startsWith(prefixStr)))
-      }
+      } yield
+        for {
+          s <- strings
+          p <- prefixes
+        } yield {
+          val str       = extractString(s)
+          val prefixStr = extractString(p)
+          DynamicValue.Primitive(PrimitiveValue.Boolean(str.startsWith(prefixStr)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -752,16 +770,17 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        strings <- string.eval(input)
+        strings  <- string.eval(input)
         suffixes <- suffix.eval(input)
-      } yield for {
-        s <- strings
-        sx <- suffixes
-      } yield {
-        val str = extractString(s)
-        val suffixStr = extractString(sx)
-        DynamicValue.Primitive(PrimitiveValue.Boolean(str.endsWith(suffixStr)))
-      }
+      } yield
+        for {
+          s  <- strings
+          sx <- suffixes
+        } yield {
+          val str       = extractString(s)
+          val suffixStr = extractString(sx)
+          DynamicValue.Primitive(PrimitiveValue.Boolean(str.endsWith(suffixStr)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -775,16 +794,17 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        strings <- string.eval(input)
+        strings    <- string.eval(input)
         substrings <- substring.eval(input)
-      } yield for {
-        s <- strings
-        sub <- substrings
-      } yield {
-        val str = extractString(s)
-        val subStr = extractString(sub)
-        DynamicValue.Primitive(PrimitiveValue.Boolean(str.contains(subStr)))
-      }
+      } yield
+        for {
+          s   <- strings
+          sub <- substrings
+        } yield {
+          val str    = extractString(s)
+          val subStr = extractString(sub)
+          DynamicValue.Primitive(PrimitiveValue.Boolean(str.contains(subStr)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
@@ -798,16 +818,17 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        strings <- string.eval(input)
+        strings    <- string.eval(input)
         substrings <- substring.eval(input)
-      } yield for {
-        s <- strings
-        sub <- substrings
-      } yield {
-        val str = extractString(s)
-        val subStr = extractString(sub)
-        DynamicValue.Primitive(PrimitiveValue.Int(str.indexOf(subStr)))
-      }
+      } yield
+        for {
+          s   <- strings
+          sub <- substrings
+        } yield {
+          val str    = extractString(s)
+          val subStr = extractString(sub)
+          DynamicValue.Primitive(PrimitiveValue.Int(str.indexOf(subStr)))
+        }
 
     private def extractString(dv: DynamicValue): String = dv match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
