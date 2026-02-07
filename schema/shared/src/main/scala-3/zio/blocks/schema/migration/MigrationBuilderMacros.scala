@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import scala.annotation.tailrec
 import scala.quoted.*
-import zio.blocks.schema.SchemaExpr
+import zio.blocks.schema.{Schema, SchemaExpr}
 
 object MigrationBuilderMacros {
 
@@ -202,6 +202,78 @@ object MigrationBuilderMacros {
             $builder.actions :+ MigrationAction.ChangeType(sourcePath, $converter.toDynamic)
           )
         }
+    }
+  }
+
+  def transformNestedImpl[A: Type, B: Type, F1: Type, F2: Type, SH: Type, TP: Type](
+    builder: Expr[MigrationBuilder[A, B, SH, TP]],
+    source: Expr[A => F1],
+    target: Expr[B => F2],
+    nestedMigration: Expr[MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, ?, ?]],
+    nestedSourceSchema: Expr[Schema[F1]],
+    nestedTargetSchema: Expr[Schema[F2]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
+    import q.reflect.*
+
+    val sourceFieldName = extractFieldNameFromTerm(source.asTerm)
+    val targetFieldName = extractFieldNameFromTerm(target.asTerm)
+
+    val nestedSourceFields = extractCaseClassFieldNames[F1]
+    val nestedTargetFields = extractCaseClassFieldNames[F2]
+
+    var newSHType              = TypeRepr.of[SH]
+    val sourceFieldNameType    = ConstantType(StringConstant(sourceFieldName))
+    val sourceFieldNameWrapped = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
+    newSHType = AndType(newSHType, sourceFieldNameWrapped)
+
+    for (nestedField <- nestedSourceFields) {
+      val dotPath             = s"$sourceFieldName.$nestedField"
+      val dotPathType         = ConstantType(StringConstant(dotPath))
+      val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
+      newSHType = AndType(newSHType, dotPathFieldWrapped)
+    }
+
+    var newTPType              = TypeRepr.of[TP]
+    val targetFieldNameType    = ConstantType(StringConstant(targetFieldName))
+    val targetFieldNameWrapped = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
+    newTPType = AndType(newTPType, targetFieldNameWrapped)
+
+    for (nestedField <- nestedTargetFields) {
+      val dotPath             = s"$targetFieldName.$nestedField"
+      val dotPathType         = ConstantType(StringConstant(dotPath))
+      val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
+      newTPType = AndType(newTPType, dotPathFieldWrapped)
+    }
+
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
+        '{
+          val sourcePath   = SelectorMacros.toPath[A, F1]($source)
+          val innerBuilder = new MigrationBuilder[F1, F2, Any, Any](
+            $nestedSourceSchema,
+            $nestedTargetSchema,
+            Vector.empty
+          )
+          val builtInner = $nestedMigration(innerBuilder)
+          new MigrationBuilder[A, B, newSh, newTp](
+            $builder.sourceSchema,
+            $builder.targetSchema,
+            $builder.actions :+ MigrationAction.TransformNested(sourcePath, builtInner.actions)
+          )
+        }
+    }
+  }
+
+  private def extractCaseClassFieldNames[T: Type](using q: Quotes): List[String] = {
+    import q.reflect.*
+
+    val tpe = TypeRepr.of[T]
+    val sym = tpe.typeSymbol
+
+    if (sym.flags.is(Flags.Case) && sym.caseFields.nonEmpty) {
+      sym.caseFields.map(_.name)
+    } else {
+      Nil
     }
   }
 

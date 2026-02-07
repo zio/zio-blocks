@@ -227,6 +227,22 @@ object MigrationAction {
       TransformCase(at, actions.reverse.map(_.reverse))
   }
 
+  /**
+   * Transform a nested record field with its own migration.
+   *
+   * @param at
+   *   The path to the nested field
+   * @param actions
+   *   The actions to apply to the nested record
+   */
+  final case class TransformNested(
+    at: DynamicOptic,
+    actions: Vector[MigrationAction]
+  ) extends MigrationAction {
+    override def reverse: MigrationAction =
+      TransformNested(at, actions.reverse.map(_.reverse))
+  }
+
   // ==================== Collection Actions ====================
 
   /**

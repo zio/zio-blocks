@@ -129,6 +129,20 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     macro MigrationBuilderMacros.changeFieldTypeImpl[A, B, SourceHandled, TargetProvided]
   // format: on
 
+  /**
+   * Transform a nested record field with its own migration.
+   */
+  def transformNested[F1, F2](
+    source: A => F1,
+    target: B => F2
+  )(
+    nestedMigration: MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, _, _]
+  )(implicit
+    nestedSourceSchema: Schema[F1],
+    nestedTargetSchema: Schema[F2]
+  ): MigrationBuilder[A, B, _, _] =
+    macro MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+
   // ----- Enum operations -----
 
   /**
