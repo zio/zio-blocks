@@ -548,7 +548,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 5b. Implement File Extension Lookup
+- [x] 5b. Implement File Extension Lookup
 
   **What to do**:
   - Write failing tests for file extension lookup

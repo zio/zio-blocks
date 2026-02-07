@@ -29,6 +29,24 @@ object MediaType {
   private lazy val contentTypeMap: Map[String, MediaType] =
     MediaTypes.allMediaTypes.map(m => m.fullType.toLowerCase -> m).toMap
 
+  private lazy val extensionMap: Map[String, MediaType] = {
+    val allExtensionMappings = MediaTypes.allMediaTypes
+      .flatMap(m => m.fileExtensions.map(ext => ext.toLowerCase -> m))
+      .toMap
+
+    val textTypeExtensionMappings = MediaTypes.text.all
+      .flatMap(m => m.fileExtensions.map(ext => ext.toLowerCase -> m))
+      .toMap
+
+    allExtensionMappings ++ textTypeExtensionMappings
+  }
+
+  def forFileExtension(ext: String): Option[MediaType] = {
+    if (ext.isEmpty) return None
+    val normalized = ext.stripPrefix(".").toLowerCase
+    if (normalized.isEmpty) None else extensionMap.get(normalized)
+  }
+
   def parse(s: String): Either[String, MediaType] = {
     if (s.isEmpty) return Left("Invalid media type: cannot be empty")
 
