@@ -143,6 +143,43 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   ): MigrationBuilder[A, B, _, _] =
     macro MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided]
 
+  /**
+   * Apply an existing migration to a nested field. This is used for migration
+   * composition where a pre-built Migration is applied to a field.
+   *
+   * @param source
+   *   Selector for the source field
+   * @param target
+   *   Selector for the target field (used for validation)
+   * @param migration
+   *   The migration to apply to the nested field
+   */
+  def migrateField[F1, F2](
+    source: A => F1,
+    target: B => F2,
+    migration: Migration[F1, F2]
+  ): MigrationBuilder[A, B, _, _] =
+    macro MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+
+  /**
+   * Apply an existing migration to a nested field, summoning the migration from
+   * implicit scope.
+   *
+   * @param source
+   *   Selector for the source field
+   * @param target
+   *   Selector for the target field (used for validation)
+   * @param migration
+   *   The migration to apply to the nested field (implicit)
+   */
+  def migrateField[F1, F2](
+    source: A => F1,
+    target: B => F2
+  )(implicit
+    migration: Migration[F1, F2]
+  ): MigrationBuilder[A, B, _, _] =
+    macro MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+
   // ----- Enum operations -----
 
   /**
