@@ -597,7 +597,9 @@ object TypeIdMacros {
     val baseClasses = if (sym.isClass) {
       sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
+      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base =>
+        base == sym || filteredBaseTypes.contains(base.fullName)
+      )
     } else {
       Nil
     }
@@ -703,7 +705,9 @@ object TypeIdMacros {
     val baseClasses = if (sym.isClass) {
       sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
+      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base =>
+        base == sym || filteredBaseTypes.contains(base.fullName)
+      )
     } else {
       Nil
     }
