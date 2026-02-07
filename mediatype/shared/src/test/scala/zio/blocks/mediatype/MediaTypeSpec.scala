@@ -31,8 +31,8 @@ object MediaTypeSpec extends MediaTypeBaseSpec {
           mt.compressible == false,
           mt.binary == false,
           mt.fileExtensions == Nil,
-          mt.extensions == Map.empty,
-          mt.parameters == Map.empty
+          mt.extensions == Map.empty[String, String],
+          mt.parameters == Map.empty[String, String]
         )
       }
     ),
