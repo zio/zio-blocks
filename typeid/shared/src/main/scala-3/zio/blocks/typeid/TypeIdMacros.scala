@@ -19,10 +19,22 @@ object TypeIdMacros {
   }
 
   given ToExpr[Owner] with {
-    def apply(owner: Owner)(using Quotes): Expr[Owner] = {
-      val segmentsExpr = Expr.ofList(owner.segments.map(s => Expr(s)))
-      '{ Owner($segmentsExpr) }
-    }
+    def apply(owner: Owner)(using Quotes): Expr[Owner] =
+      if (owner.segments.isEmpty) '{ Owner.Root }
+      else {
+        val (pkgPrefix, rest) = owner.segments.span(_.isInstanceOf[Owner.Package])
+        val base              =
+          if (pkgPrefix.isEmpty) '{ Owner.Root }
+          else {
+            val path = pkgPrefix.map(_.name).mkString(".")
+            '{ Owner.fromPackagePath(${ Expr(path) }) }
+          }
+        rest.foldLeft(base) {
+          case (acc, Owner.Term(name))    => '{ $acc.term(${ Expr(name) }) }
+          case (acc, Owner.Type(name))    => '{ $acc.tpe(${ Expr(name) }) }
+          case (acc, Owner.Package(name)) => '{ $acc / ${ Expr(name) } }
+        }
+      }
   }
 
   given ToExpr[Variance] with {
