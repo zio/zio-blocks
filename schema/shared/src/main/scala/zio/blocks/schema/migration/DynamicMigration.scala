@@ -188,8 +188,9 @@ private[migration] object ActionExecutor {
     }
 
   /**
-   * Evaluate a DynamicSchemaExpr and extract a single DynamicValue.
-   * For now, we only support expressions that return a single value (first value in the sequence).
+   * Evaluate a DynamicSchemaExpr and extract a single DynamicValue. For now, we
+   * only support expressions that return a single value (first value in the
+   * sequence).
    */
   private def evalExpr(
     expr: DynamicSchemaExpr,
@@ -198,7 +199,7 @@ private[migration] object ActionExecutor {
     expr.eval(input).flatMap { results =>
       results.headOption match {
         case Some(value) => Right(value)
-        case None =>
+        case None        =>
           Left(
             SchemaError.transformFailed(
               zio.blocks.schema.DynamicOptic.root,
