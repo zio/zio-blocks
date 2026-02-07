@@ -243,6 +243,23 @@ object MigrationAction {
       TransformNested(at, actions.reverse.map(_.reverse))
   }
 
+  /**
+   * Apply an existing migration to a nested field. This is used for migration
+   * composition where a pre-built Migration is applied to a field.
+   *
+   * @param at
+   *   The path to the nested field
+   * @param migration
+   *   The DynamicMigration to apply to the nested value
+   */
+  final case class ApplyMigration(
+    at: DynamicOptic,
+    migration: DynamicMigration
+  ) extends MigrationAction {
+    override def reverse: MigrationAction =
+      ApplyMigration(at, migration.reverse)
+  }
+
   // ==================== Collection Actions ====================
 
   /**

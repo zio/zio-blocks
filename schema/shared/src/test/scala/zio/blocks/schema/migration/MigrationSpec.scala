@@ -2053,6 +2053,168 @@ object MigrationSpec extends ZIOSpecDefault {
         val reversed = migration.reverse
         assertTrue(reversed.sourceSchema == v2Schema && reversed.targetSchema == v1Schema)
       }
+    ),
+
+    suite("Migration Composition with migrateField")(
+      test("migrateField with explicit migration") {
+        case class User(name: String, age: Int)
+        case class UserV2(name: String, age: Int, email: String)
+        case class Profile(id: Int, user: User)
+        case class ProfileV2(id: Int, user: UserV2)
+
+        implicit val userSchema: Schema[User]           = Schema.derived[User]
+        implicit val userV2Schema: Schema[UserV2]       = Schema.derived[UserV2]
+        implicit val profileSchema: Schema[Profile]     = Schema.derived[Profile]
+        implicit val profileV2Schema: Schema[ProfileV2] = Schema.derived[ProfileV2]
+
+        val userMigration: Migration[User, UserV2] = Migration
+          .newBuilder[User, UserV2]
+          .addField(_.email, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("default@example.com"))))
+          .build
+
+        val profileMigration = Migration
+          .newBuilder[Profile, ProfileV2]
+          .migrateField(_.user, _.user, userMigration)
+          .build
+
+        val input  = Profile(1, User("Alice", 30))
+        val result = profileMigration(input)
+
+        assertTrue(result == Right(ProfileV2(1, UserV2("Alice", 30, "default@example.com"))))
+      },
+
+      test("migrateField with implicit migration") {
+        case class Address(street: String, city: String)
+        case class AddressV2(street: String, city: String, zip: String)
+        case class Company(name: String, address: Address)
+        case class CompanyV2(name: String, address: AddressV2)
+
+        implicit val addressSchema: Schema[Address]     = Schema.derived[Address]
+        implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
+        implicit val companySchema: Schema[Company]     = Schema.derived[Company]
+        implicit val companyV2Schema: Schema[CompanyV2] = Schema.derived[CompanyV2]
+
+        implicit val addressMigration: Migration[Address, AddressV2] = Migration
+          .newBuilder[Address, AddressV2]
+          .addField(_.zip, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
+          .build
+
+        val companyMigration = Migration
+          .newBuilder[Company, CompanyV2]
+          .migrateField(_.address, _.address)
+          .build
+
+        val input  = Company("Acme", Address("123 Main St", "Springfield"))
+        val result = companyMigration(input)
+
+        assertTrue(result == Right(CompanyV2("Acme", AddressV2("123 Main St", "Springfield", "00000"))))
+      },
+
+      test("migrateField tracks nested fields for validation") {
+        case class Inner(a: Int, b: String)
+        case class InnerV2(a: Int, b: String, c: Boolean)
+        case class Outer(x: String, inner: Inner)
+        case class OuterV2(x: String, inner: InnerV2)
+
+        implicit val innerSchema: Schema[Inner]     = Schema.derived[Inner]
+        implicit val innerV2Schema: Schema[InnerV2] = Schema.derived[InnerV2]
+        implicit val outerSchema: Schema[Outer]     = Schema.derived[Outer]
+        implicit val outerV2Schema: Schema[OuterV2] = Schema.derived[OuterV2]
+
+        val innerMigration: Migration[Inner, InnerV2] = Migration
+          .newBuilder[Inner, InnerV2]
+          .addField(_.c, literalExpr(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+          .build
+
+        val outerMigration = Migration
+          .newBuilder[Outer, OuterV2]
+          .migrateField(_.inner, _.inner, innerMigration)
+          .build
+
+        val input  = Outer("test", Inner(42, "hello"))
+        val result = outerMigration(input)
+
+        assertTrue(result == Right(OuterV2("test", InnerV2(42, "hello", false))))
+      },
+
+      test("ApplyMigration action reverse works correctly") {
+        val innerMigration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("newField"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+          )
+        )
+        val action   = MigrationAction.ApplyMigration(DynamicOptic.root.field("nested"), innerMigration)
+        val reversed = action.reverse
+
+        assertTrue(
+          reversed.isInstanceOf[MigrationAction.ApplyMigration] &&
+            reversed
+              .asInstanceOf[MigrationAction.ApplyMigration]
+              .migration
+              .actions
+              .head
+              .isInstanceOf[MigrationAction.DropField]
+        )
+      },
+
+      test("ApplyMigration executes nested migration at path") {
+        val input = DynamicValue.Record(
+          "id"   -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          "data" -> DynamicValue.Record(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("test"))
+          )
+        )
+
+        val nestedMigration = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("age"),
+            literal(DynamicValue.Primitive(PrimitiveValue.Int(25)))
+          )
+        )
+
+        val migration = DynamicMigration.single(
+          MigrationAction.ApplyMigration(DynamicOptic.root.field("data"), nestedMigration)
+        )
+
+        val expected = DynamicValue.Record(
+          "id"   -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          "data" -> DynamicValue.Record(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("test")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+          )
+        )
+
+        assertTrue(migration(input) == Right(expected))
+      },
+
+      test("migrateField combined with other operations") {
+        case class Settings(theme: String)
+        case class SettingsV2(theme: String, fontSize: Int)
+        case class Config(name: String, settings: Settings)
+        case class ConfigV2(title: String, settings: SettingsV2)
+
+        implicit val settingsSchema: Schema[Settings]     = Schema.derived[Settings]
+        implicit val settingsV2Schema: Schema[SettingsV2] = Schema.derived[SettingsV2]
+        implicit val configSchema: Schema[Config]         = Schema.derived[Config]
+        implicit val configV2Schema: Schema[ConfigV2]     = Schema.derived[ConfigV2]
+
+        val settingsMigration: Migration[Settings, SettingsV2] = Migration
+          .newBuilder[Settings, SettingsV2]
+          .addField(_.fontSize, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(12))))
+          .build
+
+        val configMigration = Migration
+          .newBuilder[Config, ConfigV2]
+          .renameField(_.name, _.title)
+          .migrateField(_.settings, _.settings, settingsMigration)
+          .build
+
+        val input  = Config("MyConfig", Settings("dark"))
+        val result = configMigration(input)
+
+        assertTrue(result == Right(ConfigV2("MyConfig", SettingsV2("dark", 12))))
+      }
     )
   )
 }

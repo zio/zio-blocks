@@ -418,6 +418,77 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  def migrateFieldExplicitImpl[
+    A: c.WeakTypeTag,
+    B: c.WeakTypeTag,
+    F1: c.WeakTypeTag,
+    F2: c.WeakTypeTag,
+    SH: c.WeakTypeTag,
+    TP: c.WeakTypeTag
+  ](c: whitebox.Context)(
+    source: c.Expr[A => F1],
+    target: c.Expr[B => F2],
+    migration: c.Expr[Migration[F1, F2]]
+  ): c.Tree = {
+    import c.universe._
+
+    val aType  = weakTypeOf[A]
+    val bType  = weakTypeOf[B]
+    val f1Type = weakTypeOf[F1]
+    val f2Type = weakTypeOf[F2]
+    val shType = weakTypeOf[SH]
+    val tpType = weakTypeOf[TP]
+
+    val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
+    val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
+
+    val nestedSourceFields = extractCaseClassFields(c)(f1Type)
+    val nestedTargetFields = extractCaseClassFields(c)(f2Type)
+
+    var newSHType = shType
+    newSHType = createRefinedType(c)(newSHType, sourceFieldName)
+    for (nestedField <- nestedSourceFields) {
+      val dotPath = s"$sourceFieldName.$nestedField"
+      newSHType = createRefinedType(c)(newSHType, dotPath)
+    }
+
+    var newTPType = tpType
+    newTPType = createRefinedType(c)(newTPType, targetFieldName)
+    for (nestedField <- nestedTargetFields) {
+      val dotPath = s"$targetFieldName.$nestedField"
+      newTPType = createRefinedType(c)(newTPType, dotPath)
+    }
+
+    val sourcePath = SelectorMacros.toPathImpl[A, F1](c)(source.asInstanceOf[c.Expr[A => F1]])
+
+    q"""{
+      val sourcePath = $sourcePath
+      new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newSHType, $newTPType](
+        ${c.prefix}.sourceSchema,
+        ${c.prefix}.targetSchema,
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ApplyMigration(
+          sourcePath,
+          $migration.dynamicMigration
+        )
+      )
+    }"""
+  }
+
+  def migrateFieldImplicitImpl[
+    A: c.WeakTypeTag,
+    B: c.WeakTypeTag,
+    F1: c.WeakTypeTag,
+    F2: c.WeakTypeTag,
+    SH: c.WeakTypeTag,
+    TP: c.WeakTypeTag
+  ](c: whitebox.Context)(
+    source: c.Expr[A => F1],
+    target: c.Expr[B => F2]
+  )(
+    migration: c.Expr[Migration[F1, F2]]
+  ): c.Tree =
+    migrateFieldExplicitImpl[A, B, F1, F2, SH, TP](c)(source, target, migration)
+
   private def extractCaseClassFields(c: whitebox.Context)(tpe: c.universe.Type): List[String] = {
     import c.universe._
 
