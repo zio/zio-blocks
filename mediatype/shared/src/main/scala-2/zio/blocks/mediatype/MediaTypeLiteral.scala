@@ -19,7 +19,7 @@ private[mediatype] object MediaTypeMacros {
       case Apply(_, List(Apply(_, rawParts))) =>
         rawParts.map {
           case Literal(Constant(part: String)) => part
-          case _ => c.abort(c.enclosingPosition, "mediaType interpolator requires literal strings only")
+          case _                               => c.abort(c.enclosingPosition, "mediaType interpolator requires literal strings only")
         }
       case _ => c.abort(c.enclosingPosition, "mediaType interpolator requires literal strings only")
     }
