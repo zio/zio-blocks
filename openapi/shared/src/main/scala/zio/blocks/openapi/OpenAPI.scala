@@ -418,13 +418,13 @@ object ReferenceOr {
  *   An object to hold mappings between payload values and schema names or
  *   references.
  */
-final case class Discriminator(
+final case class OpenAPIDiscriminator(
   propertyName: String,
   mapping: Map[String, String] = Map.empty
 )
 
-object Discriminator {
-  implicit val schema: Schema[Discriminator] = Schema.derived
+object OpenAPIDiscriminator {
+  implicit val schema: Schema[OpenAPIDiscriminator] = Schema.derived
 }
 
 /**
@@ -501,7 +501,7 @@ object XML {
  */
 final case class SchemaObject(
   jsonSchema: Json,
-  discriminator: Option[Discriminator] = None,
+  discriminator: Option[OpenAPIDiscriminator] = None,
   xml: Option[XML] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   example: Option[Json] = None,
