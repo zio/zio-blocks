@@ -137,6 +137,32 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     )
   }
 
+  transparent inline def migrateField[F1, F2](
+    inline source: A => F1,
+    inline target: B => F2,
+    migration: Migration[F1, F2]
+  ) = ${
+    MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided](
+      'this,
+      'source,
+      'target,
+      'migration
+    )
+  }
+
+  @scala.annotation.targetName("migrateFieldImplicit")
+  transparent inline def migrateField[F1, F2](
+    inline source: A => F1,
+    inline target: B => F2
+  )(using migration: Migration[F1, F2]) = ${
+    MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided](
+      'this,
+      'source,
+      'target,
+      'migration
+    )
+  }
+
   inline def build(using
     ev: MigrationComplete[A, B, SourceHandled, TargetProvided]
   ): Migration[A, B] =
