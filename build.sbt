@@ -474,7 +474,6 @@ lazy val docs = project
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
-    scalacOptions += "-experimental"
   )
   .dependsOn(schema.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
   .enablePlugins(WebsitePlugin)

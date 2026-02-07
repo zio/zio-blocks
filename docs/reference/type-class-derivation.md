@@ -413,17 +413,10 @@ object DeriveShow extends Deriver[Show] {
     val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
 
     new Show[A] {
-      def show(value: A): String =
-        // Unwrap returns Either[SchemaError, B] now
-        wrapperBinding.unwrap(value) match {
-          case Right(unwrapped) =>
-            // Show the underlying value with the wrapper type name
-            // Force the wrapped Show instance only when actually showing
-            s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
-          case Left(error) =>
-            // Handle unwrap failure - show error information
-            s"${typeId.name}(<unwrap failed: ${error.message}>)"
-        }
+      def show(value: A): String = {
+        val unwrapped = wrapperBinding.unwrap(value)
+        s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
+      }
     }
   }
 }
@@ -725,22 +718,15 @@ def deriveWrapper[F[_, _], A, B](
   val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
 
   new Show[A] {
-    def show(value: A): String =
-      // Unwrap returns Either[SchemaError, B] now
-      wrapperBinding.unwrap(value) match {
-        case Right(unwrapped) =>
-          // Show the underlying value with the wrapper type name
-          // Force the wrapped Show instance only when actually showing
-          s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
-        case Left(error) =>
-          // Handle unwrap failure - show error information
-          s"${typeId.name}(<unwrap failed: ${error.message}>)"
-      }
+    def show(value: A): String = {
+      val unwrapped = wrapperBinding.unwrap(value)
+      s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
+    }
   }
 }
 ```
 
-The derivation process for wrapper types involves unwrapping the value to access the underlying type. We extract the type class instance for the wrapped type, and at runtime we use the `unwrap` function from the binding to get the underlying value. If unwrapping is successful, we show the underlying value using its type class instance. If unwrapping fails, we handle the error case accordingly (e.g., by returning an error message).
+The derivation process for wrapper types involves unwrapping the value to access the underlying type. We extract the type class instance for the wrapped type, and at runtime we use the `unwrap` function from the binding to get the underlying value, then show it using its type class instance.
 
 ### Example Usages
 
@@ -1015,15 +1001,16 @@ object DeriveGen extends Deriver[Gen] {
     new Gen[C[A]] {
       def generate(random: Random): C[A] = {
         val length = random.nextInt(6) // 0 to 5 elements
+        implicit val ct: scala.reflect.ClassTag[A] = scala.reflect.ClassTag.Any.asInstanceOf[scala.reflect.ClassTag[A]]
 
         if (length == 0) {
-          constructor.emptyObject[A]
+          constructor.empty[A]
         } else {
-          val builder = constructor.newObjectBuilder[A](length)
+          val builder = constructor.newBuilder[A](length)
           (0 until length).foreach { _ =>
-            constructor.addObject(builder, elementGen.force.generate(random))
+            constructor.add(builder, elementGen.force.generate(random))
           }
-          constructor.resultObject(builder)
+          constructor.result(builder)
         }
       }
     }
@@ -1139,10 +1126,7 @@ object DeriveGen extends Deriver[Gen] {
 
     new Gen[A] {
       def generate(random: Random): A =
-        wrapperBinding.wrap(wrappedGen.force.generate(random)) match {
-          case Right(a) => a
-          case Left(_)  => generate(random) // Retry on validation failure
-        }
+        wrapperBinding.wrap(wrappedGen.force.generate(random))
     }
   }
 }
@@ -1279,22 +1263,23 @@ def deriveSequence[F[_, _], C[_], A](
   new Gen[C[A]] {
     def generate(random: Random): C[A] = {
       val length = random.nextInt(6) // 0 to 5 elements
+      implicit val ct: scala.reflect.ClassTag[A] = scala.reflect.ClassTag.Any.asInstanceOf[scala.reflect.ClassTag[A]]
 
       if (length == 0) {
-        constructor.emptyObject[A]
+        constructor.empty[A]
       } else {
-        val builder = constructor.newObjectBuilder[A](length)
+        val builder = constructor.newBuilder[A](length)
         (0 until length).foreach { _ =>
-          constructor.addObject(builder, elementGen.force.generate(random))
+          constructor.add(builder, elementGen.force.generate(random))
         }
-        constructor.resultObject(builder)
+        constructor.result(builder)
       }
     }
   }
 }
 ```
 
-A sequence is an object that contains multiple elements of the same type. To derive a `Gen` instance for a sequence, we first need to retrieve the `Gen` instance for the element type. Then, at runtime, we generate a random length for the sequence (e.g., between 0 and 5). Based on this length, we either return an empty sequence using `constructor.emptyObject` or create a new builder using `constructor.newObjectBuilder`. We then generate random values for each element using the element's type class instance and add them to the builder using `constructor.addObject`. Finally, we call `constructor.resultObject` to build the final sequence object.
+A sequence is an object that contains multiple elements of the same type. To derive a `Gen` instance for a sequence, we first need to retrieve the `Gen` instance for the element type. Then, at runtime, we generate a random length for the sequence (e.g., between 0 and 5). Based on this length, we either return an empty sequence using `constructor.empty` or create a new builder using `constructor.newBuilder`. We then generate random values for each element using the element's type class instance and add them to the builder using `constructor.add`. Finally, we call `constructor.result` to build the final sequence object.
 
 ### Map Derivation
 
@@ -1416,17 +1401,12 @@ def deriveWrapper[F[_, _], A, B](
 
   new Gen[A] {
     def generate(random: Random): A =
-      wrapperBinding.wrap(wrappedGen.force.generate(random)) match {
-        case Right(a) => a
-        case Left(_)  => generate(random) // Retry on validation failure
-      }
+      wrapperBinding.wrap(wrappedGen.force.generate(random))
   }
 }
 ```
 
-First, we retrieve the `Gen` instance for the wrapped (underlying) type `B`. Then, within the `generate` method, we generate a random value of type `B` and attempt to wrap it into type `A` using the `wrap` function provided by the binding. If the wrapping is successful, we return the generated value of type `A`. If the wrapping fails (for example, due to a validation error), we retry the generation process until a valid value is produced.
-
-Please note that in a production implementation, you should include safeguards to prevent infinite retries in the event of persistent validation failures.
+First, we retrieve the `Gen` instance for the wrapped (underlying) type `B`. Then, within the `generate` method, we generate a random value of type `B` and wrap it into type `A` using the `wrap` function provided by the binding.
 
 ### Example Usages
 
