@@ -73,17 +73,13 @@ object IntoSpec extends SchemaBaseSpec {
     suite("DynamicValue conversions")(
       test("Into[CaseClass, DynamicValue] converts to DynamicValue.Record") {
         case class Person(name: String, age: Int)
-        val person = Person("Alice", 30)
-        val result = Into.derived[Person, DynamicValue].into(person)
-        assertTrue(
-          result.isRight,
-          result.map {
-            case DynamicValue.Record(fields) =>
-              fields.find(_._1 == "name").exists(_._2 == DynamicValue.string("Alice")) &&
-              fields.find(_._1 == "age").exists(_._2 == DynamicValue.int(30))
-            case _ => false
-          } == Right(true)
-        )
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val person   = Person("Alice", 30)
+        val result   = Into.derived[Person, DynamicValue].into(person)
+        val expected = Schema[Person].toDynamicValue(person)
+        assert(result)(isRight(equalTo(expected)))
       },
       test("Into[DynamicValue, CaseClass] converts from matching structure") {
         case class Person(name: String, age: Int)
