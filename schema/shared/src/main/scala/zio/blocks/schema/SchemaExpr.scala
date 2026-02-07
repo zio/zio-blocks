@@ -37,7 +37,7 @@ final case class SchemaExpr[A, B](
           Right(converted.collect { case Right(v) => v })
         }
       case Left(error) =>
-        Left(new OpticCheck(new ::(OpticCheck.DynamicConversionError(error.message), Nil)))
+        Left(schemaErrorToOpticCheck(error, input, dynamic))
     }
   }
 
@@ -46,7 +46,64 @@ final case class SchemaExpr[A, B](
    */
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = {
     val dynamicInput = inputSchema.toDynamicValue(input)
-    dynamic.eval(dynamicInput).left.map(e => new OpticCheck(new ::(OpticCheck.DynamicConversionError(e.message), Nil)))
+    dynamic.eval(dynamicInput).left.map(e => schemaErrorToOpticCheck(e, input, dynamic))
+  }
+
+  private def schemaErrorToOpticCheck(error: SchemaError, input: A, expr: DynamicSchemaExpr): OpticCheck = {
+    val opticError = error.errors.head match {
+      case SchemaError.Message(source, details) if details.startsWith("UnexpectedCase:") =>
+        val expectedCase = details.stripPrefix("UnexpectedCase: expected ").takeWhile(_ != ',')
+        val actualCase   = details.dropWhile(_ != ',').stripPrefix(", got ")
+        val fullPath     = extractFullPath(expr).getOrElse(source)
+        OpticCheck.UnexpectedCase(expectedCase, actualCase, fullPath, source, input)
+
+      case SchemaError.Message(source, "EmptySequence") =>
+        val fullPath = extractFullPath(expr).getOrElse(source)
+        OpticCheck.EmptySequence(fullPath, source)
+
+      case SchemaError.Message(source, details) if details.startsWith("SequenceIndexOutOfBounds:") =>
+        val parts    = details.stripPrefix("SequenceIndexOutOfBounds: ").split(", ")
+        val index    = parts(0).stripPrefix("index ").toInt
+        val size     = parts(1).stripPrefix("size ").toInt
+        val fullPath = extractFullPath(expr).getOrElse(source)
+        OpticCheck.SequenceIndexOutOfBounds(fullPath, source, index, size)
+
+      case SchemaError.Message(source, details) if details.startsWith("MissingKey:") =>
+        val fullPath = extractFullPath(expr).getOrElse(source)
+        val keyStr   = details.stripPrefix("MissingKey:")
+        OpticCheck.MissingKey(fullPath, source, keyStr)
+
+      case SchemaError.Message(source, "EmptyMap") =>
+        val fullPath = extractFullPath(expr).getOrElse(source)
+        OpticCheck.EmptyMap(fullPath, source)
+
+      case _ =>
+        OpticCheck.DynamicConversionError(error.message)
+    }
+    new OpticCheck(new ::(opticError, Nil))
+  }
+
+  private def extractFullPath(expr: DynamicSchemaExpr): Option[DynamicOptic] = expr match {
+    case DynamicSchemaExpr.Select(path)                  => Some(path)
+    case DynamicSchemaExpr.Relational(left, _, _)        => extractFullPath(left)
+    case DynamicSchemaExpr.Logical(left, _, _)           => extractFullPath(left)
+    case DynamicSchemaExpr.Not(e)                        => extractFullPath(e)
+    case DynamicSchemaExpr.Arithmetic(left, _, _, _)     => extractFullPath(left)
+    case DynamicSchemaExpr.Bitwise(left, _, _)           => extractFullPath(left)
+    case DynamicSchemaExpr.BitwiseNot(e)                 => extractFullPath(e)
+    case DynamicSchemaExpr.StringConcat(left, _)         => extractFullPath(left)
+    case DynamicSchemaExpr.StringRegexMatch(_, string)   => extractFullPath(string)
+    case DynamicSchemaExpr.StringLength(string)          => extractFullPath(string)
+    case DynamicSchemaExpr.StringSubstring(string, _, _) => extractFullPath(string)
+    case DynamicSchemaExpr.StringTrim(string)            => extractFullPath(string)
+    case DynamicSchemaExpr.StringToUpperCase(string)     => extractFullPath(string)
+    case DynamicSchemaExpr.StringToLowerCase(string)     => extractFullPath(string)
+    case DynamicSchemaExpr.StringReplace(string, _, _)   => extractFullPath(string)
+    case DynamicSchemaExpr.StringStartsWith(string, _)   => extractFullPath(string)
+    case DynamicSchemaExpr.StringEndsWith(string, _)     => extractFullPath(string)
+    case DynamicSchemaExpr.StringContains(string, _)     => extractFullPath(string)
+    case DynamicSchemaExpr.StringIndexOf(string, _)      => extractFullPath(string)
+    case _                                               => None
   }
 
   /**
@@ -206,7 +263,7 @@ object SchemaExpr {
   def stringRegexMatch[S](regex: SchemaExpr[S, String], string: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringRegexMatch(regex.dynamic, string.dynamic),
-      regex.inputSchema,
+      string.inputSchema,
       Schema[Boolean]
     )
 
