@@ -576,26 +576,28 @@ object TypeIdMacros {
     }
   }
 
+  private val filteredBaseTypes = Set(
+    "scala.Any",
+    "scala.AnyRef",
+    "java.lang.Object",
+    "scala.Matchable",
+    "scala.Product",
+    "scala.Equals",
+    "scala.deriving.Mirror",
+    "scala.deriving.Mirror.Product",
+    "scala.deriving.Mirror.Singleton",
+    "scala.deriving.Mirror.Sum",
+    "java.io.Serializable"
+  )
+
   private def buildBaseTypes(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
     // Get base classes excluding the type itself and common types
     val baseClasses = if (sym.isClass) {
-      sym.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
+      sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
+      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else {
       Nil
     }
@@ -699,21 +701,9 @@ object TypeIdMacros {
     import c.universe._
 
     val baseClasses = if (sym.isClass) {
-      sym.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
+      sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
+      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else {
       Nil
     }
