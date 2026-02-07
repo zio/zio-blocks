@@ -9,9 +9,7 @@ private[scope] trait WireableVersionSpecific {
    *
    * Constructor parameters are analyzed to determine dependencies:
    *   - Regular parameters: become dependencies (part of `In` type)
-   *   - `Scope.Has[Y]` parameters: Y becomes a dependency, scope is passed
-   *     narrowed
-   *   - `Scope.Any` parameters: scope is passed but no dependency added
+   *   - `Scope[_, _]` parameters: scope is passed
    *
    * The `In` type is the intersection of all dependencies.
    *
@@ -45,16 +43,14 @@ private[scope] object WireableMacros {
 
     val paramLists = ctor.paramLists
 
-    // Extract dependencies from all param lists
     val allDepTypes: List[Type] = paramLists.flatten.flatMap { param =>
       val paramType = param.typeSignature
       MC.classifyAndExtractDep(c)(paramType)
     }
 
-    // Check for subtype conflicts
     MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
       case Some(error) => MC.abort(c)(error)
-      case None        => // ok
+      case None        =>
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
@@ -62,23 +58,16 @@ private[scope] object WireableMacros {
       if (allDepTypes.isEmpty) typeOf[Any]
       else allDepTypes.reduceLeft((a, b) => c.universe.internal.refinedType(List(a, b), NoSymbol))
 
-    // Generate argument expressions for constructor
     def generateArgs(params: List[Symbol]): List[Tree] =
       params.map { param =>
         val paramType = param.typeSignature
         if (MC.isScopeType(c)(paramType)) {
-          MC.extractScopeHasType(c)(paramType) match {
-            case Some(depType) =>
-              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[$depType]]"
-            case None =>
-              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Any]"
-          }
+          q"scope"
         } else {
-          q"scope.get[$paramType]"
+          q"ctx.get[$paramType]"
         }
       }
 
-    // Generate constructor call with all param lists
     val argLists = paramLists.map(generateArgs)
     val ctorCall = if (argLists.isEmpty) {
       q"new $tpe()"
@@ -90,7 +79,7 @@ private[scope] object WireableMacros {
 
     val wireBody = if (isAutoCloseable) {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$inType, $tpe] { scope =>
+        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (scope, ctx) =>
           val instance = $ctorCall
           scope.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
@@ -98,15 +87,13 @@ private[scope] object WireableMacros {
       """
     } else {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.fromFunction[$inType, $tpe] { scope =>
+        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (scope, ctx) =>
           val instance = $ctorCall
           instance
         }
       """
     }
 
-    // Whitebox macro: returning a tree with refined type allows the compiler
-    // to infer Wireable[T] { type In = inType } as the return type
     val result = q"""
       new _root_.zio.blocks.scope.Wireable[$tpe] {
         type In = $inType

@@ -32,7 +32,7 @@ private[scope] object FactoryMacros {
     // Check for Scope parameter in implicits
     val hasScopeParam = implicitParams.flatten.exists { param =>
       val paramType = tpe.memberType(param)
-      paramType <:< TypeRepr.of[Scope]
+      paramType <:< TypeRepr.of[Scope[?, ?]]
     }
 
     // Collect dependencies (non-Scope regular params)

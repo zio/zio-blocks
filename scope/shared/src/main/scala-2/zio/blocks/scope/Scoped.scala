@@ -178,3 +178,44 @@ object ScopedOps {
    */
   implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
 }
+
+/**
+ * A free monad representing scoped computations.
+ *
+ * `Scoped[-Tag, +A]` is a description of a computation that produces an `A` and
+ * requires a scope with tag `<: Tag` to execute.
+ *
+ * @tparam Tag
+ *   the scope tag required to execute this computation (contravariant)
+ * @tparam A
+ *   the result type of the computation (covariant)
+ */
+final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
+
+  /**
+   * Maps over the result of this Scoped computation.
+   */
+  def map[B](f: A => B): Scoped[Tag, B] =
+    new Scoped(() => f(executeFn()))
+
+  /**
+   * FlatMaps this Scoped computation with a function returning another scoped
+   * value.
+   */
+  def flatMap[B, T](f: A => B @@ T): Scoped[Tag with T, B] =
+    new Scoped(() => @@.unscoped(f(executeFn())))
+
+  /**
+   * Executes the scoped computation and returns the result.
+   */
+  private[scope] def run(): A = executeFn()
+}
+
+object Scoped {
+
+  /**
+   * Creates a Scoped computation from a thunk.
+   */
+  def create[Tag, A](f: () => A): Scoped[Tag, A] =
+    new Scoped(f)
+}

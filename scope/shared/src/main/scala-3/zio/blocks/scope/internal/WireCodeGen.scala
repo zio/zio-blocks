@@ -1,6 +1,6 @@
 package zio.blocks.scope.internal
 
-import zio.blocks.context.IsNominalType
+import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.{Scope, Wire, Wireable}
 import scala.quoted.*
 import scala.compiletime.summonInline
@@ -61,31 +61,28 @@ private[scope] object WireCodeGen {
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val inType          = MacroCore.computeInType(depTypes)
 
-    def generateArgTerm[In: Type](paramType: TypeRepr, scopeExpr: Expr[Scope.Has[In]]): Term =
+    def generateArgTerm(
+      paramType: TypeRepr,
+      scopeExpr: Expr[Scope[?, ?]],
+      ctxExpr: Expr[Context[?]]
+    ): Term =
       if (MacroCore.isScopeType(paramType)) {
-        MacroCore.extractScopeHasType(paramType) match {
-          case Some(depType) =>
-            depType.asType match {
-              case '[d] =>
-                '{ $scopeExpr.asInstanceOf[Scope.Has[d]] }.asTerm
-            }
-          case None =>
-            '{ $scopeExpr.asInstanceOf[Scope.Any] }.asTerm
-        }
+        scopeExpr.asTerm
       } else {
         paramType.asType match {
           case '[d] =>
-            '{ $scopeExpr.get[d](using summonInline[IsNominalType[d]]) }.asTerm
+            // Cast context to Context[d] so that get[d] satisfies the A >: R bound
+            '{ ${ ctxExpr.asExprOf[Context[d]] }.get[d](using summonInline[IsNominalType[d]]) }.asTerm
         }
       }
 
-    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[T] = {
+    def generateWireBody[In: Type](scopeExpr: Expr[Scope[?, ?]], ctxExpr: Expr[Context[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
       val argListTerms: List[List[Term]] = paramLists.map { params =>
         params.map { param =>
           val paramType = tpe.memberType(param).dealias.simplified
-          generateArgTerm[In](paramType, scopeExpr)
+          generateArgTerm(paramType, scopeExpr, ctxExpr.asExprOf[Context[?]])
         }
       }
 
@@ -112,17 +109,15 @@ private[scope] object WireCodeGen {
         kind match {
           case WireKind.Shared =>
             '{
-              Wire.Shared[inTpe, T] {
-                val scope = summon[Scope.Has[inTpe]]
-                ${ generateWireBody[inTpe]('{ scope }) }
+              Wire.Shared[inTpe, T] { (scope, ctx) =>
+                ${ generateWireBody[inTpe]('{ scope }, '{ ctx }) }
               }
             }
 
           case WireKind.Unique =>
             '{
-              Wire.Unique[inTpe, T] {
-                val scope = summon[Scope.Has[inTpe]]
-                ${ generateWireBody[inTpe]('{ scope }) }
+              Wire.Unique[inTpe, T] { (scope, ctx) =>
+                ${ generateWireBody[inTpe]('{ scope }, '{ ctx }) }
               }
             }
         }
@@ -193,31 +188,28 @@ private[scope] object WireCodeGen {
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val inType          = MacroCore.computeInType(depTypes)
 
-    def generateArgTerm[In: Type](paramType: TypeRepr, scopeExpr: Expr[Scope.Has[In]]): Term =
+    def generateArgTerm(
+      paramType: TypeRepr,
+      scopeExpr: Expr[Scope[?, ?]],
+      ctxExpr: Expr[Context[?]]
+    ): Term =
       if (MacroCore.isScopeType(paramType)) {
-        MacroCore.extractScopeHasType(paramType) match {
-          case Some(depType) =>
-            depType.asType match {
-              case '[d] =>
-                '{ $scopeExpr.asInstanceOf[Scope.Has[d]] }.asTerm
-            }
-          case None =>
-            '{ $scopeExpr.asInstanceOf[Scope.Any] }.asTerm
-        }
+        scopeExpr.asTerm
       } else {
         paramType.asType match {
           case '[d] =>
-            '{ $scopeExpr.get[d](using summonInline[IsNominalType[d]]) }.asTerm
+            // Cast context to Context[d] so that get[d] satisfies the A >: R bound
+            '{ ${ ctxExpr.asExprOf[Context[d]] }.get[d](using summonInline[IsNominalType[d]]) }.asTerm
         }
       }
 
-    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[T] = {
+    def generateWireBody[In: Type](scopeExpr: Expr[Scope[?, ?]], ctxExpr: Expr[Context[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
       val argListTerms: List[List[Term]] = paramLists.map { params =>
         params.map { param =>
           val paramType = tpe.memberType(param).dealias.simplified
-          generateArgTerm[In](paramType, scopeExpr)
+          generateArgTerm(paramType, scopeExpr, ctxExpr.asExprOf[Context[?]])
         }
       }
 
@@ -245,9 +237,8 @@ private[scope] object WireCodeGen {
           new Wireable[T] {
             type In = inTpe
 
-            def wire: Wire[inTpe, T] = Wire.Shared[inTpe, T] {
-              val scope = summon[Scope.Has[inTpe]]
-              ${ generateWireBody[inTpe]('{ scope }) }
+            def wire: Wire[inTpe, T] = Wire.Shared[inTpe, T] { (scope, ctx) =>
+              ${ generateWireBody[inTpe]('{ scope }, '{ ctx }) }
             }
           }
         }

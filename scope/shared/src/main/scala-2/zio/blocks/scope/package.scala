@@ -1,7 +1,5 @@
 package zio.blocks
 
-import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.internal.Finalizers
 import scala.language.experimental.macros
 import scala.language.implicitConversions
 
@@ -42,56 +40,15 @@ package object scope {
    *
    * @example
    *   {{{
-   *   class MyService()(implicit scope: Scope.Any) {
+   *   Scope.global.scoped { scope =>
    *     val resource = acquire()
-   *     defer { resource.release() }
+   *     scope.defer { resource.release() }
+   *     // use resource...
    *   }
    *   }}}
    */
-  def defer(finalizer: => Unit)(implicit scope: Scope.Any): Unit =
+  def defer(finalizer: => Unit)(implicit scope: Scope[_, _]): Unit =
     scope.defer(finalizer)
-
-  /**
-   * Retrieves a service from the current scope, scoped with the scope's
-   * identity.
-   *
-   * The returned value is scoped to prevent escape. Use the `$` operator on the
-   * scoped value to access methods:
-   *
-   * @example
-   *   {{{
-   *   def doWork()(implicit scope: Scope.Has[Database]): Unit = {
-   *     val db = $[Database]                      // Database @@ scope.Tag
-   *     db.$(_.query("SELECT ..."))(scope, implicitly)  // String (unscoped)
-   *   }
-   *   }}}
-   */
-  def $[T](implicit scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag =
-    @@.scoped(scope.get[T])
-
-  /**
-   * Creates a closeable scope containing the given value.
-   *
-   * If the value is `AutoCloseable`, its `close()` method is automatically
-   * registered as a finalizer.
-   *
-   * @example
-   *   {{{
-   *   val config = Config.load()
-   *   injected(config).run { implicit scope =>
-   *     val cfg = $[Config]
-   *     cfg.$(_.dbUrl)
-   *   }
-   *   }}}
-   */
-  def injected[T, S <: Scope](t: T)(implicit scope: S, nom: IsNominalType[T]): Scope.::[T, S] = {
-    val ctx        = Context(t)
-    val finalizers = new Finalizers
-    if (t.isInstanceOf[AutoCloseable]) {
-      finalizers.add(t.asInstanceOf[AutoCloseable].close())
-    }
-    Scope.makeCloseable(scope, ctx, finalizers)
-  }
 
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
@@ -104,7 +61,8 @@ package object scope {
    *
    * @example
    *   {{{
-   *   Scope.global.injected[App](shared[Database], shared[Cache]).run { ... }
+   *   // Create a shared wire for Database
+   *   val dbWire = shared[Database]
    *   }}}
    */
   def shared[T]: Wire.Shared[_, T] = macro ScopeMacros.sharedImpl[T]
@@ -118,31 +76,6 @@ package object scope {
   def unique[T]: Wire.Unique[_, T] = macro ScopeMacros.uniqueImpl[T]
 
   /**
-   * Creates a child scope containing an instance of `T` and its dependencies.
-   *
-   * The macro inspects `T`'s constructor to determine dependencies.
-   * Dependencies are resolved from:
-   *   1. Provided wires (in order)
-   *   2. The parent scope's stack
-   *
-   * @example
-   *   {{{
-   *   Scope.global.injected[App](shared[Config]).run { scope =>
-   *     // App and Config are available here
-   *     val app = scope.get[App]
-   *     app.run()
-   *   }
-   *   }}}
-   */
-  // format: off
-  def injected[T](implicit scope: Scope.Any): Scope.Closeable[T, _] =
-    macro ScopeMacros.injectedNoArgsImpl[T]
-
-  def injected[T](wires: Wire[_, _]*)(implicit scope: Scope.Any): Scope.Closeable[T, _] =
-    macro ScopeMacros.injectedImpl[T]
-  // format: on
-
-  /**
    * Leaks a scoped value out of its scope, returning the raw unwrapped value.
    *
    * This function emits a compiler warning because leaking resources bypasses
@@ -151,9 +84,10 @@ package object scope {
    *
    * @example
    *   {{{
-   *   closeable.use { implicit scope =>
-   *     val stream = leak($[Request].body.getInputStream())
-   *     ThirdPartyProcessor.process(stream)
+   *   Scope.global.scoped { implicit scope =>
+   *     val stream = scope.create(Factory[InputStream])
+   *     val leaked = leak(stream)
+   *     ThirdPartyProcessor.process(leaked)
    *   }
    *   }}}
    *

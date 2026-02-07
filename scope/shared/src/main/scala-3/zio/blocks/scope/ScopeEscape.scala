@@ -2,11 +2,12 @@ package zio.blocks.scope
 
 /**
  * Typeclass that controls whether `A @@ S` escapes the scope as raw `A` or
- * remains scoped as `A @@ S` when extracted via `.get` or `$`.
+ * remains scoped as `A @@ S` when extracted via `scope.$` or `scope.apply`.
  *
  * ==Priority (highest to lowest)==
  *
- *   1. '''Global scope''' (`S =:= Scope.Global`): all types escape as raw `A`
+ *   1. '''Global scope''' (`S =:= Scope.GlobalTag`): all types escape as raw
+ *      `A`
  *   2. '''[[Unscoped]] types''': escape as raw `A` regardless of scope
  *   3. '''Resource types''': stay scoped as `A @@ S`
  *
@@ -26,9 +27,8 @@ package zio.blocks.scope
  *   the scope tag type
  *
  * @see
- *   [[Unscoped]] for marking types as safe to escape
- * @see
- *   [[@@.$]] which uses this typeclass
+ *   [[Unscoped]] for marking types as safe to escape [[Scope.$]] which uses
+ *   this typeclass
  */
 trait ScopeEscape[A, S] {
 
@@ -69,11 +69,11 @@ object ScopeEscape extends ScopeEscapeLowPriority {
   /**
    * Global scope: all types escape as raw values (highest priority).
    *
-   * Values scoped with [[Scope.Global]] can always be extracted because the
-   * global scope never closes during normal execution. This makes global-scoped
-   * values behave like unscoped values.
+   * Values scoped with [[Scope.GlobalTag]] can always be extracted because the
+   * global scope never closes during normal execution. This makes global-
+   * scoped values behave like unscoped values.
    */
-  given globalScope[A]: ScopeEscape[A, Scope.Global] with {
+  given globalScope[A]: ScopeEscape[A, Scope.GlobalTag] with {
     type Out = A
     def apply(a: A): Out = a
   }

@@ -1,36 +1,26 @@
 package zio.blocks.scope
 
 import zio.test._
-import zio.blocks.context.Context
 import zio.blocks.scope.internal.Finalizers
 
 import scala.collection.mutable
 
 object FinalizersSpec extends ZIOSpecDefault {
 
-  case class Config(debug: Boolean)
-
   def spec = suite("Finalizers")(
     test("run in LIFO order") {
       val order      = mutable.Buffer[Int]()
-      val parent     = Scope.global
-      val config     = Config(true)
       val finalizers = new Finalizers
       finalizers.add(order += 1)
       finalizers.add(order += 2)
       finalizers.add(order += 3)
-      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
-      closeable.close()
+      finalizers.runAll()
       assertTrue(order.toList == List(3, 2, 1))
     },
     test("exception in finalizer is returned in Chunk") {
-      val parent     = Scope.global
-      val config     = Config(true)
       val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer boom"))
-      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
-
-      val errors = closeable.close()
+      val errors = finalizers.runAll()
       assertTrue(
         errors.size == 1,
         errors.headOption.exists(_.getMessage == "finalizer boom")
@@ -64,30 +54,24 @@ object FinalizersSpec extends ZIOSpecDefault {
       finalizers.runAll()
       assertTrue(count == 1)
     },
-    test("closeOrThrow throws first exception") {
-      val parent     = Scope.global
-      val config     = Config(true)
-      val finalizers = new Finalizers
-      finalizers.add(throw new RuntimeException("boom"))
-      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
+    test("testable scope closeOrThrow throws first exception") {
+      val (scope, close) = Scope.createTestableScope()
+      scope.defer(throw new RuntimeException("boom"))
 
       val threw = try {
-        closeable.closeOrThrow()
+        close()
         false
       } catch {
         case e: RuntimeException => e.getMessage == "boom"
       }
       assertTrue(threw)
     },
-    test("closeOrThrow does not throw on success and runs finalizers") {
-      val parent     = Scope.global
-      val config     = Config(true)
-      val finalizers = new Finalizers
-      var cleaned    = false
-      finalizers.add { cleaned = true }
-      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
-      closeable.closeOrThrow()
-      assertTrue(cleaned, finalizers.isClosed)
+    test("testable scope closeOrThrow does not throw on success and runs finalizers") {
+      val (scope, close) = Scope.createTestableScope()
+      var cleaned        = false
+      scope.defer { cleaned = true }
+      close()
+      assertTrue(cleaned)
     }
   )
 }

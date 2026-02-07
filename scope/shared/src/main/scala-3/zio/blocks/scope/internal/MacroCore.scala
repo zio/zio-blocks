@@ -128,43 +128,24 @@ private[scope] object MacroCore {
   // Type analysis utilities (Scala 3 specific)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Check if a type is a Scope type (subtype of Scope) */
+  /**
+   * Check if a type is a Scope type (subtype of Scope[?, ?]).
+   *
+   * In the new design, Scope is a final class with two type parameters:
+   * Scope[ParentTag, Tag <: ParentTag]
+   */
   def isScopeType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
-    tpe <:< TypeRepr.of[zio.blocks.scope.Scope]
-  }
-
-  /**
-   * Extract the dependency type from a Scope.Has[Y] type.
-   *
-   * In the new design, Scope is itself an HList:
-   *   - Scope.::[H, T] is a cons cell with head type H and tail T <: Scope
-   *   - Scope.SNil is the empty scope
-   *   - Scope.Has[T] = Scope.::[T, Scope]
-   *
-   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type (not
-   * Any/Nothing), otherwise None.
-   */
-  def extractScopeHasType(using Quotes)(tpe: quotes.reflect.TypeRepr): Option[quotes.reflect.TypeRepr] = {
-    import quotes.reflect.*
-    tpe.dealias match {
-      case AppliedType(cons, List(headType, _)) if cons.typeSymbol.name == "::" =>
-        // Check that cons is actually Scope.::
-        val scopeConsSymbol = TypeRepr.of[zio.blocks.scope.Scope.::[?, ?]].typeSymbol
-        if (cons.typeSymbol == scopeConsSymbol) {
-          val head = headType.dealias.simplified
-          if (head =:= TypeRepr.of[scala.Any] || head =:= TypeRepr.of[Nothing]) None
-          else Some(head)
-        } else None
-      case _ => None
-    }
+    tpe <:< TypeRepr.of[zio.blocks.scope.Scope[?, ?]]
   }
 
   /**
    * Classify a parameter type and extract its dependency if applicable.
    *
-   *   - Scope.Has[Y] → ScopeHas(Y) with Y as dependency
-   *   - Scope.Any-like → ScopeAny with no dependency
+   * In the new design, Scope is just Scope[?, ?] - there's no Scope.Has or
+   * context inside the scope. Dependencies are resolved via Factory/Wire.
+   *
+   *   - Scope[?, ?] → ScopeAny with no dependency
    *   - Regular type → ValueDep with the type as dependency
    */
   def classifyParam(using
@@ -173,12 +154,7 @@ private[scope] object MacroCore {
     paramType: quotes.reflect.TypeRepr
   ): (ParamKind, Option[quotes.reflect.TypeRepr]) =
     if (isScopeType(paramType)) {
-      extractScopeHasType(paramType) match {
-        case Some(depType) =>
-          (ParamKind.ScopeHas(depType.show), Some(depType))
-        case None =>
-          (ParamKind.ScopeAny, None)
-      }
+      (ParamKind.ScopeAny, None)
     } else {
       (ParamKind.ValueDep(paramType.show), Some(paramType))
     }

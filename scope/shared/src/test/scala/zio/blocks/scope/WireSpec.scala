@@ -2,7 +2,6 @@ package zio.blocks.scope
 
 import zio.test._
 import zio.blocks.context.Context
-import zio.blocks.scope.internal.Finalizers
 
 object WireSpec extends ZIOSpecDefault {
 
@@ -11,34 +10,31 @@ object WireSpec extends ZIOSpecDefault {
   def spec = suite("Wire")(
     test("Wire(...) creates shared wire") {
       val wire = Wire(Config(true))
-      assertTrue(wire.isInstanceOf[Wire.Shared[_, _]])
+      assertTrue(wire.isInstanceOf[Wire.Shared[?, ?]])
     },
     test("Wire(...) construction works") {
-      val wire       = Wire(Config(true))
-      val parent     = Scope.global
-      val finalizers = new Finalizers
-      val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val config     = wire.make(scope)
+      val wire           = Wire(Config(true))
+      val (scope, close) = Scope.createTestableScope()
+      val config         = wire.make(scope, Context.empty)
+      close()
       assertTrue(config.debug)
     },
     test("Wire.Shared constructs value") {
-      val wire: Wire.Shared[Any, Config] = Wire.Shared.fromFunction[Any, Config] { _ =>
+      val wire: Wire.Shared[Any, Config] = Wire.Shared.fromFunction[Any, Config] { (_, _) =>
         Config(debug = true)
       }
-      val parent     = Scope.global
-      val finalizers = new Finalizers
-      val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val config     = wire.make(scope)
+      val (scope, close) = Scope.createTestableScope()
+      val config         = wire.make(scope, Context.empty)
+      close()
       assertTrue(config.debug)
     },
     test("Wire.Unique constructs value") {
-      val wire: Wire.Unique[Any, Config] = Wire.Unique.fromFunction[Any, Config] { _ =>
+      val wire: Wire.Unique[Any, Config] = Wire.Unique.fromFunction[Any, Config] { (_, _) =>
         Config(debug = false)
       }
-      val parent     = Scope.global
-      val finalizers = new Finalizers
-      val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val config     = wire.make(scope)
+      val (scope, close) = Scope.createTestableScope()
+      val config         = wire.make(scope, Context.empty)
+      close()
       assertTrue(!config.debug)
     },
     test("Wire.isShared and isUnique") {

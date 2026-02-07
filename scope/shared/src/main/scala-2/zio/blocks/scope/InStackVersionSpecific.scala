@@ -1,13 +1,11 @@
 package zio.blocks.scope
 
-private[scope] trait InStackVersionSpecific {
-  private val singleton: InStack[Any, Any] = new InStack[Any, Any] {}
-
-  // Head match: T is at the head of the scope
-  implicit def head[T, R <: T, Tail <: Scope]: InStack[T, Scope.::[R, Tail]] =
-    singleton.asInstanceOf[InStack[T, Scope.::[R, Tail]]]
-
-  // Tail match: T is somewhere in the tail
-  implicit def tail[T, H, Tail <: Scope](implicit ev: InStack[T, Tail]): InStack[T, Scope.::[H, Tail]] =
-    singleton.asInstanceOf[InStack[T, Scope.::[H, Tail]]]
-}
+/**
+ * Scala 2 version-specific InStack support.
+ *
+ * In the new Scope design, InStack is no longer needed as the HList-based
+ * scope is replaced with a two-parameter Scope[ParentTag, Tag].
+ *
+ * This trait is kept empty for binary compatibility.
+ */
+private[scope] trait InStackVersionSpecific

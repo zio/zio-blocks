@@ -1,42 +1,22 @@
 package zio.blocks.scope
 
 import zio.blocks.context.Context
-import zio.blocks.scope.internal.Finalizers
 
 /**
  * A recipe for constructing a service and its dependencies.
  *
  * Wires are the building blocks of dependency injection in Scope. They describe
- * how to construct a service given access to its dependencies via a scope.
+ * how to construct a service given access to its dependencies via a context.
  *
  * ==Wire Types==
  *
- *   - [[Wire.Shared]]: Memoized within a single `injected` call (default)
+ *   - [[Wire.Shared]]: Memoized within a single scope (default)
  *   - [[Wire.Unique]]: Creates fresh instances each time
  *
  * ==Creating Wires==
  *
  * Use the `shared[T]` and `unique[T]` macros for automatic derivation from
  * constructors, or create wires manually for custom construction logic.
- *
- * @example
- *   {{{
- *   // Scala 3: Manual wire with context function
- *   val dbWire: Wire.Shared[Config, Database] = Wire.Shared[Config, Database] {
- *     val config = $[Config]
- *     val db = Database.connect(config.url)
- *     defer(db.close())
- *     db
- *   }
- *
- *   // Scala 2: Manual wire with explicit scope
- *   val dbWire = Wire.Shared.fromFunction[Config, Database] { scope =>
- *     val config = scope.get[Config]
- *     val db = Database.connect(config.url)
- *     scope.defer(db.close())
- *     db
- *   }
- *   }}}
  *
  * @tparam In
  *   the dependencies required (contravariant - accepts supertypes)
@@ -49,11 +29,10 @@ import zio.blocks.scope.internal.Finalizers
 sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 
   /**
-   * Returns true if this wire is shared (memoized within a single `injected`
-   * call).
+   * Returns true if this wire is shared (memoized within a single scope).
    *
-   * Shared wires create one instance per `injected` call, reused across all
-   * dependents within that call.
+   * Shared wires create one instance per scope, reused across all dependents
+   * within that scope.
    */
   def isShared: Boolean
 
@@ -97,8 +76,7 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 object Wire extends WireCompanionVersionSpecific {
 
   /**
-   * A wire that produces a shared (memoized) instance within a single
-   * `injected` call.
+   * A wire that produces a shared (memoized) instance within a single scope.
    *
    * When multiple services depend on the same shared wire, only one instance is
    * created and reused. This is the default wire type produced by `shared[T]`.
@@ -109,7 +87,7 @@ object Wire extends WireCompanionVersionSpecific {
    *   the service type produced
    */
   final class Shared[-In, +Out] private[scope] (
-    private[scope] val makeFn: Scope.Has[In] => Out
+    private[scope] val makeFn: (Scope[?, ?], Context[In]) => Out
   ) extends Wire[In, Out] {
 
     def isShared: Boolean = true
@@ -119,47 +97,25 @@ object Wire extends WireCompanionVersionSpecific {
     def unique: Unique[In, Out] = new Unique[In, Out](makeFn)
 
     /**
-     * Constructs the service using the given scope.
+     * Constructs the service using the given scope and context.
      *
      * @param scope
-     *   the scope providing dependencies
+     *   the scope for finalizer registration
+     * @param ctx
+     *   the context providing dependencies
      * @return
      *   the constructed service
      */
-    override def make(scope: Scope.Has[In]): Out = makeFn(scope)
+    override def make(scope: Scope[?, ?], ctx: Context[In]): Out = makeFn(scope, ctx)
 
     def toFactory(deps: Context[In]): Factory[Out] = {
       val self = this
-      new Factory.Shared[Out](scope => {
-        val depScope = Scope.makeCloseable[In, Scope](scope, deps, new Finalizers)
-        scope.defer(depScope.closeOrThrow())
-        self.makeFn(depScope)
-      })
+      new Factory.Shared[Out](scope => self.makeFn(scope, deps))
     }
   }
 
   /**
    * Companion object for [[Wire.Shared]] providing factory methods.
-   *
-   * In Scala 3, use the context function syntax:
-   * {{{
-   * Wire.Shared[Config, Database] {
-   *   val config = $[Config]
-   *   val db = Database.connect(config.url)
-   *   defer(db.close())
-   *   db
-   * }
-   * }}}
-   *
-   * In Scala 2, use `fromFunction`:
-   * {{{
-   * Wire.Shared.fromFunction[Config, Database] { scope =>
-   *   val config = scope.get[Config]
-   *   val db = Database.connect(config.url)
-   *   scope.defer(db.close())
-   *   db
-   * }
-   * }}}
    */
   object Shared extends SharedVersionSpecific
 
@@ -176,7 +132,7 @@ object Wire extends WireCompanionVersionSpecific {
    *   the service type produced
    */
   final class Unique[-In, +Out] private[scope] (
-    private[scope] val makeFn: Scope.Has[In] => Out
+    private[scope] val makeFn: (Scope[?, ?], Context[In]) => Out
   ) extends Wire[In, Out] {
 
     def isShared: Boolean = false
@@ -186,41 +142,25 @@ object Wire extends WireCompanionVersionSpecific {
     def unique: Unique[In, Out] = this
 
     /**
-     * Constructs the service using the given scope.
+     * Constructs the service using the given scope and context.
      *
      * @param scope
-     *   the scope providing dependencies
+     *   the scope for finalizer registration
+     * @param ctx
+     *   the context providing dependencies
      * @return
      *   the constructed service
      */
-    override def make(scope: Scope.Has[In]): Out = makeFn(scope)
+    override def make(scope: Scope[?, ?], ctx: Context[In]): Out = makeFn(scope, ctx)
 
     def toFactory(deps: Context[In]): Factory[Out] = {
       val self = this
-      new Factory.Unique[Out](scope => {
-        val depScope = Scope.makeCloseable[In, Scope](scope, deps, new Finalizers)
-        scope.defer(depScope.closeOrThrow())
-        self.makeFn(depScope)
-      })
+      new Factory.Unique[Out](scope => self.makeFn(scope, deps))
     }
   }
 
   /**
    * Companion object for [[Wire.Unique]] providing factory methods.
-   *
-   * In Scala 3, use the context function syntax:
-   * {{{
-   * Wire.Unique[Config, RequestId] {
-   *   RequestId.generate()
-   * }
-   * }}}
-   *
-   * In Scala 2, use `fromFunction`:
-   * {{{
-   * Wire.Unique.fromFunction[Config, RequestId] { scope =>
-   *   RequestId.generate()
-   * }
-   * }}}
    */
   object Unique extends UniqueVersionSpecific
 
@@ -230,12 +170,6 @@ object Wire extends WireCompanionVersionSpecific {
    * The value is wrapped in a shared wire with no dependencies. No cleanup is
    * registered because the value was created externally.
    *
-   * @example
-   *   {{{
-   *   val config = Config.load()
-   *   Scope.global.injected[App](Wire(config)).use { ... }
-   *   }}}
-   *
    * @param t
    *   the value to inject
    * @tparam T
@@ -244,5 +178,5 @@ object Wire extends WireCompanionVersionSpecific {
    *   a shared wire that provides the value
    */
   def apply[T](t: T): Wire.Shared[Any, T] =
-    new Shared[Any, T]((_: Scope.Has[Any]) => t)
+    new Shared[Any, T]((_, _) => t)
 }

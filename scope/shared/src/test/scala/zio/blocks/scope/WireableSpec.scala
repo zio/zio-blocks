@@ -2,7 +2,6 @@ package zio.blocks.scope
 
 import zio.test._
 import zio.blocks.context.Context
-import zio.blocks.scope.internal.Finalizers
 
 object WireableSpec extends ZIOSpecDefault {
 
@@ -16,10 +15,9 @@ object WireableSpec extends ZIOSpecDefault {
         type In = Any
         def wire: Wire[Any, Config] = Wire(Config(debug = true))
       }
-      val parent     = Scope.global
-      val finalizers = new Finalizers
-      val scope      = Scope.makeCloseable[Any, Scope.Global](parent, Context.empty, finalizers)
-      val config     = wireable.wire.make(scope)
+      val (scope, close) = Scope.createTestableScope()
+      val config         = wireable.wire.make(scope, Context.empty)
+      close()
       assertTrue(wireable.wire.isShared, config.debug)
     },
     test("Wireable.apply creates wireable from value") {

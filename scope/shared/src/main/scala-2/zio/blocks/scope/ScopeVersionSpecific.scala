@@ -1,63 +1,46 @@
 package zio.blocks.scope
 
-import zio.blocks.context.Context
-import zio.blocks.scope.internal.Finalizers
-import scala.language.experimental.macros
-
-private[scope] trait ScopeVersionSpecific { self: Scope =>
-
-  def injected[T]: Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfNoArgsImpl[T]
-
-  def injected[T](wires: Wire[_, _]*): Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfImpl[T]
-}
-
-private[scope] trait CloseableVersionSpecific[+Head, +Tail <: Scope] { self: Scope.Closeable[Head, Tail] =>
-
-  /**
-   * Uses this scope to execute the given function, then closes the scope.
-   *
-   * Can only be called once. Finalizer errors are silently discarded. Use
-   * `useWithErrors` if you need to handle cleanup errors.
-   */
-  def use[B](f: self.type => B): B
-
-  /**
-   * Uses this scope to execute the given function, then closes the scope,
-   * returning both the result and any finalizer errors.
-   *
-   * Can only be called once.
-   */
-  def useWithErrors[B](f: self.type => B): (B, zio.blocks.chunk.Chunk[Throwable])
-}
-
-private[scope] object ScopeFactory {
-  def createScopeImpl[T, S <: Scope](
-    parent: S,
-    context: Context[T],
-    finalizers: Finalizers
-  ): Scope.::[T, S] =
-    new Scope.::[T, S](context, parent, finalizers)
-}
-
 /**
- * Scala 2 implementation of use/useWithErrors using regular functions.
+ * Scala 2-specific extension methods for Scope.
  */
-private[scope] trait ScopeConsVersionSpecific[+H, +T <: Scope] { self: Scope.::[H, T] =>
+private[scope] trait ScopeVersionSpecific[ParentTag, Tag <: ParentTag] {
+  self: Scope[ParentTag, Tag] =>
 
-  def use[B](f: self.type => B): B = {
-    if (finalizers.isClosed)
-      throw new IllegalStateException("Scope.use can only be called once")
-    try f(self)
-    finally { close(); () }
-  }
+  /**
+   * Applies a function to a scoped value, escaping if the result is Unscoped.
+   *
+   * @param scoped
+   *   the scoped value to access
+   * @param f
+   *   the function to apply to the underlying value
+   * @param ev
+   *   evidence that this scope's Tag is a subtype of S
+   * @param escape
+   *   typeclass determining whether the result escapes
+   * @return
+   *   either raw B or B @@ S depending on ScopeEscape
+   */
+  def $[A, B, S](scoped: A @@ S)(f: A => B)(implicit
+    ev: Tag <:< S,
+    escape: ScopeEscape[B, S]
+  ): escape.Out =
+    escape(f(@@.unscoped(scoped)))
 
-  def useWithErrors[B](f: self.type => B): (B, zio.blocks.chunk.Chunk[Throwable]) = {
-    if (finalizers.isClosed)
-      throw new IllegalStateException("Scope.useWithErrors can only be called once")
-    var errors: zio.blocks.chunk.Chunk[Throwable] = zio.blocks.chunk.Chunk.empty
-    val result                                    =
-      try f(self)
-      finally errors = close()
-    (result, errors)
-  }
+  /**
+   * Executes a Scoped computation.
+   *
+   * @param scoped
+   *   the Scoped computation to execute
+   * @param ev
+   *   evidence that this scope's Tag is a subtype of S
+   * @param escape
+   *   typeclass determining whether the result escapes
+   * @return
+   *   either raw A or A @@ S depending on ScopeEscape
+   */
+  def apply[A, S](scoped: Scoped[S, A])(implicit
+    ev: Tag <:< S,
+    escape: ScopeEscape[A, S]
+  ): escape.Out =
+    escape(scoped.run())
 }

@@ -54,23 +54,19 @@ private[scope] object ScopeMacros {
   private def extractWireableInType(c: whitebox.Context)(wireableTpe: c.Type): c.Type = {
     import c.universe._
 
-    // Unwrap NullaryMethodType to get the actual result type (for vals)
     val unwrapped = wireableTpe match {
       case NullaryMethodType(resultType) => resultType
       case other                         => other
     }
 
-    // First, check if this is Wireable.Typed[In, Out] - extract In from type args directly
     unwrapped match {
       case TypeRef(_, sym, args) if sym.fullName == "zio.blocks.scope.Wireable.Typed" && args.nonEmpty =>
         return args.head
-      case _ => // continue
+      case _ =>
     }
 
-    // Otherwise, dealias and look for the In type member in refinements
     val dealiased = wireableTpe.dealias
     dealiased match {
-      // Handle refinement type like Wireable[T] { type In >: X }
       case RefinedType(_, scope) =>
         val inSym = scope.find(_.name == TypeName("In"))
         inSym.map { sym =>
@@ -81,7 +77,6 @@ private[scope] object ScopeMacros {
           }
         }.getOrElse(typeOf[Any])
       case _ =>
-        // Fallback: look for In member
         val inMember = dealiased.member(TypeName("In"))
         if (inMember != NoSymbol) {
           val sig = inMember.typeSignatureIn(dealiased).dealias
@@ -114,7 +109,7 @@ private[scope] object ScopeMacros {
 
     MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
       case Some(error) => MC.abort(c)(error)
-      case None        => // ok
+      case None        =>
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
@@ -126,14 +121,9 @@ private[scope] object ScopeMacros {
       params.map { param =>
         val paramType = param.typeSignature
         if (MC.isScopeType(c)(paramType)) {
-          MC.extractScopeHasType(c)(paramType) match {
-            case Some(depType) =>
-              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[$depType]]"
-            case None =>
-              q"scope.asInstanceOf[_root_.zio.blocks.scope.Scope.Any]"
-          }
+          q"scope"
         } else {
-          q"scope.get[$paramType]"
+          q"ctx.get[$paramType]"
         }
       }
 
@@ -163,193 +153,7 @@ private[scope] object ScopeMacros {
       """
     }
 
-    val result = q"$wireFactory.fromFunction[$inType, $tpe] { scope => $wireBody }"
+    val result = q"$wireFactory.apply[$inType, $tpe] { (scope, ctx) => $wireBody }"
     c.Expr[Wire[_, T]](result)
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // injected[T] implementations
-  // ─────────────────────────────────────────────────────────────────────────
-
-  def injectedImpl[T: c.WeakTypeTag](c: whitebox.Context)(
-    wires: c.Expr[Wire[_, _]]*
-  )(
-    scope: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] =
-    injectedImplWithScope[T](c)(wires, scope)
-
-  def injectedNoArgsImpl[T: c.WeakTypeTag](c: whitebox.Context)(
-    scope: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] =
-    injectedImplWithScope[T](c)(Seq.empty, scope)
-
-  def injectedFromSelfImpl[T: c.WeakTypeTag](c: whitebox.Context)(
-    wires: c.Expr[Wire[_, _]]*
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val prefix    = c.prefix.tree
-    val scopeExpr = c.Expr[Scope.Any](q"$prefix")
-    injectedImplWithScope[T](c)(wires, scopeExpr)
-  }
-
-  def injectedFromSelfNoArgsImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val prefix    = c.prefix.tree
-    val scopeExpr = c.Expr[Scope.Any](q"$prefix")
-    injectedImplWithScope[T](c)(Seq.empty, scopeExpr)
-  }
-
-  private def injectedImplWithScope[T: c.WeakTypeTag](c: whitebox.Context)(
-    wires: Seq[c.Expr[Wire[_, _]]],
-    scopeExpr: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-    val sym = tpe.typeSymbol
-
-    val wireableTpe =
-      c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
-
-    if (!sym.isClass && (wireableTpe.isEmpty || wireableTpe.tpe == NoType)) {
-      c.abort(
-        c.enclosingPosition,
-        s"Cannot inject ${tpe.toString}: not a class and no Wireable[${tpe.toString}] available. " +
-          "Either use a concrete class or provide a Wireable instance."
-      )
-    }
-
-    val ctorOpt = if (sym.isClass) {
-      tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m }
-    } else {
-      None
-    }
-
-    val (allRegularParams, hasScopeParam, isAutoCloseable) = ctorOpt match {
-      case Some(ctor) =>
-        val paramLists                      = ctor.paramLists
-        val (regularParams, implicitParams) = paramLists.partition { params =>
-          params.headOption.forall(!_.isImplicit)
-        }
-        val hasScope = implicitParams.flatten.exists { param =>
-          param.typeSignature <:< typeOf[Scope.Any]
-        }
-        val isAC = tpe <:< typeOf[AutoCloseable]
-        (regularParams.flatten, hasScope, isAC)
-      case None =>
-        (Nil, false, false)
-    }
-
-    val depTypes = allRegularParams.map(_.typeSignature)
-
-    if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType && depTypes.isEmpty) {
-      val result = q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val w = $wireableTpe.wire.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $tpe]]
-          val childScope = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.Scope.Global](
-            parentScope, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]], finalizers)
-          val result = w.makeFn(childScope.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])
-          val ctx = _root_.zio.blocks.context.Context[$tpe](result)
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-      c.Expr[Scope.Closeable[T, _]](result)
-    } else {
-      // Supports arbitrary number of constructor parameters
-      generateInjectedN[T](c)(depTypes, hasScopeParam, isAutoCloseable, wires, scopeExpr)
-    }
-  }
-
-  private def generateInjectedN[T: c.WeakTypeTag](c: whitebox.Context)(
-    depTypes: List[c.Type],
-    hasScopeParam: Boolean,
-    isAutoCloseable: Boolean,
-    wires: Seq[c.Expr[Wire[_, _]]],
-    scopeExpr: c.Expr[Scope.Any]
-  ): c.Expr[Scope.Closeable[T, _]] = {
-    import c.universe._
-
-    val tpe     = weakTypeOf[T]
-    val wireSeq = q"_root_.scala.Seq(..$wires)"
-
-    if (depTypes.isEmpty) {
-      val ctorCall          = if (hasScopeParam) q"new $tpe()(parentScope)" else q"new $tpe()"
-      val registerCleanup   = isAutoCloseable && !hasScopeParam
-      val cleanupExpr: Tree =
-        if (registerCleanup) q"finalizers.add(instance.asInstanceOf[AutoCloseable].close())" else q"()"
-
-      val result = q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val instance = $ctorCall
-          $cleanupExpr
-          val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-      c.Expr[Scope.Closeable[T, _]](result)
-    } else {
-      // Has dependencies - generate wire extraction for each and then construct
-      val argNames = depTypes.zipWithIndex.map { case (_, i) => TermName(s"arg$i") }
-
-      // Generate individual wire extraction statements (not blocks)
-      val wireExtractions: List[List[Tree]] = depTypes.zipWithIndex.map { case (depTpe, i) =>
-        val depName   = depTpe.toString
-        val argName   = argNames(i)
-        val wireName  = TermName(s"wire$i")
-        val scopeName = TermName(s"scope$i")
-
-        List(
-          q"""val $wireName = wiresSeq.lift($i).getOrElse {
-            throw new IllegalStateException("Missing wire for dependency: " + $depName)
-          }.asInstanceOf[_root_.zio.blocks.scope.Wire.Shared[Any, $depTpe]]""",
-          q"""val $scopeName = _root_.zio.blocks.scope.Scope.makeCloseable[Any, _root_.zio.blocks.scope.Scope.Global](
-            parentScope,
-            _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]],
-            finalizers
-          )""",
-          q"val $argName = $wireName.makeFn($scopeName.asInstanceOf[_root_.zio.blocks.scope.Scope.Has[Any]])"
-        )
-      }
-
-      // Flatten all statements
-      val allWireStatements = wireExtractions.flatten
-
-      // Build constructor call with all arguments
-      val argRefs      = argNames.map(name => q"$name")
-      val instanceExpr = if (hasScopeParam) {
-        q"new $tpe(..$argRefs)(parentScope)"
-      } else {
-        q"new $tpe(..$argRefs)"
-      }
-
-      val cleanupExpr = if (isAutoCloseable && !hasScopeParam) {
-        q"finalizers.add(instance.asInstanceOf[AutoCloseable].close())"
-      } else {
-        q"()"
-      }
-
-      val result = q"""
-        {
-          val parentScope = $scopeExpr
-          val finalizers = new _root_.zio.blocks.scope.internal.Finalizers
-          val wiresSeq = $wireSeq
-
-          ..$allWireStatements
-
-          val instance = $instanceExpr
-          $cleanupExpr
-
-          val ctx = _root_.zio.blocks.context.Context[$tpe](instance)
-          _root_.zio.blocks.scope.Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      """
-      c.Expr[Scope.Closeable[T, _]](result)
-    }
   }
 }

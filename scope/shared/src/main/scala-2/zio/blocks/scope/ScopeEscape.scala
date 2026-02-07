@@ -37,11 +37,11 @@ object ScopeEscape extends ScopeEscapeMidPriority {
   /**
    * Global scope: all types escape as raw values.
    *
-   * Values scoped with `Scope.Global` (the global scope) can always be
+   * Values scoped with `Scope.GlobalTag` (the global scope) can always be
    * extracted because the global scope never closes during normal execution.
    */
-  implicit def globalScope[A]: ScopeEscape.Aux[A, Scope.Global, A] =
-    new ScopeEscape[A, Scope.Global] {
+  implicit def globalScope[A]: ScopeEscape.Aux[A, Scope.GlobalTag, A] =
+    new ScopeEscape[A, Scope.GlobalTag] {
       type Out = A
       def apply(a: A): Out = a
     }
