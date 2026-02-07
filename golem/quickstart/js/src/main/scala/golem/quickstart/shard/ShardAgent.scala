@@ -18,4 +18,4 @@ trait ShardAgent extends BaseAgent[(String, Int)] {
   def set(key: String, value: String): Future[Unit]
 }
 
-object ShardAgent extends AgentCompanion[ShardAgent]
+object ShardAgent extends AgentCompanion[ShardAgent, (String, Int)]

@@ -19,4 +19,4 @@ trait SyncReturnAgent extends BaseAgent[Unit] {
   def lastTag(): String
 }
 
-object SyncReturnAgent extends AgentCompanion[SyncReturnAgent]
+object SyncReturnAgent extends AgentCompanion[SyncReturnAgent, Unit]

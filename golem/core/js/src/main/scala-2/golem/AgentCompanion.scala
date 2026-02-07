@@ -19,12 +19,12 @@ trait TriggerSchedule {
  * @agentDefinition("my-agent")
  * trait MyAgent extends BaseAgent[Ctor] { ... }
  *
- * object MyAgent extends AgentCompanion[MyAgent]
+ * object MyAgent extends AgentCompanion[MyAgent, Ctor]
  * }}}
  */
 // format: off
-trait AgentCompanion[Trait <: BaseAgent[_]] extends AgentCompanionBase[Trait] {
-  implicit final val implicitAgentCompanion: AgentCompanion[Trait] = this
+trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBase[Trait] {
+  implicit final val implicitAgentCompanion: AgentCompanion[Trait, Input] = this
 
   def typeName: String =
     macro golem.runtime.macros.AgentCompanionMacro.typeNameImpl
@@ -32,10 +32,10 @@ trait AgentCompanion[Trait <: BaseAgent[_]] extends AgentCompanionBase[Trait] {
   def agentType: AgentType[Trait, _] =
     macro golem.runtime.macros.AgentCompanionMacro.agentTypeImpl
 
-  def get[In](input: In): Trait with TriggerSchedule =
+  def get(input: Input): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getImpl
 
-  def getPhantom[In](input: In, phantom: Uuid): Trait with TriggerSchedule =
+  def getPhantom(input: Input, phantom: Uuid): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomImpl
 
   def get(): Trait with TriggerSchedule =

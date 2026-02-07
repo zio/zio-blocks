@@ -31,7 +31,7 @@ trait Worker extends BaseAgent[(String, Int)] {
   def reverse(input: String): Future[String]
   def handle(payload: TypedPayload): Future[TypedReply]
 }
-object Worker extends AgentCompanion[Worker]
+object Worker extends AgentCompanion[Worker, (String, Int)]
 
 @agentDefinition(mode = DurabilityMode.Ephemeral)
 @description("A minimal coordinator agent that calls Worker via agent RPC inside Golem.")
@@ -39,4 +39,4 @@ trait Coordinator extends BaseAgent[String] {
   def route(shardName: String, shardIndex: Int, input: String): Future[String]
   def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply]
 }
-object Coordinator extends AgentCompanion[Coordinator]
+object Coordinator extends AgentCompanion[Coordinator, String]

@@ -16,7 +16,7 @@ trait ChatAgent extends BaseAgent[String] {
   def history(): Future[List[String]]
 }
 
-object ChatAgent extends AgentCompanion[ChatAgent]
+object ChatAgent extends AgentCompanion[ChatAgent, String]
 
 @agentDefinition(typeName = "research")
 @description("Web search + summarize (Scala equivalent of the Rust/TS websearch summary template).")
@@ -27,4 +27,4 @@ trait ResearchAgent extends BaseAgent[Unit] {
   def research(topic: String): Future[String]
 }
 
-object ResearchAgent extends AgentCompanion[ResearchAgent]
+object ResearchAgent extends AgentCompanion[ResearchAgent, Unit]

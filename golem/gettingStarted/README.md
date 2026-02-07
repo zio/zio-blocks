@@ -119,7 +119,7 @@ trait CounterAgent extends BaseAgent[String] {
   def increment(): Future[Int]
 }
 
-object CounterAgent extends AgentCompanion[CounterAgent]
+object CounterAgent extends AgentCompanion[CounterAgent, String]
 ```
 
 For RPC invocation variants and custom schema derivation, see `golem/README.md`.

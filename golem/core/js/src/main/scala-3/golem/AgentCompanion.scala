@@ -13,11 +13,10 @@ import golem.runtime.rpc.AgentClient
  * @agentDefinition("my-agent")
  * trait MyAgent extends BaseAgent[MyCtor] { ... }
  *
- * object MyAgent extends AgentCompanion[MyAgent]
+ * object MyAgent extends AgentCompanion[MyAgent, MyCtor]
  * }}}
  */
-trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
-  type Input = AgentCompanion.InputOf[Trait]
+trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBase[Trait] {
 
   /** Golem agent type name, from `@agentDefinition("...")`. */
   transparent inline def typeName: String =
@@ -92,10 +91,4 @@ trait AgentCompanion[Trait <: BaseAgent[?]] extends AgentCompanionBase[Trait] {
       AgentCompanionMacro.getPhantomTuple5Impl[Trait, A1, A2, A3, A4, A5]('a1, 'a2, 'a3, 'a4, 'a5, 'phantom)
     }
 
-}
-
-object AgentCompanion {
-  type InputOf[T] = T match {
-    case BaseAgent[in] => in
-  }
 }

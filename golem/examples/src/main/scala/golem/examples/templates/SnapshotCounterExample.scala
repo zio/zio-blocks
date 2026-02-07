@@ -16,4 +16,4 @@ trait SnapshotCounter extends BaseAgent[String] {
   def increment(): Future[Int]
 }
 
-object SnapshotCounter extends AgentCompanion[SnapshotCounter]
+object SnapshotCounter extends AgentCompanion[SnapshotCounter, String]

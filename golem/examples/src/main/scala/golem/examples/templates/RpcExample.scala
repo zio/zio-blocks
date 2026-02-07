@@ -12,4 +12,4 @@ trait RpcClient extends BaseAgent[String] {
   def callCounter(counterId: String): Future[Int]
 }
 
-object RpcClient extends AgentCompanion[RpcClient]
+object RpcClient extends AgentCompanion[RpcClient, String]

@@ -158,7 +158,7 @@ trait Shard extends BaseAgent[(String, Int)] {
   def set(key: String, value: String): Unit
 }
 
-object Shard extends AgentCompanion[Shard]
+object Shard extends AgentCompanion[Shard, (String, Int)]
 
 @agentImplementation()
 final class ShardImpl(input: (String, Int)) extends Shard {

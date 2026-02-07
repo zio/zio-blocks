@@ -20,7 +20,7 @@ trait ApprovalWorkflow extends BaseAgent[String] {
   def complete(decision: String): Future[Boolean]
 }
 
-object ApprovalWorkflow extends AgentCompanion[ApprovalWorkflow]
+object ApprovalWorkflow extends AgentCompanion[ApprovalWorkflow, String]
 
 @agentDefinition(typeName = "human")
 @description("A minimal 'human' agent that can approve/reject workflows (used by ApprovalWorkflow examples).")
@@ -31,4 +31,4 @@ trait HumanAgent extends BaseAgent[String] {
   def decide(workflowId: String, decision: String): Future[String]
 }
 
-object HumanAgent extends AgentCompanion[HumanAgent]
+object HumanAgent extends AgentCompanion[HumanAgent, String]

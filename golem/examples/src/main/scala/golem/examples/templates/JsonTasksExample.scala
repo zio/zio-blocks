@@ -32,4 +32,4 @@ trait Tasks extends BaseAgent[String] {
   def completeTask(id: Int): Future[Option[Task]]
 }
 
-object Tasks extends AgentCompanion[Tasks]
+object Tasks extends AgentCompanion[Tasks, String]

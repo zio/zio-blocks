@@ -14,4 +14,4 @@ trait Counter extends BaseAgent[String] {
   def increment(): Future[Int]
 }
 
-object Counter extends AgentCompanion[Counter]
+object Counter extends AgentCompanion[Counter, String]

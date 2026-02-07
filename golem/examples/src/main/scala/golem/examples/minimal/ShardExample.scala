@@ -22,7 +22,7 @@ trait Shard extends BaseAgent[(String, Int)] {
 }
 
 // Today this one-liner is required by Scala to attach the companion API.
-object Shard extends AgentCompanion[Shard]
+object Shard extends AgentCompanion[Shard, (String, Int)]
 
 @agentImplementation()
 final class ShardImpl(private val tableName: String, private val shardId: Int) extends Shard {
