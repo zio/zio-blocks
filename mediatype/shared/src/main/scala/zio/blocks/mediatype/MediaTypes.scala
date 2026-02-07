@@ -7601,7 +7601,7 @@ object MediaTypes {
     lazy val zstd: MediaType =
       MediaType("application", "zstd", compressible = false, binary = true)
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       _1dInterleavedParityfec,
       _3gpdashQoeReportplusxml,
       _3gppImsplusxml,
@@ -10141,7 +10141,7 @@ object MediaTypes {
     lazy val xm: MediaType =
       MediaType("audio", "xm", compressible = false, binary = true, fileExtensions = List("xm"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       _1dInterleavedParityfec,
       _32kadpcm,
       _3gpp,
@@ -10355,7 +10355,7 @@ object MediaTypes {
     lazy val xXyz: MediaType =
       MediaType("chemical", "x-xyz", compressible = false, binary = true, fileExtensions = List("xyz"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       xCdx,
       xCif,
       xCmdf,
@@ -10385,7 +10385,7 @@ object MediaTypes {
     lazy val woff2: MediaType =
       MediaType("font", "woff2", compressible = false, binary = true, fileExtensions = List("woff2"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       collection,
       otf,
       sfnt,
@@ -10741,7 +10741,7 @@ object MediaTypes {
     lazy val xXwindowdump: MediaType =
       MediaType("image", "x-xwindowdump", compressible = false, binary = true, fileExtensions = List("xwd"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       aces,
       apng,
       avci,
@@ -10945,7 +10945,7 @@ object MediaTypes {
     lazy val vnddotwfadotwsc: MediaType =
       MediaType("message", "vnd.wfa.wsc", compressible = false, binary = true, fileExtensions = List("wsc"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       bhttp,
       cpim,
       deliveryStatus,
@@ -11127,7 +11127,7 @@ object MediaTypes {
     lazy val x3dVrml: MediaType =
       MediaType("model", "x3d-vrml", compressible = false, binary = true, fileExtensions = List("x3dv"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       _3mf,
       e57,
       gltfplusjson,
@@ -11223,7 +11223,7 @@ object MediaTypes {
     lazy val xMixedReplace: MediaType =
       MediaType("multipart", "x-mixed-replace", compressible = false, binary = true)
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       alternative,
       appledouble,
       byteranges,
@@ -11688,7 +11688,7 @@ object MediaTypes {
     lazy val yaml: MediaType =
       MediaType("text", "yaml", compressible = true, binary = false, fileExtensions = List("yaml", "yml"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       _1dInterleavedParityfec,
       cacheManifest,
       calendar,
@@ -12175,7 +12175,7 @@ object MediaTypes {
     lazy val xSmv: MediaType =
       MediaType("video", "x-smv", compressible = false, binary = true, fileExtensions = List("smv"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       _1dInterleavedParityfec,
       _3gpp,
       _3gppTt,
@@ -12295,7 +12295,7 @@ object MediaTypes {
     lazy val xCooltalk: MediaType =
       MediaType("x-conference", "x-cooltalk", compressible = false, binary = true, fileExtensions = List("ice"))
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       xCooltalk
     )
   }
@@ -12307,12 +12307,12 @@ object MediaTypes {
     lazy val xVertex: MediaType =
       MediaType("x-shader", "x-vertex", compressible = true, binary = false)
 
-    def all: List[MediaType] = List(
+    lazy val all: List[MediaType] = List(
       xFragment,
       xVertex
     )
   }
 
-  def allMediaTypes: List[MediaType] =
+  lazy val allMediaTypes: List[MediaType] =
     application.all ++ audio.all ++ chemical.all ++ font.all ++ image.all ++ message.all ++ model.all ++ multipart.all ++ text.all ++ video.all ++ x_conference.all ++ x_shader.all
 }

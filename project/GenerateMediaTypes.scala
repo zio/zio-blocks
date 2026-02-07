@@ -180,7 +180,7 @@ object GenerateMediaTypes {
       s"""  object $scalaMainType {
          |$typeDefs
          |
-         |    def all: List[MediaType] = List(
+         |    lazy val all: List[MediaType] = List(
          |$allList
          |    )
          |  }""".stripMargin
@@ -204,7 +204,7 @@ object GenerateMediaTypes {
        |
        |$objects
        |
-       |  def allMediaTypes: List[MediaType] = $allObjects
+       |  lazy val allMediaTypes: List[MediaType] = $allObjects
        |}
        |""".stripMargin
   }

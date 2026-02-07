@@ -81,7 +81,7 @@ object MediaType {
       .map(_.trim)
       .filter(_.nonEmpty)
       .flatMap { param =>
-        param.split('=') match {
+        param.split("=", 2) match {
           case Array(key, value) => Some(key.trim.toLowerCase -> value.trim)
           case _                 => None
         }
