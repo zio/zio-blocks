@@ -18,9 +18,9 @@ concurrency:
 
 jobs:
   buildDocs:
-    name: Build
+    name: Build Docs
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 10
     steps:
       - name: Git Checkout
         uses: actions/checkout@v6.0.2
