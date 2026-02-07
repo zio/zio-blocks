@@ -70,6 +70,37 @@ object IntoSpec extends SchemaBaseSpec {
       nestedValidation,
       validationError
     ),
+    suite("DynamicValue conversions")(
+      test("Into[CaseClass, DynamicValue] converts to DynamicValue.Record") {
+        case class Person(name: String, age: Int)
+        val person = Person("Alice", 30)
+        val result = Into.derived[Person, DynamicValue].into(person)
+        assertTrue(
+          result.isRight,
+          result.map {
+            case DynamicValue.Record(fields) =>
+              fields.find(_._1 == "name").exists(_._2 == DynamicValue.string("Alice")) &&
+              fields.find(_._1 == "age").exists(_._2 == DynamicValue.int(30))
+            case _ => false
+          } == Right(true)
+        )
+      },
+      test("Into[DynamicValue, CaseClass] converts from matching structure") {
+        case class Person(name: String, age: Int)
+        val dv = DynamicValue.Record(
+          "name" -> DynamicValue.string("Bob"),
+          "age"  -> DynamicValue.int(25)
+        )
+        val result = Into.derived[DynamicValue, Person].into(dv)
+        assert(result)(isRight(equalTo(Person("Bob", 25))))
+      },
+      test("Into[DynamicValue, CaseClass] fails on mismatched structure") {
+        case class Person(name: String, age: Int)
+        val dv     = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
+        val result = Into.derived[DynamicValue, Person].into(dv)
+        assert(result)(isLeft)
+      }
+    ),
     suite("narrowing failure branches")(
       test("shortToByte fails for values above Byte.MaxValue") {
         val result = Into[Short, Byte].into((Byte.MaxValue + 1).toShort)
