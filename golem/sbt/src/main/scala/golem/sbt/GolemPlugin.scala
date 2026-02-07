@@ -112,8 +112,8 @@ object GolemPlugin extends AutoPlugin {
 
   /** Generates the `scala-js-template.yaml` content for golem.yaml includes. */
   private def scalaJsTemplateYaml(
-      prefix: String,
-      sbtCommand: String
+    prefix: String,
+    sbtCommand: String
   ): String = {
     // Normalize prefix: "." means same directory (no prefix needed), otherwise add trailing /
     def p(path: String): String =
@@ -149,9 +149,9 @@ object GolemPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[?]] =
     Seq(
-      golemBasePackage           := None,
-      golemComponentPathPrefix   := ".",
-      golemAgentGuestWasmFile := {
+      golemBasePackage         := None,
+      golemComponentPathPrefix := ".",
+      golemAgentGuestWasmFile  := {
         // Prefer `.generated/agent_guest.wasm` at the golem *app root* (directory containing `golem.yaml`).
         // This matches the path referenced in golem.yaml manifests (sourceWit, injectToPrebuiltQuickjs).
         //
@@ -276,8 +276,8 @@ object GolemPlugin extends AutoPlugin {
         }
 
         log.info(s"[golem] Building Scala.js bundle for $component ...")
-        val report  = (Compile / ScalaJSPlugin.autoImport.fastLinkJS).value.data
-        val outDir  =
+        val report = (Compile / ScalaJSPlugin.autoImport.fastLinkJS).value.data
+        val outDir =
           (Compile / ScalaJSPlugin.autoImport.fastLinkJS / ScalaJSPlugin.autoImport.scalaJSLinkerOutputDirectory).value
         val jsName =
           report.publicModules.headOption
