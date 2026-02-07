@@ -551,23 +551,29 @@ object MigrationValidationMacros {
     q"_root_.zio.blocks.schema.migration.MigrationComplete.unsafeCreate[$sourceType, $targetType, $shType, $tpType]"
   }
 
-  private def extractCaseClassFieldsWithNested(c: whitebox.Context)(tpe: c.universe.Type, prefix: String): Set[String] = {
+  private def extractCaseClassFieldsWithNested(
+    c: whitebox.Context
+  )(tpe: c.universe.Type, prefix: String): Set[String] = {
     import c.universe._
 
     val sym = tpe.typeSymbol
     if (sym.isClass && sym.asClass.isCaseClass) {
       val ctor = tpe.decl(termNames.CONSTRUCTOR).asMethod
-      ctor.paramLists.headOption.getOrElse(Nil).flatMap { param =>
-        val fieldName = if (prefix.isEmpty) param.name.decodedName.toString else s"$prefix.${param.name.decodedName.toString}"
-        val fieldType = param.typeSignature.asSeenFrom(tpe, sym)
-        val fieldSym  = fieldType.typeSymbol
+      ctor.paramLists.headOption
+        .getOrElse(Nil)
+        .flatMap { param =>
+          val fieldName =
+            if (prefix.isEmpty) param.name.decodedName.toString else s"$prefix.${param.name.decodedName.toString}"
+          val fieldType = param.typeSignature.asSeenFrom(tpe, sym)
+          val fieldSym  = fieldType.typeSymbol
 
-        if (fieldSym.isClass && fieldSym.asClass.isCaseClass) {
-          Set(fieldName) ++ extractNestedFieldNames(c)(fieldType, fieldName)
-        } else {
-          Set(fieldName)
+          if (fieldSym.isClass && fieldSym.asClass.isCaseClass) {
+            Set(fieldName) ++ extractNestedFieldNames(c)(fieldType, fieldName)
+          } else {
+            Set(fieldName)
+          }
         }
-      }.toSet
+        .toSet
     } else {
       Set.empty
     }
@@ -579,17 +585,20 @@ object MigrationValidationMacros {
     val sym = tpe.typeSymbol
     if (sym.isClass && sym.asClass.isCaseClass) {
       val ctor = tpe.decl(termNames.CONSTRUCTOR).asMethod
-      ctor.paramLists.headOption.getOrElse(Nil).flatMap { param =>
-        val fieldName = s"$prefix.${param.name.decodedName.toString}"
-        val fieldType = param.typeSignature.asSeenFrom(tpe, sym)
-        val fieldSym  = fieldType.typeSymbol
+      ctor.paramLists.headOption
+        .getOrElse(Nil)
+        .flatMap { param =>
+          val fieldName = s"$prefix.${param.name.decodedName.toString}"
+          val fieldType = param.typeSignature.asSeenFrom(tpe, sym)
+          val fieldSym  = fieldType.typeSymbol
 
-        if (fieldSym.isClass && fieldSym.asClass.isCaseClass) {
-          Set(fieldName) ++ extractNestedFieldNames(c)(fieldType, fieldName)
-        } else {
-          Set(fieldName)
+          if (fieldSym.isClass && fieldSym.asClass.isCaseClass) {
+            Set(fieldName) ++ extractNestedFieldNames(c)(fieldType, fieldName)
+          } else {
+            Set(fieldName)
+          }
         }
-      }.toSet
+        .toSet
     } else {
       Set.empty
     }
@@ -682,7 +691,8 @@ object MigrationValidationMacros {
         (srcFields.get(fieldName), tgtFields.get(fieldName)) match {
           case (Some(srcFieldType), Some(tgtFieldType)) if srcFieldType =:= tgtFieldType =>
             Set(fullFieldName) ++ computeAutoMappedNested(c)(srcFieldType, tgtFieldType, fullFieldName)
-          case (Some(srcFieldType), Some(tgtFieldType)) if srcFieldType <:< tgtFieldType || tgtFieldType <:< srcFieldType =>
+          case (Some(srcFieldType), Some(tgtFieldType))
+              if srcFieldType <:< tgtFieldType || tgtFieldType <:< srcFieldType =>
             Set(fullFieldName)
           case _ => Set.empty[String]
         }
