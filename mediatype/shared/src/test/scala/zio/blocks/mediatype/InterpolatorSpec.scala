@@ -1,9 +1,10 @@
 package zio.blocks.mediatype
 
 import zio.test._
+import zio.test.Assertion._
 
 object InterpolatorSpec extends MediaTypeBaseSpec {
-  def spec = suite("mediaType interpolator (Scala 2)")(
+  def spec = suite("mediaType interpolator")(
     suite("valid media types")(
       test("parses simple type") {
         val mt = mediaType"application/json"
@@ -31,88 +32,88 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
       test("handles wildcards") {
         val mt = mediaType"*/*"
         assertTrue(mt.fullType == "*/*")
+      },
+      test("handles complex subtypes") {
+        val mt = mediaType"text/vnd.api+json"
+        assertTrue(
+          mt.mainType == "text",
+          mt.subType == "vnd.api+json"
+        )
       }
     ),
     suite("compile-time error messages")(
-      test("empty string produces clear error") {
+      test("empty string") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType""
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("cannot be empty")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: cannot be empty"))))
       },
-      test("missing slash produces clear error") {
+      test("missing slash") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"applicationjson"
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("must contain '/'")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: must contain '/' separator"))))
       },
-      test("empty main type produces clear error") {
+      test("empty main type") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"/json"
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("main type cannot be empty")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: main type cannot be empty"))))
       },
-      test("empty subtype produces clear error") {
+      test("empty subtype") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"application/"
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("subtype cannot be empty")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: subtype cannot be empty"))))
       },
-      test("whitespace-only string produces clear error") {
+      test("whitespace-only string") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"   "
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("must contain '/'")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: must contain '/' separator"))))
       },
-      test("only slash produces clear error") {
+      test("only slash") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"/"
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("main type cannot be empty")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: main type cannot be empty"))))
       },
-      test("trailing whitespace in main type produces clear error") {
+      test("whitespace before slash") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"  /json"
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("main type cannot be empty")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: main type cannot be empty"))))
       },
-      test("trailing whitespace in subtype produces clear error") {
+      test("whitespace after slash") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           mediaType"text/  "
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("subtype cannot be empty")))
+        }.map(assert(_)(isLeft(containsString("Invalid media type: subtype cannot be empty"))))
       },
-      test("variable interpolation is rejected") {
+      test("variable interpolation rejected") {
         typeCheck {
           """
           import zio.blocks.mediatype._
           val x = "json"
           mediaType"application/$x"
           """
-        }.map(result => assertTrue(result.isLeft && result.left.get.contains("does not support variable interpolation")))
-      },
-      test("multiple slashes handled correctly") {
-        val mt = mediaType"text/vnd.api+json"
-        assertTrue(
-          mt.mainType == "text",
-          mt.subType == "vnd.api+json"
-        )
+        }.map(assert(_)(isLeft(containsString("mediaType interpolator does not support variable interpolation"))))
       }
     )
   )
