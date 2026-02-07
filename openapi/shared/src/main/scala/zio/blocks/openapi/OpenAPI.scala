@@ -95,17 +95,48 @@ object Contact {
 /**
  * License information for the exposed API.
  *
- * This is a stub placeholder - will be fully implemented in a later task.
+ * @param name
+ *   REQUIRED. The license name used for the API.
+ * @param identifier
+ *   An SPDX license expression for the API. The identifier field is mutually
+ *   exclusive of the url field.
+ * @param url
+ *   A URL to the license used for the API. This MUST be in the form of a URL.
+ *   The url field is mutually exclusive of the identifier field.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
  */
-final case class License(
+final case class License private (
   name: String,
   identifier: Option[String] = None,
   url: Option[String] = None,
   extensions: Map[String, Json] = Map.empty
-)
+) {
+  require(
+    identifier.isEmpty || url.isEmpty,
+    "License identifier and url fields are mutually exclusive - only one may be specified"
+  )
+}
 
 object License {
   implicit val schema: Schema[License] = Schema.derived
+
+  /**
+   * Creates a License with validation of mutual exclusivity constraints.
+   */
+  def apply(
+    name: String,
+    identifier: Option[String] = None,
+    url: Option[String] = None,
+    extensions: Map[String, Json] = Map.empty
+  ): License = {
+    require(
+      identifier.isEmpty || url.isEmpty,
+      "License identifier and url fields are mutually exclusive - only one may be specified"
+    )
+    new License(name, identifier, url, extensions)
+  }
 }
 
 /**
@@ -139,6 +170,36 @@ final case class ServerVariable(
 
 object ServerVariable {
   implicit val schema: Schema[ServerVariable] = Schema.derived
+
+  /**
+   * Creates a ServerVariable with validation. If `enum` is non-empty, the
+   * `default` value MUST be one of the enum values.
+   *
+   * @param default
+   *   REQUIRED. The default value to use for substitution.
+   * @param enum
+   *   An enumeration of string values to be used if the substitution options
+   *   are from a limited set.
+   * @param description
+   *   An optional description for the server variable.
+   * @param extensions
+   *   Specification extensions (x-* fields).
+   * @return
+   *   Either a validation error message or a valid ServerVariable.
+   */
+  def validated(
+    default: String,
+    `enum`: List[String] = Nil,
+    description: Option[String] = None,
+    extensions: Map[String, Json] = Map.empty
+  ): Either[String, ServerVariable] =
+    if (`enum`.nonEmpty && !`enum`.contains(default)) {
+      Left(
+        s"ServerVariable validation failed: default value '$default' must be one of the enum values: ${`enum`.mkString(", ")}"
+      )
+    } else {
+      Right(ServerVariable(default, `enum`, description, extensions))
+    }
 }
 
 /**
@@ -235,4 +296,57 @@ final case class ExternalDocumentation(
 
 object ExternalDocumentation {
   implicit val schema: Schema[ExternalDocumentation] = Schema.derived
+}
+
+/**
+ * A simple object to allow referencing other components in the OpenAPI
+ * document, internally and externally.
+ *
+ * @param `$ref`
+ *   REQUIRED. The reference identifier. This MUST be in the form of a URI.
+ * @param summary
+ *   A short summary which by default SHOULD override that of the referenced
+ *   component.
+ * @param description
+ *   A description which by default SHOULD override that of the referenced
+ *   component.
+ */
+final case class Reference(
+  `$ref`: String,
+  summary: Option[String] = None,
+  description: Option[String] = None
+)
+
+object Reference {
+  implicit val schema: Schema[Reference] = Schema.derived
+}
+
+/**
+ * A type that can either be a Reference or a concrete value of type A. This
+ * pattern is used extensively in OpenAPI 3.1 to allow reusable components.
+ *
+ * @tparam A
+ *   The type of the concrete value when not using a reference.
+ */
+sealed trait ReferenceOr[+A]
+
+object ReferenceOr {
+
+  /**
+   * A reference to a component defined elsewhere in the OpenAPI document.
+   *
+   * @param reference
+   *   The Reference object containing the $ref URI.
+   */
+  final case class Ref(reference: Reference) extends ReferenceOr[Nothing]
+
+  /**
+   * A concrete value (not a reference).
+   *
+   * @param value
+   *   The actual value of type A.
+   */
+  final case class Value[A](value: A) extends ReferenceOr[A]
+
+  implicit def schema[A: Schema]: Schema[ReferenceOr[A]] = Schema.derived
 }
