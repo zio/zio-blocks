@@ -27,8 +27,13 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
       },
       test("InputStream escapes from global scope") {
         // InputStream is NOT Unscoped, but should escape from global scope
-        val escape = implicitly[ScopeEscape[InputStream, Scope.Global]]
-        assertTrue(escape != null)
+        val escape: ScopeEscape.Aux[InputStream, Scope.Global, InputStream] =
+          implicitly[ScopeEscape[InputStream, Scope.Global]]
+            .asInstanceOf[ScopeEscape.Aux[InputStream, Scope.Global, InputStream]]
+        val stream              = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
+        val result: InputStream = escape(stream)
+        // Verify escape returns raw InputStream, not scoped
+        assertTrue(result eq stream, result.read() == 1)
       },
       test("primitives also escape from global scope") {
         val escape: ScopeEscape.Aux[Int, Scope.Global, Int] =

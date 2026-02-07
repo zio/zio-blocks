@@ -43,28 +43,26 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
       }
     ),
     suite("$ operator tag checking")(
-      test("cannot use $ without scope proof in context") {
+      test("cannot use $ without Scope.Permit in context") {
         // Test the simpler case without macros - scoped value with arbitrary tag
         val errors: List[scala.compiletime.testing.Error] = typeCheckErrors("""
           val scoped: zio.blocks.scope.@@[Int, String] = zio.blocks.scope.@@.scoped(42)
           scoped $ (_ + 1)
         """)
         assertTrue(
-          errors.nonEmpty && errors.exists(e =>
-            e.message.contains("No given instance") || e.message.contains("ScopeProof")
-          )
+          errors.nonEmpty && errors.exists(e => e.message.contains("No given instance") || e.message.contains("Permit"))
         )
       },
-      test("cannot use .get without scope in context") {
+      test("cannot use .get without Scope.Permit in context") {
         val errors: List[scala.compiletime.testing.Error] = typeCheckErrors("""
           val scoped: zio.blocks.scope.@@[Int, String] = zio.blocks.scope.@@.scoped(42)
           scoped.get
         """)
-        // Error can be "is not a member" (extension not found) or "No given instance" (ScopeProof not found)
+        // Error can be "is not a member" (extension not found) or "No given instance" (Permit not found)
         assertTrue(
           errors.nonEmpty && errors.exists(e =>
             e.message.contains("No given instance") ||
-              e.message.contains("ScopeProof") ||
+              e.message.contains("Permit") ||
               e.message.contains("is not a member")
           )
         )

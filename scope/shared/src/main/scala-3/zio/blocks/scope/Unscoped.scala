@@ -6,21 +6,46 @@ package zio.blocks.scope
  * Types with an `Unscoped` instance are considered "safe data" - they don't
  * hold resources and can be freely extracted from a scope without tracking.
  *
- * Primitives, strings, and collections of unscoped types are unscoped by
- * default. Resource types (streams, connections, handles) should NOT have
- * instances.
+ * ==Default Instances==
+ *
+ * The following types have `Unscoped` instances by default:
+ *   - Primitives: `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`,
+ *     `Double`, `Unit`
+ *   - Text: `String`
+ *   - Numeric: `BigInt`, `BigDecimal`
+ *   - Collections: `Array`, `List`, `Vector`, `Set`, `Seq`, `IndexedSeq`,
+ *     `Iterable`, `Map` (when elements are `Unscoped`)
+ *   - Containers: `Option`, `Either` (when elements are `Unscoped`)
+ *   - Tuples: up to 4-tuples (when elements are `Unscoped`)
+ *   - Time: `java.time.*` value types, `scala.concurrent.duration.*`
+ *   - Other: `java.util.UUID`, [[zio.blocks.chunk.Chunk]]
+ *
+ * ==Resource Types==
+ *
+ * Types representing resources (streams, connections, handles, etc.) should NOT
+ * have `Unscoped` instances. This ensures they remain tracked by the scope
+ * system and cannot accidentally escape.
  *
  * @example
  *   {{{
  *   // Primitives escape freely
- *   val n: Int = stream $ (_.read())  // Int is Unscoped
+ *   val n: Int = stream $ (_.read())  // Int is Unscoped, returns raw Int
  *
  *   // Resources stay scoped
  *   val body = request $ (_.body)     // InputStream @@ Tag (not raw InputStream)
  *   }}}
+ *
+ * @tparam A
+ *   the type that can escape scopes
+ *
+ * @see
+ *   [[ScopeEscape]] which uses this typeclass to determine escape behavior
  */
 trait Unscoped[A]
 
+/**
+ * Companion object providing given instances for common types.
+ */
 object Unscoped extends UnscopedVersionSpecific {
   // Primitives
   given Unscoped[Int]        = new Unscoped[Int] {}

@@ -17,7 +17,7 @@ private[scope] object ScopeMacros {
 
     val tTpe = TypeRepr.of[T]
 
-    // Search for IsNominalType[T] first - needed for both paths
+    // Search for IsNominalType[T]
     val nomOpt = Implicits.search(TypeRepr.of[IsNominalType].appliedTo(tTpe)) match {
       case success: ImplicitSearchSuccess => Some(success.tree.asExprOf[IsNominalType[T]])
       case _                              => None
@@ -32,8 +32,8 @@ private[scope] object ScopeMacros {
 
     val nom = nomOpt.get
 
-    // Try the new safe pattern first: Scope.Access[S] + Context[T] @@ S
-    val accessType = TypeRepr.of[Scope.Access[?]]
+    // Require Scope.Permit[S] + Context[T] @@ S (from .use block)
+    val accessType = TypeRepr.of[Scope.Permit[?]]
     val accessOpt  = Implicits.search(accessType) match {
       case success: ImplicitSearchSuccess => Some(success)
       case _                              => None
@@ -41,7 +41,6 @@ private[scope] object ScopeMacros {
 
     accessOpt match {
       case Some(accessSuccess) =>
-        // New pattern: we're inside a .use block
         val accessTpe  = accessSuccess.tree.tpe.widen
         val contextTpe = TypeRepr.of[Context].appliedTo(tTpe)
 
@@ -76,27 +75,10 @@ private[scope] object ScopeMacros {
         }
 
       case None =>
-        // Fallback to legacy pattern: Scope.Has[T]
-        val scopeHasType = TypeRepr.of[Scope.Has].appliedTo(tTpe)
-        val scopeSearch  = Implicits.search(scopeHasType)
-
-        scopeSearch match {
-          case success: ImplicitSearchSuccess =>
-            val scopeExpr = success.tree.asExprOf[Scope.Has[T]]
-            // Use Any as the tag since we can't easily extract the path-dependent Tag type
-            // The actual tag is preserved at runtime through the opaque type
-            '{
-              val scope  = $scopeExpr
-              val result = @@.scoped[T, scope.Tag](scope.get[T](using $nom))
-              result
-            }
-
-          case _: ImplicitSearchFailure =>
-            report.errorAndAbort(
-              s"Cannot use $$[${Type.show[T]}]: no Scope.Access or Scope.Has[${Type.show[T]}] found. " +
-                s"Make sure you are inside a .use block or have a Scope.Has[${Type.show[T]}] in implicit scope."
-            )
-        }
+        report.errorAndAbort(
+          s"Cannot use $$[${Type.show[T]}]: no Scope.Permit found. " +
+            s"Make sure you are inside a .use block."
+        )
     }
   }
 
@@ -228,30 +210,18 @@ private[scope] object ScopeMacros {
     val depTypes = allRegularParams.map(param => tpe.memberType(param))
 
     if (depTypes.isEmpty) {
-      // No dependencies - just construct
+      val ctorSym         = tpe.typeSymbol.primaryConstructor
+      val registerCleanup = isAutoCloseable && !hasScopeParam
+
       if (hasScopeParam) {
         '{
           val parentScope = $scopeExpr
           val finalizers  = new Finalizers
           val instance    = ${
-            val ctorSym  = tpe.typeSymbol.primaryConstructor
             val ctor     = Select(New(TypeTree.of[T]), ctorSym)
             val scopeRef = '{ parentScope }.asTerm
             Apply(Apply(ctor, Nil), List(scopeRef)).asExprOf[T]
           }
-          val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
-          Scope.makeCloseable(parentScope, ctx, finalizers)
-        }
-      } else if (isAutoCloseable) {
-        '{
-          val parentScope = $scopeExpr
-          val finalizers  = new Finalizers
-          val instance    = ${
-            val ctorSym = tpe.typeSymbol.primaryConstructor
-            val ctor    = Select(New(TypeTree.of[T]), ctorSym)
-            Apply(ctor, Nil).asExprOf[T]
-          }
-          finalizers.add(instance.asInstanceOf[AutoCloseable].close())
           val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
           Scope.makeCloseable(parentScope, ctx, finalizers)
         }
@@ -260,10 +230,10 @@ private[scope] object ScopeMacros {
           val parentScope = $scopeExpr
           val finalizers  = new Finalizers
           val instance    = ${
-            val ctorSym = tpe.typeSymbol.primaryConstructor
-            val ctor    = Select(New(TypeTree.of[T]), ctorSym)
+            val ctor = Select(New(TypeTree.of[T]), ctorSym)
             Apply(ctor, Nil).asExprOf[T]
           }
+          ${ if (registerCleanup) '{ finalizers.add(instance.asInstanceOf[AutoCloseable].close()) } else '{ () } }
           val ctx = Context[T](instance)(using summonInline[IsNominalType[T]])
           Scope.makeCloseable(parentScope, ctx, finalizers)
         }

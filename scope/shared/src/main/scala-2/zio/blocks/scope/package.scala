@@ -142,25 +142,18 @@ package object scope {
     macro ScopeMacros.injectedImpl[T]
   // format: on
 
-  @deprecated("Use ScopeEscape instead", "0.1.0")
-  type AutoUnscoped[A, S] = ScopeEscape[A, S]
-
-  @deprecated("Use ScopeEscape instead", "0.1.0")
-  val AutoUnscoped = ScopeEscape
-
   /**
    * Leaks a scoped value out of its scope, returning the raw unwrapped value.
    *
    * This function emits a compiler warning because leaking resources bypasses
-   * Scope's compile-time safety guarantees. Use only for legacy code interop
-   * where third-party or Java code cannot operate with scoped values.
+   * Scope's compile-time safety guarantees. Use only for interop where
+   * third-party or Java code cannot operate with scoped values.
    *
    * @example
    *   {{{
-   *   // Legacy Java API that needs a raw InputStream
-   *   def processWithLegacyApi()(implicit scope: Scope.Has[Request]): Unit = {
+   *   closeable.use { implicit scope =>
    *     val stream = leak($[Request].body.getInputStream())
-   *     LegacyJavaProcessor.process(stream)  // Third-party code
+   *     ThirdPartyProcessor.process(stream)
    *   }
    *   }}}
    *

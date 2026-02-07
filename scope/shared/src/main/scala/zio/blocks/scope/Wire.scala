@@ -8,6 +8,16 @@ import zio.blocks.context.{Context, IsNominalType}
  * Wires are the building blocks of dependency injection in Scope. They describe
  * how to construct a service given access to its dependencies via a scope.
  *
+ * ==Wire Types==
+ *
+ *   - [[Wire.Shared]]: Memoized within a single `injected` call (default)
+ *   - [[Wire.Unique]]: Creates fresh instances each time
+ *
+ * ==Creating Wires==
+ *
+ * Use the `shared[T]` and `unique[T]` macros for automatic derivation from
+ * constructors, or create wires manually for custom construction logic.
+ *
  * @example
  *   {{{
  *   // Scala 3: Manual wire with context function
@@ -28,30 +38,51 @@ import zio.blocks.context.{Context, IsNominalType}
  *   }}}
  *
  * @tparam In
- *   The dependencies required (contravariant)
+ *   the dependencies required (contravariant - accepts supertypes)
  * @tparam Out
- *   The service(s) produced (covariant)
+ *   the service(s) produced (covariant - produces subtypes)
+ *
+ * @see
+ *   [[Wireable]] for defining wires in companion objects
  */
 sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 
   /**
    * Returns true if this wire is shared (memoized within a single `injected`
    * call).
+   *
+   * Shared wires create one instance per `injected` call, reused across all
+   * dependents within that call.
    */
   def isShared: Boolean
 
   /**
    * Returns true if this wire is unique (creates fresh instances each time).
+   *
+   * Unique wires create a new instance for each dependent service.
    */
   final def isUnique: Boolean = !isShared
 
-  /** Converts this wire to a shared wire. */
+  /**
+   * Converts this wire to a shared wire.
+   *
+   * If already shared, returns `this`. Otherwise, creates a new [[Shared]] wire
+   * with the same construction function.
+   */
   def shared: Wire.Shared[In, Out]
 
-  /** Converts this wire to a unique wire. */
+  /**
+   * Converts this wire to a unique wire.
+   *
+   * If already unique, returns `this`. Otherwise, creates a new [[Unique]] wire
+   * with the same construction function.
+   */
   def unique: Wire.Unique[In, Out]
 }
 
+/**
+ * Companion object providing wire factory methods and wire classes.
+ */
 object Wire extends WireCompanionVersionSpecific {
 
   /**
@@ -60,6 +91,11 @@ object Wire extends WireCompanionVersionSpecific {
    *
    * When multiple services depend on the same shared wire, only one instance is
    * created and reused. This is the default wire type produced by `shared[T]`.
+   *
+   * @tparam In
+   *   the dependencies required to construct the service
+   * @tparam Out
+   *   the service type produced
    */
   final class Shared[-In, +Out] private[scope] (
     private[scope] val constructFn: Scope.Has[In] => Context[Out]
@@ -71,6 +107,14 @@ object Wire extends WireCompanionVersionSpecific {
 
     def unique: Unique[In, Out] = new Unique[In, Out](constructFn)
 
+    /**
+     * Constructs the service using the given scope.
+     *
+     * @param scope
+     *   the scope providing dependencies
+     * @return
+     *   a context containing the constructed service
+     */
     override def construct(implicit scope: Scope.Has[In]): Context[Out] = constructFn(scope)
   }
 
@@ -104,7 +148,12 @@ object Wire extends WireCompanionVersionSpecific {
    *
    * Unlike shared wires, unique wires create new instances for each dependent
    * service. Use for services that should not be shared, like request-scoped
-   * resources.
+   * resources or per-call state.
+   *
+   * @tparam In
+   *   the dependencies required to construct the service
+   * @tparam Out
+   *   the service type produced
    */
   final class Unique[-In, +Out] private[scope] (
     private[scope] val constructFn: Scope.Has[In] => Context[Out]
@@ -116,6 +165,14 @@ object Wire extends WireCompanionVersionSpecific {
 
     def unique: Unique[In, Out] = this
 
+    /**
+     * Constructs the service using the given scope.
+     *
+     * @param scope
+     *   the scope providing dependencies
+     * @return
+     *   a context containing the constructed service
+     */
     override def construct(implicit scope: Scope.Has[In]): Context[Out] = constructFn(scope)
   }
 
@@ -142,13 +199,22 @@ object Wire extends WireCompanionVersionSpecific {
    * Creates a wire that injects a pre-existing value.
    *
    * The value is wrapped in a shared wire with no dependencies. No cleanup is
-   * registered.
+   * registered because the value was created externally.
    *
    * @example
    *   {{{
    *   val config = Config.load()
-   *   Scope.global.injected[App](Wire(config)).run { ... }
+   *   Scope.global.injected[App](Wire(config)).use { ... }
    *   }}}
+   *
+   * @param t
+   *   the value to inject
+   * @param ev
+   *   evidence that T is a nominal type
+   * @tparam T
+   *   the service type
+   * @return
+   *   a shared wire that provides the value
    */
   def apply[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T] =
     new Shared[Any, T]((_: Scope.Has[Any]) => Context(t))

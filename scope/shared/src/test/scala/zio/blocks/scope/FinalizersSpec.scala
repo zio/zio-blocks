@@ -79,13 +79,15 @@ object FinalizersSpec extends ZIOSpecDefault {
       }
       assertTrue(threw)
     },
-    test("closeOrThrow does not throw on success") {
+    test("closeOrThrow does not throw on success and runs finalizers") {
       val parent     = Scope.global
       val config     = Config(true)
       val finalizers = new Finalizers
-      val closeable  = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
+      var cleaned    = false
+      finalizers.add { cleaned = true }
+      val closeable = Scope.makeCloseable[Config, Scope.Global](parent, Context(config), finalizers)
       closeable.closeOrThrow()
-      assertTrue(true)
+      assertTrue(cleaned, finalizers.isClosed)
     }
   )
 }

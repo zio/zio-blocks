@@ -6,9 +6,21 @@ package zio.blocks.scope
  * A value of type `A @@ S` is a value of type `A` that is "locked" to a scope
  * with tag `S`. The opaque type hides all methods on `A`, so the only way to
  * use the value is through the `$` operator, which requires the matching scope
- * capability.
+ * capability via [[Scope.Permit]].
  *
  * This prevents scoped resources from escaping their scope at compile time.
+ * Zero overhead at runtime: `@@` is an opaque type alias, so `A @@ S` is
+ * represented as just `A` at runtime.
+ *
+ * ==Operations==
+ *
+ * The `@@` companion object provides extension methods:
+ *   - `$`: Apply a function to the value, auto-unscoping if the result is
+ *     [[Unscoped]]
+ *   - `get`: Extract the value, auto-unscoping if the type is [[Unscoped]]
+ *   - `map`: Transform the value, preserving the scope tag
+ *   - `flatMap`: Combine scoped values, intersecting tags
+ *   - `_1`, `_2`: Extract tuple elements
  *
  * @example
  *   {{{
@@ -19,45 +31,67 @@ package zio.blocks.scope
  *   // Must use $ operator with scope in context
  *   stream $ (_.read())  // Works, returns Int (unscoped, since Int is Unscoped)
  *   }}}
+ *
+ * @see
+ *   [[ScopeEscape]] for the typeclass that determines if a result escapes
+ * @see
+ *   [[Scope.Permit]] for the evidence required to access scoped values
  */
 opaque infix type @@[+A, +S] = A
 
 /**
  * Evidence that we have access to a scope with tag `S`.
  *
- * This can be satisfied by either:
- *   - `Scope.Access[? <: S]` (new safe pattern from `.use`)
- *   - `Scope { type Tag <: S }` (legacy pattern)
+ * `ScopeProof[S]` is derived from `Scope.Permit[S]`, which is only available
+ * inside a `.use` block. This ensures that operations requiring scope access
+ * (like `$` and `.get` on scoped values) can only be called within a valid
+ * scope context.
+ *
+ * @tparam S
+ *   the scope tag this proof is valid for
  */
 sealed trait ScopeProof[-S]
 
-object ScopeProof extends ScopeProofLowPriority {
+object ScopeProof {
 
-  /** Scope.Access provides scope proof (higher priority). */
-  given fromAccess[S](using Scope.Access[S]): ScopeProof[S] = instance.asInstanceOf[ScopeProof[S]]
+  /** Scope.Permit provides scope proof. */
+  given fromPermit[S](using Scope.Permit[S]): ScopeProof[S] = instance.asInstanceOf[ScopeProof[S]]
 
   private[scope] val instance: ScopeProof[Any] = new ScopeProof[Any] {}
 }
 
-private[scope] trait ScopeProofLowPriority {
-
-  /**
-   * Legacy Scope with specific Tag provides scope proof (lower priority).
-   *
-   * This requires the scope to have a concrete Tag type that's known to be <:
-   * S. Using Scope.::[?, ?] ensures we get a scope with a concrete tag
-   * hierarchy.
-   */
-  given fromScope[S, H, T <: Scope](using scope: Scope.::[H, T] { type Tag <: S }): ScopeProof[S] =
-    ScopeProof.instance.asInstanceOf[ScopeProof[S]]
-}
-
+/**
+ * Companion object for the `@@` opaque type, providing factory methods and
+ * extension operations.
+ */
 object @@ {
 
-  /** Scopes a value with a scope identity. */
+  /**
+   * Scopes a value with a scope identity.
+   *
+   * This wraps a raw value `A` into a scoped value `A @@ S`. The scope tag `S`
+   * is typically the path-dependent `Tag` type of a [[Scope]] instance.
+   *
+   * Zero overhead: since `@@` is an opaque type alias, this is an identity
+   * operation at runtime.
+   *
+   * @param a
+   *   the value to scope
+   * @tparam A
+   *   the value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   the scoped value
+   */
   inline def scoped[A, S](a: A): A @@ S = a
 
-  /** Retrieves the underlying value without unscoping (internal use). */
+  /**
+   * Retrieves the underlying value without unscoping (internal use only).
+   *
+   * This is package-private to prevent bypassing the scope safety checks.
+   * External code should use `$` or `get` with proper scope proof.
+   */
   private[scope] inline def unscoped[A, S](scoped: A @@ S): A = scoped
 
   extension [A, S](scoped: A @@ S) {
@@ -73,21 +107,19 @@ object @@ {
      * both branches (identity for Unscoped, scoped for resources) compile to
      * no-ops since `@@` is an opaque type alias.
      *
-     * Requires either:
-     *   - A `Scope.Access[? <: S]` (new safe pattern from `.use`)
-     *   - OR a `Scope { type Tag <: S }` (legacy pattern)
+     * Requires `Scope.Permit[S]` from a `.use` block.
      *
      * @param f
      *   The function to apply to the underlying value
-     * @param access
-     *   Evidence that we have scope access (either new or legacy)
+     * @param permit
+     *   Evidence that we have scope access
      * @param u
      *   Typeclass determining the result type
      * @return
      *   Either raw `B` or `B @@ S` depending on ScopeEscape instance
      */
     inline infix def $[B](inline f: A => B)(using
-      access: ScopeProof[S]
+      permit: Scope.Permit[S]
     )(using
       u: ScopeEscape[B, S]
     ): u.Out =
@@ -101,18 +133,16 @@ object @@ {
      *   - If `A` is `Unscoped`, returns raw `A`
      *   - Otherwise, returns `A @@ S` (stays scoped)
      *
-     * Requires either:
-     *   - A `Scope.Access[? <: S]` (new safe pattern from `.use`)
-     *   - OR a `Scope { type Tag <: S }` (legacy pattern)
+     * Requires `Scope.Permit[S]` from a `.use` block.
      *
-     * @param access
-     *   Evidence that we have scope access (either new or legacy)
+     * @param permit
+     *   Evidence that we have scope access
      * @param u
      *   Typeclass determining the result type
      * @return
      *   Either raw `A` or `A @@ S` depending on ScopeEscape instance
      */
-    inline def get(using access: ScopeProof[S])(using u: ScopeEscape[A, S]): u.Out =
+    inline def get(using permit: Scope.Permit[S])(using u: ScopeEscape[A, S]): u.Out =
       u(scoped)
 
     /**

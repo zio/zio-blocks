@@ -5,16 +5,38 @@ import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.internal.Finalizers
 
 /**
- * A scope that manages resource lifecycle with path-dependent tag for escape
+ * A scope that manages resource lifecycle with a path-dependent tag for escape
  * prevention.
  *
- * Scope forms an HList-like structure where each level carries a Context and
- * has its own Tag type. The Tag chain follows the scope structure:
- *   - Global.Tag <: GlobalTag (base case)
- *   - (H :: T).Tag <: T.Tag (child tags are subtypes of parent tags)
+ * Scope forms an HList-like structure where each level carries a
+ * [[zio.blocks.context.Context]] and has its own unique `Tag` type. The tag
+ * chain follows the scope structure:
+ *   - `Global.Tag <: GlobalTag` (base case)
+ *   - `(H :: T).Tag <: T.Tag` (child tags are subtypes of parent tags)
  *
  * This enables child scopes to use parent-scoped values: a value tagged with a
- * parent's tag is usable in child scopes since child.Tag <: parent.Tag.
+ * parent's tag is usable in child scopes since `child.Tag <: parent.Tag`.
+ *
+ * ==Usage Pattern==
+ *
+ * The primary way to work with scopes is through the `.use` method on
+ * [[Scope.Closeable]], which provides three implicit parameters:
+ *   - `Scope.Permit[Tag]`: An unforgeable capability marker proving code is
+ *     inside a `.use` block
+ *   - `Context[Head] @@ Tag`: The scoped context containing this scope's
+ *     services
+ *   - `self.type`: The scope itself for `defer` and other operations
+ *
+ * @example
+ *   {{{
+ *   Scope.global.injected[App](shared[Database]).use {
+ *     val app = $[App]      // App @@ Tag
+ *     app $ (_.run())       // Access underlying App methods
+ *   }
+ *   }}}
+ *
+ * @see
+ *   [[@@]] for scoped value operations
  */
 sealed trait Scope extends ScopeVersionSpecific {
 
@@ -33,7 +55,12 @@ sealed trait Scope extends ScopeVersionSpecific {
   /**
    * Registers a finalizer to run when this scope closes.
    *
-   * Finalizers run in LIFO order (last registered runs first).
+   * Finalizers run in LIFO order (last registered runs first). If a finalizer
+   * throws an exception, subsequent finalizers still run; all exceptions are
+   * collected and returned by [[Scope.Closeable.close]].
+   *
+   * @param finalizer
+   *   a by-name expression to execute when the scope closes
    */
   def defer(finalizer: => Unit): Unit
 }
@@ -54,63 +81,71 @@ object Scope {
   type GlobalTag
 
   /**
-   * An unforgeable marker that proves code is executing inside a `.use` block.
+   * An unforgeable capability marker that proves code is executing inside a
+   * `.use` block.
    *
-   * `Access[S]` is a phantom-typed capability that can only be created inside
+   * `Permit[S]` is a phantom-typed capability that can only be created inside
    * the `zio.blocks.scope` package. It serves as compile-time evidence that the
    * current code is within a valid scope context.
    *
-   * All operations that access scoped values (`$`, `@@.$`, `@@.get`) require an
-   * implicit `Access[S]` where `S` is compatible with the value's tag.
+   * All operations that access scoped values (`$[T]`, `(value: A @@ S).$`,
+   * `(value: A @@ S).get`) require implicit `Permit[S]`.
+   *
+   * The `.use` method on [[Closeable]] creates a `Permit[Tag]` and makes it
+   * implicitly available within the block, ensuring scoped values cannot be
+   * accessed outside.
    *
    * @tparam S
-   *   The scope tag this access token is valid for
+   *   the scope tag this permit token is valid for
    */
-  sealed abstract class Access[S] private[scope] ()
+  sealed abstract class Permit[S] private[scope] ()
 
-  private[scope] object Access {
+  private[scope] object Permit {
 
     /**
-     * Creates an Access token for use inside `.use` blocks.
+     * Creates a Permit token for use inside `.use` blocks.
      *
-     * This is package-private to ensure Access tokens cannot be forged by user
+     * This is package-private to ensure Permit tokens cannot be forged by user
      * code.
      */
-    def apply[S]: Access[S] = instance.asInstanceOf[Access[S]]
+    def apply[S]: Permit[S] = instance.asInstanceOf[Permit[S]]
 
-    private val instance: Access[Any] = new Access[Any] {}
+    private val instance: Permit[Any] = new Permit[Any] {}
   }
 
   /**
    * A scope with an unknown structure.
    *
-   * Use this type alias in constructors that need access to `defer` for
+   * Use this type alias in constructors that need access to [[Scope.defer]] for
    * resource cleanup but don't need to access specific services from the scope.
+   * This is the most permissive scope type and accepts any scope instance.
    *
    * @example
    *   {{{
+   *   // Scala 3
    *   class MyResource()(using Scope.Any) {
    *     val handle = acquire()
    *     defer(handle.release())
+   *   }
+   *
+   *   // Scala 2
+   *   class MyResource()(implicit scope: Scope.Any) {
+   *     val handle = acquire()
+   *     scope.defer(handle.release())
    *   }
    *   }}}
    */
   type Any = Scope
 
   /**
-   * A scope that has service `T` available at the head position.
+   * A scope that has service `T` available somewhere in its stack.
    *
-   * This is an alias for `Scope.::[T, Scope]`, representing a scope where the
-   * head contains a `Context[T]`. Use this when you need to retrieve a specific
-   * service from the scope.
+   * This is an alias for `Scope.::[T, Scope]`, representing a scope where `T`
+   * is available (either at the head or in the tail). Used internally by
+   * `Wire.construct` and for type constraints.
    *
-   * @example
-   *   {{{
-   *   def useDatabase()(using scope: Scope.Has[Database]): Unit = {
-   *     val db = $[Database]
-   *     db $ (_.query("SELECT ..."))
-   *   }
-   *   }}}
+   * Note: This is a covariant type (`+T`), so `Scope.Has[Dog]` is a subtype of
+   * `Scope.Has[Animal]` when `Dog <: Animal`.
    *
    * @tparam T
    *   the service type available in this scope
@@ -122,12 +157,15 @@ object Scope {
    *
    * This class forms the HList-like structure of scopes. Each `::` node
    * contains:
-   *   - A `Context[H]` holding the head service(s)
+   *   - A [[zio.blocks.context.Context]][H] holding the head service(s)
    *   - A reference to the tail (parent) scope
    *   - A `Finalizers` collection for cleanup
    *
    * The `Tag` type is a subtype of `tail.Tag`, enabling child scopes to access
    * parent-scoped values while preventing values from escaping upward.
+   *
+   * Use [[Closeable.use]] or [[Closeable.useWithErrors]] to execute code within
+   * the scope and automatically close it afterward.
    *
    * @tparam H
    *   the type of service(s) at the head of this scope
@@ -195,39 +233,66 @@ object Scope {
 
   /**
    * A scope that can be explicitly closed, releasing all registered resources.
+   *
+   * The primary methods for working with a closeable scope are:
+   *   - [[CloseableVersionSpecific.use]]: Execute code in the scope and
+   *     auto-close, discarding errors
+   *   - [[CloseableVersionSpecific.useWithErrors]]: Execute code and return
+   *     both result and errors
+   *   - [[close]]: Manually close and get all finalizer exceptions
+   *   - [[closeOrThrow]]: Manually close and throw the first exception if any
+   *
+   * @tparam Head
+   *   the service type at the head of this scope
+   * @tparam Tail
+   *   the parent scope type
    */
   trait Closeable[+Head, +Tail <: Scope] extends Scope with CloseableVersionSpecific[Head, Tail] {
 
     /**
      * Closes this scope, running all registered finalizers in LIFO order.
+     *
+     * All finalizers are run even if some throw exceptions. The returned
+     * [[zio.blocks.chunk.Chunk]] contains all exceptions that were thrown.
+     *
+     * @return
+     *   a Chunk containing any exceptions thrown by finalizers (empty if all
+     *   succeeded)
      */
     def close(): Chunk[Throwable]
 
     /**
-     * Closes this scope and throws the first exception if any occurred.
+     * Closes this scope and throws the first exception if any finalizer failed.
+     *
+     * This is a convenience method for when you want fail-fast behavior. All
+     * finalizers still run, but only the first exception is thrown.
      */
     def closeOrThrow(): Unit = close().headOption.foreach(throw _)
   }
 
   /**
-   * Extension methods for [[Scope]] instances.
+   * Extension methods for [[Scope]] instances (internal use only).
    *
    * Provides the `get` method for retrieving services from a scope. This is
-   * package-private to prevent direct access outside `.use` blocks.
+   * package-private to prevent direct access outside `.use` blocks. External
+   * code should use `$[T]` instead, which provides proper scoping.
    */
   private[scope] implicit final class ScopeOps(private val self: Scope) extends AnyVal {
 
     /**
-     * Retrieves a service of type `T` from this scope.
+     * Retrieves a service of type `T` from this scope (internal use).
      *
      * Searches the scope's context stack for a service matching the nominal
-     * type. Throws if the service is not found (should not happen if types are
-     * correctly constrained).
+     * type. This is used internally by `$[T]` and wire construction.
      *
      * @tparam T
      *   the service type to retrieve
+     * @param nom
+     *   evidence that T is a nominal type
      * @return
      *   the service instance
+     * @throws IllegalStateException
+     *   if the service is not found in the scope stack
      */
     def get[T](implicit nom: IsNominalType[T]): T = self.getImpl(nom)
   }

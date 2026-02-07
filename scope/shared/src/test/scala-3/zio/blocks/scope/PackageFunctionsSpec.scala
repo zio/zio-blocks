@@ -326,15 +326,15 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
       closeable.close()
       assertTrue(cleaned)
     },
-    test("$ retrieves scoped value from scope") {
-      val config              = new Config
-      val closeable           = Scope.makeCloseable[Config, Scope.Global](Scope.global, Context(config), new Finalizers)
-      given Scope.Has[Config] = closeable
-      val retrieved           = $[Config]
-      // retrieved is Config @@ closeable.Tag, use $ operator to check
-      val isDebug: Boolean = retrieved $ (_.debug)
-      closeable.close()
-      assertTrue(!isDebug)
+    test("$ retrieves scoped value from scope inside .use block") {
+      val config    = new Config
+      val closeable = Scope.makeCloseable[Config, Scope.Global](Scope.global, Context(config), new Finalizers)
+      closeable.use {
+        val retrieved = $[Config]
+        // retrieved is Config @@ closeable.Tag, use $ operator to check
+        val isDebug: Boolean = retrieved.$(_.debug)
+        assertTrue(!isDebug)
+      }
     },
     test("scope.injected creates closeable scope") {
       val closeable = Scope.global.injected[Config]()
@@ -787,15 +787,30 @@ object PackageFunctionsSpec extends ZIOSpecDefault {
         val svc                                    = ctx.get[ComplexService]
         assertTrue(svc.config != null && svc.db != null && svc.cache != null)
       },
-      test("subtype conflict check prevents ambiguous dependencies") {
-        // This test verifies the error message exists by testing with non-conflicting types
-        // The actual compile error for conflicting subtypes (like InputStream/FileInputStream)
-        // would be caught at compile time with a helpful message
-        trait Animal
-        trait Dog extends Animal
-        // If you tried: class BadService(a: Scope.Has[Animal], d: Scope.Has[Dog])
-        // You'd get: "Dependency type conflict: Dog is a subtype of Animal..."
-        assertTrue(true)
+      test("distinct types in scope are retrieved correctly") {
+        class Config(val name: String)
+        class Database(val url: String)
+        class Cache(val size: Int)
+
+        val config                                 = new Config("prod")
+        val db                                     = new Database("jdbc://localhost")
+        val cache                                  = new Cache(100)
+        val parent                                 = Scope.global
+        val finalizers                             = new Finalizers
+        val depsCtx                                = Context(config).add(db).add(cache)
+        val scope                                  = Scope.makeCloseable[Config & Database & Cache, Scope.Global](parent, depsCtx, finalizers)
+        given Scope.Has[Config & Database & Cache] = scope
+        val retrievedConfig: Config                = scope.get[Config]
+        val retrievedDb: Database                  = scope.get[Database]
+        val retrievedCache: Cache                  = scope.get[Cache]
+        assertTrue(
+          retrievedConfig.name == "prod",
+          retrievedDb.url == "jdbc://localhost",
+          retrievedCache.size == 100,
+          retrievedConfig eq config,
+          retrievedDb eq db,
+          retrievedCache eq cache
+        )
       }
     )
   )

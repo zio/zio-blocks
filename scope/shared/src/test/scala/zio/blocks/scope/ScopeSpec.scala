@@ -52,9 +52,13 @@ object ScopeSpec extends ZIOSpecDefault {
         }
         assertTrue(result)
       },
-      test("closeGlobal method exists") {
-        Scope.createTestableScope()._2()
-        assertTrue(true)
+      test("closeGlobal runs finalizers and resets state") {
+        val (scope, close) = Scope.createTestableScope()
+        var counter        = 0
+        scope.defer(counter += 1)
+        scope.defer(counter += 10)
+        close()
+        assertTrue(counter == 11)
       }
     ),
     suite("Closeable")(

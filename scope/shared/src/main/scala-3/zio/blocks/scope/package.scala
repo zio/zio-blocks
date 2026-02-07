@@ -4,14 +4,53 @@ import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.internal.Finalizers
 
 /**
- * Top-level functions for the Scope dependency injection library.
+ * Scope: A compile-time safe dependency injection and resource management
+ * library.
  *
- * Import `zio.blocks.scope._` to access these functions.
+ * ==Quick Start==
+ *
+ * {{{
+ * import zio.blocks.scope._
+ *
+ * Scope.global.injected[App](shared[Database], shared[Config]).use {
+ *   val app = $[App]      // App @@ Tag - scoped value
+ *   app $ (_.run())       // Access underlying App methods
+ * }
+ * }}}
+ *
+ * ==Key Concepts==
+ *
+ *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
+ *     escape
+ *   - '''`$[T]`''': Retrieve a service from the current scope
+ *   - '''`defer { ... }`''': Register cleanup to run when scope closes
+ *   - '''`shared[T]` / `unique[T]`''': Create wires for dependency injection
+ *   - '''`.use { ... }`''': Execute code in a scope, then auto-close
+ *
+ * ==How It Works==
+ *
+ * The `.use` method on [[Scope.Closeable]] provides three implicit parameters:
+ *   - `Scope.Permit[Tag]`: Unforgeable proof you're inside a `.use` block
+ *   - `Context[Head] @@ Tag`: The scoped context with services
+ *   - `self.type`: The scope for `defer` calls
+ *
+ * The `$` and `.get` operators require [[Scope.Permit]], which is only
+ * available inside `.use` blocks.
+ *
+ * @see
+ *   [[Scope]] for scope types and operations
+ * @see
+ *   [[@@]] for scoped value operations
+ * @see
+ *   [[Wire]] for dependency injection wires
  */
 package object scope {
 
   /**
    * Registers a finalizer to run when the current scope closes.
+   *
+   * Finalizers run in LIFO order (last registered runs first). If a finalizer
+   * throws, subsequent finalizers still run.
    *
    * @example
    *   {{{
@@ -20,6 +59,11 @@ package object scope {
    *     defer { resource.release() }
    *   }
    *   }}}
+   *
+   * @param finalizer
+   *   a by-name expression to execute on scope close
+   * @param scope
+   *   the scope to register the finalizer with
    */
   def defer(finalizer: => Unit)(using scope: Scope.Any): Unit =
     scope.defer(finalizer)
@@ -27,11 +71,11 @@ package object scope {
   /**
    * Retrieves a service of type `T` from the current scoped context.
    *
-   * The returned value is scoped to prevent escape. Use the `$` operator on the
-   * scoped value to access methods.
+   * This is a transparent inline macro that requires `Scope.Permit[S]` +
+   * `Context[T] @@ S` from a `.use` block.
    *
-   * The context's type `R` must be a subtype of `T` (meaning `T` is available
-   * in the context).
+   * The returned value is scoped (`T @@ S`) to prevent escape. Use the `$`
+   * operator on the scoped value to access methods.
    *
    * @example
    *   {{{
@@ -40,6 +84,12 @@ package object scope {
    *     db $ (_.query("SELECT ..."))   // String (unscoped, since String is Unscoped)
    *   }
    *   }}}
+   *
+   * @tparam T
+   *   the service type to retrieve (must have
+   *   [[zio.blocks.context.IsNominalType]] evidence)
+   * @return
+   *   `T @@ S` where `S` is the current scope's tag
    */
   transparent inline def $[T]: Any = ${ ScopeMacros.dollarImpl[T] }
 
@@ -52,11 +102,24 @@ package object scope {
    * @example
    *   {{{
    *   val config = Config.load()
-   *   injected(config).run {
+   *   injected(config).use {
    *     val cfg = $[Config]
    *     cfg $ (_.dbUrl)
    *   }
    *   }}}
+   *
+   * @param t
+   *   the value to inject into the new scope
+   * @param scope
+   *   the parent scope
+   * @param nom
+   *   evidence that T is a nominal type
+   * @tparam T
+   *   the service type
+   * @tparam S
+   *   the parent scope type
+   * @return
+   *   a closeable scope containing `T`
    */
   def injected[T, S <: Scope](t: T)(using scope: S, nom: IsNominalType[T]): Scope.::[T, S] = {
     val ctx        = Context(t)
@@ -70,16 +133,24 @@ package object scope {
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
    *
-   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
+   * If a [[Wireable]][T] exists in implicit scope, it is used. Otherwise, the
    * macro inspects `T`'s primary constructor and generates a wire that:
    *   - Retrieves constructor parameters from the scope
    *   - Passes an implicit `Scope` parameter if present
    *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
    *
+   * Shared wires are memoized within a single `injected` call, so multiple
+   * dependents receive the same instance.
+   *
    * @example
    *   {{{
-   *   Scope.global.injected[App](shared[Database], shared[Cache]).run { ... }
+   *   Scope.global.injected[App](shared[Database], shared[Cache]).use { ... }
    *   }}}
+   *
+   * @tparam T
+   *   the service type to construct (must be a class, not a trait or abstract)
+   * @return
+   *   a shared wire for constructing `T`
    */
   transparent inline def shared[T]: Wire.Shared[?, T] = ${ ScopeMacros.sharedImpl[T] }
 
@@ -87,7 +158,12 @@ package object scope {
    * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
    *
    * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used.
+   * used. Use for services that should not be shared across dependents.
+   *
+   * @tparam T
+   *   the service type to construct (must be a class, not a trait or abstract)
+   * @return
+   *   a unique wire for constructing `T`
    */
   transparent inline def unique[T]: Wire.Unique[?, T] = ${ ScopeMacros.uniqueImpl[T] }
 
@@ -101,32 +177,53 @@ package object scope {
    *
    * @example
    *   {{{
-   *   Scope.global.injected[App](shared[Config]).run {
+   *   Scope.global.injected[App](shared[Config]).use {
    *     // App and Config are available here
    *     val app = $[App]
-   *     app.run()
+   *     app $ (_.run())
    *   }
    *   }}}
+   *
+   * @tparam T
+   *   the service type to construct
+   * @param scope
+   *   the parent scope
+   * @return
+   *   a closeable scope containing `T` and its dependencies
    */
   inline def injected[T](using scope: Scope.Any): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('{ Seq.empty[Wire[?, ?]] }, 'scope) }
 
+  /**
+   * Creates a child scope containing an instance of `T` and its dependencies.
+   *
+   * @param wires
+   *   wires providing dependencies for constructing `T`
+   * @tparam T
+   *   the service type to construct
+   * @param scope
+   *   the parent scope
+   * @return
+   *   a closeable scope containing `T` and its dependencies
+   */
   inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
     ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
 
   /**
    * Leaks a scoped value out of its scope, returning the raw unwrapped value.
    *
-   * This function emits a compiler warning because leaking resources bypasses
-   * Scope's compile-time safety guarantees. Use only for legacy code interop
-   * where third-party or Java code cannot operate with scoped values.
+   * '''Warning''': This function emits a compiler warning because leaking
+   * resources bypasses Scope's compile-time safety guarantees. The resource may
+   * be closed while still in use, leading to runtime errors.
+   *
+   * Use only for interop where third-party or Java code cannot operate with
+   * scoped values.
    *
    * @example
    *   {{{
-   *   // Legacy Java API that needs a raw InputStream
-   *   def processWithLegacyApi()(using scope: Scope.Has[Request]): Unit = {
-   *     val stream = leak($[Request].body.getInputStream())
-   *     LegacyJavaProcessor.process(stream)  // Third-party code
+   *   closeable.use {
+   *     val stream = leak($[Request] $ (_.body.getInputStream()))
+   *     ThirdPartyProcessor.process(stream)
    *   }
    *   }}}
    *
@@ -134,8 +231,17 @@ package object scope {
    * `@nowarn("msg=is being leaked")` or configure your build tool's lint
    * settings.
    *
-   * If the type is not actually resourceful, consider adding a `given
-   * ScopeEscape` instance to avoid needing `leak`.
+   * If the type is not actually resourceful, consider adding a `given Unscoped`
+   * instance to avoid needing `leak`.
+   *
+   * @param scoped
+   *   the scoped value to leak
+   * @tparam A
+   *   the underlying value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   the raw unwrapped value
    */
   inline def leak[A, S](inline scoped: A @@ S): A = ${ LeakMacros.leakImpl[A, S]('scoped) }
 }

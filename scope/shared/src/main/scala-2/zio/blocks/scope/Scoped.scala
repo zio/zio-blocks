@@ -5,25 +5,67 @@ import scala.language.implicitConversions
 
 /**
  * Companion object for the `@@` type providing scoping operations.
+ *
+ * In Scala 2, `@@` is implemented via [[ScopedModule]] rather than an opaque
+ * type. The `scoped` and `unscoped` operations delegate to the module
+ * implementation.
+ *
+ * @see
+ *   [[ScopedOps]] for extension methods on scoped values
+ * @see
+ *   [[ScopedModule]] for the underlying implementation
  */
 object @@ {
 
-  /** Scopes a value with a scope identity. */
+  /**
+   * Scopes a value with a scope identity.
+   *
+   * This wraps a raw value `A` into a scoped value `A @@ S`. The scope tag `S`
+   * is typically the path-dependent `Tag` type of a [[Scope]] instance.
+   *
+   * @param a
+   *   the value to scope
+   * @tparam A
+   *   the value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   the scoped value
+   */
   def scoped[A, S](a: A): A @@ S = ScopedModule.instance.scoped(a)
 
-  /** Retrieves the underlying value without unscoping (internal use). */
+  /**
+   * Retrieves the underlying value without unscoping (internal use only).
+   *
+   * This is package-private to prevent bypassing the scope safety checks.
+   * External code should use `$` or `get` with proper scope in context.
+   */
   private[scope] def unscoped[A, S](scoped: A @@ S): A = ScopedModule.instance.unscoped(scoped)
 }
 
 /**
- * Implicit class providing operations on scoped values.
+ * Implicit class providing operations on scoped values (Scala 2).
+ *
+ * This is automatically available via the implicit conversion in
+ * [[ScopedOps$]]. Use [[toScopedOps]] to convert a scoped value to this
+ * wrapper.
  *
  * @example
  *   {{{
  *   val stream: InputStream @@ scope.Tag = closeable.value
- *   stream.$(_.read())(closeable, implicitly)  // Returns Int (unscoped)
- *   stream.map(_.available)                     // Returns Int @@ scope.Tag
+ *   stream.$(_.read())  // Returns Int (unscoped, since Int is Unscoped)
+ *   stream.map(_.available)  // Returns Int @@ scope.Tag
  *   }}}
+ *
+ * @tparam A
+ *   the underlying value type
+ * @tparam S
+ *   the scope tag type
+ *
+ * @see
+ *   [[@@]] for scoping operations
+ * @see
+ *   [[ScopeEscape]] for the typeclass determining escape behavior
  */
 final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
 
@@ -69,36 +111,70 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
   def get(implicit u: ScopeEscape[A, S]): u.Out = macro ScopedMacros.getImpl[A, S]
 
   /**
-   * Maps over a scoped value, preserving the tag.
+   * Maps over a scoped value, preserving the scope tag.
+   *
+   * The function `f` is applied to the underlying value, and the result is
+   * wrapped with the same scope tag. This does not require the scope to be in
+   * context.
    *
    * @param f
-   *   The function to apply
+   *   the function to apply to the underlying value
+   * @tparam B
+   *   the result type of the function
    * @return
-   *   Result with same tag
+   *   the result wrapped with the same scope tag
    */
   def map[B](f: A => B): B @@ S =
     @@.scoped(f(@@.unscoped(scoped)))
 
   /**
-   * FlatMaps over a scoped value, combining tags via intersection.
+   * FlatMaps over a scoped value, combining scope tags via intersection.
+   *
+   * Enables for-comprehension syntax with scoped values. The resulting value is
+   * tagged with the intersection of both scope tags (`S with T`), ensuring it
+   * can only be used where both scopes are available.
    *
    * @param f
-   *   Function returning a scoped result
+   *   function returning a scoped result
+   * @tparam B
+   *   the underlying result type
+   * @tparam T
+   *   the scope tag of the returned value
    * @return
-   *   Result with the combined tag S with T
+   *   the result with combined scope tag `S with T`
    */
   def flatMap[B, T](f: A => B @@ T): B @@ (S with T) =
     @@.scoped(@@.unscoped(f(@@.unscoped(scoped))))
 
-  /** Extracts the first element of a scoped tuple. */
+  /**
+   * Extracts the first element of a scoped tuple.
+   *
+   * @return
+   *   the first element, still scoped with tag `S`
+   */
   def _1[X, Y](implicit ev: A =:= (X, Y)): X @@ S =
     @@.scoped(ev(@@.unscoped(scoped))._1)
 
-  /** Extracts the second element of a scoped tuple. */
+  /**
+   * Extracts the second element of a scoped tuple.
+   *
+   * @return
+   *   the second element, still scoped with tag `S`
+   */
   def _2[X, Y](implicit ev: A =:= (X, Y)): Y @@ S =
     @@.scoped(ev(@@.unscoped(scoped))._2)
 }
 
+/**
+ * Companion object providing implicit conversion to [[ScopedOps]].
+ */
 object ScopedOps {
+
+  /**
+   * Implicit conversion from a scoped value to [[ScopedOps]].
+   *
+   * This enables the extension methods (`$`, `get`, `map`, etc.) on scoped
+   * values.
+   */
   implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
 }
