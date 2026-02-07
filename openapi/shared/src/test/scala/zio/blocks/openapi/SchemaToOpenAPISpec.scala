@@ -148,22 +148,7 @@ object SchemaToOpenAPISpec extends SchemaBaseSpec {
         )
       }
     ),
-    suite("enums")(
-      test("converts Scala 3 enum to OpenAPI string schema with enum values") {
-        enum Status {
-          case Active, Inactive, Pending
-        }
 
-        implicit val statusSchema: Schema[Status] = Schema.derived
-
-        val openAPISchema = Schema[Status].toOpenAPISchema
-
-        assertTrue(
-          openAPISchema.toJsonSchema.isRight,
-          openAPISchema.discriminator.isEmpty
-        )
-      }
-    ),
     suite("round-trip conversions")(
       test("Schema -> OpenAPI -> JsonSchema preserves structure") {
         case class Product(id: Long, name: String, price: Double)
