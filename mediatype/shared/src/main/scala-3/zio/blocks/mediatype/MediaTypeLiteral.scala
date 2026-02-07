@@ -2,12 +2,15 @@ package zio.blocks.mediatype
 
 import scala.quoted.*
 
-extension (inline ctx: StringContext) {
-  inline def mediaType(inline args: Any*): MediaType =
-    ${ MediaTypeLiteral.apply('ctx, 'args) }
+trait MediaTypeLiteral {
+
+  extension (inline ctx: StringContext) {
+    inline def mediaType(inline args: Any*): MediaType =
+      ${ MediaTypeLiteralMacros.apply('ctx, 'args) }
+  }
 }
 
-object MediaTypeLiteral {
+private[mediatype] object MediaTypeLiteralMacros {
   def apply(ctx: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[MediaType] = {
     import quotes.reflect.*
 
