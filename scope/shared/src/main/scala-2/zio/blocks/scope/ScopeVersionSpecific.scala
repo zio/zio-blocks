@@ -1,10 +1,12 @@
 package zio.blocks.scope
 
+import zio.blocks.scope.internal.Finalizers
+
 /**
  * Scala 2-specific extension methods for Scope.
  */
-private[scope] trait ScopeVersionSpecific[ParentTag, Tag <: ParentTag] {
-  self: Scope[ParentTag, Tag] =>
+private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
+  self: Scope[ParentTag, Tag0] =>
 
   /**
    * Applies a function to a scoped value, escaping if the result is Unscoped.
@@ -21,7 +23,7 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag <: ParentTag] {
    *   either raw B or B @@ S depending on ScopeEscape
    */
   def $[A, B, S](scoped: A @@ S)(f: A => B)(implicit
-    ev: Tag <:< S,
+    ev: self.Tag <:< S,
     escape: ScopeEscape[B, S]
   ): escape.Out =
     escape(f(@@.unscoped(scoped)))
@@ -39,8 +41,33 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag <: ParentTag] {
    *   either raw A or A @@ S depending on ScopeEscape
    */
   def apply[A, S](scoped: Scoped[S, A])(implicit
-    ev: Tag <:< S,
+    ev: self.Tag <:< S,
     escape: ScopeEscape[A, S]
   ): escape.Out =
     escape(scoped.run())
+
+  /**
+   * Creates a child scope.
+   *
+   * The function receives a child scope that can access this scope's resources.
+   * The child scope closes when the block exits, running all finalizers.
+   *
+   * Note: In Scala 2, the child scope reuses the parent's Tag type. For full
+   * existential tag safety, use Scala 3.
+   *
+   * @param f
+   *   the function to execute with the child scope
+   * @tparam A
+   *   the result type
+   * @return
+   *   the result of the function
+   */
+  def scoped[A](f: Scope[self.Tag, self.Tag] => A): A = {
+    val childScope = new Scope[self.Tag, self.Tag](new Finalizers)
+    try f(childScope)
+    finally {
+      val errors = childScope.close()
+      errors.headOption.foreach(throw _)
+    }
+  }
 }

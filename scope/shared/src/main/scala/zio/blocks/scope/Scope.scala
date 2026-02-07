@@ -43,9 +43,14 @@ import zio.blocks.scope.internal.Finalizers
  * @see
  *   [[@@]] for scoped value type [[Factory]] for creating scoped values
  */
-final class Scope[ParentTag, Tag <: ParentTag] private[scope] (
+final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   private[scope] val finalizers: Finalizers
-) extends ScopeVersionSpecific[ParentTag, Tag] {
+) extends ScopeVersionSpecific[ParentTag, Tag0] {
+
+  /**
+   * This scope's tag type, exposed as a type member for path-dependent typing.
+   */
+  type Tag = Tag0
 
   /**
    * Creates a value in this scope using the given factory.
@@ -63,28 +68,6 @@ final class Scope[ParentTag, Tag <: ParentTag] private[scope] (
    */
   def create[A](factory: Factory[A]): A @@ Tag =
     @@.scoped(factory.make(this))
-
-  /**
-   * Creates a child scope.
-   *
-   * The function receives a child scope that can access this scope's resources.
-   * The child scope closes when the block exits, running all finalizers.
-   *
-   * @param f
-   *   the function to execute with the child scope
-   * @tparam A
-   *   the result type
-   * @return
-   *   the result of the function
-   */
-  def scoped[A](f: Scope[Tag, Tag] => A): A = {
-    val childScope = new Scope[Tag, Tag](new Finalizers)
-    try f(childScope)
-    finally {
-      val errors = childScope.close()
-      errors.headOption.foreach(throw _)
-    }
-  }
 
   /**
    * Registers a finalizer to run when this scope closes.
