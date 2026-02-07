@@ -875,7 +875,7 @@ object TypeIdMacros {
         val nestedAnnotSym   = tpt.tpe.typeSymbol
         val nestedOwnerExpr  = buildOwner(c)(nestedAnnotSym.owner)
         val nestedTypeIdExpr =
-          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.zio.blocks.typeid.TypeDefKind.Unknown)"
+          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.zio.blocks.typeid.TypeDefKind.basicClass)"
         val nestedArgsExpr = nestedArgs.flatMap(a => buildAnnotationArg(c)(a))
         Some(
           q"_root_.zio.blocks.typeid.AnnotationArg.Nested(_root_.zio.blocks.typeid.Annotation($nestedTypeIdExpr, _root_.scala.List(..$nestedArgsExpr)))"
