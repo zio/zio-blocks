@@ -238,17 +238,10 @@ object DeriveShowExample extends App {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
 
       new Show[A] {
-        def show(value: A): String =
-          // Unwrap returns Either[SchemaError, B] now
-          wrapperBinding.unwrap(value) match {
-            case Right(unwrapped) =>
-              // Show the underlying value with the wrapper type name
-              // Force the wrapped Show instance only when actually showing
-              s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
-            case Left(error) =>
-              // Handle unwrap failure - show error information
-              s"${typeId.name}(<unwrap failed: ${error.message}>)"
-          }
+        def show(value: A): String = {
+          val unwrapped = wrapperBinding.unwrap(value)
+          s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
+        }
       }
     }
   }

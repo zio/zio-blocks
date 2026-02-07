@@ -6,6 +6,7 @@ import zio.blocks.schema.binding.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
 
+import scala.reflect.ClassTag
 import scala.util.Random
 
 /**
@@ -144,22 +145,24 @@ object DeriveGenExample extends App {
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = Lazy {
-      val elementGen  = D.instance(element.metadata)
-      val seqBinding  = binding.asInstanceOf[Binding.Seq[C, A]]
-      val constructor = seqBinding.constructor
+      val elementGen   = D.instance(element.metadata)
+      val seqBinding   = binding.asInstanceOf[Binding.Seq[C, A]]
+      val constructor  = seqBinding.constructor
+      val elemClassTag = element.typeId.classTag.asInstanceOf[ClassTag[A]]
 
       new Gen[C[A]] {
         def generate(random: Random): C[A] = {
-          val length = random.nextInt(6) // 0 to 5 elements
+          val length                   = random.nextInt(6) // 0 to 5 elements
+          implicit val ct: ClassTag[A] = ClassTag.Any.asInstanceOf[ClassTag[A]]
 
           if (length == 0) {
-            constructor.emptyObject[A]
+            constructor.empty[A]
           } else {
-            val builder = constructor.newObjectBuilder[A](length)
+            val builder = constructor.newBuilder[A](length)(elemClassTag)
             (0 until length).foreach { _ =>
-              constructor.addObject(builder, elementGen.force.generate(random))
+              constructor.add(builder, elementGen.force.generate(random))
             }
-            constructor.resultObject(builder)
+            constructor.result(builder)
           }
         }
       }
@@ -275,10 +278,7 @@ object DeriveGenExample extends App {
 
       new Gen[A] {
         def generate(random: Random): A =
-          wrapperBinding.wrap(wrappedGen.force.generate(random)) match {
-            case Right(a) => a
-            case Left(_)  => generate(random) // Retry on validation failure
-          }
+          wrapperBinding.wrap(wrappedGen.force.generate(random))
       }
     }
   }
