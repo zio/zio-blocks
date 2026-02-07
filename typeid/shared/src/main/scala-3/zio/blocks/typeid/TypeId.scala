@@ -249,6 +249,12 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   def nominal[A <: AnyKind](
     name: String,
     owner: Owner,
+    kind: TypeDefKind
+  ): TypeId[A] = Impl[A](name, owner, Nil, Nil, kind, None, None, None, Nil)
+
+  def nominal[A <: AnyKind](
+    name: String,
+    owner: Owner,
     typeParams: List[TypeParam] = Nil,
     typeArgs: List[TypeRepr] = Nil,
     defKind: TypeDefKind = TypeDefKind.Unknown,
