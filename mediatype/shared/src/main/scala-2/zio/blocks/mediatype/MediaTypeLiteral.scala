@@ -61,9 +61,9 @@ private[mediatype] object MediaTypeMacros {
           .split(';')
           .map(_.trim)
           .filter(_.nonEmpty)
-            .flatMap { param =>
-              param.split("=", 2) match {
-                case Array(key, value) => Some(key.trim.toLowerCase -> value.trim)
+          .flatMap { param =>
+            param.split("=", 2) match {
+              case Array(key, value) => Some(key.trim.toLowerCase -> value.trim)
               case _                 => None
             }
           }
