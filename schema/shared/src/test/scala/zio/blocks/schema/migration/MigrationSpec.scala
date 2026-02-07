@@ -6,13 +6,13 @@ import zio.blocks.chunk.Chunk
 
 object MigrationSpec extends ZIOSpecDefault {
 
-  // For direct MigrationAction construction
-  private def literal(dv: DynamicValue): DynamicSchemaExpr =
-    DynamicSchemaExpr.Literal(dv)
+  // For direct MigrationAction construction (DynamicMigration suite)
+  private def literal[A: Schema](value: A): DynamicSchemaExpr =
+    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value))
 
-  // For builder API (wraps DynamicSchemaExpr in SchemaExpr)
-  private def literalExpr(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
-    SchemaExpr.literal(dv)
+  // For builder API (Selector Syntax suite)
+  private def literalExpr[A: Schema](value: A): SchemaExpr[Any, A] =
+    SchemaExpr.literal(value)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
     suite("DynamicMigration")(
@@ -26,7 +26,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("age"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         val expected = DynamicValue.Record(
@@ -44,7 +44,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.DropField(
             DynamicOptic.root.field("age"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         val expected = DynamicValue.Record("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
@@ -63,7 +63,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("42")))
+            literal("42")
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.String("42"))))
@@ -81,7 +81,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val m2    = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("c"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         val expected = DynamicValue.Record(
@@ -97,19 +97,19 @@ object MigrationSpec extends ZIOSpecDefault {
         val m1 = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("a"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         val m2 = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("b"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         val m3 = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("c"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+            literal(3)
           )
         )
         val input = DynamicValue.Record.empty
@@ -120,7 +120,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val m = DynamicMigration(
           MigrationAction.AddField(
             DynamicOptic.root.field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           ),
           MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
         )
@@ -138,7 +138,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val m     = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("age"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(30)))
+            literal(30)
           )
         )
         // AddField.reverse is DropField, so m(input) adds "age", then m.reverse removes it
@@ -186,7 +186,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.DropField(
             DynamicOptic.root.field("b"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -197,7 +197,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("a"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -210,7 +210,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            literal(42)
           )
         )
         // With Literal, the transform just replaces the value
@@ -245,7 +245,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.DropField(
             DynamicOptic.root.field("missing_field"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         val result = migration(input)
@@ -260,7 +260,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("existing"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         val result = migration(input)
@@ -315,7 +315,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 DynamicOptic.root.field("x"),
-                literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+                literal(1)
               )
             )
           )
@@ -332,7 +332,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+            literal("transformed")
           )
         )
         val result = migration(input)
@@ -347,7 +347,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+            literal("key")
           )
         )
         val result = migration(input)
@@ -362,7 +362,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValues(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+            literal("value")
           )
         )
         val result = migration(input)
@@ -390,7 +390,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+            literal(99L)
           )
         )
         val result = migration(input)
@@ -417,7 +417,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+            literal(99L)
           )
         )
         val result = migration(input)
@@ -497,7 +497,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("w").field("x").field("y").field("z"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            literal(42)
           )
         )
         val expected = DynamicValue.Record(
@@ -523,7 +523,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             DynamicOptic.root.field("level1").field("level2").field("level3"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(42L)))
+            literal(42L)
           )
         )
         val expected = DynamicValue.Record(
@@ -551,7 +551,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root.field("nested").field("items"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+            literal(0L)
           )
         )
         val expected = DynamicValue.Record(
@@ -593,7 +593,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.ChangeType(
             DynamicOptic.root.field("count"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(42L)))
+            literal(42L)
           )
         )
         val expected = DynamicValue.Record("count" -> DynamicValue.Primitive(PrimitiveValue.Long(42L)))
@@ -607,7 +607,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.ChangeType(
             DynamicOptic.root.field("outer").field("value"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(100L)))
+            literal(100L)
           )
         )
         val expected = DynamicValue.Record(
@@ -623,7 +623,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.Mandate(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
@@ -631,14 +631,14 @@ object MigrationSpec extends ZIOSpecDefault {
 
       test("mandate with None uses default") {
         val input        = DynamicValue.Variant("None", DynamicValue.Record.empty)
-        val defaultValue = DynamicValue.Primitive(PrimitiveValue.Int(99))
+        val defaultValue = literal(99)
         val migration    = DynamicMigration.single(
           MigrationAction.Mandate(
             DynamicOptic.root,
-            literal(defaultValue)
+            defaultValue
           )
         )
-        assertTrue(migration(input) == Right(defaultValue))
+        assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Int(99))))
       },
 
       test("optionalize wraps value in Some") {
@@ -663,7 +663,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 DynamicOptic.root.field("y"),
-                literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+                literal(2)
               )
             )
           )
@@ -710,7 +710,7 @@ object MigrationSpec extends ZIOSpecDefault {
               MigrationAction.Rename(DynamicOptic.root.field("a"), "b"),
               MigrationAction.AddField(
                 DynamicOptic.root.field("c"),
-                literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+                literal(3)
               )
             )
           )
@@ -736,7 +736,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.TransformValue(
                 DynamicOptic.root.field("value"),
-                literal(DynamicValue.Primitive(PrimitiveValue.String("42")))
+                literal("42")
               )
             )
           )
@@ -759,7 +759,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 DynamicOptic.root.field("newField"),
-                literal(DynamicValue.Primitive(PrimitiveValue.String("data")))
+                literal("data")
               )
             )
           )
@@ -784,7 +784,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+            literal(0L)
           )
         )
         val expected = DynamicValue.Sequence(
@@ -808,7 +808,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root.field("items"),
-            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+            literal("transformed")
           )
         )
         val expected = DynamicValue.Record(
@@ -826,7 +826,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            literal(42)
           )
         )
         val expected = DynamicValue.Sequence(Chunk.empty)
@@ -845,7 +845,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+            literal("key")
           )
         )
         val expected = DynamicValue.Map(
@@ -866,7 +866,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValues(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+            literal(0L)
           )
         )
         val expected = DynamicValue.Map(
@@ -889,7 +889,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValues(
             DynamicOptic.root.field("data"),
-            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+            literal("transformed")
           )
         )
         val expected = DynamicValue.Record(
@@ -913,7 +913,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("anyKey")))
+            literal("anyKey")
           )
         )
         val expected = DynamicValue.Map(Chunk.empty)
@@ -928,7 +928,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val m2    = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("c"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         val expected = DynamicValue.Record(
@@ -942,7 +942,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Rename(DynamicOptic.root.field("a"), "b"),
           MigrationAction.AddField(
             DynamicOptic.root.field("c"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration.size == 2)
@@ -959,7 +959,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Join(
             at = DynamicOptic.root.field("fullName"),
             sourcePaths = Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
-            combiner = literal(DynamicValue.Primitive(PrimitiveValue.String("John Doe")))
+            combiner = literal("John Doe")
           )
         )
         val expected = DynamicValue.Record(
@@ -977,7 +977,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Split(
             at = DynamicOptic.root.field("fullName"),
             targetPaths = Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
-            splitter = literal(DynamicValue.Primitive(PrimitiveValue.String("split")))
+            splitter = literal("split")
           )
         )
         val expected = DynamicValue.Record(
@@ -991,7 +991,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val at     = DynamicOptic.root.field("target")
         val source = DynamicOptic.root.field("source")
         val paths  = Vector(source)
-        val expr   = literal(DynamicValue.Primitive(PrimitiveValue.String("test")))
+        val expr   = literal("test")
 
         val join  = MigrationAction.Join(at, paths, expr)
         val split = MigrationAction.Split(at, paths, expr)
@@ -1013,7 +1013,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literalExpr(0))
           .build
 
         val input  = PersonV1("Alice")
@@ -1049,7 +1049,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .dropField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .dropField(_.age, literalExpr(0))
           .build
 
         val input  = PersonV1("Alice", 30)
@@ -1067,7 +1067,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .transformField(_.age, _.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Long(30L))))
+          .transformField(_.age, _.age, literalExpr(30L))
           .build
 
         val input  = PersonV1(30)
@@ -1085,7 +1085,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .changeFieldType(_.score, _.score, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+          .changeFieldType(_.score, _.score, literalExpr("42"))
           .build
 
         val input  = PersonV1(42)
@@ -1103,7 +1103,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .mandateField(_.age, _.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .mandateField(_.age, _.age, literalExpr(0))
           .buildPartial
 
         assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.Mandate])
@@ -1131,7 +1131,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[Container, Container]
-          .transformElements(_.items, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .transformElements(_.items, literalExpr(0))
           .buildPartial
 
         assertTrue(
@@ -1146,7 +1146,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[Container, Container]
-          .transformKeys(_.data, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("key"))))
+          .transformKeys(_.data, literalExpr("key"))
           .buildPartial
 
         assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformKeys])
@@ -1159,7 +1159,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[Container, Container]
-          .transformValues(_.data, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .transformValues(_.data, literalExpr(0))
           .buildPartial
 
         assertTrue(
@@ -1187,7 +1187,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("AddField.fieldName extracts field name from path") {
         val action = MigrationAction.AddField(
           DynamicOptic.root.field("myField"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.fieldName == "myField")
       },
@@ -1195,7 +1195,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("AddField.fieldName throws on invalid path (root only)") {
         val action = MigrationAction.AddField(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val result = scala.util.Try(action.fieldName)
         assertTrue(result.isFailure)
@@ -1204,7 +1204,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("AddField.fieldName throws on non-Field path node") {
         val action = MigrationAction.AddField(
           DynamicOptic(Vector(DynamicOptic.Node.Case("SomeCase"))),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val result = scala.util.Try(action.fieldName)
         assertTrue(result.isFailure)
@@ -1213,7 +1213,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("DropField.fieldName extracts field name from path") {
         val action = MigrationAction.DropField(
           DynamicOptic.root.field("myField"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.fieldName == "myField")
       },
@@ -1221,7 +1221,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("DropField.fieldName throws on invalid path (root only)") {
         val action = MigrationAction.DropField(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val result = scala.util.Try(action.fieldName)
         assertTrue(result.isFailure)
@@ -1230,7 +1230,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("DropField.fieldName throws on non-Field path node") {
         val action = MigrationAction.DropField(
           DynamicOptic(Vector(DynamicOptic.Node.Elements)),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val result = scala.util.Try(action.fieldName)
         assertTrue(result.isFailure)
@@ -1265,7 +1265,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration.isEmpty == false)
@@ -1276,7 +1276,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("b"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         assertTrue(migration(input).isRight)
@@ -1287,7 +1287,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1298,7 +1298,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.DropField(
             DynamicOptic.root.field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1326,7 +1326,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Join(
             at = DynamicOptic.root.field("target"),
             sourcePaths = Vector(DynamicOptic.root.field("source")),
-            combiner = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            combiner = literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1338,7 +1338,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Join(
             at = DynamicOptic.root,
             sourcePaths = Vector(DynamicOptic.root.field("a")),
-            combiner = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            combiner = literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1350,7 +1350,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Split(
             at = DynamicOptic.root.field("source"),
             targetPaths = Vector(DynamicOptic.root.field("target1")),
-            splitter = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            splitter = literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1362,7 +1362,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Split(
             at = DynamicOptic.root.field("source"),
             targetPaths = Vector(DynamicOptic.root),
-            splitter = literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            splitter = literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1384,7 +1384,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 DynamicOptic.root.field("x"),
-                literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+                literal(1)
               )
             )
           )
@@ -1397,7 +1397,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+            literal("transformed")
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1408,7 +1408,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+            literal("key")
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1419,7 +1419,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValues(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+            literal("value")
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1447,7 +1447,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root.field("items"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+            literal(0L)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1458,7 +1458,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root.field("data"),
-            literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+            literal("key")
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1469,7 +1469,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValues(
             DynamicOptic.root.field("data"),
-            literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+            literal("value")
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1493,7 +1493,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+            literal(99L)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1510,7 +1510,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+            literal(99L)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1533,7 +1533,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+            literal(99L)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1550,7 +1550,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(99L)))
+            literal(99L)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1562,7 +1562,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("outer").field("missing").field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1575,7 +1575,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("outer").field("inner").field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1596,7 +1596,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+            literal("transformed")
           )
         )
         assertTrue(migration(input).isLeft)
@@ -1621,7 +1621,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("replaced")))
+            literal("replaced")
           )
         )
         val expected = DynamicValue.Sequence(
@@ -1644,7 +1644,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformKeys(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("unified")))
+            literal("unified")
           )
         )
         val expected = DynamicValue.Map(
@@ -1686,7 +1686,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             DynamicOptic.root.field("l1").field("l2").field("l3").field("target"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(42L)))
+            literal(42L)
           )
         )
         val expected = DynamicValue.Record(
@@ -1711,7 +1711,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Long(42L)))
+            literal(42L)
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
@@ -1728,7 +1728,7 @@ object MigrationSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("target1"),
               DynamicOptic.root.field("target2")
             ),
-            splitter = literal(DynamicValue.Primitive(PrimitiveValue.String("split")))
+            splitter = literal("split")
           )
         )
         assertTrue(migration(input).isRight)
@@ -1736,14 +1736,14 @@ object MigrationSpec extends ZIOSpecDefault {
 
       test("mandate with None and default value") {
         val input        = DynamicValue.Variant("None", DynamicValue.Record.empty)
-        val defaultValue = DynamicValue.Primitive(PrimitiveValue.String("default"))
+        val defaultValue = literal("default")
         val migration    = DynamicMigration.single(
           MigrationAction.Mandate(
             DynamicOptic.root,
-            literal(defaultValue)
+            defaultValue
           )
         )
-        assertTrue(migration(input) == Right(defaultValue))
+        assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.String("default"))))
       },
 
       test("optionalize double wraps value") {
@@ -1761,7 +1761,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Join(
             at = DynamicOptic.root.field("joined"),
             sourcePaths = Vector.empty,
-            combiner = literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+            combiner = literal(99)
           )
         )
         assertTrue(migration(input).isRight)
@@ -1780,7 +1780,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformElements(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Sequence(Chunk.empty)))
@@ -1791,7 +1791,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValues(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("any")))
+            literal("any")
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Map(Chunk.empty)))
@@ -1802,7 +1802,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of AddField is DropField") {
         val action = MigrationAction.AddField(
           DynamicOptic.root.field("x"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.DropField])
       },
@@ -1810,7 +1810,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of DropField is AddField") {
         val action = MigrationAction.DropField(
           DynamicOptic.root.field("x"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.AddField])
       },
@@ -1824,7 +1824,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of TransformValue is TransformValue") {
         val action = MigrationAction.TransformValue(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformValue])
       },
@@ -1832,7 +1832,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of Mandate is Optionalize") {
         val action = MigrationAction.Mandate(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Optionalize])
       },
@@ -1851,7 +1851,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of ChangeType is ChangeType") {
         val action = MigrationAction.ChangeType(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Long(1L)))
+          literal(1L)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.ChangeType])
       },
@@ -1859,7 +1859,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of TransformElements is TransformElements") {
         val action = MigrationAction.TransformElements(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformElements])
       },
@@ -1867,7 +1867,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of TransformKeys is TransformKeys") {
         val action = MigrationAction.TransformKeys(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          literal("key")
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformKeys])
       },
@@ -1875,7 +1875,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("reverse of TransformValues is TransformValues") {
         val action = MigrationAction.TransformValues(
           DynamicOptic.root,
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformValues])
       },
@@ -1891,7 +1891,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val action = MigrationAction.Join(
           DynamicOptic.root.field("target"),
           Vector(DynamicOptic.root.field("source")),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Split])
       },
@@ -1900,7 +1900,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val action = MigrationAction.Split(
           DynamicOptic.root.field("source"),
           Vector(DynamicOptic.root.field("target")),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Join])
       }
@@ -1910,7 +1910,7 @@ object MigrationSpec extends ZIOSpecDefault {
       test("DynamicMigration.apply with single action") {
         val action = MigrationAction.AddField(
           DynamicOptic.root.field("x"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val migration = DynamicMigration(action)
         assertTrue(migration.size == 1)
@@ -1919,11 +1919,11 @@ object MigrationSpec extends ZIOSpecDefault {
       test("DynamicMigration.apply with multiple actions") {
         val action1 = MigrationAction.AddField(
           DynamicOptic.root.field("x"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val action2 = MigrationAction.AddField(
           DynamicOptic.root.field("y"),
-          literal(DynamicValue.Primitive(PrimitiveValue.String("a")))
+          literal("a")
         )
         val migration = DynamicMigration(action1, action2)
         assertTrue(migration.size == 2)
@@ -1932,12 +1932,12 @@ object MigrationSpec extends ZIOSpecDefault {
       test("DynamicMigration.apply with three actions") {
         val action1 = MigrationAction.AddField(
           DynamicOptic.root.field("a"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          literal(1)
         )
         val action2 = MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
         val action3 = MigrationAction.AddField(
           DynamicOptic.root.field("c"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          literal(2)
         )
         val migration = DynamicMigration(action1, action2, action3)
         assertTrue(migration.size == 3)
@@ -1949,7 +1949,7 @@ object MigrationSpec extends ZIOSpecDefault {
           MigrationAction.Rename(DynamicOptic.root.field("a"), "b"),
           MigrationAction.AddField(
             DynamicOptic.root.field("c"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           )
         )
         val expected = DynamicValue.Record(
@@ -1968,7 +1968,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             DynamicOptic.root.field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(20)))
+            literal(20)
           )
         )
         val expected = DynamicValue.Record(
@@ -1991,7 +1991,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(20)))
+            literal(20)
           )
         )
         val expected = DynamicValue.Variant(
@@ -2012,7 +2012,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+            literal(99)
           )
         )
         val expected = DynamicValue.Sequence(
@@ -2034,7 +2034,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.String("newKey")))
+            literal("newKey")
           )
         )
         val expected = DynamicValue.Map(
@@ -2055,7 +2055,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+            literal(99)
           )
         )
         val expected = DynamicValue.Map(
@@ -2078,7 +2078,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
+            literal(99)
           )
         )
         val expected = DynamicValue.Sequence(
@@ -2106,7 +2106,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(999)))
+            literal(999)
           )
         )
         val expected = DynamicValue.Map(
@@ -2124,7 +2124,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           )
         )
         assertTrue(migration(input) == Left(SchemaError.caseNotFound(optic, "CaseB")))
@@ -2137,7 +2137,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.Mandate(
             DynamicOptic.root,
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
@@ -2157,7 +2157,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration(
           MigrationAction.AddField(
             DynamicOptic.root.field("x"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           ),
           MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
         )
@@ -2168,15 +2168,15 @@ object MigrationSpec extends ZIOSpecDefault {
         val actions = Vector(
           MigrationAction.AddField(
             DynamicOptic.root.field("a"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            literal(1)
           ),
           MigrationAction.AddField(
             DynamicOptic.root.field("b"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+            literal(2)
           ),
           MigrationAction.AddField(
             DynamicOptic.root.field("c"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+            literal(3)
           )
         )
         val migration = DynamicMigration(actions: _*)
@@ -2203,7 +2203,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.AddField(
           DynamicOptic.root.field("age"),
-          literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          literal(0)
         )
         val migration = Migration.fromAction[PersonV1, PersonV2](action)
         assertTrue(migration.size == 1)
@@ -2219,7 +2219,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val dynamicMigration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("age"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            literal(0)
           )
         )
         val migration = Migration.fromDynamic[PersonV1, PersonV2](dynamicMigration)
@@ -2237,11 +2237,11 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val m1 = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literalExpr(0))
           .build
         val m2 = Migration
           .newBuilder[PersonV2, PersonV3]
-          .addField(_.city, literalExpr(DynamicValue.Primitive(PrimitiveValue.String(""))))
+          .addField(_.city, literalExpr(""))
           .build
         val composed = m1 ++ m2
         assertTrue(composed.size == 2)
@@ -2256,7 +2256,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literalExpr(0))
           .build
         val reversed = migration.reverse
         assertTrue(reversed.sourceSchema == v2Schema && reversed.targetSchema == v1Schema)
@@ -2277,7 +2277,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val userMigration: Migration[User, UserV2] = Migration
           .newBuilder[User, UserV2]
-          .addField(_.email, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("default@example.com"))))
+          .addField(_.email, literalExpr("default@example.com"))
           .build
 
         val profileMigration = Migration
@@ -2304,7 +2304,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         implicit val addressMigration: Migration[Address, AddressV2] = Migration
           .newBuilder[Address, AddressV2]
-          .addField(_.zip, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
+          .addField(_.zip, literalExpr("00000"))
           .build
 
         val companyMigration = Migration
@@ -2331,7 +2331,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val innerMigration: Migration[Inner, InnerV2] = Migration
           .newBuilder[Inner, InnerV2]
-          .addField(_.c, literalExpr(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+          .addField(_.c, literalExpr(false))
           .build
 
         val outerMigration = Migration
@@ -2349,7 +2349,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val innerMigration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("newField"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+            literal(42)
           )
         )
         val action   = MigrationAction.ApplyMigration(DynamicOptic.root.field("nested"), innerMigration)
@@ -2377,7 +2377,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val nestedMigration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("age"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(25)))
+            literal(25)
           )
         )
 
@@ -2409,7 +2409,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val settingsMigration: Migration[Settings, SettingsV2] = Migration
           .newBuilder[Settings, SettingsV2]
-          .addField(_.fontSize, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(12))))
+          .addField(_.fontSize, literalExpr(12))
           .build
 
         val configMigration = Migration
@@ -2426,7 +2426,7 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
 
     suite("Nested Type Migrations")(
-      test("2-level nested case class migration - add field to nested record") {
+      test("Migration.fromActions API works for direct action construction") {
         case class AddressV1(street: String, city: String)
         case class PersonV1(name: String, address: AddressV1)
 
@@ -2441,7 +2441,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration.fromActions[PersonV1, PersonV2](
           MigrationAction.AddField(
             DynamicOptic.root.field("address").field("zip"),
-            literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
+            literal("00000")
           )
         )
 
@@ -2463,9 +2463,15 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
         implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
 
-        val migration = Migration.fromActions[PersonV1, PersonV2](
-          MigrationAction.Rename(DynamicOptic.root.field("address").field("street"), "streetName")
-        )
+        val addressMigration = Migration
+          .newBuilder[AddressV1, AddressV2]
+          .renameField(_.street, _.streetName)
+          .build
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .migrateField(_.address, _.address, addressMigration)
+          .build
 
         val input  = PersonV1("Bob", AddressV1("456 Oak Ave", "LA"))
         val result = migration(input)
@@ -2489,12 +2495,12 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val departmentV2Schema: Schema[DepartmentV2] = Schema.derived[DepartmentV2]
         implicit val companyV2Schema: Schema[CompanyV2]       = Schema.derived[CompanyV2]
 
-        val migration = Migration.fromActions[CompanyV1, CompanyV2](
-          MigrationAction.AddField(
-            DynamicOptic.root.field("department").field("employee").field("bonus"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Int(1000)))
+        val migration = Migration
+          .newBuilder[CompanyV1, CompanyV2]
+          .transformNested(_.department, _.department)(dept =>
+            dept.transformNested(_.employee, _.employee)(emp => emp.addField(_.bonus, literalExpr(1000)))
           )
-        )
+          .buildPartial
 
         val input = CompanyV1(
           "TechCorp",
@@ -2532,12 +2538,14 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val l2V2Schema: Schema[L2V2] = Schema.derived[L2V2]
         implicit val l1V2Schema: Schema[L1V2] = Schema.derived[L1V2]
 
-        val migration = Migration.fromActions[L1V1, L1V2](
-          MigrationAction.AddField(
-            DynamicOptic.root.field("l2").field("l3").field("l4").field("metadata"),
-            literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+        val migration = Migration
+          .newBuilder[L1V1, L1V2]
+          .transformNested(_.l2, _.l2)(l2 =>
+            l2.transformNested(_.l3, _.l3)(l3 =>
+              l3.transformNested(_.l4, _.l4)(l4 => l4.addField(_.metadata, literalExpr("default")))
+            )
           )
-        )
+          .buildPartial
 
         val input = L1V1(
           "Root",
@@ -2567,7 +2575,7 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
         implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
 
-        val migration = Migration.fromActions[PersonV1, PersonV2]()
+        val migration = Migration.newBuilder[PersonV1, PersonV2].buildPartial
 
         val inputWithSome  = PersonV1("Dave", Some(AddressV1("Boston")))
         val resultWithSome = migration(inputWithSome)
@@ -2587,7 +2595,7 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val itemV2Schema: Schema[ItemV2]           = Schema.derived[ItemV2]
         implicit val containerV2Schema: Schema[ContainerV2] = Schema.derived[ContainerV2]
 
-        val migration = Migration.fromActions[ContainerV1, ContainerV2]()
+        val migration = Migration.newBuilder[ContainerV1, ContainerV2].buildPartial
 
         val input = ContainerV1(
           List(ItemV1("Item1"), ItemV1("Item2"))
@@ -2609,7 +2617,7 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val configV2Schema: Schema[ConfigV2]     = Schema.derived[ConfigV2]
         implicit val settingsV2Schema: Schema[SettingsV2] = Schema.derived[SettingsV2]
 
-        val migration = Migration.fromActions[SettingsV1, SettingsV2]()
+        val migration = Migration.newBuilder[SettingsV1, SettingsV2].buildPartial
 
         val input = SettingsV1(
           Map("setting1" -> ConfigV1("on"), "setting2" -> ConfigV1("off"))
@@ -2635,12 +2643,12 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val l2V2Schema: Schema[L2V2] = Schema.derived[L2V2]
         implicit val l1V2Schema: Schema[L1V2] = Schema.derived[L1V2]
 
-        val migration = Migration.fromActions[L1V1, L1V2](
-          MigrationAction.Rename(
-            DynamicOptic.root.field("l2").field("l3").field("oldField"),
-            "newField"
+        val migration = Migration
+          .newBuilder[L1V1, L1V2]
+          .transformNested(_.l2, _.l2)(l2 =>
+            l2.transformNested(_.l3, _.l3)(l3 => l3.renameField(_.oldField, _.newField))
           )
-        )
+          .buildPartial
 
         val input  = L1V1(L2V1(L3V1(42)))
         val result = migration(input)
@@ -2660,13 +2668,14 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val innerV2Schema: Schema[InnerV2] = Schema.derived[InnerV2]
         implicit val outerV2Schema: Schema[OuterV2] = Schema.derived[OuterV2]
 
-        val migration = Migration.fromActions[OuterV1, OuterV2](
-          MigrationAction.Rename(DynamicOptic.root.field("inner").field("b"), "c"),
-          MigrationAction.AddField(
-            DynamicOptic.root.field("inner").field("d"),
-            literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+        val migration = Migration
+          .newBuilder[OuterV1, OuterV2]
+          .transformNested(_.inner, _.inner)(inner =>
+            inner
+              .renameField(_.b, _.c)
+              .addField(_.d, literalExpr(true))
           )
-        )
+          .build
 
         val input  = OuterV1("Test", InnerV1(10, "hello"))
         val result = migration(input)
@@ -2687,7 +2696,7 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit lazy val listNodeV1Schema: Schema[ListNodeV1] = Schema.derived[ListNodeV1]
         implicit lazy val listNodeV2Schema: Schema[ListNodeV2] = Schema.derived[ListNodeV2]
 
-        val migration = Migration.fromActions[ListNodeV1, ListNodeV2]()
+        val migration = Migration.newBuilder[ListNodeV1, ListNodeV2].buildPartial
 
         val input  = ListNodeV1(1, Some(ListNodeV1(2, None)))
         val result = migration(input)
