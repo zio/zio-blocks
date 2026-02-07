@@ -9,6 +9,98 @@ import scala.compiletime.summonInline
 private[scope] object ScopeMacros {
 
   // ─────────────────────────────────────────────────────────────────────────
+  // $[T] implementation - retrieves T from scoped context
+  // ─────────────────────────────────────────────────────────────────────────
+
+  def dollarImpl[T: Type](using Quotes): Expr[Any] = {
+    import quotes.reflect.*
+
+    val tTpe = TypeRepr.of[T]
+
+    // Search for IsNominalType[T] first - needed for both paths
+    val nomOpt = Implicits.search(TypeRepr.of[IsNominalType].appliedTo(tTpe)) match {
+      case success: ImplicitSearchSuccess => Some(success.tree.asExprOf[IsNominalType[T]])
+      case _                              => None
+    }
+
+    if (nomOpt.isEmpty) {
+      report.errorAndAbort(
+        s"No IsNominalType[${Type.show[T]}] found. " +
+          s"Make sure ${Type.show[T]} is a nominal type (class or trait, not a type alias or structural type)."
+      )
+    }
+
+    val nom = nomOpt.get
+
+    // Try the new safe pattern first: Scope.Access[S] + Context[T] @@ S
+    val accessType = TypeRepr.of[Scope.Access[?]]
+    val accessOpt  = Implicits.search(accessType) match {
+      case success: ImplicitSearchSuccess => Some(success)
+      case _                              => None
+    }
+
+    accessOpt match {
+      case Some(accessSuccess) =>
+        // New pattern: we're inside a .use block
+        val accessTpe  = accessSuccess.tree.tpe.widen
+        val contextTpe = TypeRepr.of[Context].appliedTo(tTpe)
+
+        // Extract S from Access[S]
+        val sType = accessTpe match {
+          case AppliedType(_, List(s)) => s
+          case _                       => report.errorAndAbort(s"Unexpected Access type: ${accessTpe.show}")
+        }
+
+        // Search for Context[T] @@ S
+        val scopedContextType = TypeRepr.of[@@].appliedTo(List(contextTpe, sType))
+        val ctxSearch         = Implicits.search(scopedContextType)
+
+        ctxSearch match {
+          case success: ImplicitSearchSuccess =>
+            val ctxExpr = success.tree.asExpr
+            sType.asType match {
+              case '[s] =>
+                '{
+                  val ctx: Context[T] @@ s = ${ ctxExpr.asExprOf[Context[T] @@ s] }
+                  val result: T @@ s       = @@.scoped[T, s](@@.unscoped(ctx).get[T](using $nom))
+                  result
+                }
+            }
+
+          case _: ImplicitSearchFailure =>
+            report.errorAndAbort(
+              s"No scoped context containing ${Type.show[T]} found. " +
+                s"Make sure you are inside a .use block for a scope that provides ${Type.show[T]}. " +
+                s"(Searched for Context[${Type.show[T]}] @@ ${sType.show})"
+            )
+        }
+
+      case None =>
+        // Fallback to legacy pattern: Scope.Has[T]
+        val scopeHasType = TypeRepr.of[Scope.Has].appliedTo(tTpe)
+        val scopeSearch  = Implicits.search(scopeHasType)
+
+        scopeSearch match {
+          case success: ImplicitSearchSuccess =>
+            val scopeExpr = success.tree.asExprOf[Scope.Has[T]]
+            // Use Any as the tag since we can't easily extract the path-dependent Tag type
+            // The actual tag is preserved at runtime through the opaque type
+            '{
+              val scope  = $scopeExpr
+              val result = @@.scoped[T, scope.Tag](scope.get[T](using $nom))
+              result
+            }
+
+          case _: ImplicitSearchFailure =>
+            report.errorAndAbort(
+              s"Cannot use $$[${Type.show[T]}]: no Scope.Access or Scope.Has[${Type.show[T]}] found. " +
+                s"Make sure you are inside a .use block or have a Scope.Has[${Type.show[T]}] in implicit scope."
+            )
+        }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // shared[T] / unique[T] implementations
   // ─────────────────────────────────────────────────────────────────────────
 

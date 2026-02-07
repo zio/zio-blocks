@@ -47,8 +47,8 @@ object Wireable extends WireableVersionSpecific {
    * signature.
    *
    * Use this type alias when defining manual wireables to preserve the
-   * dependency type information at the type level. This allows the compiler
-   * to properly track what dependencies are required.
+   * dependency type information at the type level. This allows the compiler to
+   * properly track what dependencies are required.
    *
    * @example
    *   {{{
@@ -62,8 +62,10 @@ object Wireable extends WireableVersionSpecific {
    *   implicit val databaseWireable: Wireable.Typed[Config, Database] = ...
    *   }}}
    *
-   * @tparam In0 the dependency types required (contravariant lower bound)
-   * @tparam Out the service type produced (covariant)
+   * @tparam In0
+   *   the dependency types required (contravariant lower bound)
+   * @tparam Out
+   *   the service type produced (covariant)
    */
   type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
 

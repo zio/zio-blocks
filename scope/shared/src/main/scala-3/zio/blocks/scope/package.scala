@@ -25,22 +25,23 @@ package object scope {
     scope.defer(finalizer)
 
   /**
-   * Retrieves a service from the current scope, scoped with the scope's
-   * identity.
+   * Retrieves a service of type `T` from the current scoped context.
    *
    * The returned value is scoped to prevent escape. Use the `$` operator on the
-   * scoped value to access methods:
+   * scoped value to access methods.
+   *
+   * The context's type `R` must be a subtype of `T` (meaning `T` is available
+   * in the context).
    *
    * @example
    *   {{{
-   *   def doWork()(using scope: Scope.Has[Database]): Unit = {
-   *     val db = $[Database]           // Database @@ scope.Tag
+   *   closeable.use {
+   *     val db = $[Database]           // Database @@ Tag
    *     db $ (_.query("SELECT ..."))   // String (unscoped, since String is Unscoped)
    *   }
    *   }}}
    */
-  inline def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag =
-    @@.scoped(scope.get[T])
+  transparent inline def $[T]: Any = ${ ScopeMacros.dollarImpl[T] }
 
   /**
    * Creates a closeable scope containing the given value.

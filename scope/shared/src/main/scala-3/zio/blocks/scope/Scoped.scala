@@ -22,6 +22,36 @@ package zio.blocks.scope
  */
 opaque infix type @@[+A, +S] = A
 
+/**
+ * Evidence that we have access to a scope with tag `S`.
+ *
+ * This can be satisfied by either:
+ *   - `Scope.Access[? <: S]` (new safe pattern from `.use`)
+ *   - `Scope { type Tag <: S }` (legacy pattern)
+ */
+sealed trait ScopeProof[-S]
+
+object ScopeProof extends ScopeProofLowPriority {
+
+  /** Scope.Access provides scope proof (higher priority). */
+  given fromAccess[S](using Scope.Access[S]): ScopeProof[S] = instance.asInstanceOf[ScopeProof[S]]
+
+  private[scope] val instance: ScopeProof[Any] = new ScopeProof[Any] {}
+}
+
+private[scope] trait ScopeProofLowPriority {
+
+  /**
+   * Legacy Scope with specific Tag provides scope proof (lower priority).
+   *
+   * This requires the scope to have a concrete Tag type that's known to be <:
+   * S. Using Scope.::[?, ?] ensures we get a scope with a concrete tag
+   * hierarchy.
+   */
+  given fromScope[S, H, T <: Scope](using scope: Scope.::[H, T] { type Tag <: S }): ScopeProof[S] =
+    ScopeProof.instance.asInstanceOf[ScopeProof[S]]
+}
+
 object @@ {
 
   /** Scopes a value with a scope identity. */
@@ -43,16 +73,22 @@ object @@ {
      * both branches (identity for Unscoped, scoped for resources) compile to
      * no-ops since `@@` is an opaque type alias.
      *
+     * Requires either:
+     *   - A `Scope.Access[? <: S]` (new safe pattern from `.use`)
+     *   - OR a `Scope { type Tag <: S }` (legacy pattern)
+     *
      * @param f
      *   The function to apply to the underlying value
-     * @param scope
-     *   Evidence that the current scope encompasses tag `S`
+     * @param access
+     *   Evidence that we have scope access (either new or legacy)
      * @param u
      *   Typeclass determining the result type
      * @return
      *   Either raw `B` or `B @@ S` depending on ScopeEscape instance
      */
-    inline infix def $[B](inline f: A => B)(using scope: Scope { type Tag <: S })(using
+    inline infix def $[B](inline f: A => B)(using
+      access: ScopeProof[S]
+    )(using
       u: ScopeEscape[B, S]
     ): u.Out =
       u(f(scoped))
@@ -65,22 +101,26 @@ object @@ {
      *   - If `A` is `Unscoped`, returns raw `A`
      *   - Otherwise, returns `A @@ S` (stays scoped)
      *
-     * @param scope
-     *   Evidence that the current scope encompasses tag `S`
+     * Requires either:
+     *   - A `Scope.Access[? <: S]` (new safe pattern from `.use`)
+     *   - OR a `Scope { type Tag <: S }` (legacy pattern)
+     *
+     * @param access
+     *   Evidence that we have scope access (either new or legacy)
      * @param u
      *   Typeclass determining the result type
      * @return
      *   Either raw `A` or `A @@ S` depending on ScopeEscape instance
      */
-    inline def get(using scope: Scope { type Tag <: S })(using u: ScopeEscape[A, S]): u.Out =
+    inline def get(using access: ScopeProof[S])(using u: ScopeEscape[A, S]): u.Out =
       u(scoped)
 
     /**
      * Maps over a scoped value, preserving the scope tag.
      *
-     * The function `f` is applied to the underlying value, and the result
-     * is wrapped with the same scope tag. This does not require the scope
-     * to be in context.
+     * The function `f` is applied to the underlying value, and the result is
+     * wrapped with the same scope tag. This does not require the scope to be in
+     * context.
      *
      * @example
      *   {{{
@@ -88,9 +128,12 @@ object @@ {
      *   val stmt: Statement @@ S = conn.map(_.createStatement())
      *   }}}
      *
-     * @param f the function to apply to the underlying value
-     * @tparam B the result type of the function
-     * @return the result wrapped with the same scope tag
+     * @param f
+     *   the function to apply to the underlying value
+     * @tparam B
+     *   the result type of the function
+     * @return
+     *   the result wrapped with the same scope tag
      */
     inline def map[B](inline f: A => B): B @@ S =
       f(scoped)
@@ -98,9 +141,9 @@ object @@ {
     /**
      * FlatMaps over a scoped value, combining scope tags via intersection.
      *
-     * Enables for-comprehension syntax with scoped values. The resulting
-     * value is tagged with the intersection of both scope tags, ensuring
-     * it can only be used where both scopes are available.
+     * Enables for-comprehension syntax with scoped values. The resulting value
+     * is tagged with the intersection of both scope tags, ensuring it can only
+     * be used where both scopes are available.
      *
      * @example
      *   {{{
@@ -110,10 +153,14 @@ object @@ {
      *   } yield combine(a, b)
      *   }}}
      *
-     * @param f function returning a scoped result
-     * @tparam B the underlying result type
-     * @tparam T the scope tag of the returned value
-     * @return the result with combined scope tag `S & T`
+     * @param f
+     *   function returning a scoped result
+     * @tparam B
+     *   the underlying result type
+     * @tparam T
+     *   the scope tag of the returned value
+     * @return
+     *   the result with combined scope tag `S & T`
      */
     inline def flatMap[B, T](inline f: A => B @@ T): B @@ (S & T) =
       f(scoped)
@@ -127,7 +174,8 @@ object @@ {
      *   val first: Int @@ S = pair._1
      *   }}}
      *
-     * @return the first element, still scoped with tag `S`
+     * @return
+     *   the first element, still scoped with tag `S`
      */
     inline def _1[X, Y](using ev: A =:= (X, Y)): X @@ S =
       ev(scoped)._1
@@ -141,7 +189,8 @@ object @@ {
      *   val second: String @@ S = pair._2
      *   }}}
      *
-     * @return the second element, still scoped with tag `S`
+     * @return
+     *   the second element, still scoped with tag `S`
      */
     inline def _2[X, Y](using ev: A =:= (X, Y)): Y @@ S =
       ev(scoped)._2

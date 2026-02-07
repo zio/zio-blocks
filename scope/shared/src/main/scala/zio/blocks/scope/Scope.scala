@@ -44,20 +44,48 @@ object Scope {
    * The global tag type - the root of the scope tag hierarchy.
    *
    * All scope tags are subtypes of `GlobalTag`. Since child scope tags are
-   * subtypes of their parent's tag, a value tagged with a parent scope can
-   * be used in child scopes (the child's tag satisfies the parent tag
-   * constraint), but child-tagged values cannot escape to parent scopes.
+   * subtypes of their parent's tag, a value tagged with a parent scope can be
+   * used in child scopes (the child's tag satisfies the parent tag constraint),
+   * but child-tagged values cannot escape to parent scopes.
    *
-   * @see [[Global]] for the scope instance that uses this tag
+   * @see
+   *   [[Global]] for the scope instance that uses this tag
    */
   type GlobalTag
+
+  /**
+   * An unforgeable marker that proves code is executing inside a `.use` block.
+   *
+   * `Access[S]` is a phantom-typed capability that can only be created inside
+   * the `zio.blocks.scope` package. It serves as compile-time evidence that the
+   * current code is within a valid scope context.
+   *
+   * All operations that access scoped values (`$`, `@@.$`, `@@.get`) require an
+   * implicit `Access[S]` where `S` is compatible with the value's tag.
+   *
+   * @tparam S
+   *   The scope tag this access token is valid for
+   */
+  sealed abstract class Access[S] private[scope] ()
+
+  private[scope] object Access {
+
+    /**
+     * Creates an Access token for use inside `.use` blocks.
+     *
+     * This is package-private to ensure Access tokens cannot be forged by user
+     * code.
+     */
+    def apply[S]: Access[S] = instance.asInstanceOf[Access[S]]
+
+    private val instance: Access[Any] = new Access[Any] {}
+  }
 
   /**
    * A scope with an unknown structure.
    *
    * Use this type alias in constructors that need access to `defer` for
-   * resource cleanup but don't need to access specific services from the
-   * scope.
+   * resource cleanup but don't need to access specific services from the scope.
    *
    * @example
    *   {{{
@@ -72,9 +100,9 @@ object Scope {
   /**
    * A scope that has service `T` available at the head position.
    *
-   * This is an alias for `Scope.::[T, Scope]`, representing a scope where
-   * the head contains a `Context[T]`. Use this when you need to retrieve
-   * a specific service from the scope.
+   * This is an alias for `Scope.::[T, Scope]`, representing a scope where the
+   * head contains a `Context[T]`. Use this when you need to retrieve a specific
+   * service from the scope.
    *
    * @example
    *   {{{
@@ -84,7 +112,8 @@ object Scope {
    *   }
    *   }}}
    *
-   * @tparam T the service type available in this scope
+   * @tparam T
+   *   the service type available in this scope
    */
   type Has[+T] = ::[T, Scope]
 
@@ -97,12 +126,13 @@ object Scope {
    *   - A reference to the tail (parent) scope
    *   - A `Finalizers` collection for cleanup
    *
-   * The `Tag` type is a subtype of `tail.Tag`, enabling child scopes to
-   * access parent-scoped values while preventing values from escaping
-   * upward.
+   * The `Tag` type is a subtype of `tail.Tag`, enabling child scopes to access
+   * parent-scoped values while preventing values from escaping upward.
    *
-   * @tparam H the type of service(s) at the head of this scope
-   * @tparam T the tail scope type
+   * @tparam H
+   *   the type of service(s) at the head of this scope
+   * @tparam T
+   *   the tail scope type
    */
   final class ::[+H, +T <: Scope](
     val head: Context[H],
@@ -125,7 +155,8 @@ object Scope {
     /**
      * Closes this scope, running all registered finalizers in LIFO order.
      *
-     * @return a Chunk containing any exceptions thrown by finalizers
+     * @return
+     *   a Chunk containing any exceptions thrown by finalizers
      */
     def close(): Chunk[Throwable] = finalizers.runAll()
   }
@@ -181,19 +212,22 @@ object Scope {
   /**
    * Extension methods for [[Scope]] instances.
    *
-   * Provides the `get` method for retrieving services from a scope.
+   * Provides the `get` method for retrieving services from a scope. This is
+   * package-private to prevent direct access outside `.use` blocks.
    */
-  implicit final class ScopeOps(private val self: Scope) extends AnyVal {
+  private[scope] implicit final class ScopeOps(private val self: Scope) extends AnyVal {
 
     /**
      * Retrieves a service of type `T` from this scope.
      *
      * Searches the scope's context stack for a service matching the nominal
-     * type. Throws if the service is not found (should not happen if types
-     * are correctly constrained).
+     * type. Throws if the service is not found (should not happen if types are
+     * correctly constrained).
      *
-     * @tparam T the service type to retrieve
-     * @return the service instance
+     * @tparam T
+     *   the service type to retrieve
+     * @return
+     *   the service instance
      */
     def get[T](implicit nom: IsNominalType[T]): T = self.getImpl(nom)
   }
@@ -205,8 +239,8 @@ object Scope {
   /**
    * The global scope singleton.
    *
-   * This is the root of all scope hierarchies. Use it as the starting point
-   * for building scopes with `injected`. The global scope:
+   * This is the root of all scope hierarchies. Use it as the starting point for
+   * building scopes with `injected`. The global scope:
    *   - Has no services available
    *   - Never closes during normal execution
    *   - Runs finalizers only during JVM shutdown
