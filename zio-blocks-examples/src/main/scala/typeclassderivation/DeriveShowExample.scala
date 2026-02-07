@@ -263,7 +263,7 @@ object DeriveShowExample extends App {
   printHeader("Example 1: Simple Person Record with two primitive fields")
 
   case class Person(name: String, age: Int)
-  
+
   object Person {
     implicit val schema: Schema[Person] = Schema.derived[Person]
     implicit val show: Show[Person]     = schema.derive(DeriveShow)

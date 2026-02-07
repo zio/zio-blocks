@@ -447,7 +447,7 @@ lazy val benchmarks = project
 lazy val examples = project
   .in(file("zio-blocks-examples"))
   .settings(
-    moduleName := "zio-blocks-examples",
+    moduleName     := "zio-blocks-examples",
     publish / skip := true,
     scalacOptions += "-experimental"
   )
@@ -473,7 +473,7 @@ lazy val docs = project
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                             := true,
+    publish / skip                             := true
   )
   .dependsOn(schema.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
   .enablePlugins(WebsitePlugin)
