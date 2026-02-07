@@ -22,12 +22,15 @@ object ScopeEscape extends ScopeEscapeMidPriority {
   /**
    * Auxiliary type alias that exposes the `Out` type member at the type level.
    *
-   * Use this when you need to refer to both the input types and the output
-   * type of a `ScopeEscape` instance in a type signature.
+   * Use this when you need to refer to both the input types and the output type
+   * of a `ScopeEscape` instance in a type signature.
    *
-   * @tparam A the value type being escaped
-   * @tparam S the scope tag type
-   * @tparam O the output type (either `A` or `A @@ S`)
+   * @tparam A
+   *   the value type being escaped
+   * @tparam S
+   *   the scope tag type
+   * @tparam O
+   *   the output type (either `A` or `A @@ S`)
    */
   type Aux[A, S, O] = ScopeEscape[A, S] { type Out = O }
 
