@@ -3,7 +3,6 @@ package zio.blocks.schema.json
 import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.JavaTimeGen._
 import zio.test._
-import zio.test.TestAspect.exceptNative
 
 import java.time._
 import java.util.{Currency, UUID}
@@ -12,8 +11,7 @@ object KeyableSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("KeyableSpec")(
     suite("Keyable instances exist for all PrimitiveType types")(
       test("Unit has Keyable instance") {
-        val s = Keyable[Unit]
-        assertTrue(s.asKey(()) == "{}")
+        assertTrue(Keyable[Unit].asKey(()) == "{}")
       },
       test("Boolean has Keyable instance") {
         check(Gen.boolean)(b => assertTrue(Keyable[Boolean].asKey(b) == b.toString))
@@ -31,10 +29,14 @@ object KeyableSpec extends SchemaBaseSpec {
         check(Gen.long)(l => assertTrue(Keyable[Long].asKey(l) == l.toString))
       },
       test("Float has Keyable instance") {
-        check(Gen.float)(f => assertTrue(Keyable[Float].asKey(f) == f.toString))
+        check(Gen.float.filter(_.isFinite)) { f =>
+          assertTrue(Keyable[Float].asKey(f) == JsonBinaryCodec.floatCodec.encodeToString(f))
+        }
       },
       test("Double has Keyable instance") {
-        check(Gen.double)(d => assertTrue(Keyable[Double].asKey(d) == d.toString))
+        check(Gen.double.filter(_.isFinite)) { d =>
+          assertTrue(Keyable[Double].asKey(d) == JsonBinaryCodec.doubleCodec.encodeToString(d))
+        }
       },
       test("Char has Keyable instance") {
         check(Gen.char)(c => assertTrue(Keyable[Char].asKey(c) == c.toString))
@@ -136,20 +138,6 @@ object KeyableSpec extends SchemaBaseSpec {
           Keyable[Long].asKey(Long.MinValue) == "-9223372036854775808"
         )
       },
-      test("Float asKey handles special values") {
-        assertTrue(
-          Keyable[Float].asKey(Float.NaN) == "NaN",
-          Keyable[Float].asKey(Float.PositiveInfinity) == "Infinity",
-          Keyable[Float].asKey(Float.NegativeInfinity) == "-Infinity"
-        )
-      },
-      test("Double asKey handles special values") {
-        assertTrue(
-          Keyable[Double].asKey(Double.NaN) == "NaN",
-          Keyable[Double].asKey(Double.PositiveInfinity) == "Infinity",
-          Keyable[Double].asKey(Double.NegativeInfinity) == "-Infinity"
-        )
-      },
       test("String asKey is identity") {
         val testStrings = List("", "hello", "with spaces", "special chars: !@#$%", "unicode: \u00e9\u00f1")
         assertTrue(testStrings.forall(s => Keyable[String].asKey(s) == s))
@@ -207,41 +195,41 @@ object KeyableSpec extends SchemaBaseSpec {
     suite("non-keyable types have no instance")(
       test("List[Int] has no Keyable instance") {
         typeCheck("Keyable[List[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Map[String, Int] has no Keyable instance") {
         typeCheck("Keyable[Map[String, Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Option[Int] has no Keyable instance") {
         typeCheck("Keyable[Option[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Vector[String] has no Keyable instance") {
         typeCheck("Keyable[Vector[String]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Set[Int] has no Keyable instance") {
         typeCheck("Keyable[Set[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Array[Int] has no Keyable instance") {
         typeCheck("Keyable[Array[Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("case class has no Keyable instance") {
         typeCheck("""
           case class Point(x: Int, y: Int)
           Keyable[Point]
         """).map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("sealed trait has no Keyable instance") {
         typeCheck("""
           sealed trait Color
           case object Red extends Color
           Keyable[Color]
         """).map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("tuple has no Keyable instance") {
         typeCheck("Keyable[(Int, String)]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative,
+      },
       test("Either has no Keyable instance") {
         typeCheck("Keyable[Either[String, Int]]").map(result => assertTrue(result.isLeft))
-      } @@ exceptNative
+      }
     )
   )
 }

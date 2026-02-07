@@ -668,7 +668,7 @@ object SchemaSpec extends SchemaBaseSpec {
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
               zio.blocks.typeid.TypeId.of[Chunk[V]],
-              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), x => Right(x.toList))
+              new Binding.Wrapper(x => Chunk.fromIterable(x), x => x.toList)
             )
           )
 
@@ -1168,22 +1168,22 @@ object SchemaSpec extends SchemaBaseSpec {
           schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
         )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
-      test("has consistent newObjectBuilder, addObject and resultObject") {
+      test("has consistent newBuilder, add and result") {
         val schema1      = Schema.derived[Array[Int]]
         val schema2      = Schema.derived[ArraySeq[Int]]
         val constructor1 = schema1.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[Array, Int]].constructor
         val constructor2 =
           schema2.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[ArraySeq, Int]].constructor
-        val xs1 = constructor1.newObjectBuilder[Int](0)
-        val xs2 = constructor2.newObjectBuilder[Int](0)
-        constructor1.addObject(xs1, 1)
-        constructor2.addObject(xs2, 1)
-        constructor1.addObject(xs1, 2)
-        constructor2.addObject(xs2, 2)
-        constructor1.addObject(xs1, 3)
-        constructor2.addObject(xs2, 3)
-        assert(constructor1.resultObject(xs1))(equalTo(Array(1, 2, 3))) &&
-        assert(constructor2.resultObject(xs2))(equalTo(ArraySeq(1, 2, 3)))
+        val xs1 = constructor1.newBuilder[Int](0)
+        val xs2 = constructor2.newBuilder[Int](0)
+        constructor1.add(xs1, 1)
+        constructor2.add(xs2, 1)
+        constructor1.add(xs1, 2)
+        constructor2.add(xs2, 2)
+        constructor1.add(xs1, 3)
+        constructor2.add(xs2, 3)
+        assert(constructor1.result(xs1))(equalTo(Array(1, 2, 3))) &&
+        assert(constructor2.result(xs2))(equalTo(ArraySeq(1, 2, 3)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Seq[Int]].fromDynamicValue(Schema[Seq[Int]].toDynamicValue(Seq(1, 2, 3))))(
@@ -1735,13 +1735,13 @@ object SchemaSpec extends SchemaBaseSpec {
         })(equalTo("PosInt(1)"))
       }
     ),
-    suite("transformOrFail")(
+    suite("transform (failable in one direction)")(
       test("succeeds when transformation succeeds") {
         case class Positive(value: Int)
-        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+        val positiveSchema: Schema[Positive] = Schema[Int].transform(
           to = n =>
-            if (n > 0) Right(Positive(n))
-            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+            if (n > 0) Positive(n)
+            else throw SchemaError.validationFailed(s"Expected positive, got $n"),
           from = _.value
         )
         val dv = Schema[Int].toDynamicValue(42)
@@ -1749,10 +1749,10 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("fails with SchemaError when transformation fails") {
         case class Positive(value: Int)
-        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+        val positiveSchema: Schema[Positive] = Schema[Int].transform(
           to = n =>
-            if (n > 0) Right(Positive(n))
-            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+            if (n > 0) Positive(n)
+            else throw SchemaError.validationFailed(s"Expected positive, got $n"),
           from = _.value
         )
         val dv = Schema[Int].toDynamicValue(-1)
@@ -1760,10 +1760,10 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("round-trips correctly") {
         case class Positive(value: Int)
-        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+        val positiveSchema: Schema[Positive] = Schema[Int].transform(
           to = n =>
-            if (n > 0) Right(Positive(n))
-            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
+            if (n > 0) Positive(n)
+            else throw SchemaError.validationFailed(s"Expected positive, got $n"),
           from = _.value
         )
         val value = Positive(42)
@@ -1773,10 +1773,10 @@ object SchemaSpec extends SchemaBaseSpec {
       test("preserves SchemaError details") {
         case class Positive(value: Int)
         val customError                      = SchemaError.conversionFailed(Nil, "Custom validation error with details")
-        val positiveSchema: Schema[Positive] = Schema[Int].transformOrFail(
+        val positiveSchema: Schema[Positive] = Schema[Int].transform(
           to = n =>
-            if (n > 0) Right(Positive(n))
-            else Left(customError),
+            if (n > 0) Positive(n)
+            else throw customError,
           from = _.value
         )
         val dv     = Schema[Int].toDynamicValue(-1)
@@ -1791,7 +1791,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(PosInt.schema.fromDynamicValue(dv))(isRight(equalTo(PosInt.applyUnsafe(42))))
       }
     ),
-    suite("transform")(
+    suite("transform (total)")(
       test("transforms schema with total functions") {
         case class UserId(value: Long)
         val userIdSchema: Schema[UserId] = Schema[Long].transform(to = UserId(_), from = _.value)
@@ -1821,12 +1821,12 @@ object SchemaSpec extends SchemaBaseSpec {
       test("succeeds when both wrap and unwrap succeed") {
         case class ValidatedInt(value: Int)
         val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
-          wrap = (n: Int) =>
-            if (n > 0) Right(ValidatedInt(n))
-            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
-          unwrap = (v: ValidatedInt) =>
-            if (v.value < 100) Right(v.value)
-            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+          to = (n: Int) =>
+            if (n > 0) ValidatedInt(n)
+            else throw SchemaError.validationFailed(s"Expected positive, got $n"),
+          from = (v: ValidatedInt) =>
+            if (v.value < 100) v.value
+            else throw SchemaError.validationFailed(s"Value too large: ${v.value}")
         )
         val dv = Schema[Int].toDynamicValue(42)
         assert(schema.fromDynamicValue(dv))(isRight(equalTo(ValidatedInt(42))))
@@ -1834,10 +1834,10 @@ object SchemaSpec extends SchemaBaseSpec {
       test("fails when wrap fails") {
         case class ValidatedInt(value: Int)
         val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
-          wrap = (n: Int) =>
-            if (n > 0) Right(ValidatedInt(n))
-            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
-          unwrap = (v: ValidatedInt) => Right(v.value)
+          to = (n: Int) =>
+            if (n > 0) ValidatedInt(n)
+            else throw SchemaError.validationFailed(s"Expected positive, got $n"),
+          from = (v: ValidatedInt) => v.value
         )
         val dv = Schema[Int].toDynamicValue(-1)
         assert(schema.fromDynamicValue(dv))(isLeft(hasError("Expected positive, got -1")))
@@ -1845,10 +1845,10 @@ object SchemaSpec extends SchemaBaseSpec {
       test("fails when unwrap fails during toDynamicValue") {
         case class ValidatedInt(value: Int)
         val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
-          wrap = (n: Int) => Right(ValidatedInt(n)),
-          unwrap = (v: ValidatedInt) =>
-            if (v.value < 100) Right(v.value)
-            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+          to = (n: Int) => ValidatedInt(n),
+          from = (v: ValidatedInt) =>
+            if (v.value < 100) v.value
+            else throw SchemaError.validationFailed(s"Value too large: ${v.value}")
         )
         val result = scala.util.Try(schema.toDynamicValue(ValidatedInt(200)))
         assertTrue(result.isFailure) &&
@@ -1857,12 +1857,12 @@ object SchemaSpec extends SchemaBaseSpec {
       test("round-trips correctly when both directions succeed") {
         case class ValidatedInt(value: Int)
         val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
-          wrap = (n: Int) =>
-            if (n > 0) Right(ValidatedInt(n))
-            else Left(SchemaError.validationFailed(s"Expected positive, got $n")),
-          unwrap = (v: ValidatedInt) =>
-            if (v.value < 100) Right(v.value)
-            else Left(SchemaError.validationFailed(s"Value too large: ${v.value}"))
+          to = (n: Int) =>
+            if (n > 0) ValidatedInt(n)
+            else throw SchemaError.validationFailed(s"Expected positive, got $n"),
+          from = (v: ValidatedInt) =>
+            if (v.value < 100) v.value
+            else throw SchemaError.validationFailed(s"Value too large: ${v.value}")
         )
         val value = ValidatedInt(42)
         val dv    = schema.toDynamicValue(value)
@@ -1871,8 +1871,8 @@ object SchemaSpec extends SchemaBaseSpec {
       test("creates Wrapper reflect") {
         case class ValidatedInt(value: Int)
         val schema: Schema[ValidatedInt] = Schema[Int].transform[ValidatedInt](
-          wrap = (n: Int) => Right(ValidatedInt(n)),
-          unwrap = (v: ValidatedInt) => Right(v.value)
+          to = (n: Int) => ValidatedInt(n),
+          from = (v: ValidatedInt) => v.value
         )
         assertTrue(schema.reflect.isWrapper)
       }
@@ -2006,7 +2006,7 @@ object SchemaSpec extends SchemaBaseSpec {
 
     implicit lazy val typeId: TypeId[PosInt] = TypeId.of[PosInt]
     implicit lazy val schema: Schema[PosInt] =
-      Schema[Int].transformOrFail[PosInt](PosInt.apply, _.value)
+      Schema[Int].transform[PosInt](PosInt.applyUnsafe, _.value)
     val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 

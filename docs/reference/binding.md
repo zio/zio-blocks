@@ -293,17 +293,15 @@ The Wrapper binding handles the bidirectional transformation between the wrapper
 
 ```scala
 final case class Wrapper[A, B](
-  wrap: B => Either[String, A],
-  unwrap: A => B,
-  defaultValue: Option[() => A] = None,
-  examples: collection.immutable.Seq[A] = Nil
+  wrap: B => Either[SchemaError, A],
+  unwrap: A => Either[SchemaError, B]
 ) extends Binding[BindingType.Wrapper[A, B], A]
 ```
 
 **Components:**
 
-- `wrap`: Converts from the underlying type `B` to the wrapper type `A`, potentially with validation
-- `unwrap`: Extracts the underlying `B` from an `A`
+- `wrap`: Converts from the underlying type `B` to the wrapper type `A`, returning `Right(a)` on success or `Left(SchemaError)` on failure
+- `unwrap`: Extracts the underlying `B` from an `A`, returning `Right(b)` on success or `Left(SchemaError)` on failure
 
 Here is an example of a `Binding.Wrapper` for an `Email` newtype with validation:
 
@@ -315,17 +313,13 @@ case class Email(value: String)
 
 object Email {
   private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-  val binding            =
-    new Binding.Wrapper[Email, String](
-      wrap = {
-        case x @ EmailRegex(_*) => Right(new Email(x))
-        case _                  => Left(SchemaError.validationFailed("Expected Email"))
-      },
-      unwrap = {
-        case Email(value) => Right(value)
-        case _            => Left(SchemaError.validationFailed("Expected Email"))
-      }
-    )
+  new Binding.Wrapper[Email, String](
+    wrap = {
+      case x@EmailRegex(_*) => Right(new Email(x))
+      case _ => Left(SchemaError.validationFailed("Expected valid email format"))
+    },
+    email => Right(email.value)
+  )
 }
 ```
 

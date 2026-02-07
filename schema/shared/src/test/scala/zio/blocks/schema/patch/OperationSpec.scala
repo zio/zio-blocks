@@ -167,20 +167,20 @@ object OperationSpec extends SchemaBaseSpec {
       suite("StringEdit")(
         test("StringEdit with single Insert") {
           roundTrip(
-            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Insert(0, "hello"))): Patch.PrimitiveOp,
+            Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Insert(0, "hello"))): Patch.PrimitiveOp,
             """{"StringEdit":{"ops":[{"Insert":{"index":0,"text":"hello"}}]}}"""
           )
         },
         test("StringEdit with single Delete") {
           roundTrip(
-            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Delete(5, 3))): Patch.PrimitiveOp,
+            Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Delete(5, 3))): Patch.PrimitiveOp,
             """{"StringEdit":{"ops":[{"Delete":{"index":5,"length":3}}]}}"""
           )
         },
         test("StringEdit with multiple operations") {
           roundTrip(
             Patch.PrimitiveOp.StringEdit(
-              Vector(
+              Chunk(
                 Patch.StringOp.Delete(0, 5),
                 Patch.StringOp.Insert(0, "world")
               )
@@ -190,26 +190,26 @@ object OperationSpec extends SchemaBaseSpec {
         },
         test("StringEdit empty") {
           roundTrip(
-            Patch.PrimitiveOp.StringEdit(Vector.empty): Patch.PrimitiveOp,
+            Patch.PrimitiveOp.StringEdit(Chunk.empty): Patch.PrimitiveOp,
             """{"StringEdit":{}}"""
           )
         },
         test("StringEdit with single Append") {
           roundTrip(
-            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Append(" suffix"))): Patch.PrimitiveOp,
+            Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Append(" suffix"))): Patch.PrimitiveOp,
             """{"StringEdit":{"ops":[{"Append":{"text":" suffix"}}]}}"""
           )
         },
         test("StringEdit with single Modify") {
           roundTrip(
-            Patch.PrimitiveOp.StringEdit(Vector(Patch.StringOp.Modify(2, 3, "replacement"))): Patch.PrimitiveOp,
+            Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Modify(2, 3, "replacement"))): Patch.PrimitiveOp,
             """{"StringEdit":{"ops":[{"Modify":{"index":2,"length":3,"text":"replacement"}}]}}"""
           )
         },
         test("StringEdit with all operations") {
           roundTrip(
             Patch.PrimitiveOp.StringEdit(
-              Vector(
+              Chunk(
                 Patch.StringOp.Insert(0, "start "),
                 Patch.StringOp.Modify(5, 2, "XX"),
                 Patch.StringOp.Delete(10, 3),
@@ -425,7 +425,7 @@ object OperationSpec extends SchemaBaseSpec {
         roundTrip(
           Patch.Operation.PrimitiveDelta(
             Patch.PrimitiveOp.StringEdit(
-              Vector(
+              Chunk(
                 Patch.StringOp.Insert(0, "prefix")
               )
             )
@@ -436,7 +436,7 @@ object OperationSpec extends SchemaBaseSpec {
       test("SequenceEdit with multiple ops") {
         roundTrip(
           Patch.Operation.SequenceEdit(
-            Vector(
+            Chunk(
               Patch.SeqOp.Delete(0, 2),
               Patch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(99))))
             )
@@ -446,14 +446,14 @@ object OperationSpec extends SchemaBaseSpec {
       },
       test("SequenceEdit empty") {
         roundTrip(
-          Patch.Operation.SequenceEdit(Vector.empty): Patch.Operation,
+          Patch.Operation.SequenceEdit(Chunk.empty): Patch.Operation,
           """{"SequenceEdit":{}}"""
         )
       },
       test("MapEdit with multiple ops") {
         roundTrip(
           Patch.Operation.MapEdit(
-            Vector(
+            Chunk(
               Patch.MapOp.Add(
                 DynamicValue.Primitive(PrimitiveValue.String("newKey")),
                 DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -466,7 +466,7 @@ object OperationSpec extends SchemaBaseSpec {
       },
       test("MapEdit empty") {
         roundTrip(
-          Patch.Operation.MapEdit(Vector.empty): Patch.Operation,
+          Patch.Operation.MapEdit(Chunk.empty): Patch.Operation,
           """{"MapEdit":{}}"""
         )
       },
@@ -474,7 +474,7 @@ object OperationSpec extends SchemaBaseSpec {
         roundTrip(
           Patch.Operation.Patch(
             DynamicPatch(
-              Vector(
+              Chunk(
                 Patch.DynamicPatchOp(
                   DynamicOptic.root.field("street"),
                   Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("456 Elm")))
@@ -495,7 +495,7 @@ object OperationSpec extends SchemaBaseSpec {
       },
       test("Patch with empty nested patch") {
         roundTrip(
-          Patch.Operation.Patch(DynamicPatch(Vector.empty)): Patch.Operation,
+          Patch.Operation.Patch(DynamicPatch(Chunk.empty)): Patch.Operation,
           """{"Patch":{"patch":{}}}"""
         )
       }
@@ -527,7 +527,7 @@ object OperationSpec extends SchemaBaseSpec {
           Patch.SeqOp.Modify(
             0,
             Patch.Operation.SequenceEdit(
-              Vector(
+              Chunk(
                 Patch.SeqOp.Modify(
                   1,
                   Patch.Operation.Set(
@@ -547,7 +547,7 @@ object OperationSpec extends SchemaBaseSpec {
             DynamicValue.Primitive(PrimitiveValue.String("outer")),
             DynamicPatch.root(
               Patch.Operation.MapEdit(
-                Vector(
+                Chunk(
                   Patch.MapOp.Modify(
                     DynamicValue.Primitive(PrimitiveValue.String("inner")),
                     DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(100)))
@@ -562,11 +562,11 @@ object OperationSpec extends SchemaBaseSpec {
       test("Mixed nesting: Seq containing Map operations") {
         roundTrip(
           Patch.Operation.SequenceEdit(
-            Vector(
+            Chunk(
               Patch.SeqOp.Modify(
                 0,
                 Patch.Operation.MapEdit(
-                  Vector(
+                  Chunk(
                     Patch.MapOp.Add(
                       DynamicValue.Primitive(PrimitiveValue.String("key")),
                       DynamicValue.Primitive(PrimitiveValue.Int(42))
@@ -578,6 +578,256 @@ object OperationSpec extends SchemaBaseSpec {
           ): Patch.Operation,
           """{"SequenceEdit":{"ops":[{"Modify":{"index":0,"op":{"MapEdit":{"ops":[{"Add":{"key":"key","value":42}}]}}}}]}}"""
         )
+      }
+    ),
+    suite("DynamicPatch error branches")(
+      test("patch fails when field not found in strict mode") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("nonexistent")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch skips operation when field not found in lenient mode") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("nonexistent")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Lenient)
+        assertTrue(result == Right(value))
+      },
+      test("patch fails on index out of bounds") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1), DynamicValue.int(2)))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.at(10)
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on type mismatch - expected Record got Sequence") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1)))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("a")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on type mismatch - expected Sequence got Record") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.at(0)
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on type mismatch - expected Map got Record") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKey(DynamicValue.string("key"))
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on map key not found") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKey(DynamicValue.string("nonexistent"))
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on variant case mismatch") {
+        val value  = DynamicValue.Variant("CaseA", DynamicValue.int(1))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.caseOf("CaseB")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on expected Variant got Record") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.caseOf("SomeCase")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on empty sequence with Elements path in strict mode") {
+        val value  = DynamicValue.Sequence(Chunk.empty)
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.elements
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch succeeds on empty sequence with Elements path in lenient mode") {
+        val value  = DynamicValue.Sequence(Chunk.empty)
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.elements
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Lenient)
+        assertTrue(result == Right(value))
+      },
+      test("patch fails on AtIndices not supported") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1), DynamicValue.int(2)))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atIndices(0, 1)
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on AtMapKeys not supported") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKeys(DynamicValue.string("a"))
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on MapKeys not supported") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.mapKeys
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("patch fails on MapValues not supported") {
+        val value  = DynamicValue.Map(Chunk((DynamicValue.string("a"), DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.mapValues
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("Wrapped path passes through") {
+        val value  = DynamicValue.int(42)
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = new DynamicOptic(IndexedSeq(DynamicOptic.Node.Wrapped))
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result == Right(DynamicValue.int(99)))
+      }
+    ),
+    suite("applyPrimitiveDelta branches")(
+      test("IntDelta on non-primitive fails") {
+        val value  = DynamicValue.Sequence(Chunk(DynamicValue.int(1)))
+        val op     = Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("IntDelta on wrong primitive type fails") {
+        val value  = DynamicValue.string("hello")
+        val op     = Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(5))
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("StringEdit Delete out of bounds fails") {
+        val value = DynamicValue.string("hello")
+        val op    = Patch.Operation.PrimitiveDelta(
+          Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Delete(10, 5)))
+        )
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("StringEdit Insert out of bounds fails") {
+        val value = DynamicValue.string("hello")
+        val op    = Patch.Operation.PrimitiveDelta(
+          Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Insert(100, "text")))
+        )
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("StringEdit Modify out of bounds fails") {
+        val value = DynamicValue.string("hello")
+        val op    = Patch.Operation.PrimitiveDelta(
+          Patch.PrimitiveOp.StringEdit(Chunk(Patch.StringOp.Modify(10, 5, "new")))
+        )
+        val patch  = DynamicPatch.root(op)
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("DynamicPatch Clobber mode")(
+      test("clobber mode ignores errors for missing fields") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("nonexistent")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Clobber)
+        assertTrue(result == Right(value))
+      }
+    ),
+    suite("Nested path operations in patches")(
+      test("nested field navigation with isLast=false") {
+        val value = DynamicValue.Record(
+          Chunk(
+            ("outer", DynamicValue.Record(Chunk(("inner", DynamicValue.int(1)))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.field("outer").field("inner")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested index navigation with isLast=false") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.at(0).field("a")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested map key navigation with isLast=false") {
+        val value = DynamicValue.Map(
+          Chunk(
+            (DynamicValue.string("key"), DynamicValue.Record(Chunk(("a", DynamicValue.int(1)))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.atKey(DynamicValue.string("key")).field("a")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested variant case navigation with isLast=false") {
+        val value  = DynamicValue.Variant("MyCase", DynamicValue.Record(Chunk(("a", DynamicValue.int(1)))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.caseOf("MyCase").field("a")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("nested Wrapped path with isLast=false") {
+        val value  = DynamicValue.Record(Chunk(("a", DynamicValue.int(1))))
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = new DynamicOptic(IndexedSeq(DynamicOptic.Node.Wrapped, DynamicOptic.Node.Field("a")))
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
+      },
+      test("Elements path applies to all elements with isLast=false") {
+        val value = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk(("a", DynamicValue.int(1)))),
+            DynamicValue.Record(Chunk(("a", DynamicValue.int(2))))
+          )
+        )
+        val op     = Patch.Operation.Set(DynamicValue.int(99))
+        val path   = DynamicOptic.root.elements.field("a")
+        val patch  = DynamicPatch(Chunk(DynamicPatch.DynamicPatchOp(path, op)))
+        val result = patch(value, PatchMode.Strict)
+        assertTrue(result.isRight)
       }
     ),
     suite("Edge cases")(

@@ -3267,6 +3267,32 @@ object OpticSpec extends SchemaBaseSpec {
           )
         )
       }
+    ),
+    suite("Primitive Array ClassTag issues")(
+      test("modifySeqAt with Array[Int] preserves primitive array type") {
+        val record                            = RecordWithPrimitiveArray(Array(1, 2, 3))
+        val result                            = RecordWithPrimitiveArray.intAt1.modify(record, _ + 10)
+        val componentType                     = result.ints.getClass.getComponentType
+        val isPrimitive                       = componentType.isPrimitive
+        def sumIntArray(arr: Array[Int]): Int = arr.sum
+        val sum                               = sumIntArray(result.ints)
+        assertTrue(isPrimitive, componentType == classOf[Int], sum == 16) &&
+        assert(result.ints.toList)(equalTo(List(1, 12, 3)))
+      },
+      test("modifySeqAtIndices with Array[Int] preserves primitive array type") {
+        val record        = RecordWithPrimitiveArray(Array(1, 2, 3))
+        val result        = RecordWithPrimitiveArray.intsAtIndices.modify(record, _ + 10)
+        val componentType = result.ints.getClass.getComponentType
+        assertTrue(componentType == classOf[Int]) &&
+        assert(result.ints.toList)(equalTo(List(11, 2, 13)))
+      },
+      test("modifySeq via traversal with Array[Int] preserves primitive array type") {
+        val record        = RecordWithPrimitiveArray(Array(1, 2, 3))
+        val result        = RecordWithPrimitiveArray.ints.modify(record, _ + 10)
+        val componentType = result.ints.getClass.getComponentType
+        assertTrue(componentType == classOf[Int]) &&
+        assert(result.ints.toList)(equalTo(List(11, 12, 13)))
+      }
     )
   )
 
@@ -3453,14 +3479,14 @@ object OpticSpecTypes {
 
     def applyUnsafe(value: Record1): Wrapper =
       if (value.b ^ value.f < 0 || value.f == 0) new Wrapper(value)
-      else throw new IllegalArgumentException("Unexpected 'Wrapper' value")
+      else throw SchemaError.validationFailed("Unexpected 'Wrapper' value")
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
       typeId = TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("OpticSpec")),
       wrapperBinding = Binding.Wrapper(
-        wrap = Wrapper.apply,
-        unwrap = (x: Wrapper) => Right(x.value)
+        wrap = Wrapper.applyUnsafe,
+        unwrap = (x: Wrapper) => x.value
       )
     )
     implicit val schema: Schema[Wrapper] = new Schema(reflect)
@@ -4242,4 +4268,15 @@ object OpticSpecTypes {
     lazy val lw_r1: Traversal[List[Wrapper], Record1]   = Traversal.listValues(Wrapper.reflect)(Wrapper.r1)
     lazy val lw_r1_b: Traversal[List[Wrapper], Boolean] = Traversal.listValues(Wrapper.reflect)(Wrapper.r1_b)
   }
+
+  case class RecordWithPrimitiveArray(ints: Array[Int])
+
+  object RecordWithPrimitiveArray extends CompanionOptics[RecordWithPrimitiveArray] {
+    implicit val schema: Schema[RecordWithPrimitiveArray]       = Schema.derived
+    val reflect: Reflect.Record.Bound[RecordWithPrimitiveArray] = schema.reflect.asRecord.get
+    val ints: Traversal[RecordWithPrimitiveArray, Int]          = optic(_.ints.each)
+    val intAt1: Optional[RecordWithPrimitiveArray, Int]         = optic(_.ints.at(1))
+    val intsAtIndices: Traversal[RecordWithPrimitiveArray, Int] = optic(_.ints.atIndices(0, 2))
+  }
+
 }

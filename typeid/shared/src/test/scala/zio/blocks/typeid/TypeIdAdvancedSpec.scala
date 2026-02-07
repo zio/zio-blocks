@@ -73,7 +73,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     wildcardSuite,
     annotationSuite,
     selfTypeSuite,
-    enumCaseInfoSuite,
     memberSuite,
     kindSuite,
     typeIdMethodsSuite,
@@ -87,40 +86,32 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     test("Sealed extractor matches derived sealed trait") {
       val animalId = TypeId.of[Animal]
       animalId match {
-        case TypeId.Sealed(name, subtypes) =>
-          assertTrue(name == "Animal", subtypes.nonEmpty)
-        case _ => assertTrue(false)
-      }
-    },
-    test("Sealed extractor extracts known subtypes for Shape") {
-      val shapeId = TypeId.of[Shape]
-      shapeId match {
-        case TypeId.Sealed(name, subtypes) =>
-          assertTrue(name == "Shape", subtypes.size >= 2)
+        case TypeId.Sealed(name) =>
+          assertTrue(name == "Animal")
         case _ => assertTrue(false)
       }
     },
     test("Sealed extractor does NOT match regular trait") {
       val traitId  = TypeId.of[SimpleTrait]
       val isSealed = traitId match {
-        case TypeId.Sealed(_, _) => true
-        case _                   => false
+        case TypeId.Sealed(_) => true
+        case _                => false
       }
       assertTrue(!isSealed)
     },
     test("Sealed extractor does NOT match case class") {
       val dogId    = TypeId.of[Dog]
       val isSealed = dogId match {
-        case TypeId.Sealed(_, _) => true
-        case _                   => false
+        case TypeId.Sealed(_) => true
+        case _                => false
       }
       assertTrue(!isSealed)
     },
     test("Sealed extractor does NOT match case object") {
       val objId    = TypeId.of[UnknownAnimal.type]
       val isSealed = objId match {
-        case TypeId.Sealed(_, _) => true
-        case _                   => false
+        case TypeId.Sealed(_) => true
+        case _                => false
       }
       assertTrue(!isSealed)
     }
@@ -149,9 +140,8 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     test("derived sealed trait has Trait defKind with isSealed=true") {
       val id = TypeId.of[Animal]
       id.defKind match {
-        case TypeDefKind.Trait(isSealed, knownSubtypes, _) =>
-          assertTrue(isSealed, knownSubtypes.nonEmpty)
-        case _ => assertTrue(false)
+        case TypeDefKind.Trait(isSealed, _) => assertTrue(isSealed)
+        case _                              => assertTrue(false)
       }
     },
     test("derived case object has Object defKind") {
@@ -591,57 +581,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     }
   )
 
-  val enumCaseInfoSuite = suite("EnumCaseInfo")(
-    test("EnumCaseInfo with no params has arity 0") {
-      val info = EnumCaseInfo("Red", 0, Nil, isObjectCase = true)
-      assertTrue(info.arity == 0, info.isObjectCase)
-    },
-    test("EnumCaseInfo with params has correct arity") {
-      val params = List(
-        EnumCaseParam("r", TypeRepr.Ref(TypeId.int)),
-        EnumCaseParam("g", TypeRepr.Ref(TypeId.int)),
-        EnumCaseParam("b", TypeRepr.Ref(TypeId.int))
-      )
-      val info = EnumCaseInfo("RGB", 1, params, isObjectCase = false)
-      assertTrue(info.arity == 3, !info.isObjectCase)
-    },
-    test("EnumCaseParam holds name and type") {
-      val param = EnumCaseParam("value", TypeRepr.Ref(TypeId.string))
-      assertTrue(param.name == "value")
-      param.tpe match {
-        case TypeRepr.Ref(id) => assertTrue(id.name == "String")
-        case _                => assertTrue(false)
-      }
-    },
-    test("TypeDefKind.Enum has cases and baseTypes") {
-      val cases    = List(EnumCaseInfo("A", 0), EnumCaseInfo("B", 1))
-      val bases    = List(TypeRepr.Ref(TypeId.of[SimpleTrait]))
-      val enumKind = TypeDefKind.Enum(cases, bases)
-      assertTrue(enumKind.cases.size == 2, enumKind.baseTypes.size == 1)
-    },
-    test("TypeDefKind.EnumCase has parentEnum and ordinal") {
-      val parentRef = TypeRepr.Ref(TypeId.of[Animal])
-      val enumCase  = TypeDefKind.EnumCase(parentRef, ordinal = 0, isObjectCase = true)
-      assertTrue(
-        enumCase.ordinal == 0,
-        enumCase.isObjectCase,
-        enumCase.baseTypes == List(parentRef)
-      )
-    },
-    test("TypeDefKind.Object has baseTypes") {
-      val bases = List(TypeRepr.Ref(TypeId.of[SimpleTrait]))
-      val obj   = TypeDefKind.Object(bases)
-      assertTrue(obj.baseTypes == bases)
-    },
-    test("TypeDefKind case objects") {
-      assertTrue(
-        TypeDefKind.TypeAlias.baseTypes.isEmpty,
-        TypeDefKind.AbstractType.baseTypes.isEmpty,
-        TypeDefKind.Unknown.baseTypes.isEmpty
-      )
-    }
-  )
-
   val memberSuite = suite("Member")(
     test("Member.Val holds val information") {
       val valMember = Member.Val("x", TypeRepr.Ref(TypeId.int), isVar = false)
@@ -774,18 +713,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       val regularClass = TypeId.of[RegularClass]
       assertTrue(caseClass.isCaseClass, !regularClass.isCaseClass)
     },
-    test("enumCases returns empty for non-enum") {
-      val traitId = TypeId.of[Animal]
-      assertTrue(traitId.enumCases.isEmpty)
-    },
-    test("knownSubtypes returns subtypes for sealed trait") {
-      val sealedId = TypeId.of[Animal]
-      assertTrue(sealedId.knownSubtypes.nonEmpty)
-    },
-    test("knownSubtypes returns empty for non-sealed") {
-      val notSealed = TypeId.of[SimpleTrait]
-      assertTrue(notSealed.knownSubtypes.isEmpty)
-    },
     test("isTuple returns true for scala tuples") {
       val tuple2 = TypeId.of[(Int, String)]
       assertTrue(tuple2.isTuple)
@@ -796,7 +723,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     },
     test("toString contains kind and fullName") {
       val intId = TypeId.of[Int]
-      assertTrue(intId.toString.contains("TypeId."), intId.toString.contains("Int"))
+      assertTrue(intId.toString == "Int")
     },
     test("TypeId.applied creates applied type") {
       val applied = TypeId.applied[List[Int]](TypeId.of[List[_]], TypeRepr.Ref(TypeId.int))
@@ -806,19 +733,18 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
 
   val typeIdExtractorsSuite = suite("TypeId Extractors")(
     test("Enum extractor matches enum TypeDefKind") {
-      val enumDefKind = TypeDefKind.Enum(List(EnumCaseInfo("A", 0)), Nil)
+      val enumDefKind = TypeDefKind.Enum(Nil)
       val id          = TypeId.nominal[Animal]("TestEnum", Owner.Root, defKind = enumDefKind)
       id match {
-        case TypeId.Enum(name, _, cases) =>
-          assertTrue(name == "TestEnum", cases.size == 1)
-        case _ => assertTrue(false)
+        case TypeId.Enum(name, _) => assertTrue(name == "TestEnum")
+        case _                    => assertTrue(false)
       }
     },
     test("Enum extractor does not match non-enum") {
       val id     = TypeId.of[Animal]
       val isEnum = id match {
-        case TypeId.Enum(_, _, _) => true
-        case _                    => false
+        case TypeId.Enum(_, _) => true
+        case _                 => false
       }
       assertTrue(!isEnum)
     },
@@ -895,7 +821,7 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
       assertTrue(id.isAlias)
     },
     test("TypeId.isEnum returns true for enum") {
-      val enumKind = TypeDefKind.Enum(List(EnumCaseInfo("A", 0)), Nil)
+      val enumKind = TypeDefKind.Enum(Nil)
       val id       = TypeId.nominal[Animal]("MyEnum", Owner.Root, defKind = enumKind)
       assertTrue(id.isEnum)
     },
@@ -930,11 +856,6 @@ object TypeIdAdvancedSpec extends ZIOSpecDefault {
     test("Member.TypeMember name accessor") {
       val typeMember = Member.TypeMember("T", Nil, None, None)
       assertTrue(typeMember.name == "T")
-    },
-    test("TypeDefKind.Trait with knownSubtypes") {
-      val subtypes  = List(TypeRepr.Ref(TypeId.of[Dog]), TypeRepr.Ref(TypeId.of[Cat]))
-      val traitKind = TypeDefKind.Trait(isSealed = true, knownSubtypes = subtypes)
-      assertTrue(traitKind.knownSubtypes.size == 2)
     },
     test("TermPath Package and Term segments") {
       val pkg  = TermPath.Package("com")

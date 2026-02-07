@@ -3,7 +3,7 @@ package zio.blocks.schema.binding
 import scala.annotation.unchecked.uncheckedVariance
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, SchemaError}
+import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
@@ -553,10 +553,7 @@ object Binding extends BindingCompanionVersionSpecific {
     def map[K, V]: Map[Predef.Map, K, V] = new Map(MapConstructor.map, MapDeconstructor.map)
   }
 
-  final case class Wrapper[A, B](
-    wrap: B => Either[SchemaError, A],
-    unwrap: A => Either[SchemaError, B]
-  ) extends Binding[BindingType.Wrapper[A, B], A]
+  final case class Wrapper[A, B](wrap: B => A, unwrap: A => B) extends Binding[BindingType.Wrapper[A, B], A]
 
   final case class Dynamic() extends Binding[BindingType.Dynamic, DynamicValue]
 

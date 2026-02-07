@@ -1,6 +1,22 @@
 package zio.blocks.typeid
 
+import zio.blocks.chunk.Chunk
 import zio.test._
+import zio.test.TestAspect.jvmOnly
+
+case class Person(name: String, age: Int)
+case class Address(street: String, city: String)
+
+object Outer {
+  case class Inner(value: Int)
+}
+
+case class Box[A](value: A)
+
+sealed trait Animal
+class Dog extends Animal
+
+object TestObject
 
 object TypeIdSpec extends ZIOSpecDefault {
 
@@ -54,7 +70,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       test("toString includes name and index") {
         // Basic type param without variance shows just name@index
         assertTrue(
-          TypeParam("X", 5).toString == "X@5"
+          TypeParam("X", 5).toString == "X"
         )
       },
       test("variance is reflected in toString") {
@@ -62,17 +78,17 @@ object TypeIdSpec extends ZIOSpecDefault {
         val contravariant = TypeParam("A", 0, Variance.Contravariant)
         val invariant     = TypeParam("A", 0, Variance.Invariant)
         assertTrue(
-          covariant.toString == "+A@0",
-          contravariant.toString == "-A@0",
-          invariant.toString == "A@0"
+          covariant.toString == "+A",
+          contravariant.toString == "-A",
+          invariant.toString == "A"
         )
       },
       test("higher-kinded params show arity") {
         val hk1 = TypeParam.higherKinded("F", 0, 1)
         val hk2 = TypeParam.higherKinded("G", 0, 2)
         assertTrue(
-          hk1.toString == "F[1]@0",
-          hk2.toString == "G[2]@0"
+          hk1.toString == "F[_]",
+          hk2.toString == "G[_, _]"
         )
       }
     ),
@@ -196,6 +212,209 @@ object TypeIdSpec extends ZIOSpecDefault {
         val result = TypeRepr.union(types)
         assertTrue(
           result == TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+        )
+      }
+    ),
+    suite("TypeIdPrinter")(
+      test("renders CharConst with special character escaping") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('a')) == "'a'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\n')) == "'\\n'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\t')) == "'\\t'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\r')) == "'\\r'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\\')) == "'\\\\'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\'')) == "'\\''",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('x')) == "'x'"
+        )
+      },
+      test("renders StringConst with special character escaping") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("hello")) == "\"hello\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("line1\nline2")) == "\"line1\\nline2\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("tab\there")) == "\"tab\\there\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("return\rhere")) == "\"return\\rhere\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("back\\slash")) == "\"back\\\\slash\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("say \"hello\"")) == "\"say \\\"hello\\\"\""
+        )
+      },
+      test("renders other constants correctly") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.IntConst(42)) == "42",
+          TypeIdPrinter.render(TypeRepr.Constant.LongConst(100L)) == "100L",
+          TypeIdPrinter.render(TypeRepr.Constant.FloatConst(4.5f)) == "4.5f",
+          TypeIdPrinter.render(TypeRepr.Constant.DoubleConst(2.718)) == "2.718",
+          TypeIdPrinter.render(TypeRepr.Constant.BooleanConst(true)) == "true",
+          TypeIdPrinter.render(TypeRepr.Constant.BooleanConst(false)) == "false",
+          TypeIdPrinter.render(TypeRepr.Constant.NullConst) == "null",
+          TypeIdPrinter.render(TypeRepr.Constant.UnitConst) == "()"
+        )
+      },
+      test("renders ClassOfConst") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.ClassOfConst(TypeRepr.Ref(TypeId.string))) == "classOf[String]"
+        )
+      },
+      test("renders special types") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.AnyType) == "Any",
+          TypeIdPrinter.render(TypeRepr.NothingType) == "Nothing",
+          TypeIdPrinter.render(TypeRepr.NullType) == "Null",
+          TypeIdPrinter.render(TypeRepr.UnitType) == "Unit",
+          TypeIdPrinter.render(TypeRepr.AnyKindType) == "AnyKind"
+        )
+      },
+      test("renders Ref and Applied types") {
+        val listInt = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.int)))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Ref(TypeId.int)) == "Int",
+          TypeIdPrinter.render(listInt) == "List[+A][Int]"
+        )
+      },
+      test("renders intersection and union types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Intersection(List(intRef, stringRef))) == "Int & String",
+          TypeIdPrinter.render(TypeRepr.Union(List(intRef, stringRef))) == "Int | String"
+        )
+      },
+      test("renders ParamRef") {
+        val paramRef = TypeRepr.ParamRef(TypeParam.A)
+        assertTrue(TypeIdPrinter.render(paramRef) == "A")
+      },
+      test("renders Function types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Function(Nil, intRef)) == "() => Int",
+          TypeIdPrinter.render(TypeRepr.Function(List(intRef), stringRef)) == "Int => String",
+          TypeIdPrinter.render(TypeRepr.Function(List(intRef, stringRef), intRef)) == "(Int, String) => Int"
+        )
+      },
+      test("renders ContextFunction types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.ContextFunction(List(intRef), stringRef)) == "Int ?=> String",
+          TypeIdPrinter.render(TypeRepr.ContextFunction(List(intRef, stringRef), intRef)) == "(Int, String) ?=> Int"
+        )
+      },
+      test("renders ByName and Repeated types") {
+        val intRef = TypeRepr.Ref(TypeId.int)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.ByName(intRef)) == "=> Int",
+          TypeIdPrinter.render(TypeRepr.Repeated(intRef)) == "Int*"
+        )
+      },
+      test("renders Wildcard types") {
+        val intRef = TypeRepr.Ref(TypeId.int)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds.Unbounded)) == "?",
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds.upper(intRef))) == "? <: Int",
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds.lower(intRef))) == "? >: Int",
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds(intRef, intRef))) == "? >: Int <: Int"
+        )
+      },
+      test("renders Tuple types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(
+            TypeRepr.Tuple(List(TupleElement(None, intRef), TupleElement(None, stringRef)))
+          ) == "(Int, String)",
+          TypeIdPrinter.render(
+            TypeRepr.Tuple(List(TupleElement(Some("x"), intRef), TupleElement(Some("y"), stringRef)))
+          ) == "(x: Int, y: String)"
+        )
+      },
+      test("renders TypeLambda") {
+        val paramA   = TypeParam("A", 0)
+        val paramRef = TypeRepr.ParamRef(paramA)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.TypeLambda(List(paramA), paramRef)) == "[A] =>> A"
+        )
+      },
+      test("renders Singleton and ThisType") {
+        val path = TermPath(List(TermPath.Term("foo"), TermPath.Term("bar")))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Singleton(path)) == "foo.bar.type",
+          TypeIdPrinter.render(TypeRepr.ThisType(Owner.Root / "com" / "example")) == "this.type"
+        )
+      },
+      test("renders TypeProjection and TypeSelect") {
+        val intRef = TypeRepr.Ref(TypeId.int)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.TypeProjection(intRef, "Inner")) == "Int#Inner",
+          TypeIdPrinter.render(TypeRepr.TypeSelect(intRef, "Inner")) == "Int.Inner"
+        )
+      },
+      test("renders Annotated types") {
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val annotation = Annotation(TypeId.nominal[Deprecated]("deprecated", Owner.scala), List.empty)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Annotated(intRef, List(annotation))) == "Int @deprecated"
+        )
+      },
+      test("renders Structural types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        val valMember = Member.Val("x", intRef, isVar = false)
+        val varMember = Member.Val("y", stringRef, isVar = true)
+        val defMember = Member.Def("foo", Nil, List(List(Param("a", intRef))), stringRef)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(valMember))) == "{ val x: Int }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(varMember))) == "{ var y: String }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(defMember))) == "{ def foo(a: Int): String }",
+          TypeIdPrinter.render(TypeRepr.Structural(List(intRef), List(valMember))) == "Int { val x: Int }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, Nil)) == ""
+        )
+      },
+      test("renders TypeMember in structural types") {
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val typeMember = Member.TypeMember("T", Nil, None, None)
+        val typeAlias  = Member.TypeMember("T", Nil, Some(intRef), Some(intRef))
+        val typeBounds = Member.TypeMember("T", Nil, Some(intRef), Some(TypeRepr.AnyType))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeMember))) == "{ type T }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeAlias))) == "{ type T = Int }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeBounds))) == "{ type T >: Int <: Any }"
+        )
+      },
+      test("renders TypeId with full name for java.util types") {
+        val uuidId = TypeId.nominal[java.util.UUID]("UUID", Owner.Root / "java" / "util")
+        assertTrue(
+          TypeIdPrinter.render(uuidId).contains("java.util.UUID")
+        )
+      },
+      test("renders TypeParam with higher-kinded arity") {
+        val hk1 = TypeParam.higherKinded("F", 0, 1)
+        val hk2 = TypeParam.higherKinded("G", 0, 2)
+        assertTrue(
+          TypeIdPrinter.render(hk1) == "F[_]",
+          TypeIdPrinter.render(hk2) == "G[_, _]"
+        )
+      },
+      test("renders TypeMember with type parameters") {
+        val paramA     = TypeParam("A", 0)
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val typeMember = Member.TypeMember("F", List(paramA), None, Some(intRef))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeMember))) == "{ type F[A] <: Int }"
+        )
+      },
+      test("renders Def with type parameters") {
+        val paramA    = TypeParam("A", 0)
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val defMember = Member.Def("foo", List(paramA), Nil, intRef)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(defMember))) == "{ def foo[A]: Int }"
+        )
+      },
+      test("renders TypeMember with lower bound only") {
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val typeMember = Member.TypeMember("T", Nil, Some(intRef), None)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeMember))) == "{ type T >: Int }"
         )
       }
     ),
@@ -375,7 +594,7 @@ object TypeIdSpec extends ZIOSpecDefault {
             Owner.Root / "test",
             Nil,
             Nil,
-            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(listInt))
+            TypeDefKind.Trait(isSealed = false, bases = List(listInt))
           )
           assertTrue(TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.list, Set.empty))
         },
@@ -386,7 +605,7 @@ object TypeIdSpec extends ZIOSpecDefault {
             Owner.Root / "test",
             Nil,
             Nil,
-            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(stringParent))
+            TypeDefKind.Trait(isSealed = false, bases = List(stringParent))
           )
           assertTrue(!TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.int, Set.empty))
         }
@@ -470,6 +689,468 @@ object TypeIdSpec extends ZIOSpecDefault {
           assertTrue(TypeIdOps.typeReprHash(intersection1) == TypeIdOps.typeReprHash(intersection2))
         }
       )
-    )
+    ),
+    suite("TypeId.clazz (JVM reflection)")(
+      suite("Scala primitive types")(
+        test("Int returns classOf[Int]") {
+          assertTrue(TypeId.int.clazz == Some(classOf[Int]))
+        },
+        test("Long returns classOf[Long]") {
+          assertTrue(TypeId.long.clazz == Some(classOf[Long]))
+        },
+        test("Double returns classOf[Double]") {
+          assertTrue(TypeId.double.clazz == Some(classOf[Double]))
+        },
+        test("Float returns classOf[Float]") {
+          assertTrue(TypeId.float.clazz == Some(classOf[Float]))
+        },
+        test("Short returns classOf[Short]") {
+          assertTrue(TypeId.short.clazz == Some(classOf[Short]))
+        },
+        test("Byte returns classOf[Byte]") {
+          assertTrue(TypeId.byte.clazz == Some(classOf[Byte]))
+        },
+        test("Char returns classOf[Char]") {
+          assertTrue(TypeId.char.clazz == Some(classOf[Char]))
+        },
+        test("Boolean returns classOf[Boolean]") {
+          assertTrue(TypeId.boolean.clazz == Some(classOf[Boolean]))
+        },
+        test("Unit returns classOf[Unit]") {
+          assertTrue(TypeId.unit.clazz == Some(classOf[Unit]))
+        }
+      ),
+      suite("Java/Scala standard library types")(
+        test("String returns classOf[String]") {
+          assertTrue(TypeId.string.clazz == Some(classOf[String]))
+        },
+        test("BigInt returns classOf[BigInt]") {
+          assertTrue(TypeId.bigInt.clazz == Some(classOf[BigInt]))
+        },
+        test("BigDecimal returns classOf[BigDecimal]") {
+          assertTrue(TypeId.bigDecimal.clazz == Some(classOf[BigDecimal]))
+        }
+      ),
+      suite("Collection types")(
+        test("List returns classOf[List[_]]") {
+          assertTrue(TypeId.list.clazz == Some(classOf[List[_]]))
+        },
+        test("Vector returns classOf[Vector[_]]") {
+          assertTrue(TypeId.vector.clazz == Some(classOf[Vector[_]]))
+        },
+        test("Set returns classOf[Set[_]]") {
+          assertTrue(TypeId.set.clazz == Some(classOf[Set[_]]))
+        },
+        test("Map returns classOf[Map[_, _]]") {
+          assertTrue(TypeId.map.clazz == Some(classOf[Map[_, _]]))
+        },
+        test("Option returns classOf[Option[_]]") {
+          assertTrue(TypeId.option.clazz == Some(classOf[Option[_]]))
+        },
+        test("Some returns classOf[Some[_]]") {
+          assertTrue(TypeId.some.clazz == Some(classOf[Some[_]]))
+        },
+        test("Either returns classOf[Either[_, _]]") {
+          assertTrue(TypeId.either.clazz == Some(classOf[Either[_, _]]))
+        },
+        test("Seq returns classOf[Seq[_]]") {
+          assertTrue(TypeId.seq.clazz == Some(classOf[Seq[_]]))
+        },
+        test("IndexedSeq returns classOf[IndexedSeq[_]]") {
+          assertTrue(TypeId.indexedSeq.clazz == Some(classOf[IndexedSeq[_]]))
+        },
+        test("Array returns classOf for scala.Array") {
+          val clazz: Option[Class[_]] = TypeId.array.clazz
+          val name: String            = clazz.map(_.getName).getOrElse("")
+          assertTrue(name == "scala.Array")
+        }
+      ),
+      suite("java.time types")(
+        test("Instant returns classOf[java.time.Instant]") {
+          assertTrue(TypeId.instant.clazz == Some(classOf[java.time.Instant]))
+        },
+        test("Duration returns classOf[java.time.Duration]") {
+          assertTrue(TypeId.duration.clazz == Some(classOf[java.time.Duration]))
+        },
+        test("LocalDate returns classOf[java.time.LocalDate]") {
+          assertTrue(TypeId.localDate.clazz == Some(classOf[java.time.LocalDate]))
+        },
+        test("LocalTime returns classOf[java.time.LocalTime]") {
+          assertTrue(TypeId.localTime.clazz == Some(classOf[java.time.LocalTime]))
+        },
+        test("LocalDateTime returns classOf[java.time.LocalDateTime]") {
+          assertTrue(TypeId.localDateTime.clazz == Some(classOf[java.time.LocalDateTime]))
+        },
+        test("ZonedDateTime returns classOf[java.time.ZonedDateTime]") {
+          assertTrue(TypeId.zonedDateTime.clazz == Some(classOf[java.time.ZonedDateTime]))
+        },
+        test("OffsetDateTime returns classOf[java.time.OffsetDateTime]") {
+          assertTrue(TypeId.offsetDateTime.clazz == Some(classOf[java.time.OffsetDateTime]))
+        },
+        test("OffsetTime returns classOf[java.time.OffsetTime]") {
+          assertTrue(TypeId.offsetTime.clazz == Some(classOf[java.time.OffsetTime]))
+        },
+        test("ZoneId returns classOf[java.time.ZoneId]") {
+          assertTrue(TypeId.zoneId.clazz == Some(classOf[java.time.ZoneId]))
+        },
+        test("ZoneOffset returns classOf[java.time.ZoneOffset]") {
+          assertTrue(TypeId.zoneOffset.clazz == Some(classOf[java.time.ZoneOffset]))
+        },
+        test("Period returns classOf[java.time.Period]") {
+          assertTrue(TypeId.period.clazz == Some(classOf[java.time.Period]))
+        },
+        test("Year returns classOf[java.time.Year]") {
+          assertTrue(TypeId.year.clazz == Some(classOf[java.time.Year]))
+        },
+        test("YearMonth returns classOf[java.time.YearMonth]") {
+          assertTrue(TypeId.yearMonth.clazz == Some(classOf[java.time.YearMonth]))
+        },
+        test("Month returns classOf[java.time.Month]") {
+          assertTrue(TypeId.month.clazz == Some(classOf[java.time.Month]))
+        },
+        test("MonthDay returns classOf[java.time.MonthDay]") {
+          assertTrue(TypeId.monthDay.clazz == Some(classOf[java.time.MonthDay]))
+        },
+        test("DayOfWeek returns classOf[java.time.DayOfWeek]") {
+          assertTrue(TypeId.dayOfWeek.clazz == Some(classOf[java.time.DayOfWeek]))
+        }
+      ),
+      suite("java.util types")(
+        test("UUID returns classOf[java.util.UUID]") {
+          assertTrue(TypeId.uuid.clazz == Some(classOf[java.util.UUID]))
+        },
+        test("Currency returns classOf[java.util.Currency]") {
+          assertTrue(TypeId.currency.clazz == Some(classOf[java.util.Currency]))
+        }
+      ),
+      suite("Java interface types")(
+        test("CharSequence returns classOf[CharSequence]") {
+          assertTrue(TypeId.charSequence.clazz == Some(classOf[CharSequence]))
+        },
+        test("Comparable returns classOf[Comparable[_]]") {
+          assertTrue(TypeId.comparable.clazz == Some(classOf[Comparable[_]]))
+        },
+        test("Serializable returns classOf[java.io.Serializable]") {
+          assertTrue(TypeId.serializable.clazz == Some(classOf[java.io.Serializable]))
+        }
+      ),
+      suite("Applied types return erased class")(
+        test("List[Int] returns classOf[List[_]]") {
+          val listInt = TypeId.of[List[Int]]
+          assertTrue(listInt.clazz == Some(classOf[List[_]]))
+        },
+        test("Option[String] returns classOf[Option[_]]") {
+          val optionString = TypeId.of[Option[String]]
+          assertTrue(optionString.clazz == Some(classOf[Option[_]]))
+        },
+        test("Map[String, Int] returns classOf[Map[_, _]]") {
+          val mapStringInt = TypeId.of[Map[String, Int]]
+          assertTrue(mapStringInt.clazz == Some(classOf[Map[_, _]]))
+        }
+      ),
+      suite("Type aliases return None")(
+        test("alias TypeId returns None") {
+          val aliasId = TypeId.alias[Int]("Age", Owner.Root / "myapp", Nil, TypeRepr.Ref(TypeId.int))
+          assertTrue(aliasId.clazz.isEmpty)
+        }
+      ),
+      suite("Opaque types return None")(
+        test("opaque TypeId returns None") {
+          val opaqueId = TypeId.opaque[String]("Email", Owner.Root / "myapp", Nil, TypeRepr.Ref(TypeId.string))
+          assertTrue(opaqueId.clazz.isEmpty)
+        }
+      ),
+      suite("User-defined types")(
+        test("Chunk returns classOf[Chunk[_]]") {
+          assertTrue(TypeId.chunk.clazz == Some(classOf[zio.blocks.chunk.Chunk[_]]))
+        },
+        test("ArraySeq returns classOf[ArraySeq[_]]") {
+          assertTrue(TypeId.arraySeq.clazz == Some(classOf[scala.collection.immutable.ArraySeq[_]]))
+        }
+      ),
+      suite("Singleton objects")(
+        test("None returns classOf[None.type]") {
+          assertTrue(TypeId.none.clazz == Some(None.getClass))
+        },
+        test("object TypeId works via isObject branch") {
+          val objId = TypeId.nominal[TestObject.type](
+            "TestObject",
+            Owner.fromPackagePath("zio.blocks.typeid"),
+            defKind = TypeDefKind.Object(Nil)
+          )
+          assertTrue(objId.clazz == Some(TestObject.getClass))
+        }
+      ),
+      suite("Derived user-defined case classes")(
+        test("case class Person returns its Class") {
+          val personId = TypeId.of[Person]
+          assertTrue(personId.clazz == Some(classOf[Person]))
+        },
+        test("case class Address returns its Class") {
+          val addressId = TypeId.of[Address]
+          assertTrue(addressId.clazz == Some(classOf[Address]))
+        },
+        test("nested case class Outer.Inner returns its Class") {
+          val innerId = TypeId.of[Outer.Inner]
+          assertTrue(innerId.clazz == Some(classOf[Outer.Inner]))
+        },
+        test("generic case class Box[Int] returns erased Class") {
+          val boxIntId = TypeId.of[Box[Int]]
+          assertTrue(boxIntId.clazz == Some(classOf[Box[_]]))
+        },
+        test("sealed trait Animal returns its Class") {
+          val animalId = TypeId.of[Animal]
+          assertTrue(animalId.clazz == Some(classOf[Animal]))
+        },
+        test("class extending trait returns its Class") {
+          val dogId = TypeId.of[Dog]
+          assertTrue(dogId.clazz == Some(classOf[Dog]))
+        }
+      )
+    ) @@ jvmOnly,
+    suite("TypeId.construct (JVM reflection)")(
+      suite("Collection types")(
+        test("construct List from elements") {
+          val result = TypeId.list.construct(Chunk("a", "b", "c"))
+          assertTrue(result == Right(List("a", "b", "c")))
+        },
+        test("construct empty List") {
+          val result = TypeId.list.construct(Chunk.empty)
+          assertTrue(result == Right(List.empty))
+        },
+        test("construct Vector from elements") {
+          val result = TypeId.vector.construct(Chunk("x", "y"))
+          assertTrue(result == Right(Vector("x", "y")))
+        },
+        test("construct Set from elements") {
+          val result = TypeId.set.construct(Chunk("a", "b", "a"))
+          assertTrue(result == Right(Set("a", "b")))
+        },
+        test("construct Seq from elements") {
+          val result = TypeId.seq.construct(Chunk(1: Integer, 2: Integer, 3: Integer))
+          assertTrue(result == Right(Seq(1, 2, 3)))
+        },
+        test("construct IndexedSeq from elements") {
+          val result = TypeId.indexedSeq.construct(Chunk("a", "b"))
+          assertTrue(result == Right(IndexedSeq("a", "b")))
+        },
+        test("construct Map from key-value pairs") {
+          val result = TypeId.map.construct(Chunk("a", 1: Integer, "b", 2: Integer))
+          assertTrue(result == Right(Map("a" -> 1, "b" -> 2)))
+        },
+        test("construct Map fails with odd number of args") {
+          val result = TypeId.map.construct(Chunk("a", 1: Integer, "b"))
+          assertTrue(result.isLeft)
+        }
+      ),
+      suite("Option types")(
+        test("construct Option with one element") {
+          val result = TypeId.option.construct(Chunk("value"))
+          assertTrue(result == Right(Some("value")))
+        },
+        test("construct Option with no elements") {
+          val result = TypeId.option.construct(Chunk.empty)
+          assertTrue(result == Right(None))
+        },
+        test("construct Option fails with too many elements") {
+          val result = TypeId.option.construct(Chunk("a", "b"))
+          assertTrue(result.isLeft)
+        },
+        test("construct Some with one element") {
+          val result = TypeId.some.construct(Chunk("value"))
+          assertTrue(result == Right(Some("value")))
+        },
+        test("construct Some fails with wrong arity") {
+          val result = TypeId.some.construct(Chunk.empty)
+          assertTrue(result.isLeft)
+        },
+        test("construct None with no elements") {
+          val result = TypeId.none.construct(Chunk.empty)
+          assertTrue(result == Right(None))
+        },
+        test("construct None fails with elements") {
+          val result = TypeId.none.construct(Chunk("x"))
+          assertTrue(result.isLeft)
+        }
+      ),
+      suite("Either type")(
+        test("construct Right") {
+          val result = TypeId.either.construct(Chunk(true: java.lang.Boolean, "value"))
+          assertTrue(result == Right(scala.util.Right("value")))
+        },
+        test("construct Left") {
+          val result = TypeId.either.construct(Chunk(false: java.lang.Boolean, "error"))
+          assertTrue(result == Right(scala.util.Left("error")))
+        },
+        test("construct Either fails with wrong arity") {
+          val result = TypeId.either.construct(Chunk("value"))
+          assertTrue(result.isLeft)
+        },
+        test("construct Either fails with non-boolean first arg") {
+          val result = TypeId.either.construct(Chunk("notBoolean", "value"))
+          assertTrue(result.isLeft)
+        }
+      ),
+      suite("Tuple types")(
+        test("construct Tuple2") {
+          val tuple2Id = TypeId.nominal[(Any, Any)]("Tuple2", Owner.scala, List(TypeParam.A, TypeParam.B))
+          val result   = tuple2Id.construct(Chunk("a", 1: Integer))
+          assertTrue(result == Right(("a", 1)))
+        },
+        test("construct Tuple2 fails with wrong arity") {
+          val tuple2Id = TypeId.nominal[(Any, Any)]("Tuple2", Owner.scala, List(TypeParam.A, TypeParam.B))
+          val result   = tuple2Id.construct(Chunk("a"))
+          assertTrue(result.isLeft)
+        },
+        test("construct Tuple3") {
+          val tuple3Id =
+            TypeId.nominal[(Any, Any, Any)]("Tuple3", Owner.scala, List(TypeParam.A, TypeParam.B, TypeParam("C", 2)))
+          val result = tuple3Id.construct(Chunk("a", 1: Integer, true: java.lang.Boolean))
+          assertTrue(result == Right(("a", 1, true)))
+        }
+      ),
+      suite("java.time types with factory methods")(
+        test("construct java.time.LocalDate") {
+          val result = TypeId.localDate.construct(Chunk(2024: Integer, 6: Integer, 15: Integer))
+          assertTrue(result == Right(java.time.LocalDate.of(2024, 6, 15)))
+        },
+        test("construct java.time.LocalTime") {
+          val result = TypeId.localTime.construct(Chunk(14: Integer, 30: Integer, 0: Integer))
+          assertTrue(result == Right(java.time.LocalTime.of(14, 30, 0)))
+        },
+        test("construct java.time.LocalDateTime") {
+          val result = TypeId.localDateTime.construct(
+            Chunk(2024: Integer, 6: Integer, 15: Integer, 14: Integer, 30: Integer, 0: Integer)
+          )
+          assertTrue(result == Right(java.time.LocalDateTime.of(2024, 6, 15, 14, 30, 0)))
+        },
+        test("construct java.time.Year") {
+          val result = TypeId.year.construct(Chunk(2024: Integer))
+          assertTrue(result == Right(java.time.Year.of(2024)))
+        },
+        test("construct java.time.YearMonth") {
+          val result = TypeId.yearMonth.construct(Chunk(2024: Integer, 6: Integer))
+          assertTrue(result == Right(java.time.YearMonth.of(2024, 6)))
+        },
+        test("construct java.time.MonthDay") {
+          val result = TypeId.monthDay.construct(Chunk(6: Integer, 15: Integer))
+          assertTrue(result == Right(java.time.MonthDay.of(6, 15)))
+        },
+        test("construct java.time.Duration from seconds") {
+          val result = TypeId.duration.construct(Chunk(3600L: java.lang.Long))
+          assertTrue(result == Right(java.time.Duration.ofSeconds(3600L)))
+        },
+        test("construct java.time.Period") {
+          val result = TypeId.period.construct(Chunk(1: Integer, 2: Integer, 3: Integer))
+          assertTrue(result == Right(java.time.Period.of(1, 2, 3)))
+        },
+        test("construct java.time.Instant from epoch seconds") {
+          val result = TypeId.instant.construct(Chunk(1718450400L: java.lang.Long))
+          assertTrue(result == Right(java.time.Instant.ofEpochSecond(1718450400L)))
+        },
+        test("construct java.time.ZoneOffset from total seconds") {
+          val result = TypeId.zoneOffset.construct(Chunk(3600: Integer))
+          assertTrue(result == Right(java.time.ZoneOffset.ofTotalSeconds(3600)))
+        }
+      ),
+      suite("User-defined types via reflection")(
+        test("construct Person case class") {
+          val personId = TypeId.of[Person]
+          val result   = personId.construct(Chunk("Alice", 30: Integer))
+          assertTrue(result == Right(Person("Alice", 30)))
+        },
+        test("construct Address case class") {
+          val addressId = TypeId.of[Address]
+          val result    = addressId.construct(Chunk("123 Main St", "Springfield"))
+          assertTrue(result == Right(Address("123 Main St", "Springfield")))
+        },
+        test("construct nested case class Outer.Inner") {
+          val innerId = TypeId.of[Outer.Inner]
+          val result  = innerId.construct(Chunk(42: Integer))
+          assertTrue(result == Right(Outer.Inner(42)))
+        },
+        test("construct generic case class Box[String]") {
+          val boxId  = TypeId.of[Box[String]]
+          val result = boxId.construct(Chunk("content"))
+          assertTrue(result == Right(Box("content")))
+        },
+        test("construct fails with wrong number of arguments") {
+          val personId = TypeId.of[Person]
+          val result   = personId.construct(Chunk("Alice"))
+          assertTrue(result.isLeft)
+        },
+        test("construct fails with wrong argument types") {
+          val personId = TypeId.of[Person]
+          val result   = personId.construct(Chunk(123: Integer, "notAnInt"))
+          assertTrue(result.isLeft)
+        }
+      ),
+      suite("Error cases")(
+        test("construct returns error for alias types") {
+          val aliasId = TypeId.alias[Int]("Age", Owner.Root / "myapp", Nil, TypeRepr.Ref(TypeId.int))
+          val result  = aliasId.construct(Chunk(42: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("construct returns error for opaque types") {
+          val opaqueId = TypeId.opaque[String]("Email", Owner.Root / "myapp", Nil, TypeRepr.Ref(TypeId.string))
+          val result   = opaqueId.construct(Chunk("test@example.com"))
+          assertTrue(result.isLeft)
+        },
+        test("LocalDate with wrong arity") {
+          val result = TypeId.localDate.construct(Chunk(2024: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("LocalTime with 2 arguments (hour, minute)") {
+          val result = TypeId.localTime.construct(Chunk(14: Integer, 30: Integer))
+          assertTrue(result == Right(java.time.LocalTime.of(14, 30)))
+        },
+        test("LocalTime with wrong arity") {
+          val result = TypeId.localTime.construct(Chunk(14: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("LocalDateTime with wrong arity") {
+          val result = TypeId.localDateTime.construct(Chunk(2024: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("Year with wrong arity") {
+          val result = TypeId.year.construct(Chunk.empty)
+          assertTrue(result.isLeft)
+        },
+        test("YearMonth with wrong arity") {
+          val result = TypeId.yearMonth.construct(Chunk(2024: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("MonthDay with wrong arity") {
+          val result = TypeId.monthDay.construct(Chunk(6: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("Duration with wrong arity") {
+          val result = TypeId.duration.construct(Chunk.empty)
+          assertTrue(result.isLeft)
+        },
+        test("Period with wrong arity") {
+          val result = TypeId.period.construct(Chunk(1: Integer))
+          assertTrue(result.isLeft)
+        },
+        test("Instant with wrong arity") {
+          val result = TypeId.instant.construct(Chunk.empty)
+          assertTrue(result.isLeft)
+        },
+        test("ZoneOffset with wrong arity") {
+          val result = TypeId.zoneOffset.construct(Chunk.empty)
+          assertTrue(result.isLeft)
+        },
+        test("reflective construct with null argument") {
+          val personId = TypeId.of[Person]
+          val result   = personId.construct(Chunk(null, 30: Integer))
+          assertTrue(result.isRight)
+        },
+        test("reflective construct with primitive int param (boxed)") {
+          val innerId = TypeId.of[Outer.Inner]
+          val result  = innerId.construct(Chunk(99: Integer))
+          assertTrue(result == Right(Outer.Inner(99)))
+        }
+      )
+    ) @@ jvmOnly
   )
 }

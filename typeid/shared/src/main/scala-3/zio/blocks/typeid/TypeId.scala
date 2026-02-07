@@ -1,5 +1,7 @@
 package zio.blocks.typeid
 
+import zio.blocks.chunk.Chunk
+
 /**
  * Represents the identity of a type or type constructor.
  *
@@ -18,7 +20,7 @@ package zio.blocks.typeid
  * @tparam A
  *   The type (or type constructor) this TypeId represents
  */
-sealed trait TypeId[A <: AnyKind] {
+sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   def name: String
   def owner: Owner
   def typeParams: List[TypeParam]
@@ -29,10 +31,16 @@ sealed trait TypeId[A <: AnyKind] {
   def representation: Option[TypeRepr] // For opaque types
   def annotations: List[Annotation]
 
+  final def clazz: Option[Class[?]] = TypeIdPlatformMethods.getClass(this)
+
+  final def construct(args: Chunk[AnyRef]): Either[String, Any] = TypeIdPlatformMethods.construct(this, args)
+
   final def parents: List[TypeRepr] = defKind.baseTypes
 
   /** Returns true if this is an applied type (has type arguments) */
   final def isApplied: Boolean = typeArgs.nonEmpty
+
+  final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
 
   // Derived properties
   final def arity: Int = typeParams.size
@@ -53,8 +61,8 @@ sealed trait TypeId[A <: AnyKind] {
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
   final def isSealed: Boolean = defKind match {
-    case TypeDefKind.Trait(isSealed, _, _) => isSealed
-    case _                                 => false
+    case TypeDefKind.Trait(isSealed, _) => isSealed
+    case _                              => false
   }
 
   final def isCaseClass: Boolean = defKind match {
@@ -67,16 +75,28 @@ sealed trait TypeId[A <: AnyKind] {
     case _                                      => false
   }
 
-  /** Get enum cases if this is an enum */
-  final def enumCases: List[EnumCaseInfo] = defKind match {
-    case TypeDefKind.Enum(cases, _) => cases
-    case _                          => Nil
-  }
-
-  /** Get known subtypes if this is a sealed trait */
-  final def knownSubtypes: List[TypeRepr] = defKind match {
-    case TypeDefKind.Trait(_, subtypes, _) => subtypes
-    case _                                 => Nil
+  /**
+   * Returns a ClassTag for this type, using the correct primitive ClassTag for
+   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char,
+   * Unit) and ClassTag.AnyRef for all reference types.
+   *
+   * This is useful for creating properly-typed arrays at runtime.
+   */
+  lazy val classTag: scala.reflect.ClassTag[?] = {
+    import scala.reflect.ClassTag
+    if (owner == Owner.scala) name match {
+      case "Int"     => ClassTag.Int
+      case "Long"    => ClassTag.Long
+      case "Float"   => ClassTag.Float
+      case "Double"  => ClassTag.Double
+      case "Boolean" => ClassTag.Boolean
+      case "Byte"    => ClassTag.Byte
+      case "Short"   => ClassTag.Short
+      case "Char"    => ClassTag.Char
+      case "Unit"    => ClassTag.Unit
+      case _         => ClassTag.AnyRef
+    }
+    else ClassTag.AnyRef
   }
 
   /** Checks if the normalized type is a Scala Tuple */
@@ -194,14 +214,7 @@ sealed trait TypeId[A <: AnyKind] {
 
   override def hashCode(): Int = TypeId.structuralHash(this)
 
-  override def toString: String = {
-    val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr  =
-      if (aliasedTo.isDefined) "alias"
-      else if (representation.isDefined) "opaque"
-      else "nominal"
-    s"TypeId.$kindStr($fullName$paramStr)"
-  }
+  override def toString: String = TypeIdPrinter.render(this)
 }
 
 object TypeId extends TypeIdInstances with TypeIdLowPriority {
@@ -335,18 +348,18 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   }
 
   object Sealed {
-    def unapply(id: TypeId[?]): Option[(String, List[TypeRepr])] =
+    def unapply(id: TypeId[?]): Option[String] =
       id.defKind match {
-        case TypeDefKind.Trait(true, subtypes, _) => Some((id.name, subtypes))
-        case _                                    => None
+        case TypeDefKind.Trait(true, _) => Some(id.name)
+        case _                          => None
       }
   }
 
   object Enum {
-    def unapply(id: TypeId[?]): Option[(String, Owner, List[EnumCaseInfo])] =
+    def unapply(id: TypeId[?]): Option[(String, Owner)] =
       id.defKind match {
-        case TypeDefKind.Enum(cases, _) => Some((id.name, id.owner, cases))
-        case _                          => None
+        case TypeDefKind.Enum(_) => Some((id.name, id.owner))
+        case _                   => None
       }
   }
 
@@ -361,6 +374,22 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = TypeIdOps.structurallyEqual(a, b)
 
   def structuralHash(id: TypeId[?]): Int = TypeIdOps.structuralHash(id)
+
+  /**
+   * Returns the type constructor by stripping all type arguments.
+   *
+   * For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns a TypeId
+   * equivalent to `TypeId.of[List]` (the unapplied type constructor).
+   *
+   * This is useful for TypeRegistry lookups where Seq/Map bindings are stored
+   * by their type constructor rather than applied types.
+   *
+   * @param id
+   *   The TypeId to unapply
+   * @return
+   *   A TypeId with empty typeArgs representing the type constructor
+   */
+  def unapplied(id: TypeId[?]): TypeId[?] = TypeIdOps.unapplied(id)
 
   // ========== Predefined TypeIds for Common Types ==========
 
@@ -390,4 +419,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   given iarray: TypeId[IArray] =
     nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
+
+  // ========== Erased TypeId for Type-Indexed Maps ==========
+
+  type Unknown <: AnyKind
+
+  type Erased = TypeId[Unknown]
 }

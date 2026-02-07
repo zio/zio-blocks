@@ -19,12 +19,12 @@ package zio.blocks.chunk
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.chunk.Chunk
+import scala.collection.immutable.ArraySeq
 import scala.compiletime.uninitialized
 
 class ChunkFlatMapBenchmark extends BaseBenchmark {
   @Param(Array("100"))
-  var size: Int = uninitialized
-
+  var size: Int           = 100
   var chunk: Chunk[Int]   = uninitialized
   var vector: Vector[Int] = uninitialized
 
@@ -36,8 +36,11 @@ class ChunkFlatMapBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def flatMapChunk(): Chunk[Int] = chunk.flatMap(i => Chunk(i, i + 1))
+  def flatMapArraySeq: Chunk[Int] = chunk.flatMap(i => ArraySeq(i, i + 1))
 
   @Benchmark
-  def flatMapVector(): Vector[Int] = vector.flatMap(i => Vector(i, i + 1))
+  def flatMapChunk: Chunk[Int] = chunk.flatMap(i => Chunk(i, i + 1))
+
+  @Benchmark
+  def flatMapVector: Vector[Int] = vector.flatMap(i => Vector(i, i + 1))
 }

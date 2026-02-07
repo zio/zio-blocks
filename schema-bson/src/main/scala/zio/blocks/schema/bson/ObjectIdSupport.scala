@@ -26,8 +26,8 @@ object ObjectIdSupport {
       wrapped = Schema.string.reflect,
       typeId = TypeId.nominal[ObjectId]("ObjectId", Owner.fromPackagePath("org.bson.types")),
       wrapperBinding = new Binding.Wrapper[ObjectId, String](
-        wrap = str => Right(new ObjectId(str)),
-        unwrap = oid => Right(oid.toHexString)
+        wrap = str => new ObjectId(str),
+        unwrap = oid => oid.toHexString
       )
     )
   )

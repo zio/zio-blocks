@@ -432,70 +432,55 @@ object BindingOfSpec extends SchemaBaseSpec {
         assertTrue(reconstructed == original)
       }
     ),
-    suite("collections - concrete types")(
-      test("List[Int]") {
-        val binding = Binding.of[List[Int]]
+    suite("collections - type constructors")(
+      test("List") {
+        val binding = Binding.of[List]
         assertTrue(
           isSeq(binding) &&
-            binding.asInstanceOf[Binding.Seq[List, Int]].constructor == SeqConstructor.listConstructor
+            binding.constructor == SeqConstructor.listConstructor
         )
       },
-      test("Vector[String]") {
-        val binding = Binding.of[Vector[String]]
+      test("Vector") {
+        val binding = Binding.of[Vector]
         assertTrue(
           isSeq(binding) &&
-            binding.asInstanceOf[Binding.Seq[Vector, String]].constructor == SeqConstructor.vectorConstructor
+            binding.constructor == SeqConstructor.vectorConstructor
         )
       },
-      test("Set[Int]") {
-        val binding = Binding.of[Set[Int]]
+      test("Set") {
+        val binding = Binding.of[Set]
         assertTrue(
           isSeq(binding) &&
-            binding.asInstanceOf[Binding.Seq[Set, Int]].constructor == SeqConstructor.setConstructor
+            binding.constructor == SeqConstructor.setConstructor
         )
       },
-      test("Map[String, Int]") {
-        val binding = Binding.of[Map[String, Int]]
+      test("Map") {
+        val binding = Binding.of[Map]
         assertTrue(
           isMap(binding) &&
-            binding.asInstanceOf[Binding.Map[Map, String, Int]].constructor == MapConstructor.map
+            binding.constructor == MapConstructor.map
         )
       },
-      test("Chunk[Int]") {
-        val binding = Binding.of[Chunk[Int]]
+      test("Chunk") {
+        val binding = Binding.of[Chunk]
         assertTrue(
           isSeq(binding) &&
-            binding.asInstanceOf[Binding.Seq[Chunk, Int]].constructor == SeqConstructor.chunkConstructor
+            binding.constructor == SeqConstructor.chunkConstructor
         )
       },
-      test("ArraySeq[Int]") {
-        val binding = Binding.of[ArraySeq[Int]]
+      test("ArraySeq") {
+        val binding = Binding.of[ArraySeq]
         assertTrue(
           isSeq(binding) &&
-            binding.asInstanceOf[Binding.Seq[ArraySeq, Int]].constructor == SeqConstructor.arraySeqConstructor
+            binding.constructor == SeqConstructor.arraySeqConstructor
         )
       },
-      test("Array[Int]") {
-        val binding = Binding.of[Array[Int]]
-        assertTrue(isSeq(binding))
-      },
-      test("Array[String]") {
-        val binding = Binding.of[Array[String]]
-        assertTrue(isSeq(binding))
-      }
-    ),
-    suite("collections - type constructors")(
-      test("List type constructor") {
-        val binding = Binding.of[List]
-        assertTrue(isSeq(binding))
-      },
-      test("Vector type constructor") {
-        val binding = Binding.of[Vector]
-        assertTrue(isSeq(binding))
-      },
-      test("Map type constructor") {
-        val binding = Binding.of[Map]
-        assertTrue(isMap(binding))
+      test("Array") {
+        val binding = Binding.of[Array]
+        assertTrue(
+          isSeq(binding) &&
+            binding.constructor == SeqConstructor.arrayConstructor
+        )
       },
       test("covariant upcast works") {
         val listNothing: Binding.Seq[List, Nothing] = Binding.of[List]
@@ -547,22 +532,22 @@ object BindingOfSpec extends SchemaBaseSpec {
       },
       test("smart constructor wrap succeeds for valid input") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        assertTrue(binding.wrap("test@example.com").isRight)
+        assertTrue(scala.util.Try(binding.wrap("test@example.com")).isSuccess)
       },
       test("smart constructor wrap fails for invalid input") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        assertTrue(binding.wrap("invalid").isLeft)
+        assertTrue(scala.util.Try(binding.wrap("invalid")).isFailure)
       },
       test("smart constructor unwrap extracts underlying value") {
         val binding = Binding.of[Email].asInstanceOf[Binding.Wrapper[Email, String]]
-        val email   = binding.wrap("test@example.com").toOption.get
-        assertTrue(binding.unwrap(email) == Right("test@example.com"))
+        val email   = scala.util.Try(binding.wrap("test@example.com")).toOption.get
+        assertTrue(binding.unwrap(email) == "test@example.com")
       },
       test("smart constructor with SchemaError return type") {
         val binding = Binding.of[PositiveDouble].asInstanceOf[Binding.Wrapper[PositiveDouble, Double]]
         assertTrue(
-          binding.wrap(1.5).isRight &&
-            binding.wrap(-1.0).isLeft
+          scala.util.Try(binding.wrap(1.5)).isSuccess &&
+            scala.util.Try(binding.wrap(-1.0)).isFailure
         )
       },
       test("regular case class without smart constructor returns Binding.Record") {
@@ -623,177 +608,88 @@ object BindingOfSpec extends SchemaBaseSpec {
         assertTrue(reconstructed == original)
       }
     ),
-    suite("Array bindings for Schema.derived delegation")(
-      test("Array[Int] binding exists") {
-        val binding = Binding.of[Array[Int]]
-        assertTrue(isSeq(binding))
-      },
-      test("Array[Int] construct empty") {
-        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
-        val constructor = binding.constructor
-        val result      = constructor.emptyObject[Int]
-        assertTrue(result.isEmpty && result.isInstanceOf[Array[Int]])
-      },
-      test("Array[Int] construct from builder") {
-        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](3)
-        constructor.addObject(builder, 1)
-        constructor.addObject(builder, 2)
-        constructor.addObject(builder, 3)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1, 2, 3))
-      },
-      test("Array[Int] deconstruct works") {
-        val binding       = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
+    suite("Array bindings")(
+      test("Array construct empty") {
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val arr           = Array(1, 2, 3)
+        val result        = constructor.empty[AnyRef]
+        assertTrue(deconstructor.deconstruct(result).isEmpty)
+      },
+      test("Array construct from builder") {
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        constructor.add(builder, "c")
+        val result = constructor.result(builder)
+        assertTrue(deconstructor.deconstruct(result).toList == List("a", "b", "c"))
+      },
+      test("Array deconstruct works") {
+        val binding       = Binding.of[Array]
+        val deconstructor = binding.deconstructor
+        val arr           = Array("a", "b", "c")
         val result        = deconstructor.deconstruct(arr)
-        assertTrue(result.toList == List(1, 2, 3))
+        assertTrue(result.toList == List("a", "b", "c"))
       },
-      test("Array[String] binding") {
-        val binding     = Binding.of[Array[String]].asInstanceOf[Binding.Seq[Array, String]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[String](2)
-        constructor.addObject(builder, "hello")
-        constructor.addObject(builder, "world")
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List("hello", "world"))
-      },
-      test("Array[Double] binding") {
-        val binding     = Binding.of[Array[Double]].asInstanceOf[Binding.Seq[Array, Double]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Double](2)
-        constructor.addObject(builder, 1.5)
-        constructor.addObject(builder, 2.5)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1.5, 2.5))
-      },
-      test("Array[Boolean] binding") {
-        val binding     = Binding.of[Array[Boolean]].asInstanceOf[Binding.Seq[Array, Boolean]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Boolean](2)
-        constructor.addObject(builder, true)
-        constructor.addObject(builder, false)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(true, false))
-      },
-      test("Array[Byte] binding") {
-        val binding     = Binding.of[Array[Byte]].asInstanceOf[Binding.Seq[Array, Byte]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Byte](2)
-        constructor.addObject(builder, 1.toByte)
-        constructor.addObject(builder, 2.toByte)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1.toByte, 2.toByte))
-      },
-      test("Array[Short] binding") {
-        val binding     = Binding.of[Array[Short]].asInstanceOf[Binding.Seq[Array, Short]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Short](2)
-        constructor.addObject(builder, 1.toShort)
-        constructor.addObject(builder, 2.toShort)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1.toShort, 2.toShort))
-      },
-      test("Array[Long] binding") {
-        val binding     = Binding.of[Array[Long]].asInstanceOf[Binding.Seq[Array, Long]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Long](2)
-        constructor.addObject(builder, 1L)
-        constructor.addObject(builder, 2L)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1L, 2L))
-      },
-      test("Array[Float] binding") {
-        val binding     = Binding.of[Array[Float]].asInstanceOf[Binding.Seq[Array, Float]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Float](2)
-        constructor.addObject(builder, 1.5f)
-        constructor.addObject(builder, 2.5f)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1.5f, 2.5f))
-      },
-      test("Array[Char] binding") {
-        val binding     = Binding.of[Array[Char]].asInstanceOf[Binding.Seq[Array, Char]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Char](2)
-        constructor.addObject(builder, 'a')
-        constructor.addObject(builder, 'b')
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List('a', 'b'))
-      },
-      test("Array[Person] (case class elements)") {
-        val binding     = Binding.of[Array[Person]].asInstanceOf[Binding.Seq[Array, Person]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Person](2)
-        constructor.addObject(builder, Person("Alice", 30))
-        constructor.addObject(builder, Person("Bob", 25))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(Person("Alice", 30), Person("Bob", 25)))
+      test("Array Person elements (case class)") {
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](2)
+        constructor.add(builder, Person("Alice", 30))
+        constructor.add(builder, Person("Bob", 25))
+        val result = constructor.result(builder)
+        assertTrue(deconstructor.deconstruct(result).toList == List(Person("Alice", 30), Person("Bob", 25)))
       },
       test("Array builder grows correctly") {
-        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](1)
-        (1 to 100).foreach(i => constructor.addObject(builder, i))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 100 && result.toList == (1 to 100).toList)
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](1)
+        (1 to 100).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list.length == 100 && list.head == "1" && list.last == "100")
       }
     ),
-    suite("ArraySeq bindings for Schema.derived delegation")(
-      test("ArraySeq[Int] binding exists") {
-        val binding = Binding.of[ArraySeq[Int]]
-        assertTrue(isSeq(binding))
-      },
-      test("ArraySeq[Int] construct empty") {
-        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
-        val constructor = binding.constructor
-        val result      = constructor.emptyObject[Int]
-        assertTrue(result.isEmpty)
-      },
-      test("ArraySeq[Int] construct from builder") {
-        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](3)
-        constructor.addObject(builder, 1)
-        constructor.addObject(builder, 2)
-        constructor.addObject(builder, 3)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1, 2, 3))
-      },
-      test("ArraySeq[Int] deconstruct works") {
-        val binding       = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
+    suite("ArraySeq bindings")(
+      test("ArraySeq construct empty") {
+        val binding       = Binding.of[ArraySeq]
+        val constructor   = binding.constructor
         val deconstructor = binding.deconstructor
-        val arr           = ArraySeq(1, 2, 3)
+        val result        = constructor.empty[String]
+        assertTrue(deconstructor.deconstruct(result).isEmpty)
+      },
+      test("ArraySeq construct from builder") {
+        val binding       = Binding.of[ArraySeq]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[String](3)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        constructor.add(builder, "c")
+        val result = constructor.result(builder)
+        assertTrue(deconstructor.deconstruct(result).toList == List("a", "b", "c"))
+      },
+      test("ArraySeq deconstruct works") {
+        val binding       = Binding.of[ArraySeq]
+        val deconstructor = binding.deconstructor
+        val arr           = ArraySeq("a", "b", "c")
         val result        = deconstructor.deconstruct(arr)
-        assertTrue(result.toList == List(1, 2, 3))
-      },
-      test("ArraySeq[String] binding") {
-        val binding     = Binding.of[ArraySeq[String]].asInstanceOf[Binding.Seq[ArraySeq, String]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[String](2)
-        constructor.addObject(builder, "hello")
-        constructor.addObject(builder, "world")
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List("hello", "world"))
-      },
-      test("ArraySeq[Double] binding") {
-        val binding     = Binding.of[ArraySeq[Double]].asInstanceOf[Binding.Seq[ArraySeq, Double]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Double](2)
-        constructor.addObject(builder, 1.5)
-        constructor.addObject(builder, 2.5)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(1.5, 2.5))
+        assertTrue(result.toList == List("a", "b", "c"))
       },
       test("ArraySeq builder grows correctly") {
-        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](1)
-        (1 to 100).foreach(i => constructor.addObject(builder, i))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 100 && result.toList == (1 to 100).toList)
+        val binding       = Binding.of[ArraySeq]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[String](1)
+        (1 to 100).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list.length == 100 && list.head == "1" && list.last == "100")
       }
     ),
     suite("sealed trait Binding.Variant for Schema.derived delegation")(
@@ -902,270 +798,82 @@ object BindingOfSpec extends SchemaBaseSpec {
       }
     ),
     suite("complex composite types")(
-      test("Array of sealed trait") {
-        val binding = Binding.of[Array[Color]]
-        assertTrue(isSeq(binding))
+      test("Array with sealed trait elements") {
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, Red)
+        constructor.add(builder, Green)
+        constructor.add(builder, Blue)
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list == List(Red, Green, Blue))
       },
       test("Array of case class with sealed trait field") {
         case class Container(color: Color, value: Int)
-        val binding     = Binding.of[Array[Container]].asInstanceOf[Binding.Seq[Array, Container]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Container](2)
-        constructor.addObject(builder, Container(Red, 1))
-        constructor.addObject(builder, Container(Blue, 2))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(Container(Red, 1), Container(Blue, 2)))
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](2)
+        constructor.add(builder, Container(Red, 1))
+        constructor.add(builder, Container(Blue, 2))
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list == List(Container(Red, 1), Container(Blue, 2)))
       },
       test("ArraySeq of Option") {
-        val binding     = Binding.of[ArraySeq[Option[Int]]].asInstanceOf[Binding.Seq[ArraySeq, Option[Int]]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Option[Int]](3)
-        constructor.addObject(builder, Some(1))
-        constructor.addObject(builder, None)
-        constructor.addObject(builder, Some(3))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.toList == List(Some(1), None, Some(3)))
+        val binding       = Binding.of[ArraySeq]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](3)
+        constructor.add(builder, Some(1))
+        constructor.add(builder, None)
+        constructor.add(builder, Some(3))
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list == List(Some(1), None, Some(3)))
       }
     ),
-
-    suite("Schema.derived delegation - element-type-specific Array constructor codepaths")(
-      test("Array[AnyRef subtype] uses Arrays.copyOf with AnyRef overload") {
-        case class Box(value: Int)
-        val binding     = Binding.of[Array[Box]].asInstanceOf[Binding.Seq[Array, Box]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Box](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, Box(i)))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10 && result.map(_.value).toList == (1 to 10).toList)
+    suite("Array resize and trim")(
+      test("Array resize works when growing") {
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](1)
+        (1 to 10).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list.length == 10 && list.head == "1" && list.last == "10")
       },
-      test("Array[Unit] uses arraycopy fallback path") {
-        val binding     = Binding.of[Array[Unit]].asInstanceOf[Binding.Seq[Array, Unit]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Unit](1)
-        (1 to 10).foreach(_ => constructor.addObject(builder, ()))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Boolean") {
-        val binding     = Binding.of[Array[Boolean]].asInstanceOf[Binding.Seq[Array, Boolean]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Boolean](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i % 2 == 0))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Byte") {
-        val binding     = Binding.of[Array[Byte]].asInstanceOf[Binding.Seq[Array, Byte]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Byte](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toByte))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Short") {
-        val binding     = Binding.of[Array[Short]].asInstanceOf[Binding.Seq[Array, Short]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Short](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toShort))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Int") {
-        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Long") {
-        val binding     = Binding.of[Array[Long]].asInstanceOf[Binding.Seq[Array, Long]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Long](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toLong))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Float") {
-        val binding     = Binding.of[Array[Float]].asInstanceOf[Binding.Seq[Array, Float]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Float](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toFloat))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Double") {
-        val binding     = Binding.of[Array[Double]].asInstanceOf[Binding.Seq[Array, Double]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Double](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toDouble))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array resize triggers copyOf for Char") {
-        val binding     = Binding.of[Array[Char]].asInstanceOf[Binding.Seq[Array, Char]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Char](1)
-        ('a' to 'j').foreach(c => constructor.addObject(builder, c))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("Array result trim for Boolean") {
-        val binding     = Binding.of[Array[Boolean]].asInstanceOf[Binding.Seq[Array, Boolean]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Boolean](16)
-        constructor.addObject(builder, true)
-        constructor.addObject(builder, false)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(true, false))
-      },
-      test("Array result trim for Byte") {
-        val binding     = Binding.of[Array[Byte]].asInstanceOf[Binding.Seq[Array, Byte]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Byte](16)
-        constructor.addObject(builder, 1.toByte)
-        constructor.addObject(builder, 2.toByte)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(1.toByte, 2.toByte))
-      },
-      test("Array result trim for Short") {
-        val binding     = Binding.of[Array[Short]].asInstanceOf[Binding.Seq[Array, Short]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Short](16)
-        constructor.addObject(builder, 1.toShort)
-        constructor.addObject(builder, 2.toShort)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(1.toShort, 2.toShort))
-      },
-      test("Array result trim for Int") {
-        val binding     = Binding.of[Array[Int]].asInstanceOf[Binding.Seq[Array, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](16)
-        constructor.addObject(builder, 1)
-        constructor.addObject(builder, 2)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(1, 2))
-      },
-      test("Array result trim for Long") {
-        val binding     = Binding.of[Array[Long]].asInstanceOf[Binding.Seq[Array, Long]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Long](16)
-        constructor.addObject(builder, 1L)
-        constructor.addObject(builder, 2L)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(1L, 2L))
-      },
-      test("Array result trim for Float") {
-        val binding     = Binding.of[Array[Float]].asInstanceOf[Binding.Seq[Array, Float]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Float](16)
-        constructor.addObject(builder, 1.5f)
-        constructor.addObject(builder, 2.5f)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(1.5f, 2.5f))
-      },
-      test("Array result trim for Double") {
-        val binding     = Binding.of[Array[Double]].asInstanceOf[Binding.Seq[Array, Double]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Double](16)
-        constructor.addObject(builder, 1.5)
-        constructor.addObject(builder, 2.5)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List(1.5, 2.5))
-      },
-      test("Array result trim for Char") {
-        val binding     = Binding.of[Array[Char]].asInstanceOf[Binding.Seq[Array, Char]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Char](16)
-        constructor.addObject(builder, 'a')
-        constructor.addObject(builder, 'b')
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.toList == List('a', 'b'))
-      },
-      test("Array result trim for AnyRef subtype") {
-        case class Box(value: Int)
-        val binding     = Binding.of[Array[Box]].asInstanceOf[Binding.Seq[Array, Box]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Box](16)
-        constructor.addObject(builder, Box(1))
-        constructor.addObject(builder, Box(2))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 2 && result.map(_.value).toList == List(1, 2))
+      test("Array result trim works when oversized") {
+        val binding       = Binding.of[Array]
+        val constructor   = binding.constructor
+        val deconstructor = binding.deconstructor
+        val builder       = constructor.newBuilder[AnyRef](16)
+        constructor.add(builder, "a")
+        constructor.add(builder, "b")
+        val result = constructor.result(builder)
+        val list   = deconstructor.deconstruct(result).toList
+        assertTrue(list == List("a", "b"))
       }
     ),
-    suite("Schema.derived delegation - element-type-specific ArraySeq constructor codepaths")(
-      test("ArraySeq[Boolean] resize and trim") {
-        val binding     = Binding.of[ArraySeq[Boolean]].asInstanceOf[Binding.Seq[ArraySeq, Boolean]]
+    suite("ArraySeq resize and trim")(
+      test("ArraySeq resize works when growing") {
+        val binding     = Binding.of[ArraySeq]
         val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Boolean](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i % 2 == 0))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
+        val builder     = constructor.newBuilder[String](1)
+        (1 to 10).foreach(i => constructor.add(builder, i.toString))
+        val result = constructor.result(builder)
+        assertTrue(result.length == 10 && result(0) == "1" && result(9) == "10")
       },
-      test("ArraySeq[Byte] resize and trim") {
-        val binding     = Binding.of[ArraySeq[Byte]].asInstanceOf[Binding.Seq[ArraySeq, Byte]]
+      test("ArraySeq result trim works when oversized") {
+        val binding     = Binding.of[ArraySeq]
         val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Byte](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toByte))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("ArraySeq[Short] resize and trim") {
-        val binding     = Binding.of[ArraySeq[Short]].asInstanceOf[Binding.Seq[ArraySeq, Short]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Short](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toShort))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("ArraySeq[Long] resize and trim") {
-        val binding     = Binding.of[ArraySeq[Long]].asInstanceOf[Binding.Seq[ArraySeq, Long]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Long](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toLong))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("ArraySeq[Float] resize and trim") {
-        val binding     = Binding.of[ArraySeq[Float]].asInstanceOf[Binding.Seq[ArraySeq, Float]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Float](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, i.toFloat))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("ArraySeq[Char] resize and trim") {
-        val binding     = Binding.of[ArraySeq[Char]].asInstanceOf[Binding.Seq[ArraySeq, Char]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Char](1)
-        ('a' to 'j').foreach(c => constructor.addObject(builder, c))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10)
-      },
-      test("ArraySeq[Unit] special case") {
-        val binding     = Binding.of[ArraySeq[Unit]].asInstanceOf[Binding.Seq[ArraySeq, Unit]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Unit](1)
-        (1 to 5).foreach(_ => constructor.addObject(builder, ()))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 5)
-      },
-      test("ArraySeq[AnyRef subtype] resize and trim") {
-        case class Box(value: Int)
-        val binding     = Binding.of[ArraySeq[Box]].asInstanceOf[Binding.Seq[ArraySeq, Box]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Box](1)
-        (1 to 10).foreach(i => constructor.addObject(builder, Box(i)))
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 10 && result.map(_.value).toList == (1 to 10).toList)
-      },
-      test("ArraySeq result trim preserves wrapped array semantics") {
-        val binding     = Binding.of[ArraySeq[Int]].asInstanceOf[Binding.Seq[ArraySeq, Int]]
-        val constructor = binding.constructor
-        val builder     = constructor.newObjectBuilder[Int](16)
-        constructor.addObject(builder, 42)
-        val result = constructor.resultObject(builder)
-        assertTrue(result.length == 1 && result.head == 42)
+        val builder     = constructor.newBuilder[String](16)
+        constructor.add(builder, "42")
+        val result = constructor.result(builder)
+        assertTrue(result.length == 1 && result(0) == "42")
       }
     )
   )

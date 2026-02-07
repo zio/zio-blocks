@@ -16,12 +16,12 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val varianceSchema: Schema[Variance] =
-    Schema[String].transformOrFail(
+    Schema[String].transform(
       {
-        case "Covariant"     => Right(Variance.Covariant)
-        case "Contravariant" => Right(Variance.Contravariant)
-        case "Invariant"     => Right(Variance.Invariant)
-        case other           => Left(SchemaError.conversionFailed(Nil, s"Unknown variance: $other"))
+        case "Covariant"     => Variance.Covariant
+        case "Contravariant" => Variance.Contravariant
+        case "Invariant"     => Variance.Invariant
+        case other           => throw SchemaError.conversionFailed(Nil, s"Unknown variance: $other")
       },
       {
         case Variance.Covariant     => "Covariant"
@@ -35,14 +35,14 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val kindSchema: Schema[Kind] = {
-    lazy val baseSchema: Schema[Kind] = Schema[DynamicValue].transformOrFail(
+    lazy val baseSchema: Schema[Kind] = Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           fields.toMap.get("type") match {
             case Some(DynamicValue.Primitive(PrimitiveValue.String("Type"))) =>
-              Right(Kind.Type)
+              Kind.Type
             case Some(DynamicValue.Primitive(PrimitiveValue.String("Arrow"))) =>
-              for {
+              (for {
                 params <- fields.toMap
                             .get("params")
                             .toRight(SchemaError.missingField(Nil, "params"))
@@ -51,11 +51,11 @@ trait TypeIdSchemas {
                             .get("result")
                             .toRight(SchemaError.missingField(Nil, "result"))
                             .flatMap(baseSchema.fromDynamicValue)
-              } yield Kind.Arrow(params, result)
+              } yield Kind.Arrow(params, result)).fold(throw _, identity)
             case _ =>
-              Left(SchemaError.conversionFailed(Nil, "Unknown kind type"))
+              throw SchemaError.conversionFailed(Nil, "Unknown kind type")
           }
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       kind =>
         kind match {
@@ -81,7 +81,7 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val ownerSegmentSchema: Schema[Owner.Segment] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           fields.toMap.get("type") match {
@@ -91,22 +91,25 @@ trait TypeIdSchemas {
                 .toRight(SchemaError.missingField(Nil, "name"))
                 .flatMap(Schema[String].fromDynamicValue)
                 .map(Owner.Package.apply)
+                .fold(throw _, identity)
             case Some(DynamicValue.Primitive(PrimitiveValue.String("Term"))) =>
               fields.toMap
                 .get("name")
                 .toRight(SchemaError.missingField(Nil, "name"))
                 .flatMap(Schema[String].fromDynamicValue)
                 .map(Owner.Term.apply)
+                .fold(throw _, identity)
             case Some(DynamicValue.Primitive(PrimitiveValue.String("Type"))) =>
               fields.toMap
                 .get("name")
                 .toRight(SchemaError.missingField(Nil, "name"))
                 .flatMap(Schema[String].fromDynamicValue)
                 .map(Owner.Type.apply)
+                .fold(throw _, identity)
             case _ =>
-              Left(SchemaError.conversionFailed(Nil, "Unknown Owner.Segment type"))
+              throw SchemaError.conversionFailed(Nil, "Unknown Owner.Segment type")
           }
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       segment =>
         segment match {
@@ -146,7 +149,7 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val termPathSegmentSchema: Schema[TermPath.Segment] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           fields.toMap.get("type") match {
@@ -156,16 +159,18 @@ trait TypeIdSchemas {
                 .toRight(SchemaError.missingField(Nil, "name"))
                 .flatMap(Schema[String].fromDynamicValue)
                 .map(TermPath.Package.apply)
+                .fold(throw _, identity)
             case Some(DynamicValue.Primitive(PrimitiveValue.String("Term"))) =>
               fields.toMap
                 .get("name")
                 .toRight(SchemaError.missingField(Nil, "name"))
                 .flatMap(Schema[String].fromDynamicValue)
                 .map(TermPath.Term.apply)
+                .fold(throw _, identity)
             case _ =>
-              Left(SchemaError.conversionFailed(Nil, "Unknown TermPath.Segment type"))
+              throw SchemaError.conversionFailed(Nil, "Unknown TermPath.Segment type")
           }
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       segment =>
         segment match {
@@ -198,8 +203,8 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val typeReprSchema: Schema[TypeRepr] = {
-    val baseSchema = Schema[DynamicValue].transformOrFail(
-      dynamicValue => typeReprFromDynamic(dynamicValue),
+    val baseSchema = Schema[DynamicValue].transform(
+      dynamicValue => typeReprFromDynamic(dynamicValue).fold(throw _, identity),
       typeRepr => typeReprToDynamic(typeRepr)
     )
     baseSchema
@@ -760,11 +765,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val tupleElementSchema: Schema[TupleElement] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             label <- fieldMap
                        .get("label")
                        .toRight(SchemaError.missingField(Nil, "label"))
@@ -773,8 +778,8 @@ trait TypeIdSchemas {
                      .get("tpe")
                      .toRight(SchemaError.missingField(Nil, "tpe"))
                      .flatMap(typeReprSchema.fromDynamicValue)
-          } yield TupleElement(label, tpe)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          } yield TupleElement(label, tpe)).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       elem =>
         DynamicValue.Record(
@@ -790,11 +795,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val typeBoundsSchema: Schema[TypeBounds] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             lower <- fieldMap
                        .get("lower")
                        .toRight(SchemaError.missingField(Nil, "lower"))
@@ -803,8 +808,8 @@ trait TypeIdSchemas {
                        .get("upper")
                        .toRight(SchemaError.missingField(Nil, "upper"))
                        .flatMap(Schema[Option[TypeRepr]].fromDynamicValue)
-          } yield TypeBounds(lower, upper)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          } yield TypeBounds(lower, upper)).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       bounds =>
         DynamicValue.Record(
@@ -820,11 +825,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val typeParamSchema: Schema[TypeParam] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             name <- fieldMap
                       .get("name")
                       .toRight(SchemaError.missingField(Nil, "name"))
@@ -845,8 +850,8 @@ trait TypeIdSchemas {
                       .get("kind")
                       .toRight(SchemaError.missingField(Nil, "kind"))
                       .flatMap(kindSchema.fromDynamicValue)
-          } yield TypeParam(name, index, variance, bounds, kind)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          } yield TypeParam(name, index, variance, bounds, kind)).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       param =>
         DynamicValue.Record(
@@ -865,11 +870,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val paramSchema: Schema[Param] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             name <- fieldMap
                       .get("name")
                       .toRight(SchemaError.missingField(Nil, "name"))
@@ -886,8 +891,8 @@ trait TypeIdSchemas {
                             .get("hasDefault")
                             .toRight(SchemaError.missingField(Nil, "hasDefault"))
                             .flatMap(Schema[Boolean].fromDynamicValue)
-          } yield Param(name, tpe, isImplicit, hasDefault)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          } yield Param(name, tpe, isImplicit, hasDefault)).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       param =>
         DynamicValue.Record(
@@ -905,7 +910,7 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val memberSchema: Schema[Member] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
@@ -914,7 +919,7 @@ trait TypeIdSchemas {
             case _                                                  => None
           } match {
             case Some("Val") =>
-              for {
+              (for {
                 name <- fieldMap
                           .get("name")
                           .toRight(SchemaError.missingField(Nil, "name"))
@@ -927,10 +932,10 @@ trait TypeIdSchemas {
                            .get("isVar")
                            .toRight(SchemaError.missingField(Nil, "isVar"))
                            .flatMap(Schema[Boolean].fromDynamicValue)
-              } yield Member.Val(name, tpe, isVar)
+              } yield Member.Val(name, tpe, isVar)).fold(throw _, identity)
 
             case Some("Def") =>
-              for {
+              (for {
                 name <- fieldMap
                           .get("name")
                           .toRight(SchemaError.missingField(Nil, "name"))
@@ -947,10 +952,10 @@ trait TypeIdSchemas {
                             .get("result")
                             .toRight(SchemaError.missingField(Nil, "result"))
                             .flatMap(typeReprSchema.fromDynamicValue)
-              } yield Member.Def(name, typeParams, paramLists, result)
+              } yield Member.Def(name, typeParams, paramLists, result)).fold(throw _, identity)
 
             case Some("TypeMember") =>
-              for {
+              (for {
                 name <- fieldMap
                           .get("name")
                           .toRight(SchemaError.missingField(Nil, "name"))
@@ -967,12 +972,12 @@ trait TypeIdSchemas {
                                 .get("upperBound")
                                 .toRight(SchemaError.missingField(Nil, "upperBound"))
                                 .flatMap(Schema[Option[TypeRepr]].fromDynamicValue)
-              } yield Member.TypeMember(name, typeParams, lowerBound, upperBound)
+              } yield Member.TypeMember(name, typeParams, lowerBound, upperBound)).fold(throw _, identity)
 
             case _ =>
-              Left(SchemaError.conversionFailed(Nil, "Unknown Member type"))
+              throw SchemaError.conversionFailed(Nil, "Unknown Member type")
           }
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       member =>
         member match {
@@ -1015,11 +1020,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val enumCaseParamSchema: Schema[EnumCaseParam] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             name <- fieldMap
                       .get("name")
                       .toRight(SchemaError.missingField(Nil, "name"))
@@ -1028,8 +1033,8 @@ trait TypeIdSchemas {
                      .get("tpe")
                      .toRight(SchemaError.missingField(Nil, "tpe"))
                      .flatMap(typeReprSchema.fromDynamicValue)
-          } yield EnumCaseParam(name, tpe)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          } yield EnumCaseParam(name, tpe)).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       param =>
         DynamicValue.Record(
@@ -1041,52 +1046,12 @@ trait TypeIdSchemas {
     )
 
   // ============================================================================
-  // EnumCaseInfo
-  // ============================================================================
-
-  implicit lazy val enumCaseInfoSchema: Schema[EnumCaseInfo] =
-    Schema[DynamicValue].transformOrFail(
-      {
-        case DynamicValue.Record(fields) =>
-          val fieldMap = fields.toMap
-          for {
-            name <- fieldMap
-                      .get("name")
-                      .toRight(SchemaError.missingField(Nil, "name"))
-                      .flatMap(Schema[String].fromDynamicValue)
-            ordinal <- fieldMap
-                         .get("ordinal")
-                         .toRight(SchemaError.missingField(Nil, "ordinal"))
-                         .flatMap(Schema[Int].fromDynamicValue)
-            params <- fieldMap
-                        .get("params")
-                        .toRight(SchemaError.missingField(Nil, "params"))
-                        .flatMap(Schema[List[EnumCaseParam]].fromDynamicValue)
-            isObjectCase <- fieldMap
-                              .get("isObjectCase")
-                              .toRight(SchemaError.missingField(Nil, "isObjectCase"))
-                              .flatMap(Schema[Boolean].fromDynamicValue)
-          } yield EnumCaseInfo(name, ordinal, params, isObjectCase)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
-      },
-      info =>
-        DynamicValue.Record(
-          Chunk(
-            ("name", Schema[String].toDynamicValue(info.name)),
-            ("ordinal", Schema[Int].toDynamicValue(info.ordinal)),
-            ("params", Schema[List[EnumCaseParam]].toDynamicValue(info.params)),
-            ("isObjectCase", Schema[Boolean].toDynamicValue(info.isObjectCase))
-          )
-        )
-    )
-
-  // ============================================================================
   // AnnotationArg (recursive sum type)
   // ============================================================================
 
   implicit lazy val annotationArgSchema: Schema[AnnotationArg] =
-    Schema[DynamicValue].transformOrFail(
-      dv => annotationArgFromDynamic(dv),
+    Schema[DynamicValue].transform(
+      dv => annotationArgFromDynamic(dv).fold(throw _, identity),
       arg => annotationArgToDynamic(arg)
     )
 
@@ -1225,11 +1190,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val annotationSchema: Schema[Annotation] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             typeId <- fieldMap
                         .get("typeId")
                         .toRight(SchemaError.missingField(Nil, "typeId"))
@@ -1238,8 +1203,8 @@ trait TypeIdSchemas {
                       .get("args")
                       .toRight(SchemaError.missingField(Nil, "args"))
                       .flatMap(Schema[List[AnnotationArg]].fromDynamicValue)
-          } yield Annotation(typeId, args)
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          } yield Annotation(typeId, args)).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       annotation =>
         DynamicValue.Record(
@@ -1255,7 +1220,7 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val typeDefKindSchema: Schema[TypeDefKind] = {
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
@@ -1264,7 +1229,7 @@ trait TypeIdSchemas {
             case _                                                  => None
           } match {
             case Some("Class") =>
-              for {
+              (for {
                 isFinal <- fieldMap
                              .get("isFinal")
                              .toRight(SchemaError.missingField(Nil, "isFinal"))
@@ -1285,46 +1250,38 @@ trait TypeIdSchemas {
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, bases)
+              } yield TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, bases)).fold(throw _, identity)
 
             case Some("Trait") =>
-              for {
+              (for {
                 isSealed <- fieldMap
                               .get("isSealed")
                               .toRight(SchemaError.missingField(Nil, "isSealed"))
                               .flatMap(Schema[Boolean].fromDynamicValue)
-                knownSubtypes <- fieldMap
-                                   .get("knownSubtypes")
-                                   .toRight(SchemaError.missingField(Nil, "knownSubtypes"))
-                                   .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
                 bases <- fieldMap
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Trait(isSealed, knownSubtypes, bases)
+              } yield TypeDefKind.Trait(isSealed, bases)).fold(throw _, identity)
 
             case Some("Object") =>
-              for {
+              (for {
                 bases <- fieldMap
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Object(bases)
+              } yield TypeDefKind.Object(bases)).fold(throw _, identity)
 
             case Some("Enum") =>
-              for {
-                cases <- fieldMap
-                           .get("cases")
-                           .toRight(SchemaError.missingField(Nil, "cases"))
-                           .flatMap(Schema[List[EnumCaseInfo]].fromDynamicValue)
+              (for {
                 bases <- fieldMap
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Enum(cases, bases)
+              } yield TypeDefKind.Enum(bases)).fold(throw _, identity)
 
             case Some("EnumCase") =>
-              for {
+              (for {
                 parentEnum <- fieldMap
                                 .get("parentEnum")
                                 .toRight(SchemaError.missingField(Nil, "parentEnum"))
@@ -1337,29 +1294,29 @@ trait TypeIdSchemas {
                                   .get("isObjectCase")
                                   .toRight(SchemaError.missingField(Nil, "isObjectCase"))
                                   .flatMap(Schema[Boolean].fromDynamicValue)
-              } yield TypeDefKind.EnumCase(parentEnum, ordinal, isObjectCase)
+              } yield TypeDefKind.EnumCase(parentEnum, ordinal, isObjectCase)).fold(throw _, identity)
 
             case Some("TypeAlias") =>
-              Right(TypeDefKind.TypeAlias)
+              TypeDefKind.TypeAlias
 
             case Some("OpaqueType") =>
-              for {
+              (for {
                 publicBounds <- fieldMap
                                   .get("publicBounds")
                                   .toRight(SchemaError.missingField(Nil, "publicBounds"))
                                   .flatMap(typeBoundsSchema.fromDynamicValue)
-              } yield TypeDefKind.OpaqueType(publicBounds)
+              } yield TypeDefKind.OpaqueType(publicBounds)).fold(throw _, identity)
 
             case Some("AbstractType") =>
-              Right(TypeDefKind.AbstractType)
+              TypeDefKind.AbstractType
 
             case Some("Unknown") =>
-              Right(TypeDefKind.Unknown)
+              TypeDefKind.Unknown
 
             case _ =>
-              Left(SchemaError.conversionFailed(Nil, "Unknown TypeDefKind type"))
+              throw SchemaError.conversionFailed(Nil, "Unknown TypeDefKind type")
           }
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       kind =>
         kind match {
@@ -1375,12 +1332,11 @@ trait TypeIdSchemas {
               )
             )
 
-          case TypeDefKind.Trait(isSealed, knownSubtypes, bases) =>
+          case TypeDefKind.Trait(isSealed, bases) =>
             DynamicValue.Record(
               Chunk(
                 ("type", DynamicValue.Primitive(PrimitiveValue.String("Trait"))),
                 ("isSealed", Schema[Boolean].toDynamicValue(isSealed)),
-                ("knownSubtypes", Schema[List[TypeRepr]].toDynamicValue(knownSubtypes)),
                 ("bases", Schema[List[TypeRepr]].toDynamicValue(bases))
               )
             )
@@ -1393,11 +1349,10 @@ trait TypeIdSchemas {
               )
             )
 
-          case TypeDefKind.Enum(cases, bases) =>
+          case TypeDefKind.Enum(bases) =>
             DynamicValue.Record(
               Chunk(
                 ("type", DynamicValue.Primitive(PrimitiveValue.String("Enum"))),
-                ("cases", Schema[List[EnumCaseInfo]].toDynamicValue(cases)),
                 ("bases", Schema[List[TypeRepr]].toDynamicValue(bases))
               )
             )
@@ -1449,11 +1404,11 @@ trait TypeIdSchemas {
   // ============================================================================
 
   implicit lazy val typeIdSchema: Schema[TypeId[_]] =
-    Schema[DynamicValue].transformOrFail(
+    Schema[DynamicValue].transform(
       {
         case DynamicValue.Record(fields) =>
           val fieldMap = fields.toMap
-          for {
+          (for {
             name <- fieldMap
                       .get("name")
                       .toRight(SchemaError.missingField(Nil, "name"))
@@ -1500,8 +1455,8 @@ trait TypeIdSchemas {
             aliasedTo,
             representation,
             annotations
-          )
-        case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
+          )).fold(throw _, identity)
+        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
       },
       typeId =>
         DynamicValue.Record(

@@ -1,10 +1,16 @@
 # ZIO Blocks Agent Guidelines
 
-Zero-dependency Scala building blocks (2.13 + 3.x; JVM/JS/Native).
+Zero-dependency Scala building blocks (2.13 + 3.x; JVM/JS).
 
 ## Setup
 
 If `.git/bin/sbtn` doesn't exist, download [sbtn](https://github.com/sbt/sbtn-dist/releases) and place it there. Always run: `export PATH="$PWD/.git/bin:$PATH"`
+
+If `sbt --client` is causing trouble, try:
+
+```bash
+sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project/target/active.json project/target/.sbt-server-connection.json
+```
 
 ## Mindset
 
@@ -28,13 +34,13 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 
 # <command> examples:
-#   "++3.3.6; <project>/test"                             — fast loop, Scala 3
+#   "++3.7.4; <project>/test"                             — fast loop, Scala 3
 #   "++<scala2>; <project>/test"                          — fast loop, Scala 2
-#   "++3.3.6; project <project>; coverage; test; coverageReport"   — coverage, Scala 3
+#   "++3.7.4; project <project>; coverage; test; coverageReport"   — coverage, Scala 3
 #   "++<scala2>; project <project>; coverage; test; coverageReport"  — coverage, Scala 2
-#   "++3.3.6; <project>/test; ++<scala2>; <project>/test" — cross-Scala
-#   "++3.3.6; <project>/scalafmt"                         — format main sources
-#   "++3.3.6; <project>/Test/scalafmt"                    — format test sources
+#   "++3.7.4; <project>/test; ++<scala2>; <project>/test" — cross-Scala
+#   "++3.7.4; <project>/scalafmt"                         — format main sources
+#   "++3.7.4; <project>/Test/scalafmt"                    — format test sources
 #   scalafmtSbt                                           — format build files
 #
 # IMPORTANT: --client mode preserves Scala version across invocations.
@@ -57,33 +63,33 @@ One project, one Scala version: get `<project>/test` green. Default Scala 3; use
 ### 3. Verify
 Enter only when fast loop is green. Run in order:
 
-1. **Coverage** (Scala version you developed with)
-2. **Cross-Scala** (the other Scala version, same project)
-3. **Cross-platform** (other platform projects, if cross-built and you touched shared/ or platform sources)
-4. **Downstream** (all projects that depend on what you changed—see below)
+1. **Coverage** — Scala version you developed with
+2. **Cross-Scala** — the other Scala version, same project
+3. **Cross-platform** — other platform projects, if cross-built and you touched shared/ or platform sources
+4. **Downstream** — all projects that depend on what you changed:
+    - `chunk*` → `schema*`, `benchmarks`
+    - `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
+
+    If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
 If any step fails: return to phase 1, fix, get green in phase 2, rerun the failing step.
 
 ### 4. Format
+
 Run once after verify passes.
-
-## Downstream
-
-When you change a module, test everything downstream:
-- `chunk*` → `schema*`, `benchmarks`
-- `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
-
-If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
 ## Testing
 
 ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
 
-## Git & CI
+## Git & CI (Prefer `gh` CLI)
 
-Commit at stable points (minimum: when fast loop is green).
+Commit often, whenever fast loop is green.
 
-PR open and think you're done? Run verify + format, push, then loop: wait if necessary, check CI and review comments (prefer `gh` CLI), fix CI issues and **valid** CI comments via workflow, push. Repeat until green and approved.
+PR already open (check!) and think you're done? Push, update PR title/description, then loop: monitor CI and review comments, fix all CI issues (including conflicts) and all **valid** review comments via Workflow. Don't stop until CI is green, & PR is approved & merged.
+
+When waiting on PR checks, suppress watch output to avoid context bloat:
+`sleep 30 && gh pr checks <PR> --watch --fail-fast > /dev/null 2>&1 || true && gh pr checks <PR>`
 
 ## Boundaries
 
