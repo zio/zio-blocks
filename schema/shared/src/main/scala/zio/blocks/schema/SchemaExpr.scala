@@ -55,7 +55,7 @@ final case class SchemaExpr[A, B](
   def toDynamic: DynamicSchemaExpr = dynamic
 
   // Logical combinators
-  final def &&[B2](
+  def &&[B2](
     that: SchemaExpr[A, B2]
   )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
     SchemaExpr(
@@ -64,7 +64,7 @@ final case class SchemaExpr[A, B](
       Schema[Boolean]
     )
 
-  final def ||[B2](
+  def ||[B2](
     that: SchemaExpr[A, B2]
   )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
     SchemaExpr(
@@ -91,21 +91,21 @@ object SchemaExpr {
       )
     }
 
-  def Literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
+  def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.Literal(schema.toDynamicValue(value)),
       Schema[Unit].transform[S](_ => null.asInstanceOf[S], _ => ()),
       schema
     )
 
-  def Optic[S, A](path: DynamicOptic, sourceSchema: Schema[S]): SchemaExpr[S, A] =
+  def optic[S, A](path: DynamicOptic, sourceSchema: Schema[S]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.Select(path),
       sourceSchema,
       Schema[Unit].asInstanceOf[Schema[A]]
     )
 
-  def Logical[S](
+  def logical[S](
     left: SchemaExpr[S, Boolean],
     right: SchemaExpr[S, Boolean],
     operator: LogicalOperator
@@ -121,7 +121,7 @@ object SchemaExpr {
     )
   }
 
-  def Relational[S, A](
+  def relational[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
     operator: RelationalOperator
@@ -141,14 +141,14 @@ object SchemaExpr {
     )
   }
 
-  def Not[S](expr: SchemaExpr[S, Boolean]): SchemaExpr[S, Boolean] =
+  def not[S](expr: SchemaExpr[S, Boolean]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.Not(expr.dynamic),
       expr.inputSchema,
       Schema[Boolean]
     )
 
-  def Arithmetic[S, A](
+  def arithmetic[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
     operator: ArithmeticOperator,
@@ -169,7 +169,7 @@ object SchemaExpr {
     )
   }
 
-  def Bitwise[S, A](
+  def bitwise[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
     operator: BitwiseOperator
@@ -189,35 +189,35 @@ object SchemaExpr {
     )
   }
 
-  def BitwiseNot[S, A](expr: SchemaExpr[S, A]): SchemaExpr[S, A] =
+  def bitwiseNot[S, A](expr: SchemaExpr[S, A]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.BitwiseNot(expr.dynamic),
       expr.inputSchema,
       expr.outputSchema
     )
 
-  def StringConcat[S](left: SchemaExpr[S, String], right: SchemaExpr[S, String]): SchemaExpr[S, String] =
+  def stringConcat[S](left: SchemaExpr[S, String], right: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringConcat(left.dynamic, right.dynamic),
       left.inputSchema,
       Schema[String]
     )
 
-  def StringRegexMatch[S](regex: SchemaExpr[S, String], string: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
+  def stringRegexMatch[S](regex: SchemaExpr[S, String], string: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringRegexMatch(regex.dynamic, string.dynamic),
       regex.inputSchema,
       Schema[Boolean]
     )
 
-  def StringLength[S](string: SchemaExpr[S, String]): SchemaExpr[S, Int] =
+  def stringLength[S](string: SchemaExpr[S, String]): SchemaExpr[S, Int] =
     SchemaExpr(
       DynamicSchemaExpr.StringLength(string.dynamic),
       string.inputSchema,
       Schema[Int]
     )
 
-  def StringSubstring[S](
+  def stringSubstring[S](
     string: SchemaExpr[S, String],
     start: SchemaExpr[S, Int],
     end: SchemaExpr[S, Int]
@@ -228,28 +228,28 @@ object SchemaExpr {
       Schema[String]
     )
 
-  def StringTrim[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
+  def stringTrim[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringTrim(string.dynamic),
       string.inputSchema,
       Schema[String]
     )
 
-  def StringToUpperCase[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
+  def stringToUpperCase[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringToUpperCase(string.dynamic),
       string.inputSchema,
       Schema[String]
     )
 
-  def StringToLowerCase[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
+  def stringToLowerCase[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringToLowerCase(string.dynamic),
       string.inputSchema,
       Schema[String]
     )
 
-  def StringReplace[S](
+  def stringReplace[S](
     string: SchemaExpr[S, String],
     target: SchemaExpr[S, String],
     replacement: SchemaExpr[S, String]
@@ -260,28 +260,28 @@ object SchemaExpr {
       Schema[String]
     )
 
-  def StringStartsWith[S](string: SchemaExpr[S, String], prefix: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
+  def stringStartsWith[S](string: SchemaExpr[S, String], prefix: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringStartsWith(string.dynamic, prefix.dynamic),
       string.inputSchema,
       Schema[Boolean]
     )
 
-  def StringEndsWith[S](string: SchemaExpr[S, String], suffix: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
+  def stringEndsWith[S](string: SchemaExpr[S, String], suffix: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringEndsWith(string.dynamic, suffix.dynamic),
       string.inputSchema,
       Schema[Boolean]
     )
 
-  def StringContains[S](string: SchemaExpr[S, String], substring: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
+  def stringContains[S](string: SchemaExpr[S, String], substring: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringContains(string.dynamic, substring.dynamic),
       string.inputSchema,
       Schema[Boolean]
     )
 
-  def StringIndexOf[S](string: SchemaExpr[S, String], substring: SchemaExpr[S, String]): SchemaExpr[S, Int] =
+  def stringIndexOf[S](string: SchemaExpr[S, String], substring: SchemaExpr[S, String]): SchemaExpr[S, Int] =
     SchemaExpr(
       DynamicSchemaExpr.StringIndexOf(string.dynamic, substring.dynamic),
       string.inputSchema,
