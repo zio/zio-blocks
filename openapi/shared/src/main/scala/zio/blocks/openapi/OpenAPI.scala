@@ -724,3 +724,364 @@ final case class Header(
 object Header {
   implicit val schema: Schema[Header] = Schema.derived
 }
+
+/**
+ * Describes a single request body.
+ *
+ * @param content
+ *   REQUIRED. The content of the request body. The key is a media type or media
+ *   type range and the value describes it. For requests that match multiple
+ *   keys, only the most specific key is applicable. e.g. text/plain overrides
+ *   text/wildcard
+ * @param description
+ *   A brief description of the request body. This could contain examples of
+ *   use. CommonMark syntax MAY be used for rich text representation.
+ * @param required
+ *   Determines if the request body is required in the request. Defaults to
+ *   false.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class RequestBody(
+  content: Map[String, MediaType],
+  description: Option[String] = None,
+  required: Boolean = false,
+  extensions: Map[String, Json] = Map.empty
+)
+
+object RequestBody {
+  implicit val schema: Schema[RequestBody] = Schema.derived
+}
+
+/**
+ * Each Media Type Object provides schema and examples for the media type
+ * identified by its key.
+ *
+ * @param schema
+ *   The schema defining the content of the request, response, or parameter.
+ * @param example
+ *   Example of the media type. The example object SHOULD be in the correct
+ *   format as specified by the media type. The example field is mutually
+ *   exclusive of the examples field. Furthermore, if referencing a schema which
+ *   contains an example, the example value SHALL override the example provided
+ *   by the schema.
+ * @param examples
+ *   Examples of the media type. Each example object SHOULD match the media type
+ *   and specified schema if present. The examples field is mutually exclusive
+ *   of the example field. Furthermore, if referencing a schema which contains
+ *   an example, the examples value SHALL override the example provided by the
+ *   schema.
+ * @param encoding
+ *   A map between a property name and its encoding information. The key, being
+ *   the property name, MUST exist in the schema as a property. The encoding
+ *   object SHALL only apply to requestBody objects when the media type is
+ *   multipart or application/x-www-form-urlencoded.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class MediaType(
+  schema: Option[Json] = None,
+  example: Option[Json] = None,
+  examples: Map[String, ReferenceOr[Example]] = Map.empty,
+  encoding: Map[String, Encoding] = Map.empty,
+  extensions: Map[String, Json] = Map.empty
+)
+
+object MediaType {
+  implicit val schema: Schema[MediaType] = Schema.derived
+}
+
+/**
+ * A single encoding definition applied to a single schema property.
+ *
+ * @param contentType
+ *   The Content-Type for encoding a specific property. Default value depends on
+ *   the property type: for object - application/json; for array – the default
+ *   is defined based on the inner type; for all other cases the default is
+ *   application/octet-stream. The value can be a specific media type (e.g.
+ *   application/json), a wildcard media type (e.g. image/wildcard), or a
+ *   comma-separated list of the two types.
+ * @param headers
+ *   A map allowing additional information to be provided as headers, for
+ *   example Content-Disposition. Content-Type is described separately and SHALL
+ *   be ignored in this section. This property SHALL be ignored if the request
+ *   body media type is not a multipart.
+ * @param style
+ *   Describes how a specific property value will be serialized depending on its
+ *   type. See Parameter Object for details on the style property. The behavior
+ *   follows the same values as query parameters, including default values. This
+ *   property SHALL be ignored if the request body media type is not
+ *   application/x-www-form-urlencoded or multipart/form-data. If a value is
+ *   explicitly defined, then the value of contentType (implicit or explicit)
+ *   SHALL be ignored.
+ * @param explode
+ *   When this is true, property values of type array or object generate
+ *   separate parameters for each value of the array, or key-value-pair of the
+ *   map. For other types of properties this property has no effect. When style
+ *   is form, the default value is true. For all other styles, the default value
+ *   is false. This property SHALL be ignored if the request body media type is
+ *   not application/x-www-form-urlencoded or multipart/form-data. If a value is
+ *   explicitly defined, then the value of contentType (implicit or explicit)
+ *   SHALL be ignored.
+ * @param allowReserved
+ *   Determines whether the parameter value SHOULD allow reserved characters, as
+ *   defined by RFC3986 :/?#[]@!$&'()*+,;= to be included without
+ *   percent-encoding. The default value is false. This property SHALL be
+ *   ignored if the request body media type is not
+ *   application/x-www-form-urlencoded or multipart/form-data. If a value is
+ *   explicitly defined, then the value of contentType (implicit or explicit)
+ *   SHALL be ignored.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class Encoding(
+  contentType: Option[String] = None,
+  headers: Map[String, ReferenceOr[Header]] = Map.empty,
+  style: Option[String] = None,
+  explode: Option[Boolean] = None,
+  allowReserved: Boolean = false,
+  extensions: Map[String, Json] = Map.empty
+)
+
+object Encoding {
+  implicit val schema: Schema[Encoding] = Schema.derived
+}
+
+/**
+ * A container for the expected responses of an operation. The container maps a
+ * HTTP response code to the expected response.
+ *
+ * The documentation is not necessarily expected to cover all possible HTTP
+ * response codes because they may not be known in advance. However,
+ * documentation is expected to cover a successful operation response and any
+ * known errors.
+ *
+ * The default MAY be used as a default response object for all HTTP codes that
+ * are not covered individually by the Responses Object.
+ *
+ * @param responses
+ *   A map of HTTP status codes to Response objects. The key is the HTTP status
+ *   code as a string (e.g. "200", "404", "4XX"). The value is a Response or
+ *   Reference.
+ * @param default
+ *   The documentation of responses other than the ones declared for specific
+ *   HTTP response codes. Use this field to cover undeclared responses.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class Responses(
+  responses: Map[String, ReferenceOr[Response]] = Map.empty,
+  default: Option[ReferenceOr[Response]] = None,
+  extensions: Map[String, Json] = Map.empty
+)
+
+object Responses {
+  implicit val schema: Schema[Responses] = Schema.derived
+}
+
+/**
+ * Describes a single response from an API Operation, including design-time,
+ * static links to operations based on the response.
+ *
+ * @param description
+ *   REQUIRED. A description of the response. CommonMark syntax MAY be used for
+ *   rich text representation.
+ * @param headers
+ *   Maps a header name to its definition. RFC7230 states header names are case
+ *   insensitive. If a response header is defined with the name "Content-Type",
+ *   it SHALL be ignored.
+ * @param content
+ *   A map containing descriptions of potential response payloads. The key is a
+ *   media type or media type range and the value describes it. For responses
+ *   that match multiple keys, only the most specific key is applicable. e.g.
+ *   text/plain overrides text/wildcard
+ * @param links
+ *   A map of operations links that can be followed from the response. The key
+ *   of the map is a short name for the link, following the naming constraints
+ *   of the names for Component Objects.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class Response(
+  description: String,
+  headers: Map[String, ReferenceOr[Header]] = Map.empty,
+  content: Map[String, MediaType] = Map.empty,
+  links: Map[String, ReferenceOr[Link]] = Map.empty,
+  extensions: Map[String, Json] = Map.empty
+)
+
+object Response {
+  implicit val schema: Schema[Response] = Schema.derived
+}
+
+/**
+ * An object representing an example.
+ *
+ * In all cases, the example value is expected to be compatible with the type
+ * schema of its associated value. Tooling implementations MAY choose to
+ * validate compatibility automatically, and reject the example value if
+ * incompatible.
+ *
+ * @param summary
+ *   Short description for the example.
+ * @param description
+ *   Long description for the example. CommonMark syntax MAY be used for rich
+ *   text representation.
+ * @param value
+ *   Embedded literal example. The value field and externalValue field are
+ *   mutually exclusive. To represent examples of media types that cannot
+ *   naturally represented in JSON or YAML, use a string value to contain the
+ *   example, escaping where necessary.
+ * @param externalValue
+ *   A URI that identifies the location of the example value. This provides the
+ *   capability to reference examples that cannot easily be included in JSON or
+ *   YAML documents. The value field and externalValue field are mutually
+ *   exclusive. See the rules for resolving Relative References.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class Example private (
+  summary: Option[String] = None,
+  description: Option[String] = None,
+  value: Option[Json] = None,
+  externalValue: Option[String] = None,
+  extensions: Map[String, Json] = Map.empty
+) {
+  require(
+    value.isEmpty || externalValue.isEmpty,
+    "Example value and externalValue fields are mutually exclusive - only one may be specified"
+  )
+}
+
+object Example {
+  implicit val schema: Schema[Example] = Schema.derived
+
+  /**
+   * Creates an Example with validation of mutual exclusivity constraints.
+   */
+  def apply(
+    summary: Option[String] = None,
+    description: Option[String] = None,
+    value: Option[Json] = None,
+    externalValue: Option[String] = None,
+    extensions: Map[String, Json] = Map.empty
+  ): Example = {
+    require(
+      value.isEmpty || externalValue.isEmpty,
+      "Example value and externalValue fields are mutually exclusive - only one may be specified"
+    )
+    new Example(summary, description, value, externalValue, extensions)
+  }
+}
+
+/**
+ * The Link object represents a possible design-time link for a response. The
+ * presence of a link does not guarantee the caller's ability to successfully
+ * invoke it, rather it provides a known relationship and traversal mechanism
+ * between responses and other operations.
+ *
+ * Unlike dynamic links (i.e. links provided in the response payload), the OAS
+ * linking mechanism does not require link information in the runtime response.
+ *
+ * For computing links, and providing instructions to execute them, a runtime
+ * expression is used for accessing values in an operation and using them as
+ * parameters while invoking the linked operation.
+ *
+ * @param operationRef
+ *   A relative or absolute URI reference to an OAS operation. This field is
+ *   mutually exclusive of the operationId field, and MUST point to an Operation
+ *   Object. Relative operationRef values MAY be used to locate an existing
+ *   Operation Object in the OpenAPI definition. See the rules for resolving
+ *   Relative References.
+ * @param operationId
+ *   The name of an existing, resolvable OAS operation, as defined with a unique
+ *   operationId. This field is mutually exclusive of the operationRef field.
+ * @param parameters
+ *   A map representing parameters to pass to an operation as specified with
+ *   operationId or identified via operationRef. The key is the parameter name
+ *   to be used, whereas the value can be a constant or an expression to be
+ *   evaluated and passed to the linked operation. The parameter name can be
+ *   qualified using the parameter location [{in}.]{name} for operations that
+ *   use the same parameter name in different locations (e.g. path.id).
+ * @param requestBody
+ *   A literal value or {expression} to use as a request body when calling the
+ *   target operation.
+ * @param description
+ *   A description of the link. CommonMark syntax MAY be used for rich text
+ *   representation.
+ * @param server
+ *   A server object to be used by the target operation.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class Link private (
+  operationRef: Option[String] = None,
+  operationId: Option[String] = None,
+  parameters: Map[String, Json] = Map.empty,
+  requestBody: Option[Json] = None,
+  description: Option[String] = None,
+  server: Option[Server] = None,
+  extensions: Map[String, Json] = Map.empty
+) {
+  require(
+    operationRef.isEmpty || operationId.isEmpty,
+    "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
+  )
+}
+
+object Link {
+  implicit val schema: Schema[Link] = Schema.derived
+
+  /**
+   * Creates a Link with validation of mutual exclusivity constraints.
+   */
+  def apply(
+    operationRef: Option[String] = None,
+    operationId: Option[String] = None,
+    parameters: Map[String, Json] = Map.empty,
+    requestBody: Option[Json] = None,
+    description: Option[String] = None,
+    server: Option[Server] = None,
+    extensions: Map[String, Json] = Map.empty
+  ): Link = {
+    require(
+      operationRef.isEmpty || operationId.isEmpty,
+      "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
+    )
+    new Link(operationRef, operationId, parameters, requestBody, description, server, extensions)
+  }
+}
+
+/**
+ * A map of possible out-of band callbacks related to the parent operation. Each
+ * value in the map is a Path Item Object that describes a set of requests that
+ * may be initiated by the API provider and the expected responses. The key
+ * value used to identify the path item object is an expression, evaluated at
+ * runtime, that identifies a URL to use for the callback operation.
+ *
+ * To describe incoming requests from the API provider independent from another
+ * API call, use the webhooks field.
+ *
+ * @param callbacks
+ *   A map of runtime expressions to Path Item Objects. The key is an
+ *   expression, evaluated at runtime, that identifies a URL to use for the
+ *   callback operation.
+ * @param extensions
+ *   Specification extensions (x-* fields). These allow adding additional
+ *   properties beyond the standard OpenAPI fields.
+ */
+final case class Callback(
+  callbacks: Map[String, ReferenceOr[PathItem]] = Map.empty,
+  extensions: Map[String, Json] = Map.empty
+)
+
+object Callback {
+  implicit val schema: Schema[Callback] = Schema.derived
+}
