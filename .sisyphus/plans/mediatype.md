@@ -482,7 +482,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 5. Implement Runtime Parsing
+- [x] 5. Implement Runtime Parsing
 
   **What to do**:
   - Write failing tests for parse scenarios

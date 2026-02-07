@@ -122,7 +122,13 @@ object MediaTypes {
       MediaType("application", "andrew-inset", compressible = false, binary = true, fileExtensions = List("ez"))
 
     lazy val appinstaller: MediaType =
-      MediaType("application", "appinstaller", compressible = false, binary = true, fileExtensions = List("appinstaller"))
+      MediaType(
+        "application",
+        "appinstaller",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("appinstaller")
+      )
 
     lazy val applefile: MediaType =
       MediaType("application", "applefile", compressible = false, binary = true)
@@ -158,7 +164,13 @@ object MediaTypes {
       MediaType("application", "atomcat+xml", compressible = true, binary = true, fileExtensions = List("atomcat"))
 
     lazy val atomdeletedplusxml: MediaType =
-      MediaType("application", "atomdeleted+xml", compressible = true, binary = true, fileExtensions = List("atomdeleted"))
+      MediaType(
+        "application",
+        "atomdeleted+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("atomdeleted")
+      )
 
     lazy val atomicmail: MediaType =
       MediaType("application", "atomicmail", compressible = false, binary = true)
@@ -191,7 +203,13 @@ object MediaTypes {
       MediaType("application", "automationml-aml+xml", compressible = true, binary = true, fileExtensions = List("aml"))
 
     lazy val automationmlAmlxpluszip: MediaType =
-      MediaType("application", "automationml-amlx+zip", compressible = false, binary = true, fileExtensions = List("amlx"))
+      MediaType(
+        "application",
+        "automationml-amlx+zip",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("amlx")
+      )
 
     lazy val bacnetXddpluszip: MediaType =
       MediaType("application", "bacnet-xdd+zip", compressible = false, binary = true)
@@ -716,10 +734,22 @@ object MediaTypes {
       MediaType("application", "its+xml", compressible = true, binary = true, fileExtensions = List("its"))
 
     lazy val javaArchive: MediaType =
-      MediaType("application", "java-archive", compressible = false, binary = true, fileExtensions = List("jar", "war", "ear"))
+      MediaType(
+        "application",
+        "java-archive",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("jar", "war", "ear")
+      )
 
     lazy val javaSerializedObject: MediaType =
-      MediaType("application", "java-serialized-object", compressible = false, binary = true, fileExtensions = List("ser"))
+      MediaType(
+        "application",
+        "java-serialized-object",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ser")
+      )
 
     lazy val javaVm: MediaType =
       MediaType("application", "java-vm", compressible = false, binary = true, fileExtensions = List("class"))
@@ -836,7 +866,13 @@ object MediaTypes {
       MediaType("application", "mads+xml", compressible = true, binary = true, fileExtensions = List("mads"))
 
     lazy val manifestplusjson: MediaType =
-      MediaType("application", "manifest+json", compressible = true, binary = false, fileExtensions = List("webmanifest"))
+      MediaType(
+        "application",
+        "manifest+json",
+        compressible = true,
+        binary = false,
+        fileExtensions = List("webmanifest")
+      )
 
     lazy val marc: MediaType =
       MediaType("application", "marc", compressible = false, binary = true, fileExtensions = List("mrc"))
@@ -845,7 +881,13 @@ object MediaTypes {
       MediaType("application", "marcxml+xml", compressible = true, binary = true, fileExtensions = List("mrcx"))
 
     lazy val mathematica: MediaType =
-      MediaType("application", "mathematica", compressible = false, binary = true, fileExtensions = List("ma", "nb", "mb"))
+      MediaType(
+        "application",
+        "mathematica",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ma", "nb", "mb")
+      )
 
     lazy val mathmlplusxml: MediaType =
       MediaType("application", "mathml+xml", compressible = true, binary = true, fileExtensions = List("mathml"))
@@ -893,13 +935,25 @@ object MediaTypes {
       MediaType("application", "mbox", compressible = false, binary = true, fileExtensions = List("mbox"))
 
     lazy val mediaPolicyDatasetplusxml: MediaType =
-      MediaType("application", "media-policy-dataset+xml", compressible = true, binary = true, fileExtensions = List("mpf"))
+      MediaType(
+        "application",
+        "media-policy-dataset+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("mpf")
+      )
 
     lazy val mediaControlplusxml: MediaType =
       MediaType("application", "media_control+xml", compressible = true, binary = true)
 
     lazy val mediaservercontrolplusxml: MediaType =
-      MediaType("application", "mediaservercontrol+xml", compressible = true, binary = true, fileExtensions = List("mscml"))
+      MediaType(
+        "application",
+        "mediaservercontrol+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("mscml")
+      )
 
     lazy val mergePatchplusjson: MediaType =
       MediaType("application", "merge-patch+json", compressible = true, binary = false)
@@ -950,7 +1004,13 @@ object MediaTypes {
       MediaType("application", "mp21", compressible = false, binary = true, fileExtensions = List("m21", "mp21"))
 
     lazy val mp4: MediaType =
-      MediaType("application", "mp4", compressible = false, binary = true, fileExtensions = List("mp4", "mpg4", "mp4s", "m4p"))
+      MediaType(
+        "application",
+        "mp4",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mp4", "mpg4", "mp4s", "m4p")
+      )
 
     lazy val mpeg4Generic: MediaType =
       MediaType("application", "mpeg4-generic", compressible = false, binary = true)
@@ -1031,7 +1091,36 @@ object MediaTypes {
       MediaType("application", "ocsp-response", compressible = false, binary = true)
 
     lazy val octetStream: MediaType =
-      MediaType("application", "octet-stream", compressible = true, binary = true, fileExtensions = List("bin", "dms", "lrf", "mar", "so", "dist", "distz", "pkg", "bpk", "dump", "elc", "deploy", "exe", "dll", "deb", "dmg", "iso", "img", "msi", "msp", "msm", "buffer"))
+      MediaType(
+        "application",
+        "octet-stream",
+        compressible = true,
+        binary = true,
+        fileExtensions = List(
+          "bin",
+          "dms",
+          "lrf",
+          "mar",
+          "so",
+          "dist",
+          "distz",
+          "pkg",
+          "bpk",
+          "dump",
+          "elc",
+          "deploy",
+          "exe",
+          "dll",
+          "deb",
+          "dmg",
+          "iso",
+          "img",
+          "msi",
+          "msp",
+          "msm",
+          "buffer"
+        )
+      )
 
     lazy val oda: MediaType =
       MediaType("application", "oda", compressible = false, binary = true, fileExtensions = List("oda"))
@@ -1055,7 +1144,13 @@ object MediaTypes {
       MediaType("application", "omdoc+xml", compressible = true, binary = true, fileExtensions = List("omdoc"))
 
     lazy val onenote: MediaType =
-      MediaType("application", "onenote", compressible = false, binary = true, fileExtensions = List("onetoc", "onetoc2", "onetmp", "onepkg", "one", "onea"))
+      MediaType(
+        "application",
+        "onenote",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("onetoc", "onetoc2", "onetmp", "onepkg", "one", "onea")
+      )
 
     lazy val opcNodesetplusxml: MediaType =
       MediaType("application", "opc-nodeset+xml", compressible = true, binary = true)
@@ -1100,7 +1195,13 @@ object MediaTypes {
       MediaType("application", "pgp-keys", compressible = false, binary = true, fileExtensions = List("asc"))
 
     lazy val pgpSignature: MediaType =
-      MediaType("application", "pgp-signature", compressible = false, binary = true, fileExtensions = List("sig", "asc"))
+      MediaType(
+        "application",
+        "pgp-signature",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sig", "asc")
+      )
 
     lazy val picsRules: MediaType =
       MediaType("application", "pics-rules", compressible = false, binary = true, fileExtensions = List("prf"))
@@ -1151,7 +1252,13 @@ object MediaTypes {
       MediaType("application", "poc-settings+xml", compressible = true, binary = true)
 
     lazy val postscript: MediaType =
-      MediaType("application", "postscript", compressible = true, binary = true, fileExtensions = List("ai", "eps", "ps"))
+      MediaType(
+        "application",
+        "postscript",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("ai", "eps", "ps")
+      )
 
     lazy val ppspTrackerplusjson: MediaType =
       MediaType("application", "ppsp-tracker+json", compressible = true, binary = false)
@@ -1259,7 +1366,13 @@ object MediaTypes {
       MediaType("application", "reginfo+xml", compressible = true, binary = true, fileExtensions = List("rif"))
 
     lazy val relaxNgCompactSyntax: MediaType =
-      MediaType("application", "relax-ng-compact-syntax", compressible = false, binary = true, fileExtensions = List("rnc"))
+      MediaType(
+        "application",
+        "relax-ng-compact-syntax",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rnc")
+      )
 
     lazy val remotePrinting: MediaType =
       MediaType("application", "remote-printing", compressible = false, binary = true)
@@ -1274,7 +1387,13 @@ object MediaTypes {
       MediaType("application", "resource-lists+xml", compressible = true, binary = true, fileExtensions = List("rl"))
 
     lazy val resourceListsDiffplusxml: MediaType =
-      MediaType("application", "resource-lists-diff+xml", compressible = true, binary = true, fileExtensions = List("rld"))
+      MediaType(
+        "application",
+        "resource-lists-diff+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("rld")
+      )
 
     lazy val rfcplusxml: MediaType =
       MediaType("application", "rfc+xml", compressible = true, binary = true)
@@ -1436,13 +1555,25 @@ object MediaTypes {
       MediaType("application", "set-payment", compressible = false, binary = true)
 
     lazy val setPaymentInitiation: MediaType =
-      MediaType("application", "set-payment-initiation", compressible = false, binary = true, fileExtensions = List("setpay"))
+      MediaType(
+        "application",
+        "set-payment-initiation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("setpay")
+      )
 
     lazy val setRegistration: MediaType =
       MediaType("application", "set-registration", compressible = false, binary = true)
 
     lazy val setRegistrationInitiation: MediaType =
-      MediaType("application", "set-registration-initiation", compressible = false, binary = true, fileExtensions = List("setreg"))
+      MediaType(
+        "application",
+        "set-registration-initiation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("setreg")
+      )
 
     lazy val sgml: MediaType =
       MediaType("application", "sgml", compressible = false, binary = true)
@@ -1709,7 +1840,13 @@ object MediaTypes {
       MediaType("application", "vividence.scriptfile", compressible = false, binary = true)
 
     lazy val vnddot1000mindsdotdecisionModelplusxml: MediaType =
-      MediaType("application", "vnd.1000minds.decision-model+xml", compressible = true, binary = true, fileExtensions = List("1km"))
+      MediaType(
+        "application",
+        "vnd.1000minds.decision-model+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("1km")
+      )
 
     lazy val vnddot1ob: MediaType =
       MediaType("application", "vnd.1ob", compressible = false, binary = true)
@@ -1871,10 +2008,22 @@ object MediaTypes {
       MediaType("application", "vnd.3gpp.pfcp", compressible = false, binary = true)
 
     lazy val vnddot3gppdotpicBwLarge: MediaType =
-      MediaType("application", "vnd.3gpp.pic-bw-large", compressible = false, binary = true, fileExtensions = List("plb"))
+      MediaType(
+        "application",
+        "vnd.3gpp.pic-bw-large",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("plb")
+      )
 
     lazy val vnddot3gppdotpicBwSmall: MediaType =
-      MediaType("application", "vnd.3gpp.pic-bw-small", compressible = false, binary = true, fileExtensions = List("psb"))
+      MediaType(
+        "application",
+        "vnd.3gpp.pic-bw-small",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("psb")
+      )
 
     lazy val vnddot3gppdotpicBwVar: MediaType =
       MediaType("application", "vnd.3gpp.pic-bw-var", compressible = false, binary = true, fileExtensions = List("pvb"))
@@ -1964,13 +2113,31 @@ object MediaTypes {
       MediaType("application", "vnd.3lightssoftware.imagescal", compressible = false, binary = true)
 
     lazy val vnddot3mdotpostItNotes: MediaType =
-      MediaType("application", "vnd.3m.post-it-notes", compressible = false, binary = true, fileExtensions = List("pwn"))
+      MediaType(
+        "application",
+        "vnd.3m.post-it-notes",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pwn")
+      )
 
     lazy val vnddotaccpacdotsimplydotaso: MediaType =
-      MediaType("application", "vnd.accpac.simply.aso", compressible = false, binary = true, fileExtensions = List("aso"))
+      MediaType(
+        "application",
+        "vnd.accpac.simply.aso",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("aso")
+      )
 
     lazy val vnddotaccpacdotsimplydotimp: MediaType =
-      MediaType("application", "vnd.accpac.simply.imp", compressible = false, binary = true, fileExtensions = List("imp"))
+      MediaType(
+        "application",
+        "vnd.accpac.simply.imp",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("imp")
+      )
 
     lazy val vnddotacmdotaddressxferplusjson: MediaType =
       MediaType("application", "vnd.acm.addressxfer+json", compressible = true, binary = false)
@@ -1982,19 +2149,43 @@ object MediaTypes {
       MediaType("application", "vnd.acucobol", compressible = false, binary = true, fileExtensions = List("acu"))
 
     lazy val vnddotacucorp: MediaType =
-      MediaType("application", "vnd.acucorp", compressible = false, binary = true, fileExtensions = List("atc", "acutc"))
+      MediaType(
+        "application",
+        "vnd.acucorp",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("atc", "acutc")
+      )
 
     lazy val vnddotadobedotairApplicationInstallerPackagepluszip: MediaType =
-      MediaType("application", "vnd.adobe.air-application-installer-package+zip", compressible = false, binary = true, fileExtensions = List("air"))
+      MediaType(
+        "application",
+        "vnd.adobe.air-application-installer-package+zip",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("air")
+      )
 
     lazy val vnddotadobedotflashdotmovie: MediaType =
       MediaType("application", "vnd.adobe.flash.movie", compressible = false, binary = true)
 
     lazy val vnddotadobedotformscentraldotfcdt: MediaType =
-      MediaType("application", "vnd.adobe.formscentral.fcdt", compressible = false, binary = true, fileExtensions = List("fcdt"))
+      MediaType(
+        "application",
+        "vnd.adobe.formscentral.fcdt",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("fcdt")
+      )
 
     lazy val vnddotadobedotfxp: MediaType =
-      MediaType("application", "vnd.adobe.fxp", compressible = false, binary = true, fileExtensions = List("fxp", "fxpl"))
+      MediaType(
+        "application",
+        "vnd.adobe.fxp",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("fxp", "fxpl")
+      )
 
     lazy val vnddotadobedotpartialUpload: MediaType =
       MediaType("application", "vnd.adobe.partial-upload", compressible = false, binary = true)
@@ -2060,10 +2251,22 @@ object MediaTypes {
       MediaType("application", "vnd.aia", compressible = false, binary = true)
 
     lazy val vnddotairzipdotfilesecuredotazf: MediaType =
-      MediaType("application", "vnd.airzip.filesecure.azf", compressible = false, binary = true, fileExtensions = List("azf"))
+      MediaType(
+        "application",
+        "vnd.airzip.filesecure.azf",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("azf")
+      )
 
     lazy val vnddotairzipdotfilesecuredotazs: MediaType =
-      MediaType("application", "vnd.airzip.filesecure.azs", compressible = false, binary = true, fileExtensions = List("azs"))
+      MediaType(
+        "application",
+        "vnd.airzip.filesecure.azs",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("azs")
+      )
 
     lazy val vnddotamadeusplusjson: MediaType =
       MediaType("application", "vnd.amadeus+json", compressible = true, binary = false)
@@ -2075,7 +2278,13 @@ object MediaTypes {
       MediaType("application", "vnd.amazon.mobi8-ebook", compressible = false, binary = true)
 
     lazy val vnddotamericandynamicsdotacc: MediaType =
-      MediaType("application", "vnd.americandynamics.acc", compressible = false, binary = true, fileExtensions = List("acc"))
+      MediaType(
+        "application",
+        "vnd.americandynamics.acc",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("acc")
+      )
 
     lazy val vnddotamigadotami: MediaType =
       MediaType("application", "vnd.amiga.ami", compressible = false, binary = true, fileExtensions = List("ami"))
@@ -2087,19 +2296,43 @@ object MediaTypes {
       MediaType("application", "vnd.android.ota", compressible = false, binary = true)
 
     lazy val vnddotandroiddotpackageArchive: MediaType =
-      MediaType("application", "vnd.android.package-archive", compressible = false, binary = true, fileExtensions = List("apk"))
+      MediaType(
+        "application",
+        "vnd.android.package-archive",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("apk")
+      )
 
     lazy val vnddotanki: MediaType =
       MediaType("application", "vnd.anki", compressible = false, binary = true)
 
     lazy val vnddotanserWebCertificateIssueInitiation: MediaType =
-      MediaType("application", "vnd.anser-web-certificate-issue-initiation", compressible = false, binary = true, fileExtensions = List("cii"))
+      MediaType(
+        "application",
+        "vnd.anser-web-certificate-issue-initiation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cii")
+      )
 
     lazy val vnddotanserWebFundsTransferInitiation: MediaType =
-      MediaType("application", "vnd.anser-web-funds-transfer-initiation", compressible = false, binary = true, fileExtensions = List("fti"))
+      MediaType(
+        "application",
+        "vnd.anser-web-funds-transfer-initiation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("fti")
+      )
 
     lazy val vnddotantixdotgameComponent: MediaType =
-      MediaType("application", "vnd.antix.game-component", compressible = false, binary = true, fileExtensions = List("atx"))
+      MediaType(
+        "application",
+        "vnd.antix.game-component",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("atx")
+      )
 
     lazy val vnddotapachedotarrowdotfile: MediaType =
       MediaType("application", "vnd.apache.arrow.file", compressible = false, binary = true)
@@ -2108,7 +2341,13 @@ object MediaTypes {
       MediaType("application", "vnd.apache.arrow.stream", compressible = false, binary = true)
 
     lazy val vnddotapachedotparquet: MediaType =
-      MediaType("application", "vnd.apache.parquet", compressible = false, binary = true, fileExtensions = List("parquet"))
+      MediaType(
+        "application",
+        "vnd.apache.parquet",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("parquet")
+      )
 
     lazy val vnddotapachedotthriftdotbinary: MediaType =
       MediaType("application", "vnd.apache.thrift.binary", compressible = false, binary = true)
@@ -2132,7 +2371,13 @@ object MediaTypes {
       MediaType("application", "vnd.apothekende.reservation+json", compressible = true, binary = false)
 
     lazy val vnddotappledotinstallerplusxml: MediaType =
-      MediaType("application", "vnd.apple.installer+xml", compressible = true, binary = true, fileExtensions = List("mpkg"))
+      MediaType(
+        "application",
+        "vnd.apple.installer+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("mpkg")
+      )
 
     lazy val vnddotappledotkeynote: MediaType =
       MediaType("application", "vnd.apple.keynote", compressible = false, binary = true, fileExtensions = List("key"))
@@ -2141,7 +2386,13 @@ object MediaTypes {
       MediaType("application", "vnd.apple.mpegurl", compressible = false, binary = true, fileExtensions = List("m3u8"))
 
     lazy val vnddotappledotnumbers: MediaType =
-      MediaType("application", "vnd.apple.numbers", compressible = false, binary = true, fileExtensions = List("numbers"))
+      MediaType(
+        "application",
+        "vnd.apple.numbers",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("numbers")
+      )
 
     lazy val vnddotappledotpages: MediaType =
       MediaType("application", "vnd.apple.pages", compressible = false, binary = true, fileExtensions = List("pages"))
@@ -2153,7 +2404,13 @@ object MediaTypes {
       MediaType("application", "vnd.arastra.swi", compressible = false, binary = true)
 
     lazy val vnddotaristanetworksdotswi: MediaType =
-      MediaType("application", "vnd.aristanetworks.swi", compressible = false, binary = true, fileExtensions = List("swi"))
+      MediaType(
+        "application",
+        "vnd.aristanetworks.swi",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("swi")
+      )
 
     lazy val vnddotartisanplusjson: MediaType =
       MediaType("application", "vnd.artisan+json", compressible = true, binary = false)
@@ -2174,7 +2431,13 @@ object MediaTypes {
       MediaType("application", "vnd.as207960.vas.tap+uper", compressible = false, binary = true)
 
     lazy val vnddotastraeaSoftwaredotiota: MediaType =
-      MediaType("application", "vnd.astraea-software.iota", compressible = false, binary = true, fileExtensions = List("iota"))
+      MediaType(
+        "application",
+        "vnd.astraea-software.iota",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("iota")
+      )
 
     lazy val vnddotaudiograph: MediaType =
       MediaType("application", "vnd.audiograph", compressible = false, binary = true, fileExtensions = List("aep"))
@@ -2192,7 +2455,13 @@ object MediaTypes {
       MediaType("application", "vnd.avistar+xml", compressible = true, binary = true)
 
     lazy val vnddotbalsamiqdotbmmlplusxml: MediaType =
-      MediaType("application", "vnd.balsamiq.bmml+xml", compressible = true, binary = true, fileExtensions = List("bmml"))
+      MediaType(
+        "application",
+        "vnd.balsamiq.bmml+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("bmml")
+      )
 
     lazy val vnddotbalsamiqdotbmpr: MediaType =
       MediaType("application", "vnd.balsamiq.bmpr", compressible = false, binary = true)
@@ -2228,7 +2497,13 @@ object MediaTypes {
       MediaType("application", "vnd.blink-idb-value-wrapper", compressible = false, binary = true)
 
     lazy val vnddotblueicedotmultipass: MediaType =
-      MediaType("application", "vnd.blueice.multipass", compressible = false, binary = true, fileExtensions = List("mpm"))
+      MediaType(
+        "application",
+        "vnd.blueice.multipass",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mpm")
+      )
 
     lazy val vnddotbluetoothdotepdotoob: MediaType =
       MediaType("application", "vnd.bluetooth.ep.oob", compressible = false, binary = true)
@@ -2285,7 +2560,13 @@ object MediaTypes {
       MediaType("application", "vnd.chess-pgn", compressible = false, binary = true)
 
     lazy val vnddotchipnutsdotkaraokeMmd: MediaType =
-      MediaType("application", "vnd.chipnuts.karaoke-mmd", compressible = false, binary = true, fileExtensions = List("mmd"))
+      MediaType(
+        "application",
+        "vnd.chipnuts.karaoke-mmd",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mmd")
+      )
 
     lazy val vnddotciedi: MediaType =
       MediaType("application", "vnd.ciedi", compressible = false, binary = true)
@@ -2297,7 +2578,13 @@ object MediaTypes {
       MediaType("application", "vnd.cirpack.isdn-ext", compressible = false, binary = true)
 
     lazy val vnddotcitationstylesdotstyleplusxml: MediaType =
-      MediaType("application", "vnd.citationstyles.style+xml", compressible = true, binary = true, fileExtensions = List("csl"))
+      MediaType(
+        "application",
+        "vnd.citationstyles.style+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("csl")
+      )
 
     lazy val vnddotclaymore: MediaType =
       MediaType("application", "vnd.claymore", compressible = false, binary = true, fileExtensions = List("cla"))
@@ -2306,13 +2593,31 @@ object MediaTypes {
       MediaType("application", "vnd.cloanto.rp9", compressible = false, binary = true, fileExtensions = List("rp9"))
 
     lazy val vnddotclonkdotc4group: MediaType =
-      MediaType("application", "vnd.clonk.c4group", compressible = false, binary = true, fileExtensions = List("c4g", "c4d", "c4f", "c4p", "c4u"))
+      MediaType(
+        "application",
+        "vnd.clonk.c4group",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("c4g", "c4d", "c4f", "c4p", "c4u")
+      )
 
     lazy val vnddotcluetrustdotcartomobileConfig: MediaType =
-      MediaType("application", "vnd.cluetrust.cartomobile-config", compressible = false, binary = true, fileExtensions = List("c11amc"))
+      MediaType(
+        "application",
+        "vnd.cluetrust.cartomobile-config",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("c11amc")
+      )
 
     lazy val vnddotcluetrustdotcartomobileConfigPkg: MediaType =
-      MediaType("application", "vnd.cluetrust.cartomobile-config-pkg", compressible = false, binary = true, fileExtensions = List("c11amz"))
+      MediaType(
+        "application",
+        "vnd.cluetrust.cartomobile-config-pkg",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("c11amz")
+      )
 
     lazy val vnddotcncfdothelmdotchartdotcontentdotv1dottarplusgzip: MediaType =
       MediaType("application", "vnd.cncf.helm.chart.content.v1.tar+gzip", compressible = false, binary = true)
@@ -2366,7 +2671,13 @@ object MediaTypes {
       MediaType("application", "vnd.commonspace", compressible = false, binary = true, fileExtensions = List("csp"))
 
     lazy val vnddotcontactdotcmsg: MediaType =
-      MediaType("application", "vnd.contact.cmsg", compressible = false, binary = true, fileExtensions = List("cdbcmsg"))
+      MediaType(
+        "application",
+        "vnd.contact.cmsg",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cdbcmsg")
+      )
 
     lazy val vnddotcoreosdotignitionplusjson: MediaType =
       MediaType("application", "vnd.coreos.ignition+json", compressible = true, binary = false)
@@ -2378,19 +2689,49 @@ object MediaTypes {
       MediaType("application", "vnd.crick.clicker", compressible = false, binary = true, fileExtensions = List("clkx"))
 
     lazy val vnddotcrickdotclickerdotkeyboard: MediaType =
-      MediaType("application", "vnd.crick.clicker.keyboard", compressible = false, binary = true, fileExtensions = List("clkk"))
+      MediaType(
+        "application",
+        "vnd.crick.clicker.keyboard",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("clkk")
+      )
 
     lazy val vnddotcrickdotclickerdotpalette: MediaType =
-      MediaType("application", "vnd.crick.clicker.palette", compressible = false, binary = true, fileExtensions = List("clkp"))
+      MediaType(
+        "application",
+        "vnd.crick.clicker.palette",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("clkp")
+      )
 
     lazy val vnddotcrickdotclickerdottemplate: MediaType =
-      MediaType("application", "vnd.crick.clicker.template", compressible = false, binary = true, fileExtensions = List("clkt"))
+      MediaType(
+        "application",
+        "vnd.crick.clicker.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("clkt")
+      )
 
     lazy val vnddotcrickdotclickerdotwordbank: MediaType =
-      MediaType("application", "vnd.crick.clicker.wordbank", compressible = false, binary = true, fileExtensions = List("clkw"))
+      MediaType(
+        "application",
+        "vnd.crick.clicker.wordbank",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("clkw")
+      )
 
     lazy val vnddotcriticaltoolsdotwbsplusxml: MediaType =
-      MediaType("application", "vnd.criticaltools.wbs+xml", compressible = true, binary = true, fileExtensions = List("wbs"))
+      MediaType(
+        "application",
+        "vnd.criticaltools.wbs+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("wbs")
+      )
 
     lazy val vnddotcryptiidotpipeplusjson: MediaType =
       MediaType("application", "vnd.cryptii.pipe+json", compressible = true, binary = false)
@@ -2480,19 +2821,49 @@ object MediaTypes {
       MediaType("application", "vnd.debian.binary-package", compressible = false, binary = true)
 
     lazy val vnddotdecedotdata: MediaType =
-      MediaType("application", "vnd.dece.data", compressible = false, binary = true, fileExtensions = List("uvf", "uvvf", "uvd", "uvvd"))
+      MediaType(
+        "application",
+        "vnd.dece.data",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("uvf", "uvvf", "uvd", "uvvd")
+      )
 
     lazy val vnddotdecedotttmlplusxml: MediaType =
-      MediaType("application", "vnd.dece.ttml+xml", compressible = true, binary = true, fileExtensions = List("uvt", "uvvt"))
+      MediaType(
+        "application",
+        "vnd.dece.ttml+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("uvt", "uvvt")
+      )
 
     lazy val vnddotdecedotunspecified: MediaType =
-      MediaType("application", "vnd.dece.unspecified", compressible = false, binary = true, fileExtensions = List("uvx", "uvvx"))
+      MediaType(
+        "application",
+        "vnd.dece.unspecified",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("uvx", "uvvx")
+      )
 
     lazy val vnddotdecedotzip: MediaType =
-      MediaType("application", "vnd.dece.zip", compressible = false, binary = true, fileExtensions = List("uvz", "uvvz"))
+      MediaType(
+        "application",
+        "vnd.dece.zip",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("uvz", "uvvz")
+      )
 
     lazy val vnddotdenovodotfcselayoutLink: MediaType =
-      MediaType("application", "vnd.denovo.fcselayout-link", compressible = false, binary = true, fileExtensions = List("fe_launch"))
+      MediaType(
+        "application",
+        "vnd.denovo.fcselayout-link",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("fe_launch")
+      )
 
     lazy val vnddotdesmumedotmovie: MediaType =
       MediaType("application", "vnd.desmume.movie", compressible = false, binary = true)
@@ -2669,7 +3040,13 @@ object MediaTypes {
       MediaType("application", "vnd.epson.msf", compressible = false, binary = true, fileExtensions = List("msf"))
 
     lazy val vnddotepsondotquickanime: MediaType =
-      MediaType("application", "vnd.epson.quickanime", compressible = false, binary = true, fileExtensions = List("qam"))
+      MediaType(
+        "application",
+        "vnd.epson.quickanime",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("qam")
+      )
 
     lazy val vnddotepsondotsalt: MediaType =
       MediaType("application", "vnd.epson.salt", compressible = false, binary = true, fileExtensions = List("slt"))
@@ -2687,7 +3064,13 @@ object MediaTypes {
       MediaType("application", "vnd.espass-espass+zip", compressible = false, binary = true)
 
     lazy val vnddoteszigno3plusxml: MediaType =
-      MediaType("application", "vnd.eszigno3+xml", compressible = true, binary = true, fileExtensions = List("es3", "et3"))
+      MediaType(
+        "application",
+        "vnd.eszigno3+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("es3", "et3")
+      )
 
     lazy val vnddotetsidotaocplusxml: MediaType =
       MediaType("application", "vnd.etsi.aoc+xml", compressible = true, binary = true)
@@ -2801,7 +3184,13 @@ object MediaTypes {
       MediaType("application", "vnd.fdsn.mseed", compressible = false, binary = true, fileExtensions = List("mseed"))
 
     lazy val vnddotfdsndotseed: MediaType =
-      MediaType("application", "vnd.fdsn.seed", compressible = false, binary = true, fileExtensions = List("seed", "dataless"))
+      MediaType(
+        "application",
+        "vnd.fdsn.seed",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("seed", "dataless")
+      )
 
     lazy val vnddotfdsndotstationxmlplusxml: MediaType =
       MediaType("application", "vnd.fdsn.stationxml+xml", compressible = true, binary = true)
@@ -2834,7 +3223,13 @@ object MediaTypes {
       MediaType("application", "vnd.font-fontforge-sfd", compressible = false, binary = true)
 
     lazy val vnddotframemaker: MediaType =
-      MediaType("application", "vnd.framemaker", compressible = false, binary = true, fileExtensions = List("fm", "frame", "maker", "book"))
+      MediaType(
+        "application",
+        "vnd.framemaker",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("fm", "frame", "maker", "book")
+      )
 
     lazy val vnddotfreelogdotcomic: MediaType =
       MediaType("application", "vnd.freelog.comic", compressible = false, binary = true)
@@ -2873,7 +3268,13 @@ object MediaTypes {
       MediaType("application", "vnd.fujitsu.oasysgp", compressible = false, binary = true, fileExtensions = List("fg5"))
 
     lazy val vnddotfujitsudotoasysprs: MediaType =
-      MediaType("application", "vnd.fujitsu.oasysprs", compressible = false, binary = true, fileExtensions = List("bh2"))
+      MediaType(
+        "application",
+        "vnd.fujitsu.oasysprs",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("bh2")
+      )
 
     lazy val vnddotfujixeroxdotartEx: MediaType =
       MediaType("application", "vnd.fujixerox.art-ex", compressible = false, binary = true)
@@ -2885,10 +3286,22 @@ object MediaTypes {
       MediaType("application", "vnd.fujixerox.ddd", compressible = false, binary = true, fileExtensions = List("ddd"))
 
     lazy val vnddotfujixeroxdotdocuworks: MediaType =
-      MediaType("application", "vnd.fujixerox.docuworks", compressible = false, binary = true, fileExtensions = List("xdw"))
+      MediaType(
+        "application",
+        "vnd.fujixerox.docuworks",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xdw")
+      )
 
     lazy val vnddotfujixeroxdotdocuworksdotbinder: MediaType =
-      MediaType("application", "vnd.fujixerox.docuworks.binder", compressible = false, binary = true, fileExtensions = List("xbd"))
+      MediaType(
+        "application",
+        "vnd.fujixerox.docuworks.binder",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xbd")
+      )
 
     lazy val vnddotfujixeroxdotdocuworksdotcontainer: MediaType =
       MediaType("application", "vnd.fujixerox.docuworks.container", compressible = false, binary = true)
@@ -2915,7 +3328,13 @@ object MediaTypes {
       MediaType("application", "vnd.ga4gh.passport+jwt", compressible = false, binary = true)
 
     lazy val vnddotgenomatixdottuxedo: MediaType =
-      MediaType("application", "vnd.genomatix.tuxedo", compressible = false, binary = true, fileExtensions = List("txd"))
+      MediaType(
+        "application",
+        "vnd.genomatix.tuxedo",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("txd")
+      )
 
     lazy val vnddotgenozip: MediaType =
       MediaType("application", "vnd.genozip", compressible = false, binary = true)
@@ -2963,7 +3382,13 @@ object MediaTypes {
       MediaType("application", "vnd.geogebra.tool", compressible = false, binary = true, fileExtensions = List("ggt"))
 
     lazy val vnddotgeometryExplorer: MediaType =
-      MediaType("application", "vnd.geometry-explorer", compressible = false, binary = true, fileExtensions = List("gex", "gre"))
+      MediaType(
+        "application",
+        "vnd.geometry-explorer",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gex", "gre")
+      )
 
     lazy val vnddotgeonext: MediaType =
       MediaType("application", "vnd.geonext", compressible = false, binary = true, fileExtensions = List("gxt"))
@@ -2996,10 +3421,22 @@ object MediaTypes {
       MediaType("application", "vnd.google-apps.audio", compressible = false, binary = true)
 
     lazy val vnddotgoogleAppsdotdocument: MediaType =
-      MediaType("application", "vnd.google-apps.document", compressible = false, binary = true, fileExtensions = List("gdoc"))
+      MediaType(
+        "application",
+        "vnd.google-apps.document",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gdoc")
+      )
 
     lazy val vnddotgoogleAppsdotdrawing: MediaType =
-      MediaType("application", "vnd.google-apps.drawing", compressible = false, binary = true, fileExtensions = List("gdraw"))
+      MediaType(
+        "application",
+        "vnd.google-apps.drawing",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gdraw")
+      )
 
     lazy val vnddotgoogleAppsdotdriveSdk: MediaType =
       MediaType("application", "vnd.google-apps.drive-sdk", compressible = false, binary = true)
@@ -3011,37 +3448,79 @@ object MediaTypes {
       MediaType("application", "vnd.google-apps.folder", compressible = false, binary = true)
 
     lazy val vnddotgoogleAppsdotform: MediaType =
-      MediaType("application", "vnd.google-apps.form", compressible = false, binary = true, fileExtensions = List("gform"))
+      MediaType(
+        "application",
+        "vnd.google-apps.form",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gform")
+      )
 
     lazy val vnddotgoogleAppsdotfusiontable: MediaType =
       MediaType("application", "vnd.google-apps.fusiontable", compressible = false, binary = true)
 
     lazy val vnddotgoogleAppsdotjam: MediaType =
-      MediaType("application", "vnd.google-apps.jam", compressible = false, binary = true, fileExtensions = List("gjam"))
+      MediaType(
+        "application",
+        "vnd.google-apps.jam",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gjam")
+      )
 
     lazy val vnddotgoogleAppsdotmailLayout: MediaType =
       MediaType("application", "vnd.google-apps.mail-layout", compressible = false, binary = true)
 
     lazy val vnddotgoogleAppsdotmap: MediaType =
-      MediaType("application", "vnd.google-apps.map", compressible = false, binary = true, fileExtensions = List("gmap"))
+      MediaType(
+        "application",
+        "vnd.google-apps.map",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gmap")
+      )
 
     lazy val vnddotgoogleAppsdotphoto: MediaType =
       MediaType("application", "vnd.google-apps.photo", compressible = false, binary = true)
 
     lazy val vnddotgoogleAppsdotpresentation: MediaType =
-      MediaType("application", "vnd.google-apps.presentation", compressible = false, binary = true, fileExtensions = List("gslides"))
+      MediaType(
+        "application",
+        "vnd.google-apps.presentation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gslides")
+      )
 
     lazy val vnddotgoogleAppsdotscript: MediaType =
-      MediaType("application", "vnd.google-apps.script", compressible = false, binary = true, fileExtensions = List("gscript"))
+      MediaType(
+        "application",
+        "vnd.google-apps.script",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gscript")
+      )
 
     lazy val vnddotgoogleAppsdotshortcut: MediaType =
       MediaType("application", "vnd.google-apps.shortcut", compressible = false, binary = true)
 
     lazy val vnddotgoogleAppsdotsite: MediaType =
-      MediaType("application", "vnd.google-apps.site", compressible = false, binary = true, fileExtensions = List("gsite"))
+      MediaType(
+        "application",
+        "vnd.google-apps.site",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gsite")
+      )
 
     lazy val vnddotgoogleAppsdotspreadsheet: MediaType =
-      MediaType("application", "vnd.google-apps.spreadsheet", compressible = false, binary = true, fileExtensions = List("gsheet"))
+      MediaType(
+        "application",
+        "vnd.google-apps.spreadsheet",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gsheet")
+      )
 
     lazy val vnddotgoogleAppsdotunknown: MediaType =
       MediaType("application", "vnd.google-apps.unknown", compressible = false, binary = true)
@@ -3050,10 +3529,22 @@ object MediaTypes {
       MediaType("application", "vnd.google-apps.video", compressible = false, binary = true)
 
     lazy val vnddotgoogleEarthdotkmlplusxml: MediaType =
-      MediaType("application", "vnd.google-earth.kml+xml", compressible = true, binary = true, fileExtensions = List("kml"))
+      MediaType(
+        "application",
+        "vnd.google-earth.kml+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("kml")
+      )
 
     lazy val vnddotgoogleEarthdotkmz: MediaType =
-      MediaType("application", "vnd.google-earth.kmz", compressible = false, binary = true, fileExtensions = List("kmz"))
+      MediaType(
+        "application",
+        "vnd.google-earth.kmz",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("kmz")
+      )
 
     lazy val vnddotgovdotskdoteFormplusxml: MediaType =
       MediaType("application", "vnd.gov.sk.e-form+xml", compressible = true, binary = true)
@@ -3062,7 +3553,13 @@ object MediaTypes {
       MediaType("application", "vnd.gov.sk.e-form+zip", compressible = false, binary = true)
 
     lazy val vnddotgovdotskdotxmldatacontainerplusxml: MediaType =
-      MediaType("application", "vnd.gov.sk.xmldatacontainer+xml", compressible = true, binary = true, fileExtensions = List("xdcf"))
+      MediaType(
+        "application",
+        "vnd.gov.sk.xmldatacontainer+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("xdcf")
+      )
 
     lazy val vnddotgpxseedotmapplusxml: MediaType =
       MediaType("application", "vnd.gpxsee.map+xml", compressible = true, binary = true)
@@ -3080,16 +3577,34 @@ object MediaTypes {
       MediaType("application", "vnd.groove-help", compressible = false, binary = true, fileExtensions = List("ghf"))
 
     lazy val vnddotgrooveIdentityMessage: MediaType =
-      MediaType("application", "vnd.groove-identity-message", compressible = false, binary = true, fileExtensions = List("gim"))
+      MediaType(
+        "application",
+        "vnd.groove-identity-message",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gim")
+      )
 
     lazy val vnddotgrooveInjector: MediaType =
       MediaType("application", "vnd.groove-injector", compressible = false, binary = true, fileExtensions = List("grv"))
 
     lazy val vnddotgrooveToolMessage: MediaType =
-      MediaType("application", "vnd.groove-tool-message", compressible = false, binary = true, fileExtensions = List("gtm"))
+      MediaType(
+        "application",
+        "vnd.groove-tool-message",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("gtm")
+      )
 
     lazy val vnddotgrooveToolTemplate: MediaType =
-      MediaType("application", "vnd.groove-tool-template", compressible = false, binary = true, fileExtensions = List("tpl"))
+      MediaType(
+        "application",
+        "vnd.groove-tool-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("tpl")
+      )
 
     lazy val vnddotgrooveVcard: MediaType =
       MediaType("application", "vnd.groove-vcard", compressible = false, binary = true, fileExtensions = List("vcg"))
@@ -3101,7 +3616,13 @@ object MediaTypes {
       MediaType("application", "vnd.hal+xml", compressible = true, binary = true, fileExtensions = List("hal"))
 
     lazy val vnddothandheldEntertainmentplusxml: MediaType =
-      MediaType("application", "vnd.handheld-entertainment+xml", compressible = true, binary = true, fileExtensions = List("zmm"))
+      MediaType(
+        "application",
+        "vnd.handheld-entertainment+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("zmm")
+      )
 
     lazy val vnddothbci: MediaType =
       MediaType("application", "vnd.hbci", compressible = false, binary = true, fileExtensions = List("hbci"))
@@ -3119,7 +3640,13 @@ object MediaTypes {
       MediaType("application", "vnd.heroku+json", compressible = true, binary = false)
 
     lazy val vnddothhedotlessonPlayer: MediaType =
-      MediaType("application", "vnd.hhe.lesson-player", compressible = false, binary = true, fileExtensions = List("les"))
+      MediaType(
+        "application",
+        "vnd.hhe.lesson-player",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("les")
+      )
 
     lazy val vnddothpHpgl: MediaType =
       MediaType("application", "vnd.hp-hpgl", compressible = false, binary = true, fileExtensions = List("hpgl"))
@@ -3146,7 +3673,13 @@ object MediaTypes {
       MediaType("application", "vnd.httphone", compressible = false, binary = true)
 
     lazy val vnddothydrostatixdotsofData: MediaType =
-      MediaType("application", "vnd.hydrostatix.sof-data", compressible = false, binary = true, fileExtensions = List("sfd-hdstx"))
+      MediaType(
+        "application",
+        "vnd.hydrostatix.sof-data",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sfd-hdstx")
+      )
 
     lazy val vnddothyperplusjson: MediaType =
       MediaType("application", "vnd.hyper+json", compressible = true, binary = false)
@@ -3170,16 +3703,40 @@ object MediaTypes {
       MediaType("application", "vnd.ibm.minipay", compressible = false, binary = true, fileExtensions = List("mpy"))
 
     lazy val vnddotibmdotmodcap: MediaType =
-      MediaType("application", "vnd.ibm.modcap", compressible = false, binary = true, fileExtensions = List("afp", "listafp", "list3820"))
+      MediaType(
+        "application",
+        "vnd.ibm.modcap",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("afp", "listafp", "list3820")
+      )
 
     lazy val vnddotibmdotrightsManagement: MediaType =
-      MediaType("application", "vnd.ibm.rights-management", compressible = false, binary = true, fileExtensions = List("irm"))
+      MediaType(
+        "application",
+        "vnd.ibm.rights-management",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("irm")
+      )
 
     lazy val vnddotibmdotsecureContainer: MediaType =
-      MediaType("application", "vnd.ibm.secure-container", compressible = false, binary = true, fileExtensions = List("sc"))
+      MediaType(
+        "application",
+        "vnd.ibm.secure-container",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sc")
+      )
 
     lazy val vnddoticcprofile: MediaType =
-      MediaType("application", "vnd.iccprofile", compressible = false, binary = true, fileExtensions = List("icc", "icm"))
+      MediaType(
+        "application",
+        "vnd.iccprofile",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("icc", "icm")
+      )
 
     lazy val vnddotieeedot1905: MediaType =
       MediaType("application", "vnd.ieee.1905", compressible = false, binary = true)
@@ -3245,7 +3802,13 @@ object MediaTypes {
       MediaType("application", "vnd.insors.igm", compressible = false, binary = true, fileExtensions = List("igm"))
 
     lazy val vnddotintercondotformnet: MediaType =
-      MediaType("application", "vnd.intercon.formnet", compressible = false, binary = true, fileExtensions = List("xpw", "xpx"))
+      MediaType(
+        "application",
+        "vnd.intercon.formnet",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xpw", "xpx")
+      )
 
     lazy val vnddotintergeo: MediaType =
       MediaType("application", "vnd.intergeo", compressible = false, binary = true, fileExtensions = List("i2g"))
@@ -3299,10 +3862,22 @@ object MediaTypes {
       MediaType("application", "vnd.iptc.g2.planningitem+xml", compressible = true, binary = true)
 
     lazy val vnddotipunpluggeddotrcprofile: MediaType =
-      MediaType("application", "vnd.ipunplugged.rcprofile", compressible = false, binary = true, fileExtensions = List("rcprofile"))
+      MediaType(
+        "application",
+        "vnd.ipunplugged.rcprofile",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rcprofile")
+      )
 
     lazy val vnddotirepositorydotpackageplusxml: MediaType =
-      MediaType("application", "vnd.irepository.package+xml", compressible = true, binary = true, fileExtensions = List("irp"))
+      MediaType(
+        "application",
+        "vnd.irepository.package+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("irp")
+      )
 
     lazy val vnddotisXpr: MediaType =
       MediaType("application", "vnd.is-xpr", compressible = false, binary = true, fileExtensions = List("xpr"))
@@ -3341,13 +3916,25 @@ object MediaTypes {
       MediaType("application", "vnd.japannet-verification-wakeup", compressible = false, binary = true)
 
     lazy val vnddotjcpdotjavamedotmidletRms: MediaType =
-      MediaType("application", "vnd.jcp.javame.midlet-rms", compressible = false, binary = true, fileExtensions = List("rms"))
+      MediaType(
+        "application",
+        "vnd.jcp.javame.midlet-rms",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rms")
+      )
 
     lazy val vnddotjisp: MediaType =
       MediaType("application", "vnd.jisp", compressible = false, binary = true, fileExtensions = List("jisp"))
 
     lazy val vnddotjoostdotjodaArchive: MediaType =
-      MediaType("application", "vnd.joost.joda-archive", compressible = false, binary = true, fileExtensions = List("joda"))
+      MediaType(
+        "application",
+        "vnd.joost.joda-archive",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("joda")
+      )
 
     lazy val vnddotjskdotisdnNgn: MediaType =
       MediaType("application", "vnd.jsk.isdn-ngn", compressible = false, binary = true)
@@ -3371,13 +3958,25 @@ object MediaTypes {
       MediaType("application", "vnd.kde.kontour", compressible = false, binary = true, fileExtensions = List("kon"))
 
     lazy val vnddotkdedotkpresenter: MediaType =
-      MediaType("application", "vnd.kde.kpresenter", compressible = false, binary = true, fileExtensions = List("kpr", "kpt"))
+      MediaType(
+        "application",
+        "vnd.kde.kpresenter",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("kpr", "kpt")
+      )
 
     lazy val vnddotkdedotkspread: MediaType =
       MediaType("application", "vnd.kde.kspread", compressible = false, binary = true, fileExtensions = List("ksp"))
 
     lazy val vnddotkdedotkword: MediaType =
-      MediaType("application", "vnd.kde.kword", compressible = false, binary = true, fileExtensions = List("kwd", "kwt"))
+      MediaType(
+        "application",
+        "vnd.kde.kword",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("kwd", "kwt")
+      )
 
     lazy val vnddotkdl: MediaType =
       MediaType("application", "vnd.kdl", compressible = false, binary = true)
@@ -3398,10 +3997,22 @@ object MediaTypes {
       MediaType("application", "vnd.kinar", compressible = false, binary = true, fileExtensions = List("kne", "knp"))
 
     lazy val vnddotkoan: MediaType =
-      MediaType("application", "vnd.koan", compressible = false, binary = true, fileExtensions = List("skp", "skd", "skt", "skm"))
+      MediaType(
+        "application",
+        "vnd.koan",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("skp", "skd", "skt", "skm")
+      )
 
     lazy val vnddotkodakDescriptor: MediaType =
-      MediaType("application", "vnd.kodak-descriptor", compressible = false, binary = true, fileExtensions = List("sse"))
+      MediaType(
+        "application",
+        "vnd.kodak-descriptor",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sse")
+      )
 
     lazy val vnddotlas: MediaType =
       MediaType("application", "vnd.las", compressible = false, binary = true)
@@ -3425,10 +4036,22 @@ object MediaTypes {
       MediaType("application", "vnd.liberty-request+xml", compressible = true, binary = true)
 
     lazy val vnddotllamagraphicsdotlifeBalancedotdesktop: MediaType =
-      MediaType("application", "vnd.llamagraphics.life-balance.desktop", compressible = false, binary = true, fileExtensions = List("lbd"))
+      MediaType(
+        "application",
+        "vnd.llamagraphics.life-balance.desktop",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("lbd")
+      )
 
     lazy val vnddotllamagraphicsdotlifeBalancedotexchangeplusxml: MediaType =
-      MediaType("application", "vnd.llamagraphics.life-balance.exchange+xml", compressible = true, binary = true, fileExtensions = List("lbe"))
+      MediaType(
+        "application",
+        "vnd.llamagraphics.life-balance.exchange+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("lbe")
+      )
 
     lazy val vnddotlogipipedotcircuitpluszip: MediaType =
       MediaType("application", "vnd.logipipe.circuit+zip", compressible = false, binary = true)
@@ -3458,13 +4081,25 @@ object MediaTypes {
       MediaType("application", "vnd.lotus-wordpro", compressible = false, binary = true, fileExtensions = List("lwp"))
 
     lazy val vnddotmacportsdotportpkg: MediaType =
-      MediaType("application", "vnd.macports.portpkg", compressible = false, binary = true, fileExtensions = List("portpkg"))
+      MediaType(
+        "application",
+        "vnd.macports.portpkg",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("portpkg")
+      )
 
     lazy val vnddotmaml: MediaType =
       MediaType("application", "vnd.maml", compressible = false, binary = true)
 
     lazy val vnddotmapboxVectorTile: MediaType =
-      MediaType("application", "vnd.mapbox-vector-tile", compressible = false, binary = true, fileExtensions = List("mvt"))
+      MediaType(
+        "application",
+        "vnd.mapbox-vector-tile",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mvt")
+      )
 
     lazy val vnddotmarlindotdrmdotactiontokenplusxml: MediaType =
       MediaType("application", "vnd.marlin.drm.actiontoken+xml", compressible = true, binary = true)
@@ -3500,7 +4135,13 @@ object MediaTypes {
       MediaType("application", "vnd.medcalcdata", compressible = false, binary = true, fileExtensions = List("mc1"))
 
     lazy val vnddotmediastationdotcdkey: MediaType =
-      MediaType("application", "vnd.mediastation.cdkey", compressible = false, binary = true, fileExtensions = List("cdkey"))
+      MediaType(
+        "application",
+        "vnd.mediastation.cdkey",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cdkey")
+      )
 
     lazy val vnddotmedicalholodeckdotrecordxr: MediaType =
       MediaType("application", "vnd.medicalholodeck.recordxr", compressible = false, binary = true)
@@ -3569,10 +4210,22 @@ object MediaTypes {
       MediaType("application", "vnd.modl", compressible = false, binary = true)
 
     lazy val vnddotmophundotapplication: MediaType =
-      MediaType("application", "vnd.mophun.application", compressible = false, binary = true, fileExtensions = List("mpn"))
+      MediaType(
+        "application",
+        "vnd.mophun.application",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mpn")
+      )
 
     lazy val vnddotmophundotcertificate: MediaType =
-      MediaType("application", "vnd.mophun.certificate", compressible = false, binary = true, fileExtensions = List("mpc"))
+      MediaType(
+        "application",
+        "vnd.mophun.certificate",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mpc")
+      )
 
     lazy val vnddotmotoroladotflexsuite: MediaType =
       MediaType("application", "vnd.motorola.flexsuite", compressible = false, binary = true)
@@ -3611,25 +4264,61 @@ object MediaTypes {
       MediaType("application", "vnd.ms-asf", compressible = false, binary = true)
 
     lazy val vnddotmsCabCompressed: MediaType =
-      MediaType("application", "vnd.ms-cab-compressed", compressible = false, binary = true, fileExtensions = List("cab"))
+      MediaType(
+        "application",
+        "vnd.ms-cab-compressed",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cab")
+      )
 
     lazy val vnddotmsColordoticcprofile: MediaType =
       MediaType("application", "vnd.ms-color.iccprofile", compressible = false, binary = true)
 
     lazy val vnddotmsExcel: MediaType =
-      MediaType("application", "vnd.ms-excel", compressible = false, binary = true, fileExtensions = List("xls", "xlm", "xla", "xlc", "xlt", "xlw"))
+      MediaType(
+        "application",
+        "vnd.ms-excel",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xls", "xlm", "xla", "xlc", "xlt", "xlw")
+      )
 
     lazy val vnddotmsExceldotaddindotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-excel.addin.macroenabled.12", compressible = false, binary = true, fileExtensions = List("xlam"))
+      MediaType(
+        "application",
+        "vnd.ms-excel.addin.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xlam")
+      )
 
     lazy val vnddotmsExceldotsheetdotbinarydotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-excel.sheet.binary.macroenabled.12", compressible = false, binary = true, fileExtensions = List("xlsb"))
+      MediaType(
+        "application",
+        "vnd.ms-excel.sheet.binary.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xlsb")
+      )
 
     lazy val vnddotmsExceldotsheetdotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-excel.sheet.macroenabled.12", compressible = false, binary = true, fileExtensions = List("xlsm"))
+      MediaType(
+        "application",
+        "vnd.ms-excel.sheet.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xlsm")
+      )
 
     lazy val vnddotmsExceldottemplatedotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-excel.template.macroenabled.12", compressible = false, binary = true, fileExtensions = List("xltm"))
+      MediaType(
+        "application",
+        "vnd.ms-excel.template.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xltm")
+      )
 
     lazy val vnddotmsFontobject: MediaType =
       MediaType("application", "vnd.ms-fontobject", compressible = true, binary = true, fileExtensions = List("eot"))
@@ -3668,22 +4357,58 @@ object MediaTypes {
       MediaType("application", "vnd.ms-playready.initiator+xml", compressible = true, binary = true)
 
     lazy val vnddotmsPowerpoint: MediaType =
-      MediaType("application", "vnd.ms-powerpoint", compressible = false, binary = true, fileExtensions = List("ppt", "pps", "pot"))
+      MediaType(
+        "application",
+        "vnd.ms-powerpoint",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ppt", "pps", "pot")
+      )
 
     lazy val vnddotmsPowerpointdotaddindotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-powerpoint.addin.macroenabled.12", compressible = false, binary = true, fileExtensions = List("ppam"))
+      MediaType(
+        "application",
+        "vnd.ms-powerpoint.addin.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ppam")
+      )
 
     lazy val vnddotmsPowerpointdotpresentationdotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-powerpoint.presentation.macroenabled.12", compressible = false, binary = true, fileExtensions = List("pptm"))
+      MediaType(
+        "application",
+        "vnd.ms-powerpoint.presentation.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pptm")
+      )
 
     lazy val vnddotmsPowerpointdotslidedotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-powerpoint.slide.macroenabled.12", compressible = false, binary = true, fileExtensions = List("sldm"))
+      MediaType(
+        "application",
+        "vnd.ms-powerpoint.slide.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sldm")
+      )
 
     lazy val vnddotmsPowerpointdotslideshowdotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-powerpoint.slideshow.macroenabled.12", compressible = false, binary = true, fileExtensions = List("ppsm"))
+      MediaType(
+        "application",
+        "vnd.ms-powerpoint.slideshow.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ppsm")
+      )
 
     lazy val vnddotmsPowerpointdottemplatedotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-powerpoint.template.macroenabled.12", compressible = false, binary = true, fileExtensions = List("potm"))
+      MediaType(
+        "application",
+        "vnd.ms-powerpoint.template.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("potm")
+      )
 
     lazy val vnddotmsPrintdevicecapabilitiesplusxml: MediaType =
       MediaType("application", "vnd.ms-printdevicecapabilities+xml", compressible = true, binary = true)
@@ -3695,7 +4420,13 @@ object MediaTypes {
       MediaType("application", "vnd.ms-printschematicket+xml", compressible = true, binary = true)
 
     lazy val vnddotmsProject: MediaType =
-      MediaType("application", "vnd.ms-project", compressible = false, binary = true, fileExtensions = List("mpp", "mpt"))
+      MediaType(
+        "application",
+        "vnd.ms-project",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mpp", "mpt")
+      )
 
     lazy val vnddotmsTnef: MediaType =
       MediaType("application", "vnd.ms-tnef", compressible = false, binary = true)
@@ -3728,13 +4459,31 @@ object MediaTypes {
       MediaType("application", "vnd.ms-wmdrm.meter-resp", compressible = false, binary = true)
 
     lazy val vnddotmsWorddotdocumentdotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-word.document.macroenabled.12", compressible = false, binary = true, fileExtensions = List("docm"))
+      MediaType(
+        "application",
+        "vnd.ms-word.document.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("docm")
+      )
 
     lazy val vnddotmsWorddottemplatedotmacroenableddot12: MediaType =
-      MediaType("application", "vnd.ms-word.template.macroenabled.12", compressible = false, binary = true, fileExtensions = List("dotm"))
+      MediaType(
+        "application",
+        "vnd.ms-word.template.macroenabled.12",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("dotm")
+      )
 
     lazy val vnddotmsWorks: MediaType =
-      MediaType("application", "vnd.ms-works", compressible = false, binary = true, fileExtensions = List("wps", "wks", "wcm", "wdb"))
+      MediaType(
+        "application",
+        "vnd.ms-works",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("wps", "wks", "wcm", "wdb")
+      )
 
     lazy val vnddotmsWpl: MediaType =
       MediaType("application", "vnd.ms-wpl", compressible = false, binary = true, fileExtensions = List("wpl"))
@@ -3782,7 +4531,13 @@ object MediaTypes {
       MediaType("application", "vnd.nato.bindingdataobject+json", compressible = true, binary = false)
 
     lazy val vnddotnatodotbindingdataobjectplusxml: MediaType =
-      MediaType("application", "vnd.nato.bindingdataobject+xml", compressible = true, binary = true, fileExtensions = List("bdo"))
+      MediaType(
+        "application",
+        "vnd.nato.bindingdataobject+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("bdo")
+      )
 
     lazy val vnddotnatodotopenxmlformatsPackagedotiepdpluszip: MediaType =
       MediaType("application", "vnd.nato.openxmlformats-package.iepd+zip", compressible = false, binary = true)
@@ -3806,7 +4561,13 @@ object MediaTypes {
       MediaType("application", "vnd.netfpx", compressible = false, binary = true)
 
     lazy val vnddotneurolanguagedotnlu: MediaType =
-      MediaType("application", "vnd.neurolanguage.nlu", compressible = false, binary = true, fileExtensions = List("nlu"))
+      MediaType(
+        "application",
+        "vnd.neurolanguage.nlu",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("nlu")
+      )
 
     lazy val vnddotnimn: MediaType =
       MediaType("application", "vnd.nimn", compressible = false, binary = true)
@@ -3821,7 +4582,13 @@ object MediaTypes {
       MediaType("application", "vnd.nitf", compressible = false, binary = true, fileExtensions = List("ntf", "nitf"))
 
     lazy val vnddotnoblenetDirectory: MediaType =
-      MediaType("application", "vnd.noblenet-directory", compressible = false, binary = true, fileExtensions = List("nnd"))
+      MediaType(
+        "application",
+        "vnd.noblenet-directory",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("nnd")
+      )
 
     lazy val vnddotnoblenetSealer: MediaType =
       MediaType("application", "vnd.noblenet-sealer", compressible = false, binary = true, fileExtensions = List("nns"))
@@ -3854,13 +4621,31 @@ object MediaTypes {
       MediaType("application", "vnd.nokia.landmarkcollection+xml", compressible = true, binary = true)
 
     lazy val vnddotnokiadotnGagedotacplusxml: MediaType =
-      MediaType("application", "vnd.nokia.n-gage.ac+xml", compressible = true, binary = true, fileExtensions = List("ac"))
+      MediaType(
+        "application",
+        "vnd.nokia.n-gage.ac+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("ac")
+      )
 
     lazy val vnddotnokiadotnGagedotdata: MediaType =
-      MediaType("application", "vnd.nokia.n-gage.data", compressible = false, binary = true, fileExtensions = List("ngdat"))
+      MediaType(
+        "application",
+        "vnd.nokia.n-gage.data",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ngdat")
+      )
 
     lazy val vnddotnokiadotnGagedotsymbiandotinstall: MediaType =
-      MediaType("application", "vnd.nokia.n-gage.symbian.install", compressible = false, binary = true, fileExtensions = List("n-gage"))
+      MediaType(
+        "application",
+        "vnd.nokia.n-gage.symbian.install",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("n-gage")
+      )
 
     lazy val vnddotnokiadotncd: MediaType =
       MediaType("application", "vnd.nokia.ncd", compressible = false, binary = true)
@@ -3872,10 +4657,22 @@ object MediaTypes {
       MediaType("application", "vnd.nokia.pcd+xml", compressible = true, binary = true)
 
     lazy val vnddotnokiadotradioPreset: MediaType =
-      MediaType("application", "vnd.nokia.radio-preset", compressible = false, binary = true, fileExtensions = List("rpst"))
+      MediaType(
+        "application",
+        "vnd.nokia.radio-preset",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rpst")
+      )
 
     lazy val vnddotnokiadotradioPresets: MediaType =
-      MediaType("application", "vnd.nokia.radio-presets", compressible = false, binary = true, fileExtensions = List("rpss"))
+      MediaType(
+        "application",
+        "vnd.nokia.radio-presets",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rpss")
+      )
 
     lazy val vnddotnovadigmdotedm: MediaType =
       MediaType("application", "vnd.novadigm.edm", compressible = false, binary = true, fileExtensions = List("edm"))
@@ -3917,58 +4714,160 @@ object MediaTypes {
       MediaType("application", "vnd.oasis.opendocument.base", compressible = false, binary = true)
 
     lazy val vnddotoasisdotopendocumentdotchart: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.chart", compressible = false, binary = true, fileExtensions = List("odc"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.chart",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odc")
+      )
 
     lazy val vnddotoasisdotopendocumentdotchartTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.chart-template", compressible = false, binary = true, fileExtensions = List("otc"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.chart-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("otc")
+      )
 
     lazy val vnddotoasisdotopendocumentdotdatabase: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.database", compressible = false, binary = true, fileExtensions = List("odb"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.database",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odb")
+      )
 
     lazy val vnddotoasisdotopendocumentdotformula: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.formula", compressible = false, binary = true, fileExtensions = List("odf"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.formula",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odf")
+      )
 
     lazy val vnddotoasisdotopendocumentdotformulaTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.formula-template", compressible = false, binary = true, fileExtensions = List("odft"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.formula-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odft")
+      )
 
     lazy val vnddotoasisdotopendocumentdotgraphics: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.graphics", compressible = false, binary = true, fileExtensions = List("odg"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.graphics",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odg")
+      )
 
     lazy val vnddotoasisdotopendocumentdotgraphicsTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.graphics-template", compressible = false, binary = true, fileExtensions = List("otg"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.graphics-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("otg")
+      )
 
     lazy val vnddotoasisdotopendocumentdotimage: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.image", compressible = false, binary = true, fileExtensions = List("odi"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.image",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odi")
+      )
 
     lazy val vnddotoasisdotopendocumentdotimageTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.image-template", compressible = false, binary = true, fileExtensions = List("oti"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.image-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("oti")
+      )
 
     lazy val vnddotoasisdotopendocumentdotpresentation: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.presentation", compressible = false, binary = true, fileExtensions = List("odp"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.presentation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odp")
+      )
 
     lazy val vnddotoasisdotopendocumentdotpresentationTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.presentation-template", compressible = false, binary = true, fileExtensions = List("otp"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.presentation-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("otp")
+      )
 
     lazy val vnddotoasisdotopendocumentdotspreadsheet: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.spreadsheet", compressible = false, binary = true, fileExtensions = List("ods"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.spreadsheet",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ods")
+      )
 
     lazy val vnddotoasisdotopendocumentdotspreadsheetTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.spreadsheet-template", compressible = false, binary = true, fileExtensions = List("ots"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.spreadsheet-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ots")
+      )
 
     lazy val vnddotoasisdotopendocumentdottext: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.text", compressible = false, binary = true, fileExtensions = List("odt"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.text",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odt")
+      )
 
     lazy val vnddotoasisdotopendocumentdottextMaster: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.text-master", compressible = false, binary = true, fileExtensions = List("odm"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.text-master",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("odm")
+      )
 
     lazy val vnddotoasisdotopendocumentdottextMasterTemplate: MediaType =
       MediaType("application", "vnd.oasis.opendocument.text-master-template", compressible = false, binary = true)
 
     lazy val vnddotoasisdotopendocumentdottextTemplate: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.text-template", compressible = false, binary = true, fileExtensions = List("ott"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.text-template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ott")
+      )
 
     lazy val vnddotoasisdotopendocumentdottextWeb: MediaType =
-      MediaType("application", "vnd.oasis.opendocument.text-web", compressible = false, binary = true, fileExtensions = List("oth"))
+      MediaType(
+        "application",
+        "vnd.oasis.opendocument.text-web",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("oth")
+      )
 
     lazy val vnddotobn: MediaType =
       MediaType("application", "vnd.obn", compressible = false, binary = true)
@@ -4169,7 +5068,13 @@ object MediaTypes {
       MediaType("application", "vnd.onvif.metadata", compressible = false, binary = true)
 
     lazy val vnddotopenbloxdotgameplusxml: MediaType =
-      MediaType("application", "vnd.openblox.game+xml", compressible = true, binary = true, fileExtensions = List("obgx"))
+      MediaType(
+        "application",
+        "vnd.openblox.game+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("obgx")
+      )
 
     lazy val vnddotopenbloxdotgameBinary: MediaType =
       MediaType("application", "vnd.openblox.game-binary", compressible = false, binary = true)
@@ -4178,13 +5083,25 @@ object MediaTypes {
       MediaType("application", "vnd.openeye.oeb", compressible = false, binary = true)
 
     lazy val vnddotopenofficeorgdotextension: MediaType =
-      MediaType("application", "vnd.openofficeorg.extension", compressible = false, binary = true, fileExtensions = List("oxt"))
+      MediaType(
+        "application",
+        "vnd.openofficeorg.extension",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("oxt")
+      )
 
     lazy val vnddotopenprinttag: MediaType =
       MediaType("application", "vnd.openprinttag", compressible = false, binary = true)
 
     lazy val vnddotopenstreetmapdotdataplusxml: MediaType =
-      MediaType("application", "vnd.openstreetmap.data+xml", compressible = true, binary = true, fileExtensions = List("osm"))
+      MediaType(
+        "application",
+        "vnd.openstreetmap.data+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("osm")
+      )
 
     lazy val vnddotopentimestampsdotots: MediaType =
       MediaType("application", "vnd.opentimestamps.ots", compressible = false, binary = true)
@@ -4193,223 +5110,576 @@ object MediaTypes {
       MediaType("application", "vnd.openvpi.dspx+json", compressible = true, binary = false)
 
     lazy val vnddotopenxmlformatsOfficedocumentdotcustomPropertiesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.custom-properties+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.custom-properties+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotcustomxmlpropertiesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.customxmlproperties+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.customxmlproperties+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingplusxml: MediaType =
       MediaType("application", "vnd.openxmlformats-officedocument.drawing+xml", compressible = true, binary = true)
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingmldotchartplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.drawingml.chart+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.drawingml.chart+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingmldotchartshapesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.drawingml.chartshapes+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.drawingml.chartshapes+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingmldotdiagramcolorsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingmldotdiagramdataplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.drawingml.diagramdata+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.drawingml.diagramdata+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingmldotdiagramlayoutplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotdrawingmldotdiagramstyleplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotextendedPropertiesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.extended-properties+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.extended-properties+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotcommentauthorsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.commentauthors+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.commentauthors+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotcommentsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.comments+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.comments+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldothandoutmasterplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.handoutmaster+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.handoutmaster+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotnotesmasterplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.notesmaster+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.notesmaster+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotnotesslideplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.notesslide+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.notesslide+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotpresentation: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.presentation", compressible = false, binary = true, fileExtensions = List("pptx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.presentation",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pptx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotpresentationdotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotprespropsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.presprops+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.presprops+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslide: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slide", compressible = false, binary = true, fileExtensions = List("sldx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slide",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sldx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslideplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slide+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slide+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslidelayoutplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slidelayout+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slidelayout+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslidemasterplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slidemaster+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slidemaster+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslideshow: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slideshow", compressible = false, binary = true, fileExtensions = List("ppsx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slideshow",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ppsx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslideshowdotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotslideupdateinfoplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.slideupdateinfo+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.slideupdateinfo+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldottablestylesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.tablestyles+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.tablestyles+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldottagsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.tags+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.tags+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldottemplate: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.template", compressible = false, binary = true, fileExtensions = List("potx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("potx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldottemplatedotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.template.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.template.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotpresentationmldotviewpropsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.presentationml.viewprops+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.presentationml.viewprops+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotcalcchainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.calcchain+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.calcchain+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotchartsheetplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotcommentsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.comments+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.comments+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotconnectionsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.connections+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.connections+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotdialogsheetplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotexternallinkplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.externallink+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.externallink+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotpivotcachedefinitionplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotpivotcacherecordsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotpivottableplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotquerytableplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.querytable+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.querytable+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotrevisionheadersplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.revisionheaders+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.revisionheaders+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotrevisionlogplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.revisionlog+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.revisionlog+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotsharedstringsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.sharedstrings+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.sharedstrings+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotsheet: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet", compressible = false, binary = true, fileExtensions = List("xlsx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xlsx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotsheetdotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotsheetmetadataplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheetmetadata+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.sheetmetadata+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotstylesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.styles+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.styles+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldottableplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.table+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.table+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldottablesinglecellsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.tablesinglecells+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.tablesinglecells+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldottemplate: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.template", compressible = false, binary = true, fileExtensions = List("xltx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("xltx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldottemplatedotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotusernamesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.usernames+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.usernames+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotvolatiledependenciesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.volatiledependencies+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.volatiledependencies+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotspreadsheetmldotworksheetplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotthemeplusxml: MediaType =
       MediaType("application", "vnd.openxmlformats-officedocument.theme+xml", compressible = true, binary = true)
 
     lazy val vnddotopenxmlformatsOfficedocumentdotthemeoverrideplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.themeoverride+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.themeoverride+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotvmldrawing: MediaType =
       MediaType("application", "vnd.openxmlformats-officedocument.vmldrawing", compressible = false, binary = true)
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotcommentsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.comments+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.comments+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotdocument: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.document", compressible = false, binary = true, fileExtensions = List("docx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.document",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("docx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotdocumentdotglossaryplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotdocumentdotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotendnotesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotfonttableplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotfooterplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.footer+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotfootnotesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotnumberingplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotsettingsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.settings+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.settings+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotstylesplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.styles+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.styles+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldottemplate: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.template", compressible = false, binary = true, fileExtensions = List("dotx"))
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("dotx")
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldottemplatedotmainplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsOfficedocumentdotwordprocessingmldotwebsettingsplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsPackagedotcorePropertiesplusxml: MediaType =
       MediaType("application", "vnd.openxmlformats-package.core-properties+xml", compressible = true, binary = true)
 
     lazy val vnddotopenxmlformatsPackagedotdigitalSignatureXmlsignatureplusxml: MediaType =
-      MediaType("application", "vnd.openxmlformats-package.digital-signature-xmlsignature+xml", compressible = true, binary = true)
+      MediaType(
+        "application",
+        "vnd.openxmlformats-package.digital-signature-xmlsignature+xml",
+        compressible = true,
+        binary = true
+      )
 
     lazy val vnddotopenxmlformatsPackagedotrelationshipsplusxml: MediaType =
       MediaType("application", "vnd.openxmlformats-package.relationships+xml", compressible = true, binary = true)
@@ -4424,7 +5694,13 @@ object MediaTypes {
       MediaType("application", "vnd.osa.netdeploy", compressible = false, binary = true)
 
     lazy val vnddotosgeodotmapguidedotpackage: MediaType =
-      MediaType("application", "vnd.osgeo.mapguide.package", compressible = false, binary = true, fileExtensions = List("mgp"))
+      MediaType(
+        "application",
+        "vnd.osgeo.mapguide.package",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mgp")
+      )
 
     lazy val vnddotosgidotbundle: MediaType =
       MediaType("application", "vnd.osgi.bundle", compressible = false, binary = true)
@@ -4445,7 +5721,13 @@ object MediaTypes {
       MediaType("application", "vnd.pagerduty+json", compressible = true, binary = false)
 
     lazy val vnddotpalm: MediaType =
-      MediaType("application", "vnd.palm", compressible = false, binary = true, fileExtensions = List("pdb", "pqa", "oprc"))
+      MediaType(
+        "application",
+        "vnd.palm",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pdb", "pqa", "oprc")
+      )
 
     lazy val vnddotpanoply: MediaType =
       MediaType("application", "vnd.panoply", compressible = false, binary = true)
@@ -4508,19 +5790,43 @@ object MediaTypes {
       MediaType("application", "vnd.powerbuilder75-s", compressible = false, binary = true)
 
     lazy val vnddotppdotsystemverifyplusxml: MediaType =
-      MediaType("application", "vnd.pp.systemverify+xml", compressible = true, binary = true, fileExtensions = List("systemverify"))
+      MediaType(
+        "application",
+        "vnd.pp.systemverify+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("systemverify")
+      )
 
     lazy val vnddotpreminet: MediaType =
       MediaType("application", "vnd.preminet", compressible = false, binary = true)
 
     lazy val vnddotpreviewsystemsdotbox: MediaType =
-      MediaType("application", "vnd.previewsystems.box", compressible = false, binary = true, fileExtensions = List("box"))
+      MediaType(
+        "application",
+        "vnd.previewsystems.box",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("box")
+      )
 
     lazy val vnddotprocreatedotbrush: MediaType =
-      MediaType("application", "vnd.procreate.brush", compressible = false, binary = true, fileExtensions = List("brush"))
+      MediaType(
+        "application",
+        "vnd.procreate.brush",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("brush")
+      )
 
     lazy val vnddotprocreatedotbrushset: MediaType =
-      MediaType("application", "vnd.procreate.brushset", compressible = false, binary = true, fileExtensions = List("brushset"))
+      MediaType(
+        "application",
+        "vnd.procreate.brushset",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("brushset")
+      )
 
     lazy val vnddotprocreatedotdream: MediaType =
       MediaType("application", "vnd.procreate.dream", compressible = false, binary = true, fileExtensions = List("drm"))
@@ -4529,7 +5835,13 @@ object MediaTypes {
       MediaType("application", "vnd.project-graph", compressible = false, binary = true)
 
     lazy val vnddotproteusdotmagazine: MediaType =
-      MediaType("application", "vnd.proteus.magazine", compressible = false, binary = true, fileExtensions = List("mgz"))
+      MediaType(
+        "application",
+        "vnd.proteus.magazine",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mgz")
+      )
 
     lazy val vnddotpsfs: MediaType =
       MediaType("application", "vnd.psfs", compressible = false, binary = true)
@@ -4538,7 +5850,13 @@ object MediaTypes {
       MediaType("application", "vnd.pt.mundusmundi", compressible = false, binary = true)
 
     lazy val vnddotpublishareDeltaTree: MediaType =
-      MediaType("application", "vnd.publishare-delta-tree", compressible = false, binary = true, fileExtensions = List("qps"))
+      MediaType(
+        "application",
+        "vnd.publishare-delta-tree",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("qps")
+      )
 
     lazy val vnddotpvidotptid1: MediaType =
       MediaType("application", "vnd.pvi.ptid1", compressible = false, binary = true, fileExtensions = List("ptid"))
@@ -4547,7 +5865,13 @@ object MediaTypes {
       MediaType("application", "vnd.pwg-multiplexed", compressible = false, binary = true)
 
     lazy val vnddotpwgXhtmlPrintplusxml: MediaType =
-      MediaType("application", "vnd.pwg-xhtml-print+xml", compressible = true, binary = true, fileExtensions = List("xhtm"))
+      MediaType(
+        "application",
+        "vnd.pwg-xhtml-print+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("xhtm")
+      )
 
     lazy val vnddotpyonplusjson: MediaType =
       MediaType("application", "vnd.pyon+json", compressible = true, binary = false)
@@ -4559,7 +5883,13 @@ object MediaTypes {
       MediaType("application", "vnd.quarantainenet", compressible = false, binary = true)
 
     lazy val vnddotquarkdotquarkxpress: MediaType =
-      MediaType("application", "vnd.quark.quarkxpress", compressible = false, binary = true, fileExtensions = List("qxd", "qxt", "qwd", "qwt", "qxl", "qxb"))
+      MediaType(
+        "application",
+        "vnd.quark.quarkxpress",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("qxd", "qxt", "qwd", "qwt", "qxl", "qxb")
+      )
 
     lazy val vnddotquobjectQuoxdocument: MediaType =
       MediaType("application", "vnd.quobject-quoxdocument", compressible = false, binary = true)
@@ -4625,10 +5955,22 @@ object MediaTypes {
       MediaType("application", "vnd.realvnc.bed", compressible = false, binary = true, fileExtensions = List("bed"))
 
     lazy val vnddotrecordaredotmusicxml: MediaType =
-      MediaType("application", "vnd.recordare.musicxml", compressible = false, binary = true, fileExtensions = List("mxl"))
+      MediaType(
+        "application",
+        "vnd.recordare.musicxml",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mxl")
+      )
 
     lazy val vnddotrecordaredotmusicxmlplusxml: MediaType =
-      MediaType("application", "vnd.recordare.musicxml+xml", compressible = true, binary = true, fileExtensions = List("musicxml"))
+      MediaType(
+        "application",
+        "vnd.recordare.musicxml+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("musicxml")
+      )
 
     lazy val vnddotrelpipe: MediaType =
       MediaType("application", "vnd.relpipe", compressible = false, binary = true)
@@ -4643,7 +5985,13 @@ object MediaTypes {
       MediaType("application", "vnd.restful+json", compressible = true, binary = false)
 
     lazy val vnddotrigdotcryptonote: MediaType =
-      MediaType("application", "vnd.rig.cryptonote", compressible = false, binary = true, fileExtensions = List("cryptonote"))
+      MediaType(
+        "application",
+        "vnd.rig.cryptonote",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cryptonote")
+      )
 
     lazy val vnddotrimdotcod: MediaType =
       MediaType("application", "vnd.rim.cod", compressible = false, binary = true, fileExtensions = List("cod"))
@@ -4652,10 +6000,22 @@ object MediaTypes {
       MediaType("application", "vnd.rn-realmedia", compressible = false, binary = true, fileExtensions = List("rm"))
 
     lazy val vnddotrnRealmediaVbr: MediaType =
-      MediaType("application", "vnd.rn-realmedia-vbr", compressible = false, binary = true, fileExtensions = List("rmvb"))
+      MediaType(
+        "application",
+        "vnd.rn-realmedia-vbr",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rmvb")
+      )
 
     lazy val vnddotroute66dotlink66plusxml: MediaType =
-      MediaType("application", "vnd.route66.link66+xml", compressible = true, binary = true, fileExtensions = List("link66"))
+      MediaType(
+        "application",
+        "vnd.route66.link66+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("link66")
+      )
 
     lazy val vnddotrs274x: MediaType =
       MediaType("application", "vnd.rs-274x", compressible = false, binary = true)
@@ -4667,7 +6027,13 @@ object MediaTypes {
       MediaType("application", "vnd.s3sms", compressible = false, binary = true)
 
     lazy val vnddotsailingtrackerdottrack: MediaType =
-      MediaType("application", "vnd.sailingtracker.track", compressible = false, binary = true, fileExtensions = List("st"))
+      MediaType(
+        "application",
+        "vnd.sailingtracker.track",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("st")
+      )
 
     lazy val vnddotsar: MediaType =
       MediaType("application", "vnd.sar", compressible = false, binary = true)
@@ -4733,16 +6099,40 @@ object MediaTypes {
       MediaType("application", "vnd.shade-save-file", compressible = false, binary = true)
 
     lazy val vnddotshanadotinformeddotformdata: MediaType =
-      MediaType("application", "vnd.shana.informed.formdata", compressible = false, binary = true, fileExtensions = List("ifm"))
+      MediaType(
+        "application",
+        "vnd.shana.informed.formdata",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ifm")
+      )
 
     lazy val vnddotshanadotinformeddotformtemplate: MediaType =
-      MediaType("application", "vnd.shana.informed.formtemplate", compressible = false, binary = true, fileExtensions = List("itp"))
+      MediaType(
+        "application",
+        "vnd.shana.informed.formtemplate",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("itp")
+      )
 
     lazy val vnddotshanadotinformeddotinterchange: MediaType =
-      MediaType("application", "vnd.shana.informed.interchange", compressible = false, binary = true, fileExtensions = List("iif"))
+      MediaType(
+        "application",
+        "vnd.shana.informed.interchange",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("iif")
+      )
 
     lazy val vnddotshanadotinformeddotpackage: MediaType =
-      MediaType("application", "vnd.shana.informed.package", compressible = false, binary = true, fileExtensions = List("ipk"))
+      MediaType(
+        "application",
+        "vnd.shana.informed.package",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ipk")
+      )
 
     lazy val vnddotshootproofplusjson: MediaType =
       MediaType("application", "vnd.shootproof+json", compressible = true, binary = false)
@@ -4760,7 +6150,13 @@ object MediaTypes {
       MediaType("application", "vnd.sigrok.session", compressible = false, binary = true)
 
     lazy val vnddotsimtechMindmapper: MediaType =
-      MediaType("application", "vnd.simtech-mindmapper", compressible = false, binary = true, fileExtensions = List("twd", "twds"))
+      MediaType(
+        "application",
+        "vnd.simtech-mindmapper",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("twd", "twds")
+      )
 
     lazy val vnddotsirenplusjson: MediaType =
       MediaType("application", "vnd.siren+json", compressible = true, binary = false)
@@ -4778,7 +6174,13 @@ object MediaTypes {
       MediaType("application", "vnd.smart.notebook", compressible = false, binary = true)
 
     lazy val vnddotsmartdotteacher: MediaType =
-      MediaType("application", "vnd.smart.teacher", compressible = false, binary = true, fileExtensions = List("teacher"))
+      MediaType(
+        "application",
+        "vnd.smart.teacher",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("teacher")
+      )
 
     lazy val vnddotsmintiodotportalsdotarchive: MediaType =
       MediaType("application", "vnd.smintio.portals.archive", compressible = false, binary = true)
@@ -4787,13 +6189,25 @@ object MediaTypes {
       MediaType("application", "vnd.snesdev-page-table", compressible = false, binary = true)
 
     lazy val vnddotsoftware602dotfillerdotformplusxml: MediaType =
-      MediaType("application", "vnd.software602.filler.form+xml", compressible = true, binary = true, fileExtensions = List("fo"))
+      MediaType(
+        "application",
+        "vnd.software602.filler.form+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("fo")
+      )
 
     lazy val vnddotsoftware602dotfillerdotformXmlZip: MediaType =
       MediaType("application", "vnd.software602.filler.form-xml-zip", compressible = false, binary = true)
 
     lazy val vnddotsolentdotsdkmplusxml: MediaType =
-      MediaType("application", "vnd.solent.sdkm+xml", compressible = true, binary = true, fileExtensions = List("sdkm", "sdkd"))
+      MediaType(
+        "application",
+        "vnd.solent.sdkm+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("sdkm", "sdkd")
+      )
 
     lazy val vnddotspotfiredotdxp: MediaType =
       MediaType("application", "vnd.spotfire.dxp", compressible = false, binary = true, fileExtensions = List("dxp"))
@@ -4802,7 +6216,13 @@ object MediaTypes {
       MediaType("application", "vnd.spotfire.sfs", compressible = false, binary = true, fileExtensions = List("sfs"))
 
     lazy val vnddotsqlite3: MediaType =
-      MediaType("application", "vnd.sqlite3", compressible = false, binary = true, fileExtensions = List("sqlite", "sqlite3"))
+      MediaType(
+        "application",
+        "vnd.sqlite3",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sqlite", "sqlite3")
+      )
 
     lazy val vnddotsssCod: MediaType =
       MediaType("application", "vnd.sss-cod", compressible = false, binary = true)
@@ -4814,28 +6234,76 @@ object MediaTypes {
       MediaType("application", "vnd.sss-ntf", compressible = false, binary = true)
 
     lazy val vnddotstardivisiondotcalc: MediaType =
-      MediaType("application", "vnd.stardivision.calc", compressible = false, binary = true, fileExtensions = List("sdc"))
+      MediaType(
+        "application",
+        "vnd.stardivision.calc",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sdc")
+      )
 
     lazy val vnddotstardivisiondotdraw: MediaType =
-      MediaType("application", "vnd.stardivision.draw", compressible = false, binary = true, fileExtensions = List("sda"))
+      MediaType(
+        "application",
+        "vnd.stardivision.draw",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sda")
+      )
 
     lazy val vnddotstardivisiondotimpress: MediaType =
-      MediaType("application", "vnd.stardivision.impress", compressible = false, binary = true, fileExtensions = List("sdd"))
+      MediaType(
+        "application",
+        "vnd.stardivision.impress",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sdd")
+      )
 
     lazy val vnddotstardivisiondotmath: MediaType =
-      MediaType("application", "vnd.stardivision.math", compressible = false, binary = true, fileExtensions = List("smf"))
+      MediaType(
+        "application",
+        "vnd.stardivision.math",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("smf")
+      )
 
     lazy val vnddotstardivisiondotwriter: MediaType =
-      MediaType("application", "vnd.stardivision.writer", compressible = false, binary = true, fileExtensions = List("sdw", "vor"))
+      MediaType(
+        "application",
+        "vnd.stardivision.writer",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sdw", "vor")
+      )
 
     lazy val vnddotstardivisiondotwriterGlobal: MediaType =
-      MediaType("application", "vnd.stardivision.writer-global", compressible = false, binary = true, fileExtensions = List("sgl"))
+      MediaType(
+        "application",
+        "vnd.stardivision.writer-global",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sgl")
+      )
 
     lazy val vnddotstepmaniadotpackage: MediaType =
-      MediaType("application", "vnd.stepmania.package", compressible = false, binary = true, fileExtensions = List("smzip"))
+      MediaType(
+        "application",
+        "vnd.stepmania.package",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("smzip")
+      )
 
     lazy val vnddotstepmaniadotstepchart: MediaType =
-      MediaType("application", "vnd.stepmania.stepchart", compressible = false, binary = true, fileExtensions = List("sm"))
+      MediaType(
+        "application",
+        "vnd.stepmania.stepchart",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sm")
+      )
 
     lazy val vnddotstreetStream: MediaType =
       MediaType("application", "vnd.street-stream", compressible = false, binary = true)
@@ -4847,19 +6315,37 @@ object MediaTypes {
       MediaType("application", "vnd.sun.xml.calc", compressible = false, binary = true, fileExtensions = List("sxc"))
 
     lazy val vnddotsundotxmldotcalcdottemplate: MediaType =
-      MediaType("application", "vnd.sun.xml.calc.template", compressible = false, binary = true, fileExtensions = List("stc"))
+      MediaType(
+        "application",
+        "vnd.sun.xml.calc.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("stc")
+      )
 
     lazy val vnddotsundotxmldotdraw: MediaType =
       MediaType("application", "vnd.sun.xml.draw", compressible = false, binary = true, fileExtensions = List("sxd"))
 
     lazy val vnddotsundotxmldotdrawdottemplate: MediaType =
-      MediaType("application", "vnd.sun.xml.draw.template", compressible = false, binary = true, fileExtensions = List("std"))
+      MediaType(
+        "application",
+        "vnd.sun.xml.draw.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("std")
+      )
 
     lazy val vnddotsundotxmldotimpress: MediaType =
       MediaType("application", "vnd.sun.xml.impress", compressible = false, binary = true, fileExtensions = List("sxi"))
 
     lazy val vnddotsundotxmldotimpressdottemplate: MediaType =
-      MediaType("application", "vnd.sun.xml.impress.template", compressible = false, binary = true, fileExtensions = List("sti"))
+      MediaType(
+        "application",
+        "vnd.sun.xml.impress.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sti")
+      )
 
     lazy val vnddotsundotxmldotmath: MediaType =
       MediaType("application", "vnd.sun.xml.math", compressible = false, binary = true, fileExtensions = List("sxm"))
@@ -4868,16 +6354,34 @@ object MediaTypes {
       MediaType("application", "vnd.sun.xml.writer", compressible = false, binary = true, fileExtensions = List("sxw"))
 
     lazy val vnddotsundotxmldotwriterdotglobal: MediaType =
-      MediaType("application", "vnd.sun.xml.writer.global", compressible = false, binary = true, fileExtensions = List("sxg"))
+      MediaType(
+        "application",
+        "vnd.sun.xml.writer.global",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sxg")
+      )
 
     lazy val vnddotsundotxmldotwriterdottemplate: MediaType =
-      MediaType("application", "vnd.sun.xml.writer.template", compressible = false, binary = true, fileExtensions = List("stw"))
+      MediaType(
+        "application",
+        "vnd.sun.xml.writer.template",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("stw")
+      )
 
     lazy val vnddotsuperfiledotsuper: MediaType =
       MediaType("application", "vnd.superfile.super", compressible = false, binary = true)
 
     lazy val vnddotsusCalendar: MediaType =
-      MediaType("application", "vnd.sus-calendar", compressible = false, binary = true, fileExtensions = List("sus", "susp"))
+      MediaType(
+        "application",
+        "vnd.sus-calendar",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sus", "susp")
+      )
 
     lazy val vnddotsvd: MediaType =
       MediaType("application", "vnd.svd", compressible = false, binary = true, fileExtensions = List("svd"))
@@ -4895,7 +6399,13 @@ object MediaTypes {
       MediaType("application", "vnd.syft+json", compressible = true, binary = false)
 
     lazy val vnddotsymbiandotinstall: MediaType =
-      MediaType("application", "vnd.symbian.install", compressible = false, binary = true, fileExtensions = List("sis", "sisx"))
+      MediaType(
+        "application",
+        "vnd.symbian.install",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("sis", "sisx")
+      )
 
     lazy val vnddotsyncmlplusxml: MediaType =
       MediaType("application", "vnd.syncml+xml", compressible = true, binary = true, fileExtensions = List("xsm"))
@@ -4928,10 +6438,22 @@ object MediaTypes {
       MediaType("application", "vnd.tableschema+json", compressible = true, binary = false)
 
     lazy val vnddottaodotintentModuleArchive: MediaType =
-      MediaType("application", "vnd.tao.intent-module-archive", compressible = false, binary = true, fileExtensions = List("tao"))
+      MediaType(
+        "application",
+        "vnd.tao.intent-module-archive",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("tao")
+      )
 
     lazy val vnddottcpdumpdotpcap: MediaType =
-      MediaType("application", "vnd.tcpdump.pcap", compressible = false, binary = true, fileExtensions = List("pcap", "cap", "dmp"))
+      MediaType(
+        "application",
+        "vnd.tcpdump.pcap",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pcap", "cap", "dmp")
+      )
 
     lazy val vnddotthinkCelldotppttcplusjson: MediaType =
       MediaType("application", "vnd.think-cell.ppttc+json", compressible = true, binary = false)
@@ -5072,7 +6594,13 @@ object MediaTypes {
       MediaType("application", "vnd.vidsoft.vidconference", compressible = false, binary = true)
 
     lazy val vnddotvisio: MediaType =
-      MediaType("application", "vnd.visio", compressible = false, binary = true, fileExtensions = List("vsd", "vst", "vss", "vsw", "vsdx", "vtx"))
+      MediaType(
+        "application",
+        "vnd.visio",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("vsd", "vst", "vss", "vsw", "vsdx", "vtx")
+      )
 
     lazy val vnddotvisionary: MediaType =
       MediaType("application", "vnd.visionary", compressible = false, binary = true, fileExtensions = List("vis"))
@@ -5105,7 +6633,13 @@ object MediaTypes {
       MediaType("application", "vnd.wap.wmlc", compressible = false, binary = true, fileExtensions = List("wmlc"))
 
     lazy val vnddotwapdotwmlscriptc: MediaType =
-      MediaType("application", "vnd.wap.wmlscriptc", compressible = false, binary = true, fileExtensions = List("wmlsc"))
+      MediaType(
+        "application",
+        "vnd.wap.wmlscriptc",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("wmlsc")
+      )
 
     lazy val vnddotwasmflowdotwafl: MediaType =
       MediaType("application", "vnd.wasmflow.wafl", compressible = false, binary = true)
@@ -5210,25 +6744,55 @@ object MediaTypes {
       MediaType("application", "vnd.yamaha.hv-dic", compressible = false, binary = true, fileExtensions = List("hvd"))
 
     lazy val vnddotyamahadothvScript: MediaType =
-      MediaType("application", "vnd.yamaha.hv-script", compressible = false, binary = true, fileExtensions = List("hvs"))
+      MediaType(
+        "application",
+        "vnd.yamaha.hv-script",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("hvs")
+      )
 
     lazy val vnddotyamahadothvVoice: MediaType =
       MediaType("application", "vnd.yamaha.hv-voice", compressible = false, binary = true, fileExtensions = List("hvp"))
 
     lazy val vnddotyamahadotopenscoreformat: MediaType =
-      MediaType("application", "vnd.yamaha.openscoreformat", compressible = false, binary = true, fileExtensions = List("osf"))
+      MediaType(
+        "application",
+        "vnd.yamaha.openscoreformat",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("osf")
+      )
 
     lazy val vnddotyamahadotopenscoreformatdotosfpvgplusxml: MediaType =
-      MediaType("application", "vnd.yamaha.openscoreformat.osfpvg+xml", compressible = true, binary = true, fileExtensions = List("osfpvg"))
+      MediaType(
+        "application",
+        "vnd.yamaha.openscoreformat.osfpvg+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("osfpvg")
+      )
 
     lazy val vnddotyamahadotremoteSetup: MediaType =
       MediaType("application", "vnd.yamaha.remote-setup", compressible = false, binary = true)
 
     lazy val vnddotyamahadotsmafAudio: MediaType =
-      MediaType("application", "vnd.yamaha.smaf-audio", compressible = false, binary = true, fileExtensions = List("saf"))
+      MediaType(
+        "application",
+        "vnd.yamaha.smaf-audio",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("saf")
+      )
 
     lazy val vnddotyamahadotsmafPhrase: MediaType =
-      MediaType("application", "vnd.yamaha.smaf-phrase", compressible = false, binary = true, fileExtensions = List("spf"))
+      MediaType(
+        "application",
+        "vnd.yamaha.smaf-phrase",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("spf")
+      )
 
     lazy val vnddotyamahadotthroughNgn: MediaType =
       MediaType("application", "vnd.yamaha.through-ngn", compressible = false, binary = true)
@@ -5240,7 +6804,13 @@ object MediaTypes {
       MediaType("application", "vnd.yaoweme", compressible = false, binary = true)
 
     lazy val vnddotyellowriverCustomMenu: MediaType =
-      MediaType("application", "vnd.yellowriver-custom-menu", compressible = false, binary = true, fileExtensions = List("cmp"))
+      MediaType(
+        "application",
+        "vnd.yellowriver-custom-menu",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cmp")
+      )
 
     lazy val vnddotzohoPresentationdotshow: MediaType =
       MediaType("application", "vnd.zoho-presentation.show", compressible = false, binary = true)
@@ -5327,7 +6897,13 @@ object MediaTypes {
       MediaType("application", "x-arj", compressible = false, binary = true, fileExtensions = List("arj"))
 
     lazy val xAuthorwareBin: MediaType =
-      MediaType("application", "x-authorware-bin", compressible = false, binary = true, fileExtensions = List("aab", "x32", "u32", "vox"))
+      MediaType(
+        "application",
+        "x-authorware-bin",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("aab", "x32", "u32", "vox")
+      )
 
     lazy val xAuthorwareMap: MediaType =
       MediaType("application", "x-authorware-map", compressible = false, binary = true, fileExtensions = List("aam"))
@@ -5357,7 +6933,13 @@ object MediaTypes {
       MediaType("application", "x-bzip2", compressible = false, binary = true, fileExtensions = List("bz2", "boz"))
 
     lazy val xCbr: MediaType =
-      MediaType("application", "x-cbr", compressible = false, binary = true, fileExtensions = List("cbr", "cba", "cbt", "cbz", "cb7"))
+      MediaType(
+        "application",
+        "x-cbr",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("cbr", "cba", "cbt", "cbz", "cb7")
+      )
 
     lazy val xCdlink: MediaType =
       MediaType("application", "x-cdlink", compressible = false, binary = true, fileExtensions = List("vcd"))
@@ -5396,13 +6978,25 @@ object MediaTypes {
       MediaType("application", "x-deb", compressible = false, binary = true)
 
     lazy val xDebianPackage: MediaType =
-      MediaType("application", "x-debian-package", compressible = false, binary = true, fileExtensions = List("deb", "udeb"))
+      MediaType(
+        "application",
+        "x-debian-package",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("deb", "udeb")
+      )
 
     lazy val xDgcCompressed: MediaType =
       MediaType("application", "x-dgc-compressed", compressible = false, binary = true, fileExtensions = List("dgc"))
 
     lazy val xDirector: MediaType =
-      MediaType("application", "x-director", compressible = false, binary = true, fileExtensions = List("dir", "dcr", "dxr", "cst", "cct", "cxt", "w3d", "fgd", "swa"))
+      MediaType(
+        "application",
+        "x-director",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("dir", "dcr", "dxr", "cst", "cct", "cxt", "w3d", "fgd", "swa")
+      )
 
     lazy val xDoom: MediaType =
       MediaType("application", "x-doom", compressible = false, binary = true, fileExtensions = List("wad"))
@@ -5456,7 +7050,13 @@ object MediaTypes {
       MediaType("application", "x-font-sunos-news", compressible = false, binary = true)
 
     lazy val xFontType1: MediaType =
-      MediaType("application", "x-font-type1", compressible = false, binary = true, fileExtensions = List("pfa", "pfb", "pfm", "afm"))
+      MediaType(
+        "application",
+        "x-font-type1",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pfa", "pfb", "pfm", "afm")
+      )
 
     lazy val xFontVfont: MediaType =
       MediaType("application", "x-font-vfont", compressible = false, binary = true)
@@ -5492,7 +7092,13 @@ object MediaTypes {
       MediaType("application", "x-httpd-php", compressible = true, binary = true, fileExtensions = List("php"))
 
     lazy val xInstallInstructions: MediaType =
-      MediaType("application", "x-install-instructions", compressible = false, binary = true, fileExtensions = List("install"))
+      MediaType(
+        "application",
+        "x-install-instructions",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("install")
+      )
 
     lazy val xIpynbplusjson: MediaType =
       MediaType("application", "x-ipynb+json", compressible = true, binary = false, fileExtensions = List("ipynb"))
@@ -5501,16 +7107,40 @@ object MediaTypes {
       MediaType("application", "x-iso9660-image", compressible = false, binary = true, fileExtensions = List("iso"))
 
     lazy val xIworkKeynoteSffkey: MediaType =
-      MediaType("application", "x-iwork-keynote-sffkey", compressible = false, binary = true, fileExtensions = List("key"))
+      MediaType(
+        "application",
+        "x-iwork-keynote-sffkey",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("key")
+      )
 
     lazy val xIworkNumbersSffnumbers: MediaType =
-      MediaType("application", "x-iwork-numbers-sffnumbers", compressible = false, binary = true, fileExtensions = List("numbers"))
+      MediaType(
+        "application",
+        "x-iwork-numbers-sffnumbers",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("numbers")
+      )
 
     lazy val xIworkPagesSffpages: MediaType =
-      MediaType("application", "x-iwork-pages-sffpages", compressible = false, binary = true, fileExtensions = List("pages"))
+      MediaType(
+        "application",
+        "x-iwork-pages-sffpages",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pages")
+      )
 
     lazy val xJavaArchiveDiff: MediaType =
-      MediaType("application", "x-java-archive-diff", compressible = false, binary = true, fileExtensions = List("jardiff"))
+      MediaType(
+        "application",
+        "x-java-archive-diff",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("jardiff")
+      )
 
     lazy val xJavaJnlpFile: MediaType =
       MediaType("application", "x-java-jnlp-file", compressible = false, binary = true, fileExtensions = List("jnlp"))
@@ -5528,7 +7158,13 @@ object MediaTypes {
       MediaType("application", "x-lua-bytecode", compressible = false, binary = true, fileExtensions = List("luac"))
 
     lazy val xLzhCompressed: MediaType =
-      MediaType("application", "x-lzh-compressed", compressible = false, binary = true, fileExtensions = List("lzh", "lha"))
+      MediaType(
+        "application",
+        "x-lzh-compressed",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("lzh", "lha")
+      )
 
     lazy val xMakeself: MediaType =
       MediaType("application", "x-makeself", compressible = false, binary = true, fileExtensions = List("run"))
@@ -5537,13 +7173,25 @@ object MediaTypes {
       MediaType("application", "x-mie", compressible = false, binary = true, fileExtensions = List("mie"))
 
     lazy val xMobipocketEbook: MediaType =
-      MediaType("application", "x-mobipocket-ebook", compressible = false, binary = true, fileExtensions = List("prc", "mobi"))
+      MediaType(
+        "application",
+        "x-mobipocket-ebook",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("prc", "mobi")
+      )
 
     lazy val xMpegurl: MediaType =
       MediaType("application", "x-mpegurl", compressible = false, binary = true)
 
     lazy val xMsApplication: MediaType =
-      MediaType("application", "x-ms-application", compressible = false, binary = true, fileExtensions = List("application"))
+      MediaType(
+        "application",
+        "x-ms-application",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("application")
+      )
 
     lazy val xMsShortcut: MediaType =
       MediaType("application", "x-ms-shortcut", compressible = false, binary = true, fileExtensions = List("lnk"))
@@ -5573,13 +7221,31 @@ object MediaTypes {
       MediaType("application", "x-msdos-program", compressible = false, binary = true, fileExtensions = List("exe"))
 
     lazy val xMsdownload: MediaType =
-      MediaType("application", "x-msdownload", compressible = false, binary = true, fileExtensions = List("exe", "dll", "com", "bat", "msi"))
+      MediaType(
+        "application",
+        "x-msdownload",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("exe", "dll", "com", "bat", "msi")
+      )
 
     lazy val xMsmediaview: MediaType =
-      MediaType("application", "x-msmediaview", compressible = false, binary = true, fileExtensions = List("mvb", "m13", "m14"))
+      MediaType(
+        "application",
+        "x-msmediaview",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mvb", "m13", "m14")
+      )
 
     lazy val xMsmetafile: MediaType =
-      MediaType("application", "x-msmetafile", compressible = false, binary = true, fileExtensions = List("wmf", "wmz", "emf", "emz"))
+      MediaType(
+        "application",
+        "x-msmetafile",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("wmf", "wmz", "emf", "emz")
+      )
 
     lazy val xMsmoney: MediaType =
       MediaType("application", "x-msmoney", compressible = false, binary = true, fileExtensions = List("mny"))
@@ -5600,7 +7266,13 @@ object MediaTypes {
       MediaType("application", "x-netcdf", compressible = false, binary = true, fileExtensions = List("nc", "cdf"))
 
     lazy val xNsProxyAutoconfig: MediaType =
-      MediaType("application", "x-ns-proxy-autoconfig", compressible = true, binary = true, fileExtensions = List("pac"))
+      MediaType(
+        "application",
+        "x-ns-proxy-autoconfig",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("pac")
+      )
 
     lazy val xNzb: MediaType =
       MediaType("application", "x-nzb", compressible = false, binary = true, fileExtensions = List("nzb"))
@@ -5615,7 +7287,13 @@ object MediaTypes {
       MediaType("application", "x-pkcs12", compressible = false, binary = true, fileExtensions = List("p12", "pfx"))
 
     lazy val xPkcs7Certificates: MediaType =
-      MediaType("application", "x-pkcs7-certificates", compressible = false, binary = true, fileExtensions = List("p7b", "spc"))
+      MediaType(
+        "application",
+        "x-pkcs7-certificates",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("p7b", "spc")
+      )
 
     lazy val xPkcs7Certreqresp: MediaType =
       MediaType("application", "x-pkcs7-certreqresp", compressible = false, binary = true, fileExtensions = List("p7r"))
@@ -5627,10 +7305,22 @@ object MediaTypes {
       MediaType("application", "x-rar-compressed", compressible = false, binary = true, fileExtensions = List("rar"))
 
     lazy val xRedhatPackageManager: MediaType =
-      MediaType("application", "x-redhat-package-manager", compressible = false, binary = true, fileExtensions = List("rpm"))
+      MediaType(
+        "application",
+        "x-redhat-package-manager",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("rpm")
+      )
 
     lazy val xResearchInfoSystems: MediaType =
-      MediaType("application", "x-research-info-systems", compressible = false, binary = true, fileExtensions = List("ris"))
+      MediaType(
+        "application",
+        "x-research-info-systems",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("ris")
+      )
 
     lazy val xSea: MediaType =
       MediaType("application", "x-sea", compressible = false, binary = true, fileExtensions = List("sea"))
@@ -5684,7 +7374,13 @@ object MediaTypes {
       MediaType("application", "x-tex-tfm", compressible = false, binary = true, fileExtensions = List("tfm"))
 
     lazy val xTexinfo: MediaType =
-      MediaType("application", "x-texinfo", compressible = false, binary = true, fileExtensions = List("texinfo", "texi"))
+      MediaType(
+        "application",
+        "x-texinfo",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("texinfo", "texi")
+      )
 
     lazy val xTgif: MediaType =
       MediaType("application", "x-tgif", compressible = false, binary = true, fileExtensions = List("obj"))
@@ -5705,7 +7401,13 @@ object MediaTypes {
       MediaType("application", "x-virtualbox-vbox", compressible = true, binary = true, fileExtensions = List("vbox"))
 
     lazy val xVirtualboxVboxExtpack: MediaType =
-      MediaType("application", "x-virtualbox-vbox-extpack", compressible = false, binary = true, fileExtensions = List("vbox-extpack"))
+      MediaType(
+        "application",
+        "x-virtualbox-vbox-extpack",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("vbox-extpack")
+      )
 
     lazy val xVirtualboxVdi: MediaType =
       MediaType("application", "x-virtualbox-vdi", compressible = true, binary = true, fileExtensions = List("vdi"))
@@ -5720,13 +7422,25 @@ object MediaTypes {
       MediaType("application", "x-wais-source", compressible = false, binary = true, fileExtensions = List("src"))
 
     lazy val xWebAppManifestplusjson: MediaType =
-      MediaType("application", "x-web-app-manifest+json", compressible = true, binary = false, fileExtensions = List("webapp"))
+      MediaType(
+        "application",
+        "x-web-app-manifest+json",
+        compressible = true,
+        binary = false,
+        fileExtensions = List("webapp")
+      )
 
     lazy val xWwwFormUrlencoded: MediaType =
       MediaType("application", "x-www-form-urlencoded", compressible = true, binary = true)
 
     lazy val xX509CaCert: MediaType =
-      MediaType("application", "x-x509-ca-cert", compressible = false, binary = true, fileExtensions = List("der", "crt", "pem"))
+      MediaType(
+        "application",
+        "x-x509-ca-cert",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("der", "crt", "pem")
+      )
 
     lazy val xX509CaRaCert: MediaType =
       MediaType("application", "x-x509-ca-ra-cert", compressible = false, binary = true)
@@ -5750,7 +7464,13 @@ object MediaTypes {
       MediaType("application", "x-zip-compressed", compressible = false, binary = true, fileExtensions = List("zip"))
 
     lazy val xZmachine: MediaType =
-      MediaType("application", "x-zmachine", compressible = false, binary = true, fileExtensions = List("z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8"))
+      MediaType(
+        "application",
+        "x-zmachine",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("z1", "z2", "z3", "z4", "z5", "z6", "z7", "z8")
+      )
 
     lazy val x400Bp: MediaType =
       MediaType("application", "x400-bp", compressible = false, binary = true)
@@ -5801,7 +7521,13 @@ object MediaTypes {
       MediaType("application", "xliff+xml", compressible = true, binary = true, fileExtensions = List("xlf"))
 
     lazy val xml: MediaType =
-      MediaType("application", "xml", compressible = true, binary = false, fileExtensions = List("xml", "xsl", "xsd", "rng"))
+      MediaType(
+        "application",
+        "xml",
+        compressible = true,
+        binary = false,
+        fileExtensions = List("xml", "xsl", "xsd", "rng")
+      )
 
     lazy val xmlDtd: MediaType =
       MediaType("application", "xml-dtd", compressible = true, binary = false, fileExtensions = List("dtd"))
@@ -5828,7 +7554,13 @@ object MediaTypes {
       MediaType("application", "xspf+xml", compressible = true, binary = true, fileExtensions = List("xspf"))
 
     lazy val xvplusxml: MediaType =
-      MediaType("application", "xv+xml", compressible = true, binary = true, fileExtensions = List("mxml", "xhvml", "xvml", "xvm"))
+      MediaType(
+        "application",
+        "xv+xml",
+        compressible = true,
+        binary = true,
+        fileExtensions = List("mxml", "xhvml", "xvml", "xvm")
+      )
 
     lazy val yaml: MediaType =
       MediaType("application", "yaml", compressible = true, binary = true)
@@ -8062,7 +9794,13 @@ object MediaTypes {
       MediaType("audio", "mhas", compressible = false, binary = true)
 
     lazy val midi: MediaType =
-      MediaType("audio", "midi", compressible = false, binary = true, fileExtensions = List("mid", "midi", "kar", "rmi"))
+      MediaType(
+        "audio",
+        "midi",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mid", "midi", "kar", "rmi")
+      )
 
     lazy val midiClip: MediaType =
       MediaType("audio", "midi-clip", compressible = false, binary = true)
@@ -8086,7 +9824,13 @@ object MediaTypes {
       MediaType("audio", "mpa-robust", compressible = false, binary = true)
 
     lazy val mpeg: MediaType =
-      MediaType("audio", "mpeg", compressible = false, binary = true, fileExtensions = List("mpga", "mp2", "mp2a", "mp3", "m2a", "m3a"))
+      MediaType(
+        "audio",
+        "mpeg",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mpga", "mp2", "mp2a", "mp3", "m2a", "m3a")
+      )
 
     lazy val mpeg4Generic: MediaType =
       MediaType("audio", "mpeg4-generic", compressible = false, binary = true)
@@ -8287,7 +10031,13 @@ object MediaTypes {
       MediaType("audio", "vnd.lucent.voice", compressible = false, binary = true, fileExtensions = List("lvp"))
 
     lazy val vnddotmsPlayreadydotmediadotpya: MediaType =
-      MediaType("audio", "vnd.ms-playready.media.pya", compressible = false, binary = true, fileExtensions = List("pya"))
+      MediaType(
+        "audio",
+        "vnd.ms-playready.media.pya",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pya")
+      )
 
     lazy val vnddotnokiadotmobileXmf: MediaType =
       MediaType("audio", "vnd.nokia.mobile-xmf", compressible = false, binary = true)
@@ -8800,7 +10550,13 @@ object MediaTypes {
       MediaType("image", "vnd.adobe.photoshop", compressible = true, binary = true, fileExtensions = List("psd"))
 
     lazy val vnddotairzipdotacceleratordotazv: MediaType =
-      MediaType("image", "vnd.airzip.accelerator.azv", compressible = false, binary = true, fileExtensions = List("azv"))
+      MediaType(
+        "image",
+        "vnd.airzip.accelerator.azv",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("azv")
+      )
 
     lazy val vnddotblockfactdotfacti: MediaType =
       MediaType("image", "vnd.blockfact.facti", compressible = false, binary = true, fileExtensions = List("facti"))
@@ -8812,7 +10568,13 @@ object MediaTypes {
       MediaType("image", "vnd.cns.inf2", compressible = false, binary = true)
 
     lazy val vnddotdecedotgraphic: MediaType =
-      MediaType("image", "vnd.dece.graphic", compressible = false, binary = true, fileExtensions = List("uvi", "uvvi", "uvg", "uvvg"))
+      MediaType(
+        "image",
+        "vnd.dece.graphic",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("uvi", "uvvi", "uvg", "uvvg")
+      )
 
     lazy val vnddotdjvu: MediaType =
       MediaType("image", "vnd.djvu", compressible = false, binary = true, fileExtensions = List("djvu", "djv"))
@@ -8920,7 +10682,13 @@ object MediaTypes {
       MediaType("image", "x-emf", compressible = false, binary = true)
 
     lazy val xFreehand: MediaType =
-      MediaType("image", "x-freehand", compressible = false, binary = true, fileExtensions = List("fh", "fhc", "fh4", "fh5", "fh7"))
+      MediaType(
+        "image",
+        "x-freehand",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("fh", "fhc", "fh4", "fh5", "fh7")
+      )
 
     lazy val xIcon: MediaType =
       MediaType("image", "x-icon", compressible = true, binary = true, fileExtensions = List("ico"))
@@ -9109,10 +10877,22 @@ object MediaTypes {
       MediaType("message", "global", compressible = false, binary = true, fileExtensions = List("u8msg"))
 
     lazy val globalDeliveryStatus: MediaType =
-      MediaType("message", "global-delivery-status", compressible = false, binary = true, fileExtensions = List("u8dsn"))
+      MediaType(
+        "message",
+        "global-delivery-status",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("u8dsn")
+      )
 
     lazy val globalDispositionNotification: MediaType =
-      MediaType("message", "global-disposition-notification", compressible = false, binary = true, fileExtensions = List("u8mdn"))
+      MediaType(
+        "message",
+        "global-disposition-notification",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("u8mdn")
+      )
 
     lazy val globalHeaders: MediaType =
       MediaType("message", "global-headers", compressible = false, binary = true, fileExtensions = List("u8hdr"))
@@ -9139,7 +10919,13 @@ object MediaTypes {
       MediaType("message", "partial", compressible = false, binary = true)
 
     lazy val rfc822: MediaType =
-      MediaType("message", "rfc822", compressible = true, binary = false, fileExtensions = List("eml", "mime", "mht", "mhtml"))
+      MediaType(
+        "message",
+        "rfc822",
+        compressible = true,
+        binary = false,
+        fileExtensions = List("eml", "mime", "mht", "mhtml")
+      )
 
     lazy val sHttp: MediaType =
       MediaType("message", "s-http", compressible = false, binary = true)
@@ -9219,7 +11005,13 @@ object MediaTypes {
       MediaType("model", "prc", compressible = false, binary = true, fileExtensions = List("prc"))
 
     lazy val step: MediaType =
-      MediaType("model", "step", compressible = false, binary = true, fileExtensions = List("step", "stp", "stpnc", "p21", "210"))
+      MediaType(
+        "model",
+        "step",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("step", "stp", "stpnc", "p21", "210")
+      )
 
     lazy val stepplusxml: MediaType =
       MediaType("model", "step+xml", compressible = true, binary = true, fileExtensions = List("stpx"))
@@ -9273,10 +11065,22 @@ object MediaTypes {
       MediaType("model", "vnd.opengex", compressible = false, binary = true, fileExtensions = List("ogex"))
 
     lazy val vnddotparasoliddottransmitdotbinary: MediaType =
-      MediaType("model", "vnd.parasolid.transmit.binary", compressible = false, binary = true, fileExtensions = List("x_b"))
+      MediaType(
+        "model",
+        "vnd.parasolid.transmit.binary",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("x_b")
+      )
 
     lazy val vnddotparasoliddottransmitdottext: MediaType =
-      MediaType("model", "vnd.parasolid.transmit.text", compressible = false, binary = true, fileExtensions = List("x_t"))
+      MediaType(
+        "model",
+        "vnd.parasolid.transmit.text",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("x_t")
+      )
 
     lazy val vnddotpythadotpyox: MediaType =
       MediaType("model", "vnd.pytha.pyox", compressible = false, binary = true, fileExtensions = List("pyo", "pyox"))
@@ -9294,7 +11098,13 @@ object MediaTypes {
       MediaType("model", "vnd.usdz+zip", compressible = false, binary = true, fileExtensions = List("usdz"))
 
     lazy val vnddotvalvedotsourcedotcompiledMap: MediaType =
-      MediaType("model", "vnd.valve.source.compiled-map", compressible = false, binary = true, fileExtensions = List("bsp"))
+      MediaType(
+        "model",
+        "vnd.valve.source.compiled-map",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("bsp")
+      )
 
     lazy val vnddotvtu: MediaType =
       MediaType("model", "vnd.vtu", compressible = false, binary = true, fileExtensions = List("vtu"))
@@ -9438,7 +11248,13 @@ object MediaTypes {
       MediaType("text", "1d-interleaved-parityfec", compressible = false, binary = false)
 
     lazy val cacheManifest: MediaType =
-      MediaType("text", "cache-manifest", compressible = true, binary = false, fileExtensions = List("appcache", "manifest"))
+      MediaType(
+        "text",
+        "cache-manifest",
+        compressible = true,
+        binary = false,
+        fileExtensions = List("appcache", "manifest")
+      )
 
     lazy val calendar: MediaType =
       MediaType("text", "calendar", compressible = false, binary = false, fileExtensions = List("ics", "ifb"))
@@ -9447,7 +11263,13 @@ object MediaTypes {
       MediaType("text", "cmd", compressible = true, binary = false)
 
     lazy val coffeescript: MediaType =
-      MediaType("text", "coffeescript", compressible = false, binary = false, fileExtensions = List("coffee", "litcoffee"))
+      MediaType(
+        "text",
+        "coffeescript",
+        compressible = false,
+        binary = false,
+        fileExtensions = List("coffee", "litcoffee")
+      )
 
     lazy val cql: MediaType =
       MediaType("text", "cql", compressible = false, binary = false)
@@ -9543,7 +11365,13 @@ object MediaTypes {
       MediaType("text", "parityfec", compressible = false, binary = false)
 
     lazy val plain: MediaType =
-      MediaType("text", "plain", compressible = true, binary = false, fileExtensions = List("txt", "text", "conf", "def", "list", "log", "in", "ini"))
+      MediaType(
+        "text",
+        "plain",
+        compressible = true,
+        binary = false,
+        fileExtensions = List("txt", "text", "conf", "def", "list", "log", "in", "ini")
+      )
 
     lazy val provenanceNotation: MediaType =
       MediaType("text", "provenance-notation", compressible = false, binary = false)
@@ -9612,7 +11440,13 @@ object MediaTypes {
       MediaType("text", "tab-separated-values", compressible = true, binary = false, fileExtensions = List("tsv"))
 
     lazy val troff: MediaType =
-      MediaType("text", "troff", compressible = false, binary = false, fileExtensions = List("t", "tr", "roff", "man", "me", "ms"))
+      MediaType(
+        "text",
+        "troff",
+        compressible = false,
+        binary = false,
+        fileExtensions = List("t", "tr", "roff", "man", "me", "ms")
+      )
 
     lazy val turtle: MediaType =
       MediaType("text", "turtle", compressible = false, binary = false, fileExtensions = List("ttl"))
@@ -9723,7 +11557,13 @@ object MediaTypes {
       MediaType("text", "vnd.sosi", compressible = false, binary = false)
 
     lazy val vnddotsundotj2medotappDescriptor: MediaType =
-      MediaType("text", "vnd.sun.j2me.app-descriptor", compressible = false, binary = false, fileExtensions = List("jad"))
+      MediaType(
+        "text",
+        "vnd.sun.j2me.app-descriptor",
+        compressible = false,
+        binary = false,
+        fileExtensions = List("jad")
+      )
 
     lazy val vnddottrolltechdotlinguist: MediaType =
       MediaType("text", "vnd.trolltech.linguist", compressible = false, binary = false)
@@ -9759,13 +11599,25 @@ object MediaTypes {
       MediaType("text", "x-asm", compressible = false, binary = false, fileExtensions = List("s", "asm"))
 
     lazy val xC: MediaType =
-      MediaType("text", "x-c", compressible = false, binary = false, fileExtensions = List("c", "cc", "cxx", "cpp", "h", "hh", "dic"))
+      MediaType(
+        "text",
+        "x-c",
+        compressible = false,
+        binary = false,
+        fileExtensions = List("c", "cc", "cxx", "cpp", "h", "hh", "dic")
+      )
 
     lazy val xComponent: MediaType =
       MediaType("text", "x-component", compressible = true, binary = false, fileExtensions = List("htc"))
 
     lazy val xFortran: MediaType =
-      MediaType("text", "x-fortran", compressible = false, binary = false, fileExtensions = List("f", "for", "f77", "f90"))
+      MediaType(
+        "text",
+        "x-fortran",
+        compressible = false,
+        binary = false,
+        fileExtensions = List("f", "for", "f77", "f90")
+      )
 
     lazy val xGwtRpc: MediaType =
       MediaType("text", "x-gwt-rpc", compressible = true, binary = false)
@@ -10087,7 +11939,13 @@ object MediaTypes {
       MediaType("video", "mp4v-es", compressible = false, binary = true)
 
     lazy val mpeg: MediaType =
-      MediaType("video", "mpeg", compressible = false, binary = true, fileExtensions = List("mpeg", "mpg", "mpe", "m1v", "m2v"))
+      MediaType(
+        "video",
+        "mpeg",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("mpeg", "mpg", "mpe", "m1v", "m2v")
+      )
 
     lazy val mpeg4Generic: MediaType =
       MediaType("video", "mpeg4-generic", compressible = false, binary = true)
@@ -10213,7 +12071,13 @@ object MediaTypes {
       MediaType("video", "vnd.mpegurl", compressible = false, binary = true, fileExtensions = List("mxu", "m4u"))
 
     lazy val vnddotmsPlayreadydotmediadotpyv: MediaType =
-      MediaType("video", "vnd.ms-playready.media.pyv", compressible = false, binary = true, fileExtensions = List("pyv"))
+      MediaType(
+        "video",
+        "vnd.ms-playready.media.pyv",
+        compressible = false,
+        binary = true,
+        fileExtensions = List("pyv")
+      )
 
     lazy val vnddotnokiadotinterleavedMultimedia: MediaType =
       MediaType("video", "vnd.nokia.interleaved-multimedia", compressible = false, binary = true)
@@ -10449,5 +12313,6 @@ object MediaTypes {
     )
   }
 
-  def allMediaTypes: List[MediaType] = application.all ++ audio.all ++ chemical.all ++ font.all ++ image.all ++ message.all ++ model.all ++ multipart.all ++ text.all ++ video.all ++ x_conference.all ++ x_shader.all
+  def allMediaTypes: List[MediaType] =
+    application.all ++ audio.all ++ chemical.all ++ font.all ++ image.all ++ message.all ++ model.all ++ multipart.all ++ text.all ++ video.all ++ x_conference.all ++ x_shader.all
 }
