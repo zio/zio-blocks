@@ -513,27 +513,48 @@ object TypeIdMacros {
   private def buildOwner(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
-    def loop(s: Symbol, acc: List[c.Tree]): List[c.Tree] =
+    sealed trait SegmentInfo { def name: String }
+    case class PkgSegment(name: String)  extends SegmentInfo
+    case class TermSegment(name: String) extends SegmentInfo
+    case class TypeSegment(name: String) extends SegmentInfo
+
+    def loop(s: Symbol, acc: List[SegmentInfo]): List[SegmentInfo] =
       if (s == NoSymbol || s.isPackageClass && s.fullName == "<root>" || s.fullName == "<empty>") {
         acc
       } else if (s.isPackage || s.isPackageClass) {
         val pkgName = s.name.decodedName.toString
         if (pkgName != "<root>" && pkgName != "<empty>") {
-          loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Package($pkgName)" :: acc)
+          loop(s.owner, PkgSegment(pkgName) :: acc)
         } else {
           acc
         }
       } else if (s.isModule || s.isModuleClass) {
         val termName = s.name.decodedName.toString.stripSuffix("$")
-        loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Term($termName)" :: acc)
+        loop(s.owner, TermSegment(termName) :: acc)
       } else if (s.isClass || s.isType) {
-        loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Type(${s.name.decodedName.toString})" :: acc)
+        loop(s.owner, TypeSegment(s.name.decodedName.toString) :: acc)
       } else {
         loop(s.owner, acc)
       }
 
-    val segments = loop(sym, Nil)
-    q"_root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments))"
+    val segmentInfos = loop(sym, Nil)
+
+    if (segmentInfos.isEmpty) {
+      q"_root_.zio.blocks.typeid.Owner.Root"
+    } else {
+      val (pkgPrefix, rest) = segmentInfos.span(_.isInstanceOf[PkgSegment])
+      val base              =
+        if (pkgPrefix.isEmpty) q"_root_.zio.blocks.typeid.Owner.Root"
+        else {
+          val path = pkgPrefix.map(_.name).mkString(".")
+          q"_root_.zio.blocks.typeid.Owner.fromPackagePath($path)"
+        }
+      rest.foldLeft(base: c.Tree) {
+        case (acc, TermSegment(name)) => q"$acc.term($name)"
+        case (acc, TypeSegment(name)) => q"$acc.tpe($name)"
+        case (acc, PkgSegment(name))  => q"$acc./($name)"
+      }
+    }
   }
 
   private def buildTypeParams(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
