@@ -37,6 +37,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     }
   }
 
+  case object SimpleCaseObject
   trait SimpleTrait
   abstract class AbstractClass
 
@@ -540,6 +541,26 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
           listId.parents.isInstanceOf[List[TypeRepr]],
           classId.parents.isInstanceOf[List[TypeRepr]]
         )
+      },
+      test("simple case class has no base types") {
+        val id = TypeId.of[SimpleClass]
+        assertTrue(id.parents.isEmpty)
+      },
+      test("simple case object has no base types") {
+        val id = TypeId.of[SimpleCaseObject.type]
+        assertTrue(id.parents.isEmpty)
+      },
+      test("sealed trait that doesn't extend anything has no base types") {
+        val id = TypeId.of[SimpleSealed]
+        assertTrue(id.parents.isEmpty)
+      },
+      test("simple trait has no base types") {
+        val id = TypeId.of[SimpleTrait]
+        assertTrue(id.parents.isEmpty)
+      },
+      test("abstract class has no base types") {
+        val id = TypeId.of[AbstractClass]
+        assertTrue(id.parents.isEmpty)
       }
     ),
     suite("isSubtypeOf")(

@@ -19,10 +19,22 @@ object TypeIdMacros {
   }
 
   given ToExpr[Owner] with {
-    def apply(owner: Owner)(using Quotes): Expr[Owner] = {
-      val segmentsExpr = Expr.ofList(owner.segments.map(s => Expr(s)))
-      '{ Owner($segmentsExpr) }
-    }
+    def apply(owner: Owner)(using Quotes): Expr[Owner] =
+      if (owner.segments.isEmpty) '{ Owner.Root }
+      else {
+        val (pkgPrefix, rest) = owner.segments.span(_.isInstanceOf[Owner.Package])
+        val base              =
+          if (pkgPrefix.isEmpty) '{ Owner.Root }
+          else {
+            val path = pkgPrefix.map(_.name).mkString(".")
+            '{ Owner.fromPackagePath(${ Expr(path) }) }
+          }
+        rest.foldLeft(base) {
+          case (acc, Owner.Term(name))    => '{ $acc.term(${ Expr(name) }) }
+          case (acc, Owner.Type(name))    => '{ $acc.tpe(${ Expr(name) }) }
+          case (acc, Owner.Package(name)) => '{ $acc / ${ Expr(name) } }
+        }
+      }
   }
 
   given ToExpr[Variance] with {
@@ -160,17 +172,26 @@ object TypeIdMacros {
           case Some(st) => '{ Some(${ Expr(st) }) }
           case None     => '{ None }
         }
-        '{
-          TypeId.nominal[Any](
-            $nameExpr,
-            $ownerExpr,
-            $typeParamsExpr,
-            $typeArgsExpr,
-            $defKindExpr,
-            $selfTypeExpr,
-            $annotationsExpr
-          )
-        }
+        if (id.typeParams.isEmpty && id.typeArgs.isEmpty && id.selfType.isEmpty && id.annotations.isEmpty)
+          '{
+            TypeId.nominal[Any](
+              $nameExpr,
+              $ownerExpr,
+              $defKindExpr
+            )
+          }
+        else
+          '{
+            TypeId.nominal[Any](
+              $nameExpr,
+              $ownerExpr,
+              $typeParamsExpr,
+              $typeArgsExpr,
+              $defKindExpr,
+              $selfTypeExpr,
+              $annotationsExpr
+            )
+          }
     }
   }
 
@@ -259,6 +280,16 @@ object TypeIdMacros {
 
   given ToExpr[TypeDefKind] with {
     def apply(tdk: TypeDefKind)(using Quotes): Expr[TypeDefKind] = tdk match {
+      // Predefined val fast paths (emit field access instead of constructor)
+      case TypeDefKind.Class(false, false, false, false, Nil) => '{ TypeDefKind.basicClass }
+      case TypeDefKind.Class(true, false, false, false, Nil)  => '{ TypeDefKind.basicFinalClass }
+      case TypeDefKind.Class(false, false, true, false, Nil)  => '{ TypeDefKind.basicCaseClass }
+      case TypeDefKind.Class(true, false, true, false, Nil)   => '{ TypeDefKind.basicFinalCaseClass }
+      case TypeDefKind.Trait(false, Nil)                      => '{ TypeDefKind.unsealedTrait }
+      case TypeDefKind.Trait(true, Nil)                       => '{ TypeDefKind.sealedTrait }
+      case TypeDefKind.Object(Nil)                            => '{ TypeDefKind.basicObject }
+      case TypeDefKind.Enum(Nil)                              => '{ TypeDefKind.basicEnum }
+      // Generic cases
       case TypeDefKind.Class(isFinal, isAbstract, isCase, isValue, bases) =>
         val basesExpr = Expr.ofList(bases.map(b => Expr(b)))
         '{
@@ -402,24 +433,32 @@ object TypeIdMacros {
           case "Null"    => zio.blocks.typeid.TypeRepr.NullType
           case _         =>
             val owner = analyzeOwner(sym.owner)
-            zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, owner, Nil, Nil, TypeDefKind.Unknown))
+            zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, owner, TypeDefKind.Unknown))
         }
       case _ =>
         val sym  = tpe.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, Owner.Root, Nil, Nil, TypeDefKind.Unknown))
+        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, Owner.Root, TypeDefKind.Unknown))
     }
   }
 
-  private def analyzeBaseTypes(using Quotes)(sym: quotes.reflect.Symbol): List[zio.blocks.typeid.TypeRepr] = {
-    val baseClasses = sym.typeRef.baseClasses.filterNot { base =>
-      base == sym ||
-      base.fullName == "scala.Any" ||
-      base.fullName == "scala.AnyRef" ||
-      base.fullName == "java.lang.Object" ||
-      base.fullName == "scala.Matchable"
-    }
+  private val filteredBaseTypes = Set(
+    "scala.Any",
+    "scala.AnyRef",
+    "java.lang.Object",
+    "scala.Matchable",
+    "scala.Product",
+    "scala.Equals",
+    "scala.deriving.Mirror",
+    "scala.deriving.Mirror$.Product",
+    "scala.deriving.Mirror$.Singleton",
+    "scala.deriving.Mirror$.Sum",
+    "java.io.Serializable"
+  )
 
+  private def analyzeBaseTypes(using Quotes)(sym: quotes.reflect.Symbol): List[zio.blocks.typeid.TypeRepr] = {
+    val baseClasses =
+      sym.typeRef.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     baseClasses.map(base => analyzeTypeReprMinimal(base.typeRef))
   }
 
@@ -519,9 +558,7 @@ object TypeIdMacros {
     val annotTypeId = TypeId.nominal[Any](
       annotName,
       annotOwner,
-      Nil,
-      Nil,
-      TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+      TypeDefKind.basicClass
     )
 
     val args = annot match {
@@ -563,9 +600,7 @@ object TypeIdMacros {
         val enumTypeId  = TypeId.nominal[Any](
           enumTypeSym.name,
           enumOwner,
-          Nil,
-          Nil,
-          TypeDefKind.Enum(Nil)
+          TypeDefKind.basicEnum
         )
         Some(AnnotationArg.EnumValue(enumTypeId, name))
 
@@ -575,9 +610,7 @@ object TypeIdMacros {
         val nestedTypeId   = TypeId.nominal[Any](
           nestedAnnotSym.name,
           nestedOwner,
-          Nil,
-          Nil,
-          TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+          TypeDefKind.basicClass
         )
         val nestedArgsData = nestedArgs.flatMap(a => analyzeAnnotationArg(a))
         Some(AnnotationArg.Nested(Annotation(nestedTypeId, nestedArgsData)))
@@ -1074,7 +1107,9 @@ object TypeIdMacros {
     if (isAlias && visitingAliases.contains(symFullName)) {
       val name      = sym.name
       val ownerExpr = buildOwner(sym.owner)
-      return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
+      return '{
+        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, TypeDefKind.Unknown))
+      }
     }
 
     val newVisiting = if (isAlias) visitingAliases + symFullName else visitingAliases
@@ -1166,7 +1201,7 @@ object TypeIdMacros {
       case other =>
         val sym  = other.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, Nil)) }
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, TypeDefKind.Unknown)) }
     }
   }
 
@@ -1182,7 +1217,8 @@ object TypeIdMacros {
       case s: String  => '{ zio.blocks.typeid.TypeRepr.Constant.StringConst(${ Expr(s) }) }
       case null       => '{ zio.blocks.typeid.TypeRepr.Constant.NullConst }
       case ()         => '{ zio.blocks.typeid.TypeRepr.Constant.UnitConst }
-      case _          => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing]("Constant", Owner.Root, Nil)) }
+      case _          =>
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing]("Constant", Owner.Root, TypeDefKind.Unknown)) }
     }
 
   private def buildTypeRefRepr(using Quotes)(tref: quotes.reflect.TypeRef): Expr[zio.blocks.typeid.TypeRepr] = {
@@ -1221,7 +1257,7 @@ object TypeIdMacros {
             '{ TypeId.alias[Nothing](${ Expr(name) }, $ownerExpr, Nil, $aliasedExpr, Nil, Nil) }
           } else {
             val defKindExpr = buildDefKindShallow(sym)
-            '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil, Nil, $defKindExpr) }
+            '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, $defKindExpr) }
           }
         }
 
@@ -1319,13 +1355,8 @@ object TypeIdMacros {
   private def buildBaseTypesMinimal(using
     Quotes
   )(sym: quotes.reflect.Symbol): Expr[List[zio.blocks.typeid.TypeRepr]] = {
-    val baseClasses = sym.typeRef.baseClasses.filterNot { base =>
-      base == sym ||
-      base.fullName == "scala.Any" ||
-      base.fullName == "scala.AnyRef" ||
-      base.fullName == "java.lang.Object" ||
-      base.fullName == "scala.Matchable"
-    }
+    val baseClasses =
+      sym.typeRef.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
 
     val baseExprs = baseClasses.map { base =>
       buildTypeReprMinimal(base.typeRef)
@@ -1365,12 +1396,14 @@ object TypeIdMacros {
           case "Null"    => '{ zio.blocks.typeid.TypeRepr.NullType }
           case _         =>
             val ownerExpr = buildOwner(sym.owner)
-            '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
+            '{
+              zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, TypeDefKind.Unknown))
+            }
         }
       case _ =>
         val sym  = tpe.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, Nil)) }
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, TypeDefKind.Unknown)) }
     }
   }
 
