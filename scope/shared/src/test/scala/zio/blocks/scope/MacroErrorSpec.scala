@@ -26,6 +26,33 @@ object MacroErrorSpec extends ZIOSpecDefault {
   trait Dog extends Animal
 
   def spec = suite("MacroErrorSpec")(
+    suite("$[T] requires Scope.Permit")(
+      test("$[T] outside .use block fails to compile") {
+        typeCheck("""
+          import zio.blocks.scope._
+
+          class Database { def query(): String = "result" }
+
+          implicit val globalScope: Scope.Any = Scope.global
+
+          // Outside .use - no Scope.Permit available, should fail
+          def attemptAccess(): Unit = {
+            val db: Any = $[Database]
+          }
+        """).map { result =>
+          assertTrue(
+            result.isLeft,
+            result.left.exists(msg =>
+              msg.contains("Permit") ||
+                msg.contains("Cannot use") ||
+                msg.contains("No implicit") ||
+                msg.contains("could not find implicit") ||
+                msg.contains(".use")
+            )
+          )
+        }
+      }
+    ),
     suite("NotAClass errors")(
       test("shared[T] for trait fails with helpful message") {
         typeCheck("""

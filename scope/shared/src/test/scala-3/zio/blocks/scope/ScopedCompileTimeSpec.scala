@@ -100,6 +100,65 @@ object ScopedCompileTimeSpec extends ZIOSpecDefault {
         assertTrue(errors.exists(e => e.message.contains("Found") || e.message.contains("type mismatch")))
       }
     ),
+    suite("Tag hierarchy safety")(
+      test("parent scope cannot access child-scoped values") {
+        // A value tagged with child.Tag should NOT be accessible from parent scope
+        val errors = typeCheckErrors("""
+          import zio.blocks.scope._
+          import zio.blocks.context.Context
+          import zio.blocks.scope.internal.Finalizers
+
+          class ParentResource { def value: Int = 1 }
+          class ChildResource { def value: Int = 2 }
+
+          val parent = Scope.makeCloseable(Scope.global, Context(new ParentResource), new Finalizers)
+
+          // Create a child scope
+          parent.use {
+            val child = Scope.makeCloseable(summon[Scope.Any], Context(new ChildResource), new Finalizers)
+
+            // Get a value tagged with child's Tag
+            val childValue: ChildResource @@ child.Tag = child.use {
+              $[ChildResource]
+            }
+
+            // Now we're back in parent's scope - try to access child-tagged value
+            // This should fail: parent's Permit doesn't satisfy child's Tag
+            childValue $ (_.value)
+          }
+        """)
+        assertTrue(
+          errors.nonEmpty && errors.exists(e => e.message.contains("No given instance") || e.message.contains("Permit"))
+        )
+      },
+      test("sibling scopes cannot access each other's values") {
+        // A value tagged with sibling1.Tag should NOT be accessible from sibling2
+        val errors = typeCheckErrors("""
+          import zio.blocks.scope._
+          import zio.blocks.context.Context
+          import zio.blocks.scope.internal.Finalizers
+
+          class Resource1 { def value: Int = 1 }
+          class Resource2 { def value: Int = 2 }
+
+          val sibling1 = Scope.makeCloseable(Scope.global, Context(new Resource1), new Finalizers)
+          val sibling2 = Scope.makeCloseable(Scope.global, Context(new Resource2), new Finalizers)
+
+          // Get a value from sibling1's scope
+          val sib1Value: Resource1 @@ sibling1.Tag = sibling1.use {
+            $[Resource1]
+          }
+
+          // Try to use it in sibling2's scope - should fail
+          sibling2.use {
+            sib1Value $ (_.value)
+          }
+        """)
+        assertTrue(
+          errors.nonEmpty && errors.exists(e => e.message.contains("No given instance") || e.message.contains("Permit"))
+        )
+      }
+    ),
     suite("Tag type safety")(
       test("map preserves tag type") {
         // Verify that map returns a scoped value

@@ -141,8 +141,8 @@ object Scope {
    * A scope that has service `T` available somewhere in its stack.
    *
    * This is an alias for `Scope.::[T, Scope]`, representing a scope where `T`
-   * is available (either at the head or in the tail). Used internally by
-   * `Wire.construct` and for type constraints.
+   * is available at the head. Used internally by `Wire.construct` and for type
+   * constraints.
    *
    * Note: This is a covariant type (`+T`), so `Scope.Has[Dog]` is a subtype of
    * `Scope.Has[Animal]` when `Dog <: Animal`.
