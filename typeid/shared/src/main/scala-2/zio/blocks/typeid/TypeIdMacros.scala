@@ -391,7 +391,7 @@ object TypeIdMacros {
               _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.AnyRef](
                 $anyRefName,
                 _root_.zio.blocks.typeid.Owner(_root_.scala.List(_root_.zio.blocks.typeid.Owner.Package($scalaPkg))),
-                _root_.scala.Nil
+                _root_.zio.blocks.typeid.TypeDefKind.Unknown
               )
             )"""
           )
@@ -409,7 +409,7 @@ object TypeIdMacros {
         buildTypeReprFromSymbol(c)(sym)
       case _ =>
         // Fallback for other types
-        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing](${tpe.typeSymbol.name.toString}, _root_.zio.blocks.typeid.Owner.Root, _root_.scala.Nil))"
+        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing](${tpe.typeSymbol.name.toString}, _root_.zio.blocks.typeid.Owner.Root, _root_.zio.blocks.typeid.TypeDefKind.Unknown))"
     }
   }
 
@@ -766,7 +766,7 @@ object TypeIdMacros {
       case "Null"    => q"_root_.zio.blocks.typeid.TypeRepr.NullType"
       case _         =>
         val ownerExpr = buildOwner(c)(sym.owner)
-        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil))"
+        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.zio.blocks.typeid.TypeDefKind.Unknown))"
     }
   }
 
@@ -801,16 +801,16 @@ object TypeIdMacros {
 
     if (annotSym == NoSymbol) return None
 
-    val annotName       = annotSym.name.decodedName.toString
-    val annotOwnerExpr  = buildOwner(c)(annotSym.owner)
+    val annotName      = annotSym.name.decodedName.toString
+    val annotOwnerExpr = buildOwner(c)(annotSym.owner)
+    val defKind        =
+      q"_root_.zio.blocks.typeid.TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)"
     val annotTypeIdExpr =
       q"""
         _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](
           $annotName,
           $annotOwnerExpr,
-          _root_.scala.Nil,
-          _root_.scala.Nil,
-          _root_.zio.blocks.typeid.TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+          $defKind
         )
       """
 
@@ -866,7 +866,7 @@ object TypeIdMacros {
         val nestedAnnotSym   = tpt.tpe.typeSymbol
         val nestedOwnerExpr  = buildOwner(c)(nestedAnnotSym.owner)
         val nestedTypeIdExpr =
-          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.scala.Nil)"
+          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.zio.blocks.typeid.TypeDefKind.Unknown)"
         val nestedArgsExpr = nestedArgs.flatMap(a => buildAnnotationArg(c)(a))
         Some(
           q"_root_.zio.blocks.typeid.AnnotationArg.Nested(_root_.zio.blocks.typeid.Annotation($nestedTypeIdExpr, _root_.scala.List(..$nestedArgsExpr)))"

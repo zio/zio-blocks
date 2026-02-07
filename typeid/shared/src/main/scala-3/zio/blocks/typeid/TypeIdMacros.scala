@@ -172,17 +172,26 @@ object TypeIdMacros {
           case Some(st) => '{ Some(${ Expr(st) }) }
           case None     => '{ None }
         }
-        '{
-          TypeId.nominal[Any](
-            $nameExpr,
-            $ownerExpr,
-            $typeParamsExpr,
-            $typeArgsExpr,
-            $defKindExpr,
-            $selfTypeExpr,
-            $annotationsExpr
-          )
-        }
+        if (id.typeParams.isEmpty && id.typeArgs.isEmpty && id.selfType.isEmpty && id.annotations.isEmpty)
+          '{
+            TypeId.nominal[Any](
+              $nameExpr,
+              $ownerExpr,
+              $defKindExpr
+            )
+          }
+        else
+          '{
+            TypeId.nominal[Any](
+              $nameExpr,
+              $ownerExpr,
+              $typeParamsExpr,
+              $typeArgsExpr,
+              $defKindExpr,
+              $selfTypeExpr,
+              $annotationsExpr
+            )
+          }
     }
   }
 
@@ -414,12 +423,12 @@ object TypeIdMacros {
           case "Null"    => zio.blocks.typeid.TypeRepr.NullType
           case _         =>
             val owner = analyzeOwner(sym.owner)
-            zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, owner, Nil, Nil, TypeDefKind.Unknown))
+            zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, owner, TypeDefKind.Unknown))
         }
       case _ =>
         val sym  = tpe.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, Owner.Root, Nil, Nil, TypeDefKind.Unknown))
+        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](name, Owner.Root, TypeDefKind.Unknown))
     }
   }
 
@@ -539,8 +548,6 @@ object TypeIdMacros {
     val annotTypeId = TypeId.nominal[Any](
       annotName,
       annotOwner,
-      Nil,
-      Nil,
       TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
     )
 
@@ -583,8 +590,6 @@ object TypeIdMacros {
         val enumTypeId  = TypeId.nominal[Any](
           enumTypeSym.name,
           enumOwner,
-          Nil,
-          Nil,
           TypeDefKind.Enum(Nil)
         )
         Some(AnnotationArg.EnumValue(enumTypeId, name))
@@ -595,8 +600,6 @@ object TypeIdMacros {
         val nestedTypeId   = TypeId.nominal[Any](
           nestedAnnotSym.name,
           nestedOwner,
-          Nil,
-          Nil,
           TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
         )
         val nestedArgsData = nestedArgs.flatMap(a => analyzeAnnotationArg(a))
@@ -1094,7 +1097,9 @@ object TypeIdMacros {
     if (isAlias && visitingAliases.contains(symFullName)) {
       val name      = sym.name
       val ownerExpr = buildOwner(sym.owner)
-      return '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
+      return '{
+        zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, TypeDefKind.Unknown))
+      }
     }
 
     val newVisiting = if (isAlias) visitingAliases + symFullName else visitingAliases
@@ -1186,7 +1191,7 @@ object TypeIdMacros {
       case other =>
         val sym  = other.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, Nil)) }
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, TypeDefKind.Unknown)) }
     }
   }
 
@@ -1202,7 +1207,8 @@ object TypeIdMacros {
       case s: String  => '{ zio.blocks.typeid.TypeRepr.Constant.StringConst(${ Expr(s) }) }
       case null       => '{ zio.blocks.typeid.TypeRepr.Constant.NullConst }
       case ()         => '{ zio.blocks.typeid.TypeRepr.Constant.UnitConst }
-      case _          => '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing]("Constant", Owner.Root, Nil)) }
+      case _          =>
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing]("Constant", Owner.Root, TypeDefKind.Unknown)) }
     }
 
   private def buildTypeRefRepr(using Quotes)(tref: quotes.reflect.TypeRef): Expr[zio.blocks.typeid.TypeRepr] = {
@@ -1241,7 +1247,7 @@ object TypeIdMacros {
             '{ TypeId.alias[Nothing](${ Expr(name) }, $ownerExpr, Nil, $aliasedExpr, Nil, Nil) }
           } else {
             val defKindExpr = buildDefKindShallow(sym)
-            '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil, Nil, $defKindExpr) }
+            '{ TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, $defKindExpr) }
           }
         }
 
@@ -1380,12 +1386,14 @@ object TypeIdMacros {
           case "Null"    => '{ zio.blocks.typeid.TypeRepr.NullType }
           case _         =>
             val ownerExpr = buildOwner(sym.owner)
-            '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, Nil)) }
+            '{
+              zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, $ownerExpr, TypeDefKind.Unknown))
+            }
         }
       case _ =>
         val sym  = tpe.typeSymbol
         val name = if (sym.isNoSymbol) "Unknown" else sym.name
-        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, Nil)) }
+        '{ zio.blocks.typeid.TypeRepr.Ref(TypeId.nominal[Nothing](${ Expr(name) }, Owner.Root, TypeDefKind.Unknown)) }
     }
   }
 
