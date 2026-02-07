@@ -264,6 +264,65 @@ object MigrationBuilderMacros {
     }
   }
 
+  def migrateFieldExplicitImpl[A: Type, B: Type, F1: Type, F2: Type, SH: Type, TP: Type](
+    builder: Expr[MigrationBuilder[A, B, SH, TP]],
+    source: Expr[A => F1],
+    target: Expr[B => F2],
+    migration: Expr[Migration[F1, F2]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
+    import q.reflect.*
+
+    val sourceFieldName = extractFieldNameFromTerm(source.asTerm)
+    val targetFieldName = extractFieldNameFromTerm(target.asTerm)
+
+    val nestedSourceFields = extractCaseClassFieldNames[F1]
+    val nestedTargetFields = extractCaseClassFieldNames[F2]
+
+    var newSHType              = TypeRepr.of[SH]
+    val sourceFieldNameType    = ConstantType(StringConstant(sourceFieldName))
+    val sourceFieldNameWrapped = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
+    newSHType = AndType(newSHType, sourceFieldNameWrapped)
+
+    for (nestedField <- nestedSourceFields) {
+      val dotPath             = s"$sourceFieldName.$nestedField"
+      val dotPathType         = ConstantType(StringConstant(dotPath))
+      val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
+      newSHType = AndType(newSHType, dotPathFieldWrapped)
+    }
+
+    var newTPType              = TypeRepr.of[TP]
+    val targetFieldNameType    = ConstantType(StringConstant(targetFieldName))
+    val targetFieldNameWrapped = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
+    newTPType = AndType(newTPType, targetFieldNameWrapped)
+
+    for (nestedField <- nestedTargetFields) {
+      val dotPath             = s"$targetFieldName.$nestedField"
+      val dotPathType         = ConstantType(StringConstant(dotPath))
+      val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
+      newTPType = AndType(newTPType, dotPathFieldWrapped)
+    }
+
+    (newSHType.asType, newTPType.asType) match {
+      case ('[newSh], '[newTp]) =>
+        '{
+          val sourcePath = SelectorMacros.toPath[A, F1]($source)
+          new MigrationBuilder[A, B, newSh, newTp](
+            $builder.sourceSchema,
+            $builder.targetSchema,
+            $builder.actions :+ MigrationAction.ApplyMigration(sourcePath, $migration.dynamicMigration)
+          )
+        }
+    }
+  }
+
+  def migrateFieldImplicitImpl[A: Type, B: Type, F1: Type, F2: Type, SH: Type, TP: Type](
+    builder: Expr[MigrationBuilder[A, B, SH, TP]],
+    source: Expr[A => F1],
+    target: Expr[B => F2],
+    migration: Expr[Migration[F1, F2]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] =
+    migrateFieldExplicitImpl[A, B, F1, F2, SH, TP](builder, source, target, migration)
+
   private def extractCaseClassFieldNames[T: Type](using q: Quotes): List[String] = {
     import q.reflect.*
 
