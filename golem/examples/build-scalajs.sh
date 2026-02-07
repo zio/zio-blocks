@@ -7,10 +7,11 @@ if [[ -z "$component" ]]; then
   exit 2
 fi
 
+component_dir="$PWD"
 app_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$app_dir/../.." && pwd)"
 bundle_glob="$app_dir/target/scala-*/zio-golem-examples-js-fastopt/main.js"
-out_file="$app_dir/.golem/scala.js"
+out_file="$component_dir/.golem/scala.js"
 
 echo "[scala.js] Building Scala.js bundle for $component..." >&2
 

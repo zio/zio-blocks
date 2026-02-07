@@ -10,7 +10,7 @@ includes:
 componentTemplates:
   scala.js:
     build:
-    - command: bash ../../../build-scalajs.sh {{ component_name }}
+    - command: bash ../../build-scalajs.sh {{ component_name }}
       sources:
       - src
       targets:
