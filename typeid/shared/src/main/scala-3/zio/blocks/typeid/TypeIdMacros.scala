@@ -1447,8 +1447,13 @@ object TypeIdMacros {
   private def isNewtypeBase(using Quotes)(sym: quotes.reflect.Symbol): Boolean =
     !sym.isNoSymbol && newtypeBases.contains(sym.fullName)
 
-  /** Detects a newtype pattern (e.g., `CustomType.Type`) and returns the qualifier name and owner symbol. */
-  private def resolveNewtypeQualifier(using Quotes)(
+  /**
+   * Detects a newtype pattern (e.g., `CustomType.Type`) and returns the
+   * qualifier name and owner symbol.
+   */
+  private def resolveNewtypeQualifier(using
+    Quotes
+  )(
     tr: quotes.reflect.TypeRef
   ): Option[(String, quotes.reflect.Symbol)] = {
     import quotes.reflect.*
@@ -1475,15 +1480,15 @@ object TypeIdMacros {
   ): Expr[Owner] = {
     import quotes.reflect.*
 
-    val directOwner           = tr.typeSymbol.owner
-    val ownerBases            = directOwner.typeRef.baseClasses.map(_.fullName)
+    val directOwner    = tr.typeSymbol.owner
+    val ownerBases     = directOwner.typeRef.baseClasses.map(_.fullName)
     val isNewtypeOwner = ownerBases.exists(newtypeBases.contains) ||
       isNewtypeBase(directOwner)
 
     if (isNewtypeOwner) {
       tr.qualifier match {
         case termRef: TermRef =>
-          val termSym     = termRef.termSymbol
+          val termSym = termRef.termSymbol
           buildOwner(termSym.owner)
         case _ =>
           buildOwner(fallback)
