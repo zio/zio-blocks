@@ -72,6 +72,10 @@ object FileExtensionSpec extends MediaTypeBaseSpec {
         val resultWithDot    = MediaType.forFileExtension(".json")
         val resultWithoutDot = MediaType.forFileExtension("json")
         assertTrue(resultWithDot == resultWithoutDot)
+      },
+      test("dot only returns None") {
+        val result = MediaType.forFileExtension(".")
+        assertTrue(result.isEmpty)
       }
     ),
     suite("case handling")(

@@ -30,6 +30,13 @@ object MediaTypeParseSpec extends MediaTypeBaseSpec {
           result.toOption.get.parameters == Map("boundary" -> "xxx", "charset" -> "utf-8")
         )
       },
+      test("ignores malformed parameters without equals sign") {
+        val result = MediaType.parse("text/html; charset=utf-8; malformed")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("charset" -> "utf-8")
+        )
+      },
       test("creates new instance for unknown types") {
         val result = MediaType.parse("custom/unknown")
         assertTrue(
