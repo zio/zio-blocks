@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError, SchemaExpr}
+import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError}
 
 /**
  * A pure, serializable migration that operates on `DynamicValue`. This is the
@@ -10,7 +10,7 @@ import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError, SchemaEx
  *
  * `DynamicMigration` is fully serializable because:
  *   - It contains no closures or functions
- *   - All transformations are represented as `SchemaExpr`
+ *   - All transformations are represented as `DynamicSchemaExpr`
  *   - All paths are represented as data (`DynamicOptic`)
  *
  * This enables migrations to be:
@@ -118,37 +118,16 @@ object DynamicMigration {
 }
 
 /**
- * Internal executor for migration actions. This will be expanded in Phase 2
- * with full execution logic.
+ * Internal executor for migration actions. This executor uses DynamicSchemaExpr
+ * directly for all expression evaluation.
  */
 private[migration] object ActionExecutor {
   import MigrationAction._
 
-  /**
-   * Extract DynamicValue from a SchemaExpr. For Literal expressions, we
-   * directly have the DynamicValue. For other expressions, we'd need to
-   * evaluate them (not yet supported).
-   */
-  private def extractDynamicValue(
-    expr: SchemaExpr[_, _],
-    at: zio.blocks.schema.DynamicOptic
-  ): Either[SchemaError, DynamicValue] =
-    expr.dynamic match {
-      case DynamicSchemaExpr.Literal(dynamicValue) =>
-        Right(dynamicValue)
-      case other =>
-        Left(
-          SchemaError.transformFailed(
-            at,
-            s"Cannot extract DynamicValue from ${other.getClass.getSimpleName} - only Literal is supported"
-          )
-        )
-    }
-
   def execute(action: MigrationAction, value: DynamicValue): Either[SchemaError, DynamicValue] =
     action match {
       case a @ AddField(at, default) =>
-        extractDynamicValue(default, at).flatMap { defaultValue =>
+        evalExpr(default, value).flatMap { defaultValue =>
           executeAddField(at, a.fieldName, defaultValue, value)
         }
 
@@ -159,13 +138,12 @@ private[migration] object ActionExecutor {
         executeRename(at, to, value)
 
       case TransformValue(at, transform) =>
-        extractDynamicValue(transform, at).flatMap { transformValue =>
-          // For now, TransformValue with Literal just replaces the value
+        evalExpr(transform, value).flatMap { transformValue =>
           executeTransformValueLiteral(at, transformValue, value)
         }
 
       case Mandate(at, default) =>
-        extractDynamicValue(default, at).flatMap { defaultValue =>
+        evalExpr(default, value).flatMap { defaultValue =>
           executeMandate(at, defaultValue, value)
         }
 
@@ -173,17 +151,17 @@ private[migration] object ActionExecutor {
         executeOptionalize(at, value)
 
       case Join(at, sourcePaths, combiner) =>
-        extractDynamicValue(combiner, at).flatMap { combinedValue =>
+        evalExpr(combiner, value).flatMap { combinedValue =>
           executeJoin(at, sourcePaths, combinedValue, value)
         }
 
       case Split(at, targetPaths, splitter) =>
-        extractDynamicValue(splitter, at).flatMap { splitValue =>
+        evalExpr(splitter, value).flatMap { splitValue =>
           executeSplit(at, targetPaths, splitValue, value)
         }
 
       case ChangeType(at, converter) =>
-        extractDynamicValue(converter, at).flatMap { convertedValue =>
+        evalExpr(converter, value).flatMap { convertedValue =>
           executeChangeTypeLiteral(at, convertedValue, value)
         }
 
@@ -194,19 +172,40 @@ private[migration] object ActionExecutor {
         executeTransformCase(at, actions, value)
 
       case TransformElements(at, transform) =>
-        extractDynamicValue(transform, at).flatMap { transformValue =>
+        evalExpr(transform, value).flatMap { transformValue =>
           executeTransformElements(at, transformValue, value)
         }
 
       case TransformKeys(at, transform) =>
-        extractDynamicValue(transform, at).flatMap { transformValue =>
+        evalExpr(transform, value).flatMap { transformValue =>
           executeTransformKeys(at, transformValue, value)
         }
 
       case TransformValues(at, transform) =>
-        extractDynamicValue(transform, at).flatMap { transformValue =>
+        evalExpr(transform, value).flatMap { transformValue =>
           executeTransformValues(at, transformValue, value)
         }
+    }
+
+  /**
+   * Evaluate a DynamicSchemaExpr and extract a single DynamicValue.
+   * For now, we only support expressions that return a single value (first value in the sequence).
+   */
+  private def evalExpr(
+    expr: DynamicSchemaExpr,
+    input: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    expr.eval(input).flatMap { results =>
+      results.headOption match {
+        case Some(value) => Right(value)
+        case None =>
+          Left(
+            SchemaError.transformFailed(
+              zio.blocks.schema.DynamicOptic.root,
+              s"Expression evaluation returned no values"
+            )
+          )
+      }
     }
 
   // ==================== Record Action Execution ====================

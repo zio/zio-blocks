@@ -25,7 +25,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, SH, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.AddField(targetPath, $default)
+            $builder.actions :+ MigrationAction.AddField(targetPath, $default.toDynamic)
           )
         }
     }
@@ -50,7 +50,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newSh, TP](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.DropField(sourcePath, $defaultForReverse)
+            $builder.actions :+ MigrationAction.DropField(sourcePath, $defaultForReverse.toDynamic)
           )
         }
     }
@@ -110,7 +110,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.TransformValue(fromPath, $transform)
+            $builder.actions :+ MigrationAction.TransformValue(fromPath, $transform.toDynamic)
           )
         }
     }
@@ -140,7 +140,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.Mandate(sourcePath, $default)
+            $builder.actions :+ MigrationAction.Mandate(sourcePath, $default.toDynamic)
           )
         }
     }
@@ -199,7 +199,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newSh, newTp](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.ChangeType(sourcePath, $converter)
+            $builder.actions :+ MigrationAction.ChangeType(sourcePath, $converter.toDynamic)
           )
         }
     }

@@ -6,8 +6,12 @@ import zio.blocks.chunk.Chunk
 
 object MigrationSpec extends ZIOSpecDefault {
 
-  // Helper to create a Literal SchemaExpr from a DynamicValue
-  private def literal(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
+  // For direct MigrationAction construction
+  private def literal(dv: DynamicValue): DynamicSchemaExpr =
+    DynamicSchemaExpr.Literal(dv)
+
+  // For builder API (wraps DynamicSchemaExpr in SchemaExpr)
+  private def literalExpr(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
     SchemaExpr.Literal(dv)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
@@ -801,7 +805,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .build
 
         val input  = PersonV1("Alice")
@@ -837,7 +841,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .dropField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .dropField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .build
 
         val input  = PersonV1("Alice", 30)
@@ -855,7 +859,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .transformField(_.age, _.age, literal(DynamicValue.Primitive(PrimitiveValue.Long(30L))))
+          .transformField(_.age, _.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Long(30L))))
           .build
 
         val input  = PersonV1(30)
@@ -873,7 +877,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .changeFieldType(_.score, _.score, literal(DynamicValue.Primitive(PrimitiveValue.String("42"))))
+          .changeFieldType(_.score, _.score, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("42"))))
           .build
 
         val input  = PersonV1(42)
@@ -891,7 +895,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .mandateField(_.age, _.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .mandateField(_.age, _.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .buildPartial
 
         assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.Mandate])
@@ -919,7 +923,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[Container, Container]
-          .transformElements(_.items, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .transformElements(_.items, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .buildPartial
 
         assertTrue(
@@ -934,7 +938,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[Container, Container]
-          .transformKeys(_.data, literal(DynamicValue.Primitive(PrimitiveValue.String("key"))))
+          .transformKeys(_.data, literalExpr(DynamicValue.Primitive(PrimitiveValue.String("key"))))
           .buildPartial
 
         assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformKeys])
@@ -947,7 +951,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[Container, Container]
-          .transformValues(_.data, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .transformValues(_.data, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .buildPartial
 
         assertTrue(
@@ -1068,15 +1072,6 @@ object MigrationSpec extends ZIOSpecDefault {
           )
         )
         assertTrue(migration(input).isRight)
-      },
-
-      test("Non-Literal expression fails in migration actions") {
-        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val optic     = SchemaExpr.Optic[DynamicValue, DynamicValue](DynamicOptic.root, Schema[DynamicValue])
-        val migration = DynamicMigration.single(
-          MigrationAction.TransformValue(DynamicOptic.root.field("a"), optic)
-        )
-        assertTrue(migration(input).isLeft)
       },
 
       test("addField on non-Record fails") {
@@ -2034,11 +2029,11 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val m1 = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .build
         val m2 = Migration
           .newBuilder[PersonV2, PersonV3]
-          .addField(_.city, literal(DynamicValue.Primitive(PrimitiveValue.String(""))))
+          .addField(_.city, literalExpr(DynamicValue.Primitive(PrimitiveValue.String(""))))
           .build
         val composed = m1 ++ m2
         assertTrue(composed.size == 2)
@@ -2053,7 +2048,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literalExpr(DynamicValue.Primitive(PrimitiveValue.Int(0))))
           .build
         val reversed = migration.reverse
         assertTrue(reversed.sourceSchema == v2Schema && reversed.targetSchema == v1Schema)
