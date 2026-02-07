@@ -8,7 +8,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("Request and Response Types")(
     suite("RequestBody")(
       test("can be constructed with required content field only") {
-        val content = Map("application/json" -> MediaType())
+        val content     = Map("application/json" -> MediaType())
         val requestBody = RequestBody(content = content)
 
         assertTrue(
@@ -44,7 +44,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("preserves extensions on construction") {
         val extensions = Map(
           "x-internal" -> Json.Boolean(true),
-          "x-version" -> Json.Number(2)
+          "x-version"  -> Json.Number(2)
         )
         val requestBody = RequestBody(
           content = Map("text/plain" -> MediaType()),
@@ -59,7 +59,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[RequestBody] can be derived") {
         val requestBody = RequestBody(content = Map("application/json" -> MediaType()))
-        val schema = Schema[RequestBody]
+        val schema      = Schema[RequestBody]
 
         assertTrue(schema != null, requestBody != null)
       },
@@ -71,7 +71,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.String("value"))
         )
 
-        val dv = Schema[RequestBody].toDynamicValue(requestBody)
+        val dv     = Schema[RequestBody].toDynamicValue(requestBody)
         val result = Schema[RequestBody].fromDynamicValue(dv)
 
         assertTrue(
@@ -96,14 +96,14 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val schema = Json.Object("type" -> Json.String("object"))
-        val example = Json.Object("name" -> Json.String("John"))
+        val schema   = Json.Object("type" -> Json.String("object"))
+        val example  = Json.Object("name" -> Json.String("John"))
         val examples = Map(
           "example1" -> ReferenceOr.Value(
             Example(summary = Some("First example"), value = Some(Json.Number(1)))
           )
         )
-        val encoding = Map("profileImage" -> Encoding(contentType = Some("image/png")))
+        val encoding   = Map("profileImage" -> Encoding(contentType = Some("image/png")))
         val extensions = Map("x-custom" -> Json.String("value"))
 
         val mediaType = MediaType(
@@ -140,7 +140,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[MediaType] can be derived") {
         val mediaType = MediaType()
-        val schema = Schema[MediaType]
+        val schema    = Schema[MediaType]
 
         assertTrue(schema != null, mediaType != null)
       },
@@ -153,7 +153,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.Boolean(true))
         )
 
-        val dv = Schema[MediaType].toDynamicValue(mediaType)
+        val dv     = Schema[MediaType].toDynamicValue(mediaType)
         val result = Schema[MediaType].fromDynamicValue(dv)
 
         assertTrue(
@@ -218,7 +218,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[Encoding] can be derived") {
         val encoding = Encoding()
-        val schema = Schema[Encoding]
+        val schema   = Schema[Encoding]
 
         assertTrue(schema != null, encoding != null)
       },
@@ -232,7 +232,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.Number(1))
         )
 
-        val dv = Schema[Encoding].toDynamicValue(encoding)
+        val dv     = Schema[Encoding].toDynamicValue(encoding)
         val result = Schema[Encoding].fromDynamicValue(dv)
 
         assertTrue(
@@ -261,7 +261,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           "404" -> ReferenceOr.Value(Response(description = "Not found"))
         )
         val defaultResponse = ReferenceOr.Value(Response(description = "Default response"))
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val extensions      = Map("x-custom" -> Json.String("value"))
 
         val responses = Responses(
           responses = responsesMap,
@@ -305,7 +305,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[Responses] can be derived") {
         val responses = Responses()
-        val schema = Schema[Responses]
+        val schema    = Schema[Responses]
 
         assertTrue(schema != null, responses != null)
       },
@@ -316,7 +316,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.Boolean(false))
         )
 
-        val dv = Schema[Responses].toDynamicValue(responses)
+        val dv     = Schema[Responses].toDynamicValue(responses)
         val result = Schema[Responses].fromDynamicValue(dv)
 
         assertTrue(
@@ -342,7 +342,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("can be constructed with all fields populated") {
         val headers = Map("X-Rate-Limit" -> ReferenceOr.Value(Header()))
         val content = Map("application/json" -> MediaType())
-        val links = Map(
+        val links   = Map(
           "GetUserById" -> ReferenceOr.Value(
             Link(operationId = Some("getUserById"))
           )
@@ -368,8 +368,8 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("preserves multiple content types") {
         val content = Map(
           "application/json" -> MediaType(schema = Some(Json.Object("type" -> Json.String("object")))),
-          "application/xml" -> MediaType(),
-          "text/plain" -> MediaType()
+          "application/xml"  -> MediaType(),
+          "text/plain"       -> MediaType()
         )
         val response = Response(description = "Multi-format response", content = content)
 
@@ -382,7 +382,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[Response] can be derived") {
         val response = Response(description = "Test")
-        val schema = Schema[Response]
+        val schema   = Schema[Response]
 
         assertTrue(schema != null, response != null)
       },
@@ -395,7 +395,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.String("value"))
         )
 
-        val dv = Schema[Response].toDynamicValue(response)
+        val dv     = Schema[Response].toDynamicValue(response)
         val result = Schema[Response].fromDynamicValue(dv)
 
         assertTrue(
@@ -420,7 +420,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with value field") {
-        val value = Json.Object("name" -> Json.String("John"), "age" -> Json.Number(30))
+        val value   = Json.Object("name" -> Json.String("John"), "age" -> Json.Number(30))
         val example = Example(
           summary = Some("User example"),
           description = Some("A sample user object"),
@@ -470,7 +470,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("preserves extensions") {
         val extensions = Map(
           "x-internal" -> Json.Boolean(true),
-          "x-version" -> Json.Number(1)
+          "x-version"  -> Json.Number(1)
         )
         val example = Example(
           value = Some(Json.String("test")),
@@ -485,7 +485,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[Example] can be derived") {
         val example = Example()
-        val schema = Schema[Example]
+        val schema  = Schema[Example]
 
         assertTrue(schema != null, example != null)
       },
@@ -497,7 +497,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.Boolean(true))
         )
 
-        val dv = Schema[Example].toDynamicValue(example)
+        val dv     = Schema[Example].toDynamicValue(example)
         val result = Schema[Example].fromDynamicValue(dv)
 
         assertTrue(
@@ -569,7 +569,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can include server and requestBody") {
-        val server = Server(url = "https://api.example.com")
+        val server      = Server(url = "https://api.example.com")
         val requestBody = Json.Object("userId" -> Json.String("$response.body#/id"))
 
         val link = Link(
@@ -587,7 +587,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val parameters = Map(
           "userId" -> Json.String("$response.body#/id"),
           "format" -> Json.String("json"),
-          "limit" -> Json.Number(10)
+          "limit"  -> Json.Number(10)
         )
         val link = Link(
           operationId = Some("getUser"),
@@ -603,7 +603,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("preserves extensions") {
         val extensions = Map(
-          "x-internal" -> Json.Boolean(false),
+          "x-internal"   -> Json.Boolean(false),
           "x-rate-limit" -> Json.Number(100)
         )
         val link = Link(
@@ -618,7 +618,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("Schema[Link] can be derived") {
-        val link = Link()
+        val link   = Link()
         val schema = Schema[Link]
 
         assertTrue(schema != null, link != null)
@@ -631,7 +631,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.String("value"))
         )
 
-        val dv = Schema[Link].toDynamicValue(link)
+        val dv     = Schema[Link].toDynamicValue(link)
         val result = Schema[Link].fromDynamicValue(dv)
 
         assertTrue(
@@ -653,7 +653,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with callbacks") {
-        val pathItem = PathItem(summary = Some("Callback path"))
+        val pathItem  = PathItem(summary = Some("Callback path"))
         val callbacks = Map(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Value(pathItem)
         )
@@ -697,7 +697,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("preserves extensions") {
         val extensions = Map(
           "x-webhook-type" -> Json.String("async"),
-          "x-priority" -> Json.Number(1)
+          "x-priority"     -> Json.Number(1)
         )
         val callback = Callback(extensions = extensions)
 
@@ -709,7 +709,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Schema[Callback] can be derived") {
         val callback = Callback()
-        val schema = Schema[Callback]
+        val schema   = Schema[Callback]
 
         assertTrue(schema != null, callback != null)
       },
@@ -719,7 +719,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           extensions = Map("x-test" -> Json.Boolean(true))
         )
 
-        val dv = Schema[Callback].toDynamicValue(callback)
+        val dv     = Schema[Callback].toDynamicValue(callback)
         val result = Schema[Callback].fromDynamicValue(dv)
 
         assertTrue(
