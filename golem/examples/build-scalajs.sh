@@ -19,6 +19,7 @@ build_log="$(mktemp)"
 trap 'rm -f "$build_log"' EXIT
 if ! ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
     "++3.3.7!" \
+    "set zioGolemExamples / golemAgentGuestWasmFile := file(\\\"$app_dir/.generated/agent_guest.wasm\\\")" \
     "zioGolemExamples/fastLinkJS" ) >"$build_log" 2>&1; then
   cat "$build_log" >&2
   echo "[scala.js] sbt failed; see output above." >&2

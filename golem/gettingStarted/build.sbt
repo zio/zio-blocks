@@ -11,7 +11,7 @@ lazy val root = project
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     golemAgentGuestWasmFile := {
       val appRoot = (ThisProject / baseDirectory).value
-      appRoot / "golem-temp" / "agent_guest.wasm"
+      appRoot / ".generated" / "agent_guest.wasm"
     },
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-golem-core"  % "0.0.0-SNAPSHOT",
