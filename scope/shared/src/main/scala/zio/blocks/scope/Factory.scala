@@ -31,7 +31,7 @@ sealed trait Factory[+A] {
   def make(scope: Scope): A
 }
 
-object Factory {
+object Factory extends FactoryCompanionVersionSpecific {
 
   /**
    * A factory that produces shared (memoized) instances within a scope.

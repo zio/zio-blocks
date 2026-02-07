@@ -1,5 +1,8 @@
 package zio.blocks.scope
 
+import zio.blocks.context.Context
+import zio.blocks.scope.internal.Finalizers
+
 /**
  * A recipe for constructing a service and its dependencies.
  *
@@ -76,6 +79,16 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
    * with the same construction function.
    */
   def unique: Wire.Unique[In, Out]
+
+  /**
+   * Converts this Wire to a Factory by providing resolved dependencies.
+   *
+   * @param deps
+   *   Context containing all required dependencies
+   * @return
+   *   a Factory that creates Out values
+   */
+  def toFactory(deps: Context[In]): Factory[Out]
 }
 
 /**
@@ -114,6 +127,15 @@ object Wire extends WireCompanionVersionSpecific {
      *   the constructed service
      */
     override def make(scope: Scope.Has[In]): Out = makeFn(scope)
+
+    def toFactory(deps: Context[In]): Factory[Out] = {
+      val self = this
+      new Factory.Shared[Out](scope => {
+        val depScope = Scope.makeCloseable[In, Scope](scope, deps, new Finalizers)
+        scope.defer(depScope.closeOrThrow())
+        self.makeFn(depScope)
+      })
+    }
   }
 
   /**
@@ -172,6 +194,15 @@ object Wire extends WireCompanionVersionSpecific {
      *   the constructed service
      */
     override def make(scope: Scope.Has[In]): Out = makeFn(scope)
+
+    def toFactory(deps: Context[In]): Factory[Out] = {
+      val self = this
+      new Factory.Unique[Out](scope => {
+        val depScope = Scope.makeCloseable[In, Scope](scope, deps, new Finalizers)
+        scope.defer(depScope.closeOrThrow())
+        self.makeFn(depScope)
+      })
+    }
   }
 
   /**

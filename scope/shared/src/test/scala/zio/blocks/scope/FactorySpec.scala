@@ -50,6 +50,32 @@ object FactorySpec extends ZIOSpecDefault {
       close()
       val afterClose = db.closed
       assertTrue(!beforeClose, afterClose)
+    },
+    test("Wire.toFactory converts Wire.Shared to Factory.Shared") {
+      val wire = Wire.Shared.fromFunction[Config, Database] { scope =>
+        val config = scope.get[Config]
+        new Database(config)
+      }
+      val deps           = zio.blocks.context.Context(Config("test-url"))
+      val factory        = wire.toFactory(deps)
+      val (scope, close) = Scope.createTestableScope()
+      val db             = factory.make(scope)
+      close()
+      assertTrue(factory.isInstanceOf[Factory.Shared[?]], db.isInstanceOf[Database])
+    },
+    test("Wire.toFactory converts Wire.Unique to Factory.Unique") {
+      var counter = 0
+      val wire    = Wire.Unique.fromFunction[Config, Int] { _ =>
+        counter += 1
+        counter
+      }
+      val deps           = zio.blocks.context.Context(Config("url"))
+      val factory        = wire.toFactory(deps)
+      val (scope, close) = Scope.createTestableScope()
+      val a              = factory.make(scope)
+      val b              = factory.make(scope)
+      close()
+      assertTrue(factory.isInstanceOf[Factory.Unique[?]], a == 1, b == 2)
     }
   )
 }
