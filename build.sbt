@@ -448,7 +448,8 @@ lazy val examples = project
   .in(file("zio-blocks-examples"))
   .settings(
     moduleName := "zio-blocks-examples",
-    publish / skip := true
+    publish / skip := true,
+    scalacOptions += "-experimental"
   )
   .dependsOn(
     schema.jvm,
