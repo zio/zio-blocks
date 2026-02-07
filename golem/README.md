@@ -276,7 +276,8 @@ The base WIT definition is owned by the SDK (`golem/tools/agent-wit/agent.wit`),
 In a Golem app manifest (`golem.yaml`), define a Scala template (e.g. `template: scala.js`) whose first build step
 invokes sbt to compile Scala to a single JS module, then run the standard QuickJS wrapping steps unchanged.
 
-Then run golem-cli from the app directory:
+Then run golem-cli from the app directory (the module root that contains `golem.yaml`;
+`.golem/` is generated and should not be hand-edited):
 
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"

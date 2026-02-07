@@ -1,6 +1,7 @@
 # Getting started (Scala.js) — create a new project from scratch
 
 This guide shows how to build a **new Scala.js agent project** that can be deployed with `golem-cli`.
+Keep `golem.yaml` in the **module root** (the directory you run `golem-cli` from); `.golem/` is generated and should not be hand-edited.
 
 You’ll create:
 
@@ -53,8 +54,8 @@ mkdir -p project src/main/scala/demo
 mkdir -p .golem/common-scala-js golem-temp
 ```
 
-All commands below assume your working directory is the **project root** (the directory that contains `golem.yaml`,
-`.golem/common-scala-js/`, and `golem-temp/`).
+All commands below assume your working directory is the **project root** (the directory that contains `golem.yaml`
+and `golem-temp/`).
 
 Create `project/plugins.sbt`:
 
@@ -162,38 +163,14 @@ environments:
     server: local
 
 includes:
-- .golem/common-*/golem.yaml
+- common-*/golem.yaml
 
 components:
   scala:demo:
     templates: scala.js
 ```
 
-Create `.golem/common-scala-js/golem.yaml`:
-
-```yaml
-componentTemplates:
-  scala.js:
-    build:
-    - command: bash .golem/build-scalajs.sh {{ component_name }}
-      sources:
-      - src
-      targets:
-      - .golem/scala.js
-    - injectToPrebuiltQuickjs: golem-temp/agent_guest.wasm
-      module: .golem/scala.js
-      moduleWasm: golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
-      into: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-    - generateAgentWrapper: golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
-      basedOnCompiledWasm: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-    - composeAgentWrapper: golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
-      withAgent: golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
-      to: golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    sourceWit: golem-temp/agent_guest.wasm
-    generatedWit: golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
-    componentWasm: golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    linkedWasm: golem-temp/agents/{{ component_name | to_snake_case }}.wasm
-```
+Add the `componentTemplates` section directly to your root `golem.yaml` (next to `app`, `environments`, and `components`).
 
 Create `.golem/build-scalajs.sh`:
 

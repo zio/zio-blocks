@@ -4,9 +4,9 @@ This directory ships a single Scala.js component (`scala:examples`) and a set of
 focused sample RIB scripts under `samples/`. Each script exercises a specific
 workflow and keeps the code path small.
 
-Implementation details (component templates, build wiring) live under
-`.golem/` so the top-level layout stays focused on the Scala sources,
-manifests, and sample RIB files.
+Implementation details (component templates, build wiring) live in `golem.yaml`
+and tracked `components-js/*/golem.yaml` manifests. Keep `golem.yaml` in the
+module root (the directory you run `golem-cli` from); `.golem/` is generated.
 
 Scala sources live under `shared/`, `js/`, and `jvm/` (shared traits + JS/JVM implementations).
 
@@ -44,7 +44,7 @@ LLM chat prerequisites:
 - Use a non-builtin local server (set `FORCE_AI_ON_LOCAL=1`) or run in cloud mode:
   `GOLEM_CLI_FLAGS="--cloud -p <profile>"`.
 - Provide the LLM provider WASM dependency in the component definition (examples use
-  `golem.yaml` + `.golem/components-js/scala-examples/golem.yaml`). For example:
+  `golem.yaml` + `components-js/scala-examples/golem.yaml`). For example:
   `dependencies: [{ type: wasm, url: https://github.com/golemcloud/golem-ai/releases/download/v0.4.0/golem_llm_ollama.wasm }]`.
 - Configure one provider env var (for local builtin, set it on the Golem server process):
   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`,

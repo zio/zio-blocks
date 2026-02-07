@@ -58,7 +58,8 @@ final case class State(value: Int) derives Schema
 
 ### Run locally
 
-Use `golem-cli` as the driver from the checked-in app directory:
+Use `golem-cli` as the driver from the checked-in app directory. `golem.yaml` lives
+in the module root (the directory you run `golem-cli` from); `.golem/` is generated:
 
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
