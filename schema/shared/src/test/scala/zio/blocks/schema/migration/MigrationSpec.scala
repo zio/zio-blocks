@@ -7,8 +7,8 @@ import zio.blocks.chunk.Chunk
 object MigrationSpec extends ZIOSpecDefault {
 
   // Helper to create a Literal SchemaExpr from a DynamicValue
-  private def literal(dv: DynamicValue): SchemaExpr[Any, Any] =
-    SchemaExpr.Literal[Any, Any](dv)
+  private def literal(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
+    SchemaExpr.Literal(dv)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
     suite("DynamicMigration")(
