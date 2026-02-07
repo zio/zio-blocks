@@ -61,7 +61,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.AddField(
           targetPath,
-          $default
+          $default.toDynamic
         )
       )
     }"""
@@ -90,7 +90,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.DropField(
           sourcePath,
-          $defaultForReverse
+          $defaultForReverse.toDynamic
         )
       )
     }"""
@@ -159,7 +159,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformValue(
           fromPath,
-          $transform
+          $transform.toDynamic
         )
       )
     }"""
@@ -194,7 +194,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Mandate(
           sourcePath,
-          $default
+          $default.toDynamic
         )
       )
     }"""
@@ -264,7 +264,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ChangeType(
           sourcePath,
-          $converter
+          $converter.toDynamic
         )
       )
     }"""
@@ -292,7 +292,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformElements(
           path,
-          $transform
+          $transform.toDynamic
         )
       )
     }"""
@@ -318,7 +318,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformKeys(
           path,
-          $transform
+          $transform.toDynamic
         )
       )
     }"""
@@ -346,7 +346,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformValues(
           path,
-          $transform
+          $transform.toDynamic
         )
       )
     }"""
