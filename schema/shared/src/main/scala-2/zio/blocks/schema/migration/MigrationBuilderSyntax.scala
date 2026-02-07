@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import scala.reflect.macros.whitebox
-import zio.blocks.schema.SchemaExpr
+import zio.blocks.schema.{Schema, SchemaExpr}
 
 /**
  * Macro implementations for MigrationBuilder methods. Each macro returns a
@@ -351,6 +351,84 @@ object MigrationBuilderMacros {
       )
     }"""
   }
+
+  def transformNestedImpl[
+    A: c.WeakTypeTag,
+    B: c.WeakTypeTag,
+    F1: c.WeakTypeTag,
+    F2: c.WeakTypeTag,
+    SH: c.WeakTypeTag,
+    TP: c.WeakTypeTag
+  ](c: whitebox.Context)(
+    source: c.Expr[A => F1],
+    target: c.Expr[B => F2]
+  )(
+    nestedMigration: c.Expr[MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, _, _]]
+  )(
+    nestedSourceSchema: c.Expr[Schema[F1]],
+    nestedTargetSchema: c.Expr[Schema[F2]]
+  ): c.Tree = {
+    import c.universe._
+
+    val aType  = weakTypeOf[A]
+    val bType  = weakTypeOf[B]
+    val f1Type = weakTypeOf[F1]
+    val f2Type = weakTypeOf[F2]
+    val shType = weakTypeOf[SH]
+    val tpType = weakTypeOf[TP]
+
+    val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
+    val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
+
+    val nestedSourceFields = extractCaseClassFields(c)(f1Type)
+    val nestedTargetFields = extractCaseClassFields(c)(f2Type)
+
+    var newSHType = shType
+    newSHType = createRefinedType(c)(newSHType, sourceFieldName)
+    for (nestedField <- nestedSourceFields) {
+      val dotPath = s"$sourceFieldName.$nestedField"
+      newSHType = createRefinedType(c)(newSHType, dotPath)
+    }
+
+    var newTPType = tpType
+    newTPType = createRefinedType(c)(newTPType, targetFieldName)
+    for (nestedField <- nestedTargetFields) {
+      val dotPath = s"$targetFieldName.$nestedField"
+      newTPType = createRefinedType(c)(newTPType, dotPath)
+    }
+
+    val sourcePath = SelectorMacros.toPathImpl[A, F1](c)(source.asInstanceOf[c.Expr[A => F1]])
+
+    q"""{
+      val sourcePath = $sourcePath
+      val innerBuilder = new _root_.zio.blocks.schema.migration.MigrationBuilder[$f1Type, $f2Type, Any, Any](
+        $nestedSourceSchema,
+        $nestedTargetSchema,
+        _root_.scala.collection.immutable.Vector.empty
+      )
+      val builtInner = $nestedMigration(innerBuilder)
+      new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newSHType, $newTPType](
+        ${c.prefix}.sourceSchema,
+        ${c.prefix}.targetSchema,
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformNested(
+          sourcePath,
+          builtInner.actions
+        )
+      )
+    }"""
+  }
+
+  private def extractCaseClassFields(c: whitebox.Context)(tpe: c.universe.Type): List[String] = {
+    import c.universe._
+
+    val sym = tpe.typeSymbol
+    if (sym.isClass && sym.asClass.isCaseClass) {
+      val ctor = tpe.decl(termNames.CONSTRUCTOR).asMethod
+      ctor.paramLists.headOption.getOrElse(Nil).map(_.name.decodedName.toString)
+    } else {
+      Nil
+    }
+  }
 }
 
 /**
@@ -368,14 +446,12 @@ object MigrationValidationMacros {
     val shType     = weakTypeOf[SH]
     val tpType     = weakTypeOf[TP]
 
-    val sourceFields   = extractCaseClassFields(c)(sourceType)
-    val targetFields   = extractCaseClassFields(c)(targetType)
+    val sourceFields   = extractCaseClassFieldsWithNested(c)(sourceType, "")
+    val targetFields   = extractCaseClassFieldsWithNested(c)(targetType, "")
     val handledFields  = extractIntersectionElements(c)(shType)
     val providedFields = extractIntersectionElements(c)(tpType)
 
-    val sourceFieldTypes = extractCaseClassFieldTypes(c)(sourceType)
-    val targetFieldTypes = extractCaseClassFieldTypes(c)(targetType)
-    val autoMapped       = computeAutoMapped(c)(sourceFields, targetFields, sourceFieldTypes, targetFieldTypes)
+    val autoMapped = computeAutoMappedWithNested(c)(sourceType, targetType, "")
 
     val coveredSource = handledFields ++ autoMapped
     val coveredTarget = providedFields ++ autoMapped
@@ -388,12 +464,12 @@ object MigrationValidationMacros {
 
       if (missingTarget.nonEmpty) {
         errors.append(s"\n  Target fields not provided: ${missingTarget.mkString(", ")}\n")
-        errors.append("  Use addField, renameField, or transformField to provide these fields.\n")
+        errors.append("  Use addField, renameField, transformField, or transformNested to provide these fields.\n")
       }
 
       if (unhandledSource.nonEmpty) {
         errors.append(s"\n  Source fields not handled: ${unhandledSource.mkString(", ")}\n")
-        errors.append("  Use dropField, renameField, or transformField to handle these fields.\n")
+        errors.append("  Use dropField, renameField, transformField, or transformNested to handle these fields.\n")
       }
 
       errors.append("\n  Alternatively, use .buildPartial to skip validation.")
@@ -404,32 +480,47 @@ object MigrationValidationMacros {
     q"_root_.zio.blocks.schema.migration.MigrationComplete.unsafeCreate[$sourceType, $targetType, $shType, $tpType]"
   }
 
-  private def extractCaseClassFields(c: whitebox.Context)(tpe: c.universe.Type): Set[String] = {
+  private def extractCaseClassFieldsWithNested(c: whitebox.Context)(tpe: c.universe.Type, prefix: String): Set[String] = {
     import c.universe._
 
     val sym = tpe.typeSymbol
     if (sym.isClass && sym.asClass.isCaseClass) {
       val ctor = tpe.decl(termNames.CONSTRUCTOR).asMethod
-      ctor.paramLists.headOption.getOrElse(Nil).map(_.name.decodedName.toString).toSet
+      ctor.paramLists.headOption.getOrElse(Nil).flatMap { param =>
+        val fieldName = if (prefix.isEmpty) param.name.decodedName.toString else s"$prefix.${param.name.decodedName.toString}"
+        val fieldType = param.typeSignature.asSeenFrom(tpe, sym)
+        val fieldSym  = fieldType.typeSymbol
+
+        if (fieldSym.isClass && fieldSym.asClass.isCaseClass) {
+          Set(fieldName) ++ extractNestedFieldNames(c)(fieldType, fieldName)
+        } else {
+          Set(fieldName)
+        }
+      }.toSet
     } else {
       Set.empty
     }
   }
 
-  private def extractCaseClassFieldTypes(c: whitebox.Context)(tpe: c.universe.Type): Map[String, c.universe.Type] = {
+  private def extractNestedFieldNames(c: whitebox.Context)(tpe: c.universe.Type, prefix: String): Set[String] = {
     import c.universe._
 
     val sym = tpe.typeSymbol
     if (sym.isClass && sym.asClass.isCaseClass) {
       val ctor = tpe.decl(termNames.CONSTRUCTOR).asMethod
-      ctor.paramLists.headOption
-        .getOrElse(Nil)
-        .map { param =>
-          param.name.decodedName.toString -> param.typeSignature.asSeenFrom(tpe, sym)
+      ctor.paramLists.headOption.getOrElse(Nil).flatMap { param =>
+        val fieldName = s"$prefix.${param.name.decodedName.toString}"
+        val fieldType = param.typeSignature.asSeenFrom(tpe, sym)
+        val fieldSym  = fieldType.typeSymbol
+
+        if (fieldSym.isClass && fieldSym.asClass.isCaseClass) {
+          Set(fieldName) ++ extractNestedFieldNames(c)(fieldType, fieldName)
+        } else {
+          Set(fieldName)
         }
-        .toMap
+      }.toSet
     } else {
-      Map.empty
+      Set.empty
     }
   }
 
@@ -452,19 +543,81 @@ object MigrationValidationMacros {
     extract(tpe)
   }
 
-  private def computeAutoMapped(c: whitebox.Context)(
-    sourceFields: Set[String],
-    targetFields: Set[String],
-    sourceFieldTypes: Map[String, c.universe.Type],
-    targetFieldTypes: Map[String, c.universe.Type]
-  ): Set[String] = {
-    val commonFields = sourceFields.intersect(targetFields)
-    commonFields.filter { fieldName =>
-      (sourceFieldTypes.get(fieldName), targetFieldTypes.get(fieldName)) match {
-        case (Some(srcType), Some(tgtType)) =>
-          srcType <:< tgtType || tgtType <:< srcType || srcType =:= tgtType
-        case _ => false
+  private def computeAutoMappedWithNested(
+    c: whitebox.Context
+  )(sourceType: c.universe.Type, targetType: c.universe.Type, prefix: String): Set[String] = {
+    import c.universe._
+
+    val sourceSym = sourceType.typeSymbol
+    val targetSym = targetType.typeSymbol
+
+    if (sourceSym.isClass && sourceSym.asClass.isCaseClass && targetSym.isClass && targetSym.asClass.isCaseClass) {
+      val sourceCtor = sourceType.decl(termNames.CONSTRUCTOR).asMethod
+      val targetCtor = targetType.decl(termNames.CONSTRUCTOR).asMethod
+
+      val sourceFieldTypes: Map[String, Type] = sourceCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(sourceType, sourceSym))
+        .toMap
+
+      val targetFieldTypes: Map[String, Type] = targetCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(targetType, targetSym))
+        .toMap
+
+      val commonFields = sourceFieldTypes.keySet.intersect(targetFieldTypes.keySet)
+
+      commonFields.flatMap { fieldName =>
+        val fullFieldName = if (prefix.isEmpty) fieldName else s"$prefix.$fieldName"
+        (sourceFieldTypes.get(fieldName), targetFieldTypes.get(fieldName)) match {
+          case (Some(srcType), Some(tgtType)) if srcType =:= tgtType =>
+            Set(fullFieldName) ++ computeAutoMappedNested(c)(srcType, tgtType, fullFieldName)
+          case (Some(srcType), Some(tgtType)) if srcType <:< tgtType || tgtType <:< srcType =>
+            Set(fullFieldName)
+          case _ => Set.empty[String]
+        }
       }
+    } else {
+      Set.empty
+    }
+  }
+
+  private def computeAutoMappedNested(
+    c: whitebox.Context
+  )(srcType: c.universe.Type, tgtType: c.universe.Type, prefix: String): Set[String] = {
+    import c.universe._
+
+    val srcSym = srcType.typeSymbol
+    val tgtSym = tgtType.typeSymbol
+
+    if (srcSym.isClass && srcSym.asClass.isCaseClass && tgtSym.isClass && tgtSym.asClass.isCaseClass) {
+      val srcCtor = srcType.decl(termNames.CONSTRUCTOR).asMethod
+      val tgtCtor = tgtType.decl(termNames.CONSTRUCTOR).asMethod
+
+      val srcFields: Map[String, Type] = srcCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(srcType, srcSym))
+        .toMap
+
+      val tgtFields: Map[String, Type] = tgtCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(tgtType, tgtSym))
+        .toMap
+
+      val commonFields = srcFields.keySet.intersect(tgtFields.keySet)
+
+      commonFields.flatMap { fieldName =>
+        val fullFieldName = s"$prefix.$fieldName"
+        (srcFields.get(fieldName), tgtFields.get(fieldName)) match {
+          case (Some(srcFieldType), Some(tgtFieldType)) if srcFieldType =:= tgtFieldType =>
+            Set(fullFieldName) ++ computeAutoMappedNested(c)(srcFieldType, tgtFieldType, fullFieldName)
+          case (Some(srcFieldType), Some(tgtFieldType)) if srcFieldType <:< tgtFieldType || tgtFieldType <:< srcFieldType =>
+            Set(fullFieldName)
+          case _ => Set.empty[String]
+        }
+      }
+    } else {
+      Set.empty
     }
   }
 }

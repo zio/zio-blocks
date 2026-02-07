@@ -142,6 +142,93 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
           .buildPartial
 
         assertTrue(migration.actions.isEmpty)
+      },
+      test("build succeeds with transformNested for nested type migration") {
+        case class AddressV1(street: String, city: String)
+        case class AddressV2(street: String, city: String, zip: String)
+        case class PersonV1(name: String, address: AddressV1)
+        case class PersonV2(name: String, address: AddressV2)
+
+        given Schema[AddressV1] = Schema.derived[AddressV1]
+        given Schema[AddressV2] = Schema.derived[AddressV2]
+        given Schema[PersonV1]  = Schema.derived[PersonV1]
+        given Schema[PersonV2]  = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .transformNested(_.address, _.address) { builder =>
+            builder.addField(_.zip, literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
+          }
+          .build
+
+        val input  = PersonV1("Alice", AddressV1("123 Main St", "Springfield"))
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("Alice", AddressV2("123 Main St", "Springfield", "00000"))))
+      },
+      test("build fails to compile when nested field is missing without transformNested") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          case class AddressV1(street: String, city: String)
+          case class AddressV2(street: String, city: String, zip: String)
+          case class PersonV1(name: String, address: AddressV1)
+          case class PersonV2(name: String, address: AddressV2)
+
+          given Schema[AddressV1] = Schema.derived[AddressV1]
+          given Schema[AddressV2] = Schema.derived[AddressV2]
+          given Schema[PersonV1]  = Schema.derived[PersonV1]
+          given Schema[PersonV2]  = Schema.derived[PersonV2]
+
+          Migration.newBuilder[PersonV1, PersonV2].build
+          """
+        }.map { result =>
+          assertTrue(result.isLeft)
+        }
+      },
+      test("build succeeds with transformNested when dropping nested field") {
+        case class AddressV1(street: String, city: String, zip: String)
+        case class AddressV2(street: String, city: String)
+        case class PersonV1(name: String, address: AddressV1)
+        case class PersonV2(name: String, address: AddressV2)
+
+        given Schema[AddressV1] = Schema.derived[AddressV1]
+        given Schema[AddressV2] = Schema.derived[AddressV2]
+        given Schema[PersonV1]  = Schema.derived[PersonV1]
+        given Schema[PersonV2]  = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .transformNested(_.address, _.address) { builder =>
+            builder.dropField(_.zip, literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
+          }
+          .build
+
+        val input  = PersonV1("Alice", AddressV1("123 Main St", "Springfield", "12345"))
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("Alice", AddressV2("123 Main St", "Springfield"))))
+      },
+      test("build succeeds when nested types are identical (auto-mapped)") {
+        case class Address(street: String, city: String)
+        case class PersonV1(name: String, address: Address)
+        case class PersonV2(name: String, address: Address, age: Int)
+
+        given Schema[Address]  = Schema.derived[Address]
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .build
+
+        val input  = PersonV1("Alice", Address("123 Main St", "Springfield"))
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("Alice", Address("123 Main St", "Springfield"), 0)))
       }
     )
   )
