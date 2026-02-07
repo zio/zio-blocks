@@ -40,11 +40,11 @@ A single manual codec for a simple type like `Person` looks like the following c
 case class Person(name: String, age: Int)
 
 object Person {
-  implicit val customerCodec: JsonCodec[Person] =
+  implicit val personCodec: JsonCodec[Person] =
     new JsonCodec[Person] {
       def encode(c: Person): Json = Json.obj(
-        "name"  -> Json.str(c.name),
-        "email" -> Json.number(c.age)
+        "name" -> Json.str(c.name),
+        "age"  -> Json.number(c.age)
       )
 
       def decode(j: Json): Either[JsonError, Person] =
