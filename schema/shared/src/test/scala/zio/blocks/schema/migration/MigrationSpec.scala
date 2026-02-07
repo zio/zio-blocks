@@ -12,7 +12,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
   // For builder API (wraps DynamicSchemaExpr in SchemaExpr)
   private def literalExpr(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
-    SchemaExpr.Literal(dv)
+    SchemaExpr.literal(dv)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
     suite("DynamicMigration")(
