@@ -47,13 +47,19 @@ object DeriveGenExample extends App {
             case _: PrimitiveType.String  => random.alphanumeric.take(random.nextInt(10) + 1).mkString.asInstanceOf[A]
             case _: PrimitiveType.Char    => random.alphanumeric.head.asInstanceOf[A]
             case _: PrimitiveType.Boolean => random.nextBoolean().asInstanceOf[A]
-            case _: PrimitiveType.Int     => random.nextInt(100).asInstanceOf[A]
+            case _: PrimitiveType.Int     => random.nextInt().asInstanceOf[A]
             case _: PrimitiveType.Long    => random.nextLong().asInstanceOf[A]
             case _: PrimitiveType.Double  => random.nextDouble().asInstanceOf[A]
             case PrimitiveType.Unit       => ().asInstanceOf[A]
             // For brevity, other primitives default to their zero/empty value
             // In a real implementation, you'd want to handle all primitives and possibly use modifiers for ranges, etc.
-            case _ => defaultValue.getOrElse(null.asInstanceOf[A])
+            case _ =>
+              defaultValue.getOrElse {
+                throw new IllegalArgumentException(
+                  s"Gen derivation not implemented for primitive type $primitiveType " +
+                    s"(typeId = $typeId) and no default value provided."
+                )
+              }
           }
         }
       }
