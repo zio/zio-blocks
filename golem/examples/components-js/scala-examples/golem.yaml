@@ -1,0 +1,5 @@
+components:
+  scala:examples:
+    # Use the shared Scala.js component template defined in common-scala-js/golem.yaml
+    templates: scala.js
+

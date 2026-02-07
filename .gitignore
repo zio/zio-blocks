@@ -10,6 +10,9 @@ project/project/target
 cs
 sbt/
 
+# Mill
+out/
+
 # Idea
 .idea
 *.iml
@@ -26,7 +29,22 @@ TAGS
 # VS Code
 .metals
 .vscode/settings.json
-**/metals.sbt
+metals.sbt
+
+# Golem
+.golem/
+.golem-apps/
+.golem-local/
+.golem-local-run/
+.golem-template-test/
+task-results/
+golem-temp/
+.tmp-getting-started-e2e/
+.generated/
+tmp-wit/
+tmpgolemts/
+scala.js
+project/metals.sbt
 
 # Compilation log files
 *.log

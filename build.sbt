@@ -1,5 +1,6 @@
 import BuildHelper.*
 import MimaSettings.mimaSettings
+import org.scalajs.linker.interface.ModuleKind
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
@@ -22,18 +23,31 @@ inThisBuild(
   )
 )
 
+Global / excludeLintKeys ++= Set(
+  zioGolemExamples / testFrameworks,
+  zioGolemQuickstartJS / testFrameworks
+)
+
 addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
-  "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test"
+  "golemPublishLocal",
+  """++3.3.7!; set ThisBuild / version := "0.0.0-SNAPSHOT"; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; ++2.12.20!; set ThisBuild / version := "0.0.0-SNAPSHOT"; zioGolemSbt/publishLocal"""
 )
 addCommandAlias(
+  "testJVM",
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; " +
+    "schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; " +
+    "zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
+)
+
+addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test"
+  "++3.3.7!; typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; " +
+    "contextJS/test; scopeJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
 )
 
 addCommandAlias(
@@ -72,10 +86,16 @@ lazy val root = project
     chunk.js,
     markdown.jvm,
     markdown.js,
-    scalaNextTests.jvm,
-    scalaNextTests.js,
-    benchmarks,
-    docs
+    zioGolemModel.jvm,
+    zioGolemModel.js,
+    zioGolemCore.jvm,
+    zioGolemCore.js,
+    zioGolemMacros,
+    zioGolemTools,
+    zioGolemExamples,
+    zioGolemQuickstart.js,
+    zioGolemQuickstart.jvm,
+    zioGolemSbt
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform)
@@ -194,10 +214,19 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq(
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
-    })
+    }),
+    Compile / doc / skip    := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
+    Compile / doc / sources := {
+      if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Nil
+      else (Compile / doc / sources).value
+    },
+    Compile / packageDoc / publishArtifact := !CrossVersion
+      .partialVersion(scalaVersion.value)
+      .exists(_._1 == 3)
   )
   .jsSettings(
     libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -207,7 +236,15 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq(
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
-    })
+    }),
+    Compile / doc / skip    := CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3),
+    Compile / doc / sources := {
+      if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Nil
+      else (Compile / doc / sources).value
+    },
+    Compile / packageDoc / publishArtifact := !CrossVersion
+      .partialVersion(scalaVersion.value)
+      .exists(_._1 == 3)
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
@@ -401,10 +438,13 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
+    scalaVersion               := "3.7.4",
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    Compile / skip             := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
+    Test / skip                := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
   )
   .jsSettings(jsSettings)
 
@@ -430,6 +470,7 @@ lazy val benchmarks = project
       "dev.zio"                               %% "zio-test"              % "2.1.24",
       "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
     ),
+    scalaVersion                     := "3.7.4",
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case x if x.endsWith("module-info.class") => MergeStrategy.discard
@@ -440,7 +481,182 @@ lazy val benchmarks = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 30,
-    coverageMinimumBranchTotal := 42
+    coverageMinimumBranchTotal := 42,
+    Compile / skip             := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2),
+    Test / skip                := CrossVersion.partialVersion((ThisBuild / scalaVersion).value).exists(_._1 == 2)
+  )
+
+// ---------------------------------------------------------------------------
+// zio-golem modules (kept distinct from existing modules)
+// ---------------------------------------------------------------------------
+
+lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("golem/model"))
+  .settings(stdSettings("zio-golem-model"))
+  .settings(
+    Compile / unmanagedSourceDirectories ++= {
+      val base = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq(base / "scala-2")
+        case Some((3, _)) => Seq(base / "scala-3")
+        case _            => Seq.empty
+      }
+    },
+    Test / unmanagedSourceDirectories ++= {
+      val base   = baseDirectory.value / "src" / "test"
+      val shared = Seq(base / "scala")
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => shared ++ Seq(base / "scala-2")
+        case Some((3, _)) => shared ++ Seq(base / "scala-3")
+        case _            => shared
+      }
+    },
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+  .dependsOn(schema)
+  .jsSettings(jsSettings)
+
+lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .in(file("golem/core"))
+  .settings(stdSettings("zio-golem-core"))
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.scalatest" %%% "scalatest" % "3.2.19" % Test
+    )
+  )
+  .settings(
+    // Match zioGolemModel/macros: compile per-Scala-version sources from src/main/scala-2 and src/main/scala-3.
+    Compile / unmanagedSourceDirectories ++= {
+      val base = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq(base / "scala-2")
+        case Some((3, _)) => Seq(base / "scala-3")
+        case _            => Seq.empty
+      }
+    }
+  )
+  .jsSettings(jsSettings)
+  .dependsOn(zioGolemModel)
+
+lazy val zioGolemCoreJS  = zioGolemCore.js.dependsOn(zioGolemMacros)
+lazy val zioGolemCoreJVM = zioGolemCore.jvm.dependsOn(zioGolemMacros)
+
+lazy val zioGolemMacros = project
+  .in(file("golem/macros"))
+  .settings(stdSettings("zio-golem-macros"))
+  .settings(
+    coverageEnabled       := false,
+    coverageFailOnMinimum := false,
+    scalacOptions += "-language:experimental.macros",
+    Compile / unmanagedSourceDirectories ++= {
+      val base = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq(base / "scala-2")
+        case Some((3, _)) => Seq(base / "scala-3")
+        case _            => Seq.empty
+      }
+    },
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _            => Seq.empty
+    })
+  )
+  .dependsOn(zioGolemModel.jvm)
+
+lazy val zioGolemTools = project
+  .in(file("golem/tools"))
+  .settings(stdSettings("zio-golem-tools"))
+  .settings(
+    fork := true,
+    libraryDependencies ++= Seq(
+      "com.lihaoyi"   %% "ujson"                 % "3.1.0",
+      "org.scalatest" %% "scalatest"             % "3.2.19" % Test,
+      "dev.zio"       %% "zio-schema"            % "1.1.1"  % Test,
+      "dev.zio"       %% "zio-schema-derivation" % "1.1.1"  % Test
+    )
+  )
+  .dependsOn(zioGolemModel.jvm, zioGolemMacros)
+
+lazy val zioGolemExamples = project
+  .in(file("golem/examples"))
+  .settings(stdSettings("zio-golem-examples-js"))
+  .settings(jsSettings)
+  .settings(
+    name                            := "zio-golem-examples",
+    publish / skip                  := true,
+    scalaJSUseMainModuleInitializer := false,
+    golemBasePackage                := Some("golem.examples"),
+    golemComponentPathPrefix        := "../..",
+    Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
+    Test / test := {
+      Keys.streams.value.log.info(
+        "Skipping zioGolemExamples tests (requires golem runtime). Run `golem/examples/agent2agent-local.sh` instead."
+      )
+    },
+    Test / testOnly       := (Test / test).value,
+    Test / testQuick      := (Test / test).value,
+    Test / testFrameworks := Nil
+  )
+  .dependsOn(schema.js, zioGolemCoreJS, zioGolemMacros)
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, golem.sbt.GolemPlugin)
+
+// ---------------------------------------------------------------------------
+// Quickstart (in-repo) - crossProject: shared traits, JS impls, JVM typed client example
+// ---------------------------------------------------------------------------
+
+lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .in(file("golem/quickstart"))
+  .settings(stdSettings("zio-golem-quickstart"))
+  .settings(
+    publish / skip := true
+    // stdSettings already controls compiler flags across the repo; avoid duplicating -experimental here.
+  )
+  .jsSettings(jsSettings)
+  .jsSettings(
+    // For golem-cli wrapper generation, ensure agent registration runs when the JS module is loaded.
+    // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
+    scalaJSUseMainModuleInitializer := true,
+    golemBasePackage                := Some("golem.quickstart"),
+    golemComponentPathPrefix        := "../..",
+    Compile / mainClass             := Some("golem.quickstart.Boot"),
+    Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
+    Test / testOnly       := (Test / test).value,
+    Test / testQuick      := (Test / test).value,
+    Test / testFrameworks := Nil
+  )
+  .jsEnablePlugins(golem.sbt.GolemPlugin)
+  .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
+  .jvmConfigure(_.dependsOn(zioGolemCoreJVM, zioGolemMacros))
+
+lazy val zioGolemQuickstartJS  = zioGolemQuickstart.js
+lazy val zioGolemQuickstartJVM = zioGolemQuickstart.jvm
+
+// ---------------------------------------------------------------------------
+// Tooling plugins (publishable)
+// ---------------------------------------------------------------------------
+
+lazy val zioGolemSbt = project
+  .in(file("golem/sbt"))
+  .enablePlugins(SbtPlugin)
+  .settings(
+    name         := "zio-golem-sbt",
+    organization := "dev.zio",
+    sbtPlugin    := true,
+    // sbt plugins compile against sbt's Scala (2.12)
+    scalaVersion := "2.12.20",
+    sbtVersion   := "1.12.0",
+    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2"),
+    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.5",
+    publish / skip                         := false,
+    mimaPreviousArtifacts                  := Set()
   )
 
 lazy val docs = project
@@ -454,7 +670,20 @@ lazy val docs = project
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                             := true
+    // The docs site build is not meant to be part of `+Test / compile`.
+    // Website plugin settings can pull in Scala 2.12 (sbt's Scala), which then tries to resolve
+    // unpublished `_2.12` artifacts for project dependencies.
+    Compile / skip := true,
+    Test / skip    := true,
+    publish / skip := true
   )
   .dependsOn(schema.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
   .enablePlugins(WebsitePlugin)
+  .settings(
+    // The zio-sbt-website plugin adds a dependency on `dev.zio:zio-blocks-schema` using this
+    // project's Scala version (often sbt's Scala 2.12). That artifact is not published for 2.12,
+    // and in a multi-project checkout we don't want to resolve our own modules from Maven Central.
+    //
+    // Keeping docs resolvable avoids Metals/sbt-structure failures during import.
+    libraryDependencies ~= (_.filterNot(m => m.organization == "dev.zio" && m.name.startsWith("zio-blocks-schema")))
+  )
