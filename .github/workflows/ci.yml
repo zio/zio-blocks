@@ -39,7 +39,7 @@ jobs:
       - name: Cache Dependencies
         uses: coursier/cache-action@v7
       - name: Check website build process
-        run: sbt docs/clean; sbt docs/buildWebsite
+        run: sbt docs/clean docs/buildWebsite
 
   lint:
     runs-on: ubuntu-latest
