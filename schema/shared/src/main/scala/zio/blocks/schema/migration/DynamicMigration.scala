@@ -171,6 +171,9 @@ private[migration] object ActionExecutor {
       case TransformCase(at, actions) =>
         executeTransformCase(at, actions, value)
 
+      case TransformNested(at, actions) =>
+        executeTransformNested(at, actions, value)
+
       case TransformElements(at, transform) =>
         evalExpr(transform, value).flatMap { transformValue =>
           executeTransformElements(at, transformValue, value)
@@ -432,10 +435,18 @@ private[migration] object ActionExecutor {
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Variant(name, inner) =>
-        // Apply the migration actions to the inner value of any variant
         DynamicMigration.execute(actions, inner).map(DynamicValue.Variant(name, _))
       case other =>
         Left(SchemaError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
+    }
+
+  private def executeTransformNested(
+    at: zio.blocks.schema.DynamicOptic,
+    actions: Vector[MigrationAction],
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    modifyAt(at, value) { nestedValue =>
+      DynamicMigration.execute(actions, nestedValue)
     }
 
   // ==================== Helper Methods ====================
