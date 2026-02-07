@@ -1775,7 +1775,7 @@ val jsonCodec: JsonBinaryCodec[User] = User.schema
 
 ## Derivation Process In-Depth
 
-Until know, we learned how to implement the `Deriver` methods for different schema patterns. But we haven't yet discussed how the overall derivation process works. In this section, we will go through the main steps of derivation in detail.
+Until now, we learned how to implement the `Deriver` methods for different schema patterns. But we haven't yet discussed how the overall derivation process works. In this section, we will go through the main steps of derivation in detail.
 
 ### PHASE 1: Deriving the Schema for the Target Type
 
