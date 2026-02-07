@@ -177,10 +177,11 @@ private[rpc] object AgentClientBindMacro {
           """
         mkMethodDef(m, rhs)
       } else {
-        c.abort(
-          c.enclosingPosition,
-          s"Agent client method $methodNameStr must return scala.concurrent.Future[...] (or js.Promise[...]) or Unit, found: $returnTpe"
-        )
+        val rhs =
+          q"""throw new _root_.java.lang.IllegalStateException(
+                "Agent client method " + $methodNameStr + " must return scala.concurrent.Future[...] or Unit when invoked via RPC."
+              )"""
+        mkMethodDef(m, rhs)
       }
     }
 

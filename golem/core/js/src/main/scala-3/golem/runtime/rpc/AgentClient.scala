@@ -248,6 +248,10 @@ private object AgentClientInlineMacros {
                       )
                     ()
                   }
+                case InvocationKind.UnsupportedSync =>
+                  val msg =
+                    s"Agent client method ${methodData.method.name} must return scala.concurrent.Future[...] or Unit when invoked via RPC."
+                  '{ throw new IllegalStateException(${ Expr(msg) }) }
               }
           }
       }
@@ -462,9 +466,7 @@ private object AgentClientInlineMacros {
             if returnType =:= TypeRepr.of[Unit] then
               (InvocationKind.FireAndForget, TypeRepr.of[Unit], TypeRepr.of[Unit])
             else {
-              report.errorAndAbort(
-                s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: ${returnType.show}"
-              )
+              (InvocationKind.UnsupportedSync, returnType, returnType)
             }
         }
       case other =>
@@ -486,5 +488,6 @@ private object AgentClientInlineMacros {
   private enum InvocationKind {
     case Awaitable
     case FireAndForget
+    case UnsupportedSync
   }
 }
