@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object ServerSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Server and ServerVariable")(
     suite("Server")(
       test("can be constructed with required fields only") {
@@ -21,11 +23,11 @@ object ServerSpec extends SchemaBaseSpec {
         val variable = ServerVariable(
           default = "v1",
           `enum` = List("v1", "v2"),
-          description = Some("API version")
+          description = Some(doc("API version"))
         )
         val variables   = Map("version" -> variable)
         val extensions  = Map("x-custom" -> Json.String("value"))
-        val description = "Production API server"
+        val description = doc("Production API server")
         val server      = Server(
           url = "https://api.example.com/{version}",
           description = Some(description),
@@ -65,11 +67,11 @@ object ServerSpec extends SchemaBaseSpec {
         val variable = ServerVariable(
           default = "prod",
           `enum` = List("dev", "staging", "prod"),
-          description = Some("Environment")
+          description = Some(doc("Environment"))
         )
         val server = Server(
           url = "https://{environment}.api.example.com",
-          description = Some("Multi-environment server"),
+          description = Some(doc("Multi-environment server")),
           variables = Map("environment" -> variable),
           extensions = Map("x-region" -> Json.String("us-east-1"))
         )
@@ -80,7 +82,7 @@ object ServerSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.url == "https://{environment}.api.example.com"),
-          result.exists(_.description.contains("Multi-environment server")),
+          result.exists(_.description.contains(doc("Multi-environment server"))),
           result.exists(_.variables.contains("environment")),
           result.exists(_.extensions.contains("x-region"))
         )
@@ -118,14 +120,14 @@ object ServerSpec extends SchemaBaseSpec {
         val variable   = ServerVariable(
           default = "production",
           `enum` = enumValues,
-          description = Some("Deployment environment"),
+          description = Some(doc("Deployment environment")),
           extensions = extensions
         )
 
         assertTrue(
           variable.default == "production",
           variable.`enum` == enumValues,
-          variable.description.contains("Deployment environment"),
+          variable.description.contains(doc("Deployment environment")),
           variable.extensions.size == 1,
           variable.extensions.get("x-priority").contains(Json.Number(1))
         )
@@ -172,13 +174,13 @@ object ServerSpec extends SchemaBaseSpec {
         val result = ServerVariable.validated(
           default = "prod",
           `enum` = List("dev", "prod"),
-          description = Some("Environment"),
+          description = Some(doc("Environment")),
           extensions = Map("x-custom" -> Json.String("value"))
         )
 
         assertTrue(
           result.isRight,
-          result.exists(_.description.contains("Environment")),
+          result.exists(_.description.contains(doc("Environment"))),
           result.exists(_.extensions.contains("x-custom"))
         )
       },
@@ -205,7 +207,7 @@ object ServerSpec extends SchemaBaseSpec {
         val variable = ServerVariable(
           default = "8443",
           `enum` = List("443", "8443", "9443"),
-          description = Some("HTTPS port"),
+          description = Some(doc("HTTPS port")),
           extensions = Map("x-secure" -> Json.Boolean(true))
         )
 
@@ -216,7 +218,7 @@ object ServerSpec extends SchemaBaseSpec {
           result.isRight,
           result.exists(_.default == "8443"),
           result.exists(_.`enum` == List("443", "8443", "9443")),
-          result.exists(_.description.contains("HTTPS port")),
+          result.exists(_.description.contains(doc("HTTPS port"))),
           result.exists(_.extensions.contains("x-secure"))
         )
       },
@@ -236,13 +238,13 @@ object ServerSpec extends SchemaBaseSpec {
         val variable = ServerVariable(
           default = "v1",
           `enum` = List("v1", "v2", "beta"),
-          description = Some("API version path segment")
+          description = Some(doc("API version path segment"))
         )
 
         assertTrue(
           variable.default == "v1",
           variable.`enum` == List("v1", "v2", "beta"),
-          variable.description.contains("API version path segment")
+          variable.description.contains(doc("API version path segment"))
         )
       }
     )

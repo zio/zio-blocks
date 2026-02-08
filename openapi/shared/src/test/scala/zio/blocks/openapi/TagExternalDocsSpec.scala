@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object TagExternalDocsSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Tag and ExternalDocumentation")(
     suite("Tag")(
       test("can be constructed with required name field only") {
@@ -20,7 +22,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
       test("can be constructed with all fields") {
         val externalDocs = ExternalDocumentation(
           url = "https://docs.example.com/users",
-          description = Some("User documentation")
+          description = Some(doc("User documentation"))
         )
         val extensions = Map(
           "x-custom"   -> Json.String("value"),
@@ -28,14 +30,14 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
         val tag = Tag(
           name = "users",
-          description = Some("User operations"),
+          description = Some(doc("User operations")),
           externalDocs = Some(externalDocs),
           extensions = extensions
         )
 
         assertTrue(
           tag.name == "users",
-          tag.description.contains("User operations"),
+          tag.description.contains(doc("User operations")),
           tag.externalDocs.isDefined,
           tag.externalDocs.exists(_.url == "https://docs.example.com/users"),
           tag.extensions.size == 2,
@@ -81,7 +83,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
       test("Tag round-trips through DynamicValue with all fields") {
         val externalDocs = ExternalDocumentation(
           url = "https://docs.example.com/users",
-          description = Some("User API docs")
+          description = Some(doc("User API docs"))
         )
         val extensions = Map(
           "x-custom" -> Json.String("test"),
@@ -89,7 +91,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
         val tag = Tag(
           name = "users",
-          description = Some("User operations"),
+          description = Some(doc("User operations")),
           externalDocs = Some(externalDocs),
           extensions = extensions
         )
@@ -100,10 +102,10 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.name == "users"),
-          result.exists(_.description.contains("User operations")),
+          result.exists(_.description.contains(doc("User operations"))),
           result.exists(_.externalDocs.isDefined),
           result.exists(_.externalDocs.exists(_.url == "https://docs.example.com/users")),
-          result.exists(_.externalDocs.exists(_.description.contains("User API docs"))),
+          result.exists(_.externalDocs.exists(_.description.contains(doc("User API docs")))),
           result.exists(_.extensions.size == 2),
           result.exists(_.extensions.contains("x-custom")),
           result.exists(_.extensions.contains("x-value"))
@@ -112,7 +114,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
       test("Tag preserves nested ExternalDocumentation with extensions") {
         val externalDocs = ExternalDocumentation(
           url = "https://example.com",
-          description = Some("Docs"),
+          description = Some(doc("Docs")),
           extensions = Map("x-doc-version" -> Json.String("v1"))
         )
         val tag = Tag(
@@ -148,13 +150,13 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
         val docs = ExternalDocumentation(
           url = "https://docs.example.com/api",
-          description = Some("Complete API documentation"),
+          description = Some(doc("Complete API documentation")),
           extensions = extensions
         )
 
         assertTrue(
           docs.url == "https://docs.example.com/api",
-          docs.description.contains("Complete API documentation"),
+          docs.description.contains(doc("Complete API documentation")),
           docs.extensions.size == 2,
           docs.extensions.get("x-language").contains(Json.String("en")),
           docs.extensions.get("x-version").contains(Json.String("2.0"))
@@ -204,7 +206,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
         val docs = ExternalDocumentation(
           url = "https://docs.example.com/api/v2",
-          description = Some("API Reference Documentation"),
+          description = Some(doc("API Reference Documentation")),
           extensions = extensions
         )
 
@@ -214,7 +216,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.url == "https://docs.example.com/api/v2"),
-          result.exists(_.description.contains("API Reference Documentation")),
+          result.exists(_.description.contains(doc("API Reference Documentation"))),
           result.exists(_.extensions.size == 2),
           result.exists(_.extensions.contains("x-custom")),
           result.exists(_.extensions.contains("x-number"))
@@ -245,12 +247,12 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
 
         val docs = ExternalDocumentation(
           url = "https://example.com",
-          description = Some("Documentation"),
+          description = Some(doc("Documentation")),
           extensions = docExtensions
         )
         val tag = Tag(
           name = "api",
-          description = Some("API operations"),
+          description = Some(doc("API operations")),
           externalDocs = Some(docs),
           extensions = tagExtensions
         )

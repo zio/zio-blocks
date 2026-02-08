@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object RequestResponseSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Request and Response Types")(
     suite("RequestBody")(
       test("can be constructed with required content field only") {
@@ -29,14 +31,14 @@ object RequestResponseSpec extends SchemaBaseSpec {
 
         val requestBody = RequestBody(
           content = content,
-          description = Some("Request payload"),
+          description = Some(doc("Request payload")),
           required = true,
           extensions = extensions
         )
 
         assertTrue(
           requestBody.content.size == 2,
-          requestBody.description.contains("Request payload"),
+          requestBody.description.contains(doc("Request payload")),
           requestBody.required,
           requestBody.extensions.size == 1
         )
@@ -66,7 +68,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("RequestBody round-trips through DynamicValue") {
         val requestBody = RequestBody(
           content = Map("application/json" -> MediaType()),
-          description = Some("Test body"),
+          description = Some(doc("Test body")),
           required = true,
           extensions = Map("x-test" -> Json.String("value"))
         )
@@ -77,7 +79,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.content.nonEmpty),
-          result.exists(_.description.contains("Test body")),
+          result.exists(_.description.contains(doc("Test body"))),
           result.exists(_.required),
           result.exists(_.extensions.nonEmpty)
         )
@@ -100,7 +102,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val example  = Json.Object("name" -> Json.String("John"))
         val examples = Map(
           "example1" -> ReferenceOr.Value(
-            Example(summary = Some("First example"), value = Some(Json.Number(1)))
+            Example(summary = Some(doc("First example")), value = Some(Json.Number(1)))
           )
         )
         val encoding   = Map("profileImage" -> Encoding(contentType = Some("image/png")))
@@ -179,7 +181,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("can be constructed with all fields populated") {
         val headers = Map(
-          "X-Rate-Limit" -> ReferenceOr.Value(Header(description = Some("Rate limit info")))
+          "X-Rate-Limit" -> ReferenceOr.Value(Header(description = Some(doc("Rate limit info"))))
         )
         val extensions = Map("x-custom" -> Json.String("value"))
 
@@ -257,10 +259,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("can be constructed with all fields populated") {
         val responsesMap = Map(
-          "200" -> ReferenceOr.Value(Response(description = "Success")),
-          "404" -> ReferenceOr.Value(Response(description = "Not found"))
+          "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+          "404" -> ReferenceOr.Value(Response(description = doc("Not found")))
         )
-        val defaultResponse = ReferenceOr.Value(Response(description = "Default response"))
+        val defaultResponse = ReferenceOr.Value(Response(description = doc("Default response")))
         val extensions      = Map("x-custom" -> Json.String("value"))
 
         val responses = Responses(
@@ -277,10 +279,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("preserves multiple status codes") {
         val responsesMap = Map(
-          "200" -> ReferenceOr.Value(Response(description = "OK")),
-          "201" -> ReferenceOr.Value(Response(description = "Created")),
-          "400" -> ReferenceOr.Value(Response(description = "Bad Request")),
-          "500" -> ReferenceOr.Value(Response(description = "Internal Server Error"))
+          "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
+          "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
+          "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),
+          "500" -> ReferenceOr.Value(Response(description = doc("Internal Server Error")))
         )
         val responses = Responses(responses = responsesMap)
 
@@ -311,8 +313,8 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Responses round-trips through DynamicValue") {
         val responses = Responses(
-          responses = Map("200" -> ReferenceOr.Value(Response(description = "OK"))),
-          default = Some(ReferenceOr.Value(Response(description = "Error"))),
+          responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+          default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
           extensions = Map("x-test" -> Json.Boolean(false))
         )
 
@@ -329,10 +331,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
     ),
     suite("Response")(
       test("can be constructed with required description only") {
-        val response = Response(description = "Success")
+        val response = Response(description = doc("Success"))
 
         assertTrue(
-          response.description == "Success",
+          response.description == doc("Success"),
           response.headers.isEmpty,
           response.content.isEmpty,
           response.links.isEmpty,
@@ -350,7 +352,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val extensions = Map("x-custom" -> Json.String("value"))
 
         val response = Response(
-          description = "Successful response",
+          description = doc("Successful response"),
           headers = headers,
           content = content,
           links = links,
@@ -358,7 +360,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
 
         assertTrue(
-          response.description == "Successful response",
+          response.description == doc("Successful response"),
           response.headers.size == 1,
           response.content.size == 1,
           response.links.size == 1,
@@ -371,7 +373,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           "application/xml"  -> MediaType(),
           "text/plain"       -> MediaType()
         )
-        val response = Response(description = "Multi-format response", content = content)
+        val response = Response(description = doc("Multi-format response"), content = content)
 
         assertTrue(
           response.content.size == 3,
@@ -381,14 +383,14 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("Schema[Response] can be derived") {
-        val response = Response(description = "Test")
+        val response = Response(description = doc("Test"))
         val schema   = Schema[Response]
 
         assertTrue(schema != null, response != null)
       },
       test("Response round-trips through DynamicValue") {
         val response = Response(
-          description = "Success",
+          description = doc("Success"),
           headers = Map("X-Test" -> ReferenceOr.Value(Header())),
           content = Map("application/json" -> MediaType()),
           links = Map.empty,
@@ -400,7 +402,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
 
         assertTrue(
           result.isRight,
-          result.exists(_.description == "Success"),
+          result.exists(_.description == doc("Success")),
           result.exists(_.headers.nonEmpty),
           result.exists(_.content.nonEmpty),
           result.exists(_.extensions.nonEmpty)
@@ -422,26 +424,26 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("can be constructed with value field") {
         val value   = Json.Object("name" -> Json.String("John"), "age" -> Json.Number(30))
         val example = Example(
-          summary = Some("User example"),
-          description = Some("A sample user object"),
+          summary = Some(doc("User example")),
+          description = Some(doc("A sample user object")),
           value = Some(value)
         )
 
         assertTrue(
-          example.summary.contains("User example"),
-          example.description.contains("A sample user object"),
+          example.summary.contains(doc("User example")),
+          example.description.contains(doc("A sample user object")),
           example.value.isDefined,
           example.externalValue.isEmpty
         )
       },
       test("can be constructed with externalValue field") {
         val example = Example(
-          summary = Some("External example"),
+          summary = Some(doc("External example")),
           externalValue = Some("https://example.com/examples/user.json")
         )
 
         assertTrue(
-          example.summary.contains("External example"),
+          example.summary.contains(doc("External example")),
           example.value.isEmpty,
           example.externalValue.contains("https://example.com/examples/user.json")
         )
@@ -460,7 +462,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("both value and externalValue can be None") {
-        val example = Example(summary = Some("Empty example"))
+        val example = Example(summary = Some(doc("Empty example")))
 
         assertTrue(
           example.value.isEmpty,
@@ -491,8 +493,8 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Example round-trips through DynamicValue") {
         val example = Example(
-          summary = Some("Test"),
-          description = Some("A test example"),
+          summary = Some(doc("Test")),
+          description = Some(doc("A test example")),
           value = Some(Json.Number(42)),
           extensions = Map("x-test" -> Json.Boolean(true))
         )
@@ -502,8 +504,8 @@ object RequestResponseSpec extends SchemaBaseSpec {
 
         assertTrue(
           result.isRight,
-          result.exists(_.summary.contains("Test")),
-          result.exists(_.description.contains("A test example")),
+          result.exists(_.summary.contains(doc("Test"))),
+          result.exists(_.description.contains(doc("A test example"))),
           result.exists(_.value.isDefined),
           result.exists(_.extensions.nonEmpty)
         )
@@ -526,13 +528,13 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("can be constructed with operationRef") {
         val link = Link(
           operationRef = Some("#/paths/~1users~1{userId}/get"),
-          description = Some("Link to user by ID")
+          description = Some(doc("Link to user by ID"))
         )
 
         assertTrue(
           link.operationRef.contains("#/paths/~1users~1{userId}/get"),
           link.operationId.isEmpty,
-          link.description.contains("Link to user by ID")
+          link.description.contains(doc("Link to user by ID"))
         )
       },
       test("can be constructed with operationId") {
@@ -561,7 +563,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("both operationRef and operationId can be None") {
-        val link = Link(description = Some("Some link"))
+        val link = Link(description = Some(doc("Some link")))
 
         assertTrue(
           link.operationRef.isEmpty,
@@ -627,7 +629,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val link = Link(
           operationId = Some("getUser"),
           parameters = Map("id" -> Json.Number(1)),
-          description = Some("Get user link"),
+          description = Some(doc("Get user link")),
           extensions = Map("x-test" -> Json.String("value"))
         )
 
@@ -638,7 +640,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           result.isRight,
           result.exists(_.operationId.contains("getUser")),
           result.exists(_.parameters.nonEmpty),
-          result.exists(_.description.contains("Get user link")),
+          result.exists(_.description.contains(doc("Get user link"))),
           result.exists(_.extensions.nonEmpty)
         )
       }
@@ -653,7 +655,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with callbacks") {
-        val pathItem  = PathItem(summary = Some("Callback path"))
+        val pathItem  = PathItem(summary = Some(doc("Callback path")))
         val callbacks = Map(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Value(pathItem)
         )
@@ -666,8 +668,8 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("supports multiple callback expressions") {
-        val pathItem1 = PathItem(summary = Some("Webhook 1"))
-        val pathItem2 = PathItem(summary = Some("Webhook 2"))
+        val pathItem1 = PathItem(summary = Some(doc("Webhook 1")))
+        val pathItem2 = PathItem(summary = Some(doc("Webhook 2")))
         val callbacks = Map(
           "{$request.body#/webhookUrl1}" -> ReferenceOr.Value(pathItem1),
           "{$request.body#/webhookUrl2}" -> ReferenceOr.Value(pathItem2)

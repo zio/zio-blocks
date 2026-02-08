@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object OpenAPIRoundTripSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("OpenAPIRoundTripSpec")(
     suite("JSON round-trip tests")(
       test("minimal.json round-trips through JSON") {
@@ -28,8 +30,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Info(
           title = "Test API",
           version = "1.0.0",
-          summary = Some("A test API"),
-          description = Some("Detailed description"),
+          summary = Some(doc("A test API")),
+          description = Some(doc("Detailed description")),
           termsOfService = Some("https://example.com/terms"),
           contact = Some(
             Contact(
@@ -112,17 +114,17 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("Server round-trips with all fields") {
         val original = Server(
           url = "https://api.example.com/v1",
-          description = Some("Production server"),
+          description = Some(doc("Production server")),
           variables = Map(
             "environment" -> ServerVariable(
               default = "prod",
               `enum` = List("prod", "staging", "dev"),
-              description = Some("Environment name"),
+              description = Some(doc("Environment name")),
               extensions = Map("x-var-id" -> Json.String("env-1"))
             ),
             "region" -> ServerVariable(
               default = "us-east",
-              description = Some("AWS region")
+              description = Some(doc("AWS region"))
             )
           ),
           extensions = Map("x-server-id" -> Json.Number(42))
@@ -145,7 +147,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = ServerVariable(
           default = "v1",
           `enum` = List("v1", "v2", "v3"),
-          description = Some("API version"),
+          description = Some(doc("API version")),
           extensions = Map("x-deprecated" -> Json.Boolean(false))
         )
 
@@ -167,11 +169,11 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("Tag round-trips with all fields") {
         val original = Tag(
           name = "users",
-          description = Some("User operations"),
+          description = Some(doc("User operations")),
           externalDocs = Some(
             ExternalDocumentation(
               url = "https://docs.example.com/users",
-              description = Some("User documentation"),
+              description = Some(doc("User documentation")),
               extensions = Map("x-doc-version" -> Json.String("1.0"))
             )
           ),
@@ -194,7 +196,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("ExternalDocumentation round-trips") {
         val original = ExternalDocumentation(
           url = "https://docs.example.com",
-          description = Some("Full documentation"),
+          description = Some(doc("Full documentation")),
           extensions = Map("x-language" -> Json.String("en"))
         )
 
@@ -208,8 +210,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("Reference round-trips") {
         val original = Reference(
           `$ref` = "#/components/schemas/User",
-          summary = Some("User reference"),
-          description = Some("Reference to User schema")
+          summary = Some(doc("User reference")),
+          description = Some(doc("Reference to User schema"))
         )
 
         val dv     = Schema[Reference].toDynamicValue(original)
@@ -310,8 +312,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             "200" -> Json.Object("description" -> Json.String("Success"))
           ),
           tags = List("users", "admin"),
-          summary = Some("Get user"),
-          description = Some("Retrieves a user by ID"),
+          summary = Some(doc("Get user")),
+          description = Some(doc("Retrieves a user by ID")),
           externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com/get-user")),
           operationId = Some("getUser"),
           parameters = List(
@@ -334,7 +336,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Parameter(
           name = "limit",
           in = ParameterLocation.Query,
-          description = Some("Page limit"),
+          description = Some(doc("Page limit")),
           required = false,
           deprecated = false,
           allowEmptyValue = true,
@@ -368,7 +370,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Header round-trips") {
         val original = Header(
-          description = Some("Authorization header"),
+          description = Some(doc("Authorization header")),
           required = true,
           deprecated = false,
           allowEmptyValue = false,
@@ -399,7 +401,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
               encoding = Map.empty[String, Encoding]
             )
           ),
-          description = Some("User object"),
+          description = Some(doc("User object")),
           required = true,
           extensions = Map("x-body-id" -> Json.String("user-body"))
         )
@@ -416,7 +418,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           examples = Map(
             "example1" -> ReferenceOr.Value(
               Example(
-                summary = Some("First example"),
+                summary = Some(doc("First example")),
                 value = Some(Json.String("value1"))
               )
             )
@@ -445,7 +447,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           headers = Map(
             "X-Custom" -> ReferenceOr.Value(
               Header(
-                description = Some("Custom header")
+                description = Some(doc("Custom header"))
               )
             )
           ),
@@ -465,7 +467,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           responses = Map(
             "200" -> ReferenceOr.Value(
               Response(
-                description = "Success",
+                description = doc("Success"),
                 headers = Map.empty[String, ReferenceOr[Header]],
                 content = Map.empty[String, MediaType],
                 links = Map.empty[String, ReferenceOr[Link]]
@@ -473,7 +475,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             ),
             "404" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/NotFound"))
           ),
-          default = Some(ReferenceOr.Value(Response(description = "Error"))),
+          default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
           extensions = Map("x-responses" -> Json.String("custom"))
         )
 
@@ -484,7 +486,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Response round-trips") {
         val original = Response(
-          description = "Successful operation",
+          description = doc("Successful operation"),
           headers = Map(
             "X-Rate-Limit" -> ReferenceOr.Value(
               Header(
@@ -501,7 +503,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             "next" -> ReferenceOr.Value(
               Link(
                 operationId = Some("getNextPage"),
-                description = Some("Next page link")
+                description = Some(doc("Next page link"))
               )
             )
           ),
@@ -517,8 +519,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Example and Link types round-trip")(
       test("Example round-trips with value") {
         val original = Example(
-          summary = Some("User example"),
-          description = Some("Example of a user object"),
+          summary = Some(doc("User example")),
+          description = Some(doc("Example of a user object")),
           value = Some(Json.Object("name" -> Json.String("John"), "age" -> Json.Number(30))),
           extensions = Map("x-example-id" -> Json.String("ex-1"))
         )
@@ -530,7 +532,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Example round-trips with externalValue") {
         val original = Example(
-          summary = Some("External example"),
+          summary = Some(doc("External example")),
           externalValue = Some("https://example.com/examples/user.json"),
           extensions = Map("x-external" -> Json.Boolean(true))
         )
@@ -545,7 +547,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           operationRef = Some("#/paths/~1users~1{id}/get"),
           parameters = Map("id" -> Json.String("$response.body#/id")),
           requestBody = Some(Json.Object("data" -> Json.String("value"))),
-          description = Some("Link to get user"),
+          description = Some(doc("Link to get user")),
           server = Some(Server(url = "https://api.example.com")),
           extensions = Map("x-link-id" -> Json.String("link-1"))
         )
@@ -559,7 +561,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Link(
           operationId = Some("getUserById"),
           parameters = Map("id" -> Json.Number(123)),
-          description = Some("Link by operation ID"),
+          description = Some(doc("Link by operation ID")),
           extensions = Map("x-link-type" -> Json.String("operation-id"))
         )
 
@@ -575,8 +577,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           callbacks = Map(
             "{$request.body#/callbackUrl}" -> ReferenceOr.Value(
               PathItem(
-                summary = Some("Callback path"),
-                description = Some("Webhook callback")
+                summary = Some(doc("Callback path")),
+                description = Some(doc("Webhook callback"))
               )
             )
           ),
@@ -594,7 +596,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original: SecurityScheme = SecurityScheme.APIKey(
           name = "api_key",
           in = APIKeyLocation.Header,
-          description = Some("API key authentication"),
+          description = Some(doc("API key authentication")),
           extensions = Map("x-api-key-format" -> Json.String("uuid"))
         )
 
@@ -607,7 +609,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original: SecurityScheme = SecurityScheme.HTTP(
           scheme = "bearer",
           bearerFormat = Some("JWT"),
-          description = Some("Bearer token authentication"),
+          description = Some(doc("Bearer token authentication")),
           extensions = Map("x-token-type" -> Json.String("jwt"))
         )
 
@@ -647,7 +649,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             ),
             extensions = Map("x-flows" -> Json.String("all"))
           ),
-          description = Some("OAuth2 security"),
+          description = Some(doc("OAuth2 security")),
           extensions = Map("x-oauth-provider" -> Json.String("custom"))
         )
 
@@ -659,7 +661,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("SecurityScheme.OpenIdConnect round-trips") {
         val original: SecurityScheme = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
-          description = Some("OpenID Connect authentication"),
+          description = Some(doc("OpenID Connect authentication")),
           extensions = Map("x-oidc-provider" -> Json.String("custom"))
         )
 
@@ -670,7 +672,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("SecurityScheme.MutualTLS round-trips") {
         val original: SecurityScheme = SecurityScheme.MutualTLS(
-          description = Some("Mutual TLS authentication"),
+          description = Some(doc("Mutual TLS authentication")),
           extensions = Map("x-cert-required" -> Json.Boolean(true))
         )
 
@@ -767,10 +769,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Paths(
           paths = Map(
             "/users" -> PathItem(
-              summary = Some("Users endpoint"),
-              description = Some("Operations on users")
+              summary = Some(doc("Users endpoint")),
+              description = Some(doc("Operations on users"))
             ),
-            "/posts" -> PathItem(summary = Some("Posts"))
+            "/posts" -> PathItem(summary = Some(doc("Posts")))
           ),
           extensions = Map("x-paths-version" -> Json.String("v1"))
         )
@@ -782,8 +784,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("PathItem round-trips") {
         val original = PathItem(
-          summary = Some("API endpoint"),
-          description = Some("Description of endpoint"),
+          summary = Some(doc("API endpoint")),
+          description = Some(doc("Description of endpoint")),
           extensions = Map("x-path-id" -> Json.Number(123))
         )
 
@@ -811,8 +813,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           info = Info(
             title = "Comprehensive API",
             version = "2.0.0",
-            summary = Some("A comprehensive test API"),
-            description = Some("Full featured API for testing"),
+            summary = Some(doc("A comprehensive test API")),
+            description = Some(doc("Full featured API for testing")),
             termsOfService = Some("https://example.com/terms"),
             contact = Some(
               Contact(
@@ -827,18 +829,18 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           servers = List(
             Server(
               url = "https://api.example.com/v1",
-              description = Some("Production"),
+              description = Some(doc("Production")),
               variables = Map(
                 "env" -> ServerVariable(default = "prod", `enum` = List("prod", "staging"))
               )
             ),
-            Server(url = "https://staging.example.com/v1", description = Some("Staging"))
+            Server(url = "https://staging.example.com/v1", description = Some(doc("Staging")))
           ),
           paths = Some(
             Paths(
               paths = Map(
-                "/users" -> PathItem(summary = Some("Users"), description = Some("User operations")),
-                "/posts" -> PathItem(summary = Some("Posts"))
+                "/users" -> PathItem(summary = Some(doc("Users")), description = Some(doc("User operations"))),
+                "/posts" -> PathItem(summary = Some(doc("Posts")))
               )
             )
           ),
@@ -855,7 +857,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           tags = List(
             Tag(
               name = "users",
-              description = Some("User operations"),
+              description = Some(doc("User operations")),
               externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com/users"))
             ),
             Tag(name = "posts")
@@ -863,7 +865,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           externalDocs = Some(
             ExternalDocumentation(
               url = "https://docs.example.com",
-              description = Some("Complete documentation")
+              description = Some(doc("Complete documentation"))
             )
           ),
           extensions = Map(
@@ -990,7 +992,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("extensions preserved on Response") {
         val original = Response(
-          description = "OK",
+          description = doc("OK"),
           extensions = Map("x-response-id" -> Json.String("resp-1"))
         )
         val dv     = Schema[Response].toDynamicValue(original)

@@ -1,9 +1,11 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.test._
 
 object ReferenceSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Reference")(
     suite("Reference object")(
       test("can be constructed with required $ref field only") {
@@ -18,14 +20,14 @@ object ReferenceSpec extends SchemaBaseSpec {
       test("can be constructed with all fields") {
         val ref = Reference(
           `$ref` = "#/components/schemas/User",
-          summary = Some("User reference"),
-          description = Some("Reference to the User schema")
+          summary = Some(doc("User reference")),
+          description = Some(doc("Reference to the User schema"))
         )
 
         assertTrue(
           ref.`$ref` == "#/components/schemas/User",
-          ref.summary.contains("User reference"),
-          ref.description.contains("Reference to the User schema")
+          ref.summary.contains(doc("User reference")),
+          ref.description.contains(doc("Reference to the User schema"))
         )
       },
       test("supports internal component references") {
@@ -50,8 +52,8 @@ object ReferenceSpec extends SchemaBaseSpec {
       test("Reference round-trips through DynamicValue") {
         val ref = Reference(
           `$ref` = "#/components/schemas/User",
-          summary = Some("User schema reference"),
-          description = Some("A reference to the User schema defined in components")
+          summary = Some(doc("User schema reference")),
+          description = Some(doc("A reference to the User schema defined in components"))
         )
 
         val dv     = Schema[Reference].toDynamicValue(ref)
@@ -60,8 +62,8 @@ object ReferenceSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.`$ref` == "#/components/schemas/User"),
-          result.exists(_.summary.contains("User schema reference")),
-          result.exists(_.description.contains("A reference to the User schema defined in components"))
+          result.exists(_.summary.contains(doc("User schema reference"))),
+          result.exists(_.description.contains(doc("A reference to the User schema defined in components")))
         )
       },
       test("Reference has NO extensions field per OpenAPI spec") {
@@ -129,7 +131,7 @@ object ReferenceSpec extends SchemaBaseSpec {
         val ref: ReferenceOr[String] = ReferenceOr.Ref(
           Reference(
             `$ref` = "#/components/schemas/User",
-            summary = Some("User reference")
+            summary = Some(doc("User reference"))
           )
         )
 
@@ -141,7 +143,7 @@ object ReferenceSpec extends SchemaBaseSpec {
           result.exists {
             case ReferenceOr.Ref(reference) =>
               reference.`$ref` == "#/components/schemas/User" &&
-              reference.summary.contains("User reference")
+              reference.summary.contains(doc("User reference"))
             case _ => false
           }
         )

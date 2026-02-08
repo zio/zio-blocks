@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object InfoContactLicenseSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Info, Contact, License")(
     suite("Contact")(
       test("can be constructed with all fields empty") {
@@ -233,13 +235,13 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         val info = Info(
           title = "My API",
           version = "1.0.0",
-          summary = Some("A brief summary")
+          summary = Some(doc("A brief summary"))
         )
 
         assertTrue(
           info.title == "My API",
           info.version == "1.0.0",
-          info.summary.contains("A brief summary"),
+          info.summary.contains(doc("A brief summary")),
           info.description.isEmpty
         )
       },
@@ -247,27 +249,27 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         val info = Info(
           title = "My API",
           version = "1.0.0",
-          description = Some("A longer, more detailed description of the API")
+          description = Some(doc("A longer, more detailed description of the API"))
         )
 
         assertTrue(
           info.title == "My API",
           info.version == "1.0.0",
           info.summary.isEmpty,
-          info.description.contains("A longer, more detailed description of the API")
+          info.description.contains(doc("A longer, more detailed description of the API"))
         )
       },
       test("can have both summary and description (separate fields)") {
         val info = Info(
           title = "My API",
           version = "1.0.0",
-          summary = Some("Brief summary"),
-          description = Some("Detailed description")
+          summary = Some(doc("Brief summary")),
+          description = Some(doc("Detailed description"))
         )
 
         assertTrue(
-          info.summary.contains("Brief summary"),
-          info.description.contains("Detailed description"),
+          info.summary.contains(doc("Brief summary")),
+          info.description.contains(doc("Detailed description")),
           info.summary != info.description
         )
       },
@@ -326,8 +328,8 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         val info = Info(
           title = "Comprehensive API",
           version = "2.1.0",
-          summary = Some("A comprehensive test API"),
-          description = Some("This API demonstrates all Info fields populated"),
+          summary = Some(doc("A comprehensive test API")),
+          description = Some(doc("This API demonstrates all Info fields populated")),
           termsOfService = Some("https://example.com/terms"),
           contact = Some(contact),
           license = Some(license),
@@ -340,8 +342,8 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         assertTrue(
           info.title == "Comprehensive API",
           info.version == "2.1.0",
-          info.summary.contains("A comprehensive test API"),
-          info.description.contains("This API demonstrates all Info fields populated"),
+          info.summary.contains(doc("A comprehensive test API")),
+          info.description.contains(doc("This API demonstrates all Info fields populated")),
           info.termsOfService.contains("https://example.com/terms"),
           info.contact.isDefined,
           info.license.isDefined,
@@ -394,8 +396,8 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         val info    = Info(
           title = "Full API",
           version = "2.0.0",
-          summary = Some("Summary"),
-          description = Some("Description"),
+          summary = Some(doc("Summary")),
+          description = Some(doc("Description")),
           termsOfService = Some("https://example.com/terms"),
           contact = Some(contact),
           license = Some(license),
@@ -409,8 +411,8 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           result.isRight,
           result.exists(_.title == "Full API"),
           result.exists(_.version == "2.0.0"),
-          result.exists(_.summary.contains("Summary")),
-          result.exists(_.description.contains("Description")),
+          result.exists(_.summary.contains(doc("Summary"))),
+          result.exists(_.description.contains(doc("Description"))),
           result.exists(_.termsOfService.contains("https://example.com/terms")),
           result.exists(_.contact.isDefined),
           result.exists(_.license.isDefined),

@@ -1,7 +1,10 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
+
+import DocSchema.docSchema
 
 /**
  * The root object of an OpenAPI 3.1 document.
@@ -67,8 +70,8 @@ object OpenAPI {
 final case class Info(
   title: String,
   version: String,
-  summary: Option[String] = None,
-  description: Option[String] = None,
+  summary: Option[Doc] = None,
+  description: Option[Doc] = None,
   termsOfService: Option[String] = None,
   contact: Option[Contact] = None,
   license: Option[License] = None,
@@ -145,7 +148,7 @@ object License {
  */
 final case class Server(
   url: String,
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   variables: Map[String, ServerVariable] = Map.empty,
   extensions: Map[String, Json] = Map.empty
 )
@@ -161,7 +164,7 @@ object Server {
 final case class ServerVariable(
   default: String,
   `enum`: List[String] = Nil,
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   extensions: Map[String, Json] = Map.empty
 )
 
@@ -187,7 +190,7 @@ object ServerVariable {
   def validated(
     default: String,
     `enum`: List[String] = Nil,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     extensions: Map[String, Json] = Map.empty
   ): Either[String, ServerVariable] =
     if (`enum`.nonEmpty && !`enum`.contains(default)) {
@@ -215,8 +218,8 @@ object Paths {
  * Describes the operations available on a single path.
  */
 final case class PathItem(
-  summary: Option[String] = None,
-  description: Option[String] = None,
+  summary: Option[Doc] = None,
+  description: Option[Doc] = None,
   extensions: Map[String, Json] = Map.empty
 )
 
@@ -261,7 +264,7 @@ object SecurityRequirement {
  */
 final case class Tag(
   name: String,
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   extensions: Map[String, Json] = Map.empty
 )
@@ -275,7 +278,7 @@ object Tag {
  */
 final case class ExternalDocumentation(
   url: String,
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   extensions: Map[String, Json] = Map.empty
 )
 
@@ -317,8 +320,8 @@ object ExternalDocumentation {
 final case class Operation(
   responses: Json,
   tags: List[String] = Nil,
-  summary: Option[String] = None,
-  description: Option[String] = None,
+  summary: Option[Doc] = None,
+  description: Option[Doc] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   operationId: Option[String] = None,
   parameters: List[Json] = Nil,
@@ -349,8 +352,8 @@ object Operation {
  */
 final case class Reference(
   `$ref`: String,
-  summary: Option[String] = None,
-  description: Option[String] = None
+  summary: Option[Doc] = None,
+  description: Option[Doc] = None
 )
 
 object Reference {
@@ -559,7 +562,7 @@ object ParameterLocation {
 final case class Parameter private (
   name: String,
   in: ParameterLocation,
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   required: Boolean = false,
   deprecated: Boolean = false,
   allowEmptyValue: Boolean = false,
@@ -589,7 +592,7 @@ object Parameter {
   def apply(
     name: String,
     in: ParameterLocation,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     required: Boolean = false,
     deprecated: Boolean = false,
     allowEmptyValue: Boolean = false,
@@ -667,7 +670,7 @@ object Parameter {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Header(
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   required: Boolean = false,
   deprecated: Boolean = false,
   allowEmptyValue: Boolean = false,
@@ -705,7 +708,7 @@ object Header {
  */
 final case class RequestBody(
   content: Map[String, MediaType],
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   required: Boolean = false,
   extensions: Map[String, Json] = Map.empty
 )
@@ -868,7 +871,7 @@ object Responses {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Response(
-  description: String,
+  description: Doc,
   headers: Map[String, ReferenceOr[Header]] = Map.empty,
   content: Map[String, MediaType] = Map.empty,
   links: Map[String, ReferenceOr[Link]] = Map.empty,
@@ -907,8 +910,8 @@ object Response {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Example private (
-  summary: Option[String] = None,
-  description: Option[String] = None,
+  summary: Option[Doc] = None,
+  description: Option[Doc] = None,
   value: Option[Json] = None,
   externalValue: Option[String] = None,
   extensions: Map[String, Json] = Map.empty
@@ -926,8 +929,8 @@ object Example {
    * Creates an Example with validation of mutual exclusivity constraints.
    */
   def apply(
-    summary: Option[String] = None,
-    description: Option[String] = None,
+    summary: Option[Doc] = None,
+    description: Option[Doc] = None,
     value: Option[Json] = None,
     externalValue: Option[String] = None,
     extensions: Map[String, Json] = Map.empty
@@ -986,7 +989,7 @@ final case class Link private (
   operationId: Option[String] = None,
   parameters: Map[String, Json] = Map.empty,
   requestBody: Option[Json] = None,
-  description: Option[String] = None,
+  description: Option[Doc] = None,
   server: Option[Server] = None,
   extensions: Map[String, Json] = Map.empty
 ) {
@@ -1007,7 +1010,7 @@ object Link {
     operationId: Option[String] = None,
     parameters: Map[String, Json] = Map.empty,
     requestBody: Option[Json] = None,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     server: Option[Server] = None,
     extensions: Map[String, Json] = Map.empty
   ): Link = {
@@ -1090,7 +1093,7 @@ object SecurityScheme {
   final case class APIKey(
     name: String,
     in: APIKeyLocation,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     extensions: Map[String, Json] = Map.empty
   ) extends SecurityScheme
 
@@ -1115,7 +1118,7 @@ object SecurityScheme {
   final case class HTTP(
     scheme: String,
     bearerFormat: Option[String] = None,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     extensions: Map[String, Json] = Map.empty
   ) extends SecurityScheme
 
@@ -1134,7 +1137,7 @@ object SecurityScheme {
    */
   final case class OAuth2(
     flows: OAuthFlows,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     extensions: Map[String, Json] = Map.empty
   ) extends SecurityScheme
 
@@ -1154,7 +1157,7 @@ object SecurityScheme {
    */
   final case class OpenIdConnect(
     openIdConnectUrl: String,
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     extensions: Map[String, Json] = Map.empty
   ) extends SecurityScheme
 
@@ -1169,7 +1172,7 @@ object SecurityScheme {
    *   properties beyond the standard OpenAPI fields.
    */
   final case class MutualTLS(
-    description: Option[String] = None,
+    description: Option[Doc] = None,
     extensions: Map[String, Json] = Map.empty
   ) extends SecurityScheme
 

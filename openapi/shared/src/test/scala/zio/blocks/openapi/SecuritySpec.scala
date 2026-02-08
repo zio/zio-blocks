@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object SecuritySpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Security Types")(
     suite("APIKeyLocation")(
       test("Query location can be constructed") {
@@ -58,14 +60,14 @@ object SecuritySpec extends SchemaBaseSpec {
         val apiKey     = SecurityScheme.APIKey(
           name = "X-API-Key",
           in = APIKeyLocation.Header,
-          description = Some("API key authentication"),
+          description = Some(doc("API key authentication")),
           extensions = extensions
         )
 
         assertTrue(
           apiKey.name == "X-API-Key",
           apiKey.in == APIKeyLocation.Header,
-          apiKey.description.contains("API key authentication"),
+          apiKey.description.contains(doc("API key authentication")),
           apiKey.extensions.size == 1
         )
       },
@@ -106,7 +108,7 @@ object SecuritySpec extends SchemaBaseSpec {
         val apiKey = SecurityScheme.APIKey(
           name = "api_key",
           in = APIKeyLocation.Header,
-          description = Some("Test key"),
+          description = Some(doc("Test key")),
           extensions = Map("x-test" -> Json.String("value"))
         )
 
@@ -119,7 +121,7 @@ object SecuritySpec extends SchemaBaseSpec {
             case SecurityScheme.APIKey(name, in, desc, ext) =>
               name == "api_key" &&
               in == APIKeyLocation.Header &&
-              desc.contains("Test key") &&
+              desc.contains(doc("Test key")) &&
               ext.nonEmpty
             case _ => false
           }
@@ -142,14 +144,14 @@ object SecuritySpec extends SchemaBaseSpec {
         val http       = SecurityScheme.HTTP(
           scheme = "bearer",
           bearerFormat = Some("JWT"),
-          description = Some("Bearer authentication using JWT"),
+          description = Some(doc("Bearer authentication using JWT")),
           extensions = extensions
         )
 
         assertTrue(
           http.scheme == "bearer",
           http.bearerFormat.contains("JWT"),
-          http.description.contains("Bearer authentication using JWT"),
+          http.description.contains(doc("Bearer authentication using JWT")),
           http.extensions.size == 1
         )
       },
@@ -183,7 +185,7 @@ object SecuritySpec extends SchemaBaseSpec {
         val http = SecurityScheme.HTTP(
           scheme = "bearer",
           bearerFormat = Some("JWT"),
-          description = Some("Test auth"),
+          description = Some(doc("Test auth")),
           extensions = Map("x-test" -> Json.Boolean(true))
         )
 
@@ -196,7 +198,7 @@ object SecuritySpec extends SchemaBaseSpec {
             case SecurityScheme.HTTP(scheme, bearerFormat, desc, ext) =>
               scheme == "bearer" &&
               bearerFormat.contains("JWT") &&
-              desc.contains("Test auth") &&
+              desc.contains(doc("Test auth")) &&
               ext.nonEmpty
             case _ => false
           }
@@ -507,13 +509,13 @@ object SecuritySpec extends SchemaBaseSpec {
 
         val oauth2 = SecurityScheme.OAuth2(
           flows = flows,
-          description = Some("OAuth2 authentication"),
+          description = Some(doc("OAuth2 authentication")),
           extensions = extensions
         )
 
         assertTrue(
           oauth2.flows.`implicit`.isDefined,
-          oauth2.description.contains("OAuth2 authentication"),
+          oauth2.description.contains(doc("OAuth2 authentication")),
           oauth2.extensions.size == 1
         )
       },
@@ -545,7 +547,7 @@ object SecuritySpec extends SchemaBaseSpec {
         )
         val oauth2 = SecurityScheme.OAuth2(
           flows = flows,
-          description = Some("Test OAuth2"),
+          description = Some(doc("Test OAuth2")),
           extensions = Map("x-test" -> Json.String("value"))
         )
 
@@ -557,7 +559,7 @@ object SecuritySpec extends SchemaBaseSpec {
           result.exists {
             case SecurityScheme.OAuth2(flows, desc, ext) =>
               flows.password.isDefined &&
-              desc.contains("Test OAuth2") &&
+              desc.contains(doc("Test OAuth2")) &&
               ext.nonEmpty
             case _ => false
           }
@@ -580,13 +582,13 @@ object SecuritySpec extends SchemaBaseSpec {
         val extensions = Map("x-custom" -> Json.String("value"))
         val oidc       = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
-          description = Some("OpenID Connect authentication"),
+          description = Some(doc("OpenID Connect authentication")),
           extensions = extensions
         )
 
         assertTrue(
           oidc.openIdConnectUrl == "https://example.com/.well-known/openid-configuration",
-          oidc.description.contains("OpenID Connect authentication"),
+          oidc.description.contains(doc("OpenID Connect authentication")),
           oidc.extensions.size == 1
         )
       },
@@ -609,7 +611,7 @@ object SecuritySpec extends SchemaBaseSpec {
       test("OpenIdConnect round-trips through DynamicValue") {
         val oidc = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
-          description = Some("Test OIDC"),
+          description = Some(doc("Test OIDC")),
           extensions = Map("x-test" -> Json.Boolean(true))
         )
 
@@ -621,7 +623,7 @@ object SecuritySpec extends SchemaBaseSpec {
           result.exists {
             case SecurityScheme.OpenIdConnect(url, desc, ext) =>
               url == "https://example.com/.well-known/openid-configuration" &&
-              desc.contains("Test OIDC") &&
+              desc.contains(doc("Test OIDC")) &&
               ext.nonEmpty
             case _ => false
           }
@@ -640,12 +642,12 @@ object SecuritySpec extends SchemaBaseSpec {
       test("can be constructed with all fields") {
         val extensions = Map("x-custom" -> Json.String("value"))
         val mtls       = SecurityScheme.MutualTLS(
-          description = Some("Mutual TLS authentication"),
+          description = Some(doc("Mutual TLS authentication")),
           extensions = extensions
         )
 
         assertTrue(
-          mtls.description.contains("Mutual TLS authentication"),
+          mtls.description.contains(doc("Mutual TLS authentication")),
           mtls.extensions.size == 1
         )
       },
@@ -664,7 +666,7 @@ object SecuritySpec extends SchemaBaseSpec {
       },
       test("MutualTLS round-trips through DynamicValue") {
         val mtls = SecurityScheme.MutualTLS(
-          description = Some("Test mTLS"),
+          description = Some(doc("Test mTLS")),
           extensions = Map("x-test" -> Json.Number(1))
         )
 
@@ -675,7 +677,7 @@ object SecuritySpec extends SchemaBaseSpec {
           result.isRight,
           result.exists {
             case SecurityScheme.MutualTLS(desc, ext) =>
-              desc.contains("Test mTLS") && ext.nonEmpty
+              desc.contains(doc("Test mTLS")) && ext.nonEmpty
             case _ => false
           }
         )

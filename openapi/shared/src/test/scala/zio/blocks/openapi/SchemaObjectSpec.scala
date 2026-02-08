@@ -1,11 +1,13 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonSchema, JsonSchemaType, SchemaType}
 import zio.blocks.chunk.ChunkMap
 import zio.test._
 
 object SchemaObjectSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("SchemaObject")(
     suite("construction")(
       test("can be created from JsonSchema via fromJsonSchema") {
@@ -36,7 +38,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         )
         val externalDocs = ExternalDocumentation(
           url = "https://example.com/docs/pet",
-          description = Some("Pet documentation")
+          description = Some(doc("Pet documentation"))
         )
         val example = Json.Object("name" -> Json.String("Fluffy"), "age" -> Json.Number(3))
 
@@ -256,7 +258,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
       test("externalDocs field stores documentation references") {
         val externalDocs = ExternalDocumentation(
           url = "https://example.com/api-docs",
-          description = Some("Full API documentation")
+          description = Some(doc("Full API documentation"))
         )
 
         val schemaObj = SchemaObject(
@@ -266,7 +268,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
 
         assertTrue(
           schemaObj.externalDocs.exists(_.url == "https://example.com/api-docs"),
-          schemaObj.externalDocs.exists(_.description.contains("Full API documentation"))
+          schemaObj.externalDocs.exists(_.description.contains(doc("Full API documentation")))
         )
       },
       test("example field stores deprecated example data") {
