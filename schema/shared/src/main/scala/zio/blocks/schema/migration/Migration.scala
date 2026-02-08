@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{ DynamicValue, Schema }
+import zio.blocks.schema.{DynamicValue, Schema}
 
 /**
  * A type-safe wrapper for `DynamicMigration` that guarantees compatibility
@@ -40,9 +40,9 @@ object Migration {
   def identity[A]: Migration[A, A] = Migration(DynamicMigration.Identity)
 
   /**
-   * Creates a migration that renames a field.
-   * Note: This is a "fragile" constructor because it doesn't verify fields at compile time
-   * without macros. Ideally we'd use a macro here to check selectors.
+   * Creates a migration that renames a field. Note: This is a "fragile"
+   * constructor because it doesn't verify fields at compile time without
+   * macros. Ideally we'd use a macro here to check selectors.
    */
   def renameField[A, B](oldName: String, newName: String): Migration[A, B] =
     Migration(DynamicMigration.RenameField(oldName, newName))

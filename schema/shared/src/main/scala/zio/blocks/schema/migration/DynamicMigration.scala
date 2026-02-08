@@ -7,8 +7,8 @@ import zio.blocks.schema.DynamicValue
  * A reified description of a schema migration.
  *
  * Unlike `Into` which is a function, `DynamicMigration` is a data structure
- * that describes *how* to transform one `DynamicValue` into another.
- * This allows for inspection, optimization, and serialization of migrations.
+ * that describes *how* to transform one `DynamicValue` into another. This
+ * allows for inspection, optimization, and serialization of migrations.
  */
 sealed trait DynamicMigration { self =>
 
@@ -97,8 +97,8 @@ object DynamicMigration {
   }
 
   /**
-   * Nests fields into a sub-record.
-   * Useful when moving `street`, `city` into `address`.
+   * Nests fields into a sub-record. Useful when moving `street`, `city` into
+   * `address`.
    */
   final case class Nest(fieldNames: Chunk[String], intoField: String) extends DynamicMigration {
     def migrate(value: DynamicValue): Either[String, DynamicValue] = value match {
@@ -111,8 +111,8 @@ object DynamicMigration {
   }
 
   /**
-   * Unnests a sub-record into the main record.
-   * Useful when moving `address.street` back to top-level `street`.
+   * Unnests a sub-record into the main record. Useful when moving
+   * `address.street` back to top-level `street`.
    */
   final case class Unnest(fieldName: String) extends DynamicMigration {
     def migrate(value: DynamicValue): Either[String, DynamicValue] = value match {
