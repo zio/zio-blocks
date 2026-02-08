@@ -33,6 +33,16 @@ object MigrationBuildValidationSpec extends SchemaBaseSpec {
   private def litInt(i: Int): MigrationExpr     = MigrationExpr.Literal(intDV(i))
   private def litStr(s: String): MigrationExpr  = MigrationExpr.Literal(stringDV(s))
 
+  case class PersonV2(fullName: String, age: Int)
+  object PersonV2 {
+    implicit val schema: Schema[PersonV2] = Schema.derived
+  }
+
+  case class PersonV3(name: String)
+  object PersonV3 {
+    implicit val schema: Schema[PersonV3] = Schema.derived
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("MigrationBuildValidationSpec")(
     validMigrationSuite,
     duplicateAddFieldSuite,
@@ -40,7 +50,8 @@ object MigrationBuildValidationSpec extends SchemaBaseSpec {
     multipleErrorsSuite,
     dropThenAddSuite,
     emptyBuilderSuite,
-    buildPartialBypassesSuite
+    buildPartialBypassesSuite,
+    fieldCoverageSuite
   )
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -303,6 +314,84 @@ object MigrationBuildValidationSpec extends SchemaBaseSpec {
         val migration = builder.buildPartial
         assertTrue(!migration.isEmpty)
       }
+    }
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Field coverage validation
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private val fieldCoverageSuite = suite("field coverage validation")(
+    test("missing AddField for new target field produces error") {
+      val result = MigrationBuilder
+        .create(PersonV0.schema, PersonV1.schema)
+        // PersonV1 has "email" that PersonV0 doesn't, but we don't add it
+        .build
+      assertTrue(result.isLeft) && {
+        val errors = result.swap.toOption.get
+        assertTrue(errors.exists {
+          case MigrationError.CustomError(_, reason) => reason.contains("email")
+          case _                                     => false
+        })
+      }
+    },
+    test("unhandled source field (not in target, no DropField) produces error") {
+      val result = MigrationBuilder
+        .create(PersonV1.schema, PersonV0.schema)
+        // PersonV1 has "email" that PersonV0 doesn't, but we don't drop it
+        .build
+      assertTrue(result.isLeft) && {
+        val errors = result.swap.toOption.get
+        assertTrue(errors.exists {
+          case MigrationError.CustomError(_, reason) => reason.contains("email")
+          case _                                     => false
+        })
+      }
+    },
+    test("rename covers both source and target fields") {
+      val result = MigrationBuilder
+        .create(PersonV0.schema, PersonV2.schema)
+        // PersonV0(name, age) -> PersonV2(fullName, age): rename covers "name" -> "fullName"
+        .renameField("name", "fullName")
+        .build
+      assertTrue(result.isRight)
+    },
+    test("complete migration with all differences addressed passes") {
+      val result = MigrationBuilder
+        .create(PersonV0.schema, PersonV1.schema)
+        .addField("email", litStr("default@example.com"))
+        .build
+      assertTrue(result.isRight)
+    },
+    test("drop covers source field not in target") {
+      val result = MigrationBuilder
+        .create(PersonV0.schema, PersonV3.schema)
+        // PersonV0(name, age) -> PersonV3(name): drop "age"
+        .dropField("age", litInt(0))
+        .build
+      assertTrue(result.isRight)
+    },
+    test("multiple coverage errors accumulated") {
+      // PersonV3(name) -> PersonV1(name, age, email): missing both "age" and "email"
+      val result = MigrationBuilder
+        .create(PersonV3.schema, PersonV1.schema)
+        .build
+      assertTrue(result.isLeft) && {
+        val errors = result.swap.toOption.get
+        assertTrue(errors.size == 2)
+      }
+    },
+    test("non-record schemas skip coverage validation") {
+      val result = MigrationBuilder
+        .create(Schema[Int], Schema[String])
+        .build
+      assertTrue(result.isRight)
+    },
+    test("same source and target schemas with no actions passes") {
+      val result = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .build
+      assertTrue(result.isRight)
     }
   )
 }

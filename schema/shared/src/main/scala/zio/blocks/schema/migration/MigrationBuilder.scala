@@ -217,18 +217,24 @@ final case class MigrationBuilder[A, B] private[migration] (
   /**
    * Build the migration with validation.
    *
-   * Validates the accumulated actions for structural consistency:
-   *   - Detects duplicate `AddField` actions at the same path and field name
-   *     (unless a `DropField` for that field occurs between them).
-   *   - Detects conflicting `Rename` actions that rename FROM the same source
-   *     field at the same path.
+   * Validates the accumulated actions for:
+   *   - '''Structural consistency''': Detects duplicate `AddField` actions and
+   *     conflicting `Rename` actions.
+   *   - '''Field coverage''': When both source and target schemas are record
+   *     types, verifies that all structural differences between them are
+   *     accounted for by the accumulated actions. Target fields not present in
+   *     the source must be covered by `AddField`, `Rename`, `Join`, or `Split`.
+   *     Source fields not present in the target must be covered by `DropField`,
+   *     `Rename`, `Join`, or `Split`.
    *
    * All validation errors are accumulated (never short-circuits on the first
    * error). Returns `Left` with all errors if any validation fails, or `Right`
    * with the constructed [[Migration]] on success.
    */
   def build: Either[Chunk[MigrationError], Migration[A, B]] = {
-    val errors = MigrationBuilder.validate(actions)
+    val structuralErrors = MigrationBuilder.validate(actions)
+    val coverageErrors   = MigrationBuilder.validateFieldCoverage(actions, sourceSchema, targetSchema)
+    val errors           = structuralErrors ++ coverageErrors
     if (errors.isEmpty) Right(buildPartial)
     else Left(errors)
   }
@@ -299,6 +305,111 @@ object MigrationBuilder {
         case _ => ()
       }
       idx += 1
+    }
+
+    errors.result()
+  }
+
+  /**
+   * Validate that all structural differences between source and target schemas
+   * are covered by the accumulated migration actions.
+   *
+   * This check only applies when both schemas are record types. For non-record
+   * schemas (enums, primitives, etc.), this method returns an empty `Chunk`.
+   *
+   * Only root-level actions (`at == DynamicOptic.root`) are considered for
+   * coverage, since nested paths target sub-structures.
+   */
+  private[migration] def validateFieldCoverage[A, B](
+    actions: Chunk[MigrationAction],
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): Chunk[MigrationError] = {
+    val sourceRecord = sourceSchema.reflect.asRecord
+    val targetRecord = targetSchema.reflect.asRecord
+    if (sourceRecord.isEmpty || targetRecord.isEmpty) return Chunk.empty
+
+    val sourceFields = {
+      val fs  = sourceRecord.get.fields
+      val set = new java.util.HashSet[String](fs.size)
+      var idx = 0
+      val len = fs.size
+      while (idx < len) { set.add(fs(idx).name); idx += 1 }
+      set
+    }
+    val targetFields = {
+      val fs  = targetRecord.get.fields
+      val set = new java.util.HashSet[String](fs.size)
+      var idx = 0
+      val len = fs.size
+      while (idx < len) { set.add(fs(idx).name); idx += 1 }
+      set
+    }
+
+    // Fields handled by actions at root level.
+    val handledTarget     = new java.util.HashSet[String]()
+    val handledSource     = new java.util.HashSet[String]()
+    val renamedFromSource = new java.util.HashSet[String]()
+
+    val root = DynamicOptic.root
+    val len  = actions.length
+    var idx  = 0
+    while (idx < len) {
+      actions(idx) match {
+        case MigrationAction.AddField(at, fieldName, _) if at == root =>
+          handledTarget.add(fieldName)
+
+        case MigrationAction.DropField(at, fieldName, _) if at == root =>
+          handledSource.add(fieldName)
+
+        case MigrationAction.Rename(at, fromName, toName) if at == root =>
+          handledSource.add(fromName)
+          handledTarget.add(toName)
+          if (sourceFields.contains(fromName)) renamedFromSource.add(fromName)
+
+        case MigrationAction.Join(at, srcFields, tgtField, _, _) if at == root =>
+          val srcLen = srcFields.length
+          var srcIdx = 0
+          while (srcIdx < srcLen) { handledSource.add(srcFields(srcIdx)); srcIdx += 1 }
+          handledTarget.add(tgtField)
+
+        case MigrationAction.Split(at, srcField, tgtExprs, _) if at == root =>
+          handledSource.add(srcField)
+          val tgtLen = tgtExprs.length
+          var tgtIdx = 0
+          while (tgtIdx < tgtLen) { handledTarget.add(tgtExprs(tgtIdx)._1); tgtIdx += 1 }
+
+        case _ => ()
+      }
+      idx += 1
+    }
+
+    val errors = ChunkBuilder.make[MigrationError]()
+
+    // Check target fields: every target field must be auto-mapped or handled.
+    val tgtIter = targetFields.iterator()
+    while (tgtIter.hasNext) {
+      val field      = tgtIter.next()
+      val autoMapped = sourceFields.contains(field) && !renamedFromSource.contains(field)
+      if (!autoMapped && !handledTarget.contains(field)) {
+        errors += MigrationError.CustomError(
+          root,
+          "Target field '" + field + "' is not covered by any migration action (needs AddField, Rename, Join, or Split)"
+        )
+      }
+    }
+
+    // Check source fields: every source field must be auto-mapped or handled.
+    val srcIter = sourceFields.iterator()
+    while (srcIter.hasNext) {
+      val field      = srcIter.next()
+      val autoMapped = targetFields.contains(field)
+      if (!autoMapped && !handledSource.contains(field)) {
+        errors += MigrationError.CustomError(
+          root,
+          "Source field '" + field + "' is not handled by any migration action (needs DropField, Rename, Join, or Split)"
+        )
+      }
     }
 
     errors.result()
