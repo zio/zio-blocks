@@ -1,8 +1,14 @@
 package zio.blocks.schema.migration.macros
 
+import zio.blocks.schema.Schema
 import zio.blocks.schema.migration.{DynamicMigration, Migration}
 
 object MacroMigration {
-  def derive[A, B](dynamic: DynamicMigration): Migration[A, B] =
-    Migration.manual(dynamic)
+  // format: off
+  def derive[A, B](dynamic: DynamicMigration)(implicit
+    schemaA: Schema[A],
+    schemaB: Schema[B]
+  ): Migration[A, B] =
+    Migration.manual[A, B](dynamic)
+  // format: on
 }

@@ -39,28 +39,24 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   var personV1: PersonV1 = null.asInstanceOf[PersonV1]
   var userV1: UserV1     = null.asInstanceOf[UserV1]
 
-  var renameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
-  var addFieldMigration: Migration[UserV1, UserV2]   = null.asInstanceOf[Migration[UserV1, UserV2]]
-
-  // var macroRenameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
-  // var macroAddFieldMigration: Migration[UserV1, UserV2]  = null.asInstanceOf[Migration[UserV1, UserV2]]
+  var renameMigration: Migration[PersonV1, PersonV2]  = null.asInstanceOf[Migration[PersonV1, PersonV2]]
+  var addFieldMigration: Migration[UserV1, UserV2]    = null.asInstanceOf[Migration[UserV1, UserV2]]
+  var builderMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
 
   @Setup
   def setup(): Unit = {
     personV1 = PersonV1("Alice", 30)
     userV1 = UserV1(1)
 
-    // Interpreted
+    // Using convenience constructors
     renameMigration = Migration.renameField[PersonV1, PersonV2]("name", "fullName")
     addFieldMigration = Migration.addField[UserV1, UserV2]("active", DynamicValue.boolean(true))
 
-    // Macro Derived (Disabled for CI cross-build compatibility)
-    /*
-    import zio.blocks.schema.migration.macros.MacroMigration
-
-    macroRenameMigration = MacroMigration.derive[PersonV1, PersonV2](DynamicMigration.RenameField("name", "fullName"))
-    macroAddFieldMigration = MacroMigration.derive[UserV1, UserV2](DynamicMigration.AddClassField("active", DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true))))
-     */
+    // Using builder API
+    builderMigration = Migration
+      .newBuilder[PersonV1, PersonV2]
+      .renameField("name", "fullName")
+      .build
   }
 
   @Benchmark
@@ -68,26 +64,24 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     PersonV2(personV1.name, personV1.age)
 
   @Benchmark
-  def interpretedRename(): Either[String, PersonV2] =
+  def interpretedRename(): Either[MigrationError, PersonV2] =
     renameMigration.migrate(personV1)
 
-  /*
   @Benchmark
-  def macroRename(): Either[String, PersonV2] =
-    macroRenameMigration.migrate(personV1)
-   */
+  def builderRename(): Either[MigrationError, PersonV2] =
+    builderMigration.migrate(personV1)
 
   @Benchmark
   def manualAddField(): UserV2 =
     UserV2(userV1.id, true)
 
   @Benchmark
-  def interpretedAddField(): Either[String, UserV2] =
+  def interpretedAddField(): Either[MigrationError, UserV2] =
     addFieldMigration.migrate(userV1)
 
-  /*
   @Benchmark
-  def macroAddField(): Either[String, UserV2] =
-    macroAddFieldMigration.migrate(userV1)
-   */
+  def dynamicMigrationRename(): Either[MigrationError, DynamicValue] = {
+    val dynV1 = PersonV1.schema.toDynamicValue(personV1)
+    DynamicMigration.renameField("name", "fullName").migrate(dynV1)
+  }
 }
