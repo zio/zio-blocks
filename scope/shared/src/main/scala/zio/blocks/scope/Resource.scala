@@ -14,20 +14,13 @@ import zio.blocks.scope.internal.ProxyFinalizer
  * Resources are lazy—they describe ''what'' to do, not ''when''. Creation only
  * happens when passed to a scope via `scope.allocate(resource)`.
  *
- * ==Resource Types==
- *
- *   - [[Resource.Shared]]: Memoized within a single Wire graph (default from
- *     Wire)
- *   - [[Resource.Unique]]: Fresh instance each time (default from direct
- *     creation)
- *
  * ==Creating Resources==
  *
  *   - `Resource(=> a)`: By-name value; auto-registers `close()` if
  *     `AutoCloseable`
  *   - `Resource.acquireRelease(acquire)(release)`: Explicit acquire/release
  *   - `Resource.fromAutoCloseable(=> a)`: For `AutoCloseable` subtypes
- *   - `Resource.from[T]` macro (Scala 3): Derives from constructor
+ *   - `Resource.from[T]` macro: Derives from constructor
  *
  * @example
  *   {{{
@@ -75,11 +68,8 @@ object Resource extends ResourceCompanionVersionSpecific {
    * the count. When the count reaches zero, collected finalizers run.
    *
    * This is thread-safe and lock-free using AtomicReference with CAS.
-   *
-   * @tparam A
-   *   the type of value this shared resource produces
    */
-  final class Shared[A] private[scope] (
+  private[scope] final class Shared[A] private[scope] (
     private[scope] val makeFn: Finalizer => A
   ) extends Resource[A] {
     import Resource.SharedState._
@@ -193,11 +183,8 @@ object Resource extends ResourceCompanionVersionSpecific {
    *
    * Each call to `scope.allocate` with a unique resource produces a fresh
    * value. Use for resources that should not be shared, like per-request state.
-   *
-   * @tparam A
-   *   the type of value this unique resource produces
    */
-  final class Unique[+A] private[scope] (
+  private[scope] final class Unique[+A] private[scope] (
     private[scope] val makeFn: Finalizer => A
   ) extends Resource[A] {
     private[scope] def make(finalizer: Finalizer): A = makeFn(finalizer)
@@ -293,32 +280,12 @@ object Resource extends ResourceCompanionVersionSpecific {
   })
 
   /**
-   * Creates a shared resource from a function.
-   *
-   * Used internally by [[Wire.toResource]] to create memoized resources. Prefer
-   * `Resource.apply` or `Resource.acquireRelease` for direct use.
-   *
-   * @param f
-   *   a function from finalizer to value
-   * @tparam A
-   *   the value type
-   * @return
-   *   a shared resource
+   * Creates a shared resource from a function (internal use).
    */
-  def shared[A](f: Finalizer => A): Resource.Shared[A] = new Shared(f)
+  private[scope] def shared[A](f: Finalizer => A): Resource[A] = new Shared(f)
 
   /**
-   * Creates a unique resource from a function.
-   *
-   * Used internally when converting [[Wire.Unique]] to resources. Prefer
-   * `Resource.apply` or `Resource.acquireRelease` for direct use.
-   *
-   * @param f
-   *   a function from finalizer to value
-   * @tparam A
-   *   the value type
-   * @return
-   *   a unique resource
+   * Creates a unique resource from a function (internal use).
    */
-  def unique[A](f: Finalizer => A): Resource.Unique[A] = new Unique(f)
+  private[scope] def unique[A](f: Finalizer => A): Resource[A] = new Unique(f)
 }

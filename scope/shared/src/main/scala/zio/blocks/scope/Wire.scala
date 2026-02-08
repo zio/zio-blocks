@@ -164,12 +164,10 @@ object Wire extends WireCompanionVersionSpecific {
      * @param deps
      *   Context containing all required dependencies
      * @return
-     *   a shared Resource that creates Out values with memoization
+     *   a Resource that creates Out values with memoization
      */
-    def toResource(deps: Context[In]): Resource[Out] = {
-      val self = this
-      new Resource.Shared[Out](finalizer => self.makeFn(finalizer, deps))
-    }
+    def toResource(deps: Context[In]): Resource[Out] =
+      Resource.shared[Out](finalizer => this.makeFn(finalizer, deps))
   }
 
   /**
@@ -235,12 +233,10 @@ object Wire extends WireCompanionVersionSpecific {
      * @param deps
      *   Context containing all required dependencies
      * @return
-     *   a unique Resource that creates fresh Out values on each use
+     *   a Resource that creates fresh Out values on each use
      */
-    def toResource(deps: Context[In]): Resource[Out] = {
-      val self = this
-      new Resource.Unique[Out](finalizer => self.makeFn(finalizer, deps))
-    }
+    def toResource(deps: Context[In]): Resource[Out] =
+      Resource.unique[Out](finalizer => this.makeFn(finalizer, deps))
   }
 
   /**
