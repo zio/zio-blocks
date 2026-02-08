@@ -117,29 +117,26 @@ object ScopeScala2Spec extends ZIOSpecDefault {
         assertTrue(order.toList == List("child", "parent"))
       }
     ),
-    // NOTE: In Scala 2, `map` on `A @@ S` returns `B @@ S` directly (not Scoped[S, B]).
-    // This differs from Scala 3 where map returns a Scoped computation.
-    suite("scoped value map")(
-      test("map transforms scoped value directly") {
+    suite("Scoped monad")(
+      test("map creates Scoped computation") {
         Scope.global.scoped { implicit scope =>
           val db = scope.allocate(Resource.from[Database])
 
-          // In Scala 2, map returns B @@ S directly
-          val queryResult = db.map(_.query("mapped"))
+          val computation = db.map(_.query("mapped"))
 
-          // Use $ to extract the result
-          val result = scope.$(queryResult)(identity)
+          // Execute via scope.apply
+          val result = scope(computation)
           assertTrue(result == "result: mapped")
         }
       },
-      test("map composition chains correctly") {
+      test("map and Scoped.map composition") {
         Scope.global.scoped { implicit scope =>
           val db = scope.allocate(Resource.from[Database])
 
-          // Chain map calls - each returns a scoped value
-          val mapped = db.map(_.query("a")).map(s => s.toUpperCase)
+          // Chain using Scoped.map
+          val computation = db.map(_.query("a")).map(s => s.toUpperCase)
 
-          val result = scope.$(mapped)(identity)
+          val result = scope(computation)
           assertTrue(result == "RESULT: A")
         }
       }

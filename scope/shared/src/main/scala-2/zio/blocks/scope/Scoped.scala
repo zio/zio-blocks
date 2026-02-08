@@ -115,28 +115,28 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
   def get(implicit u: ScopeEscape[A, S]): u.Out = macro ScopedMacros.getImpl[A, S]
 
   /**
-   * Maps over a scoped value, preserving the scope tag.
+   * Maps over a scoped value, returning a Scoped computation.
    *
-   * The function `f` is applied to the underlying value, and the result is
-   * wrapped with the same scope tag. This does not require the scope to be in
-   * context.
+   * The function `f` is applied to the underlying value when the Scoped
+   * computation is executed by a matching scope. This builds a description of
+   * work, not immediate execution.
    *
    * @param f
    *   the function to apply to the underlying value
    * @tparam B
    *   the result type of the function
    * @return
-   *   the result wrapped with the same scope tag
+   *   a Scoped computation that will apply f when executed
    */
-  def map[B](f: A => B): B @@ S =
-    @@.scoped(f(@@.unscoped(scoped)))
+  def map[B](f: A => B): Scoped[S, B] =
+    Scoped.create(() => f(@@.unscoped(scoped)))
 
   /**
    * FlatMaps over a scoped value, combining scope tags via intersection.
    *
-   * Enables for-comprehension syntax with scoped values. The resulting value is
-   * tagged with the intersection of both scope tags (`S with T`), ensuring it
-   * can only be used where both scopes are available.
+   * Enables for-comprehension syntax with scoped values. The resulting Scoped
+   * computation is tagged with the intersection of both scope tags, ensuring
+   * it can only be executed where both scopes are available.
    *
    * @param f
    *   function returning a scoped result
@@ -145,10 +145,10 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    * @tparam T
    *   the scope tag of the returned value
    * @return
-   *   the result with combined scope tag `S with T`
+   *   a Scoped computation with combined scope tag `S with T`
    */
-  def flatMap[B, T](f: A => B @@ T): B @@ (S with T) =
-    @@.scoped(@@.unscoped(f(@@.unscoped(scoped))))
+  def flatMap[B, T](f: A => B @@ T): Scoped[S with T, B] =
+    Scoped.create(() => @@.unscoped(f(@@.unscoped(scoped))))
 
   /**
    * Extracts the first element of a scoped tuple.

@@ -12,7 +12,7 @@ private[scope] trait WireableVersionSpecific {
    *   - Regular parameters: become dependencies (part of `In` type)
    *   - `Scope.Has[Y]` parameters: Y becomes a dependency, scope is passed
    *     narrowed
-   *   - `Scope.Any` parameters: scope is passed but no dependency added
+   *   - `Finalizer` parameters: finalizer is passed but no dependency added
    *
    * The `In` type is the intersection of all dependencies.
    *
@@ -21,7 +21,7 @@ private[scope] trait WireableVersionSpecific {
    *
    * @example
    *   {{{
-   *   class Service(db: Database, cache: Cache)(using Scope.Any)
+   *   class Service(db: Database, cache: Cache)(using Finalizer)
    *
    *   val wireable = Wireable.from[Service]
    *   // wireable.wire has type Wire[Database & Cache, Service]

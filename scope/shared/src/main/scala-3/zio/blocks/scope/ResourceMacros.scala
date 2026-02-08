@@ -37,10 +37,10 @@ private[scope] object ResourceMacros {
       paramType <:< TypeRepr.of[Scope[?, ?]]
     }
 
-    // Collect dependencies (non-Scope regular params)
+    // Collect dependencies (non-Finalizer regular params)
     val depTypes: List[TypeRepr] = allRegularParams.flatMap { param =>
       val paramType = tpe.memberType(param).dealias.simplified
-      if (MacroCore.isScopeType(paramType)) None
+      if (MacroCore.isFinalizerType(paramType)) None
       else Some(paramType)
     }
 

@@ -381,6 +381,36 @@ Scope.global.scoped { scope =>
 
 ---
 
+### Classes with `Finalizer` parameters
+
+If your class needs to register cleanup logic, accept a `Finalizer` parameter (not `Scope`). The wire and resource macros automatically inject the `Finalizer` when constructing such classes.
+
+```scala
+import zio.blocks.scope._
+
+class ConnectionPool(config: Config)(implicit finalizer: Finalizer) {
+  private val pool = createPool(config)
+  finalizer.defer { pool.shutdown() }
+  
+  def getConnection(): Connection = pool.acquire()
+}
+
+// The macro sees the implicit Finalizer and injects it automatically:
+val resource = Resource.from[ConnectionPool](Wire(Config("jdbc://localhost")))
+
+Scope.global.scoped { scope =>
+  val pool = scope.allocate(resource)
+  // pool.shutdown() will be called when scope closes
+}
+```
+
+Why `Finalizer` instead of `Scope`?
+- `Finalizer` is the minimal interface—it only has `defer`
+- Classes that need cleanup should not have access to `allocate` or `$`
+- The macros pass a `Finalizer` at runtime, so declaring `Scope` would be misleading
+
+---
+
 ### Dependency injection with `Wire` + `Context`
 
 ```scala

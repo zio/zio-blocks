@@ -20,11 +20,6 @@ object ScopeScala3Spec extends ZIOSpecDefault {
     def close(): Unit   = closed = true
   }
 
-  class ResourceWithScope()(using scope: Scope[?, ?]) {
-    var cleanedUp = false
-    scope.defer { cleanedUp = true }
-  }
-
   def spec = suite("Scope (Scala 3)")(
     suite("global scope")(
       test("global scope defer works") {
