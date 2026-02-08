@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object ParameterSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Parameter and Header")(
     suite("ParameterLocation")(
       test("Query location exists") {
@@ -72,7 +74,7 @@ object ParameterSpec extends SchemaBaseSpec {
         val param = Parameter(
           name = "limit",
           in = ParameterLocation.Query,
-          description = Some("Maximum number of results"),
+          description = Some(doc("Maximum number of results")),
           required = true,
           deprecated = true,
           allowEmptyValue = true,
@@ -89,7 +91,7 @@ object ParameterSpec extends SchemaBaseSpec {
         assertTrue(
           param.name == "limit",
           param.in == ParameterLocation.Query,
-          param.description.contains("Maximum number of results"),
+          param.description.contains(doc("Maximum number of results")),
           param.required,
           param.deprecated,
           param.allowEmptyValue,
@@ -197,7 +199,7 @@ object ParameterSpec extends SchemaBaseSpec {
         val param = Parameter(
           name = "limit",
           in = ParameterLocation.Query,
-          description = Some("Max results"),
+          description = Some(doc("Max results")),
           required = true,
           deprecated = false,
           allowEmptyValue = true,
@@ -218,7 +220,7 @@ object ParameterSpec extends SchemaBaseSpec {
           result.isRight,
           result.exists(_.name == "limit"),
           result.exists(_.in == ParameterLocation.Query),
-          result.exists(_.description.contains("Max results")),
+          result.exists(_.description.contains(doc("Max results"))),
           result.exists(_.required),
           result.exists(!_.deprecated),
           result.exists(_.allowEmptyValue),
@@ -249,7 +251,7 @@ object ParameterSpec extends SchemaBaseSpec {
         val param = Parameter(
           name = "sessionToken",
           in = ParameterLocation.Cookie,
-          description = Some("Session authentication token"),
+          description = Some(doc("Session authentication token")),
           required = true
         )
 
@@ -287,7 +289,7 @@ object ParameterSpec extends SchemaBaseSpec {
         val extensions = Map("x-custom" -> Json.String("value"))
 
         val header = Header(
-          description = Some("Authentication header"),
+          description = Some(doc("Authentication header")),
           required = true,
           deprecated = true,
           allowEmptyValue = false,
@@ -302,7 +304,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
 
         assertTrue(
-          header.description.contains("Authentication header"),
+          header.description.contains(doc("Authentication header")),
           header.required,
           header.deprecated,
           !header.allowEmptyValue,
@@ -318,12 +320,12 @@ object ParameterSpec extends SchemaBaseSpec {
       },
       test("header can have required=false (no path constraint)") {
         val header = Header(
-          description = Some("Optional header"),
+          description = Some(doc("Optional header")),
           required = false
         )
 
         assertTrue(
-          header.description.contains("Optional header"),
+          header.description.contains(doc("Optional header")),
           !header.required
         )
       },
@@ -348,7 +350,7 @@ object ParameterSpec extends SchemaBaseSpec {
       },
       test("Header round-trips through DynamicValue") {
         val header = Header(
-          description = Some("API Key"),
+          description = Some(doc("API Key")),
           required = true,
           deprecated = false,
           allowEmptyValue = false,
@@ -367,7 +369,7 @@ object ParameterSpec extends SchemaBaseSpec {
 
         assertTrue(
           result.isRight,
-          result.exists(_.description.contains("API Key")),
+          result.exists(_.description.contains(doc("API Key"))),
           result.exists(_.required),
           result.exists(!_.deprecated),
           result.exists(!_.allowEmptyValue),
