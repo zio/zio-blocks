@@ -51,15 +51,18 @@ final case class OpenAPI(
 )
 
 object OpenAPI {
+  import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
+
   implicit val schema: Schema[OpenAPI] = Schema.derived
+
+  implicit val jsonCodec: JsonBinaryCodec[OpenAPI] =
+    schema.derive(JsonBinaryCodecDeriver)
 }
 
 /**
  * The object provides metadata about the API. The metadata MAY be used by the
  * clients if needed, and MAY be presented in editing or documentation
  * generation tools for convenience.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class Info(
   title: String,
@@ -78,8 +81,6 @@ object Info {
 
 /**
  * Contact information for the exposed API.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class Contact(
   name: Option[String] = None,
@@ -141,8 +142,6 @@ object License {
 
 /**
  * An object representing a Server.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class Server(
   url: String,
@@ -158,8 +157,6 @@ object Server {
 /**
  * An object representing a Server Variable for server URL template
  * substitution.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class ServerVariable(
   default: String,
@@ -204,8 +201,6 @@ object ServerVariable {
 
 /**
  * Holds the relative paths to the individual endpoints and their operations.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class Paths(
   paths: Map[String, PathItem] = Map.empty,
@@ -218,8 +213,6 @@ object Paths {
 
 /**
  * Describes the operations available on a single path.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class PathItem(
   summary: Option[String] = None,
@@ -233,8 +226,6 @@ object PathItem {
 
 /**
  * Holds a set of reusable objects for different aspects of the OAS.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class Components(
   schemas: Map[String, Json] = Map.empty,
@@ -256,8 +247,6 @@ object Components {
 
 /**
  * Lists the required security schemes to execute this operation.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class SecurityRequirement(
   requirements: Map[String, List[String]]
@@ -269,8 +258,6 @@ object SecurityRequirement {
 
 /**
  * Adds metadata to a single tag that is used by the Operation Object.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class Tag(
   name: String,
@@ -285,8 +272,6 @@ object Tag {
 
 /**
  * Allows referencing an external resource for extended documentation.
- *
- * This is a stub placeholder - will be fully implemented in a later task.
  */
 final case class ExternalDocumentation(
   url: String,
@@ -403,31 +388,6 @@ object ReferenceOr {
 }
 
 /**
- * When request bodies or response payloads may be one of a number of different
- * schemas, a discriminator object can be used to aid in serialization,
- * deserialization, and validation.
- *
- * The discriminator is a specific object in a schema which is used to inform
- * the consumer of the document of an alternative schema based on the value
- * associated with it.
- *
- * @param propertyName
- *   REQUIRED. The name of the property in the payload that will hold the
- *   discriminator value.
- * @param mapping
- *   An object to hold mappings between payload values and schema names or
- *   references.
- */
-final case class OpenAPIDiscriminator(
-  propertyName: String,
-  mapping: Map[String, String] = Map.empty
-)
-
-object OpenAPIDiscriminator {
-  implicit val schema: Schema[OpenAPIDiscriminator] = Schema.derived
-}
-
-/**
  * A metadata object that allows for more fine-tuned XML model definitions.
  *
  * When using arrays, XML element names are not inferred (for singular/plural
@@ -501,7 +461,7 @@ object XML {
  */
 final case class SchemaObject(
   jsonSchema: Json,
-  discriminator: Option[OpenAPIDiscriminator] = None,
+  discriminator: Option[Discriminator] = None,
   xml: Option[XML] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   example: Option[Json] = None,
