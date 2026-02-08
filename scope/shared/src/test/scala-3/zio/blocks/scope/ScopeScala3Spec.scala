@@ -31,13 +31,6 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var ran = false
         Scope.global.defer { ran = true }
         assertTrue(!ran) // deferred, not run yet
-      },
-      test("global scope escapes all results as raw values") {
-        Scope.global.scoped { scope =>
-          val str         = scope.allocate(Resource("test"))
-          val raw: String = scope.$(str)(identity)
-          assertTrue(raw == "test")
-        }
       }
     ),
     suite("scope.scoped")(
@@ -63,7 +56,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         assertTrue(cleaned)
       }
     ),
-    suite("scope.allocate and Resource")(
+    suite("Resource.from macro")(
       test("Resource.from[T] macro derives from no-arg constructor") {
         val resource       = Resource.from[Database]
         val (scope, close) = Scope.createTestableScope()
@@ -101,15 +94,6 @@ object ScopeScala3Spec extends ZIOSpecDefault {
           val result = scope.$(db)(_.query("test"))
           assertTrue(result == "result: test")
         }
-      },
-      test("unscoped types escape as raw values") {
-        Scope.global.scoped { parent =>
-          parent.scoped { child =>
-            val str            = child.allocate(Resource("hello"))
-            val result: String = child.$(str)(_.toUpperCase)
-            assertTrue(result == "HELLO")
-          }
-        }
       }
     ),
     suite("nested scopes")(
@@ -136,19 +120,6 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         }
 
         assertTrue(order.toList == List("child", "parent"))
-      },
-      test("runtime cast is unsafe with sibling scopes (demonstration)") {
-        Scope.global.scoped { parent =>
-          var leaked: Any = null
-          parent.scoped { child1 =>
-            leaked = child1.allocate(Resource.from[Database])
-          }
-          parent.scoped { child2 =>
-            val db = leaked.asInstanceOf[Database @@ child2.Tag]
-            val r  = child2.$(db)(_.query("test"))
-            assertTrue(r == "result: test")
-          }
-        }
       }
     ),
     suite("Scoped monad")(
@@ -253,96 +224,19 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         assertTrue(finalized)
       }
     ),
-
-    suite("Wire")(
-      test("shared[T] returns Wire.Shared") {
-        val wire = shared[Config]
-        assertTrue(wire.isShared && !wire.isUnique)
-      },
-      test("unique[T] returns Wire.Unique") {
-        val wire = unique[Config]
-        assertTrue(wire.isUnique && !wire.isShared)
-      },
-      test("wire.toResource creates Resource") {
-        // Config has a Boolean constructor param, so the wire needs Boolean dependency
-        val wire = shared[Config]
-        val deps = zio.blocks.context.Context[Boolean](true)
-
-        val resource       = wire.toResource(deps)
-        val (scope, close) = Scope.createTestableScope()
-        val result         = resource.make(scope)
-        close()
-        assertTrue(result.debug)
-      }
-    ),
-    suite("Wireable.from with overrides")(
-      test("Wireable.from[T](wires) reduces In type by covered dependencies") {
-        // Service depends on Config and Database, provide Config wire
-        class Service(config: Config, db: Database)
-
-        val configWire = Wire(Config(true))
-        val wireable   = Wireable.from[Service](configWire)
-
-        // The remaining In type should be Database
-        val deps           = zio.blocks.context.Context[Database](new Database)
-        val (scope, close) = Scope.createTestableScope()
-        val resource       = wireable.wire.toResource(deps)
-        val service        = resource.make(scope)
-        close()
-        assertTrue(service.isInstanceOf[Service])
-      },
-      test("Wireable.from[T](wires) with all dependencies covered has In = Any") {
-        class SimpleService(config: Config)
-
-        val configWire = Wire(Config(true))
-        val wireable   = Wireable.from[SimpleService](configWire)
-
-        // All deps covered, so we can use empty Context (Any)
-        val deps           = zio.blocks.context.Context.empty
-        val (scope, close) = Scope.createTestableScope()
-        val resource       = wireable.wire.toResource(deps)
-        val service        = resource.make(scope)
-        close()
-        assertTrue(service.isInstanceOf[SimpleService])
-      }
-    ),
-    suite("Resource.from with overrides")(
-      test("Resource.from[T](wires) creates standalone Resource when all deps covered") {
-        class SimpleService(config: Config)
-
-        val configWire     = Wire(Config(true))
-        val resource       = Resource.from[SimpleService](configWire)
-        val (scope, close) = Scope.createTestableScope()
-        val service        = resource.make(scope)
-        close()
-        assertTrue(service.isInstanceOf[SimpleService])
-      },
-      test("Resource.from[T](wires) with AutoCloseable registers finalizer") {
-        class CloseableService(config: Config) extends AutoCloseable {
-          var closed        = false
-          def close(): Unit = closed = true
+    suite("edge cases")(
+      test("runtime cast is unsafe with sibling scopes (demonstration)") {
+        Scope.global.scoped { parent =>
+          var leaked: Any = null
+          parent.scoped { child1 =>
+            leaked = child1.allocate(Resource.from[Database])
+          }
+          parent.scoped { child2 =>
+            val db = leaked.asInstanceOf[Database @@ child2.Tag]
+            val r  = child2.$(db)(_.query("test"))
+            assertTrue(r == "result: test")
+          }
         }
-
-        val configWire     = Wire(Config(true))
-        val resource       = Resource.from[CloseableService](configWire)
-        val (scope, close) = Scope.createTestableScope()
-        val service        = resource.make(scope)
-        assertTrue(!service.closed)
-        close()
-        assertTrue(service.closed)
-      },
-      test("Resource.from[T](wires) with multiple dependencies") {
-        case class Port(value: Int)
-        class MultiDepService(config: Config, db: Database, port: Port)
-
-        val configWire     = Wire(Config(false))
-        val dbWire         = shared[Database]
-        val portWire       = Wire(Port(8080))
-        val resource       = Resource.from[MultiDepService](configWire, dbWire, portWire)
-        val (scope, close) = Scope.createTestableScope()
-        val service        = resource.make(scope)
-        close()
-        assertTrue(service.isInstanceOf[MultiDepService])
       }
     )
   )

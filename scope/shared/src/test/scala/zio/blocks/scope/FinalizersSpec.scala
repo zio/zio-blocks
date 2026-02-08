@@ -54,25 +54,6 @@ object FinalizersSpec extends ZIOSpecDefault {
       finalizers.runAll()
       assertTrue(count == 1)
     },
-    test("testable scope closeOrThrow throws first exception") {
-      val (scope, close) = Scope.createTestableScope()
-      scope.defer(throw new RuntimeException("boom"))
-
-      val threw = try {
-        close()
-        false
-      } catch {
-        case e: RuntimeException => e.getMessage == "boom"
-      }
-      assertTrue(threw)
-    },
-    test("testable scope closeOrThrow does not throw on success and runs finalizers") {
-      val (scope, close) = Scope.createTestableScope()
-      var cleaned        = false
-      scope.defer { cleaned = true }
-      close()
-      assertTrue(cleaned)
-    },
     test("all finalizers run even if one throws") {
       val order      = mutable.Buffer[Int]()
       val finalizers = new Finalizers

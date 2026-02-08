@@ -33,13 +33,32 @@ object ScopeSpec extends ZIOSpecDefault {
         }
         assertTrue(result)
       },
-      test("closeGlobal runs finalizers") {
+      test("testable scope runs multiple finalizers") {
         val (scope, close) = Scope.createTestableScope()
         var counter        = 0
         scope.defer(counter += 1)
         scope.defer(counter += 10)
         close()
         assertTrue(counter == 11)
+      },
+      test("testable scope closeOrThrow throws first exception") {
+        val (scope, close) = Scope.createTestableScope()
+        scope.defer(throw new RuntimeException("boom"))
+
+        val threw = try {
+          close()
+          false
+        } catch {
+          case e: RuntimeException => e.getMessage == "boom"
+        }
+        assertTrue(threw)
+      },
+      test("testable scope closeOrThrow does not throw on success and runs finalizers") {
+        val (scope, close) = Scope.createTestableScope()
+        var cleaned        = false
+        scope.defer { cleaned = true }
+        close()
+        assertTrue(cleaned)
       }
     )
   )

@@ -8,6 +8,7 @@ object WireableSpec extends ZIOSpecDefault {
   case class Config(debug: Boolean)
   case class DbConfig(url: String)
   class Database(@annotation.unused config: DbConfig)
+  class DatabaseWithConfig(@annotation.unused config: Config)
 
   def spec = suite("Wireable")(
     test("trait can be implemented and wire constructs correctly") {
@@ -30,6 +31,34 @@ object WireableSpec extends ZIOSpecDefault {
       val wireable: Wireable.Typed[DbConfig, Database] = Wireable.fromWire(wire)
       val w: Wire[DbConfig, Database]                  = wireable.wire
       assertTrue(w eq wire)
-    }
+    },
+    suite("Wireable.from with overrides")(
+      test("reduces In type by covered dependencies") {
+        class Service(@annotation.unused config: Config, @annotation.unused db: DatabaseWithConfig)
+
+        val configWire = Wire(Config(true))
+        val wireable   = Wireable.from[Service](configWire)
+
+        val deps           = zio.blocks.context.Context[DatabaseWithConfig](new DatabaseWithConfig(Config(true)))
+        val (scope, close) = Scope.createTestableScope()
+        val resource       = wireable.wire.toResource(deps)
+        val service        = resource.make(scope)
+        close()
+        assertTrue(service.isInstanceOf[Service])
+      },
+      test("with all dependencies covered has In = Any") {
+        class SimpleService(@annotation.unused config: Config)
+
+        val configWire = Wire(Config(true))
+        val wireable   = Wireable.from[SimpleService](configWire)
+
+        val deps           = zio.blocks.context.Context.empty
+        val (scope, close) = Scope.createTestableScope()
+        val resource       = wireable.wire.toResource(deps)
+        val service        = resource.make(scope)
+        close()
+        assertTrue(service.isInstanceOf[SimpleService])
+      }
+    )
   )
 }

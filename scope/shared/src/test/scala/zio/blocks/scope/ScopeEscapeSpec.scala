@@ -40,6 +40,13 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
           implicitly[ScopeEscape[Int, Scope.GlobalTag]].asInstanceOf[ScopeEscape.Aux[Int, Scope.GlobalTag, Int]]
         val result: Int = escape(42)
         assertTrue(result == 42)
+      },
+      test("global scope escapes all results as raw values") {
+        Scope.global.scoped { scope =>
+          val str         = scope.allocate(zio.blocks.scope.Resource("test"))
+          val raw: String = scope.$(str)(identity)
+          assertTrue(raw == "test")
+        }
       }
     ),
     suite("Child scope behavior")(
@@ -58,6 +65,15 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         val result: Resource @@ String = escape(resource)
         // result is Resource @@ String (scoped), verify it's the same instance
         assertTrue(@@.unscoped(result) eq resource)
+      },
+      test("unscoped types escape as raw values in nested scopes") {
+        Scope.global.scoped { parent =>
+          parent.scoped { child =>
+            val str            = child.allocate(zio.blocks.scope.Resource("hello"))
+            val result: String = child.$(str)(_.toUpperCase)
+            assertTrue(result == "HELLO")
+          }
+        }
       }
     ),
     suite("Priority ordering")(

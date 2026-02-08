@@ -117,7 +117,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("Error message formatting")(
+    suite("error message format")(
       test("error contains Scope Error header") {
         typeCheck("""
           import zio.blocks.scope._

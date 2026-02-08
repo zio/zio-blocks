@@ -7,6 +7,11 @@ object WireSpec extends ZIOSpecDefault {
 
   case class Config(debug: Boolean)
 
+  class Database(@scala.annotation.unused config: Config) extends AutoCloseable {
+    var closed        = false
+    def close(): Unit = closed = true
+  }
+
   def spec = suite("Wire")(
     test("Wire(...) creates shared wire") {
       val wire = Wire(Config(true))
@@ -59,6 +64,36 @@ object WireSpec extends ZIOSpecDefault {
       val sharedWire = Wire(Config(true))
       val sameWire   = sharedWire.shared
       assertTrue(sharedWire eq sameWire)
-    }
+    },
+    suite("toResource")(
+      test("converts Wire.Shared to Resource.Shared") {
+        val wire = Wire.Shared.fromFunction[Config, Database] { (scope, ctx) =>
+          val config = ctx.get[Config]
+          val db     = new Database(config)
+          scope.defer(db.close())
+          db
+        }
+        val deps           = Context(Config(true))
+        val resource       = wire.toResource(deps)
+        val (scope, close) = Scope.createTestableScope()
+        val db             = resource.make(scope)
+        close()
+        assertTrue(resource.isInstanceOf[Resource.Shared[?]], db.isInstanceOf[Database], db.closed)
+      },
+      test("converts Wire.Unique to Resource.Unique") {
+        var counter = 0
+        val wire    = Wire.Unique.fromFunction[Config, Int] { (_, _) =>
+          counter += 1
+          counter
+        }
+        val deps           = Context(Config(true))
+        val resource       = wire.toResource(deps)
+        val (scope, close) = Scope.createTestableScope()
+        val a              = resource.make(scope)
+        val b              = resource.make(scope)
+        close()
+        assertTrue(resource.isInstanceOf[Resource.Unique[?]], a == 1, b == 2)
+      }
+    )
   )
 }

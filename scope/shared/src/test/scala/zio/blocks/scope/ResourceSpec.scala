@@ -2,7 +2,6 @@ package zio.blocks.scope
 
 import zio.{ZIO, Scope => _}
 import zio.test._
-import zio.blocks.context.Context
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ListBuffer
@@ -55,34 +54,6 @@ object ResourceSpec extends ZIOSpecDefault {
       close()
       val afterClose = db.closed
       assertTrue(!beforeClose, afterClose)
-    },
-    test("Wire.toResource converts Wire.Shared to Resource.Shared") {
-      val wire = Wire.Shared.fromFunction[Config, Database] { (scope, ctx) =>
-        val config = ctx.get[Config]
-        val db     = new Database(config)
-        scope.defer(db.close())
-        db
-      }
-      val deps           = Context(Config("test-url"))
-      val resource       = wire.toResource(deps)
-      val (scope, close) = Scope.createTestableScope()
-      val db             = resource.make(scope)
-      close()
-      assertTrue(resource.isInstanceOf[Resource.Shared[?]], db.isInstanceOf[Database], db.closed)
-    },
-    test("Wire.toResource converts Wire.Unique to Resource.Unique") {
-      var counter = 0
-      val wire    = Wire.Unique.fromFunction[Config, Int] { (_, _) =>
-        counter += 1
-        counter
-      }
-      val deps           = Context(Config("url"))
-      val resource       = wire.toResource(deps)
-      val (scope, close) = Scope.createTestableScope()
-      val a              = resource.make(scope)
-      val b              = resource.make(scope)
-      close()
-      assertTrue(resource.isInstanceOf[Resource.Unique[?]], a == 1, b == 2)
     },
     test("Resource.shared memoizes across multiple makes") {
       val counter  = new AtomicInteger(0)
@@ -178,6 +149,56 @@ object ResourceSpec extends ZIOSpecDefault {
         counter.get() == 1,
         closeCounter.get() == 1
       )
-    }
+    },
+    suite("Resource.from with overrides")(
+      test("creates standalone Resource when all deps covered") {
+        case class Cfg(debug: Boolean)
+        class SimpleService(@annotation.unused config: Cfg)
+
+        val configWire     = Wire(Cfg(true))
+        val resource       = Resource.from[SimpleService](configWire)
+        val (scope, close) = Scope.createTestableScope()
+        val service        = resource.make(scope)
+        close()
+        assertTrue(service.isInstanceOf[SimpleService])
+      },
+      test("with AutoCloseable registers finalizer") {
+        case class Cfg(debug: Boolean)
+        class CloseableService(@annotation.unused config: Cfg) extends AutoCloseable {
+          var closed        = false
+          def close(): Unit = closed = true
+        }
+
+        val configWire     = Wire(Cfg(true))
+        val resource       = Resource.from[CloseableService](configWire)
+        val (scope, close) = Scope.createTestableScope()
+        val service        = resource.make(scope)
+        assertTrue(!service.closed)
+        close()
+        assertTrue(service.closed)
+      },
+      test("with multiple dependencies") {
+        case class Cfg(debug: Boolean)
+        case class Port(value: Int)
+        class Db extends AutoCloseable {
+          var closed        = false
+          def close(): Unit = closed = true
+        }
+        class MultiDepService(
+          @annotation.unused config: Cfg,
+          @annotation.unused db: Db,
+          @annotation.unused port: Port
+        )
+
+        val configWire     = Wire(Cfg(false))
+        val dbWire         = shared[Db]
+        val portWire       = Wire(Port(8080))
+        val resource       = Resource.from[MultiDepService](configWire, dbWire, portWire)
+        val (scope, close) = Scope.createTestableScope()
+        val service        = resource.make(scope)
+        close()
+        assertTrue(service.isInstanceOf[MultiDepService])
+      }
+    )
   )
 }
