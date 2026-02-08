@@ -71,6 +71,8 @@ lazy val root = project
     `schema-bson`,
     `schema-toon`.jvm,
     `schema-toon`.js,
+    `schema-xml`.jvm,
+    `schema-xml`.js,
     streams.jvm,
     streams.js,
     chunk.jvm,
@@ -432,6 +434,24 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
         )
     })
+  )
+
+lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-xml"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.xml"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(schema % "compile->compile;test->test")
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 65
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
