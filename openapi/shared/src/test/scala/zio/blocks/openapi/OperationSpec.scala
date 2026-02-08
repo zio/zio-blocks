@@ -8,12 +8,11 @@ import zio.test._
 object OperationSpec extends SchemaBaseSpec {
   private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Operation")(
-    test("can be constructed with required fields only") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val operation = Operation(responses = responses)
+    test("can be constructed with no fields (responses defaults to empty)") {
+      val operation = Operation()
 
       assertTrue(
-        operation.responses == responses,
+        operation.responses.isEmpty,
         operation.tags.isEmpty,
         operation.summary.isEmpty,
         operation.description.isEmpty,
@@ -29,9 +28,9 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("can be constructed with all fields populated") {
-      val responses = Json.Object(
-        "200" -> Json.String("Success"),
-        "404" -> Json.String("Not Found")
+      val responses = Map(
+        "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+        "404" -> ReferenceOr.Value(Response(description = doc("Not Found")))
       )
       val tags         = List("users", "admin")
       val summary      = doc("Get user by ID")
@@ -42,11 +41,13 @@ object OperationSpec extends SchemaBaseSpec {
       )
       val operationId = "getUserById"
       val parameters  = List(
-        Json.Object("name" -> Json.String("id"), "in" -> Json.String("path"))
+        ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true))
       )
-      val requestBody = Json.Object("required" -> Json.Boolean(true))
-      val callbacks   = Map(
-        "myCallback" -> Json.Object("url" -> Json.String("https://callback.example.com"))
+      val requestBody = ReferenceOr.Value(
+        RequestBody(content = Map("application/json" -> MediaType()), required = true)
+      )
+      val callbacks = Map(
+        "myCallback" -> ReferenceOr.Value(Callback())
       )
       val deprecated = true
       val security   = List(
@@ -92,20 +93,17 @@ object OperationSpec extends SchemaBaseSpec {
         operation.extensions == extensions
       )
     },
-    test("responses field is required (non-optional)") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val operation = Operation(responses = responses)
+    test("responses field defaults to empty map") {
+      val operation = Operation()
 
       assertTrue(
-        operation.responses == responses
+        operation.responses.isEmpty
       )
     },
     test("has separate summary and description fields") {
-      val responses   = Json.Object("200" -> Json.String("OK"))
       val summary     = doc("Short summary")
       val description = doc("Long detailed description with lots of information")
       val operation   = Operation(
-        responses = responses,
         summary = Some(summary),
         description = Some(description)
       )
@@ -117,13 +115,12 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("preserves extensions on construction") {
-      val responses  = Json.Object("200" -> Json.String("OK"))
       val extensions = Map(
         "x-code-samples"     -> Json.Array(Json.String("sample1")),
         "x-visibility"       -> Json.String("public"),
         "x-deprecated-since" -> Json.String("2024-01-01")
       )
-      val operation = Operation(responses = responses, extensions = extensions)
+      val operation = Operation(extensions = extensions)
 
       assertTrue(
         operation.extensions.size == 3,
@@ -133,9 +130,8 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("tags can be used for logical grouping") {
-      val responses = Json.Object("200" -> Json.String("OK"))
       val tags      = List("pets", "store", "user")
-      val operation = Operation(responses = responses, tags = tags)
+      val operation = Operation(tags = tags)
 
       assertTrue(
         operation.tags.length == 3,
@@ -145,9 +141,8 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("operationId provides unique identifier") {
-      val responses   = Json.Object("200" -> Json.String("OK"))
       val operationId = "listPets"
-      val operation   = Operation(responses = responses, operationId = Some(operationId))
+      val operation   = Operation(operationId = Some(operationId))
 
       assertTrue(
         operation.operationId.contains(operationId),
@@ -155,28 +150,25 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("deprecated field defaults to false") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val operation = Operation(responses = responses)
+      val operation = Operation()
 
       assertTrue(
         operation.deprecated == false
       )
     },
     test("deprecated field can be set to true") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val operation = Operation(responses = responses, deprecated = true)
+      val operation = Operation(deprecated = true)
 
       assertTrue(
         operation.deprecated == true
       )
     },
     test("supports multiple security requirements") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val security  = List(
+      val security = List(
         SecurityRequirement(Map("api_key" -> Nil)),
         SecurityRequirement(Map("oauth2" -> List("read", "write")))
       )
-      val operation = Operation(responses = responses, security = security)
+      val operation = Operation(security = security)
 
       assertTrue(
         operation.security.length == 2,
@@ -185,13 +177,12 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("supports alternative servers") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val servers   = List(
+      val servers = List(
         Server(url = "https://dev.example.com"),
         Server(url = "https://staging.example.com"),
         Server(url = "https://prod.example.com")
       )
-      val operation = Operation(responses = responses, servers = servers)
+      val operation = Operation(servers = servers)
 
       assertTrue(
         operation.servers.length == 3,
@@ -201,12 +192,11 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("supports external documentation") {
-      val responses    = Json.Object("200" -> Json.String("OK"))
       val externalDocs = ExternalDocumentation(
         url = "https://example.com/docs/operation",
         description = Some(doc("Additional documentation for this operation"))
       )
-      val operation = Operation(responses = responses, externalDocs = Some(externalDocs))
+      val operation = Operation(externalDocs = Some(externalDocs))
 
       assertTrue(
         operation.externalDocs.isDefined,
@@ -214,40 +204,36 @@ object OperationSpec extends SchemaBaseSpec {
         operation.externalDocs.exists(_.description.contains(doc("Additional documentation for this operation")))
       )
     },
-    test("parameters field uses Json placeholder") {
-      val responses  = Json.Object("200" -> Json.String("OK"))
+    test("parameters field uses typed ReferenceOr[Parameter]") {
       val parameters = List(
-        Json.Object("name" -> Json.String("id"), "in"    -> Json.String("path")),
-        Json.Object("name" -> Json.String("limit"), "in" -> Json.String("query"))
+        ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true)),
+        ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))
       )
-      val operation = Operation(responses = responses, parameters = parameters)
+      val operation = Operation(parameters = parameters)
 
       assertTrue(
-        operation.parameters.length == 2,
-        operation.parameters(0).isInstanceOf[Json.Object],
-        operation.parameters(1).isInstanceOf[Json.Object]
+        operation.parameters.length == 2
       )
     },
-    test("requestBody field uses Json placeholder") {
-      val responses   = Json.Object("200" -> Json.String("OK"))
-      val requestBody = Json.Object(
-        "required" -> Json.Boolean(true),
-        "content"  -> Json.Object("application/json" -> Json.String("schema"))
+    test("requestBody field uses typed ReferenceOr[RequestBody]") {
+      val requestBody = ReferenceOr.Value(
+        RequestBody(
+          content = Map("application/json" -> MediaType()),
+          required = true
+        )
       )
-      val operation = Operation(responses = responses, requestBody = Some(requestBody))
+      val operation = Operation(requestBody = Some(requestBody))
 
       assertTrue(
-        operation.requestBody.isDefined,
-        operation.requestBody.exists(_.isInstanceOf[Json.Object])
+        operation.requestBody.isDefined
       )
     },
-    test("callbacks field uses Json placeholder") {
-      val responses = Json.Object("200" -> Json.String("OK"))
+    test("callbacks field uses typed ReferenceOr[Callback]") {
       val callbacks = Map(
-        "onData"  -> Json.Object("url" -> Json.String("https://callback.example.com/onData")),
-        "onError" -> Json.Object("url" -> Json.String("https://callback.example.com/onError"))
+        "onData"  -> ReferenceOr.Value(Callback()),
+        "onError" -> ReferenceOr.Value(Callback())
       )
-      val operation = Operation(responses = responses, callbacks = callbacks)
+      val operation = Operation(callbacks = callbacks)
 
       assertTrue(
         operation.callbacks.size == 2,
@@ -256,16 +242,15 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("Schema[Operation] can be derived") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val operation = Operation(responses = responses)
+      val operation = Operation()
       val schema    = Schema[Operation]
 
       assertTrue(schema != null, operation != null)
     },
     test("Operation round-trips through DynamicValue") {
-      val responses = Json.Object(
-        "200" -> Json.String("Success"),
-        "400" -> Json.String("Bad Request")
+      val responses = Map(
+        "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+        "400" -> ReferenceOr.Value(Response(description = doc("Bad Request")))
       )
       val operation = Operation(
         responses = responses,
@@ -291,22 +276,23 @@ object OperationSpec extends SchemaBaseSpec {
         result.exists(_.extensions.contains("x-internal"))
       )
     },
-    test("Operation with minimal responses") {
-      val responses = Json.String("placeholder")
-      val operation = Operation(responses = responses)
+    test("Operation with empty responses") {
+      val operation = Operation()
 
       assertTrue(
-        operation.responses == responses,
-        operation.responses.isInstanceOf[Json.String]
+        operation.responses.isEmpty
       )
     },
     test("Operation supports complex nested structures") {
-      val responses = Json.Object(
-        "200" -> Json.Object(
-          "description" -> Json.String("Success"),
-          "content"     -> Json.Object(
-            "application/json" -> Json.Object(
-              "schema" -> Json.String("UserSchema")
+      val responses = Map(
+        "200" -> ReferenceOr.Value(
+          Response(
+            description = doc("Success"),
+            content = Map(
+              "application/json" -> MediaType(
+                schema =
+                  Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
+              )
             )
           )
         )
@@ -316,51 +302,50 @@ object OperationSpec extends SchemaBaseSpec {
         tags = List("complex"),
         summary = Some(doc("Complex operation")),
         parameters = List(
-          Json.Object(
-            "name"   -> Json.String("filter"),
-            "in"     -> Json.String("query"),
-            "schema" -> Json.Object("type" -> Json.String("string"))
+          ReferenceOr.Value(
+            Parameter(
+              name = "filter",
+              in = ParameterLocation.Query,
+              schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string")))))
+            )
           )
         )
       )
 
       assertTrue(
-        operation.responses.isInstanceOf[Json.Object],
+        operation.responses.nonEmpty,
         operation.tags.contains("complex"),
         operation.parameters.nonEmpty
       )
     },
     test("Operation with empty collections uses defaults") {
-      val responses = Json.Object("200" -> Json.String("OK"))
-      val operation = Operation(responses = responses)
+      val operation = Operation()
 
       assertTrue(
         operation.tags == Nil,
         operation.parameters == Nil,
-        operation.callbacks == Map.empty[String, Json],
+        operation.callbacks == Map.empty[String, ReferenceOr[Callback]],
         operation.security == Nil,
         operation.servers == Nil,
         operation.extensions == Map.empty[String, Json]
       )
     },
     test("multiple responses with different status codes") {
-      val responses = Json.Object(
-        "200" -> Json.String("Success"),
-        "201" -> Json.String("Created"),
-        "400" -> Json.String("Bad Request"),
-        "401" -> Json.String("Unauthorized"),
-        "404" -> Json.String("Not Found"),
-        "500" -> Json.String("Internal Server Error")
+      val responses = Map(
+        "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+        "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
+        "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),
+        "401" -> ReferenceOr.Value(Response(description = doc("Unauthorized"))),
+        "404" -> ReferenceOr.Value(Response(description = doc("Not Found"))),
+        "500" -> ReferenceOr.Value(Response(description = doc("Internal Server Error")))
       )
       val operation = Operation(responses = responses)
 
-      val responsesObj = operation.responses.asInstanceOf[Json.Object]
-      val keys         = responsesObj.value.map(_._1)
       assertTrue(
-        responsesObj.value.size == 6,
-        keys.contains("200"),
-        keys.contains("404"),
-        keys.contains("500")
+        operation.responses.size == 6,
+        operation.responses.contains("200"),
+        operation.responses.contains("404"),
+        operation.responses.contains("500")
       )
     }
   )
