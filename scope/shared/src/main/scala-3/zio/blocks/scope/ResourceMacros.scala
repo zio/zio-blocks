@@ -3,9 +3,9 @@ package zio.blocks.scope
 import zio.blocks.scope.internal.MacroCore
 import scala.quoted.*
 
-private[scope] object FactoryMacros {
+private[scope] object ResourceMacros {
 
-  def deriveFactoryImpl[T: Type](using Quotes): Expr[Factory[T]] = {
+  def deriveResourceImpl[T: Type](using Quotes): Expr[Resource[T]] = {
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[T]
@@ -44,19 +44,19 @@ private[scope] object FactoryMacros {
 
     if (depTypes.nonEmpty) {
       report.errorAndAbort(
-        s"Factory[${tpe.show}] cannot be derived: ${tpe.show} has dependencies: ${depTypes.map(_.show).mkString(", ")}. " +
-          s"Use Wire[${tpe.show}] instead and call .toFactory(...) to resolve dependencies."
+        s"Resource[${tpe.show}] cannot be derived: ${tpe.show} has dependencies: ${depTypes.map(_.show).mkString(", ")}. " +
+          s"Use Wire[${tpe.show}] instead and call .toResource(...) to resolve dependencies."
       )
     }
 
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val ctorSym         = sym.primaryConstructor
 
-    // Generate factory body
+    // Generate resource body
     if (hasScopeParam) {
       // Constructor takes implicit Scope
       '{
-        Factory.shared[T] { scope =>
+        Resource.shared[T] { scope =>
           ${
             val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
             val applied  = Apply(Apply(ctorTerm, Nil), List('{ scope }.asTerm))
@@ -67,7 +67,7 @@ private[scope] object FactoryMacros {
     } else if (isAutoCloseable) {
       // AutoCloseable - register finalizer
       '{
-        Factory.shared[T] { scope =>
+        Resource.shared[T] { scope =>
           val instance = ${
             val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
             Apply(ctorTerm, Nil).asExprOf[T]
@@ -79,7 +79,7 @@ private[scope] object FactoryMacros {
     } else {
       // Simple case - no dependencies, no cleanup
       '{
-        Factory.shared[T] { _ =>
+        Resource.shared[T] { _ =>
           ${
             val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
             Apply(ctorTerm, Nil).asExprOf[T]

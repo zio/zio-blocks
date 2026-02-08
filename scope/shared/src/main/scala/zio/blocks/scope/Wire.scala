@@ -60,14 +60,14 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
   def unique: Wire.Unique[In, Out]
 
   /**
-   * Converts this Wire to a Factory by providing resolved dependencies.
+   * Converts this Wire to a Resource by providing resolved dependencies.
    *
    * @param deps
    *   Context containing all required dependencies
    * @return
-   *   a Factory that creates Out values
+   *   a Resource that creates Out values
    */
-  def toFactory(deps: Context[In]): Factory[Out]
+  def toResource(deps: Context[In]): Resource[Out]
 }
 
 /**
@@ -108,9 +108,9 @@ object Wire extends WireCompanionVersionSpecific {
      */
     override def make(scope: Scope[?, ?], ctx: Context[In]): Out = makeFn(scope, ctx)
 
-    def toFactory(deps: Context[In]): Factory[Out] = {
+    def toResource(deps: Context[In]): Resource[Out] = {
       val self = this
-      new Factory.Shared[Out](scope => self.makeFn(scope, deps))
+      new Resource.Shared[Out](scope => self.makeFn(scope, deps))
     }
   }
 
@@ -153,9 +153,9 @@ object Wire extends WireCompanionVersionSpecific {
      */
     override def make(scope: Scope[?, ?], ctx: Context[In]): Out = makeFn(scope, ctx)
 
-    def toFactory(deps: Context[In]): Factory[Out] = {
+    def toResource(deps: Context[In]): Resource[Out] = {
       val self = this
-      new Factory.Unique[Out](scope => self.makeFn(scope, deps))
+      new Resource.Unique[Out](scope => self.makeFn(scope, deps))
     }
   }
 

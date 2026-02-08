@@ -143,7 +143,7 @@ private[scope] object MacroCore {
    * Classify a parameter type and extract its dependency if applicable.
    *
    * In the new design, Scope is just Scope[?, ?] - there's no Scope.Has or
-   * context inside the scope. Dependencies are resolved via Factory/Wire.
+   * context inside the scope. Dependencies are resolved via Resource/Wire.
    *
    *   - Scope[?, ?] → ScopeAny with no dependency
    *   - Regular type → ValueDep with the type as dependency

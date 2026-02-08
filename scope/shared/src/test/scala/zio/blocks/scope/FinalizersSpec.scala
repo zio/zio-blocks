@@ -72,6 +72,57 @@ object FinalizersSpec extends ZIOSpecDefault {
       scope.defer { cleaned = true }
       close()
       assertTrue(cleaned)
+    },
+    test("all finalizers run even if one throws") {
+      val order      = mutable.Buffer[Int]()
+      val finalizers = new Finalizers
+      finalizers.add(order += 1)
+      finalizers.add(throw new RuntimeException("boom"))
+      finalizers.add(order += 3)
+      finalizers.runAll()
+      assertTrue(order.toList == List(3, 1))
+    },
+    test("if block throws and finalizers throw: primary thrown, finalizer errors suppressed") {
+      val (scope, close) = Scope.createTestableScope()
+      scope.defer(throw new RuntimeException("finalizer1"))
+      scope.defer(throw new RuntimeException("finalizer2"))
+
+      val primary = new RuntimeException("primary")
+      val result  = try {
+        try throw primary
+        finally {
+          val errors = scope.close()
+          if (errors.nonEmpty) errors.foreach(primary.addSuppressed)
+        }
+        None
+      } catch {
+        case e: RuntimeException => Some(e)
+      }
+
+      assertTrue(
+        result.exists(_.getMessage == "primary"),
+        result.exists(_.getSuppressed.length == 2),
+        result.exists(_.getSuppressed.map(_.getMessage).toSet == Set("finalizer1", "finalizer2"))
+      )
+    },
+    test("if block succeeds and finalizers throw multiple: first thrown, rest suppressed") {
+      val (scope, close) = Scope.createTestableScope()
+      scope.defer(throw new RuntimeException("finalizer1"))
+      scope.defer(throw new RuntimeException("finalizer2"))
+      scope.defer(throw new RuntimeException("finalizer3"))
+
+      val result = try {
+        close()
+        None
+      } catch {
+        case e: RuntimeException => Some(e)
+      }
+
+      assertTrue(
+        result.exists(_.getMessage == "finalizer3"),
+        result.exists(_.getSuppressed.length == 2),
+        result.exists(_.getSuppressed.map(_.getMessage).toSet == Set("finalizer1", "finalizer2"))
+      )
     }
   )
 }

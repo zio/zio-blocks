@@ -25,7 +25,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
 
           Scope.global.scoped { parent =>
             val leakedFromChild = parent.scoped { child =>
-              child.create(Factory[Database])
+              child.create(Resource[Database])
             }
             parent.$(leakedFromChild)(_.query("test"))
           }
@@ -44,7 +44,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
 
           Scope.global.scoped { parent =>
             val leakedFromChild = parent.scoped { child =>
-              child.create(Factory[Database])
+              child.create(Resource[Database])
             }
             val computation = leakedFromChild.map(_.query("test"))
             parent(computation)
@@ -56,7 +56,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
     suite("child scope can access parent resources")(
       test("child can use parent-scoped values (positive test)") {
         Scope.global.scoped { parent =>
-          val db = parent.create(Factory[Database])
+          val db = parent.create(Resource[Database])
           parent.scoped { child =>
             val r = child.$(db)(_.query("works"))
             assertTrue(r == "result: works")
@@ -76,7 +76,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
           }
 
           Scope.global.scoped { scope =>
-            val db = scope.create(Factory[Database])
+            val db = scope.create(Resource[Database])
             db.query("test")
           }
         """)
@@ -88,7 +88,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
         Scope.global.scoped { parent =>
           var leaked: Any = null
           parent.scoped { child1 =>
-            leaked = child1.create(Factory[Database])
+            leaked = child1.create(Resource[Database])
           }
           parent.scoped { child2 =>
             val db = leaked.asInstanceOf[Database @@ child2.Tag]
@@ -110,7 +110,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
           def unsafeAttempt(): Unit = {
             Scope.global.scoped { parent =>
               val fromChild1 = parent.scoped { child1 =>
-                child1.create(Factory[Database])
+                child1.create(Resource[Database])
               }
               parent.scoped { child2 =>
                 child2.$(fromChild1)(_.query("test"))

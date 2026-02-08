@@ -3,7 +3,7 @@ package zio.blocks.scope
 import zio.test._
 import zio.blocks.context.Context
 
-object FactorySpec extends ZIOSpecDefault {
+object ResourceSpec extends ZIOSpecDefault {
 
   case class Config(url: String)
 
@@ -12,47 +12,47 @@ object FactorySpec extends ZIOSpecDefault {
     def close(): Unit = closed = true
   }
 
-  def spec = suite("Factory")(
-    test("Factory(value) creates a shared factory") {
-      val factory        = Factory(Config("jdbc://localhost"))
+  def spec = suite("Resource")(
+    test("Resource(value) creates a shared resource") {
+      val resource       = Resource(Config("jdbc://localhost"))
       val (scope, close) = Scope.createTestableScope()
-      val config         = factory.make(scope)
+      val config         = resource.make(scope)
       close()
       assertTrue(config.url == "jdbc://localhost")
     },
-    test("Factory.shared creates from function") {
-      val factory        = Factory.shared[Config](_ => Config("test-url"))
+    test("Resource.shared creates from function") {
+      val resource       = Resource.shared[Config](_ => Config("test-url"))
       val (scope, close) = Scope.createTestableScope()
-      val config         = factory.make(scope)
+      val config         = resource.make(scope)
       close()
       assertTrue(config.url == "test-url")
     },
-    test("Factory.unique creates fresh instances") {
-      var counter = 0
-      val factory = Factory.unique[Int] { _ =>
+    test("Resource.unique creates fresh instances") {
+      var counter  = 0
+      val resource = Resource.unique[Int] { _ =>
         counter += 1
         counter
       }
       val (scope, close) = Scope.createTestableScope()
-      val a              = factory.make(scope)
-      val b              = factory.make(scope)
+      val a              = resource.make(scope)
+      val b              = resource.make(scope)
       close()
       assertTrue(a == 1, b == 2)
     },
-    test("Factory can register finalizers") {
-      val factory = Factory.shared[Database] { scope =>
+    test("Resource can register finalizers") {
+      val resource = Resource.shared[Database] { scope =>
         val db = new Database(Config("url"))
         scope.defer(db.close())
         db
       }
       val (scope, close) = Scope.createTestableScope()
-      val db             = factory.make(scope)
+      val db             = resource.make(scope)
       val beforeClose    = db.closed
       close()
       val afterClose = db.closed
       assertTrue(!beforeClose, afterClose)
     },
-    test("Wire.toFactory converts Wire.Shared to Factory.Shared") {
+    test("Wire.toResource converts Wire.Shared to Resource.Shared") {
       val wire = Wire.Shared.fromFunction[Config, Database] { (scope, ctx) =>
         val config = ctx.get[Config]
         val db     = new Database(config)
@@ -60,25 +60,25 @@ object FactorySpec extends ZIOSpecDefault {
         db
       }
       val deps           = Context(Config("test-url"))
-      val factory        = wire.toFactory(deps)
+      val resource       = wire.toResource(deps)
       val (scope, close) = Scope.createTestableScope()
-      val db             = factory.make(scope)
+      val db             = resource.make(scope)
       close()
-      assertTrue(factory.isInstanceOf[Factory.Shared[?]], db.isInstanceOf[Database], db.closed)
+      assertTrue(resource.isInstanceOf[Resource.Shared[?]], db.isInstanceOf[Database], db.closed)
     },
-    test("Wire.toFactory converts Wire.Unique to Factory.Unique") {
+    test("Wire.toResource converts Wire.Unique to Resource.Unique") {
       var counter = 0
       val wire    = Wire.Unique.fromFunction[Config, Int] { (_, _) =>
         counter += 1
         counter
       }
       val deps           = Context(Config("url"))
-      val factory        = wire.toFactory(deps)
+      val resource       = wire.toResource(deps)
       val (scope, close) = Scope.createTestableScope()
-      val a              = factory.make(scope)
-      val b              = factory.make(scope)
+      val a              = resource.make(scope)
+      val b              = resource.make(scope)
       close()
-      assertTrue(factory.isInstanceOf[Factory.Unique[?]], a == 1, b == 2)
+      assertTrue(resource.isInstanceOf[Resource.Unique[?]], a == 1, b == 2)
     }
   )
 }

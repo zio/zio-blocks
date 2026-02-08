@@ -20,7 +20,7 @@ import zio.blocks.scope.internal.Finalizers
  *
  * ==Key Methods==
  *
- *   - `create`: Instantiate a Factory, tagging result with this scope's Tag
+ *   - `create`: Instantiate a Resource, tagging result with this scope's Tag
  *   - `$`: Apply a function to a scoped value, escaping if Unscoped
  *   - `apply`: Execute a Scoped computation
  *   - `scoped`: Create a child scope
@@ -29,7 +29,7 @@ import zio.blocks.scope.internal.Finalizers
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db = scope.create(Factory[Database])
+ *     val db = scope.create(Resource[Database])
  *     val result = scope.$(db)(_.query("SELECT 1"))
  *     println(result)
  *   }
@@ -41,7 +41,7 @@ import zio.blocks.scope.internal.Finalizers
  *   this scope's tag type (subtype of ParentTag)
  *
  * @see
- *   [[@@]] for scoped value type [[Factory]] for creating scoped values
+ *   [[@@]] for scoped value type [[Resource]] for creating scoped values
  */
 final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   private[scope] val finalizers: Finalizers
@@ -53,21 +53,21 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   type Tag = Tag0
 
   /**
-   * Creates a value in this scope using the given factory.
+   * Creates a value in this scope using the given resource.
    *
    * The result is tagged with this scope's `Tag`, preventing escape. If the
-   * factory creates an `AutoCloseable`, its `close()` method is automatically
+   * resource creates an `AutoCloseable`, its `close()` method is automatically
    * registered as a finalizer.
    *
-   * @param factory
-   *   the factory to create the value
+   * @param resource
+   *   the resource to create the value
    * @tparam A
    *   the value type
    * @return
    *   the created value tagged with this scope's Tag
    */
-  def create[A](factory: Factory[A]): A @@ Tag =
-    @@.scoped(factory.make(this))
+  def create[A](resource: Resource[A]): A @@ Tag =
+    @@.scoped(resource.make(this))
 
   /**
    * Registers a finalizer to run when this scope closes.
@@ -112,7 +112,7 @@ object Scope {
    * @example
    *   {{{
    *   Scope.global.scoped { scope =>
-   *     val app = scope.create(Factory[App])
+   *     val app = scope.create(Resource[App])
    *     scope.$(app)(_.run())
    *   }
    *   }}}

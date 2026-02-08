@@ -66,25 +66,25 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
         assertTrue(cleaned)
       }
     ),
-    suite("scope.create and Factory")(
-      test("Factory[T] macro derives from no-arg constructor") {
-        val factory        = Factory[Database]
+    suite("scope.create and Resource")(
+      test("Resource[T] macro derives from no-arg constructor") {
+        val resource       = Resource[Database]
         val (scope, close) = Scope.createTestableScope()
-        val db             = factory.make(scope)
+        val db             = resource.make(scope)
         close()
         assertTrue(db.isInstanceOf[Database])
       },
-      test("Factory[T] macro handles AutoCloseable") {
-        val factory        = Factory[Database]
+      test("Resource[T] macro handles AutoCloseable") {
+        val resource       = Resource[Database]
         val (scope, close) = Scope.createTestableScope()
-        val db             = factory.make(scope)
+        val db             = resource.make(scope)
         assertTrue(!db.closed)
         close()
         assertTrue(db.closed)
       },
       test("scope.create returns tagged value and $ works") {
         Scope.global.scoped { scope =>
-          val db     = scope.create(Factory[Database])
+          val db     = scope.create(Resource[Database])
           val result = scope.$(db)(_.query("SELECT 1"))
           assertTrue(result == "result: SELECT 1")
         }
@@ -93,14 +93,14 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("scope.$ operator")(
       test("$ extracts value and applies function") {
         Scope.global.scoped { scope =>
-          val config = scope.create(Factory(Config(true)))
+          val config = scope.create(Resource(Config(true)))
           val debug  = scope.$(config)(_.debug)
           assertTrue(debug)
         }
       },
       test("$ on Unscoped type returns raw value") {
         Scope.global.scoped { scope =>
-          val db     = scope.create(Factory[Database])
+          val db     = scope.create(Resource[Database])
           val result = scope.$(db)(_.query("test"))
           assertTrue(result == "result: test")
         }
@@ -109,7 +109,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("nested scopes")(
       test("child scope can access parent resources via Tag subtyping") {
         Scope.global.scoped { parentScope =>
-          val db = parentScope.create(Factory[Database])
+          val db = parentScope.create(Resource[Database])
 
           parentScope.scoped { childScope =>
             // Child scope should be able to access parent-tagged value
@@ -135,7 +135,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("Scoped monad")(
       test("map creates Scoped computation") {
         Scope.global.scoped { scope =>
-          val db = scope.create(Factory[Database])
+          val db = scope.create(Resource[Database])
 
           val computation = db.map(_.query("mapped"))
 
@@ -146,7 +146,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       },
       test("map and Scoped.map composition") {
         Scope.global.scoped { scope =>
-          val db = scope.create(Factory[Database])
+          val db = scope.create(Resource[Database])
 
           // Chain using Scoped.map
           val computation = db.map(_.query("a")).map(s => s.toUpperCase)
@@ -184,14 +184,14 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
         val wire = unique[Config]
         assertTrue(wire.isUnique && !wire.isShared)
       },
-      test("wire.toFactory creates Factory") {
+      test("wire.toResource creates Resource") {
         // Config has a Boolean constructor param, so the wire needs Boolean dependency
         val wire = shared[Config]
         val deps = zio.blocks.context.Context[Boolean](true)
 
-        val factory        = wire.toFactory(deps)
+        val resource       = wire.toResource(deps)
         val (scope, close) = Scope.createTestableScope()
-        val result         = factory.make(scope)
+        val result         = resource.make(scope)
         close()
         assertTrue(result.debug)
       }

@@ -22,7 +22,7 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db: Database @@ scope.Tag = scope.create(Factory[Database])
+ *     val db: Database @@ scope.Tag = scope.create(Resource[Database])
  *
  *     // Build a Scoped computation
  *     val query: Scoped[scope.Tag, String] = db.map(_.query("SELECT 1"))
@@ -33,7 +33,7 @@ package zio.blocks.scope
  *   }}}
  *
  * @see
- *   [[Scoped]] for the free monad representing scoped computations
+ *   [[Scoped]] for deferred scoped computations
  * @see
  *   [[Scope.$]] for direct method access on scoped values
  */
@@ -53,6 +53,10 @@ object @@ {
    *
    * Zero overhead: since `@@` is an opaque type alias, this is an identity
    * operation at runtime.
+   *
+   * '''Note:''' This only tags the value - it does not manage lifecycle. For
+   * resources that need cleanup, prefer `scope.create` with a [[Resource]]
+   * which automatically registers finalizers.
    *
    * @param a
    *   the value to scope
@@ -159,12 +163,13 @@ object @@ {
 }
 
 /**
- * A free monad representing scoped computations.
+ * A deferred scoped computation that can only be executed by an appropriate
+ * Scope.
  *
  * `Scoped[-Tag, +A]` is a description of a computation that produces an `A` and
- * requires a scope with tag `<: Tag` to execute. Unlike eager `@@ ` operations,
- * `Scoped` builds a data structure that is only interpreted when given to a
- * scope via `scope.apply` or `scope { scoped }`.
+ * requires a scope with tag `<: Tag` to execute. Unlike eager `@@` operations,
+ * `Scoped` builds a simple thunk that is only interpreted when given to a scope
+ * via `scope.apply` or `scope { scoped }`.
  *
  * ==Contravariance in Tag==
  *
@@ -181,7 +186,7 @@ object @@ {
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db: Database @@ scope.Tag = scope.create(Factory[Database])
+ *     val db: Database @@ scope.Tag = scope.create(Resource[Database])
  *
  *     val program: Scoped[scope.Tag, Result] = for {
  *       conn <- db.map(_.connect())
