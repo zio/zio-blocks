@@ -19,6 +19,12 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *   evidence that this scope's Tag is a subtype of S
    * @param escape
    *   typeclass determining whether the result escapes
+   * @tparam A
+   *   the underlying value type
+   * @tparam B
+   *   the function result type
+   * @tparam S
+   *   the scoped value's tag
    * @return
    *   either raw B or B @@ S depending on ScopeEscape
    */
@@ -37,6 +43,10 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *   evidence that this scope's Tag is a subtype of S
    * @param escape
    *   typeclass determining whether the result escapes
+   * @tparam A
+   *   the computation result type
+   * @tparam S
+   *   the computation's required tag
    * @return
    *   either raw A or A @@ S depending on ScopeEscape
    */

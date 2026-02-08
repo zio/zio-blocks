@@ -41,7 +41,9 @@ import zio.blocks.scope.internal.Finalizers
  *   this scope's tag type (subtype of ParentTag)
  *
  * @see
- *   [[@@]] for scoped value type [[Resource]] for creating scoped values
+ *   [[@@]] for scoped value type
+ * @see
+ *   [[Resource]] for creating scoped values
  */
 final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   private[scope] val finalizers: Finalizers
@@ -99,6 +101,9 @@ object Scope {
    * All scope tags are subtypes of `GlobalTag`. Values tagged with `GlobalTag`
    * can always be extracted because the global scope never closes during normal
    * execution.
+   *
+   * @see
+   *   [[global]]
    */
   type GlobalTag
 
@@ -137,6 +142,9 @@ object Scope {
    * Unlike `Scope.global`, this scope's finalizers can be triggered manually
    * for testing purposes.
    *
+   * @note
+   *   The close function throws the first exception with any subsequent
+   *   exceptions added as suppressed if any finalizers fail.
    * @return
    *   a tuple of (scope, close function)
    */

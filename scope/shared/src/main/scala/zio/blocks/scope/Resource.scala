@@ -41,8 +41,9 @@ import zio.blocks.scope.internal.ProxyFinalizer
  *   the type of value this resource produces
  *
  * @see
- *   [[Scope.allocate]] for using resources [[Wire.toResource]] for converting
- *   wires
+ *   [[Scope.allocate]] for using resources
+ * @see
+ *   [[Wire.toResource]] for converting wires
  */
 sealed trait Resource[+A] {
 
@@ -74,6 +75,9 @@ object Resource extends ResourceCompanionVersionSpecific {
    * the count. When the count reaches zero, collected finalizers run.
    *
    * This is thread-safe and lock-free using AtomicReference with CAS.
+   *
+   * @tparam A
+   *   the type of value this shared resource produces
    */
   final class Shared[A] private[scope] (
     private[scope] val makeFn: Finalizer => A
@@ -168,6 +172,14 @@ object Resource extends ResourceCompanionVersionSpecific {
     }
   }
 
+  /**
+   * State machine for [[Shared]] resource lifecycle.
+   *
+   * Transitions: Uninitialized → Pending → Created → Destroyed
+   *
+   * @tparam A
+   *   the type of value managed by this state
+   */
   private[scope] sealed trait SharedState[+A]
   private[scope] object SharedState {
     case object Uninitialized                                                   extends SharedState[Nothing]
@@ -181,6 +193,9 @@ object Resource extends ResourceCompanionVersionSpecific {
    *
    * Each call to `scope.allocate` with a unique resource produces a fresh
    * value. Use for resources that should not be shared, like per-request state.
+   *
+   * @tparam A
+   *   the type of value this unique resource produces
    */
   final class Unique[+A] private[scope] (
     private[scope] val makeFn: Finalizer => A
@@ -200,7 +215,7 @@ object Resource extends ResourceCompanionVersionSpecific {
    * @tparam A
    *   the value type
    * @return
-   *   a resource that acquires the value and auto-closes if applicable
+   *   a unique resource that acquires the value and auto-closes if applicable
    *
    * @example
    *   {{{
@@ -233,7 +248,7 @@ object Resource extends ResourceCompanionVersionSpecific {
    * @tparam A
    *   the resource type
    * @return
-   *   a resource with explicit lifecycle management
+   *   a unique resource with explicit lifecycle management
    *
    * @example
    *   {{{
@@ -262,7 +277,7 @@ object Resource extends ResourceCompanionVersionSpecific {
    * @tparam A
    *   the `AutoCloseable` subtype
    * @return
-   *   a resource that closes the value when the scope closes
+   *   a unique resource that closes the value when the scope closes
    *
    * @example
    *   {{{

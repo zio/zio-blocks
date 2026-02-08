@@ -255,6 +255,15 @@ object Scoped {
    * Creates a Scoped computation from a thunk.
    *
    * This is the primary factory method for creating Scoped computations.
+   *
+   * @tparam Tag
+   *   the scope tag required to execute this computation
+   * @tparam A
+   *   the result type of the computation
+   * @param f
+   *   the thunk that produces the result when executed
+   * @return
+   *   a new Scoped computation wrapping the thunk
    */
   def create[Tag, A](f: () => A): Scoped[Tag, A] =
     new Scoped(f)

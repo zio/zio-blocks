@@ -45,6 +45,20 @@ trait Unscoped[A]
 
 /**
  * Companion object providing given instances for common types.
+ *
+ * ==Adding Custom Instances==
+ *
+ * To mark your own type as safe to escape scopes, define a given instance:
+ *
+ * {{{
+ * case class UserId(value: Long)
+ * object UserId {
+ *   given Unscoped[UserId] = new Unscoped[UserId] {}
+ * }
+ * }}}
+ *
+ * Only add `Unscoped` instances for pure data types that don't hold resources.
+ * Resource types (streams, connections, handles) should NOT have instances.
  */
 object Unscoped extends UnscopedVersionSpecific {
   // Primitives

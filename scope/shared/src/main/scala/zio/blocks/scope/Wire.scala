@@ -18,6 +18,26 @@ import zio.blocks.context.Context
  * Use the `shared[T]` and `unique[T]` macros for automatic derivation from
  * constructors, or create wires manually for custom construction logic.
  *
+ * ==Usage Example==
+ *
+ * {{{
+ * // Define a service with its wire
+ * class Database(config: Config)
+ * object Database {
+ *   implicit val wire: Wire[Config, Database] = shared[Database]
+ * }
+ *
+ * // Create a unique wire for request-scoped services
+ * class RequestHandler(db: Database)
+ * object RequestHandler {
+ *   implicit val wire: Wire[Database, RequestHandler] = unique[RequestHandler]
+ * }
+ *
+ * // Convert sharing mode
+ * val sharedWire: Wire.Shared[Config, Database] = Database.wire.shared
+ * val uniqueWire: Wire.Unique[Config, Database] = Database.wire.unique
+ * }}}
+ *
  * @tparam In
  *   the dependencies required (contravariant - accepts supertypes)
  * @tparam Out
@@ -33,6 +53,9 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
    *
    * Shared wires create one instance per scope, reused across all dependents
    * within that scope.
+   *
+   * @return
+   *   true if this wire is shared, false if unique
    */
   def isShared: Boolean
 
@@ -40,6 +63,9 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
    * Returns true if this wire is unique (creates fresh instances each time).
    *
    * Unique wires create a new instance for each dependent service.
+   *
+   * @return
+   *   true if this wire is unique, false if shared
    */
   final def isUnique: Boolean = !isShared
 
@@ -48,6 +74,9 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
    *
    * If already shared, returns `this`. Otherwise, creates a new [[Shared]] wire
    * with the same construction function.
+   *
+   * @return
+   *   a shared version of this wire
    */
   def shared: Wire.Shared[In, Out]
 
@@ -56,6 +85,9 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
    *
    * If already unique, returns `this`. Otherwise, creates a new [[Unique]] wire
    * with the same construction function.
+   *
+   * @return
+   *   a unique version of this wire
    */
   def unique: Wire.Unique[In, Out]
 
@@ -90,10 +122,28 @@ object Wire extends WireCompanionVersionSpecific {
     private[scope] val makeFn: (Finalizer, Context[In]) => Out
   ) extends Wire[In, Out] {
 
+    /**
+     * Returns true since this is a shared wire.
+     *
+     * @return
+     *   always true for shared wires
+     */
     def isShared: Boolean = true
 
+    /**
+     * Returns this wire since it is already shared.
+     *
+     * @return
+     *   this wire unchanged
+     */
     def shared: Shared[In, Out] = this
 
+    /**
+     * Converts this shared wire to a unique wire.
+     *
+     * @return
+     *   a new unique wire with the same construction function
+     */
     def unique: Unique[In, Out] = new Unique[In, Out](makeFn)
 
     /**
@@ -108,6 +158,14 @@ object Wire extends WireCompanionVersionSpecific {
      */
     def make(finalizer: Finalizer, ctx: Context[In]): Out = makeFn(finalizer, ctx)
 
+    /**
+     * Converts this Wire to a Resource by providing resolved dependencies.
+     *
+     * @param deps
+     *   Context containing all required dependencies
+     * @return
+     *   a shared Resource that creates Out values with memoization
+     */
     def toResource(deps: Context[In]): Resource[Out] = {
       val self = this
       new Resource.Shared[Out](finalizer => self.makeFn(finalizer, deps))
@@ -135,10 +193,28 @@ object Wire extends WireCompanionVersionSpecific {
     private[scope] val makeFn: (Finalizer, Context[In]) => Out
   ) extends Wire[In, Out] {
 
+    /**
+     * Returns false since this is a unique wire.
+     *
+     * @return
+     *   always false for unique wires
+     */
     def isShared: Boolean = false
 
+    /**
+     * Converts this unique wire to a shared wire.
+     *
+     * @return
+     *   a new shared wire with the same construction function
+     */
     def shared: Shared[In, Out] = new Shared[In, Out](makeFn)
 
+    /**
+     * Returns this wire since it is already unique.
+     *
+     * @return
+     *   this wire unchanged
+     */
     def unique: Unique[In, Out] = this
 
     /**
@@ -153,6 +229,14 @@ object Wire extends WireCompanionVersionSpecific {
      */
     def make(finalizer: Finalizer, ctx: Context[In]): Out = makeFn(finalizer, ctx)
 
+    /**
+     * Converts this Wire to a Resource by providing resolved dependencies.
+     *
+     * @param deps
+     *   Context containing all required dependencies
+     * @return
+     *   a unique Resource that creates fresh Out values on each use
+     */
     def toResource(deps: Context[In]): Resource[Out] = {
       val self = this
       new Resource.Unique[Out](finalizer => self.makeFn(finalizer, deps))

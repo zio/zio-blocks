@@ -18,6 +18,8 @@ package zio.blocks.scope
  *
  * @example
  *   {{{
+ *   import zio.blocks.scope._  // provides $, defer, Context DSL methods
+ *
  *   trait Database { def query(sql: String): Result }
  *
  *   class PostgresDatabase(config: Config) extends Database with AutoCloseable {
@@ -53,7 +55,8 @@ trait Wireable[+Out] {
    * The dependencies required to construct the service.
    *
    * This abstract type member specifies what services must be available in the
-   * scope when constructing `Out`.
+   * scope when constructing `Out`. Typically an intersection type of required
+   * dependencies (e.g., `Config with Database`).
    */
   type In
 
@@ -62,6 +65,9 @@ trait Wireable[+Out] {
    *
    * This wire will be used by `shared[Out]` or `unique[Out]` when a `Wireable`
    * is found in implicit scope.
+   *
+   * @return
+   *   a wire that can construct `Out` given dependencies `In`
    */
   def wire: Wire[In, Out]
 }
@@ -137,6 +143,8 @@ object Wireable extends WireableVersionSpecific {
    *
    * @example
    *   {{{
+   *   import zio.blocks.scope._  // provides shared DSL method
+   *
    *   object Database {
    *     // Scala 3
    *     given Wireable[Database] = Wireable.fromWire(shared[PostgresDatabase])

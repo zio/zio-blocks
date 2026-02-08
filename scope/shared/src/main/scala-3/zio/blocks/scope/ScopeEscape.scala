@@ -27,8 +27,9 @@ package zio.blocks.scope
  *   the scope tag type
  *
  * @see
- *   [[Unscoped]] for marking types as safe to escape [[Scope.$]] which uses
- *   this typeclass
+ *   [[Unscoped]] for marking types as safe to escape
+ * @see
+ *   [[Scope.$]] which uses this typeclass
  */
 trait ScopeEscape[A, S] {
 
@@ -42,6 +43,11 @@ trait ScopeEscape[A, S] {
    *
    * For escaped types, this is an identity operation. For scoped types, this
    * wraps the value with the scope tag.
+   *
+   * @param a
+   *   the value to convert
+   * @return
+   *   the value as the output type (`A` if escaped, `A @@ S` if scoped)
    */
   def apply(a: A): Out
 }
@@ -92,6 +98,11 @@ object ScopeEscape extends ScopeEscapeLowPriority {
 
 /**
  * Low-priority given instances for [[ScopeEscape]].
+ *
+ * This trait exists to establish implicit priority. Instances defined here have
+ * lower priority than those in the [[ScopeEscape]] companion object, ensuring
+ * that `Unscoped` types and global-scope values take precedence over the
+ * default "stay scoped" behavior.
  */
 trait ScopeEscapeLowPriority {
 

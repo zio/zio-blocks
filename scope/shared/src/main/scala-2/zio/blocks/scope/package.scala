@@ -4,9 +4,42 @@ import scala.language.experimental.macros
 import scala.language.implicitConversions
 
 /**
- * Top-level functions for the Scope dependency injection library.
+ * Scope: A compile-time safe resource management library using existential
+ * types.
  *
- * Import `zio.blocks.scope._` to access these functions.
+ * ==Quick Start==
+ *
+ * {{{
+ * import zio.blocks.scope._
+ *
+ * Scope.global.scoped { scope =>
+ *   val db = scope.allocate(Resource[Database])
+ *   val result = scope.$(db)(_.query("SELECT 1"))
+ *   println(result)
+ * }
+ * }}}
+ *
+ * ==Key Concepts==
+ *
+ *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
+ *     escape
+ *   - '''`scope.allocate(resource)`''': Allocate a value in a scope
+ *   - '''`scope.$(value)(f)`''': Apply a function to a scoped value
+ *   - '''`scope.scoped { s => ... }`''': Create a child scope with existential
+ *     tag
+ *   - '''`scope.defer { ... }`''': Register cleanup to run when scope closes
+ *
+ * ==How It Works==
+ *
+ * The `.scoped` method creates a fresh existential `Tag` type for each
+ * invocation using a local `type Fresh <: ParentTag` declaration. This tag
+ * cannot be named outside the lambda, making it impossible to leak resources or
+ * capabilities.
+ *
+ * @see
+ *   [[scope.Scope]] for scope types and operations [[scope.@@]] for scoped
+ *   value operations [[scope.Resource]] for creating scoped values
+ *   [[scope.Scoped]] for deferred scoped computations
  */
 package object scope {
 
@@ -32,11 +65,34 @@ package object scope {
    */
   type @@[+A, S] = ScopedModule.instance.@@[A, S]
 
-  /** Implicit conversion to enable `$`, `map`, `flatMap` on scoped values. */
+  /**
+   * Implicit conversion that enables `$`, `map`, and `flatMap` extension
+   * methods on scoped values.
+   *
+   * This conversion allows scoped values to be used with fluent syntax:
+   * {{{
+   * val stream: InputStream @@ S = ...
+   * stream.$(_.read())           // Apply function via $ operator
+   * stream.map(_.available())    // Map over the scoped value
+   * stream.flatMap(s => ...)     // FlatMap for chaining scoped operations
+   * }}}
+   *
+   * @tparam A
+   *   the underlying value type
+   * @tparam S
+   *   the scope tag type
+   * @param scoped
+   *   the scoped value to wrap
+   * @return
+   *   a [[ScopedOps]] wrapper providing extension methods
+   */
   implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
 
   /**
    * Registers a finalizer to run when the current scope closes.
+   *
+   * Finalizers run in LIFO order (last registered runs first). If a finalizer
+   * throws, subsequent finalizers still run.
    *
    * @example
    *   {{{
@@ -46,6 +102,11 @@ package object scope {
    *     // use resource...
    *   }
    *   }}}
+   *
+   * @param finalizer
+   *   a by-name expression to execute on scope close
+   * @param scope
+   *   the scope capability to register cleanup with
    */
   def defer(finalizer: => Unit)(implicit scope: Scope[_, _]): Unit =
     scope.defer(finalizer)
@@ -71,16 +132,24 @@ package object scope {
    * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
    *
    * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used.
+   * used. Use for services that should not be shared across dependents.
+   *
+   * @tparam T
+   *   the service type to construct (must be a class, not a trait or abstract)
+   * @return
+   *   a unique wire for constructing `T`
    */
   def unique[T]: Wire.Unique[_, T] = macro ScopeMacros.uniqueImpl[T]
 
   /**
    * Leaks a scoped value out of its scope, returning the raw unwrapped value.
    *
-   * This function emits a compiler warning because leaking resources bypasses
-   * Scope's compile-time safety guarantees. Use only for interop where
-   * third-party or Java code cannot operate with scoped values.
+   * '''Warning''': This function emits a compiler warning because leaking
+   * resources bypasses Scope's compile-time safety guarantees. The resource may
+   * be closed while still in use, leading to runtime errors.
+   *
+   * Use only for interop where third-party or Java code cannot operate with
+   * scoped values.
    *
    * @example
    *   {{{
@@ -97,6 +166,15 @@ package object scope {
    *
    * If the type is not actually resourceful, consider adding an `implicit
    * ScopeEscape` instance to avoid needing `leak`.
+   *
+   * @param scoped
+   *   the scoped value to leak
+   * @tparam A
+   *   the underlying value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   the raw unwrapped value
    */
   def leak[A, S](scoped: A @@ S): A = macro LeakMacros.leakImpl[A, S]
 }
