@@ -37,7 +37,7 @@ package zio.blocks.scope
  * @see
  *   [[Scope.$]] for direct method access on scoped values
  */
-opaque infix type @@[+A, +S] = A
+opaque infix type @@[+A, S] = A
 
 /**
  * Companion object for the `@@` opaque type, providing factory methods and

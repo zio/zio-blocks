@@ -28,9 +28,10 @@ package zio.blocks
  *
  * ==How It Works==
  *
- * The `.scoped` method uses a SAM type (`ScopedFunction`) that creates a fresh
- * existential `Tag` type for each invocation. This tag cannot be named outside
- * the lambda, making it impossible to leak resources or capabilities.
+ * The `.scoped` method creates a fresh existential `Tag` type for each
+ * invocation using a local `type Fresh <: ParentTag` declaration. This tag
+ * cannot be named outside the lambda, making it impossible to leak resources or
+ * capabilities.
  *
  * @see
  *   [[scope.Scope]] for scope types and operations [[scope.@@]] for scoped

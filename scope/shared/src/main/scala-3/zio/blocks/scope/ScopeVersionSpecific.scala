@@ -84,11 +84,22 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    */
   def scoped[A](f: Scope[self.Tag, ? <: self.Tag] => A): A = {
     type Fresh <: self.Tag
-    val childScope = new Scope[self.Tag, Fresh](new Finalizers)
+    val childScope                = new Scope[self.Tag, Fresh](new Finalizers)
+    var primary: Throwable | Null = null
     try f(childScope)
-    finally {
+    catch {
+      case t: Throwable =>
+        primary = t
+        throw t
+    } finally {
       val errors = childScope.close()
-      errors.headOption.foreach(throw _)
+      if (primary != null) {
+        errors.foreach(primary.nn.addSuppressed)
+      } else if (errors.nonEmpty) {
+        val first = errors.head
+        errors.tail.foreach(first.addSuppressed)
+        throw first
+      }
     }
   }
 }

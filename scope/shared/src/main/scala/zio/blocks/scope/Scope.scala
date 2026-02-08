@@ -121,7 +121,11 @@ object Scope {
     val scope = new Scope[GlobalTag, GlobalTag](new Finalizers)
     PlatformScope.registerShutdownHook { () =>
       val errors = scope.close()
-      errors.headOption.foreach(throw _)
+      if (errors.nonEmpty) {
+        val first = errors.head
+        errors.tail.foreach(first.addSuppressed)
+        throw first
+      }
     }
     scope
   }
@@ -141,7 +145,11 @@ object Scope {
       scope,
       () => {
         val errors = scope.close()
-        errors.headOption.foreach(throw _)
+        if (errors.nonEmpty) {
+          val first = errors.head
+          errors.tail.foreach(first.addSuppressed)
+          throw first
+        }
       }
     )
   }
