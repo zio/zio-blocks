@@ -132,6 +132,20 @@ private[typeid] object TypeIdOps {
       elemsA.size == elemsB.size && elemsA.zip(elemsB).forall { case (ea, eb) =>
         ea.label == eb.label && normalizedTypeReprEqual(ea.tpe, eb.tpe)
       }
+    case (TypeRepr.Ref(idA), TypeRepr.Applied(TypeRepr.Ref(tyconIdB), argsB)) if idA.typeArgs.nonEmpty =>
+      unapplied(idA).fullName == tyconIdB.fullName &&
+      normalizedTypeArgsEqual(idA.typeArgs, argsB)
+    case (TypeRepr.Applied(TypeRepr.Ref(tyconIdA), argsA), TypeRepr.Ref(idB)) if idB.typeArgs.nonEmpty =>
+      tyconIdA.fullName == unapplied(idB).fullName &&
+      normalizedTypeArgsEqual(argsA, idB.typeArgs)
+    case (TypeRepr.Ref(idA), TypeRepr.Tuple(elemsB)) if isTupleTypeId(idA) =>
+      tupleTypeArgsEqualElems(idA.typeArgs, elemsB)
+    case (TypeRepr.Tuple(elemsA), TypeRepr.Ref(idB)) if isTupleTypeId(idB) =>
+      tupleTypeArgsEqualElems(idB.typeArgs, elemsA)
+    case (TypeRepr.Applied(TypeRepr.Ref(tyconA), argsA), TypeRepr.Tuple(elemsB)) if isTupleTypeId(tyconA) =>
+      tupleTypeArgsEqualElems(argsA, elemsB)
+    case (TypeRepr.Tuple(elemsA), TypeRepr.Applied(TypeRepr.Ref(tyconB), argsB)) if isTupleTypeId(tyconB) =>
+      tupleTypeArgsEqualElems(argsB, elemsA)
     case _ =>
       a == b
   }
@@ -169,6 +183,17 @@ private[typeid] object TypeIdOps {
   private def isEmptyTuple(id: TypeId[_]): Boolean =
     id.fullName == "scala.Tuple$package.EmptyTuple" || id.name == "EmptyTuple"
 
+  private def isTupleTypeId(id: TypeId[_]): Boolean = {
+    val n = id.name
+    id.owner == Owners.scala &&
+    n.startsWith("Tuple") && n.length > 5 && n.drop(5).forall(_.isDigit)
+  }
+
+  private def tupleTypeArgsEqualElems(typeArgs: List[TypeRepr], elems: List[TupleElement]): Boolean =
+    typeArgs.size == elems.size && typeArgs.zip(elems).forall { case (arg, elem) =>
+      elem.label.isEmpty && normalizedTypeReprEqual(arg, elem.tpe)
+    }
+
   def structuralHash(id: TypeId[_]): Int = {
     val norm = normalize(id)
     if (norm.isOpaque) {
@@ -190,7 +215,15 @@ private[typeid] object TypeIdOps {
   }
 
   private[typeid] def normalizedTypeReprHash(repr: TypeRepr): Int = repr match {
-    case TypeRepr.Ref(id)              => structuralHash(id)
+    case TypeRepr.Ref(id) if isTupleTypeId(id) =>
+      ("tuple", id.typeArgs.map(a => (Option.empty[String], normalizedTypeReprHash(a)))).hashCode()
+    case TypeRepr.Ref(id) if id.typeArgs.nonEmpty =>
+      ("applied", unapplied(id).fullName, id.typeArgs.map(normalizedTypeReprHash)).hashCode()
+    case TypeRepr.Ref(id)                                                        => structuralHash(id)
+    case TypeRepr.Applied(TypeRepr.Ref(tyconId), args) if isTupleTypeId(tyconId) =>
+      ("tuple", args.map(a => (Option.empty[String], normalizedTypeReprHash(a)))).hashCode()
+    case TypeRepr.Applied(TypeRepr.Ref(tyconId), args) =>
+      ("applied", tyconId.fullName, args.map(normalizedTypeReprHash)).hashCode()
     case TypeRepr.Applied(tycon, args) => (normalizedTypeReprHash(tycon), args.map(normalizedTypeReprHash)).hashCode()
     case TypeRepr.Union(types)         => ("union", types.map(normalizedTypeReprHash).toSet).hashCode()
     case TypeRepr.Intersection(types)  => ("intersection", types.map(normalizedTypeReprHash).toSet).hashCode()
