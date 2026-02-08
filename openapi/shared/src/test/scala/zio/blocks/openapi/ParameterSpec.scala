@@ -65,10 +65,10 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val schema     = Json.Object("type" -> Json.String("integer"))
+        val schemaObj  = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))
         val example    = Json.Number(10)
-        val examples   = Map("example1" -> Json.Number(20))
-        val content    = Map("application/json" -> Json.Object())
+        val examples   = Map("example1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20)))))
+        val content    = Map("application/json" -> MediaType())
         val extensions = Map("x-custom" -> Json.String("value"))
 
         val param = Parameter(
@@ -81,7 +81,7 @@ object ParameterSpec extends SchemaBaseSpec {
           style = Some("form"),
           explode = Some(true),
           allowReserved = Some(false),
-          schema = Some(schema),
+          schema = Some(schemaObj),
           example = Some(example),
           examples = examples,
           content = content,
@@ -206,10 +206,10 @@ object ParameterSpec extends SchemaBaseSpec {
           style = Some("form"),
           explode = Some(true),
           allowReserved = Some(false),
-          schema = Some(Json.Object("type" -> Json.String("integer"))),
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
           example = Some(Json.Number(10)),
-          examples = Map("ex1" -> Json.Number(20)),
-          content = Map("application/json" -> Json.Object()),
+          examples = Map("ex1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20))))),
+          content = Map("application/json" -> MediaType()),
           extensions = Map("x-custom" -> Json.String("value"))
         )
 
@@ -282,10 +282,10 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val schema     = Json.Object("type" -> Json.String("string"))
+        val schemaObj  = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))
         val example    = Json.String("Bearer token123")
-        val examples   = Map("example1" -> Json.String("Bearer abc"))
-        val content    = Map("application/json" -> Json.Object())
+        val examples   = Map("example1" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer abc")))))
+        val content    = Map("application/json" -> MediaType())
         val extensions = Map("x-custom" -> Json.String("value"))
 
         val header = Header(
@@ -296,7 +296,7 @@ object ParameterSpec extends SchemaBaseSpec {
           style = Some("simple"),
           explode = Some(false),
           allowReserved = Some(true),
-          schema = Some(schema),
+          schema = Some(schemaObj),
           example = Some(example),
           examples = examples,
           content = content,
@@ -357,10 +357,10 @@ object ParameterSpec extends SchemaBaseSpec {
           style = Some("simple"),
           explode = Some(false),
           allowReserved = Some(true),
-          schema = Some(Json.Object("type" -> Json.String("string"))),
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("key123")),
-          examples = Map("ex1" -> Json.String("key456")),
-          content = Map("text/plain" -> Json.Object()),
+          examples = Map("ex1" -> ReferenceOr.Value(Example(value = Some(Json.String("key456"))))),
+          content = Map("text/plain" -> MediaType()),
           extensions = Map("x-custom" -> Json.Boolean(true))
         )
 
@@ -384,9 +384,13 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("Header with schema for array type") {
-        val arraySchema = Json.Object(
-          "type"  -> Json.String("array"),
-          "items" -> Json.Object("type" -> Json.String("string"))
+        val arraySchema = ReferenceOr.Value(
+          SchemaObject(jsonSchema =
+            Json.Object(
+              "type"  -> Json.String("array"),
+              "items" -> Json.Object("type" -> Json.String("string"))
+            )
+          )
         )
         val header = Header(
           schema = Some(arraySchema),
@@ -402,9 +406,9 @@ object ParameterSpec extends SchemaBaseSpec {
       },
       test("Header with multiple examples") {
         val examples = Map(
-          "default" -> Json.String("value1"),
-          "special" -> Json.String("value2"),
-          "extreme" -> Json.String("value3")
+          "default" -> ReferenceOr.Value(Example(value = Some(Json.String("value1")))),
+          "special" -> ReferenceOr.Value(Example(value = Some(Json.String("value2")))),
+          "extreme" -> ReferenceOr.Value(Example(value = Some(Json.String("value3"))))
         )
         val header = Header(examples = examples)
 
