@@ -159,6 +159,23 @@ object ResourceSpec extends ZIOSpecDefault {
         closeCounter.get() == 1
       )
     },
+    test("Resource.shared handles concurrent initialization contention") {
+      for {
+        counter <- ZIO.succeed(new AtomicInteger(0))
+        resource = Resource.shared[Int] { _ =>
+                     Thread.sleep(10)
+                     counter.incrementAndGet()
+                   }
+        (scope, close) = Scope.createTestableScope()
+        results       <- ZIO.foreachPar(1 to 100) { _ =>
+                     ZIO.attempt(resource.make(scope))
+                   }
+        _ <- ZIO.succeed(close())
+      } yield assertTrue(
+        results.forall(_ == 1),
+        counter.get() == 1
+      )
+    },
     test("Resource.shared throws if allocated after destroyed") {
       val resource         = Resource.shared[String](_ => "value")
       val (scope1, close1) = Scope.createTestableScope()
