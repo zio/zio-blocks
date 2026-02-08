@@ -160,13 +160,13 @@ object ResourceSpec extends ZIOSpecDefault {
       )
     },
     test("Resource.shared throws if allocated after destroyed") {
-      val resource       = Resource.shared[String](_ => "value")
+      val resource         = Resource.shared[String](_ => "value")
       val (scope1, close1) = Scope.createTestableScope()
       resource.make(scope1)
       close1()
 
       val (scope2, _) = Scope.createTestableScope()
-      val caught =
+      val caught      =
         try {
           resource.make(scope2)
           None
