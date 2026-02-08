@@ -94,7 +94,8 @@ object MigrationIntegrationSpec extends SchemaBaseSpec {
     dynamicValueRoundTripSuite,
     builderIntegrationSuite,
     errorPathSuite,
-    compositionReversalSuite
+    compositionReversalSuite,
+    structuralTypeSuite
   )
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -966,6 +967,145 @@ object MigrationIntegrationSpec extends SchemaBaseSpec {
         val backward = composed.reverse(forward.toOption.get)
         assertTrue(backward == Right(input))
       }
+    }
+  )
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 10. Structural Type Migration (Untyped DynamicValue-Level)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  private val structuralTypeSuite = suite("structural type migration")(
+    test("migrate between structural schema versions using pure DynamicValue records") {
+      // Simulate structural types: type PersonV0 = { val firstName: String; val lastName: String }
+      //                            type PersonV1 = { val firstName: String; val surname: String; val email: String }
+      // No case classes needed — migration works entirely at the DynamicValue level.
+      val personV0 = DynamicValue.Record(
+        Chunk(("firstName", stringDV("John")), ("lastName", stringDV("Doe")))
+      )
+
+      val dm = DynamicMigration(
+        Chunk(
+          MigrationAction.Rename(DynamicOptic.root, "lastName", "surname"),
+          MigrationAction.AddField(DynamicOptic.root, "email", litStr("unknown@example.com"))
+        )
+      )
+
+      val result = dm(personV0)
+      assertTrue(
+        result == Right(
+          DynamicValue.Record(
+            Chunk(("firstName", stringDV("John")), ("surname", stringDV("Doe")), ("email", stringDV("unknown@example.com")))
+          )
+        )
+      )
+    },
+    test("structural type multi-step evolution: V0 -> V1 -> V2") {
+      // V0: { host: String, port: Int }
+      val v0 = DynamicValue.Record(
+        Chunk(("host", stringDV("localhost")), ("port", intDV(8080)))
+      )
+
+      // V0 -> V1: add maxRetries
+      val dm1 = DynamicMigration(
+        Chunk(MigrationAction.AddField(DynamicOptic.root, "maxRetries", litInt(3)))
+      )
+
+      // V1 -> V2: rename host to hostname, add timeout
+      val dm2 = DynamicMigration(
+        Chunk(
+          MigrationAction.Rename(DynamicOptic.root, "host", "hostname"),
+          MigrationAction.AddField(DynamicOptic.root, "timeout", litLong(5000L))
+        )
+      )
+
+      val composed = dm1 ++ dm2
+      val result   = composed(v0)
+      assertTrue(
+        result == Right(
+          DynamicValue.Record(
+            Chunk(
+              ("hostname", stringDV("localhost")),
+              ("port", intDV(8080)),
+              ("maxRetries", intDV(3)),
+              ("timeout", longDV(5000L))
+            )
+          )
+        )
+      )
+    },
+    test("structural type round-trip via reverse preserves original") {
+      val v0 = DynamicValue.Record(
+        Chunk(("name", stringDV("Alice")), ("age", intDV(30)))
+      )
+
+      val dm = DynamicMigration(
+        Chunk(
+          MigrationAction.Rename(DynamicOptic.root, "name", "fullName"),
+          MigrationAction.AddField(DynamicOptic.root, "email", litStr("a@b.com"))
+        )
+      )
+
+      val roundTrip = dm(v0).flatMap(dm.reverse.apply)
+      assertTrue(roundTrip == Right(v0))
+    },
+    test("structural type with nested records") {
+      // { address: { street: String, city: String }, name: String }
+      val v0 = DynamicValue.Record(
+        Chunk(
+          ("address", DynamicValue.Record(Chunk(("street", stringDV("123 Main")), ("city", stringDV("NYC"))))),
+          ("name", stringDV("Bob"))
+        )
+      )
+
+      // Rename street -> streetAddress inside address, add zip to address
+      val dm = DynamicMigration(
+        Chunk(
+          MigrationAction.Rename(DynamicOptic.root.field("address"), "street", "streetAddress"),
+          MigrationAction.AddField(DynamicOptic.root.field("address"), "zip", litStr("10001"))
+        )
+      )
+
+      val result = dm(v0)
+      assertTrue(
+        result == Right(
+          DynamicValue.Record(
+            Chunk(
+              ("address", DynamicValue.Record(
+                Chunk(("streetAddress", stringDV("123 Main")), ("city", stringDV("NYC")), ("zip", stringDV("10001")))
+              )),
+              ("name", stringDV("Bob"))
+            )
+          )
+        )
+      )
+    },
+    test("structural enum migration: rename case and transform its payload") {
+      // Structural enum: Variant("CreditCard", { number: String })
+      val v0 = DynamicValue.Variant(
+        "CreditCard",
+        DynamicValue.Record(Chunk(("number", stringDV("4111"))))
+      )
+
+      val dm = DynamicMigration(
+        Chunk(
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            "CreditCard",
+            Chunk(MigrationAction.Rename(DynamicOptic.root, "number", "cardNumber"))
+          ),
+          MigrationAction.RenameCase(DynamicOptic.root, "CreditCard", "Card")
+        )
+      )
+
+      val result = dm(v0)
+      assertTrue(
+        result == Right(
+          DynamicValue.Variant(
+            "Card",
+            DynamicValue.Record(Chunk(("cardNumber", stringDV("4111"))))
+          )
+        )
+      )
     }
   )
 }

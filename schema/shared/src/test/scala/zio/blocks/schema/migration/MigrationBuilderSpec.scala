@@ -30,6 +30,11 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
     implicit val schema: Schema[SimpleRecord] = Schema.derived
   }
 
+  case class Nested(inner: SimpleRecord, label: String)
+  object Nested {
+    implicit val schema: Schema[Nested] = Schema.derived
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Dynamic Value Helpers
   // ─────────────────────────────────────────────────────────────────────────
@@ -57,7 +62,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
     optionalizeFieldSuite,
     joinSplitSuite,
     collectionOperationsSuite,
-    atVariantsSuite
+    atVariantsSuite,
+    selectorMacroSuite
   )
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -541,6 +547,110 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
           case _ => assertTrue(false)
         }
       }
+    }
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Selector Macros
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private val selectorMacroSuite = suite("selector macros")(
+    test("renameField with selector produces same action as string version") {
+      val withString   = MigrationBuilder
+        .create(PersonV1.schema, PersonV2.schema)
+        .renameField("name", "fullName")
+      val withSelector = MigrationBuilder
+        .create(PersonV1.schema, PersonV2.schema)
+        .renameField(_.name, "fullName")
+      assertTrue(withString.actions == withSelector.actions)
+    },
+    test("renameField selector end-to-end migration") {
+      val migration = MigrationBuilder
+        .create(PersonV1.schema, PersonV2.schema)
+        .renameField(_.name, "fullName")
+        .buildPartial
+      val result = migration(PersonV1("Alice", 30, "alice@example.com"))
+      assertTrue(result == Right(PersonV2("Alice", 30, "alice@example.com")))
+    },
+    test("dropField with selector produces same action as string version") {
+      val withString   = MigrationBuilder
+        .create(PersonV1.schema, PersonV0.schema)
+        .dropField("email", litStr(""))
+      val withSelector = MigrationBuilder
+        .create(PersonV1.schema, PersonV0.schema)
+        .dropField(_.email, litStr(""))
+      assertTrue(withString.actions == withSelector.actions)
+    },
+    test("dropField selector end-to-end migration") {
+      val migration = MigrationBuilder
+        .create(PersonV1.schema, PersonV0.schema)
+        .dropField(_.email, litStr(""))
+        .buildPartial
+      val result = migration(PersonV1("Alice", 30, "alice@example.com"))
+      assertTrue(result == Right(PersonV0("Alice", 30)))
+    },
+    test("transformField with selector produces same action as string version") {
+      val withString   = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .transformField("x", litInt(99), litInt(42))
+      val withSelector = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .transformField(_.x, litInt(99), litInt(42))
+      assertTrue(withString.actions == withSelector.actions)
+    },
+    test("mandateField with selector produces same action as string version") {
+      val withString   = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .mandateField("x", litInt(0))
+      val withSelector = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .mandateField(_.x, litInt(0))
+      assertTrue(withString.actions == withSelector.actions)
+    },
+    test("optionalizeField with selector produces same action as string version") {
+      val withString   = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .optionalizeField("x", litInt(0))
+      val withSelector = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .optionalizeField(_.x, litInt(0))
+      assertTrue(withString.actions == withSelector.actions)
+    },
+    test("changeFieldType with selector produces same action as string version") {
+      val coercion        = MigrationExpr.Coerce(MigrationExpr.FieldRef(DynamicOptic.root), "String")
+      val reverseCoercion = MigrationExpr.Coerce(MigrationExpr.FieldRef(DynamicOptic.root), "Int")
+      val withString      = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .changeFieldType("x", coercion, reverseCoercion)
+      val withSelector    = MigrationBuilder
+        .create(SimpleRecord.schema, SimpleRecord.schema)
+        .changeFieldType(_.x, coercion, reverseCoercion)
+      assertTrue(withString.actions == withSelector.actions)
+    },
+    test("nested selector extracts correct path and field name") {
+      val builder = MigrationBuilder
+        .create(Nested.schema, Nested.schema)
+        .renameField(_.inner.x, "z")
+      assertTrue(builder.actions.size == 1) && {
+        builder.actions(0) match {
+          case MigrationAction.Rename(at, fromName, toName) =>
+            assertTrue(
+              at == DynamicOptic.root.field("inner"),
+              fromName == "x",
+              toName == "z"
+            )
+          case _ => assertTrue(false)
+        }
+      }
+    },
+    test("chaining selector and string methods together") {
+      val migration = MigrationBuilder
+        .create(PersonV0.schema, PersonV2.schema)
+        .addField("email", litStr("default@example.com"))
+        .renameField(_.name, "fullName")
+        .buildPartial
+      val result = migration(PersonV0("Alice", 30))
+      assertTrue(result == Right(PersonV2("Alice", 30, "default@example.com")))
     }
   )
 }

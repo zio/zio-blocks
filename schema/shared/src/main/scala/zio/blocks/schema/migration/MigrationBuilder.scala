@@ -31,7 +31,7 @@ final case class MigrationBuilder[A, B] private[migration] (
   actions: Chunk[MigrationAction],
   sourceSchema: Schema[A],
   targetSchema: Schema[B]
-) {
+) extends MigrationBuilderVersionSpecific[A, B] {
 
   // ─── Record Operations ──────────────────────────────────────────────
 
