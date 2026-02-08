@@ -49,18 +49,8 @@ object MigrationSpec extends ZIOSpecDefault {
       case class ItemV2(id: Int, name: String, price: Double)
       implicit val schemaV2: Schema[ItemV2] = Schema.derived[ItemV2]
 
-      val migration =
-        Migration.renameField[ItemV1, ItemV1]("title", "name") >>>
-          Migration.addField[ItemV1, ItemV2]("price", DynamicValue.double(9.99))
-
-      // Note: In the typed API above, the intermediate type ItemV1 isn't quite right for the second step
-      // because after rename, it doesn't match ItemV1 schema structurally.
-      // This highlights a need for `DynamicMigration` composition at the unsafe level
-      // or a way to represent intermediate schemas.
-      // For this test, we accept that we are composing operations on DynamicValues
-      // and checking the final decode.
-
-      // Refined composition manually for test:
+      // Note: Typed composition (renameField >>> addField) requires intermediate
+      // schema types. For this test, we use DynamicMigration composition directly:
       val dynMig = DynamicMigration.RenameField("title", "name") +
         DynamicMigration.AddClassField("price", DynamicValue.double(9.99))
 
