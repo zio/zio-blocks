@@ -36,14 +36,14 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     implicit val schema: Schema[UserV2] = Schema.derived[UserV2]
   }
 
-  var personV1: PersonV1 = scala.compiletime.uninitialized
-  var userV1: UserV1     = scala.compiletime.uninitialized
+  var personV1: PersonV1 = null.asInstanceOf[PersonV1]
+  var userV1: UserV1     = null.asInstanceOf[UserV1]
 
-  var renameMigration: Migration[PersonV1, PersonV2] = scala.compiletime.uninitialized
-  var addFieldMigration: Migration[UserV1, UserV2]  = scala.compiletime.uninitialized
+  var renameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
+  var addFieldMigration: Migration[UserV1, UserV2]  = null.asInstanceOf[Migration[UserV1, UserV2]]
   
-  var macroRenameMigration: Migration[PersonV1, PersonV2] = scala.compiletime.uninitialized
-  var macroAddFieldMigration: Migration[UserV1, UserV2]  = scala.compiletime.uninitialized
+  var macroRenameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
+  var macroAddFieldMigration: Migration[UserV1, UserV2]  = null.asInstanceOf[Migration[UserV1, UserV2]]
 
   @Setup
   def setup(): Unit = {
