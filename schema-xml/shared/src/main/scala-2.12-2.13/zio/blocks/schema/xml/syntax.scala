@@ -2,7 +2,7 @@ package zio.blocks.schema.xml
 
 import zio.blocks.schema.{Schema, SchemaError}
 
-trait XmlSyntaxVersionSpecific {
+object syntax {
 
   implicit final class XmlValueOps[A](private val self: A) extends AnyVal {
 
@@ -35,5 +35,3 @@ trait XmlSyntaxVersionSpecific {
     }
   }
 }
-
-object syntax extends XmlSyntaxVersionSpecific
