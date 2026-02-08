@@ -124,9 +124,4 @@ package object scope {
    *   the raw unwrapped value
    */
   inline def leak[A, S](inline scoped: A @@ S): A = ${ LeakMacros.leakImpl[A, S]('scoped) }
-
-  extension [A](resource: Resource[A]) {
-    inline def allocate[P, T <: P](using scope: Scope[P, T]): A @@ T =
-      scope.allocate(resource)
-  }
 }

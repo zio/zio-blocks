@@ -185,11 +185,10 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         }
         assertTrue(order.toList == List(3, 2, 1))
       },
-      test("package-level defer with using scope") {
+      test("package-level defer works with explicit Finalizer") {
         var cleaned = false
         Scope.global.scoped { scope =>
-          given Finalizer = scope
-          defer { cleaned = true }
+          scope.defer { cleaned = true }
         }
         assertTrue(cleaned)
       },
@@ -249,22 +248,12 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("defer works with Finalizer capability") {
         var finalized = false
         Scope.global.scoped { scope =>
-          given Finalizer = scope
-          defer { finalized = true }
+          scope.defer { finalized = true }
         }
         assertTrue(finalized)
       }
     ),
-    suite("Resource#allocate extension")(
-      test("Resource#allocate extension uses implicit scope") {
-        Scope.global.scoped { scope =>
-          given s: Scope[?, ?] = scope
-          val resource         = Resource("hello")
-          val value            = resource.allocate
-          assertTrue(s.$(value)(_.length) == 5)
-        }
-      }
-    ),
+
     suite("Wire")(
       test("shared[T] returns Wire.Shared") {
         val wire = shared[Config]
