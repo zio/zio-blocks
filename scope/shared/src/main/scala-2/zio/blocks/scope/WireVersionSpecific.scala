@@ -56,14 +56,13 @@ private[scope] object WireMacros {
     val selfExpr = c.prefix.tree
 
     // Flatten intersection type into component types
-    def flattenIntersection(tpe: Type): List[Type] = {
+    def flattenIntersection(tpe: Type): List[Type] =
       tpe.dealias match {
         case RefinedType(parents, _) =>
           parents.flatMap(flattenIntersection)
         case t if t =:= typeOf[Any] => Nil
         case t                      => List(t)
       }
-    }
 
     val requiredDeps = flattenIntersection(inType)
 
