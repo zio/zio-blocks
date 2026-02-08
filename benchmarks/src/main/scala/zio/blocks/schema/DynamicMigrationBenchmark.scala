@@ -56,10 +56,9 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     
     // Macro Derived
     import zio.blocks.schema.migration.macros.MacroMigration
-    import zio.blocks.schema.PrimitiveValue
     
     macroRenameMigration = MacroMigration.derive[PersonV1, PersonV2](DynamicMigration.RenameField("name", "fullName"))
-    macroAddFieldMigration = MacroMigration.derive[UserV1, UserV2](DynamicMigration.AddClassField("active", DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+    macroAddFieldMigration = MacroMigration.derive[UserV1, UserV2](DynamicMigration.AddClassField("active", DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true))))
   }
 
   @Benchmark
