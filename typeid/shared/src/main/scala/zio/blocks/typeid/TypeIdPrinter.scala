@@ -33,7 +33,7 @@ object TypeIdPrinter {
       param.name
 
     case TypeRepr.Applied(tycon, args) =>
-      s"${render(tycon)}[${args.map(render).mkString(", ")}]"
+      s"${renderAsConstructor(tycon)}[${args.map(render).mkString(", ")}]"
 
     case TypeRepr.Intersection(types) =>
       types.map(render).mkString(" & ")
@@ -169,6 +169,16 @@ object TypeIdPrinter {
   }
 
   // ========== Private Helpers ==========
+
+  /**
+   * Renders a type constructor without its formal type parameters. Used inside
+   * Applied types where the actual args replace formal params.
+   */
+  private def renderAsConstructor(repr: TypeRepr): String = repr match {
+    case TypeRepr.Ref(typeId) =>
+      if (shouldUseFullName(typeId.owner)) typeId.fullName else typeId.name
+    case other => render(other)
+  }
 
   /**
    * Determines whether to use the full name or simple name for a type based on

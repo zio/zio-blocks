@@ -958,8 +958,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         else if (vTpe <:< anyRefTpe && !isOpaque(vTpe) && !isZioPreludeNewtype(vTpe) && !isNeotypeNewtype(vTpe)) {
           vTpe.asType match {
             case '[vt] =>
-              val schema = findImplicitOrDeriveSchema[vt & AnyRef](vTpe)
-              '{ Schema.option($schema) }
+              val schema = findImplicitOrDeriveSchema[vt](vTpe)
+              '{ Schema.option($schema.asInstanceOf[Schema[vt & AnyRef]]) }
           }
         } else deriveSchemaForSealedTraitOrAbstractClassOrUnion(tpe)
       }
