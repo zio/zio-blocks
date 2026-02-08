@@ -855,13 +855,15 @@ object DynamicMigration {
   }
 
   private def primitiveToString(pv: PrimitiveValue): String = pv match {
-    case PrimitiveValue.String(v)     => v
-    case PrimitiveValue.Boolean(v)    => v.toString
-    case PrimitiveValue.Byte(v)       => v.toString
-    case PrimitiveValue.Short(v)      => v.toString
-    case PrimitiveValue.Int(v)        => v.toString
-    case PrimitiveValue.Long(v)       => v.toString
-    case PrimitiveValue.Float(v)      => BigDecimal(v.toDouble).floatValue.toString
+    case PrimitiveValue.String(v)  => v
+    case PrimitiveValue.Boolean(v) => v.toString
+    case PrimitiveValue.Byte(v)    => v.toString
+    case PrimitiveValue.Short(v)   => v.toString
+    case PrimitiveValue.Int(v)     => v.toString
+    case PrimitiveValue.Long(v)    => v.toString
+    case PrimitiveValue.Float(v)   =>
+      if (v.isNaN || v.isInfinite) v.toString
+      else BigDecimal(v.toDouble, new java.math.MathContext(7)).bigDecimal.stripTrailingZeros().toPlainString()
     case PrimitiveValue.Double(v)     => v.toString
     case PrimitiveValue.Char(v)       => v.toString
     case PrimitiveValue.BigInt(v)     => v.toString

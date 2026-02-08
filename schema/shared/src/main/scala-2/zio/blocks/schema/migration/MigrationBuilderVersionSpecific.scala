@@ -9,38 +9,37 @@ trait MigrationBuilderVersionSpecific[A, B] { self: MigrationBuilder[A, B] =>
    * Rename a field using a selector. Example:
    * `builder.renameField(_.name, "fullName")`
    */
-  def renameField(from: A => Any, toName: String): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.renameFieldImpl[A, B]
+  def renameField(from: A => Any, toName: String): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacros.renameFieldImpl[A, B]
 
   /**
    * Drop a field using a selector. Example:
    * `builder.dropField(_.email, reverseDefault)`
    */
-  def dropField(from: A => Any, reverseDefault: MigrationExpr): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.dropFieldImpl[A, B]
+  def dropField(from: A => Any, reverseDefault: MigrationExpr): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacros.dropFieldImpl[A, B]
 
   /**
    * Transform a field using a selector. Example:
    * `builder.transformField(_.age, expr, reverseExpr)`
    */
-  def transformField(field: A => Any, expr: MigrationExpr, reverseExpr: MigrationExpr): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.transformFieldImpl[A, B]
+  def transformField(field: A => Any, expr: MigrationExpr, reverseExpr: MigrationExpr): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacros.transformFieldImpl[A, B]
 
   /** Make an optional field required using a selector. */
-  def mandateField(field: A => Any, default: MigrationExpr): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.mandateFieldImpl[A, B]
+  def mandateField(field: A => Any, default: MigrationExpr): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacros.mandateFieldImpl[A, B]
 
   /** Make a required field optional using a selector. */
-  def optionalizeField(field: A => Any, defaultForNone: MigrationExpr): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.optionalizeFieldImpl[A, B]
+  def optionalizeField(field: A => Any, defaultForNone: MigrationExpr): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
 
   /** Change the type of a field using a selector. */
   def changeFieldType(
     field: A => Any,
     coercion: MigrationExpr,
     reverseCoercion: MigrationExpr
-  ): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.changeFieldTypeImpl[A, B]
+  ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.changeFieldTypeImpl[A, B]
 }
 
 private object MigrationBuilderMacros {
