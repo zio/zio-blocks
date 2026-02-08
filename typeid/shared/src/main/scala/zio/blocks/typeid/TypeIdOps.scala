@@ -132,6 +132,12 @@ private[typeid] object TypeIdOps {
       elemsA.size == elemsB.size && elemsA.zip(elemsB).forall { case (ea, eb) =>
         ea.label == eb.label && normalizedTypeReprEqual(ea.tpe, eb.tpe)
       }
+    case (TypeRepr.Ref(idA), TypeRepr.Applied(tyconB, argsB)) if idA.typeArgs.nonEmpty =>
+      normalizedTypeReprEqual(TypeRepr.Ref(unapplied(idA)), tyconB) &&
+      normalizedTypeArgsEqual(idA.typeArgs, argsB)
+    case (TypeRepr.Applied(tyconA, argsA), TypeRepr.Ref(idB)) if idB.typeArgs.nonEmpty =>
+      normalizedTypeReprEqual(tyconA, TypeRepr.Ref(unapplied(idB))) &&
+      normalizedTypeArgsEqual(argsA, idB.typeArgs)
     case _ =>
       a == b
   }
@@ -190,6 +196,8 @@ private[typeid] object TypeIdOps {
   }
 
   private[typeid] def normalizedTypeReprHash(repr: TypeRepr): Int = repr match {
+    case TypeRepr.Ref(id) if id.typeArgs.nonEmpty =>
+      (structuralHash(unapplied(id)), id.typeArgs.map(normalizedTypeReprHash)).hashCode()
     case TypeRepr.Ref(id)              => structuralHash(id)
     case TypeRepr.Applied(tycon, args) => (normalizedTypeReprHash(tycon), args.map(normalizedTypeReprHash)).hashCode()
     case TypeRepr.Union(types)         => ("union", types.map(normalizedTypeReprHash).toSet).hashCode()
