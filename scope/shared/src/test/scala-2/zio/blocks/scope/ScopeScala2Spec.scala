@@ -125,7 +125,7 @@ object ScopeScala2Spec extends ZIOSpecDefault {
           val db = scope.allocate(Resource.from[Database])
 
           // In Scala 2, map returns B @@ S directly
-          val queryResult: String @@ scope.Tag = db.map(_.query("mapped"))
+          val queryResult = db.map(_.query("mapped"))
 
           // Use $ to extract the result
           val result = scope.$(queryResult)(identity)
@@ -137,10 +137,10 @@ object ScopeScala2Spec extends ZIOSpecDefault {
           val db = scope.allocate(Resource.from[Database])
 
           // Chain map calls - each returns a scoped value
-          val result: String @@ scope.Tag = db.map(_.query("a")).map(s => s.toUpperCase)
+          val mapped = db.map(_.query("a")).map(s => s.toUpperCase)
 
-          val extracted = scope.$(result)(identity)
-          assertTrue(extracted == "RESULT: A")
+          val result = scope.$(mapped)(identity)
+          assertTrue(result == "RESULT: A")
         }
       }
     ),
