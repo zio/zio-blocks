@@ -54,11 +54,13 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     renameMigration = Migration.renameField[PersonV1, PersonV2]("name", "fullName")
     addFieldMigration = Migration.addField[UserV1, UserV2]("active", DynamicValue.boolean(true))
     
-    // Macro Derived
+    // Macro Derived (Disabled for CI cross-build compatibility)
+    /*
     import zio.blocks.schema.migration.macros.MacroMigration
     
     macroRenameMigration = MacroMigration.derive[PersonV1, PersonV2](DynamicMigration.RenameField("name", "fullName"))
     macroAddFieldMigration = MacroMigration.derive[UserV1, UserV2](DynamicMigration.AddClassField("active", DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true))))
+    */
   }
 
   @Benchmark
@@ -69,9 +71,11 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   def interpretedRename(): Either[String, PersonV2] =
     renameMigration.migrate(personV1)
     
+  /*
   @Benchmark
   def macroRename(): Either[String, PersonV2] =
     macroRenameMigration.migrate(personV1)
+  */
 
   @Benchmark
   def manualAddField(): UserV2 =
@@ -81,7 +85,9 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   def interpretedAddField(): Either[String, UserV2] =
     addFieldMigration.migrate(userV1)
     
+  /*
   @Benchmark
   def macroAddField(): Either[String, UserV2] =
     macroAddFieldMigration.migrate(userV1)
+  */
 }
