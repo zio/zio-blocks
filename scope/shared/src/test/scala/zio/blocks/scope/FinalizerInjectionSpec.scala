@@ -15,31 +15,75 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
 
   case class Config(url: String)
 
-  class ServiceWithOnlyFinalizer(implicit finalizer: Finalizer) {
-    var cleaned = false
-    finalizer.defer { cleaned = true }
-  }
-
-  class ServiceWithDepsAndFinalizer(val config: Config)(implicit finalizer: Finalizer) {
-    var cleaned = false
-    finalizer.defer { cleaned = true }
-  }
-
   def spec = suite("Finalizer injection")(
-    // TODO: Resource.from for classes with only implicit params fails with macro error
-    // "Expected an expression. This is a partially applied Term."
-    // test("Resource.from[T] with only Finalizer parameter") {
-    //   val resource = Resource.from[ServiceWithOnlyFinalizer]
-    //   ...
-    // }
-    test("shared[T] with deps and Finalizer parameter injects it and cleanup runs") {
-      val wire           = shared[ServiceWithDepsAndFinalizer]
-      val deps           = Context[Config](Config("shared-test"))
+    test("shared[T] injects ProxyFinalizer and cleanup runs on scope close") {
+      var finalizerClass: String = ""
+
+      class Service(val config: Config)(implicit finalizer: Finalizer) {
+        var cleaned = false
+        finalizerClass = finalizer.getClass.getName
+        finalizer.defer { cleaned = true }
+      }
+
+      val wire           = shared[Service]
+      val deps           = Context[Config](Config("test"))
       val resource       = wire.toResource(deps)
       val (scope, close) = Scope.createTestableScope()
       val service        = resource.make(scope)
-      assertTrue(service.config.url == "shared-test", !service.cleaned) &&
-      { close(); assertTrue(service.cleaned) }
+
+      val cleanedBefore = service.cleaned
+      close()
+      val cleanedAfter = service.cleaned
+
+      assertTrue(
+        finalizerClass.contains("ProxyFinalizer"),
+        !cleanedBefore,
+        cleanedAfter
+      )
+    },
+    test("shared[T] multiple defers run in LIFO order") {
+      var order: List[Int] = Nil
+
+      class Service(val n: Int)(implicit finalizer: Finalizer) {
+        finalizer.defer { order = 1 :: order }
+        finalizer.defer { order = 2 :: order }
+        finalizer.defer { order = 3 :: order }
+      }
+
+      val wire           = shared[Service]
+      val deps           = Context[Int](42)
+      val resource       = wire.toResource(deps)
+      val (scope, close) = Scope.createTestableScope()
+      resource.make(scope)
+      close()
+
+      assertTrue(order == List(1, 2, 3)) // LIFO: 3 registered last, runs first
+    },
+    test("unique[T] injects Finalizer directly and cleanup runs") {
+      var finalizerClass: String = ""
+
+      class Service(val config: Config)(implicit finalizer: Finalizer) {
+        var cleaned = false
+        finalizerClass = finalizer.getClass.getName
+        finalizer.defer { cleaned = true }
+      }
+
+      val wire           = unique[Service]
+      val deps           = Context[Config](Config("test"))
+      val resource       = wire.toResource(deps)
+      val (scope, close) = Scope.createTestableScope()
+      val service        = resource.make(scope)
+
+      val cleanedBefore = service.cleaned
+      close()
+      val cleanedAfter = service.cleaned
+
+      // unique uses Resource.Unique which passes scope's Finalizer directly
+      assertTrue(
+        finalizerClass.contains("Finalizers") || finalizerClass.contains("Scope"),
+        !cleanedBefore,
+        cleanedAfter
+      )
     }
-  ) @@ TestAspect.ignore // Finalizer defers run during wire resolution, not scope close - needs investigation
+  )
 }
