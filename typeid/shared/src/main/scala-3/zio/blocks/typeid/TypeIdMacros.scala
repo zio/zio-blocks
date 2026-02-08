@@ -699,6 +699,14 @@ object TypeIdMacros {
         deriveUnionType[A](flattenUnion(tpe))
       case AndType(_, _) =>
         deriveIntersectionType[A](flattenIntersection(tpe))
+      case AppliedType(tycon, _) if tycon.typeSymbol.fullName == "scala.*:" =>
+        unfoldConsTuple(tpe) match {
+          case Some(elems) if elems.size <= 22 =>
+            val tupleNTpe = defn.TupleClass(elems.size).typeRef.appliedTo(elems)
+            deriveTypeIdCore[A](tupleNTpe)
+          case _ =>
+            deriveAppliedTypeNew[A](tycon, tpe.asInstanceOf[AppliedType].args)
+        }
       case AppliedType(tycon, args) =>
         tycon match {
           case tr: TypeRef if tr.typeSymbol.isAliasType =>
@@ -1131,7 +1139,15 @@ object TypeIdMacros {
       case AppliedType(tycon, args) =>
         val tyconName = tycon.typeSymbol.fullName
 
-        if (isTupleType(tyconName)) {
+        if (tyconName == "scala.*:") {
+          unfoldConsTuple(tpe) match {
+            case Some(elems) => buildTupleTypeRepr(elems, newVisiting)
+            case None        =>
+              val tyconRepr = buildTypeReprFromTypeRepr(tycon, newVisiting)
+              val argsRepr  = args.map(t => buildTypeReprFromTypeRepr(t, newVisiting))
+              '{ zio.blocks.typeid.TypeRepr.Applied($tyconRepr, ${ Expr.ofList(argsRepr) }) }
+          }
+        } else if (isTupleType(tyconName)) {
           buildTupleTypeRepr(args, newVisiting)
         } else if (isFunctionType(tyconName)) {
           val paramTypes = args.init.map(t => buildTypeReprFromTypeRepr(t, newVisiting))
@@ -1497,6 +1513,17 @@ object TypeIdMacros {
   // ============================================================================
   // Type Detection Helpers
   // ============================================================================
+
+  private def unfoldConsTuple(using Quotes)(tpe: quotes.reflect.TypeRepr): Option[List[quotes.reflect.TypeRepr]] = {
+    import quotes.reflect.*
+    tpe.dealias match {
+      case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol.fullName == "scala.*:" =>
+        unfoldConsTuple(tail).map(head :: _)
+      case t if t =:= TypeRepr.of[EmptyTuple] =>
+        Some(Nil)
+      case _ => None
+    }
+  }
 
   private def isTupleType(fullName: String): Boolean =
     fullName.startsWith("scala.Tuple") || fullName == "scala.EmptyTuple" ||

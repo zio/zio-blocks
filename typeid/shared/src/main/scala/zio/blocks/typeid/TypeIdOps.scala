@@ -185,7 +185,8 @@ private[typeid] object TypeIdOps {
 
   private def isTupleTypeId(id: TypeId[_]): Boolean = {
     val n = id.name
-    n.startsWith("Tuple") && n.length > 5 && n.charAt(5).isDigit
+    id.owner == Owners.scala &&
+    n.startsWith("Tuple") && n.length > 5 && n.drop(5).forall(_.isDigit)
   }
 
   private def tupleTypeArgsEqualElems(typeArgs: List[TypeRepr], elems: List[TupleElement]): Boolean =
