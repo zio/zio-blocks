@@ -263,6 +263,176 @@ object XmlPatchSpec extends SchemaBaseSpec {
         val patch  = XmlPatch.setAttribute(DynamicOptic.root, "id", "123")
         val result = patch(xml)
         assertTrue(result.isLeft)
+      },
+      test("add PrependChild fails when target is not an element") {
+        val xml    = Xml.Text("test")
+        val patch  = XmlPatch.add(DynamicOptic.root, Xml.Element("new"), XmlPatch.Position.PrependChild)
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      },
+      test("add Before fails when applied at root (no parent context)") {
+        val xml    = Xml.Element("root")
+        val patch  = XmlPatch.add(DynamicOptic.root, Xml.Element("new"), XmlPatch.Position.Before)
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      },
+      test("remove fails when applied at root (no parent context)") {
+        val xml    = Xml.Element("root")
+        val patch  = XmlPatch.remove(DynamicOptic.root)
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      },
+      test("removeAttribute fails when target is not an element") {
+        val xml    = Xml.Text("test")
+        val patch  = XmlPatch.removeAttribute(DynamicOptic.root, "id")
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("AtIndex navigation")(
+      test("navigate by index and replace child") {
+        val xml    = Xml.Element("root", Xml.Element("a"), Xml.Element("b"), Xml.Element("c"))
+        val patch  = XmlPatch.replace(DynamicOptic.root.at(1), Xml.Element("replaced"))
+        val result = patch(xml)
+        assertTrue(result.isRight)
+        result match {
+          case Right(Xml.Element(_, _, children)) =>
+            assertTrue(
+              children.length == 3,
+              children(1).asInstanceOf[Xml.Element].name.localName == "replaced"
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("add before element at index") {
+        val xml    = Xml.Element("root", Xml.Element("a"), Xml.Element("b"))
+        val patch  = XmlPatch.add(DynamicOptic.root.at(1), Xml.Element("new"), XmlPatch.Position.Before)
+        val result = patch(xml)
+        assertTrue(result.isRight)
+        result match {
+          case Right(Xml.Element(_, _, children)) =>
+            assertTrue(
+              children.length == 3,
+              children(1).asInstanceOf[Xml.Element].name.localName == "new",
+              children(2).asInstanceOf[Xml.Element].name.localName == "b"
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("add after element at index") {
+        val xml    = Xml.Element("root", Xml.Element("a"), Xml.Element("b"))
+        val patch  = XmlPatch.add(DynamicOptic.root.at(0), Xml.Element("new"), XmlPatch.Position.After)
+        val result = patch(xml)
+        assertTrue(result.isRight)
+        result match {
+          case Right(Xml.Element(_, _, children)) =>
+            assertTrue(
+              children.length == 3,
+              children(1).asInstanceOf[Xml.Element].name.localName == "new"
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("remove element at index") {
+        val xml    = Xml.Element("root", Xml.Element("a"), Xml.Element("b"), Xml.Element("c"))
+        val patch  = XmlPatch.remove(DynamicOptic.root.at(1))
+        val result = patch(xml)
+        assertTrue(result.isRight)
+        result match {
+          case Right(Xml.Element(_, _, children)) =>
+            assertTrue(
+              children.length == 2,
+              children(0).asInstanceOf[Xml.Element].name.localName == "a",
+              children(1).asInstanceOf[Xml.Element].name.localName == "c"
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("index out of bounds error") {
+        val xml    = Xml.Element("root", Xml.Element("a"))
+        val patch  = XmlPatch.replace(DynamicOptic.root.at(5), Xml.Element("new"))
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      },
+      test("negative index error") {
+        val xml    = Xml.Element("root", Xml.Element("a"))
+        val patch  = XmlPatch.replace(DynamicOptic.root.at(-1), Xml.Element("new"))
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      },
+      test("nested AtIndex navigation") {
+        val xml = Xml.Element(
+          "root",
+          Xml.Element("level1", Xml.Element("level2-a"), Xml.Element("level2-b")),
+          Xml.Element("other")
+        )
+        val patch  = XmlPatch.replace(DynamicOptic.root.at(0).at(1), Xml.Element("replaced"))
+        val result = patch(xml)
+        assertTrue(result.isRight)
+        result match {
+          case Right(Xml.Element(_, _, children)) =>
+            children.head match {
+              case Xml.Element(_, _, nested) =>
+                assertTrue(
+                  nested.length == 2,
+                  nested(1).asInstanceOf[Xml.Element].name.localName == "replaced"
+                )
+              case _ => assertTrue(false)
+            }
+          case _ => assertTrue(false)
+        }
+      },
+      test("atIndex on non-element fails") {
+        val xml    = Xml.Element("root", Xml.Text("text"))
+        val patch  = XmlPatch.replace(DynamicOptic.root.at(0).at(0), Xml.Element("new"))
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("Nested field navigation")(
+      test("navigate nested fields and replace") {
+        val xml = Xml.Element(
+          "root",
+          Xml.Element("level1", Xml.Element("level2", Xml.Text("old")))
+        )
+        val patch  = XmlPatch.replace(DynamicOptic.root.field("level1").field("level2"), Xml.Text("new"))
+        val result = patch(xml)
+        assertTrue(result.isRight)
+        result match {
+          case Right(Xml.Element(_, _, children)) =>
+            children.head match {
+              case Xml.Element(_, _, nested) =>
+                nested.head match {
+                  case Xml.Text(value) => assertTrue(value == "new")
+                  case _               => assertTrue(false)
+                }
+              case _ => assertTrue(false)
+            }
+          case _ => assertTrue(false)
+        }
+      },
+      test("nested field not found error") {
+        val xml    = Xml.Element("root", Xml.Element("level1", Xml.Element("wrong")))
+        val patch  = XmlPatch.replace(DynamicOptic.root.field("level1").field("missing"), Xml.Text("new"))
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      },
+      test("field navigation on non-element fails") {
+        val xml    = Xml.Element("root", Xml.Element("a", Xml.Text("text")))
+        val patch  = XmlPatch.replace(DynamicOptic.root.field("a").field("inner"), Xml.Element("new"))
+        val result = patch(xml)
+        assertTrue(result.isLeft)
+      }
+    ),
+    suite("isEmpty")(
+      test("empty patch returns true") {
+        val isEmpty = XmlPatch.empty.isEmpty
+        assertTrue(isEmpty)
+      },
+      test("non-empty patch returns false") {
+        val patch         = XmlPatch.add(DynamicOptic.root, Xml.Element("a"), XmlPatch.Position.AppendChild)
+        val isEmptyResult = patch.isEmpty
+        assertTrue(!isEmptyResult)
       }
     )
   )

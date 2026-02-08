@@ -252,8 +252,70 @@ object XmlSpec extends SchemaBaseSpec {
             pi.data == "type=\"text/xsl\"",
             pi.xmlType == XmlType.ProcessingInstruction
           )
+        },
+        test("equality and hashCode") {
+          val pi1 = Xml.ProcessingInstruction("target1", "data1")
+          val pi2 = Xml.ProcessingInstruction("target1", "data1")
+          val pi3 = Xml.ProcessingInstruction("target2", "data2")
+          assertTrue(
+            pi1 == pi2,
+            pi1.hashCode == pi2.hashCode,
+            pi1 != pi3,
+            pi1.hashCode != pi3.hashCode
+          )
         }
       )
+    ),
+    suite("Xml printing methods")(
+      test("print renders compact XML") {
+        val elem   = Xml.Element("root", Xml.Text("content"))
+        val result = elem.print
+        assertTrue(result == "<root>content</root>")
+      },
+      test("printPretty renders indented XML") {
+        val elem   = Xml.Element("root", Xml.Element("child"))
+        val result = elem.printPretty
+        assertTrue(
+          result.contains("<root>"),
+          result.contains("  <child"),
+          result.contains("</root>")
+        )
+      },
+      test("print with custom config") {
+        val elem   = Xml.Element("root")
+        val result = elem.print(WriterConfig(indentStep = 4))
+        assertTrue(result.contains("<root"))
+      },
+      test("Text node equality and hashCode") {
+        val t1 = Xml.Text("hello")
+        val t2 = Xml.Text("hello")
+        val t3 = Xml.Text("world")
+        assertTrue(
+          t1 == t2,
+          t1.hashCode == t2.hashCode,
+          t1 != t3
+        )
+      },
+      test("CData node equality and hashCode") {
+        val c1 = Xml.CData("data1")
+        val c2 = Xml.CData("data1")
+        val c3 = Xml.CData("data2")
+        assertTrue(
+          c1 == c2,
+          c1.hashCode == c2.hashCode,
+          c1 != c3
+        )
+      },
+      test("Comment node equality and hashCode") {
+        val c1 = Xml.Comment("comment1")
+        val c2 = Xml.Comment("comment1")
+        val c3 = Xml.Comment("comment2")
+        assertTrue(
+          c1 == c2,
+          c1.hashCode == c2.hashCode,
+          c1 != c3
+        )
+      }
     )
   )
 }
