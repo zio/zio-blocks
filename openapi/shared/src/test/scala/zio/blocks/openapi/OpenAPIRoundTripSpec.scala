@@ -308,8 +308,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Operation and Parameter types round-trip")(
       test("Operation round-trips with all fields") {
         val original = Operation(
-          responses = Json.Object(
-            "200" -> Json.Object("description" -> Json.String("Success"))
+          responses = Map(
+            "200" -> ReferenceOr.Value(Response(description = doc("Success")))
           ),
           tags = List("users", "admin"),
           summary = Some(doc("Get user")),
@@ -317,10 +317,11 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com/get-user")),
           operationId = Some("getUser"),
           parameters = List(
-            Json.Object("name" -> Json.String("id"), "in" -> Json.String("path"))
+            ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true))
           ),
-          requestBody = Some(Json.Object("required" -> Json.Boolean(true))),
-          callbacks = Map("onData" -> Json.Object("url" -> Json.String("callback"))),
+          requestBody =
+            Some(ReferenceOr.Value(RequestBody(content = Map("application/json" -> MediaType()), required = true))),
+          callbacks = Map("onData" -> ReferenceOr.Value(Callback())),
           deprecated = true,
           security = List(SecurityRequirement(Map("api_key" -> List("read")))),
           servers = List(Server(url = "https://api.example.com")),
@@ -343,10 +344,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           style = Some("form"),
           explode = Some(true),
           allowReserved = Some(false),
-          schema = Some(Json.Object("type" -> Json.String("integer"))),
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
           example = Some(Json.Number(10)),
-          examples = Map("default" -> Json.Number(10)),
-          content = Map("application/json" -> Json.Object()),
+          examples = Map("default" -> ReferenceOr.Value(Example(value = Some(Json.Number(10))))),
+          content = Map("application/json" -> MediaType()),
           extensions = Map("x-param-id" -> Json.String("limit-1"))
         )
 
@@ -360,7 +361,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           name = "id",
           in = ParameterLocation.Path,
           required = true,
-          schema = Some(Json.Object("type" -> Json.String("string")))
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string")))))
         )
 
         val dv     = Schema[Parameter].toDynamicValue(original)
@@ -377,10 +378,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           style = Some("simple"),
           explode = Some(false),
           allowReserved = Some(false),
-          schema = Some(Json.Object("type" -> Json.String("string"))),
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("Bearer token")),
-          examples = Map("auth" -> Json.String("Bearer xyz")),
-          content = Map.empty[String, Json],
+          examples = Map("auth" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer xyz"))))),
+          content = Map.empty[String, MediaType],
           extensions = Map("x-header-id" -> Json.String("auth-1"))
         )
 
@@ -395,7 +396,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = RequestBody(
           content = Map(
             "application/json" -> MediaType(
-              schema = Some(Json.Object("type" -> Json.String("object"))),
+              schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))),
               example = Some(Json.Object("name" -> Json.String("test"))),
               examples = Map.empty[String, ReferenceOr[Example]],
               encoding = Map.empty[String, Encoding]
@@ -413,7 +414,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("MediaType round-trips with all fields") {
         val original = MediaType(
-          schema = Some(Json.Object("type" -> Json.String("string"))),
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("example value")),
           examples = Map(
             "example1" -> ReferenceOr.Value(
@@ -490,13 +491,14 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           headers = Map(
             "X-Rate-Limit" -> ReferenceOr.Value(
               Header(
-                schema = Some(Json.Object("type" -> Json.String("integer")))
+                schema =
+                  Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer")))))
               )
             )
           ),
           content = Map(
             "application/json" -> MediaType(
-              schema = Some(Json.Object("type" -> Json.String("object")))
+              schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
             )
           ),
           links = Map(
@@ -747,16 +749,23 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Container types round-trip")(
       test("Components round-trips") {
         val original = Components(
-          schemas = Map("User" -> Json.Object("type" -> Json.String("object"))),
-          responses = Map("NotFound" -> Json.Object("description" -> Json.String("Not found"))),
-          parameters = Map("limit" -> Json.Object("name" -> Json.String("limit"))),
-          examples = Map("user" -> Json.Object("name" -> Json.String("John"))),
-          requestBodies = Map("UserBody" -> Json.Object("required" -> Json.Boolean(true))),
-          headers = Map("X-Custom" -> Json.Object("schema" -> Json.Object())),
-          securitySchemes = Map("api_key" -> Json.Object("type" -> Json.String("apiKey"))),
-          links = Map("next" -> Json.Object("operationId" -> Json.String("getNext"))),
-          callbacks = Map("onEvent" -> Json.Object("url" -> Json.String("callback"))),
-          pathItems = Map("/users" -> Json.Object("summary" -> Json.String("Users"))),
+          schemas =
+            Map("User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))),
+          responses = Map("NotFound" -> ReferenceOr.Value(Response(description = doc("Not found")))),
+          parameters = Map("limit" -> ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))),
+          examples =
+            Map("user" -> ReferenceOr.Value(Example(value = Some(Json.Object("name" -> Json.String("John")))))),
+          requestBodies = Map(
+            "UserBody" -> ReferenceOr.Value(
+              RequestBody(content = Map("application/json" -> MediaType()), required = true)
+            )
+          ),
+          headers = Map("X-Custom" -> ReferenceOr.Value(Header())),
+          securitySchemes =
+            Map("api_key" -> ReferenceOr.Value(SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header))),
+          links = Map("next" -> ReferenceOr.Value(Link(operationId = Some("getNext")))),
+          callbacks = Map("onEvent" -> ReferenceOr.Value(Callback())),
+          pathItems = Map("/users" -> ReferenceOr.Value(PathItem(summary = Some(doc("Users"))))),
           extensions = Map("x-components" -> Json.String("custom"))
         )
 
@@ -846,8 +855,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           ),
           components = Some(
             Components(
-              schemas = Map("User" -> Json.Object("type" -> Json.String("object"))),
-              securitySchemes = Map("bearerAuth" -> Json.Object("type" -> Json.String("http")))
+              schemas = Map(
+                "User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
+              ),
+              securitySchemes = Map("bearerAuth" -> ReferenceOr.Value(SecurityScheme.HTTP(scheme = "bearer")))
             )
           ),
           security = List(
@@ -940,7 +951,6 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("extensions preserved on Operation") {
         val original = Operation(
-          responses = Json.Object(),
           extensions = Map("x-rate-limit" -> Json.Number(100))
         )
         val dv     = Schema[Operation].toDynamicValue(original)

@@ -23,7 +23,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("can be constructed with all fields populated") {
         val content = Map(
           "application/json" -> MediaType(
-            schema = Some(Json.Object("type" -> Json.String("object")))
+            schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
           ),
           "application/xml" -> MediaType()
         )
@@ -98,9 +98,9 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val schema   = Json.Object("type" -> Json.String("object"))
-        val example  = Json.Object("name" -> Json.String("John"))
-        val examples = Map(
+        val schemaObj = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
+        val example   = Json.Object("name" -> Json.String("John"))
+        val examples  = Map(
           "example1" -> ReferenceOr.Value(
             Example(summary = Some(doc("First example")), value = Some(Json.Number(1)))
           )
@@ -109,7 +109,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val extensions = Map("x-custom" -> Json.String("value"))
 
         val mediaType = MediaType(
-          schema = Some(schema),
+          schema = Some(schemaObj),
           example = Some(example),
           examples = examples,
           encoding = encoding,
@@ -148,7 +148,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("MediaType round-trips through DynamicValue") {
         val mediaType = MediaType(
-          schema = Some(Json.Object("type" -> Json.String("string"))),
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("test")),
           examples = Map.empty,
           encoding = Map.empty,
@@ -369,9 +369,11 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("preserves multiple content types") {
         val content = Map(
-          "application/json" -> MediaType(schema = Some(Json.Object("type" -> Json.String("object")))),
-          "application/xml"  -> MediaType(),
-          "text/plain"       -> MediaType()
+          "application/json" -> MediaType(schema =
+            Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
+          ),
+          "application/xml" -> MediaType(),
+          "text/plain"      -> MediaType()
         )
         val response = Response(description = doc("Multi-format response"), content = content)
 

@@ -56,9 +56,9 @@ final case class OpenAPI(
 object OpenAPI {
   import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
 
-  implicit val schema: Schema[OpenAPI] = Schema.derived
+  implicit lazy val schema: Schema[OpenAPI] = Schema.derived
 
-  implicit val jsonCodec: JsonBinaryCodec[OpenAPI] =
+  implicit lazy val jsonCodec: JsonBinaryCodec[OpenAPI] =
     schema.derive(JsonBinaryCodecDeriver)
 }
 
@@ -211,7 +211,7 @@ final case class Paths(
 )
 
 object Paths {
-  implicit val schema: Schema[Paths] = Schema.derived
+  implicit lazy val schema: Schema[Paths] = Schema.derived
 }
 
 /**
@@ -220,32 +220,42 @@ object Paths {
 final case class PathItem(
   summary: Option[Doc] = None,
   description: Option[Doc] = None,
+  get: Option[Operation] = None,
+  put: Option[Operation] = None,
+  post: Option[Operation] = None,
+  delete: Option[Operation] = None,
+  options: Option[Operation] = None,
+  head: Option[Operation] = None,
+  patch: Option[Operation] = None,
+  trace: Option[Operation] = None,
+  servers: List[Server] = Nil,
+  parameters: List[ReferenceOr[Parameter]] = Nil,
   extensions: Map[String, Json] = Map.empty
 )
 
 object PathItem {
-  implicit val schema: Schema[PathItem] = Schema.derived
+  implicit lazy val schema: Schema[PathItem] = Schema.derived
 }
 
 /**
  * Holds a set of reusable objects for different aspects of the OAS.
  */
 final case class Components(
-  schemas: Map[String, Json] = Map.empty,
-  responses: Map[String, Json] = Map.empty,
-  parameters: Map[String, Json] = Map.empty,
-  examples: Map[String, Json] = Map.empty,
-  requestBodies: Map[String, Json] = Map.empty,
-  headers: Map[String, Json] = Map.empty,
-  securitySchemes: Map[String, Json] = Map.empty,
-  links: Map[String, Json] = Map.empty,
-  callbacks: Map[String, Json] = Map.empty,
-  pathItems: Map[String, Json] = Map.empty,
+  schemas: Map[String, ReferenceOr[SchemaObject]] = Map.empty,
+  responses: Map[String, ReferenceOr[Response]] = Map.empty,
+  parameters: Map[String, ReferenceOr[Parameter]] = Map.empty,
+  examples: Map[String, ReferenceOr[Example]] = Map.empty,
+  requestBodies: Map[String, ReferenceOr[RequestBody]] = Map.empty,
+  headers: Map[String, ReferenceOr[Header]] = Map.empty,
+  securitySchemes: Map[String, ReferenceOr[SecurityScheme]] = Map.empty,
+  links: Map[String, ReferenceOr[Link]] = Map.empty,
+  callbacks: Map[String, ReferenceOr[Callback]] = Map.empty,
+  pathItems: Map[String, ReferenceOr[PathItem]] = Map.empty,
   extensions: Map[String, Json] = Map.empty
 )
 
 object Components {
-  implicit val schema: Schema[Components] = Schema.derived
+  implicit lazy val schema: Schema[Components] = Schema.derived
 }
 
 /**
@@ -318,15 +328,15 @@ object ExternalDocumentation {
  *   Extension fields starting with x-.
  */
 final case class Operation(
-  responses: Json,
+  responses: Map[String, ReferenceOr[Response]] = Map.empty,
   tags: List[String] = Nil,
   summary: Option[Doc] = None,
   description: Option[Doc] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   operationId: Option[String] = None,
-  parameters: List[Json] = Nil,
-  requestBody: Option[Json] = None,
-  callbacks: Map[String, Json] = Map.empty,
+  parameters: List[ReferenceOr[Parameter]] = Nil,
+  requestBody: Option[ReferenceOr[RequestBody]] = None,
+  callbacks: Map[String, ReferenceOr[Callback]] = Map.empty,
   deprecated: Boolean = false,
   security: List[SecurityRequirement] = Nil,
   servers: List[Server] = Nil,
@@ -334,7 +344,7 @@ final case class Operation(
 )
 
 object Operation {
-  implicit val schema: Schema[Operation] = Schema.derived
+  implicit lazy val schema: Schema[Operation] = Schema.derived
 }
 
 /**
@@ -569,10 +579,10 @@ final case class Parameter private (
   style: Option[String] = None,
   explode: Option[Boolean] = None,
   allowReserved: Option[Boolean] = None,
-  schema: Option[Json] = None,
+  schema: Option[ReferenceOr[SchemaObject]] = None,
   example: Option[Json] = None,
-  examples: Map[String, Json] = Map.empty,
-  content: Map[String, Json] = Map.empty,
+  examples: Map[String, ReferenceOr[Example]] = Map.empty,
+  content: Map[String, MediaType] = Map.empty,
   extensions: Map[String, Json] = Map.empty
 ) {
   require(
@@ -582,7 +592,7 @@ final case class Parameter private (
 }
 
 object Parameter {
-  implicit val schema: Schema[Parameter] = Schema.derived
+  implicit lazy val schema: Schema[Parameter] = Schema.derived
 
   /**
    * Creates a Parameter with validation of the required field constraint.
@@ -599,10 +609,10 @@ object Parameter {
     style: Option[String] = None,
     explode: Option[Boolean] = None,
     allowReserved: Option[Boolean] = None,
-    schema: Option[Json] = None,
+    schema: Option[ReferenceOr[SchemaObject]] = None,
     example: Option[Json] = None,
-    examples: Map[String, Json] = Map.empty,
-    content: Map[String, Json] = Map.empty,
+    examples: Map[String, ReferenceOr[Example]] = Map.empty,
+    content: Map[String, MediaType] = Map.empty,
     extensions: Map[String, Json] = Map.empty
   ): Parameter = {
     require(
@@ -677,15 +687,15 @@ final case class Header(
   style: Option[String] = None,
   explode: Option[Boolean] = None,
   allowReserved: Option[Boolean] = None,
-  schema: Option[Json] = None,
+  schema: Option[ReferenceOr[SchemaObject]] = None,
   example: Option[Json] = None,
-  examples: Map[String, Json] = Map.empty,
-  content: Map[String, Json] = Map.empty,
+  examples: Map[String, ReferenceOr[Example]] = Map.empty,
+  content: Map[String, MediaType] = Map.empty,
   extensions: Map[String, Json] = Map.empty
 )
 
 object Header {
-  implicit val schema: Schema[Header] = Schema.derived
+  implicit lazy val schema: Schema[Header] = Schema.derived
 }
 
 /**
@@ -714,7 +724,7 @@ final case class RequestBody(
 )
 
 object RequestBody {
-  implicit val schema: Schema[RequestBody] = Schema.derived
+  implicit lazy val schema: Schema[RequestBody] = Schema.derived
 }
 
 /**
@@ -745,7 +755,7 @@ object RequestBody {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class MediaType(
-  schema: Option[Json] = None,
+  schema: Option[ReferenceOr[SchemaObject]] = None,
   example: Option[Json] = None,
   examples: Map[String, ReferenceOr[Example]] = Map.empty,
   encoding: Map[String, Encoding] = Map.empty,
@@ -753,7 +763,7 @@ final case class MediaType(
 )
 
 object MediaType {
-  implicit val schema: Schema[MediaType] = Schema.derived
+  implicit lazy val schema: Schema[MediaType] = Schema.derived
 }
 
 /**
@@ -810,7 +820,7 @@ final case class Encoding(
 )
 
 object Encoding {
-  implicit val schema: Schema[Encoding] = Schema.derived
+  implicit lazy val schema: Schema[Encoding] = Schema.derived
 }
 
 /**
@@ -843,7 +853,7 @@ final case class Responses(
 )
 
 object Responses {
-  implicit val schema: Schema[Responses] = Schema.derived
+  implicit lazy val schema: Schema[Responses] = Schema.derived
 }
 
 /**
@@ -879,7 +889,7 @@ final case class Response(
 )
 
 object Response {
-  implicit val schema: Schema[Response] = Schema.derived
+  implicit lazy val schema: Schema[Response] = Schema.derived
 }
 
 /**
@@ -1000,7 +1010,7 @@ final case class Link private (
 }
 
 object Link {
-  implicit val schema: Schema[Link] = Schema.derived
+  implicit lazy val schema: Schema[Link] = Schema.derived
 
   /**
    * Creates a Link with validation of mutual exclusivity constraints.
@@ -1046,7 +1056,7 @@ final case class Callback(
 )
 
 object Callback {
-  implicit val schema: Schema[Callback] = Schema.derived
+  implicit lazy val schema: Schema[Callback] = Schema.derived
 }
 
 /**
