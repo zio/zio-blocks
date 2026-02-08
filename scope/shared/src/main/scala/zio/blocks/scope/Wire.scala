@@ -72,8 +72,8 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
   /**
    * Converts this wire to a shared wire.
    *
-   * If already shared, returns `this`. Otherwise, creates a new [[Shared]] wire
-   * with the same construction function.
+   * If already shared, returns `this`. Otherwise, creates a new `Wire.Shared`
+   * wire with the same construction function.
    *
    * @return
    *   a shared version of this wire
@@ -83,8 +83,8 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
   /**
    * Converts this wire to a unique wire.
    *
-   * If already unique, returns `this`. Otherwise, creates a new [[Unique]] wire
-   * with the same construction function.
+   * If already unique, returns `this`. Otherwise, creates a new `Wire.Unique`
+   * wire with the same construction function.
    *
    * @return
    *   a unique version of this wire

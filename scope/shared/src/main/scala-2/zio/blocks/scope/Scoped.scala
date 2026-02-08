@@ -6,14 +6,12 @@ import scala.language.implicitConversions
 /**
  * Companion object for the `@@` type providing scoping operations.
  *
- * In Scala 2, `@@` is implemented via [[ScopedModule]] rather than an opaque
+ * In Scala 2, `@@` is implemented via `ScopedModule` rather than an opaque
  * type. The `scoped` and `unscoped` operations delegate to the module
  * implementation.
  *
  * @see
  *   [[ScopedOps]] for extension methods on scoped values
- * @see
- *   [[ScopedModule]] for the underlying implementation
  */
 object @@ {
 

@@ -36,7 +36,7 @@ import zio.blocks.scope.internal.ProxyFinalizer
  * @see
  *   [[Scope.allocate]] for using resources
  * @see
- *   [[Wire.toResource]] for converting wires
+ *   `Wire.toResource` for converting wires
  */
 sealed trait Resource[+A] {
 
