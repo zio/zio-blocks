@@ -16,12 +16,21 @@ object ResourceSpec extends ZIOSpecDefault {
   }
 
   def spec = suite("Resource")(
-    test("Resource(value) creates a shared resource") {
+    test("Resource(value) creates a resource for non-AutoCloseable") {
       val resource       = Resource(Config("jdbc://localhost"))
       val (scope, close) = Scope.createTestableScope()
       val config         = resource.make(scope)
       close()
       assertTrue(config.url == "jdbc://localhost")
+    },
+    test("Resource(value) auto-registers close for AutoCloseable") {
+      val db             = new Database(Config("url"))
+      val resource       = Resource(db)
+      val (scope, close) = Scope.createTestableScope()
+      val result         = resource.make(scope)
+      assertTrue(!result.closed)
+      close()
+      assertTrue(result.closed)
     },
     test("Resource.shared creates from function") {
       val resource       = Resource.shared[Config](_ => Config("test-url"))
@@ -148,6 +157,25 @@ object ResourceSpec extends ZIOSpecDefault {
         results.forall(_ == 1),
         counter.get() == 1,
         closeCounter.get() == 1
+      )
+    },
+    test("Resource.shared throws if allocated after destroyed") {
+      val resource       = Resource.shared[String](_ => "value")
+      val (scope1, close1) = Scope.createTestableScope()
+      resource.make(scope1)
+      close1()
+
+      val (scope2, _) = Scope.createTestableScope()
+      val caught =
+        try {
+          resource.make(scope2)
+          None
+        } catch {
+          case e: IllegalStateException => Some(e)
+        }
+      assertTrue(
+        caught.isDefined,
+        caught.get.getMessage.contains("destroyed")
       )
     },
     test("Resource.acquireRelease registers release as finalizer") {
