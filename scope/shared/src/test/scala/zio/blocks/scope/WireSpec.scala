@@ -101,6 +101,20 @@ object WireSpec extends ZIOSpecDefault {
         val config         = resource.make(scope)
         close()
         assertTrue(config.debug)
+      },
+      test("Wire.Unique.toResource with Context creates unique resource") {
+        var counter = 0
+        val wire    = Wire.Unique.fromFunction[Config, Int] { (_, _) =>
+          counter += 1
+          counter
+        }
+        val deps           = Context[Config](Config(true))
+        val resource       = wire.toResource(deps)
+        val (scope, close) = Scope.createTestableScope()
+        val a              = resource.make(scope)
+        val b              = resource.make(scope)
+        close()
+        assertTrue(a == 1, b == 2)
       }
     )
   )

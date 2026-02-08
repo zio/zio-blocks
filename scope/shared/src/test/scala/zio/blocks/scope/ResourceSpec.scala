@@ -150,6 +150,33 @@ object ResourceSpec extends ZIOSpecDefault {
         closeCounter.get() == 1
       )
     },
+    test("Resource.acquireRelease registers release as finalizer") {
+      var acquired = false
+      var released = false
+      val resource = Resource.acquireRelease {
+        acquired = true
+        "value"
+      } { _ =>
+        released = true
+      }
+      val (scope, close) = Scope.createTestableScope()
+      val value          = resource.make(scope)
+      assertTrue(acquired, !released, value == "value")
+      close()
+      assertTrue(released)
+    },
+    test("Resource.fromAutoCloseable registers close as finalizer") {
+      class MyCloseable extends AutoCloseable {
+        var closed        = false
+        def close(): Unit = closed = true
+      }
+      val resource       = Resource.fromAutoCloseable(new MyCloseable)
+      val (scope, close) = Scope.createTestableScope()
+      val closeable      = resource.make(scope)
+      assertTrue(!closeable.closed)
+      close()
+      assertTrue(closeable.closed)
+    },
     suite("Resource.from with overrides")(
       test("creates standalone Resource when all deps covered") {
         case class Cfg(debug: Boolean)
