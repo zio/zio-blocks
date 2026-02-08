@@ -2,7 +2,7 @@ package zio.blocks.scope
 
 import zio.test._
 
-object UnscopedDerivedSpec extends ZIOSpecDefault {
+object UnscopedDerivedScala2Spec extends ZIOSpecDefault {
 
   case class Config(host: String, port: Int)
   object Config {

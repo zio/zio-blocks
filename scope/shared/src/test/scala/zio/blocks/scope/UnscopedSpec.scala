@@ -18,7 +18,7 @@ object UnscopedSpec extends ZIOSpecDefault {
     escape(value) == value
   }
 
-  def spec = suite("Unscoped instances")(
+  def spec = suite("Unscoped")(
     suite("Primitives")(
       test("Int") {
         assertTrue(verifyUnscoped(42))

@@ -110,7 +110,7 @@ object Resource extends ResourceCompanionVersionSpecific {
 
           case Pending =>
             // Another thread is initializing - spin wait
-            Thread.`yield`()
+            PlatformScope.threadYield()
 
           case created: Created[A @unchecked] =>
             // Resource exists - try to increment refCount

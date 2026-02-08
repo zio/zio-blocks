@@ -6,7 +6,7 @@ import scala.collection.mutable.ArrayBuffer
 import java.io.File
 import java.net.{URL, URLClassLoader}
 
-object ShutdownHookIntegrationSpec extends ZIOSpecDefault {
+object ScopeShutdownHookSpec extends ZIOSpecDefault {
   private def javaPath: String = {
     val javaHome  = System.getProperty("java.home")
     val separator = File.separator
@@ -29,7 +29,7 @@ object ShutdownHookIntegrationSpec extends ZIOSpecDefault {
     urls.map(u => new File(u.toURI).getAbsolutePath).mkString(File.pathSeparator)
   }
 
-  def spec = suite("ShutdownHook Integration")(
+  def spec = suite("Scope shutdown hook")(
     test("shutdown hook runs on JVM exit") {
       val classpath = buildClasspath
       val stdout    = ArrayBuffer.empty[String]

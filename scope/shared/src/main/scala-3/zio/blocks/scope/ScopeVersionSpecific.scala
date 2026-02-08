@@ -67,9 +67,8 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
   /**
    * Creates a child scope with an existential tag.
    *
-   * The block receives a child scope as an implicit (context function
-   * parameter) that can access this scope's resources. The child scope closes
-   * when the block exits, running all finalizers.
+   * The block receives a child scope that can access this scope's resources.
+   * The child scope closes when the block exits, running all finalizers.
    *
    * The child scope's Tag is existential - it's a fresh type for each
    * invocation that cannot be named outside the lambda body. This provides
@@ -77,16 +76,16 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * escaping.
    *
    * @param f
-   *   a context function that receives the child scope implicitly
+   *   a function that receives the child scope
    * @tparam A
    *   the result type
    * @return
    *   the result of the function
    */
-  def scoped[A](f: Scope[self.Tag, ? <: self.Tag] ?=> A): A = {
+  def scoped[A](f: Scope[self.Tag, ? <: self.Tag] => A): A = {
     val childScope                = new Scope[self.Tag, self.Tag](new Finalizers)
     var primary: Throwable | Null = null
-    try f(using childScope)
+    try f(childScope)
     catch {
       case t: Throwable =>
         primary = t
