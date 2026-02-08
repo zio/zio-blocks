@@ -23,5 +23,17 @@ package object openapi {
      *   A SchemaObject representing this Schema's structure and constraints.
      */
     def toOpenAPISchema: SchemaObject = SchemaObject.fromJsonSchema(self.toJsonSchema)
+
+    def schemaName: String = self.reflect.typeId.name
+
+    def toInlineSchema: ReferenceOr[SchemaObject] = ReferenceOr.Value(toOpenAPISchema)
+
+    def toRefSchema: (ReferenceOr[SchemaObject], (String, SchemaObject)) = toRefSchema(schemaName)
+
+    def toRefSchema(name: String): (ReferenceOr[SchemaObject], (String, SchemaObject)) = {
+      val ref        = ReferenceOr.Ref(Reference(`$ref` = s"#/components/schemas/$name"))
+      val definition = (name, toOpenAPISchema)
+      (ref, definition)
+    }
   }
 }

@@ -1,5 +1,6 @@
 package zio.blocks.openapi
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -481,10 +482,29 @@ final case class SchemaObject(
   extensions: Map[String, Json] = Map.empty
 ) {
 
-  /**
-   * Extracts the underlying JSON Schema as Json.
-   */
-  def toJson: Json = jsonSchema
+  def toJson: Json = jsonSchema match {
+    case obj: Json.Object =>
+      val extra = Chunk.newBuilder[(String, Json)]
+      discriminator.foreach { d =>
+        extra += ("discriminator" -> Schema[Discriminator].toDynamicValue(d).toJson)
+      }
+      xml.foreach { x =>
+        extra += ("xml" -> Schema[XML].toDynamicValue(x).toJson)
+      }
+      externalDocs.foreach { ed =>
+        extra += ("externalDocs" -> Schema[ExternalDocumentation].toDynamicValue(ed).toJson)
+      }
+      example.foreach { ex =>
+        extra += ("example" -> ex)
+      }
+      extensions.foreach { case (k, v) =>
+        extra += (k -> v)
+      }
+      val extraFields = extra.result()
+      if (extraFields.isEmpty) obj
+      else new Json.Object(obj.value ++ extraFields)
+    case other => other
+  }
 
   /**
    * Attempts to parse the underlying JSON Schema.
