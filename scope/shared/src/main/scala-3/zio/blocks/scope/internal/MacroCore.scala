@@ -194,6 +194,24 @@ private[scope] object MacroCore {
   }
 
   /**
+   * Flatten an intersection type (A & B & C) into a list of component types.
+   *
+   * Returns empty list for Any type, or a single-element list for
+   * non-intersection types.
+   */
+  def flattenIntersection(using Quotes)(tpe: quotes.reflect.TypeRepr): List[quotes.reflect.TypeRepr] = {
+    import quotes.reflect.*
+
+    def flatten(t: TypeRepr): List[TypeRepr] = t.dealias.simplified match {
+      case AndType(left, right)        => flatten(left) ++ flatten(right)
+      case t if t =:= TypeRepr.of[Any] => Nil
+      case t                           => List(t)
+    }
+
+    flatten(tpe)
+  }
+
+  /**
    * Extract the In type from a Wireable refinement type.
    *
    * Wireable.Typed[In, Out] = Wireable[Out] { type In >: In0 } Look for the

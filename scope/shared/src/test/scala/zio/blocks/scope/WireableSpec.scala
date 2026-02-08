@@ -39,9 +39,9 @@ object WireableSpec extends ZIOSpecDefault {
         val configWire = Wire(Config(true))
         val wireable   = Wireable.from[Service](configWire)
 
-        val deps           = zio.blocks.context.Context[DatabaseWithConfig](new DatabaseWithConfig(Config(true)))
+        val dbWire         = Wire(new DatabaseWithConfig(Config(true)))
         val (scope, close) = Scope.createTestableScope()
-        val resource       = wireable.wire.toResource(deps)
+        val resource       = wireable.wire.toResource(dbWire)
         val service        = resource.make(scope)
         close()
         assertTrue(service.isInstanceOf[Service])
@@ -52,9 +52,8 @@ object WireableSpec extends ZIOSpecDefault {
         val configWire = Wire(Config(true))
         val wireable   = Wireable.from[SimpleService](configWire)
 
-        val deps           = zio.blocks.context.Context.empty
         val (scope, close) = Scope.createTestableScope()
-        val resource       = wireable.wire.toResource(deps)
+        val resource       = wireable.wire.toResource()
         val service        = resource.make(scope)
         close()
         assertTrue(service.isInstanceOf[SimpleService])

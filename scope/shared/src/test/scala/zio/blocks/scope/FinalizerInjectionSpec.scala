@@ -1,7 +1,6 @@
 package zio.blocks.scope
 
 import zio.{Scope => _}
-import zio.blocks.context.Context
 import zio.test._
 
 /**
@@ -26,8 +25,8 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
       }
 
       val wire           = shared[Service]
-      val deps           = Context[Config](Config("test"))
-      val resource       = wire.toResource(deps)
+      val configWire     = Wire(Config("test"))
+      val resource       = wire.toResource(configWire)
       val (scope, close) = Scope.createTestableScope()
       val service        = resource.make(scope)
 
@@ -51,8 +50,8 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
       }
 
       val wire           = shared[Service]
-      val deps           = Context[Int](42)
-      val resource       = wire.toResource(deps)
+      val intWire        = Wire(42)
+      val resource       = wire.toResource(intWire)
       val (scope, close) = Scope.createTestableScope()
       resource.make(scope)
       close()
@@ -69,8 +68,8 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
       }
 
       val wire           = unique[Service]
-      val deps           = Context[Config](Config("test"))
-      val resource       = wire.toResource(deps)
+      val configWire     = Wire(Config("test"))
+      val resource       = wire.toResource(configWire)
       val (scope, close) = Scope.createTestableScope()
       val service        = resource.make(scope)
 
