@@ -1,10 +1,12 @@
 package zio.blocks.openapi
 
+import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object OperationSpec extends SchemaBaseSpec {
+  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
   def spec: Spec[TestEnvironment, Any] = suite("Operation")(
     test("can be constructed with required fields only") {
       val responses = Json.Object("200" -> Json.String("OK"))
@@ -32,11 +34,11 @@ object OperationSpec extends SchemaBaseSpec {
         "404" -> Json.String("Not Found")
       )
       val tags         = List("users", "admin")
-      val summary      = "Get user by ID"
-      val description  = "Retrieves a user from the database by their unique identifier"
+      val summary      = doc("Get user by ID")
+      val description  = doc("Retrieves a user from the database by their unique identifier")
       val externalDocs = ExternalDocumentation(
         url = "https://docs.example.com/users",
-        description = Some("User API Documentation")
+        description = Some(doc("User API Documentation"))
       )
       val operationId = "getUserById"
       val parameters  = List(
@@ -100,8 +102,8 @@ object OperationSpec extends SchemaBaseSpec {
     },
     test("has separate summary and description fields") {
       val responses   = Json.Object("200" -> Json.String("OK"))
-      val summary     = "Short summary"
-      val description = "Long detailed description with lots of information"
+      val summary     = doc("Short summary")
+      val description = doc("Long detailed description with lots of information")
       val operation   = Operation(
         responses = responses,
         summary = Some(summary),
@@ -202,14 +204,14 @@ object OperationSpec extends SchemaBaseSpec {
       val responses    = Json.Object("200" -> Json.String("OK"))
       val externalDocs = ExternalDocumentation(
         url = "https://example.com/docs/operation",
-        description = Some("Additional documentation for this operation")
+        description = Some(doc("Additional documentation for this operation"))
       )
       val operation = Operation(responses = responses, externalDocs = Some(externalDocs))
 
       assertTrue(
         operation.externalDocs.isDefined,
         operation.externalDocs.exists(_.url == "https://example.com/docs/operation"),
-        operation.externalDocs.exists(_.description.contains("Additional documentation for this operation"))
+        operation.externalDocs.exists(_.description.contains(doc("Additional documentation for this operation")))
       )
     },
     test("parameters field uses Json placeholder") {
@@ -268,8 +270,8 @@ object OperationSpec extends SchemaBaseSpec {
       val operation = Operation(
         responses = responses,
         tags = List("users", "api"),
-        summary = Some("List users"),
-        description = Some("Returns a list of all users in the system"),
+        summary = Some(doc("List users")),
+        description = Some(doc("Returns a list of all users in the system")),
         operationId = Some("listUsers"),
         deprecated = false,
         extensions = Map("x-internal" -> Json.Boolean(true))
@@ -282,8 +284,8 @@ object OperationSpec extends SchemaBaseSpec {
         result.isRight,
         result.exists(_.responses == responses),
         result.exists(_.tags == List("users", "api")),
-        result.exists(_.summary.contains("List users")),
-        result.exists(_.description.contains("Returns a list of all users in the system")),
+        result.exists(_.summary.contains(doc("List users"))),
+        result.exists(_.description.contains(doc("Returns a list of all users in the system"))),
         result.exists(_.operationId.contains("listUsers")),
         result.exists(_.deprecated == false),
         result.exists(_.extensions.contains("x-internal"))
@@ -312,7 +314,7 @@ object OperationSpec extends SchemaBaseSpec {
       val operation = Operation(
         responses = responses,
         tags = List("complex"),
-        summary = Some("Complex operation"),
+        summary = Some(doc("Complex operation")),
         parameters = List(
           Json.Object(
             "name"   -> Json.String("filter"),
