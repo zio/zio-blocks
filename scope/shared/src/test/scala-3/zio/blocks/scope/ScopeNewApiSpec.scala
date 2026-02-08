@@ -47,7 +47,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       test("scoped executes block and closes scope") {
         var blockRan = false
         var cleaned  = false
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           blockRan = true
           scope.defer { cleaned = true }
         }
@@ -56,7 +56,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       test("scoped closes scope even on exception") {
         var cleaned = false
         try {
-          Scope.global.scoped { scope =>
+          Scope.global.scoped { (scope: Scope[?, ?]) ?=>
             scope.defer { cleaned = true }
             throw new RuntimeException("boom")
           }
@@ -83,7 +83,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
         assertTrue(db.closed)
       },
       test("scope.allocate returns tagged value and $ works") {
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           val db     = scope.allocate(Resource[Database])
           val result = scope.$(db)(_.query("SELECT 1"))
           assertTrue(result == "result: SELECT 1")
@@ -92,14 +92,14 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     ),
     suite("scope.$ operator")(
       test("$ extracts value and applies function") {
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           val config = scope.allocate(Resource(Config(true)))
           val debug  = scope.$(config)(_.debug)
           assertTrue(debug)
         }
       },
       test("$ on Unscoped type returns raw value") {
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           val db     = scope.allocate(Resource[Database])
           val result = scope.$(db)(_.query("test"))
           assertTrue(result == "result: test")
@@ -108,10 +108,12 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     ),
     suite("nested scopes")(
       test("child scope can access parent resources via Tag subtyping") {
-        Scope.global.scoped { parentScope =>
-          val db = parentScope.allocate(Resource[Database])
+        Scope.global.scoped {
+          val parentScope = summon[Scope[?, ?]]
+          val db          = parentScope.allocate(Resource[Database])
 
-          parentScope.scoped { childScope =>
+          parentScope.scoped {
+            val childScope = summon[Scope[parentScope.Tag, ?]]
             // Child scope should be able to access parent-tagged value
             val result = childScope.$(db)(_.query("child"))
             assertTrue(result == "result: child")
@@ -121,10 +123,10 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       test("child scope closes before parent") {
         val order = scala.collection.mutable.ArrayBuffer.empty[String]
 
-        Scope.global.scoped { parent =>
+        Scope.global.scoped { (parent: Scope[?, ?]) ?=>
           parent.defer(order += "parent")
 
-          parent.scoped { child =>
+          parent.scoped { (child: Scope[?, ?]) ?=>
             child.defer(order += "child")
           }
         }
@@ -134,7 +136,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     ),
     suite("Scoped monad")(
       test("map creates Scoped computation") {
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           val db = scope.allocate(Resource[Database])
 
           val computation = db.map(_.query("mapped"))
@@ -145,7 +147,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
         }
       },
       test("map and Scoped.map composition") {
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           val db = scope.allocate(Resource[Database])
 
           // Chain using Scoped.map
@@ -159,7 +161,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("defer")(
       test("finalizers run in LIFO order") {
         val order = scala.collection.mutable.ArrayBuffer.empty[Int]
-        Scope.global.scoped { scope =>
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
           scope.defer(order += 1)
           scope.defer(order += 2)
           scope.defer(order += 3)
@@ -168,8 +170,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       },
       test("package-level defer with using scope") {
         var cleaned = false
-        Scope.global.scoped { scope =>
-          given Scope[?, ?] = scope
+        Scope.global.scoped {
           defer { cleaned = true }
         }
         assertTrue(cleaned)
@@ -177,7 +178,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       test("all finalizers run even if one throws") {
         val order = scala.collection.mutable.ArrayBuffer.empty[Int]
         try {
-          Scope.global.scoped { scope =>
+          Scope.global.scoped { (scope: Scope[?, ?]) ?=>
             scope.defer(order += 1)
             scope.defer(throw new RuntimeException("finalizer boom"))
             scope.defer(order += 3)
@@ -190,7 +191,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       test("block throws and finalizers throw: primary thrown, finalizer errors suppressed") {
         var caught: Throwable | Null = null
         try {
-          Scope.global.scoped { scope =>
+          Scope.global.scoped { (scope: Scope[?, ?]) ?=>
             scope.defer(throw new RuntimeException("finalizer 1"))
             scope.defer(throw new RuntimeException("finalizer 2"))
             throw new RuntimeException("block boom")
@@ -210,7 +211,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       test("block succeeds and finalizers throw multiple: first thrown, rest suppressed") {
         var caught: Throwable | Null = null
         try {
-          Scope.global.scoped { scope =>
+          Scope.global.scoped { (scope: Scope[?, ?]) ?=>
             scope.defer(throw new RuntimeException("finalizer 1"))
             scope.defer(throw new RuntimeException("finalizer 2"))
             scope.defer(throw new RuntimeException("finalizer 3"))

@@ -60,8 +60,8 @@ package object scope {
    * @param scope
    *   the scope to register the finalizer with
    */
-  def defer(finalizer: => Unit)(using scope: Scope[?, ?]): Unit =
-    scope.defer(finalizer)
+  def defer(finalizer: => Unit)(using fin: Finalizer): Unit =
+    fin.defer(finalizer)
 
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
@@ -124,4 +124,9 @@ package object scope {
    *   the raw unwrapped value
    */
   inline def leak[A, S](inline scoped: A @@ S): A = ${ LeakMacros.leakImpl[A, S]('scoped) }
+
+  extension [A](resource: Resource[A]) {
+    inline def allocate[P, T <: P](using scope: Scope[P, T]): A @@ T =
+      scope.allocate(resource)
+  }
 }

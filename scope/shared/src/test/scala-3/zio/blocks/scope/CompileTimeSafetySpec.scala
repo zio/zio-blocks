@@ -55,10 +55,12 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
     ),
     suite("child scope can access parent resources")(
       test("child can use parent-scoped values (positive test)") {
-        Scope.global.scoped { parent =>
-          val db = parent.allocate(Resource[Database])
-          parent.scoped { child =>
-            val r = child.$(db)(_.query("works"))
+        Scope.global.scoped {
+          val parent = summon[Scope[?, ?]]
+          val db     = parent.allocate(Resource[Database])
+          parent.scoped {
+            val child = summon[Scope[parent.Tag, ?]]
+            val r     = child.$(db)(_.query("works"))
             assertTrue(r == "result: works")
           }
         }
@@ -85,12 +87,12 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
     ),
     suite("sibling scopes cannot share resources")(
       test("runtime cast works but is unsafe (demonstration)") {
-        Scope.global.scoped { parent =>
+        Scope.global.scoped { (parent: Scope[?, ?]) ?=>
           var leaked: Any = null
-          parent.scoped { child1 =>
+          parent.scoped { (child1: Scope[?, ?]) ?=>
             leaked = child1.allocate(Resource[Database])
           }
-          parent.scoped { child2 =>
+          parent.scoped { (child2: Scope[?, ?]) ?=>
             val db = leaked.asInstanceOf[Database @@ child2.Tag]
             val r  = child2.$(db)(_.query("test"))
             assertTrue(r == "result: test")
