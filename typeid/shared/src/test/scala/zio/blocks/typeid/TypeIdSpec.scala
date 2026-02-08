@@ -728,6 +728,29 @@ object TypeIdSpec extends ZIOSpecDefault {
           )
           assertTrue(TypeIdOps.typeReprHash(refForm) == TypeIdOps.typeReprHash(appliedForm))
         },
+        test("Ref(Tuple2[A, B]) equals Tuple(List(TupleElement(A), TupleElement(B)))") {
+          val tuple2Id = TypeId.nominal[Tuple2[Int, String]](
+            "Tuple2",
+            Owner.fromPackagePath("scala"),
+            List(TypeParam("_1", 0), TypeParam("_2", 1)),
+            List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)),
+            TypeDefKind.Unknown,
+            None,
+            Nil
+          )
+          val refForm   = TypeRepr.Ref(tuple2Id)
+          val tupleForm = TypeRepr.Tuple(
+            List(
+              TupleElement(None, TypeRepr.Ref(TypeId.int)),
+              TupleElement(None, TypeRepr.Ref(TypeId.string))
+            )
+          )
+          assertTrue(
+            TypeIdOps.typeReprEqual(refForm, tupleForm),
+            TypeIdOps.typeReprEqual(tupleForm, refForm),
+            TypeIdOps.typeReprHash(refForm) == TypeIdOps.typeReprHash(tupleForm)
+          )
+        },
         test("nested: Option[Vector[String]] is consistent across representations") {
           val vectorStringRef = TypeRepr.Ref(
             TypeId.applied[Vector[String]](TypeId.vector, TypeRepr.Ref(TypeId.string))
