@@ -25,7 +25,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
 
           Scope.global.scoped { parent =>
             val leakedFromChild = parent.scoped { child =>
-              child.allocate(Resource[Database])
+              child.allocate(Resource.from[Database])
             }
             parent.$(leakedFromChild)(_.query("test"))
           }
@@ -44,7 +44,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
 
           Scope.global.scoped { parent =>
             val leakedFromChild = parent.scoped { child =>
-              child.allocate(Resource[Database])
+              child.allocate(Resource.from[Database])
             }
             val computation = leakedFromChild.map(_.query("test"))
             parent(computation)
@@ -57,7 +57,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
       test("child can use parent-scoped values (positive test)") {
         Scope.global.scoped {
           val parent = summon[Scope[?, ?]]
-          val db     = parent.allocate(Resource[Database])
+          val db     = parent.allocate(Resource.from[Database])
           parent.scoped {
             val child = summon[Scope[parent.Tag, ?]]
             val r     = child.$(db)(_.query("works"))
@@ -78,7 +78,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
           }
 
           Scope.global.scoped { scope =>
-            val db = scope.allocate(Resource[Database])
+            val db = scope.allocate(Resource.from[Database])
             db.query("test")
           }
         """)
@@ -90,7 +90,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
         Scope.global.scoped { (parent: Scope[?, ?]) ?=>
           var leaked: Any = null
           parent.scoped { (child1: Scope[?, ?]) ?=>
-            leaked = child1.allocate(Resource[Database])
+            leaked = child1.allocate(Resource.from[Database])
           }
           parent.scoped { (child2: Scope[?, ?]) ?=>
             val db = leaked.asInstanceOf[Database @@ child2.Tag]
@@ -112,7 +112,7 @@ object CompileTimeSafetySpec extends ZIOSpecDefault {
           def unsafeAttempt(): Unit = {
             Scope.global.scoped { parent =>
               val fromChild1 = parent.scoped { child1 =>
-                child1.allocate(Resource[Database])
+                child1.allocate(Resource.from[Database])
               }
               parent.scoped { child2 =>
                 child2.$(fromChild1)(_.query("test"))

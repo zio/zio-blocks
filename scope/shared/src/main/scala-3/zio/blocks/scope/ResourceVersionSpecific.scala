@@ -19,5 +19,36 @@ private[scope] trait ResourceCompanionVersionSpecific {
    * @return
    *   a resource that creates T instances
    */
-  inline def apply[T]: Resource[T] = ${ ResourceMacros.deriveResourceImpl[T] }
+  inline def from[T]: Resource[T] = ${ ResourceMacros.deriveResourceImpl[T] }
+
+  /**
+   * Derives a Resource[T] from T's constructor with wire overrides for all
+   * dependencies.
+   *
+   * All of T's constructor dependencies must be satisfied by the provided
+   * wires. If any dependency is not covered, a compile-time error is produced.
+   *
+   * This is useful when you want to create a standalone resource that fully
+   * encapsulates its dependency graph.
+   *
+   * @example
+   *   {{{
+   *   class Service(db: Database, config: Config)
+   *
+   *   // Provide wires for all dependencies
+   *   val resource = Resource.from[Service](
+   *     shared[Database],
+   *     Wire(Config("localhost", 8080))
+   *   )
+   *   }}}
+   *
+   * @tparam T
+   *   the type to construct
+   * @param wires
+   *   wires that provide all required dependencies
+   * @return
+   *   a resource that creates T instances
+   */
+  inline def from[T](inline wires: Wire[?, ?]*): Resource[T] =
+    ${ ResourceMacros.deriveResourceWithOverridesImpl[T]('wires) }
 }

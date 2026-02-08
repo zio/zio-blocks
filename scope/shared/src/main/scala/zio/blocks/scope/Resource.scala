@@ -27,7 +27,7 @@ import zio.blocks.scope.internal.ProxyFinalizer
  *     `AutoCloseable`
  *   - `Resource.acquireRelease(acquire)(release)`: Explicit acquire/release
  *   - `Resource.fromAutoCloseable(=> a)`: For `AutoCloseable` subtypes
- *   - `Resource[T]` macro (Scala 3): Derives from constructor
+ *   - `Resource.from[T]` macro (Scala 3): Derives from constructor
  *
  * @example
  *   {{{
