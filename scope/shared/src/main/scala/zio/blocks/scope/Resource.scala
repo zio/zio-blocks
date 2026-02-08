@@ -280,12 +280,32 @@ object Resource extends ResourceCompanionVersionSpecific {
   })
 
   /**
-   * Creates a shared resource from a function (internal use).
+   * Creates a shared resource from a function.
+   *
+   * Shared resources are memoized: the first call initializes the value,
+   * subsequent calls return the same instance with reference counting.
+   * Finalizers run when the last reference is released.
+   *
+   * @param f
+   *   a function from finalizer to value
+   * @tparam A
+   *   the value type
+   * @return
+   *   a shared resource
    */
-  private[scope] def shared[A](f: Finalizer => A): Resource[A] = new Shared(f)
+  def shared[A](f: Finalizer => A): Resource[A] = new Shared(f)
 
   /**
-   * Creates a unique resource from a function (internal use).
+   * Creates a unique resource from a function.
+   *
+   * Unique resources create a fresh instance each time they are allocated.
+   *
+   * @param f
+   *   a function from finalizer to value
+   * @tparam A
+   *   the value type
+   * @return
+   *   a unique resource
    */
-  private[scope] def unique[A](f: Finalizer => A): Resource[A] = new Unique(f)
+  def unique[A](f: Finalizer => A): Resource[A] = new Unique(f)
 }
