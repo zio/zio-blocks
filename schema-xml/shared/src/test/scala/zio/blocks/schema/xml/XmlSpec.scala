@@ -96,10 +96,12 @@ object XmlSpec extends SchemaBaseSpec {
             Xml.Text("text1"),
             Xml.Element("child")
           )
+          val isText    = elem.children(0).is(XmlType.Text)
+          val isElement = elem.children(1).is(XmlType.Element)
           assertTrue(
             elem.children.length == 2,
-            elem.children(0).is(XmlType.Text),
-            elem.children(1).is(XmlType.Element)
+            isText,
+            isElement
           )
         },
         test("creates element with namespace") {
@@ -125,21 +127,30 @@ object XmlSpec extends SchemaBaseSpec {
       ),
       suite("unified type operations")(
         test("is returns true when type matches") {
+          val elemCheck    = Xml.Element("test").is(XmlType.Element)
+          val textCheck    = Xml.Text("test").is(XmlType.Text)
+          val cdataCheck   = Xml.CData("test").is(XmlType.CData)
+          val commentCheck = Xml.Comment("test").is(XmlType.Comment)
+          val piCheck      = Xml.ProcessingInstruction("target", "data").is(XmlType.ProcessingInstruction)
           assertTrue(
-            Xml.Element("test").is(XmlType.Element),
-            Xml.Text("test").is(XmlType.Text),
-            Xml.CData("test").is(XmlType.CData),
-            Xml.Comment("test").is(XmlType.Comment),
-            Xml.ProcessingInstruction("target", "data").is(XmlType.ProcessingInstruction)
+            elemCheck,
+            textCheck,
+            cdataCheck,
+            commentCheck,
+            piCheck
           )
         },
         test("is returns false when type does not match") {
-          val elem = Xml.Element("test")
+          val elem       = Xml.Element("test")
+          val notText    = !elem.is(XmlType.Text)
+          val notCData   = !elem.is(XmlType.CData)
+          val notComment = !elem.is(XmlType.Comment)
+          val notPI      = !elem.is(XmlType.ProcessingInstruction)
           assertTrue(
-            !elem.is(XmlType.Text),
-            !elem.is(XmlType.CData),
-            !elem.is(XmlType.Comment),
-            !elem.is(XmlType.ProcessingInstruction)
+            notText,
+            notCData,
+            notComment,
+            notPI
           )
         },
         test("as returns Some when type matches") {
