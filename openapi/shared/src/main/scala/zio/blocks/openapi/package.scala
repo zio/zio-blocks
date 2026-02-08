@@ -4,6 +4,9 @@ import zio.blocks.schema.Schema
 
 package object openapi {
 
+  type Discriminator = discriminator.Discriminator
+  val Discriminator: discriminator.Discriminator.type = discriminator.Discriminator
+
   /**
    * Enriches Schema[A] with OpenAPI-specific operations.
    */
