@@ -11,9 +11,22 @@ import zio.blocks.schema.DynamicOptic
  *   the data structure where the error occurred.
  * @param message
  *   A descriptive message providing additional context about the error.
+ * @param line
+ *   Optional line number where the error occurred (for parse errors).
+ * @param column
+ *   Optional column number where the error occurred (for parse errors).
  */
-class XmlError(var spans: List[DynamicOptic.Node], message: String) extends Throwable(message, null, false, false) {
-  override def getMessage: String = message
+class XmlError(
+  var spans: List[DynamicOptic.Node],
+  message: String,
+  val line: Option[Int] = None,
+  val column: Option[Int] = None
+) extends Throwable(message, null, false, false) {
+  override def getMessage: String = (line, column) match {
+    case (Some(l), Some(c)) => s"$message (at line $l, column $c)"
+    case (Some(l), None)    => s"$message (at line $l)"
+    case _                  => message
+  }
 
   /** Returns the path as a DynamicOptic. */
   def path: DynamicOptic = DynamicOptic(spans.reverse.toIndexedSeq)
@@ -34,9 +47,13 @@ object XmlError {
   def apply(message: String, spans: List[DynamicOptic.Node]): XmlError =
     new XmlError(spans, message)
 
+  /** Creates an XmlError with a message and line/column position. */
+  def apply(message: String, line: Int, column: Int): XmlError =
+    new XmlError(Nil, message, Some(line), Some(column))
+
   /** Parse error - malformed XML. */
   def parseError(message: String, line: Int, column: Int): XmlError =
-    new XmlError(Nil, s"Parse error at line $line, column $column: $message")
+    new XmlError(Nil, s"Parse error: $message", Some(line), Some(column))
 
   /** Validation error - invalid content. */
   def validationError(message: String): XmlError =

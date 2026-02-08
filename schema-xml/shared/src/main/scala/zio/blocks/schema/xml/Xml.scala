@@ -35,6 +35,21 @@ sealed trait Xml {
    * Returns the type index for ordering.
    */
   def typeIndex: Int
+
+  /**
+   * Renders this XML to a compact string (no indentation).
+   */
+  def print: String = XmlWriter.write(this, WriterConfig.default)
+
+  /**
+   * Renders this XML to a pretty-printed string (2-space indentation).
+   */
+  def printPretty: String = XmlWriter.write(this, WriterConfig.pretty)
+
+  /**
+   * Renders this XML to a string with custom configuration.
+   */
+  def print(config: WriterConfig): String = XmlWriter.write(this, config)
 }
 
 object Xml {
