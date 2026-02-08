@@ -23,7 +23,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
       },
       test("can be created with all OpenAPI vocabulary fields") {
         val jsonSchema    = JsonSchema.obj()
-        val discriminator = OpenAPIDiscriminator(
+        val discriminator = Discriminator(
           propertyName = "type",
           mapping = Map("dog" -> "#/components/schemas/Dog", "cat" -> "#/components/schemas/Cat")
         )
@@ -85,7 +85,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         val jsonSchema = JsonSchema.string()
         val schemaObj  = SchemaObject(
           jsonSchema = jsonSchema.toJson,
-          discriminator = Some(OpenAPIDiscriminator("type")),
+          discriminator = Some(Discriminator("type")),
           xml = Some(XML(name = Some("Item")))
         )
 
@@ -100,7 +100,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         val jsonSchema = JsonSchema.array(JsonSchema.string())
         val schemaObj  = SchemaObject(
           jsonSchema = jsonSchema.toJson,
-          discriminator = Some(OpenAPIDiscriminator("type")),
+          discriminator = Some(Discriminator("type")),
           xml = Some(XML(wrapped = true)),
           externalDocs = Some(ExternalDocumentation("https://example.com")),
           example = Some(Json.Array(Json.String("example1"), Json.String("example2"))),
@@ -165,7 +165,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
       },
       test("SchemaObject round-trips through DynamicValue") {
         val jsonSchema    = JsonSchema.string()
-        val discriminator = OpenAPIDiscriminator(
+        val discriminator = Discriminator(
           propertyName = "petType",
           mapping = Map("dog" -> "#/components/schemas/Dog")
         )
@@ -215,7 +215,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
     ),
     suite("OpenAPI vocabulary")(
       test("discriminator field stores polymorphism metadata") {
-        val discriminator = OpenAPIDiscriminator(
+        val discriminator = Discriminator(
           propertyName = "type",
           mapping = Map(
             "circle" -> "#/components/schemas/Circle",

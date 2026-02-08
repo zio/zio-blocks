@@ -335,10 +335,10 @@ object OperationSpec extends SchemaBaseSpec {
       assertTrue(
         operation.tags == Nil,
         operation.parameters == Nil,
-        operation.callbacks == Map.empty,
+        operation.callbacks == Map.empty[String, Json],
         operation.security == Nil,
         operation.servers == Nil,
-        operation.extensions == Map.empty
+        operation.extensions == Map.empty[String, Json]
       )
     },
     test("multiple responses with different status codes") {

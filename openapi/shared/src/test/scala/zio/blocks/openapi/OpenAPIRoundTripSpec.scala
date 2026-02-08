@@ -6,6 +6,23 @@ import zio.test._
 
 object OpenAPIRoundTripSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("OpenAPIRoundTripSpec")(
+    suite("JSON round-trip tests")(
+      test("minimal.json round-trips through JSON") {
+        val jsonString = scala.io.Source.fromResource("openapi/minimal.json").mkString
+        val parsed     = Json.parse(jsonString)
+        assertTrue(parsed.isRight)
+      },
+      test("petstore.json round-trips through JSON") {
+        val jsonString = scala.io.Source.fromResource("openapi/petstore.json").mkString
+        val parsed     = Json.parse(jsonString)
+        assertTrue(parsed.isRight)
+      },
+      test("with-security.json round-trips through JSON") {
+        val jsonString = scala.io.Source.fromResource("openapi/with-security.json").mkString
+        val parsed     = Json.parse(jsonString)
+        assertTrue(parsed.isRight)
+      }
+    ),
     suite("Basic types round-trip through DynamicValue")(
       test("Info round-trips with all fields") {
         val original = Info(
@@ -229,7 +246,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             )
           ),
           discriminator = Some(
-            OpenAPIDiscriminator(
+            Discriminator(
               propertyName = "type",
               mapping = Map("user" -> "#/components/schemas/User")
             )
@@ -258,7 +275,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         assertTrue(result == Right(original))
       },
       test("OpenAPIDiscriminator round-trips") {
-        val original = OpenAPIDiscriminator(
+        val original = Discriminator(
           propertyName = "petType",
           mapping = Map(
             "dog" -> "#/components/schemas/Dog",
@@ -266,8 +283,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           )
         )
 
-        val dv     = Schema[OpenAPIDiscriminator].toDynamicValue(original)
-        val result = Schema[OpenAPIDiscriminator].fromDynamicValue(dv)
+        val dv     = Schema[Discriminator].toDynamicValue(original)
+        val result = Schema[Discriminator].fromDynamicValue(dv)
 
         assertTrue(result == Right(original))
       },
