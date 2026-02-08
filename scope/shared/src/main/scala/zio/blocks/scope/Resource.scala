@@ -5,11 +5,11 @@ package zio.blocks.scope
  *
  * Resources encapsulate both acquisition and finalization, tying a value's
  * lifecycle to a [[Scope]]. When a resource is created via
- * `scope.create(resource)`, the scope registers any finalizers and ensures they
- * run when the scope closes.
+ * `scope.allocate(resource)`, the scope registers any finalizers and ensures
+ * they run when the scope closes.
  *
  * Resources are lazy—they describe ''what'' to do, not ''when''. Creation only
- * happens when passed to a scope via `scope.create(resource)`.
+ * happens when passed to a scope via `scope.allocate(resource)`.
  *
  * ==Resource Types==
  *
@@ -29,7 +29,7 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db = scope.create(Resource.fromAutoCloseable(new Database()))
+ *     val db = scope.allocate(Resource.fromAutoCloseable(new Database()))
  *     scope.$(db)(_.query("SELECT 1"))
  *   }
  *   }}}
@@ -38,7 +38,7 @@ package zio.blocks.scope
  *   the type of value this resource produces
  *
  * @see
- *   [[Scope.create]] for using resources [[Wire.toResource]] for converting
+ *   [[Scope.allocate]] for using resources [[Wire.toResource]] for converting
  *   wires
  */
 sealed trait Resource[+A] {
@@ -48,7 +48,8 @@ sealed trait Resource[+A] {
    * registration.
    *
    * This method is package-private to ensure resources are only created through
-   * [[Scope.create]], which properly tags the result with the scope's identity.
+   * [[Scope.allocate]], which properly tags the result with the scope's
+   * identity.
    *
    * @param scope
    *   the scope to register finalizers with
@@ -75,8 +76,8 @@ object Resource extends ResourceCompanionVersionSpecific {
   /**
    * A resource that produces unique instances each time.
    *
-   * Each call to `scope.create` with a unique resource produces a fresh value.
-   * Use for resources that should not be shared, like per-request state.
+   * Each call to `scope.allocate` with a unique resource produces a fresh
+   * value. Use for resources that should not be shared, like per-request state.
    */
   final class Unique[+A] private[scope] (
     private[scope] val makeFn: Scope[?, ?] => A

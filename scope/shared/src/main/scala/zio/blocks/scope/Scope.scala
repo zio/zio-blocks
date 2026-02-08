@@ -20,7 +20,7 @@ import zio.blocks.scope.internal.Finalizers
  *
  * ==Key Methods==
  *
- *   - `create`: Instantiate a Resource, tagging result with this scope's Tag
+ *   - `allocate`: Allocate a Resource into this scope
  *   - `$`: Apply a function to a scoped value, escaping if Unscoped
  *   - `apply`: Execute a Scoped computation
  *   - `scoped`: Create a child scope
@@ -29,7 +29,7 @@ import zio.blocks.scope.internal.Finalizers
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db = scope.create(Resource[Database])
+ *     val db = scope.allocate(Resource[Database])
  *     val result = scope.$(db)(_.query("SELECT 1"))
  *     println(result)
  *   }
@@ -53,7 +53,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   type Tag = Tag0
 
   /**
-   * Creates a value in this scope using the given resource.
+   * Allocates a value in this scope using the given resource.
    *
    * The result is tagged with this scope's `Tag`, preventing escape. If the
    * resource creates an `AutoCloseable`, its `close()` method is automatically
@@ -66,7 +66,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
    * @return
    *   the created value tagged with this scope's Tag
    */
-  def create[A](resource: Resource[A]): A @@ Tag =
+  def allocate[A](resource: Resource[A]): A @@ Tag =
     @@.scoped(resource.make(this))
 
   /**
@@ -112,7 +112,7 @@ object Scope {
    * @example
    *   {{{
    *   Scope.global.scoped { scope =>
-   *     val app = scope.create(Resource[App])
+   *     val app = scope.allocate(Resource[App])
    *     scope.$(app)(_.run())
    *   }
    *   }}}

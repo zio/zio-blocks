@@ -24,7 +24,7 @@ object @@ {
    * is typically the path-dependent `Tag` type of a [[Scope]] instance.
    *
    * '''Note:''' This only tags the value - it does not manage lifecycle. For
-   * resources that need cleanup, prefer `scope.create` with a [[Resource]]
+   * resources that need cleanup, prefer `scope.allocate` with a [[Resource]]
    * which automatically registers finalizers.
    *
    * @param a

@@ -10,7 +10,7 @@ package zio.blocks
  * import zio.blocks.scope._
  *
  * Scope.global.scoped { scope =>
- *   val db = scope.create(Resource[Database])
+ *   val db = scope.allocate(Resource[Database])
  *   val result = scope.$(db)(_.query("SELECT 1"))
  *   println(result)
  * }
@@ -20,7 +20,7 @@ package zio.blocks
  *
  *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
  *     escape
- *   - '''`scope.create(resource)`''': Create a value in a scope
+ *   - '''`scope.allocate(resource)`''': Allocate a value in a scope
  *   - '''`scope.$(value)(f)`''': Apply a function to a scoped value
  *   - '''`scope.scoped { s => ... }`''': Create a child scope with existential
  *     tag
@@ -108,7 +108,7 @@ package object scope {
    * @example
    *   {{{
    *   Scope.global.scoped { scope =>
-   *     val stream = scope.create(Resource[InputStream])
+   *     val stream = scope.allocate(Resource[InputStream])
    *     val leaked = leak(stream)
    *     ThirdPartyProcessor.process(leaked)
    *   }

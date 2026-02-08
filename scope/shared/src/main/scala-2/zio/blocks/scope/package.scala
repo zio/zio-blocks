@@ -85,7 +85,7 @@ package object scope {
    * @example
    *   {{{
    *   Scope.global.scoped { implicit scope =>
-   *     val stream = scope.create(Resource[InputStream])
+   *     val stream = scope.allocate(Resource[InputStream])
    *     val leaked = leak(stream)
    *     ThirdPartyProcessor.process(leaked)
    *   }

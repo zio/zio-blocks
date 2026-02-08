@@ -47,27 +47,40 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
     escape(scoped.run())
 
   /**
-   * Creates a child scope.
-   *
-   * The function receives a child scope that can access this scope's resources.
-   * The child scope closes when the block exits, running all finalizers.
-   *
-   * Note: In Scala 2, the child scope reuses the parent's Tag type. For full
-   * existential tag safety, use Scala 3.
-   *
-   * @param f
-   *   the function to execute with the child scope
-   * @tparam A
-   *   the result type
-   * @return
-   *   the result of the function
-   */
-  def scoped[A](f: Scope[self.Tag, self.Tag] => A): A = {
-    val childScope = new Scope[self.Tag, self.Tag](new Finalizers)
+    * Creates a child scope with an existential tag.
+    *
+    * The function receives a child scope that can access this scope's resources.
+    * The child scope closes when the block exits, running all finalizers.
+    *
+    * The child scope's Tag is existential - it's a fresh type for each
+    * invocation that cannot be named outside the lambda body. This provides
+    * compile-time resource safety by preventing child-scoped resources from
+    * escaping.
+    *
+    * @param f
+    *   the function to execute with the child scope
+    * @tparam A
+    *   the result type
+    * @return
+    *   the result of the function
+    */
+  def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A): A = {
+    val childScope         = new Scope[self.Tag, self.Tag](new Finalizers)
+    var primary: Throwable = null.asInstanceOf[Throwable]
     try f(childScope)
-    finally {
+    catch {
+      case t: Throwable =>
+        primary = t
+        throw t
+    } finally {
       val errors = childScope.close()
-      errors.headOption.foreach(throw _)
+      if (primary != null) {
+        errors.foreach(primary.addSuppressed)
+      } else if (errors.nonEmpty) {
+        val first = errors.head
+        errors.tail.foreach(first.addSuppressed)
+        throw first
+      }
     }
   }
 }

@@ -22,7 +22,7 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db: Database @@ scope.Tag = scope.create(Resource[Database])
+ *     val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
  *
  *     // Build a Scoped computation
  *     val query: Scoped[scope.Tag, String] = db.map(_.query("SELECT 1"))
@@ -55,7 +55,7 @@ object @@ {
    * operation at runtime.
    *
    * '''Note:''' This only tags the value - it does not manage lifecycle. For
-   * resources that need cleanup, prefer `scope.create` with a [[Resource]]
+   * resources that need cleanup, prefer `scope.allocate` with a [[Resource]]
    * which automatically registers finalizers.
    *
    * @param a
@@ -186,7 +186,7 @@ object @@ {
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db: Database @@ scope.Tag = scope.create(Resource[Database])
+ *     val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
  *
  *     val program: Scoped[scope.Tag, Result] = for {
  *       conn <- db.map(_.connect())

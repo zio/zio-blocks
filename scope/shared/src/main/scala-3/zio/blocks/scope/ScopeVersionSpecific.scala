@@ -83,8 +83,7 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *   the result of the function
    */
   def scoped[A](f: Scope[self.Tag, ? <: self.Tag] => A): A = {
-    type Fresh <: self.Tag
-    val childScope                = new Scope[self.Tag, Fresh](new Finalizers)
+    val childScope                = new Scope[self.Tag, self.Tag](new Finalizers)
     var primary: Throwable | Null = null
     try f(childScope)
     catch {

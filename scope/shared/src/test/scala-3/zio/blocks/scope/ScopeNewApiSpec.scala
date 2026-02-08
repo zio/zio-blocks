@@ -66,7 +66,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
         assertTrue(cleaned)
       }
     ),
-    suite("scope.create and Resource")(
+    suite("scope.allocate and Resource")(
       test("Resource[T] macro derives from no-arg constructor") {
         val resource       = Resource[Database]
         val (scope, close) = Scope.createTestableScope()
@@ -82,9 +82,9 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
         close()
         assertTrue(db.closed)
       },
-      test("scope.create returns tagged value and $ works") {
+      test("scope.allocate returns tagged value and $ works") {
         Scope.global.scoped { scope =>
-          val db     = scope.create(Resource[Database])
+          val db     = scope.allocate(Resource[Database])
           val result = scope.$(db)(_.query("SELECT 1"))
           assertTrue(result == "result: SELECT 1")
         }
@@ -93,14 +93,14 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("scope.$ operator")(
       test("$ extracts value and applies function") {
         Scope.global.scoped { scope =>
-          val config = scope.create(Resource(Config(true)))
+          val config = scope.allocate(Resource(Config(true)))
           val debug  = scope.$(config)(_.debug)
           assertTrue(debug)
         }
       },
       test("$ on Unscoped type returns raw value") {
         Scope.global.scoped { scope =>
-          val db     = scope.create(Resource[Database])
+          val db     = scope.allocate(Resource[Database])
           val result = scope.$(db)(_.query("test"))
           assertTrue(result == "result: test")
         }
@@ -109,7 +109,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("nested scopes")(
       test("child scope can access parent resources via Tag subtyping") {
         Scope.global.scoped { parentScope =>
-          val db = parentScope.create(Resource[Database])
+          val db = parentScope.allocate(Resource[Database])
 
           parentScope.scoped { childScope =>
             // Child scope should be able to access parent-tagged value
@@ -135,7 +135,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
     suite("Scoped monad")(
       test("map creates Scoped computation") {
         Scope.global.scoped { scope =>
-          val db = scope.create(Resource[Database])
+          val db = scope.allocate(Resource[Database])
 
           val computation = db.map(_.query("mapped"))
 
@@ -146,7 +146,7 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
       },
       test("map and Scoped.map composition") {
         Scope.global.scoped { scope =>
-          val db = scope.create(Resource[Database])
+          val db = scope.allocate(Resource[Database])
 
           // Chain using Scoped.map
           val computation = db.map(_.query("a")).map(s => s.toUpperCase)
