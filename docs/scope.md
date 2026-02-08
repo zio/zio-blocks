@@ -1,619 +1,585 @@
+# ZIO Blocks — Scope (compile-time safe resource management)
+
+This module provides **compile-time verified resource safety** using **existential scope tags** and an **opaque scoped value type**. The design ensures that values allocated in a child scope **cannot be used after that scope closes**, and—crucially—cannot even be *typed* in a way that allows them to leak to an outer scope.
+
+If you've used `try/finally`, `Using`, or ZIO `Scope`, this library is in the same space, but it focuses on **zero-runtime-overhead**, **compile-time gating**, and **simple synchronous lifecycle management**.
+
 ---
-id: scope
-title: "Scope"
+
+## Table of contents
+
+- [Quick start](#quick-start)
+- [Core concepts](#core-concepts)
+  - [1) `Scope[ParentTag, Tag]`](#1-scopeparenttag-tag)
+  - [2) Scoped values: `A @@ S`](#2-scoped-values-a--s)
+  - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
+  - [4) `Scoped[Tag, A]`: deferred computations](#4-scopedtag-a-deferred-computations)
+  - [5) `Wire[-In, +Out]`: dependency recipes](#5-wire-in--out-dependency-recipes)
+  - [6) `ScopeEscape[A, S]`: when results may "escape"](#6-scopeescapea-s-when-results-may-escape)
+- [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
+- [Usage examples](#usage-examples)
+  - [Allocating and using a resource](#allocating-and-using-a-resource)
+  - [Nested scopes (child can use parent, not vice versa)](#nested-scopes-child-can-use-parent-not-vice-versa)
+  - [Building a `Scoped` program (map/flatMap)](#building-a-scoped-program-mapflatmap)
+  - [Registering cleanup manually with `defer`](#registering-cleanup-manually-with-defer)
+  - [Dependency injection with `Wire` + `Context`](#dependency-injection-with-wire--context)
+  - [Interop escape hatch: `leak`](#interop-escape-hatch-leak)
+- [API reference](#api-reference)
+  - [`Scope`](#scope)
+  - [`Resource`](#resource)
+  - [`@@`](#-1)
+  - [`Scoped`](#scoped)
+  - [`Wire`](#wire)
+  - [`ScopeEscape` and `Unscoped`](#scopeescape-and-unscoped)
+
 ---
 
-# ZIO Blocks Scope
-
-**Compile-time verified dependency injection with resource escape prevention for Scala.**
-
-## What Is Scope?
-
-Scope is a minimalist dependency injection library that makes **resource lifecycle errors into compile-time errors**. Most DI libraries verify that your dependencies are wired correctly — Scope goes further by preventing resources from escaping their intended lifecycle.
-
-- You can't access a resource outside its scope — compile error
-- You can't accidentally return a scoped resource — its methods are hidden
-- You can't use `$` or `.get` without being inside a `.use` block — compile error
-- Cleanup runs automatically when the scope closes
-
-Scope supports both **Scala 2.13** and **Scala 3.x**. This documentation focuses on Scala 3; see inline notes for Scala 2 differences.
-
-> **Note:** Despite the `zio.blocks` package prefix, Scope has **no dependency on ZIO**. The prefix is for project grouping only. Scope is effect-system-agnostic and works with any Scala code.
-
-## Why Scope?
-
-Scope exists because **"the dependency graph is correct" is not the same thing as "the lifecycle is correct."** Traditional DI tools are great at construction correctness (everything can be instantiated), but they rarely make **resource lifetime** a *type-level* property. That leaves entire classes of bugs—use-after-close, leaking request resources into app singletons, registering cleanup on the wrong lifecycle—until runtime.
-
-Scope's unique value is: **resources are scoped in the type system**, so many lifecycle mistakes become **compile-time errors**.
-
-### The Problem
-
-Most DI approaches can build the app, but they don't *type* the lifetime of request/temporary resources. It's easy to accidentally let a resource escape.
-
-Here's a simplified "traditional DI" pattern: build request dependencies, run a handler, and close everything afterward:
-
-```scala
-final class TempFile {
-  def write(s: String): Unit = ()
-  def delete(): Unit = ()
-}
-
-def withRequest[A](f: TempFile => A): A = {
-  val tmp = new TempFile
-  try f(tmp)
-  finally tmp.delete()
-}
-```
-
-This *looks* disciplined, but nothing prevents accidental resource escape:
-
-```scala
-// BUG: returns a resource that is already finalized
-val escaped: TempFile =
-  withRequest { tmp =>
-    tmp.write("hello")
-    tmp
-  }
-
-// Compiles, but at runtime you're now using a closed/deleted resource
-escaped.write("still here?")
-```
-
-Even if you don't explicitly return the resource, similar issues show up when:
-- a request-scoped resource gets stored in a longer-lived object,
-- a resource is used asynchronously after the request finishes,
-- cleanup is registered on the wrong lifecycle because "all scopes look the same."
-
-In an untyped lifecycle model, **the compiler can't help**—a `TempFile` is just a `TempFile`, regardless of which scope it belongs to.
-
-### The Solution
-
-Scope makes "what scope this value belongs to" part of the value's type via the opaque type:
-
-- `$[T]` returns a **scoped value**: `T @@ Tag`
-- `T @@ Tag` **hides all methods** on `T`
-- You can only use a scoped value by calling `scoped $ (_.method(...))`
-- `$` (and `.get`) require `Scope.Permit[Tag]`, an **unforgeable token** provided only by `.use`
-
-Concretely:
+## Quick start
 
 ```scala
 import zio.blocks.scope._
 
-final class TempFile extends AutoCloseable {
-  def write(s: String): Unit = ()
-  def close(): Unit = delete()
-  def delete(): Unit = ()
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
 
-def good(): Unit =
-  Scope.global
-    .injected[TempFile]()      // TempFile will be finalized when the scope closes
-    .use {
-      val tmp = $[TempFile]    // TempFile @@ Tag
+Scope.global.scoped { scope =>
+  val db = scope.allocate(Resource(new Database))
 
-      // tmp.write("x")        // DOES NOT COMPILE: methods are hidden on scoped values
-      tmp $ (_.write("hello")) // OK: method access via $
+  val result: String =
+    scope.$(db)(_.query("SELECT 1"))
 
-      // Returning unscoped data is fine:
-      val n: Int = tmp $ (_ => 123)
-      n
-    }
+  println(result)
+}
 ```
 
-Now look at the "escape" case again—Scope allows you to *physically* return a value, but it becomes **unusable outside its scope**:
+Key things to notice:
+
+- `allocate` returns a **scoped** value: `Database @@ scope.Tag`
+- You **cannot** call `db.query(...)` directly
+- You must go through `scope.$(db)(...)` (or build a `Scoped` computation)
+- When the `scoped { ... }` block exits, all finalizers run **LIFO** and exceptions are handled safely
+
+---
+
+## Core concepts
+
+### 1) `Scope[ParentTag, Tag]`
+
+A `Scope` manages finalizers and ties values to a *type-level identity* called a **Tag**.
+
+- `Scope[ParentTag, Tag]` has **two** type parameters:
+  - `ParentTag`: the parent scope's tag (capability boundary)
+  - `Tag <: ParentTag`: this scope's unique identity (used to tag values)
+
+Every `Scope` instance also exposes a *path-dependent* member type:
+
+```scala
+type Tag = Tag0
+```
+
+So in code you'll typically write:
+
+```scala
+Scope.global.scoped { scope =>
+  val x: Something @@ scope.Tag = ???
+}
+```
+
+#### Global scope
+
+`Scope.global` is the root of the tag hierarchy:
+
+```scala
+type Scope.GlobalTag
+lazy val Scope.global: Scope[GlobalTag, GlobalTag]
+```
+
+The global scope is intended to live for the lifetime of the process (finalizers run on JVM shutdown).
+
+---
+
+### 2) Scoped values: `A @@ S`
+
+`A @@ S` is an **opaque type** (Scala 3) representing "a value of type `A` that is locked to scope tag `S`".
+
+Important properties:
+
+- **Zero overhead** at runtime (it's represented as `A`)
+- The opaque type **hides methods on `A`**, so you can't directly call `a.method` on a scoped value
+- You must use `scope.$(...)` or build a `Scoped` computation via `map`/`flatMap`
+
+This is a core mechanism preventing accidental misuse and leakage.
+
+---
+
+### 3) `Resource[A]`: acquisition + finalization
+
+`Resource[A]` describes how to **acquire** a value and how to **release** it when the scope closes.
+
+It is intentionally lazy: you describe *what to do*, and allocation happens only through:
+
+```scala
+scope.allocate(resource)
+```
+
+Common constructors:
+
+- `Resource(a)`  
+  Wraps a by-name value; if it's `AutoCloseable`, `close()` is registered automatically.
+- `Resource.acquireRelease(acquire)(release)`  
+  Explicit lifecycle.
+- `Resource.fromAutoCloseable(thunk)`  
+  A type-safe helper for `AutoCloseable`.
+- `Resource[T]` (Scala 3 macro)  
+  Derives a resource from a constructor (and registers `close()` if applicable).
+
+Resource "sharing" vs "uniqueness":
+- `Resource.Unique[A]`: fresh instance per allocation (typical when you create resources directly)
+- `Resource.Shared[A]`: memoized within a single `Wire` graph (typically produced via `Wire.toResource`)
+
+---
+
+### 4) `Scoped[Tag, A]`: deferred computations
+
+`Scoped[-Tag, +A]` represents a computation that will produce an `A` but can only be **executed by a scope whose Tag is a subtype of `Tag`**.
+
+- You can create `Scoped` computations by calling `map`/`flatMap` on `A @@ S`
+- Or by constructing them directly (advanced/internal-style) via `Scoped.create(() => ...)`
+
+Execution happens via:
+
+```scala
+scope(scopedComputation)
+```
+
+`Scoped` is contravariant in `Tag`, enabling a child scope (more specific tag) to execute computations requiring a parent tag.
+
+---
+
+### 5) `Wire[-In, +Out]`: dependency recipes
+
+`Wire` is a recipe for building services, commonly used for dependency injection.
+
+- `In` is the required dependencies (provided as a `Context[In]`)
+- `Out` is the produced value (a single service type)
+
+Wires come in two flavors:
+- `Wire.Shared`: memoized within a scope (default)
+- `Wire.Unique`: fresh instance each time
+
+A `Wire` can be converted into a `Resource` once you have its dependencies:
+
+```scala
+val r: Resource[Out] = wire.toResource(deps)
+val out: Out @@ scope.Tag = scope.allocate(r)
+```
+
+Macros in `zio.blocks.scope` package object:
+- `shared[T]`: derive a shared wire from the constructor
+- `unique[T]`: derive a unique wire
+
+---
+
+### 6) `ScopeEscape[A, S]`: when results may "escape"
+
+When you access a scoped value via:
+
+- `scope.$(value)(f)` or
+- `scope(scopedComputation)`
+
+…the return type is controlled by `ScopeEscape[A, S]`.
+
+It decides whether the result is returned as:
+- raw `A` (escaped), or
+- scoped `A @@ S` (still tracked)
+
+Priority rules:
+
+1. **Global scope** (`S =:= Scope.GlobalTag`): everything escapes as raw `A`
+2. **Unscoped types**: escape as raw `A` for any scope
+3. Otherwise: treated as "resourceful" and remains scoped as `A @@ S`
+
+This gives an ergonomic default: pure data flows out, but resource-like values remain tracked.
+
+---
+
+## Safety model (why leaking is prevented)
+
+This library prevents resource leakage via *two reinforcing mechanisms*:
+
+### A) Existential child tags (fresh, unnameable types)
+
+Child scopes are created with:
+
+```scala
+scope.scoped { child => ... }
+```
+
+The type of `child` is:
+
+```scala
+Scope[scope.Tag, ? <: scope.Tag]
+```
+
+That `?` is an **existential tag**: it is fresh for each invocation and cannot be named outside the lambda.
+
+Result: if you allocate in the child scope, the value's type includes the child's existential tag, and **you cannot return it** in a way that the parent can later use.
+
+This is verified by compile-time tests in the repository (`CompileTimeSafetySpec`).
+
+### B) Tag invariance + opaque `@@` prevents subtyping escape
+
+The `@@` type is defined as:
+
+```scala
+opaque type @@[+A, S] = A
+```
+
+- The tag parameter `S` is **invariant** (not `+S` or `-S`)
+- You cannot widen `A @@ childTag` to `A @@ parentTag` via subtyping
+- Additionally, you cannot call methods directly on a scoped value, which prevents accidental misuse without scope proof
+
+### C) Controlled access through `scope.$` and `scope.apply`
+
+To use a scoped value you must provide a scope that proves it can access it:
+
+```scala
+(using ev: scope.Tag <:< S)
+```
+
+This evidence exists precisely when the accessing scope's tag is a subtype of the value's tag. Since child tags are subtypes of parent tags, **children can use parent resources**, but not the other way around.
+
+### D) Finalizer correctness (exceptions + suppression)
+
+When a scope closes:
+
+- finalizers run in **LIFO** order
+- all finalizers run even if some throw
+- if the main block throws, finalizer exceptions are added as **suppressed** on the primary exception
+- if the block succeeds but finalizers throw, the first finalizer error is thrown and the rest are suppressed
+
+This behavior is also covered by tests (`ScopeNewApiSpec`).
+
+---
+
+## Usage examples
+
+### Allocating and using a resource
 
 ```scala
 import zio.blocks.scope._
 
-val escaped: TempFile @@ ? =
-  Scope.global.injected[TempFile]().use {
-    $[TempFile]                // returns TempFile @@ Tag
-  }
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("closed")
+}
 
-// escaped.write("x")          // DOES NOT COMPILE (methods hidden)
-// escaped $ (_.write("x"))    // DOES NOT COMPILE: no Scope.Permit for that Tag outside `.use`
+Scope.global.scoped { scope =>
+  val db = scope.allocate(Resource(new Database))
+  val s  = scope.$(db)(_.query("SELECT 1")) // returns String (escapes)
+  println(s)
+}
 ```
 
-That last line fails specifically because `Scope.Permit[S]` is only available inside `.use`, where the library provides:
-
-- `Scope.Permit[self.Tag]` (the unforgeable capability)
-- `Context[Head] @@ self.Tag`
-- `self.type` (so `defer { ... }` registers cleanup on the correct scope)
-
-So the compiler enforces the core guarantee:
-
-- **Inside** `.use`: you have `Scope.Permit[Tag]` ⇒ you can use scoped values via `$`.
-- **Outside** `.use`: you do *not* have `Scope.Permit[Tag]` ⇒ you cannot use scoped values.
-
-**What you get:**
-- Construction correctness (like other DI approaches)
-- **Compile-time prevention of resource use outside its lifecycle**
-- Scoped values that hide methods, forcing explicit safe access (`scoped $ (...)`)
-- Cleanup that runs automatically when the scope closes, in LIFO order
-- No reflection, no runtime container magic—just types and an unforgeable capability token (`Scope.Permit`)
+Why `String` "escapes": it is considered `Unscoped` (safe data), so it returns as raw `String` instead of `String @@ scope.Tag`.
 
 ---
 
-## Quick Start
+### Nested scopes (child can use parent, not vice versa)
+
+```scala
+Scope.global.scoped { parent =>
+  val db = parent.allocate(Resource(new Database))
+
+  parent.scoped { child =>
+    val ok = child.$(db)(_.query("child can use parent"))
+    println(ok)
+  }
+
+  // Not allowed: parent cannot use child-created resources after child closes
+  // (this will not compile)
+  //
+  // val fromChild = parent.scoped { child =>
+  //   child.allocate(Resource(new Database))
+  // }
+  // parent.$(fromChild)(_.query("nope"))
+}
+```
+
+---
+
+### Building a `Scoped` program (map/flatMap)
+
+You can build deferred computations from scoped values:
+
+```scala
+Scope.global.scoped { scope =>
+  val db = scope.allocate(Resource(new Database))
+
+  val program: Scoped[scope.Tag, String] =
+    for {
+      a <- db.map(_.query("SELECT 1"))
+      b <- db.map(_.query("SELECT 2"))
+    } yield s"$a | $b"
+
+  val result: String = scope(program)
+  println(result)
+}
+```
+
+Notes:
+
+- `db.map` returns a `Scoped` computation
+- `scope(program)` is the interpreter: it runs the thunk using the scope's permissions
+- The type system ensures the computation cannot run without an appropriate scope
+
+---
+
+### Registering cleanup manually with `defer`
+
+```scala
+Scope.global.scoped { scope =>
+  val handle = new java.io.ByteArrayInputStream(Array[Byte](1,2,3))
+
+  scope.defer { handle.close() }
+
+  // use handle (unscoped here; you can choose to wrap as Resource if preferred)
+}
+```
+
+There is also a package-level helper that uses an implicit scope:
 
 ```scala
 import zio.blocks.scope._
 
-class Config { val dbUrl: String = "jdbc://localhost/mydb" }
-class Database(config: Config) extends AutoCloseable {
-  def query(sql: String): String = s"Result from ${config.dbUrl}"
-  def close(): Unit = println("Database closed")
-}
-class App(db: Database) {
-  def run(): Unit = println(db.query("SELECT 1"))
-}
-
-@main def main(): Unit =
-  Scope.global.injected[App](shared[Database], shared[Config]).use {
-    val app = $[App]      // App @@ Tag - scoped value
-    app $ (_.run())       // Access methods via $ operator
-  }
-  // Database.close() called automatically
-```
-
-The `injected[App]` macro discovers dependencies, wires them up, runs your code, then cleans up in reverse order. The `$[T]` function returns a scoped value that can only be accessed via the `$` operator.
-
----
-
-## Core Concepts
-
-### Scoped Values (`A @@ S`)
-
-Values retrieved from a scope are wrapped in `A @@ S`, an opaque type that hides all methods on `A`. This prevents resources from accidentally escaping their scope.
-
-```scala
-closeable.use {
-  val stream = $[InputStream]   // InputStream @@ Tag
-  stream.read()                 // Compile error: read() is not a member
-  stream $ (_.read())           // Works: returns Int (unscoped)
-}
-```
-
-The `$` operator requires `Scope.Permit[S]`, which is only available inside `.use` blocks.
-
-### The `.use` Method
-
-The `.use` method on `Scope.Closeable` executes code within a scope and provides three implicit parameters:
-
-1. **`Scope.Permit[Tag]`**: An unforgeable capability marker proving code is inside a `.use` block
-2. **`Context[Head] @@ Tag`**: The scoped context containing this scope's services  
-3. **`self.type`**: The scope itself for `defer` calls
-
-```scala
-closeable.use {
-  // All three are implicitly available here
-  val app = $[App]              // Uses Permit and Context
-  defer { cleanup() }           // Uses the scope
-  app $ (_.run())
-}
-```
-
-### Retrieving Services with `$[T]`
-
-The `$[T]` macro requires:
-
-- `Scope.Permit[S]` in implicit scope (from a `.use` block)
-- `Context[T] @@ S` in implicit scope (provided by `.use`)
-- `T` must be a nominal type (class or trait, not a type alias or structural type)
-
-```scala
-closeable.use {
-  val db = $[Database]           // Database @@ Tag
-  db $ (_.query("SELECT ..."))   // String (unscoped)
-}
-```
-
-### Escape Prevention with `ScopeEscape`
-
-When you use `$` or `.get`, the `ScopeEscape[A, S]` typeclass determines whether the result escapes the scope:
-
-**Priority (highest to lowest):**
-
-1. **Root scope** (the global scope that never closes): all types escape as raw `A`
-2. **`Unscoped` types**: escape as raw `A` regardless of scope
-3. **Resource types**: stay scoped as `A @@ S`
-
-```scala
-closeable.use {
-  val stream = $[InputStream]
-  
-  // Int is Unscoped, so it escapes
-  val n: Int = stream $ (_.read())
-  
-  // InputStream is NOT Unscoped, so it stays scoped
-  val inner: InputStream @@ Tag = stream $ identity
-}
-```
-
-### `Unscoped` Types
-
-Types with an `Unscoped` instance are considered safe data that doesn't hold resources:
-
-**Built-in instances:**
-- Primitives: `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`, `Double`, `Unit`
-- Text: `String`
-- Numeric: `BigInt`, `BigDecimal`
-- Collections: `Array`, `List`, `Vector`, `Set`, `Seq`, `Map`, `Option`, `Either` (when elements are `Unscoped`)
-- Tuples: up to 4-tuples (when elements are `Unscoped`)
-- Time: `java.time.*` value types, `scala.concurrent.duration.*`
-- Other: `java.util.UUID`, `zio.blocks.chunk.Chunk`
-
-**Deriving for case classes (Scala 3):**
-
-```scala
-case class Config(host: String, port: Int)
-object Config {
-  given Unscoped[Config] = Unscoped.derived[Config]
+Scope.global.scoped { scope =>
+  given Scope[?, ?] = scope
+  defer { println("cleanup") }
 }
 ```
 
 ---
 
-## Lifecycle Management
+### Dependency injection with `Wire` + `Context`
 
-### The `defer` Function
-
-Register cleanup actions that run when the scope closes:
+Suppose:
 
 ```scala
-class MyService()(using Scope.Any) {
-  val handle = acquire()
-  defer { handle.release() }  // Runs on scope close
+final case class Config(debug: Boolean)
+```
+
+Derive a wire:
+
+```scala
+import zio.blocks.scope._
+import zio.blocks.context.Context
+
+val w: Wire.Shared[Boolean, Config] = shared[Config]
+val deps = Context[Boolean](true)
+
+Scope.global.scoped { scope =>
+  val cfg = scope.allocate(w.toResource(deps)) // Config @@ scope.Tag
+  val debug = scope.$(cfg)(_.debug)            // Boolean (escapes)
+  println(debug)
 }
 ```
 
-Finalizers run in LIFO order (last registered first). If a finalizer throws, subsequent finalizers still run.
-
-### AutoCloseable Support
-
-If a type extends `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
+Choose sharing vs uniqueness:
 
 ```scala
-class Database extends AutoCloseable {
-  def close(): Unit = println("Closed")
-}
-
-Scope.global.injected[Database](shared[Database]).use {
-  // ...
-}  // Database.close() called automatically
-```
-
-### Error Handling
-
-```scala
-// Discard finalizer errors (default)
-closeable.use { ... }
-
-// Get finalizer errors
-val (result, errors) = closeable.useWithErrors { ... }
-
-// Manual close - returns errors
-val errors: Chunk[Throwable] = closeable.close()
-
-// Throw first error if any
-closeable.closeOrThrow()
+val ws = shared[Config] // memoized within a scope
+val wu = unique[Config] // new instance for each use
 ```
 
 ---
 
-## Dependency Injection
+### Interop escape hatch: `leak`
 
-### `shared[T]` and `unique[T]`
-
-These macros derive wires from constructors:
-
-- **`shared[T]`**: Memoized within a single `injected` call (same instance for all dependents)
-- **`unique[T]`**: Fresh instance each time
+Sometimes you must hand a raw value to code that cannot work with `@@` types.
 
 ```scala
-Scope.global.injected[App](
-  shared[Config],    // One Config instance
-  shared[Database],  // One Database instance
-  unique[RequestId]  // Fresh ID per dependent
-).use { ... }
-```
+import zio.blocks.scope._
 
-### `Wire(value)`
+Scope.global.scoped { scope =>
+  val db = scope.allocate(Resource(new Database))
 
-Inject a pre-existing value:
-
-```scala
-val config = Config.load()
-Scope.global.injected[App](Wire(config), shared[Database]).use { ... }
-```
-
-### `injected(value)`
-
-Wrap an existing value in a closeable scope. Requires a parent scope:
-
-```scala
-val config = Config.load()
-given Scope.Any = Scope.global
-injected(config).use {
-  val cfg = $[Config]
-  cfg $ (_.dbUrl)
+  val raw: Database = leak(db) // emits a compiler warning
+  // thirdParty(raw)
 }
 ```
 
-If the value is `AutoCloseable`, its `close()` method is automatically registered.
-
-### Custom Wiring with Wireable
-
-When `shared[T]` or `unique[T]` can't derive a wire automatically (e.g., for traits or abstract classes), define a `Wireable` in the companion object:
-
-```scala
-// Scala 3
-trait Database { def query(sql: String): String }
-
-class PostgresDatabase(config: Config) extends Database with AutoCloseable {
-  def query(sql: String): String = s"Result from ${config.url}"
-  def close(): Unit = println("Database closed")
-}
-
-object Database {
-  given Wireable.Typed[Config, Database] = new Wireable[Database] {
-    type In = Config
-    def wire: Wire[Config, Database] = Wire.Shared[Config, Database] {
-      val config = $[Config]
-      val db = new PostgresDatabase(config $ identity)
-      defer(db.close())
-      Context[Database](db)
-    }
-  }
-}
-
-// Now shared[Database] works even though Database is a trait
-Scope.global.injected[Database](shared[Config]).use {
-  val db = $[Database]
-  db $ (_.query("SELECT 1"))
-}
-```
-
-In Scala 2, use `implicit val` instead of `given`:
-
-```scala
-object Database {
-  implicit val wireable: Wireable.Typed[Config, Database] = new Wireable[Database] {
-    type In = Config
-    def wire: Wire[Config, Database] = Wire.Shared.fromFunction[Config, Database] { scope =>
-      val config = scope.get[Config]
-      val db = new PostgresDatabase(config)
-      scope.defer(db.close())
-      Context[Database](db)
-    }
-  }
-}
-```
+**Warning:** leaking bypasses compile-time guarantees. The value may be used after its scope closes. Use only when unavoidable.
 
 ---
 
-## Scoped Value Operations
+## API reference
 
-### The `$` Operator
-
-Apply a function to the underlying value:
+### `Scope`
 
 ```scala
-val scoped: Database @@ Tag = $[Database]
-val result: String = scoped $ (_.query("SELECT 1"))  // String escapes (Unscoped)
-```
+final class Scope[ParentTag, Tag <: ParentTag] {
+  type Tag
 
-### The `.get` Method
+  def allocate[A](resource: Resource[A]): A @@ Tag
+  def defer(f: => Unit): Unit
 
-Extract the value (equivalent to `$ identity`):
+  // Scala 3-only extensions (see ScopeVersionSpecific):
+  def $[A, B, S](scoped: A @@ S)(f: A => B)(
+    using ev: this.Tag <:< S,
+          escape: ScopeEscape[B, S]
+  ): escape.Out
 
-```scala
-val n: Int = intScoped.get          // Int escapes
-val db: Database @@ Tag = dbScoped.get  // Database stays scoped
-```
+  def apply[A, S](scoped: Scoped[S, A])(
+    using ev: this.Tag <:< S,
+          escape: ScopeEscape[A, S]
+  ): escape.Out
 
-### `map` and `flatMap`
-
-Transform scoped values (no scope proof required):
-
-```scala
-val conn: Connection @@ S = ...
-val stmt: Statement @@ S = conn.map(_.createStatement())
-
-// For-comprehension with tag intersection
-val result: Result @@ (S & T) = for {
-  a <- scopedA  // A @@ S
-  b <- scopedB  // B @@ T
-} yield combine(a, b)
-```
-
-### Tuple Extraction
-
-```scala
-val pair: (Int, String) @@ S = ...
-val first: Int @@ S = pair._1
-val second: String @@ S = pair._2
-```
-
----
-
-## The Scope Type Hierarchy
-
-```scala
-sealed trait Scope {
-  type Tag  // Path-dependent tag identifying this scope
-  def defer(finalizer: => Unit): Unit
+  def scoped[A](f: Scope[this.Tag, ? <: this.Tag] => A): A
 }
+```
 
+#### `Scope.global`
+
+```scala
 object Scope {
-  type GlobalTag                          // Root of tag hierarchy
-  type Any = Scope                        // Scope with unknown stack
-  type Has[+T] = ::[T, Scope]             // Scope that has T available
-  
-  sealed abstract class Permit[S]         // Unforgeable capability from .use
-  
-  class Global extends Scope {
-    type Tag <: GlobalTag
-  }
-  
-  class ::[+H, +T <: Scope] extends Scope with Closeable[H, T] {
-    type Tag <: tail.Tag  // Child tags are subtypes of parent tags
-  }
-  
-  trait Closeable[+Head, +Tail <: Scope] extends Scope {
-    def use[B](f: ... ?=> B): B
-    def useWithErrors[B](f: ... ?=> B): (B, Chunk[Throwable])
-    def close(): Chunk[Throwable]
-    def closeOrThrow(): Unit
-  }
-  
-  val global: Global  // Singleton, finalizes on JVM shutdown
+  type GlobalTag
+  lazy val global: Scope[GlobalTag, GlobalTag]
 }
 ```
 
-**Tag Hierarchy:**
-- `Global.Tag <: GlobalTag` (base case)
-- `(H :: T).Tag <: T.Tag` (child tags are subtypes of parent tags)
-
-This enables child scopes to use parent-scoped values (a value tagged with a parent's tag is usable in child scopes).
+- Global scope finalizers run on JVM shutdown.
+- Values tagged with `Scope.GlobalTag` always escape as raw values via `ScopeEscape`.
 
 ---
 
-## Interop: Escaping Scoped Values
-
-### The `leak` Function
-
-Escape a scoped value when you need to pass it to third-party or Java code that can't work with scoped values (emits compiler warning):
+### `Resource`
 
 ```scala
-closeable.use {
-  val stream = leak($[Request] $ (_.body.getInputStream()))
-  ThirdPartyProcessor.process(stream)  // Third-party code that needs raw InputStream
+sealed trait Resource[+A]
+
+object Resource {
+  def apply[A](value: => A): Resource[A]
+  def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
+  def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
+
+  // internal / produced by wires:
+  def shared[A](f: Scope[?, ?] => A): Resource.Shared[A]
+  def unique[A](f: Scope[?, ?] => A): Resource.Unique[A]
+
+  final class Shared[+A] extends Resource[A]
+  final class Unique[+A] extends Resource[A]
 }
 ```
 
-Suppress warning with `@nowarn("msg=is being leaked")`.
+Behavioral notes:
+
+- `Resource(value)` auto-registers `close()` iff `value` is `AutoCloseable`
+- `acquireRelease` registers `release` as a finalizer
+- Resources are only "interpreted" by `Scope.allocate`, which tags the result
 
 ---
 
-## API Reference
-
-### Package Functions
+### `@@`
 
 ```scala
-// Retrieve service from scope (returns T @@ S)
-transparent inline def $[T]: Any
-
-// Register cleanup on current scope
-def defer(finalizer: => Unit)(using Scope.Any): Unit
-
-// Derive wires from constructors
-transparent inline def shared[T]: Wire.Shared[?, T]
-transparent inline def unique[T]: Wire.Unique[?, T]
-
-// Create child scope with injected value
-def injected[T](t: T)(using Scope.Any, IsNominalType[T]): Scope.::[T, ?]
-inline def injected[T](using Scope.Any): Scope.Closeable[T, ?]
-inline def injected[T](wires: Wire[?, ?]*)(using Scope.Any): Scope.Closeable[T, ?]
-
-// Escape scoped value (emits warning)
-inline def leak[A, S](scoped: A @@ S): A
-```
-
-### Scoped Values (`@@`)
-
-```scala
-opaque infix type @@[+A, +S] = A
+opaque type @@[+A, S] = A
 
 object @@ {
   inline def scoped[A, S](a: A): A @@ S
-  
+
   extension [A, S](scoped: A @@ S) {
-    inline infix def $[B](f: A => B)(using Scope.Permit[S])(using ScopeEscape[B, S]): ...
-    inline def get(using Scope.Permit[S])(using ScopeEscape[A, S]): ...
-    inline def map[B](f: A => B): B @@ S
-    inline def flatMap[B, T](f: A => B @@ T): B @@ (S & T)
-    inline def _1[X, Y](using A =:= (X, Y)): X @@ S
-    inline def _2[X, Y](using A =:= (X, Y)): Y @@ S
+    def map[B](f: A => B): Scoped[S, B]
+    def flatMap[B, T](f: A => B @@ T): Scoped[S & T, B]
+
+    def _1[X, Y](using A =:= (X, Y)): X @@ S
+    def _2[X, Y](using A =:= (X, Y)): Y @@ S
   }
 }
 ```
 
-### Wire
+- Opaque: prevents direct method access on `A`
+- `map`/`flatMap` build deferred `Scoped` computations
+
+---
+
+### `Scoped`
+
+```scala
+final case class Scoped[-Tag, +A] private (private val executeFn: () => A) {
+  def map[B](f: A => B): Scoped[Tag, B]
+  def flatMap[B, T](f: A => B @@ T): Scoped[Tag & T, B]
+}
+
+object Scoped {
+  def create[Tag, A](f: () => A): Scoped[Tag, A]
+}
+```
+
+- Contravariant in `Tag`: a child scope can run parent-level computations
+- Execution is intentionally gated through `Scope.apply`
+
+---
+
+### `Wire`
 
 ```scala
 sealed trait Wire[-In, +Out] {
-  def construct(implicit scope: Scope.Has[In]): Context[Out]
   def isShared: Boolean
-  def isUnique: Boolean
   def shared: Wire.Shared[In, Out]
   def unique: Wire.Unique[In, Out]
+  def toResource(deps: zio.blocks.context.Context[In]): Resource[Out]
 }
 
 object Wire {
-  def apply[T](t: T)(implicit ev: IsNominalType[T]): Wire.Shared[Any, T]
-  
-  class Shared[-In, +Out] extends Wire[In, Out]
-  class Unique[-In, +Out] extends Wire[In, Out]
+  final class Shared[-In, +Out] extends Wire[In, Out]
+  final class Unique[-In, +Out] extends Wire[In, Out]
+
+  def apply[T](t: T): Wire.Shared[Any, T] // inject a pre-existing value
 }
 ```
 
-### ScopeEscape
+Also available at package level:
 
 ```scala
-// Controls whether values escape or stay scoped
+transparent inline def shared[T]: Wire.Shared[?, T]
+transparent inline def unique[T]: Wire.Unique[?, T]
+```
+
+Wires are typically derived from constructors, using `Context` to provide dependencies.
+
+---
+
+### `ScopeEscape` and `Unscoped`
+
+```scala
 trait ScopeEscape[A, S] {
-  type Out  // Either A (escaped) or A @@ S (scoped)
+  type Out
   def apply(a: A): Out
 }
-```
 
-### Wireable
-
-```scala
-// Define in companion objects for traits/abstract classes
-trait Wireable[+Out] {
-  type In                   // Dependencies required
-  def wire: Wire[In, Out]   // The wire for construction
-}
-
-object Wireable {
-  type Typed[-In0, +Out] = Wireable[Out] { type In >: In0 }
-  
-  def apply[T](value: T)(implicit ev: IsNominalType[T]): Wireable.Typed[Any, T]
-  def fromWire[In0, Out](w: Wire[In0, Out]): Wireable.Typed[In0, Out]
-  transparent inline def from[T]: Wireable[T]  // Derives from constructor (Scala 3)
+object ScopeEscape {
+  given globalScope[A]: ScopeEscape[A, Scope.GlobalTag] { type Out = A }
+  given unscoped[A, S](using Unscoped[A]): ScopeEscape[A, S] { type Out = A }
+  // fallback:
+  given resourceful[A, S]: ScopeEscape[A, S] { type Out = A @@ S }
 }
 ```
 
----
+Conceptually:
 
-## Installation
+- Mark *data-like* types as `Unscoped` so they can leave scopes as raw values.
+- Keep *resource-like* types scoped so they can't leak accidentally.
 
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
-```
-
-Scope depends on:
-- `zio-blocks-chunk` (for `Chunk[Throwable]` error collection)
-- `zio-blocks-context` (for `Context`)
-- `zio-blocks-typeid` (for type identity)
+(See the `Unscoped` typeclass in the codebase for how types are classified.)
 
 ---
 
-## Summary
+## Mental model recap
 
-**Core Workflow:**
-1. Create a closeable scope with `injected[T](wires...)`
-2. Use `.use { ... }` to execute code within the scope
-3. Retrieve services with `$[T]` (returns `T @@ Tag`)
-4. Access methods via `$` operator: `scoped $ (_.method())`
-5. Scope closes automatically, running finalizers in LIFO order
-
-**Key Guarantees:**
-- Scoped values (`A @@ S`) hide all methods, preventing accidental escape
-- `$` and `.get` require `Scope.Permit[S]`, only available inside `.use`
-- `Unscoped` types (primitives, strings, collections) escape freely
-- Resource types stay scoped unless explicitly leaked
-- Global scope values always escape (global scope never closes)
+- Use `Scope.global.scoped { scope => ... }` to create a safe region.
+- Allocate managed things with `scope.allocate(Resource(...))`.
+- Use managed things only via `scope.$(value)(...)` or via `Scoped` computations.
+- Nest with `scope.scoped { child => ... }` to create an even tighter lifetime.
+- Trust the compiler: if it doesn't typecheck, it would have been unsafe at runtime.
