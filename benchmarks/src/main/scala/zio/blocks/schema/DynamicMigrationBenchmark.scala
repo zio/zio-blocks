@@ -40,10 +40,10 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   var userV1: UserV1     = null.asInstanceOf[UserV1]
 
   var renameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
-  var addFieldMigration: Migration[UserV1, UserV2]  = null.asInstanceOf[Migration[UserV1, UserV2]]
-  
-  var macroRenameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
-  var macroAddFieldMigration: Migration[UserV1, UserV2]  = null.asInstanceOf[Migration[UserV1, UserV2]]
+  var addFieldMigration: Migration[UserV1, UserV2]   = null.asInstanceOf[Migration[UserV1, UserV2]]
+
+  // var macroRenameMigration: Migration[PersonV1, PersonV2] = null.asInstanceOf[Migration[PersonV1, PersonV2]]
+  // var macroAddFieldMigration: Migration[UserV1, UserV2]  = null.asInstanceOf[Migration[UserV1, UserV2]]
 
   @Setup
   def setup(): Unit = {
@@ -53,14 +53,14 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     // Interpreted
     renameMigration = Migration.renameField[PersonV1, PersonV2]("name", "fullName")
     addFieldMigration = Migration.addField[UserV1, UserV2]("active", DynamicValue.boolean(true))
-    
+
     // Macro Derived (Disabled for CI cross-build compatibility)
     /*
     import zio.blocks.schema.migration.macros.MacroMigration
-    
+
     macroRenameMigration = MacroMigration.derive[PersonV1, PersonV2](DynamicMigration.RenameField("name", "fullName"))
     macroAddFieldMigration = MacroMigration.derive[UserV1, UserV2](DynamicMigration.AddClassField("active", DynamicValue.Primitive(zio.blocks.schema.PrimitiveValue.Boolean(true))))
-    */
+     */
   }
 
   @Benchmark
@@ -70,12 +70,12 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   @Benchmark
   def interpretedRename(): Either[String, PersonV2] =
     renameMigration.migrate(personV1)
-    
+
   /*
   @Benchmark
   def macroRename(): Either[String, PersonV2] =
     macroRenameMigration.migrate(personV1)
-  */
+   */
 
   @Benchmark
   def manualAddField(): UserV2 =
@@ -84,10 +84,10 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   @Benchmark
   def interpretedAddField(): Either[String, UserV2] =
     addFieldMigration.migrate(userV1)
-    
+
   /*
   @Benchmark
   def macroAddField(): Either[String, UserV2] =
     macroAddFieldMigration.migrate(userV1)
-  */
+   */
 }

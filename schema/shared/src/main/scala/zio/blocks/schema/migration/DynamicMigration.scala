@@ -90,21 +90,21 @@ object DynamicMigration {
             DynamicValue.Record(fields.updated(idx, (name, newVal)))
           }
         } else {
-           Left(s"Field '$name' not found for transformation")
+          Left(s"Field '$name' not found for transformation")
         }
       case _ => Left("Cannot transform field on non-Record value")
     }
   }
 
   /**
-   * Nests fields into a sub-record. 
+   * Nests fields into a sub-record.
    * Useful when moving `street`, `city` into `address`.
    */
   final case class Nest(fieldNames: Chunk[String], intoField: String) extends DynamicMigration {
     def migrate(value: DynamicValue): Either[String, DynamicValue] = value match {
       case DynamicValue.Record(fields) =>
         val (toNest, keep) = fields.partition { case (k, _) => fieldNames.contains(k) }
-        val nestedRecord = DynamicValue.Record(toNest)
+        val nestedRecord   = DynamicValue.Record(toNest)
         Right(DynamicValue.Record(keep :+ (intoField, nestedRecord)))
       case _ => Left("Cannot nest fields on non-Record value")
     }
@@ -122,7 +122,7 @@ object DynamicMigration {
             val others = fields.filterNot(_._1 == fieldName)
             Right(DynamicValue.Record(others ++ nestedFields))
           case Some(_) => Left(s"Field '$fieldName' is not a Record")
-          case None => Left(s"Field '$fieldName' not found for unnesting")
+          case None    => Left(s"Field '$fieldName' not found for unnesting")
         }
       case _ => Left("Cannot unnest field on non-Record value")
     }

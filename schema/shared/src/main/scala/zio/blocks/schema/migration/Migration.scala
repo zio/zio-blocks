@@ -1,11 +1,7 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicValue, Schema}
+import zio.blocks.schema.{ DynamicValue, Schema }
 
-/**
- * A type-safe wrapper for `DynamicMigration` that guarantees compatibility
- * between schema `A` and schema `B`.
- */
 /**
  * A type-safe wrapper for `DynamicMigration` that guarantees compatibility
  * between schema `A` and schema `B`.
@@ -56,7 +52,7 @@ object Migration {
    */
   def addField[A, B](name: String, defaultValue: DynamicValue): Migration[A, B] =
     Migration(DynamicMigration.AddClassField(name, defaultValue))
-    
+
   /**
    * Creates a migration that removes a field.
    */
@@ -68,15 +64,15 @@ object Migration {
    */
   def manual[A, B](dynamic: DynamicMigration): Migration[A, B] =
     Migration(dynamic)
-    
+
   /**
    * Optimized migration used by macros.
    */
-   final case class OptimizedMigration[A, B](
-     override val dynamic: DynamicMigration,
-     migrateFn: (A, Schema[A], Schema[B]) => Either[String, B]
-   ) extends Migration[A, B] {
-     override def migrate(value: A)(implicit schemaA: Schema[A], schemaB: Schema[B]): Either[String, B] =
-       migrateFn(value, schemaA, schemaB)
-   }
+  final case class OptimizedMigration[A, B](
+    override val dynamic: DynamicMigration,
+    migrateFn: (A, Schema[A], Schema[B]) => Either[String, B]
+  ) extends Migration[A, B] {
+    override def migrate(value: A)(implicit schemaA: Schema[A], schemaB: Schema[B]): Either[String, B] =
+      migrateFn(value, schemaA, schemaB)
+  }
 }
