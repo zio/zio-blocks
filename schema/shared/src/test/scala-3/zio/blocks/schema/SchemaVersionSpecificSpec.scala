@@ -66,6 +66,18 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
         assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("as", "l", "m", "o", "v", "s"))))
       },
+      test("field TypeId for Option[UserDefinedClass] matches TypeId.of") {
+        case class Inner(x: Int)
+        case class Outer(a: Option[Inner]) derives Schema
+
+        val fieldTypeId  = Schema[Outer].reflect.asRecord.get.fields.head.value.typeId
+        val directTypeId = TypeId.of[Option[Inner]]
+        assertTrue(
+          fieldTypeId == directTypeId,
+          fieldTypeId.toString == "Option[Inner]",
+          directTypeId.toString == "Option[Inner]"
+        )
+      },
       test("derives schema for tuples") {
         type Tuple4 = (Byte, Short, Int, Long)
 
