@@ -168,17 +168,19 @@ private[scope] object WireableMacros {
       }
 
     // Build override context from wires at runtime
-    val buildOverrideCtx: Tree = wires.toList.zip(wireOutTypes).foldLeft[Tree](
-      q"_root_.zio.blocks.context.Context.empty"
-    ) { case (ctxExpr, (wireExpr, outType)) =>
-      q"""
+    val buildOverrideCtx: Tree = wires.toList
+      .zip(wireOutTypes)
+      .foldLeft[Tree](
+        q"_root_.zio.blocks.context.Context.empty"
+      ) { case (ctxExpr, (wireExpr, outType)) =>
+        q"""
         {
           val wire = ${wireExpr.tree}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, $outType]]
           val value = wire.make(finalizer, _root_.zio.blocks.context.Context.empty)
           $ctxExpr.add[$outType](value)
         }
       """
-    }
+      }
 
     def generateArgsWithOverrides(params: List[Symbol]): List[Tree] =
       params.map { param =>

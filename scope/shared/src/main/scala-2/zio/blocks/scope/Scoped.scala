@@ -135,8 +135,8 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    * FlatMaps over a scoped value, combining scope tags via intersection.
    *
    * Enables for-comprehension syntax with scoped values. The resulting Scoped
-   * computation is tagged with the intersection of both scope tags, ensuring
-   * it can only be executed where both scopes are available.
+   * computation is tagged with the intersection of both scope tags, ensuring it
+   * can only be executed where both scopes are available.
    *
    * @param f
    *   function returning a scoped result
