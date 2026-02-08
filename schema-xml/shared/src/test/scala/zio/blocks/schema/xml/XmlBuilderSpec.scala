@@ -1,6 +1,5 @@
 package zio.blocks.schema.xml
 
-import zio.blocks.chunk.Chunk
 import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
@@ -74,9 +73,10 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .element("root")
           .child(child)
           .build
+        val isElement = elem.children(0).is(XmlType.Element)
         assertTrue(
           elem.children.length == 1,
-          elem.children(0).is(XmlType.Element)
+          isElement
         )
       },
       test("adds multiple children individually") {
@@ -87,10 +87,12 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .child(child1)
           .child(child2)
           .build
+        val isElement0 = elem.children(0).is(XmlType.Element)
+        val isElement1 = elem.children(1).is(XmlType.Element)
         assertTrue(
           elem.children.length == 2,
-          elem.children(0).is(XmlType.Element),
-          elem.children(1).is(XmlType.Element)
+          isElement0,
+          isElement1
         )
       },
       test("adds multiple children with children method") {
@@ -100,10 +102,12 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .element("root")
           .children(child1, child2)
           .build
+        val isElement0 = elem.children(0).is(XmlType.Element)
+        val isElement1 = elem.children(1).is(XmlType.Element)
         assertTrue(
           elem.children.length == 2,
-          elem.children(0).is(XmlType.Element),
-          elem.children(1).is(XmlType.Element)
+          isElement0,
+          isElement1
         )
       }
     ),
@@ -113,9 +117,10 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .element("root")
           .text("Hello World")
           .build
+        val isText = elem.children(0).is(XmlType.Text)
         assertTrue(
           elem.children.length == 1,
-          elem.children(0).is(XmlType.Text),
+          isText,
           elem.children(0).as(XmlType.Text).exists(_.value == "Hello World")
         )
       },
@@ -125,10 +130,12 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .text("Hello")
           .text("World")
           .build
+        val isText0 = elem.children(0).is(XmlType.Text)
+        val isText1 = elem.children(1).is(XmlType.Text)
         assertTrue(
           elem.children.length == 2,
-          elem.children(0).is(XmlType.Text),
-          elem.children(1).is(XmlType.Text),
+          isText0,
+          isText1,
           elem.children(0).as(XmlType.Text).exists(_.value == "Hello"),
           elem.children(1).as(XmlType.Text).exists(_.value == "World")
         )
@@ -142,11 +149,14 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .child(XmlBuilder.element("child").text("nested").build)
           .text("End")
           .build
+        val isText0   = elem.children(0).is(XmlType.Text)
+        val isElement = elem.children(1).is(XmlType.Element)
+        val isText2   = elem.children(2).is(XmlType.Text)
         assertTrue(
           elem.children.length == 3,
-          elem.children(0).is(XmlType.Text),
-          elem.children(1).is(XmlType.Element),
-          elem.children(2).is(XmlType.Text)
+          isText0,
+          isElement,
+          isText2
         )
       },
       test("builds complex element with attributes, text, and nested elements") {
@@ -163,42 +173,49 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .child(nested)
           .text("After")
           .build
+        val isText0   = elem.children(0).is(XmlType.Text)
+        val isElement = elem.children(1).is(XmlType.Element)
+        val isText2   = elem.children(2).is(XmlType.Text)
         assertTrue(
           elem.name.localName == "root",
           elem.attributes.length == 2,
           elem.children.length == 3,
-          elem.children(0).is(XmlType.Text),
-          elem.children(1).is(XmlType.Element),
-          elem.children(2).is(XmlType.Text)
+          isText0,
+          isElement,
+          isText2
         )
       }
     ),
     suite("factory methods")(
       test("XmlBuilder.text creates Text node") {
-        val text = XmlBuilder.text("Hello")
+        val text   = XmlBuilder.text("Hello")
+        val isText = text.is(XmlType.Text)
         assertTrue(
-          text.is(XmlType.Text),
+          isText,
           text.as(XmlType.Text).exists(_.value == "Hello")
         )
       },
       test("XmlBuilder.cdata creates CData node") {
-        val cdata = XmlBuilder.cdata("<unescaped>")
+        val cdata   = XmlBuilder.cdata("<unescaped>")
+        val isCData = cdata.is(XmlType.CData)
         assertTrue(
-          cdata.is(XmlType.CData),
+          isCData,
           cdata.as(XmlType.CData).exists(_.value == "<unescaped>")
         )
       },
       test("XmlBuilder.comment creates Comment node") {
-        val comment = XmlBuilder.comment("This is a comment")
+        val comment   = XmlBuilder.comment("This is a comment")
+        val isComment = comment.is(XmlType.Comment)
         assertTrue(
-          comment.is(XmlType.Comment),
+          isComment,
           comment.as(XmlType.Comment).exists(_.value == "This is a comment")
         )
       },
       test("XmlBuilder.processingInstruction creates ProcessingInstruction node") {
-        val pi = XmlBuilder.processingInstruction("xml-stylesheet", "type=\"text/xsl\"")
+        val pi   = XmlBuilder.processingInstruction("xml-stylesheet", "type=\"text/xsl\"")
+        val isPI = pi.is(XmlType.ProcessingInstruction)
         assertTrue(
-          pi.is(XmlType.ProcessingInstruction),
+          isPI,
           pi.unwrap(XmlType.ProcessingInstruction).exists { case (target, data) =>
             target == "xml-stylesheet" && data == "type=\"text/xsl\""
           }
@@ -224,10 +241,11 @@ object XmlBuilderSpec extends SchemaBaseSpec {
               .build
           )
           .build
+        val isElement = elem.children(0).is(XmlType.Element)
         assertTrue(
           elem.name.localName == "root",
           elem.children.length == 1,
-          elem.children(0).is(XmlType.Element)
+          isElement
         )
       },
       test("example from spec works") {
@@ -238,12 +256,14 @@ object XmlBuilderSpec extends SchemaBaseSpec {
           .child(XmlBuilder.element("child").text("content").build)
           .child(XmlBuilder.text("more text"))
           .build
+        val isElement = elem.children(0).is(XmlType.Element)
+        val isText    = elem.children(1).is(XmlType.Text)
         assertTrue(
           elem.name.localName == "root",
           elem.attributes.length == 2,
           elem.children.length == 2,
-          elem.children(0).is(XmlType.Element),
-          elem.children(1).is(XmlType.Text)
+          isElement,
+          isText
         )
       }
     ),

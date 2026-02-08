@@ -1,6 +1,5 @@
 package zio.blocks.schema.xml
 
-import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic
 
 /**

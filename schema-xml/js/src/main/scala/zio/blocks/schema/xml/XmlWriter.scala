@@ -1,8 +1,6 @@
 package zio.blocks.schema.xml
 
 import zio.blocks.chunk.Chunk
-import scala.scalajs.js.typedarray.Uint8Array
-import java.nio.charset.StandardCharsets
 
 object XmlWriter {
 
@@ -111,7 +109,7 @@ object XmlWriter {
 
   private def writeName(name: XmlName, sb: StringBuilder): Unit =
     name.namespace match {
-      case Some(ns) =>
+      case Some(_) =>
         sb.append(name.localName)
       case None =>
         sb.append(name.localName)
