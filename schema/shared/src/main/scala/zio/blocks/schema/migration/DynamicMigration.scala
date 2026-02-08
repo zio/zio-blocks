@@ -861,7 +861,7 @@ object DynamicMigration {
     case PrimitiveValue.Short(v)      => v.toString
     case PrimitiveValue.Int(v)        => v.toString
     case PrimitiveValue.Long(v)       => v.toString
-    case PrimitiveValue.Float(v)      => v.toString
+    case PrimitiveValue.Float(v)      => BigDecimal(v.toDouble).floatValue.toString
     case PrimitiveValue.Double(v)     => v.toString
     case PrimitiveValue.Char(v)       => v.toString
     case PrimitiveValue.BigInt(v)     => v.toString

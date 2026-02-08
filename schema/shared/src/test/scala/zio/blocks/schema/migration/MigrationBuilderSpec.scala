@@ -556,7 +556,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
 
   private val selectorMacroSuite = suite("selector macros")(
     test("renameField with selector produces same action as string version") {
-      val withString   = MigrationBuilder
+      val withString = MigrationBuilder
         .create(PersonV1.schema, PersonV2.schema)
         .renameField("name", "fullName")
       val withSelector = MigrationBuilder
@@ -573,7 +573,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       assertTrue(result == Right(PersonV2("Alice", 30, "alice@example.com")))
     },
     test("dropField with selector produces same action as string version") {
-      val withString   = MigrationBuilder
+      val withString = MigrationBuilder
         .create(PersonV1.schema, PersonV0.schema)
         .dropField("email", litStr(""))
       val withSelector = MigrationBuilder
@@ -590,7 +590,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       assertTrue(result == Right(PersonV0("Alice", 30)))
     },
     test("transformField with selector produces same action as string version") {
-      val withString   = MigrationBuilder
+      val withString = MigrationBuilder
         .create(SimpleRecord.schema, SimpleRecord.schema)
         .transformField("x", litInt(99), litInt(42))
       val withSelector = MigrationBuilder
@@ -599,7 +599,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       assertTrue(withString.actions == withSelector.actions)
     },
     test("mandateField with selector produces same action as string version") {
-      val withString   = MigrationBuilder
+      val withString = MigrationBuilder
         .create(SimpleRecord.schema, SimpleRecord.schema)
         .mandateField("x", litInt(0))
       val withSelector = MigrationBuilder
@@ -608,7 +608,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       assertTrue(withString.actions == withSelector.actions)
     },
     test("optionalizeField with selector produces same action as string version") {
-      val withString   = MigrationBuilder
+      val withString = MigrationBuilder
         .create(SimpleRecord.schema, SimpleRecord.schema)
         .optionalizeField("x", litInt(0))
       val withSelector = MigrationBuilder
@@ -622,7 +622,7 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       val withString      = MigrationBuilder
         .create(SimpleRecord.schema, SimpleRecord.schema)
         .changeFieldType("x", coercion, reverseCoercion)
-      val withSelector    = MigrationBuilder
+      val withSelector = MigrationBuilder
         .create(SimpleRecord.schema, SimpleRecord.schema)
         .changeFieldType(_.x, coercion, reverseCoercion)
       assertTrue(withString.actions == withSelector.actions)

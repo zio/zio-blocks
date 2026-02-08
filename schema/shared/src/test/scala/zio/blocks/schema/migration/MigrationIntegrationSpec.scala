@@ -994,7 +994,11 @@ object MigrationIntegrationSpec extends SchemaBaseSpec {
       assertTrue(
         result == Right(
           DynamicValue.Record(
-            Chunk(("firstName", stringDV("John")), ("surname", stringDV("Doe")), ("email", stringDV("unknown@example.com")))
+            Chunk(
+              ("firstName", stringDV("John")),
+              ("surname", stringDV("Doe")),
+              ("email", stringDV("unknown@example.com"))
+            )
           )
         )
       )
@@ -1070,9 +1074,12 @@ object MigrationIntegrationSpec extends SchemaBaseSpec {
         result == Right(
           DynamicValue.Record(
             Chunk(
-              ("address", DynamicValue.Record(
-                Chunk(("streetAddress", stringDV("123 Main")), ("city", stringDV("NYC")), ("zip", stringDV("10001")))
-              )),
+              (
+                "address",
+                DynamicValue.Record(
+                  Chunk(("streetAddress", stringDV("123 Main")), ("city", stringDV("NYC")), ("zip", stringDV("10001")))
+                )
+              ),
               ("name", stringDV("Bob"))
             )
           )

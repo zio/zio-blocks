@@ -5,15 +5,24 @@ import scala.annotation.tailrec
 
 trait MigrationBuilderVersionSpecific[A, B] { self: MigrationBuilder[A, B] =>
 
-  /** Rename a field using a selector. Example: `builder.renameField(_.name, "fullName")` */
+  /**
+   * Rename a field using a selector. Example:
+   * `builder.renameField(_.name, "fullName")`
+   */
   inline def renameField(inline from: A => Any, toName: String): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacros.renameFieldImpl[A, B]('{ self }, 'from, 'toName) }
 
-  /** Drop a field using a selector. Example: `builder.dropField(_.email, reverseDefault)` */
+  /**
+   * Drop a field using a selector. Example:
+   * `builder.dropField(_.email, reverseDefault)`
+   */
   inline def dropField(inline from: A => Any, reverseDefault: MigrationExpr): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacros.dropFieldImpl[A, B]('{ self }, 'from, 'reverseDefault) }
 
-  /** Transform a field using a selector. Example: `builder.transformField(_.age, expr, reverseExpr)` */
+  /**
+   * Transform a field using a selector. Example:
+   * `builder.transformField(_.age, expr, reverseExpr)`
+   */
   inline def transformField(
     inline field: A => Any,
     expr: MigrationExpr,
@@ -58,7 +67,7 @@ private object MigrationBuilderMacros {
     def loop(term: Term, acc: List[String]): List[String] = term match {
       case Select(qualifier, name) => loop(qualifier, name :: acc)
       case _: Ident                => acc
-      case _ =>
+      case _                       =>
         report.errorAndAbort(
           s"Expected a simple field selector like _.fieldName, got '${term.show}'"
         )

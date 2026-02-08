@@ -753,17 +753,18 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
   // Coercion Coverage
   // ─────────────────────────────────────────────────────────────────────────
 
-  private def shortDV(s: Short): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.Short(s))
-  private def byteDV(b: Byte): DynamicValue     = DynamicValue.Primitive(PrimitiveValue.Byte(b))
-  private def floatDV(f: Float): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.Float(f))
-  private def bigIntDV(b: BigInt): DynamicValue = DynamicValue.Primitive(PrimitiveValue.BigInt(b))
+  private def shortDV(s: Short): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Short(s))
+  private def byteDV(b: Byte): DynamicValue         = DynamicValue.Primitive(PrimitiveValue.Byte(b))
+  private def floatDV(f: Float): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Float(f))
+  private def bigIntDV(b: BigInt): DynamicValue     = DynamicValue.Primitive(PrimitiveValue.BigInt(b))
   private def bigDecDV(b: BigDecimal): DynamicValue = DynamicValue.Primitive(PrimitiveValue.BigDecimal(b))
-  private def charDV(c: Char): DynamicValue     = DynamicValue.Primitive(PrimitiveValue.Char(c))
+  private def charDV(c: Char): DynamicValue         = DynamicValue.Primitive(PrimitiveValue.Char(c))
 
   private def coerceField(value: DynamicValue, targetType: String): Either[MigrationError, DynamicValue] = {
     val record = DynamicValue.Record(Chunk(("x", value)))
     val action = MigrationAction.ChangeType(
-      DynamicOptic.root, "x",
+      DynamicOptic.root,
+      "x",
       MigrationExpr.Coerce(MigrationExpr.FieldRef(DynamicOptic.root), targetType),
       MigrationExpr.Coerce(MigrationExpr.FieldRef(DynamicOptic.root), "String") // dummy reverse
     )
@@ -1037,7 +1038,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     }
     val record = DynamicValue.Record(Chunk(("x", intDV(0))))
     val action = MigrationAction.TransformValue(
-      DynamicOptic.root, "x",
+      DynamicOptic.root,
+      "x",
       exprCtor(MigrationExpr.Literal(left), MigrationExpr.Literal(right)),
       litInt(0)
     )
@@ -1111,16 +1113,30 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     // ── BigDecimal operations ──────────────────────────────────────────
     test("Add BigDecimal + BigDecimal") {
-      assertTrue(evalArith("Add", bigDecDV(BigDecimal("1.1")), bigDecDV(BigDecimal("2.2"))) == Right(bigDecDV(BigDecimal("3.3"))))
+      assertTrue(
+        evalArith("Add", bigDecDV(BigDecimal("1.1")), bigDecDV(BigDecimal("2.2"))) == Right(bigDecDV(BigDecimal("3.3")))
+      )
     },
     test("Subtract BigDecimal - BigDecimal") {
-      assertTrue(evalArith("Subtract", bigDecDV(BigDecimal("5.5")), bigDecDV(BigDecimal("2.2"))) == Right(bigDecDV(BigDecimal("3.3"))))
+      assertTrue(
+        evalArith("Subtract", bigDecDV(BigDecimal("5.5")), bigDecDV(BigDecimal("2.2"))) == Right(
+          bigDecDV(BigDecimal("3.3"))
+        )
+      )
     },
     test("Multiply BigDecimal * BigDecimal") {
-      assertTrue(evalArith("Multiply", bigDecDV(BigDecimal("2.0")), bigDecDV(BigDecimal("3.5"))) == Right(bigDecDV(BigDecimal("7.00"))))
+      assertTrue(
+        evalArith("Multiply", bigDecDV(BigDecimal("2.0")), bigDecDV(BigDecimal("3.5"))) == Right(
+          bigDecDV(BigDecimal("7.00"))
+        )
+      )
     },
     test("Divide BigDecimal / BigDecimal") {
-      assertTrue(evalArith("Divide", bigDecDV(BigDecimal("10.0")), bigDecDV(BigDecimal("4.0"))) == Right(bigDecDV(BigDecimal("2.5"))))
+      assertTrue(
+        evalArith("Divide", bigDecDV(BigDecimal("10.0")), bigDecDV(BigDecimal("4.0"))) == Right(
+          bigDecDV(BigDecimal("2.5"))
+        )
+      )
     },
     test("Divide BigDecimal by zero") {
       assertTrue(evalArith("Divide", bigDecDV(BigDecimal("1.0")), bigDecDV(BigDecimal("0"))).isLeft)
@@ -1180,8 +1196,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
       assertTrue(result.isLeft)
     },
     test("navigate through AtMapKey") {
-      val key = DynamicValue.Primitive(PrimitiveValue.String("k"))
-      val m   = DynamicValue.Map(Chunk((key, DynamicValue.Record(Chunk(("v", intDV(1)))))))
+      val key    = DynamicValue.Primitive(PrimitiveValue.String("k"))
+      val m      = DynamicValue.Map(Chunk((key, DynamicValue.Record(Chunk(("v", intDV(1)))))))
       val action = MigrationAction.Rename(DynamicOptic(IndexedSeq(DynamicOptic.Node.AtMapKey(key))), "v", "val")
       val result = DynamicMigration(Chunk(action))(m)
       assertTrue(result.isRight)
@@ -1190,8 +1206,9 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
       val key     = DynamicValue.Primitive(PrimitiveValue.String("k"))
       val missing = DynamicValue.Primitive(PrimitiveValue.String("missing"))
       val m       = DynamicValue.Map(Chunk((key, intDV(1))))
-      val action  = MigrationAction.AddField(DynamicOptic(IndexedSeq(DynamicOptic.Node.AtMapKey(missing))), "x", litInt(0))
-      val result  = DynamicMigration(Chunk(action))(m)
+      val action  =
+        MigrationAction.AddField(DynamicOptic(IndexedSeq(DynamicOptic.Node.AtMapKey(missing))), "x", litInt(0))
+      val result = DynamicMigration(Chunk(action))(m)
       assertTrue(result.isLeft)
     },
     test("navigate through AtMapKey on non-Map") {
