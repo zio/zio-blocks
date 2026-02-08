@@ -5,6 +5,16 @@ import zio.blocks.schema.json.JsonSchema
 import zio.test._
 
 object SchemaToOpenAPISpec extends SchemaBaseSpec {
+
+  // Defined at top-level to avoid StackOverflowError from nested sealed trait initialization
+  sealed trait Status
+  object Status {
+    case object Active   extends Status
+    case object Inactive extends Status
+    case object Pending  extends Status
+    implicit val schema: Schema[Status] = Schema.derived
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Schema[A].toOpenAPISchema")(
     suite("primitive types")(
       test("converts Schema[String] to OpenAPI string schema") {
@@ -141,6 +151,14 @@ object SchemaToOpenAPISpec extends SchemaBaseSpec {
         object Success { implicit val schema: Schema[Success] = Schema.derived }
 
         val openAPISchema = Schema[Result].toOpenAPISchema
+
+        assertTrue(
+          openAPISchema.toJsonSchema.isRight,
+          openAPISchema.discriminator.isEmpty
+        )
+      },
+      test("converts sealed trait with case objects (enum pattern) to OpenAPI schema") {
+        val openAPISchema = Schema[Status].toOpenAPISchema
 
         assertTrue(
           openAPISchema.toJsonSchema.isRight,
