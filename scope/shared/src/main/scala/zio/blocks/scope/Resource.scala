@@ -284,7 +284,7 @@ object Resource extends ResourceCompanionVersionSpecific {
    * `Resource.apply` or `Resource.acquireRelease` for direct use.
    *
    * @param f
-   *   a function from scope to value
+   *   a function from finalizer to value
    * @tparam A
    *   the value type
    * @return
@@ -299,7 +299,7 @@ object Resource extends ResourceCompanionVersionSpecific {
    * `Resource.apply` or `Resource.acquireRelease` for direct use.
    *
    * @param f
-   *   a function from scope to value
+   *   a function from finalizer to value
    * @tparam A
    *   the value type
    * @return

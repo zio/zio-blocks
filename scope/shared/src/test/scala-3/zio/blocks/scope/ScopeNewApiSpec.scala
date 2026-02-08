@@ -227,6 +227,23 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
           suppressed(0).getMessage == "finalizer 2",
           suppressed(1).getMessage == "finalizer 1"
         )
+      },
+      test("defer works with Finalizer capability") {
+        var finalized = false
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
+          given Finalizer = scope
+          defer { finalized = true }
+        }
+        assertTrue(finalized)
+      }
+    ),
+    suite("Resource#allocate extension")(
+      test("Resource#allocate extension uses implicit scope") {
+        Scope.global.scoped { (scope: Scope[?, ?]) ?=>
+          val resource                   = Resource("hello")
+          val value: String @@ scope.Tag = resource.allocate
+          assertTrue(scope.$(value)(_.length) == 5)
+        }
       }
     ),
     suite("Wire")(

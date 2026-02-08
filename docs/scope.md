@@ -44,8 +44,8 @@ final class Database extends AutoCloseable {
   def close(): Unit = println("db closed")
 }
 
-Scope.global.scoped { scope =>
-  val db = scope.allocate(Resource(new Database))
+Scope.global.scoped { (using scope) =>
+  val db = Resource(new Database).allocate
 
   val result: String =
     scope.$(db)(_.query("SELECT 1"))
@@ -82,7 +82,7 @@ type Tag = Tag0
 So in code you'll typically write:
 
 ```scala
-Scope.global.scoped { scope =>
+Scope.global.scoped { (using scope) =>
   val x: Something @@ scope.Tag = ???
 }
 ```
@@ -340,7 +340,7 @@ Notes:
 ### Registering cleanup manually with `defer`
 
 ```scala
-Scope.global.scoped { scope =>
+Scope.global.scoped { (using scope) =>
   val handle = new java.io.ByteArrayInputStream(Array[Byte](1,2,3))
 
   scope.defer { handle.close() }
@@ -349,16 +349,19 @@ Scope.global.scoped { scope =>
 }
 ```
 
-There is also a package-level helper that uses an implicit scope:
+There is also a package-level helper that uses an implicit `Finalizer`:
 
 ```scala
 import zio.blocks.scope._
 
-Scope.global.scoped { scope =>
-  given Scope[?, ?] = scope
+Scope.global.scoped { (using scope) =>
+  given Finalizer = scope
   defer { println("cleanup") }
 }
 ```
+
+Note: `defer` requires only a `Finalizer`, not a full `Scope`. This allows cleanup
+registration in contexts where only finalization capability is needed.
 
 ---
 
@@ -436,7 +439,7 @@ final class Scope[ParentTag, Tag <: ParentTag] {
           escape: ScopeEscape[A, S]
   ): escape.Out
 
-  def scoped[A](f: Scope[this.Tag, ? <: this.Tag] => A): A
+  def scoped[A](f: Scope[this.Tag, ? <: this.Tag] ?=> A): A
 }
 ```
 
@@ -465,8 +468,8 @@ object Resource {
   def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
 
   // internal / produced by wires:
-  def shared[A](f: Scope[?, ?] => A): Resource.Shared[A]
-  def unique[A](f: Scope[?, ?] => A): Resource.Unique[A]
+  def shared[A](f: Finalizer => A): Resource.Shared[A]
+  def unique[A](f: Finalizer => A): Resource.Unique[A]
 
   final class Shared[+A] extends Resource[A]
   final class Unique[+A] extends Resource[A]

@@ -57,8 +57,8 @@ package object scope {
    *
    * @param finalizer
    *   a by-name expression to execute on scope close
-   * @param scope
-   *   the scope to register the finalizer with
+   * @param fin
+   *   the finalizer capability to register cleanup with
    */
   def defer(finalizer: => Unit)(using fin: Finalizer): Unit =
     fin.defer(finalizer)
