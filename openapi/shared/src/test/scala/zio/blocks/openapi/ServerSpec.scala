@@ -246,6 +246,14 @@ object ServerSpec extends SchemaBaseSpec {
           variable.`enum` == List("v1", "v2", "beta"),
           variable.description.contains(doc("API version path segment"))
         )
+      },
+      test("validated with only default parameter uses default enum") {
+        val result = ServerVariable.validated(default = "value")
+        assertTrue(
+          result.isRight,
+          result.exists(_.default == "value"),
+          result.exists(_.`enum`.isEmpty)
+        )
       }
     )
   )

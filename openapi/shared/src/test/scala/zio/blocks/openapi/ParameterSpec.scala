@@ -260,6 +260,27 @@ object ParameterSpec extends SchemaBaseSpec {
           param.in == ParameterLocation.Cookie,
           param.required
         )
+      },
+      test("Parameter minimal round-trip exercises private constructor defaults") {
+        val param  = Parameter(name = "q", in = ParameterLocation.Query)
+        val dv     = Schema[Parameter].toDynamicValue(param)
+        val result = Schema[Parameter].fromDynamicValue(dv)
+        assertTrue(
+          result.isRight,
+          result.exists(_.name == "q"),
+          result.exists(_.description.isEmpty),
+          result.exists(!_.required),
+          result.exists(!_.deprecated),
+          result.exists(!_.allowEmptyValue),
+          result.exists(_.style.isEmpty),
+          result.exists(_.explode.isEmpty),
+          result.exists(_.allowReserved.isEmpty),
+          result.exists(_.schema.isEmpty),
+          result.exists(_.example.isEmpty),
+          result.exists(_.examples.isEmpty),
+          result.exists(_.content.isEmpty),
+          result.exists(_.extensions.isEmpty)
+        )
       }
     ),
     suite("Header")(
