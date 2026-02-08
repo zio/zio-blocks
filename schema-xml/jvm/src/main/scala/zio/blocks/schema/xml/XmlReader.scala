@@ -60,6 +60,8 @@ object XmlReader {
     private def parseDocument(): Xml = {
       skipWhitespace()
       if (current == '<' && peek() == '?') {
+        advance() // skip '<'
+        advance() // skip '?'
         parseProcessingInstructionContent()
         skipWhitespace()
       }
