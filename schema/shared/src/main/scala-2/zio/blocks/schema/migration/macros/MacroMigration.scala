@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration.macros
 
-import zio.blocks.schema.migration._
+import zio.blocks.schema.migration.{DynamicMigration, Migration}
 
 object MacroMigration {
   /**

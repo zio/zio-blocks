@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration.macros
 
-import zio.blocks.schema._
-import zio.blocks.schema.migration._
+import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import zio.blocks.schema.migration.{DynamicMigration, Migration}
 import scala.quoted._
 
 object MacroMigration {
