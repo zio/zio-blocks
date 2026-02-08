@@ -120,8 +120,8 @@ private[scope] object ScopeMacros {
     def generateArgs(params: List[Symbol]): List[Tree] =
       params.map { param =>
         val paramType = param.typeSignature
-        if (MC.isScopeType(c)(paramType)) {
-          q"scope"
+        if (MC.isFinalizerType(c)(paramType)) {
+          q"finalizer"
         } else {
           q"ctx.get[$paramType]"
         }
@@ -144,7 +144,7 @@ private[scope] object ScopeMacros {
     val wireBody = if (isAutoCloseable) {
       q"""
         val instance = $ctorCall
-        scope.defer(instance.asInstanceOf[AutoCloseable].close())
+        finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
         instance
       """
     } else {
@@ -153,7 +153,7 @@ private[scope] object ScopeMacros {
       """
     }
 
-    val result = q"$wireFactory.apply[$inType, $tpe] { (scope, ctx) => $wireBody }"
+    val result = q"$wireFactory.apply[$inType, $tpe] { (finalizer, ctx) => $wireBody }"
     c.Expr[Wire[_, T]](result)
   }
 }

@@ -140,11 +140,24 @@ private[scope] object MacroCore {
   }
 
   /**
+   * Check if a type is a Finalizer type (subtype of Finalizer).
+   *
+   * Finalizer is the minimal interface for registering cleanup actions.
+   * Constructors can take Finalizer as a parameter to register their own
+   * cleanup logic.
+   */
+  def isFinalizerType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
+    import quotes.reflect.*
+    tpe <:< TypeRepr.of[zio.blocks.scope.Finalizer]
+  }
+
+  /**
    * Classify a parameter type and extract its dependency if applicable.
    *
    * In the new design, Scope is just Scope[?, ?] - there's no Scope.Has or
    * context inside the scope. Dependencies are resolved via Resource/Wire.
    *
+   *   - Finalizer → ScopeAny with no dependency (finalizer is passed through)
    *   - Scope[?, ?] → ScopeAny with no dependency
    *   - Regular type → ValueDep with the type as dependency
    */
@@ -153,7 +166,7 @@ private[scope] object MacroCore {
   )(
     paramType: quotes.reflect.TypeRepr
   ): (ParamKind, Option[quotes.reflect.TypeRepr]) =
-    if (isScopeType(paramType)) {
+    if (isFinalizerType(paramType) || isScopeType(paramType)) {
       (ParamKind.ScopeAny, None)
     } else {
       (ParamKind.ValueDep(paramType.show), Some(paramType))

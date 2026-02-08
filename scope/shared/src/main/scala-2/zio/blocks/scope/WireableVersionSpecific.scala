@@ -9,7 +9,7 @@ private[scope] trait WireableVersionSpecific {
    *
    * Constructor parameters are analyzed to determine dependencies:
    *   - Regular parameters: become dependencies (part of `In` type)
-   *   - `Scope[_, _]` parameters: scope is passed
+   *   - `Finalizer` parameters: finalizer is passed
    *
    * The `In` type is the intersection of all dependencies.
    *
@@ -61,8 +61,8 @@ private[scope] object WireableMacros {
     def generateArgs(params: List[Symbol]): List[Tree] =
       params.map { param =>
         val paramType = param.typeSignature
-        if (MC.isScopeType(c)(paramType)) {
-          q"scope"
+        if (MC.isFinalizerType(c)(paramType)) {
+          q"finalizer"
         } else {
           q"ctx.get[$paramType]"
         }
@@ -79,15 +79,15 @@ private[scope] object WireableMacros {
 
     val wireBody = if (isAutoCloseable) {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (scope, ctx) =>
+        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (finalizer, ctx) =>
           val instance = $ctorCall
-          scope.defer(instance.asInstanceOf[AutoCloseable].close())
+          finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
         }
       """
     } else {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (scope, ctx) =>
+        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (finalizer, ctx) =>
           val instance = $ctorCall
           instance
         }

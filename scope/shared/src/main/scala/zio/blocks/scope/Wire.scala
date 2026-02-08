@@ -87,7 +87,7 @@ object Wire extends WireCompanionVersionSpecific {
    *   the service type produced
    */
   final class Shared[-In, +Out] private[scope] (
-    private[scope] val makeFn: (Scope[?, ?], Context[In]) => Out
+    private[scope] val makeFn: (Finalizer, Context[In]) => Out
   ) extends Wire[In, Out] {
 
     def isShared: Boolean = true
@@ -97,20 +97,20 @@ object Wire extends WireCompanionVersionSpecific {
     def unique: Unique[In, Out] = new Unique[In, Out](makeFn)
 
     /**
-     * Constructs the service using the given scope and context.
+     * Constructs the service using the given finalizer and context.
      *
-     * @param scope
-     *   the scope for finalizer registration
+     * @param finalizer
+     *   the finalizer for cleanup registration
      * @param ctx
      *   the context providing dependencies
      * @return
      *   the constructed service
      */
-    override def make(scope: Scope[?, ?], ctx: Context[In]): Out = makeFn(scope, ctx)
+    def make(finalizer: Finalizer, ctx: Context[In]): Out = makeFn(finalizer, ctx)
 
     def toResource(deps: Context[In]): Resource[Out] = {
       val self = this
-      new Resource.Shared[Out](scope => self.makeFn(scope, deps))
+      new Resource.Shared[Out](finalizer => self.makeFn(finalizer, deps))
     }
   }
 
@@ -132,7 +132,7 @@ object Wire extends WireCompanionVersionSpecific {
    *   the service type produced
    */
   final class Unique[-In, +Out] private[scope] (
-    private[scope] val makeFn: (Scope[?, ?], Context[In]) => Out
+    private[scope] val makeFn: (Finalizer, Context[In]) => Out
   ) extends Wire[In, Out] {
 
     def isShared: Boolean = false
@@ -142,20 +142,20 @@ object Wire extends WireCompanionVersionSpecific {
     def unique: Unique[In, Out] = this
 
     /**
-     * Constructs the service using the given scope and context.
+     * Constructs the service using the given finalizer and context.
      *
-     * @param scope
-     *   the scope for finalizer registration
+     * @param finalizer
+     *   the finalizer for cleanup registration
      * @param ctx
      *   the context providing dependencies
      * @return
      *   the constructed service
      */
-    override def make(scope: Scope[?, ?], ctx: Context[In]): Out = makeFn(scope, ctx)
+    def make(finalizer: Finalizer, ctx: Context[In]): Out = makeFn(finalizer, ctx)
 
     def toResource(deps: Context[In]): Resource[Out] = {
       val self = this
-      new Resource.Unique[Out](scope => self.makeFn(scope, deps))
+      new Resource.Unique[Out](finalizer => self.makeFn(finalizer, deps))
     }
   }
 

@@ -50,6 +50,12 @@ private[scope] object MacroCore {
     tpe <:< typeOf[zio.blocks.scope.Scope[_, _]]
   }
 
+  /** Check if a type is a Finalizer type (subtype of Finalizer) */
+  def isFinalizerType(c: blackbox.Context)(tpe: c.Type): Boolean = {
+    import c.universe._
+    tpe <:< typeOf[zio.blocks.scope.Finalizer]
+  }
+
   /**
    * Extract the dependency type from a Scope.Has[Y] type.
    *
@@ -80,13 +86,15 @@ private[scope] object MacroCore {
   /**
    * Classify a parameter type and extract its dependency if applicable.
    *
+   *   - Finalizer → None (no dependency, passed as finalizer)
    *   - Scope.Has[Y] → Some(Y) as dependency
    *   - Scope.Any-like → None (no dependency)
    *   - Regular type → Some(type) as dependency
    */
   def classifyAndExtractDep(c: blackbox.Context)(paramType: c.Type): Option[c.Type] =
-    if (isScopeType(c)(paramType)) {
-      extractScopeHasType(c)(paramType)
+    if (isFinalizerType(c)(paramType)) {
+      if (isScopeType(c)(paramType)) extractScopeHasType(c)(paramType)
+      else None
     } else {
       Some(paramType)
     }

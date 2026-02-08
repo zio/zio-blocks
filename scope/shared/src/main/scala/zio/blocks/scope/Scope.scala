@@ -45,7 +45,8 @@ import zio.blocks.scope.internal.Finalizers
  */
 final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   private[scope] val finalizers: Finalizers
-) extends ScopeVersionSpecific[ParentTag, Tag0] {
+) extends ScopeVersionSpecific[ParentTag, Tag0]
+    with Finalizer {
 
   /**
    * This scope's tag type, exposed as a type member for path-dependent typing.
