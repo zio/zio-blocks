@@ -165,6 +165,26 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
     }
   }
 
+  /**
+   * Navigates to all descendant elements with the given name (recursive
+   * search). Does not include the starting element itself, only its
+   * descendants.
+   */
+  def descendant(name: String): XmlSelection = flatMap { xml =>
+    def findDescendants(node: Xml): Chunk[Xml] = node match {
+      case Xml.Element(n, _, children) =>
+        val self = if (n.localName == name) Chunk.single(node) else Chunk.empty
+        self ++ children.flatMap(findDescendants)
+      case _ => Chunk.empty
+    }
+    // Only search in children, not the starting element itself
+    xml match {
+      case Xml.Element(_, _, children) =>
+        XmlSelection.succeedMany(children.flatMap(findDescendants))
+      case _ => XmlSelection.empty
+    }
+  }
+
   /** Navigates using a DynamicOptic path. */
   def get(path: DynamicOptic): XmlSelection =
     path.nodes.foldLeft(this) { (sel, node) =>
@@ -192,6 +212,39 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
       case _ => XmlSelection.empty
     }
   }
+
+  /**
+   * Extracts text content from the single selected element. For Text/CData
+   * nodes, returns the content directly. For Element nodes, returns
+   * concatenated text of all child text nodes.
+   */
+  def text: Either[XmlError, String] = one.flatMap {
+    case Xml.Text(value)             => Right(value)
+    case Xml.CData(value)            => Right(value)
+    case Xml.Element(_, _, children) =>
+      val texts = children.collect {
+        case Xml.Text(v)  => v
+        case Xml.CData(v) => v
+      }
+      if (texts.nonEmpty) Right(texts.mkString)
+      else Left(XmlError("No text content found"))
+    case other => Left(XmlError(s"Expected text content but got ${other.xmlType}"))
+  }
+
+  /**
+   * Concatenates all text content from the selection. Never fails; returns
+   * empty string if no text is found.
+   */
+  def textContent: String = toChunk.flatMap {
+    case Xml.Text(v)                 => Chunk.single(v)
+    case Xml.CData(v)                => Chunk.single(v)
+    case Xml.Element(_, _, children) =>
+      children.collect {
+        case Xml.Text(v)  => v
+        case Xml.CData(v) => v
+      }
+    case _ => Chunk.empty
+  }.mkString
 
   // ─────────────────────────────────────────────────────────────────────────
   // Combinators

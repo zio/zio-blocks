@@ -286,6 +286,29 @@ object XmlSelectionSpec extends SchemaBaseSpec {
           result.size == 1,
           result.toChunk.head == grandchild
         )
+      },
+      test("descendant(name) finds all descendants with given name") {
+        val grandchild1 = Xml.Element("item", Xml.Text("deep1"))
+        val grandchild2 = Xml.Element("other", Xml.Text("deep2"))
+        val child1      = Xml.Element("item", grandchild1)
+        val child2      = Xml.Element("section", grandchild2)
+        val root        = Xml.Element("root", child1, child2)
+        val result      = XmlSelection.succeed(root).descendant("item")
+        assertTrue(
+          result.size == 2,
+          result.toChunk.forall(_.as(XmlType.Element).exists(_.name.localName == "item"))
+        )
+      },
+      test("descendant(name) returns empty when no matches") {
+        val child  = Xml.Element("child", Xml.Text("text"))
+        val root   = Xml.Element("root", child)
+        val result = XmlSelection.succeed(root).descendant("notfound")
+        assertTrue(result.isEmpty)
+      },
+      test("descendant(name) finds only the matching element, not parent") {
+        val root   = Xml.Element("target", Xml.Element("target", Xml.Text("nested")))
+        val result = XmlSelection.succeed(root).descendant("target")
+        assertTrue(result.size == 1)
       }
     ),
     suite("combinators")(
@@ -420,6 +443,86 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         val selection = XmlSelection.succeed(text)
         val result    = selection.unwrap(XmlType.Element)
         assertTrue(result.isLeft)
+      }
+    ),
+    suite("text extraction")(
+      test("text extracts text node content") {
+        val text      = Xml.Text("hello")
+        val selection = XmlSelection.succeed(text)
+        val result    = selection.text
+        assertTrue(
+          result.isRight,
+          result == Right("hello")
+        )
+      },
+      test("text extracts CDATA node content") {
+        val cdata     = Xml.CData("<![CDATA[raw data]]>")
+        val selection = XmlSelection.succeed(cdata)
+        val result    = selection.text
+        assertTrue(
+          result.isRight,
+          result == Right("<![CDATA[raw data]]>")
+        )
+      },
+      test("text concatenates text children of element") {
+        val elem = Xml.Element(
+          "para",
+          Xml.Text("Hello "),
+          Xml.Element("em", Xml.Text("world")),
+          Xml.Text("!")
+        )
+        val selection = XmlSelection.succeed(elem)
+        val result    = selection.text
+        assertTrue(
+          result.isRight,
+          result == Right("Hello !")
+        )
+      },
+      test("text fails on element with no text children") {
+        val elem      = Xml.Element("empty", Xml.Element("child"))
+        val selection = XmlSelection.succeed(elem)
+        val result    = selection.text
+        assertTrue(result.isLeft)
+      },
+      test("text fails when selection is empty") {
+        val result = XmlSelection.empty.text
+        assertTrue(result.isLeft)
+      },
+      test("text fails when selection has multiple values") {
+        val selection = XmlSelection.succeedMany(Chunk(Xml.Text("a"), Xml.Text("b")))
+        val result    = selection.text
+        assertTrue(result.isLeft)
+      },
+      test("textContent concatenates all text from selection") {
+        val selection = XmlSelection.succeedMany(
+          Chunk(
+            Xml.Text("hello"),
+            Xml.CData("world"),
+            Xml.Element("div", Xml.Text("!")),
+            Xml.Comment("ignored")
+          )
+        )
+        val result = selection.textContent
+        assertTrue(result == "helloworld!")
+      },
+      test("textContent returns empty string for empty selection") {
+        val result = XmlSelection.empty.textContent
+        assertTrue(result == "")
+      },
+      test("textContent never fails") {
+        val failed = XmlSelection.fail(XmlError("error"))
+        val result = failed.textContent
+        assertTrue(result == "")
+      },
+      test("textContent extracts from element children") {
+        val elem = Xml.Element(
+          "root",
+          Xml.Text("start"),
+          Xml.Element("child", Xml.Text("middle")),
+          Xml.Text("end")
+        )
+        val result = XmlSelection.succeed(elem).textContent
+        assertTrue(result == "startend")
       }
     ),
     suite("edge cases and error handling")(
