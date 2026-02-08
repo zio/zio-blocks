@@ -80,6 +80,11 @@ object SchemaObjectSpec extends SchemaBaseSpec {
           schemaObj.toJsonSchema.isRight,
           schemaObj.discriminator.isEmpty
         )
+      },
+      test("toJson returns the underlying jsonSchema") {
+        val js        = Json.Object("type" -> Json.String("string"), "minLength" -> Json.Number(1))
+        val schemaObj = SchemaObject(jsonSchema = js)
+        assertTrue(schemaObj.toJson == js)
       }
     ),
     suite("toJsonSchema conversion")(

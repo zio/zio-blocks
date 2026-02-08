@@ -1,6 +1,6 @@
 # OpenAPI Type Enrichment: Doc Integration & ADT Typing
 
-**Status**: Planning  
+**Status**: Complete  
 **Date**: 2026-02-08  
 **Branch**: `planning/openapi-3.1`
 
@@ -33,18 +33,18 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
 ---
 
 ## Definition of Done
-- [ ] `openapi` depends on `markdown` in build.sbt
-- [ ] `Schema[Doc]` defined in openapi module, serializes as markdown string
-- [ ] All description/summary fields use `Option[Doc]` (or `Doc` for Response.description)
-- [ ] PathItem has full HTTP method operation fields (get/put/post/delete/options/head/patch/trace)
-- [ ] Components uses typed maps with ReferenceOr[T] instead of Map[String, Json]
-- [ ] Operation uses typed parameters, requestBody, responses, callbacks
-- [ ] Parameter and Header use typed schema, examples, content fields
-- [ ] MediaType uses typed schema field
-- [ ] All 12 test files updated to match new signatures
-- [ ] `sbt "++3.7.4; openapiJVM/test"` passes
-- [ ] `sbt "++2.13.18; openapiJVM/test"` passes
-- [ ] Code formatted
+- [x] `openapi` depends on `markdown` in build.sbt
+- [x] `Schema[Doc]` defined in openapi module, serializes as markdown string
+- [x] All description/summary fields use `Option[Doc]` (or `Doc` for Response.description)
+- [x] PathItem has full HTTP method operation fields (get/put/post/delete/options/head/patch/trace)
+- [x] Components uses typed maps with ReferenceOr[T] instead of Map[String, Json]
+- [x] Operation uses typed parameters, requestBody, responses, callbacks
+- [x] Parameter and Header use typed schema, examples, content fields
+- [x] MediaType uses typed schema field
+- [x] All 12 test files updated to match new signatures
+- [x] `sbt "++3.7.4; openapiJVM/test"` passes
+- [x] `sbt "++2.13.18; openapiJVM/test"` passes
+- [x] Code formatted
 
 ---
 
@@ -52,7 +52,7 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
 
 ### Phase 1: Foundation — Add Doc dependency and Schema[Doc]
 
-- [ ] 1. Add markdown dependency and Schema[Doc]
+- [x] 1. Add markdown dependency and Schema[Doc]
 
   **What to do**:
   - In `build.sbt`, add `.dependsOn(markdown)` to the `openapi` project (in addition to existing `schema`)
@@ -67,14 +67,14 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (foundation for everything)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/compile"` succeeds
-  - [ ] `sbt "++2.13.18; openapiJVM/compile"` succeeds
+   - [x] `sbt "++3.7.4; openapiJVM/compile"` succeeds
+   - [x] `sbt "++2.13.18; openapiJVM/compile"` succeeds
 
 ---
 
 ### Phase 2: Replace description/summary fields with Doc
 
-- [ ] 2. Change all description/summary fields from String to Doc
+- [x] 2. Change all description/summary fields from String to Doc
 
   **What to do**:
   - In `OpenAPI.scala`, change ALL `description: Option[String]` → `description: Option[Doc]` and `summary: Option[String]` → `summary: Option[Doc]`
@@ -106,11 +106,11 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (must come before test updates)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/compile"` succeeds (tests may fail, that's ok)
+   - [x] `sbt "++3.7.4; openapiJVM/compile"` succeeds (tests may fail, that's ok)
 
 ---
 
-- [ ] 3. Update all test files for Doc changes
+- [x] 3. Update all test files for Doc changes
 
   **What to do**:
   - In ALL 12 test files, replace `Some("description text")` with `Some(Doc.parse("description text"))` or construct Doc appropriately
@@ -138,16 +138,16 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (depends on task 2)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/test"` passes
-  - [ ] `sbt "++2.13.18; openapiJVM/test"` passes
+   - [x] `sbt "++3.7.4; openapiJVM/test"` passes
+   - [x] `sbt "++2.13.18; openapiJVM/test"` passes
 
-  **Commit**: YES — `feat(openapi): use Doc type for description and summary fields`
+   **Commit**: YES — `feat(openapi): use Doc type for description and summary fields` ✅ `34bf2d65`
 
 ---
 
 ### Phase 3: Type enrichment — Replace Json with proper ADTs
 
-- [ ] 4. Enrich PathItem with full HTTP method operations
+- [x] 4. Enrich PathItem with full HTTP method operations
 
   **What to do**:
   - Add to `PathItem`: `get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace` as `Option[Operation]`
@@ -161,11 +161,11 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (Operation already exists, but tests need sequential update)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/compile"` succeeds
+   - [x] `sbt "++3.7.4; openapiJVM/compile"` succeeds
 
 ---
 
-- [ ] 5. Enrich Operation with typed fields
+- [x] 5. Enrich Operation with typed fields
 
   **What to do**:
   - Change `responses: Json` → `responses: Map[String, ReferenceOr[Response]]`
@@ -179,11 +179,11 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (depends on task 4)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/compile"` succeeds
+   - [x] `sbt "++3.7.4; openapiJVM/compile"` succeeds
 
 ---
 
-- [ ] 6. Enrich Parameter, Header, and MediaType with typed fields
+- [x] 6. Enrich Parameter, Header, and MediaType with typed fields
 
   **What to do**:
   - Parameter: `schema: Option[Json]` → `schema: Option[ReferenceOr[SchemaObject]]`
@@ -195,11 +195,11 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (depends on task 5)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/compile"` succeeds
+   - [x] `sbt "++3.7.4; openapiJVM/compile"` succeeds
 
 ---
 
-- [ ] 7. Enrich Components with typed maps
+- [x] 7. Enrich Components with typed maps
 
   **What to do**:
   - `schemas: Map[String, Json]` → `schemas: Map[String, ReferenceOr[SchemaObject]]`
@@ -216,13 +216,13 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (depends on tasks 4-6, since it references all those types)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/compile"` succeeds
+   - [x] `sbt "++3.7.4; openapiJVM/compile"` succeeds
 
 ---
 
 ### Phase 4: Update Tests and Verify
 
-- [ ] 8. Update all test files for ADT type changes
+- [x] 8. Update all test files for ADT type changes
 
   **What to do**:
   - Update all 12 test files to use the new typed fields
@@ -237,16 +237,16 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   **Parallelizable**: NO (depends on tasks 4-7)
 
   **Acceptance Criteria**:
-  - [ ] `sbt "++3.7.4; openapiJVM/test"` passes — ALL tests green
-  - [ ] `sbt "++2.13.18; openapiJVM/test"` passes — ALL tests green
+   - [x] `sbt "++3.7.4; openapiJVM/test"` passes — ALL tests green
+   - [x] `sbt "++2.13.18; openapiJVM/test"` passes — ALL tests green
 
-  **Commit**: YES — `feat(openapi): replace raw Json with typed ADTs matching zio-http`
+   **Commit**: YES — `feat(openapi): replace raw Json with typed ADTs matching zio-http` ✅ `8d498bfa`
 
 ---
 
 ### Phase 5: Format and Final Verification
 
-- [ ] 9. Format code and cross-verify
+- [x] 9. Format code and cross-verify
 
   **What to do**:
   - Run `sbt "++3.7.4; openapiJVM/scalafmt; openapiJVM/Test/scalafmt"`
@@ -254,8 +254,8 @@ This avoids Schema derivation for the entire Block/Inline hierarchy.
   - Verify no regressions
 
   **Acceptance Criteria**:
-  - [ ] Code formatted
-  - [ ] All tests pass on both Scala versions
+   - [x] Code formatted
+   - [x] All tests pass on both Scala versions
 
   **Commit**: YES (if formatting changed files) — `chore(openapi): format code`
 

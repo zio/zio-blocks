@@ -93,6 +93,44 @@ object OpenAPISpec extends SchemaBaseSpec {
         api.externalDocs.isDefined,
         api.extensions.size == 1
       )
+    },
+    test("OpenAPI fully-populated round-trips through DynamicValue") {
+      val info         = Info(title = "Full API", version = "2.0.0")
+      val server       = Server(url = "https://api.example.com")
+      val paths        = Paths(Map.empty)
+      val components   = Components()
+      val security     = List(SecurityRequirement(Map("bearer" -> List("read", "write"))))
+      val tag          = Tag(name = "users")
+      val externalDocs = ExternalDocumentation(url = "https://docs.example.com")
+      val api          = OpenAPI(
+        openapi = "3.1.0",
+        info = info,
+        jsonSchemaDialect = Some("https://spec.openapis.org/oas/3.1/dialect/base"),
+        servers = List(server),
+        paths = Some(paths),
+        components = Some(components),
+        security = security,
+        tags = List(tag),
+        externalDocs = Some(externalDocs),
+        extensions = Map("x-custom" -> Json.String("value"))
+      )
+
+      val dv     = Schema[OpenAPI].toDynamicValue(api)
+      val result = Schema[OpenAPI].fromDynamicValue(dv)
+
+      assertTrue(
+        result.isRight,
+        result.exists(_.openapi == "3.1.0"),
+        result.exists(_.info.title == "Full API"),
+        result.exists(_.jsonSchemaDialect.isDefined),
+        result.exists(_.servers.nonEmpty),
+        result.exists(_.paths.isDefined),
+        result.exists(_.components.isDefined),
+        result.exists(_.security.nonEmpty),
+        result.exists(_.tags.nonEmpty),
+        result.exists(_.externalDocs.isDefined),
+        result.exists(_.extensions.nonEmpty)
+      )
     }
   )
 }

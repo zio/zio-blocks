@@ -214,6 +214,18 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           result.exists(_.url.contains("https://www.apache.org/licenses/LICENSE-2.0.html")),
           result.exists(_.extensions.contains("x-custom"))
         )
+      },
+      test("License minimal round-trip exercises private constructor defaults") {
+        val license = License(name = "MIT")
+        val dv      = Schema[License].toDynamicValue(license)
+        val result  = Schema[License].fromDynamicValue(dv)
+        assertTrue(
+          result.isRight,
+          result.exists(_.name == "MIT"),
+          result.exists(_.identifier.isEmpty),
+          result.exists(_.url.isEmpty),
+          result.exists(_.extensions.isEmpty)
+        )
       }
     ),
     suite("Info")(

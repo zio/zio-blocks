@@ -511,6 +511,19 @@ object RequestResponseSpec extends SchemaBaseSpec {
           result.exists(_.value.isDefined),
           result.exists(_.extensions.nonEmpty)
         )
+      },
+      test("Example minimal round-trip exercises private constructor defaults") {
+        val example = Example()
+        val dv      = Schema[Example].toDynamicValue(example)
+        val result  = Schema[Example].fromDynamicValue(dv)
+        assertTrue(
+          result.isRight,
+          result.exists(_.summary.isEmpty),
+          result.exists(_.description.isEmpty),
+          result.exists(_.value.isEmpty),
+          result.exists(_.externalValue.isEmpty),
+          result.exists(_.extensions.isEmpty)
+        )
       }
     ),
     suite("Link")(
@@ -644,6 +657,21 @@ object RequestResponseSpec extends SchemaBaseSpec {
           result.exists(_.parameters.nonEmpty),
           result.exists(_.description.contains(doc("Get user link"))),
           result.exists(_.extensions.nonEmpty)
+        )
+      },
+      test("Link minimal round-trip exercises private constructor defaults") {
+        val link   = Link()
+        val dv     = Schema[Link].toDynamicValue(link)
+        val result = Schema[Link].fromDynamicValue(dv)
+        assertTrue(
+          result.isRight,
+          result.exists(_.operationRef.isEmpty),
+          result.exists(_.operationId.isEmpty),
+          result.exists(_.parameters.isEmpty),
+          result.exists(_.requestBody.isEmpty),
+          result.exists(_.description.isEmpty),
+          result.exists(_.server.isEmpty),
+          result.exists(_.extensions.isEmpty)
         )
       }
     ),
