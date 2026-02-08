@@ -382,19 +382,24 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-        val binding  = record.recordBinding.asInstanceOf[Binding.Record[A]]
-        val fields   = record.fields
-        val typeName = record.typeId.name
+        val binding      = record.recordBinding.asInstanceOf[Binding.Record[A]]
+        val fields       = record.fields
+        val typeName     = record.typeId.name
+        val namespaceOpt = xmlNamespace.getNamespace(record.modifiers)
 
-        val fieldInfos: IndexedSeq[(String, XmlBinaryCodec[Any], Boolean, RegisterOffset.RegisterOffset)] = {
+        // (fieldName, codec, isOptional, offset, xmlAttrName: Option[String])
+        // xmlAttrName = Some(name) means encode as attribute with that name, None means encode as child element
+        val fieldInfos
+          : IndexedSeq[(String, XmlBinaryCodec[Any], Boolean, RegisterOffset.RegisterOffset, Option[String])] = {
           var offset = RegisterOffset.Zero
           fields.map { field =>
-            val fieldName   = field.name
-            val fieldCodec  = deriveCodec(field.value).asInstanceOf[XmlBinaryCodec[Any]]
-            val isOptional  = isOptionalField(field.value)
-            val fieldOffset = offset
+            val fieldName     = field.name
+            val fieldCodec    = deriveCodec(field.value).asInstanceOf[XmlBinaryCodec[Any]]
+            val isOptional    = isOptionalField(field.value)
+            val fieldOffset   = offset
+            val attributeName = getXmlAttributeName(field)
             offset = RegisterOffset.add(offset, fieldCodec.valueOffset)
-            (fieldName, fieldCodec, isOptional, fieldOffset)
+            (fieldName, fieldCodec, isOptional, fieldOffset, attributeName)
           }
         }
 
@@ -402,61 +407,80 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
           private[this] val deconstructor = binding.deconstructor
           private[this] val constructor   = binding.constructor
           private[this] val recordName    = typeName
+          private[this] val nsInfo        = namespaceOpt
 
           override def decodeValue(xml: Xml): Either[XmlError, A] = xml match {
-            case Xml.Element(_, _, children) =>
+            case Xml.Element(_, attributes, children) =>
               val childMap = children.collect { case elem @ Xml.Element(name, _, _) =>
                 (name.localName, elem)
               }.toMap
+              val attrMap = attributes.map { case (name, value) => (name.localName, value) }.toMap
 
               val regs            = Registers(constructor.usedRegisters)
               var error: XmlError = null
               var idx             = 0
               while (idx < fieldInfos.length && error == null) {
-                val (fieldName, codec, isOptional, fieldOffset) = fieldInfos(idx)
-                childMap.get(fieldName) match {
-                  case Some(fieldElem) =>
-                    val hasElementChildren = fieldElem.children.exists(_.isInstanceOf[Xml.Element])
-                    val xmlToDecode        =
-                      if (hasElementChildren) fieldElem
-                      else Xml.Element(XmlName("value"), Chunk.empty, fieldElem.children)
-                    codec.decodeValue(xmlToDecode) match {
-                      case Right(v) =>
-                        (codec.valueType: @switch) match {
-                          case 0 => regs.setObject(fieldOffset, v.asInstanceOf[AnyRef])
-                          case 1 => regs.setInt(fieldOffset, v.asInstanceOf[Int])
-                          case 2 => regs.setLong(fieldOffset, v.asInstanceOf[Long])
-                          case 3 => regs.setFloat(fieldOffset, v.asInstanceOf[Float])
-                          case 4 => regs.setDouble(fieldOffset, v.asInstanceOf[Double])
-                          case 5 => regs.setBoolean(fieldOffset, v.asInstanceOf[Boolean])
-                          case 6 => regs.setByte(fieldOffset, v.asInstanceOf[Byte])
-                          case 7 => regs.setChar(fieldOffset, v.asInstanceOf[Char])
-                          case 8 => regs.setShort(fieldOffset, v.asInstanceOf[Short])
-                          case _ => ()
+                val (fieldName, codec, isOptional, fieldOffset, xmlAttrName) = fieldInfos(idx)
+                xmlAttrName match {
+                  case Some(attrName) =>
+                    attrMap.get(attrName) match {
+                      case Some(attrValue) =>
+                        parseAttributeValue(attrValue, codec, regs, fieldOffset) match {
+                          case Some(err) => error = err
+                          case None      => ()
                         }
-                      case Left(err) => error = err
+                      case None =>
+                        if (isOptional) {
+                          regs.setObject(fieldOffset, None)
+                        } else {
+                          error = XmlError.parseError(s"Missing required attribute: $attrName", 0, 0)
+                        }
                     }
                   case None =>
-                    if (isOptional) {
-                      regs.setObject(fieldOffset, None)
-                    } else {
-                      val defaultVal = getDefaultValue(fields(idx).value)
-                      defaultVal match {
-                        case Some(v) =>
-                          (codec.valueType: @switch) match {
-                            case 0 => regs.setObject(fieldOffset, v.asInstanceOf[AnyRef])
-                            case 1 => regs.setInt(fieldOffset, v.asInstanceOf[Int])
-                            case 2 => regs.setLong(fieldOffset, v.asInstanceOf[Long])
-                            case 3 => regs.setFloat(fieldOffset, v.asInstanceOf[Float])
-                            case 4 => regs.setDouble(fieldOffset, v.asInstanceOf[Double])
-                            case 5 => regs.setBoolean(fieldOffset, v.asInstanceOf[Boolean])
-                            case 6 => regs.setByte(fieldOffset, v.asInstanceOf[Byte])
-                            case 7 => regs.setChar(fieldOffset, v.asInstanceOf[Char])
-                            case 8 => regs.setShort(fieldOffset, v.asInstanceOf[Short])
-                            case _ => ()
+                    childMap.get(fieldName) match {
+                      case Some(fieldElem) =>
+                        val hasElementChildren = fieldElem.children.exists(_.isInstanceOf[Xml.Element])
+                        val xmlToDecode        =
+                          if (hasElementChildren) fieldElem
+                          else Xml.Element(XmlName("value"), Chunk.empty, fieldElem.children)
+                        codec.decodeValue(xmlToDecode) match {
+                          case Right(v) =>
+                            (codec.valueType: @switch) match {
+                              case 0 => regs.setObject(fieldOffset, v.asInstanceOf[AnyRef])
+                              case 1 => regs.setInt(fieldOffset, v.asInstanceOf[Int])
+                              case 2 => regs.setLong(fieldOffset, v.asInstanceOf[Long])
+                              case 3 => regs.setFloat(fieldOffset, v.asInstanceOf[Float])
+                              case 4 => regs.setDouble(fieldOffset, v.asInstanceOf[Double])
+                              case 5 => regs.setBoolean(fieldOffset, v.asInstanceOf[Boolean])
+                              case 6 => regs.setByte(fieldOffset, v.asInstanceOf[Byte])
+                              case 7 => regs.setChar(fieldOffset, v.asInstanceOf[Char])
+                              case 8 => regs.setShort(fieldOffset, v.asInstanceOf[Short])
+                              case _ => ()
+                            }
+                          case Left(err) => error = err
+                        }
+                      case None =>
+                        if (isOptional) {
+                          regs.setObject(fieldOffset, None)
+                        } else {
+                          val defaultVal = getDefaultValue(fields(idx).value)
+                          defaultVal match {
+                            case Some(v) =>
+                              (codec.valueType: @switch) match {
+                                case 0 => regs.setObject(fieldOffset, v.asInstanceOf[AnyRef])
+                                case 1 => regs.setInt(fieldOffset, v.asInstanceOf[Int])
+                                case 2 => regs.setLong(fieldOffset, v.asInstanceOf[Long])
+                                case 3 => regs.setFloat(fieldOffset, v.asInstanceOf[Float])
+                                case 4 => regs.setDouble(fieldOffset, v.asInstanceOf[Double])
+                                case 5 => regs.setBoolean(fieldOffset, v.asInstanceOf[Boolean])
+                                case 6 => regs.setByte(fieldOffset, v.asInstanceOf[Byte])
+                                case 7 => regs.setChar(fieldOffset, v.asInstanceOf[Char])
+                                case 8 => regs.setShort(fieldOffset, v.asInstanceOf[Short])
+                                case _ => ()
+                              }
+                            case None => error = XmlError.parseError(s"Missing required field: $fieldName", 0, 0)
                           }
-                        case None => error = XmlError.parseError(s"Missing required field: $fieldName", 0, 0)
-                      }
+                        }
                     }
                 }
                 idx += 1
@@ -470,51 +494,104 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
           override def encodeValue(x: A): Xml = {
             val regs = Registers(deconstructor.usedRegisters)
             deconstructor.deconstruct(regs, 0, x)
-            val children = Chunk.newBuilder[Xml]
-            var idx      = 0
+            val attributes = Chunk.newBuilder[(XmlName, String)]
+            val children   = Chunk.newBuilder[Xml]
+            var idx        = 0
             while (idx < fieldInfos.length) {
-              val (fieldName, codec, isOptional, fieldOffset) = fieldInfos(idx)
-              (codec.valueType: @switch) match {
-                case 0 =>
-                  val value = regs.getObject(fieldOffset)
-                  if (isOptional && value == None) {}
-                  else if (isOptional && value.isInstanceOf[Some[?]]) {
-                    val inner      = value.asInstanceOf[Some[Any]].get
-                    val innerCodec = getInnerCodec(codec)
-                    children += xmlFieldElement(fieldName, innerCodec.encodeValue(inner))
-                  } else {
-                    children += xmlFieldElement(fieldName, codec.encodeValue(value))
+              val (fieldName, codec, isOptional, fieldOffset, xmlAttrName) = fieldInfos(idx)
+              xmlAttrName match {
+                case Some(attrName) =>
+                  (codec.valueType: @switch) match {
+                    case 0 =>
+                      val value = regs.getObject(fieldOffset)
+                      if (!(isOptional && value == None)) {
+                        attributes += ((XmlName(attrName), value.toString))
+                      }
+                    case 1 => attributes += ((XmlName(attrName), regs.getInt(fieldOffset).toString))
+                    case 2 => attributes += ((XmlName(attrName), regs.getLong(fieldOffset).toString))
+                    case 3 => attributes += ((XmlName(attrName), regs.getFloat(fieldOffset).toString))
+                    case 4 => attributes += ((XmlName(attrName), regs.getDouble(fieldOffset).toString))
+                    case 5 => attributes += ((XmlName(attrName), regs.getBoolean(fieldOffset).toString))
+                    case 6 => attributes += ((XmlName(attrName), regs.getByte(fieldOffset).toString))
+                    case 7 => attributes += ((XmlName(attrName), regs.getChar(fieldOffset).toString))
+                    case 8 => attributes += ((XmlName(attrName), regs.getShort(fieldOffset).toString))
+                    case _ => ()
                   }
-                case 1 =>
-                  val value = regs.getInt(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Int]].encodeValue(value))
-                case 2 =>
-                  val value = regs.getLong(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Long]].encodeValue(value))
-                case 3 =>
-                  val value = regs.getFloat(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Float]].encodeValue(value))
-                case 4 =>
-                  val value = regs.getDouble(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Double]].encodeValue(value))
-                case 5 =>
-                  val value = regs.getBoolean(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Boolean]].encodeValue(value))
-                case 6 =>
-                  val value = regs.getByte(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Byte]].encodeValue(value))
-                case 7 =>
-                  val value = regs.getChar(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Char]].encodeValue(value))
-                case 8 =>
-                  val value = regs.getShort(fieldOffset)
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Short]].encodeValue(value))
-                case _ =>
-                  children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Unit]].encodeValue(()))
+                case None =>
+                  (codec.valueType: @switch) match {
+                    case 0 =>
+                      val value = regs.getObject(fieldOffset)
+                      if (isOptional && value == None) {}
+                      else if (isOptional && value.isInstanceOf[Some[?]]) {
+                        val inner      = value.asInstanceOf[Some[Any]].get
+                        val innerCodec = getInnerCodec(codec)
+                        children += xmlFieldElement(fieldName, innerCodec.encodeValue(inner))
+                      } else {
+                        children += xmlFieldElement(fieldName, codec.encodeValue(value))
+                      }
+                    case 1 =>
+                      val value = regs.getInt(fieldOffset)
+                      children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Int]].encodeValue(value))
+                    case 2 =>
+                      val value = regs.getLong(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Long]].encodeValue(value)
+                      )
+                    case 3 =>
+                      val value = regs.getFloat(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Float]].encodeValue(value)
+                      )
+                    case 4 =>
+                      val value = regs.getDouble(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Double]].encodeValue(value)
+                      )
+                    case 5 =>
+                      val value = regs.getBoolean(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Boolean]].encodeValue(value)
+                      )
+                    case 6 =>
+                      val value = regs.getByte(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Byte]].encodeValue(value)
+                      )
+                    case 7 =>
+                      val value = regs.getChar(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Char]].encodeValue(value)
+                      )
+                    case 8 =>
+                      val value = regs.getShort(fieldOffset)
+                      children += xmlFieldElement(
+                        fieldName,
+                        codec.asInstanceOf[XmlBinaryCodec[Short]].encodeValue(value)
+                      )
+                    case _ =>
+                      children += xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Unit]].encodeValue(()))
+                  }
               }
               idx += 1
             }
-            xmlElementWithChildren(recordName, children.result())
+            val (elementName, finalAttrs) = nsInfo match {
+              case Some((uri, prefix)) if prefix.nonEmpty =>
+                val prefixedName = XmlName(s"$prefix:$recordName")
+                val nsAttr       = (XmlName(s"xmlns:$prefix"), uri)
+                (prefixedName, Chunk.single(nsAttr) ++ attributes.result())
+              case Some((uri, _)) =>
+                val nsAttr = (XmlName("xmlns"), uri)
+                (XmlName(recordName), Chunk.single(nsAttr) ++ attributes.result())
+              case None =>
+                (XmlName(recordName), attributes.result())
+            }
+            Xml.Element(elementName, finalAttrs, children.result())
           }
         }
       } else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -541,6 +618,11 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
       else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     }
   }.asInstanceOf[XmlBinaryCodec[A]]
+
+  private[this] def getXmlAttributeName[F[_, _], A](field: Term[F, A, ?]): Option[String] =
+    field.modifiers.collectFirst { case Modifier.config("xml.attribute", value) =>
+      if (value.nonEmpty) value else field.name
+    }
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeId = variant.typeId
@@ -577,6 +659,49 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
         }
     }
   }
+
+  private[this] def parseAttributeValue(
+    attrValue: String,
+    codec: XmlBinaryCodec[Any],
+    regs: Registers,
+    offset: RegisterOffset.RegisterOffset
+  ): Option[XmlError] =
+    try {
+      (codec.valueType: @switch) match {
+        case 0 =>
+          regs.setObject(offset, attrValue)
+          None
+        case 1 =>
+          regs.setInt(offset, attrValue.toInt)
+          None
+        case 2 =>
+          regs.setLong(offset, attrValue.toLong)
+          None
+        case 3 =>
+          regs.setFloat(offset, attrValue.toFloat)
+          None
+        case 4 =>
+          regs.setDouble(offset, attrValue.toDouble)
+          None
+        case 5 =>
+          regs.setBoolean(offset, attrValue.toBoolean)
+          None
+        case 6 =>
+          regs.setByte(offset, attrValue.toByte)
+          None
+        case 7 =>
+          regs.setChar(offset, if (attrValue.nonEmpty) attrValue.charAt(0) else '\u0000')
+          None
+        case 8 =>
+          regs.setShort(offset, attrValue.toShort)
+          None
+        case _ =>
+          None
+      }
+    } catch {
+      case e: Exception =>
+        Some(XmlError.parseError(s"Invalid attribute value: ${e.getMessage}", 0, 0))
+    }
 
   private val dayOfWeekCodec: XmlBinaryCodec[DayOfWeek] = new XmlBinaryCodec[DayOfWeek]() {
     def decodeValue(xml: Xml): Either[XmlError, DayOfWeek] = decodeText(xml)(s => DayOfWeek.valueOf(s.toUpperCase))
