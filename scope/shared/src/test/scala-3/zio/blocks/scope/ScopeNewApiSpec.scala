@@ -173,6 +173,59 @@ object ScopeNewApiSpec extends ZIOSpecDefault {
           defer { cleaned = true }
         }
         assertTrue(cleaned)
+      },
+      test("all finalizers run even if one throws") {
+        val order = scala.collection.mutable.ArrayBuffer.empty[Int]
+        try {
+          Scope.global.scoped { scope =>
+            scope.defer(order += 1)
+            scope.defer(throw new RuntimeException("finalizer boom"))
+            scope.defer(order += 3)
+          }
+        } catch {
+          case _: RuntimeException => ()
+        }
+        assertTrue(order.toList == List(3, 1))
+      },
+      test("block throws and finalizers throw: primary thrown, finalizer errors suppressed") {
+        var caught: Throwable | Null = null
+        try {
+          Scope.global.scoped { scope =>
+            scope.defer(throw new RuntimeException("finalizer 1"))
+            scope.defer(throw new RuntimeException("finalizer 2"))
+            throw new RuntimeException("block boom")
+          }
+        } catch {
+          case t: RuntimeException => caught = t
+        }
+        val suppressed = caught.nn.getSuppressed
+        assertTrue(
+          caught != null,
+          caught.nn.getMessage == "block boom",
+          suppressed.length == 2,
+          suppressed(0).getMessage == "finalizer 2",
+          suppressed(1).getMessage == "finalizer 1"
+        )
+      },
+      test("block succeeds and finalizers throw multiple: first thrown, rest suppressed") {
+        var caught: Throwable | Null = null
+        try {
+          Scope.global.scoped { scope =>
+            scope.defer(throw new RuntimeException("finalizer 1"))
+            scope.defer(throw new RuntimeException("finalizer 2"))
+            scope.defer(throw new RuntimeException("finalizer 3"))
+          }
+        } catch {
+          case t: RuntimeException => caught = t
+        }
+        val suppressed = caught.nn.getSuppressed
+        assertTrue(
+          caught != null,
+          caught.nn.getMessage == "finalizer 3",
+          suppressed.length == 2,
+          suppressed(0).getMessage == "finalizer 2",
+          suppressed(1).getMessage == "finalizer 1"
+        )
       }
     ),
     suite("Wire")(

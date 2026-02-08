@@ -23,6 +23,10 @@ object @@ {
    * This wraps a raw value `A` into a scoped value `A @@ S`. The scope tag `S`
    * is typically the path-dependent `Tag` type of a [[Scope]] instance.
    *
+   * '''Note:''' This only tags the value - it does not manage lifecycle. For
+   * resources that need cleanup, prefer `scope.create` with a [[Resource]]
+   * which automatically registers finalizers.
+   *
    * @param a
    *   the value to scope
    * @tparam A
@@ -180,10 +184,12 @@ object ScopedOps {
 }
 
 /**
- * A free monad representing scoped computations.
+ * A deferred scoped computation that can only be executed by an appropriate
+ * Scope.
  *
  * `Scoped[-Tag, +A]` is a description of a computation that produces an `A` and
- * requires a scope with tag `<: Tag` to execute.
+ * requires a scope with tag `<: Tag` to execute. It is a simple thunk, not a
+ * free monad.
  *
  * @tparam Tag
  *   the scope tag required to execute this computation (contravariant)
