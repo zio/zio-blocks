@@ -3,9 +3,8 @@ package zio.blocks.schema.tostring
 import zio.blocks.schema._
 import zio.test._
 
-object DynamicOpticSpec extends ZIOSpecDefault {
-
-  def spec = suite("DynamicOptic toString")(
+object DynamicOpticToStringSpec extends ZIOSpecDefault {
+  def spec = suite("DynamicOpticToStringSpec")(
     suite("root and empty paths")(
       test("renders root as '.'") {
         assertTrue(DynamicOptic.root.toString == ".")

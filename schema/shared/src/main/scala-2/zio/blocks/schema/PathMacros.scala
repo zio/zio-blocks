@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import scala.reflect.macros.blackbox
 
 object PathMacros {
@@ -38,7 +39,7 @@ object PathMacros {
     }
   }
 
-  private def buildDynamicOpticExpr(c: blackbox.Context)(nodes: Vector[DynamicOptic.Node]): c.Expr[DynamicOptic] = {
+  private def buildDynamicOpticExpr(c: blackbox.Context)(nodes: Chunk[DynamicOptic.Node]): c.Expr[DynamicOptic] = {
     import c.universe._
 
     val nodeExprs = nodes.map(node => buildNodeExpr(c)(node))
