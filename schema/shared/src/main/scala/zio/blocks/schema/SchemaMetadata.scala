@@ -1,12 +1,14 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+
 /**
  * A schema metadata structure can store arbitrary metadata attached to the
  * structure of a type.
  */
 final case class SchemaMetadata[S, G[_]](private val map: Map[Optic[S, ?], IndexedSeq[?]]) {
   def add[A](optic: Optic[S, A], value: G[A]): SchemaMetadata[S, G] =
-    SchemaMetadata[S, G](map.updated(optic, map.getOrElse(optic, IndexedSeq.empty) :+ value))
+    new SchemaMetadata[S, G](map.updated(optic, map.getOrElse(optic, Chunk.empty) :+ value))
 
   def fold[Z](z: Z)(fold: SchemaMetadata.Folder[S, G, Z]): Z =
     map.foldLeft(z) { case (z, (optic, values)) =>
@@ -17,8 +19,7 @@ final case class SchemaMetadata[S, G[_]](private val map: Map[Optic[S, ?], Index
 
   def get[A](optic: Optic[S, A]): Option[G[A]] = getAll(optic).headOption
 
-  def getAll[A](optic: Optic[S, A]): IndexedSeq[G[A]] =
-    map.getOrElse(optic, IndexedSeq.empty).asInstanceOf[IndexedSeq[G[A]]]
+  def getAll[A](optic: Optic[S, A]): IndexedSeq[G[A]] = map.getOrElse(optic, Chunk.empty).asInstanceOf[IndexedSeq[G[A]]]
 
   def removeAll[A](optic: Optic[S, A]): SchemaMetadata[S, G] = SchemaMetadata[S, G](map - optic)
 

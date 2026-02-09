@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import scala.collection.immutable.ArraySeq
+import zio.blocks.chunk.Chunk
 
 sealed trait Doc {
   def +(that: Doc): Doc = Doc.Concat(this.flatten ++ that.flatten)
@@ -19,11 +19,11 @@ object Doc {
   sealed trait Leaf extends Doc
 
   case object Empty extends Leaf {
-    def flatten: IndexedSeq[Leaf] = IndexedSeq.empty
+    def flatten: IndexedSeq[Leaf] = Chunk.empty
   }
 
   case class Text(value: String) extends Leaf {
-    lazy val flatten: IndexedSeq[Leaf] = ArraySeq(this)
+    lazy val flatten: IndexedSeq[Leaf] = Chunk.single(this)
 
     override def hashCode: Int = value.hashCode
 
@@ -37,7 +37,7 @@ object Doc {
   case class Concat(flatten: IndexedSeq[Leaf]) extends Doc
 
   object Concat {
-    def apply(docs: Doc*): Concat = new Concat(docs.toIndexedSeq.flatMap(_.flatten))
+    def apply(docs: Doc*): Concat = new Concat(Chunk.from(docs).flatMap(_.flatten))
   }
 
   def apply(value: String): Doc = new Text(value)

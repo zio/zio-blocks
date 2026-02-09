@@ -70,7 +70,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       else {
         loop(
           dynamic.nodes(idx) match {
-            case DynamicOptic.Node.Field(name) =>
+            case f: DynamicOptic.Node.Field =>
+              val name = f.name
               current.asRecord match {
                 case Some(record) =>
                   val fieldIdx = record.fieldIndexByName(name)
@@ -78,7 +79,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                   else return None
                 case _ => return None
               }
-            case DynamicOptic.Node.Case(name) =>
+            case c: DynamicOptic.Node.Case =>
+              val name = c.name
               current.asVariant match {
                 case Some(variant) =>
                   val caseIdx = variant.caseIndexByName(name)
@@ -132,17 +134,15 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def isCollection: Boolean = isSequence || isMap
 
   def isOption: Boolean = isVariant && {
-    val variant = asVariant.get
-    val tid     = typeId
-    val cases   = variant.cases
+    val tid   = typeId
+    val cases = asVariant.get.cases
     tid.owner == Owner.fromPackagePath("scala") && tid.name == "Option" &&
     cases.length == 2 && cases(1).name == "Some"
   }
 
   def isEnumeration: Boolean = isVariant && asVariant.get.cases.forall { case_ =>
     val caseReflect = case_.value
-    caseReflect.asRecord.exists(_.fields.isEmpty) ||
-    caseReflect.isEnumeration
+    caseReflect.asRecord.exists(_.fields.isEmpty) || caseReflect.isEnumeration
   }
 
   def optionInnerType: Option[Reflect[F, ?]] =
@@ -178,10 +178,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       if (idx == dynamic.nodes.length) new Some(f.update(current.asInstanceOf[Reflect[F, B]]))
       else {
         dynamic.nodes(idx) match {
-          case DynamicOptic.Node.Field(name) =>
+          case f: DynamicOptic.Node.Field =>
             current.asRecord match {
               case Some(record) =>
-                record.modifyField(name)(new Term.Updater[F] {
+                record.modifyField(f.name)(new Term.Updater[F] {
                   def update[S, C](input: Term[F, S, C]): Option[Term[F, S, C]] =
                     loop(input.value, idx + 1) match {
                       case Some(value) => new Some(input.copy(value = value.asInstanceOf[Reflect[F, C]]))
@@ -190,10 +190,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 })
               case _ => None
             }
-          case DynamicOptic.Node.Case(name) =>
+          case c: DynamicOptic.Node.Case =>
             current.asVariant match {
               case Some(variant) =>
-                variant.modifyCase(name)(new Term.Updater[F] {
+                variant.modifyCase(c.name)(new Term.Updater[F] {
                   def update[S, C](input: Term[F, S, C]): Option[Term[F, S, C]] =
                     loop(input.value, idx + 1) match {
                       case Some(value) => new Some(input.copy(value = value.asInstanceOf[Reflect[F, C]]))
@@ -339,7 +339,7 @@ object Reflect {
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Record[F, A] =
-      copy(storedDefaultValue = Some(toDynamicValue(value)))
+      copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
@@ -368,7 +368,7 @@ object Reflect {
         case DynamicValue.Record(fields) =>
           var error: Option[SchemaError] = None
 
-          def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
+          def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(new Some(e))
 
           val fieldValues = this.fieldValues.clone
           val constructor = this.constructor
@@ -560,7 +560,7 @@ object Reflect {
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Variant[F, A] =
-      copy(storedDefaultValue = Some(toDynamicValue(value)))
+      copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
@@ -670,7 +670,7 @@ object Reflect {
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => C[A])(implicit F: HasBinding[F]): Sequence[F, A, C] =
-      copy(storedDefaultValue = Some(toDynamicValue(value)))
+      copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[C[A]] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
@@ -683,7 +683,7 @@ object Reflect {
     ): Either[SchemaError, C[A]] = {
       var error: Option[SchemaError] = None
 
-      def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
+      def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(new Some(e))
 
       value match {
         case DynamicValue.Sequence(elements) =>
@@ -784,7 +784,7 @@ object Reflect {
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => M[K, V])(implicit F: HasBinding[F]): Map[F, K, V, M] =
-      copy(storedDefaultValue = Some(toDynamicValue(value)))
+      copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[M[K, V]] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
@@ -797,7 +797,7 @@ object Reflect {
     ): Either[SchemaError, M[K, V]] = {
       var error: Option[SchemaError] = None
 
-      def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
+      def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(new Some(e))
 
       value match {
         case DynamicValue.Map(elements) =>
@@ -901,7 +901,7 @@ object Reflect {
     def getDefaultValue(implicit F: HasBinding[F]): Option[DynamicValue] = storedDefaultValue
 
     def defaultValue(value: => DynamicValue)(implicit F: HasBinding[F]): Dynamic[F] =
-      copy(storedDefaultValue = Some(value))
+      copy(storedDefaultValue = new Some(value))
 
     def examples(implicit F: HasBinding[F]): Seq[DynamicValue] = storedExamples
 
@@ -962,7 +962,7 @@ object Reflect {
       storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Primitive[F, A] =
-      copy(storedDefaultValue = Some(primitiveType.toDynamicValue(value)))
+      copy(storedDefaultValue = new Some(primitiveType.toDynamicValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
@@ -1037,7 +1037,7 @@ object Reflect {
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
-      copy(storedDefaultValue = Some(toDynamicValue(value)))
+      copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
@@ -1065,10 +1065,8 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Wrapper[F, A, B] =
       copy(modifiers = this.modifiers ++ modifiers)
 
-    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
-      val unwrapped = binding.unwrap(value)
-      wrapped.toDynamicValue(unwrapped)
-    }
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
+      wrapped.toDynamicValue(binding.unwrap(value))
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
@@ -1129,7 +1127,7 @@ object Reflect {
       deferredDefaultValue.map(_()).orElse(value.getDefaultValue)
 
     def defaultValue(dv: => A)(implicit F: HasBinding[F]): Deferred[F, A] =
-      copy(deferredDefaultValue = Some(() => dv))
+      copy(deferredDefaultValue = new Some(() => dv))
 
     def examples(implicit F: HasBinding[F]): Seq[A] =
       if (deferredExamples.nonEmpty) deferredExamples.map(_())
@@ -1180,7 +1178,7 @@ object Reflect {
       }
     }
 
-    def typeId(newTypeId: TypeId[A]): Deferred[F, A] = copy(_typeId = Some(newTypeId))
+    def typeId(newTypeId: TypeId[A]): Deferred[F, A] = copy(_typeId = new Some(newTypeId))
 
     override def hashCode: Int = {
       val v = visited.get
@@ -1395,8 +1393,7 @@ object Reflect {
       case _                   => false
     }
 
-    override def hashCode(): Int =
-      System.identityHashCode(v1) * 31 + System.identityHashCode(v2)
+    override def hashCode(): Int = System.identityHashCode(v1) * 31 + System.identityHashCode(v2)
   }
 
   object Deferred {
@@ -1495,17 +1492,12 @@ object Reflect {
 
   private[this] def some[F[_, _], A <: AnyRef](
     element: Reflect[F, A]
-  )(implicit F: FromBinding[F]): Record[F, Some[A]] = {
-    val typeId = TypeId.applied[Some[A]](
-      TypeId.some,
-      TypeRepr.Ref(element.typeId)
-    )
+  )(implicit F: FromBinding[F]): Record[F, Some[A]] =
     new Record(
       Chunk.single(new Term("value", element)),
-      typeId,
+      TypeId.applied[Some[A]](TypeId.some, TypeRepr.Ref(element.typeId)),
       F.fromBinding(Binding.Record.some)
     )
-  }
 
   private[this] def someDouble[F[_, _]](
     element: Reflect[F, Double]
@@ -1671,64 +1663,40 @@ object Reflect {
   def either[F[_, _], A, B](
     l: Reflect[F, A],
     r: Reflect[F, B]
-  )(implicit F: FromBinding[F]): Variant[F, Either[A, B]] = {
-    val typeId = TypeId.applied[Either[A, B]](
-      TypeId.either,
-      TypeRepr.Ref(l.typeId),
-      TypeRepr.Ref(r.typeId)
-    )
+  )(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
     new Variant(
       Chunk(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
-      typeId,
+      TypeId.applied[Either[A, B]](TypeId.either, TypeRepr.Ref(l.typeId), TypeRepr.Ref(r.typeId)),
       F.fromBinding(Binding.Variant.either)
     )
-  }
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] = {
-    val typeId = TypeId.applied[Set[A]](
-      TypeId.set,
-      TypeRepr.Ref(element.typeId)
-    )
+    val typeId = TypeId.applied[Set[A]](TypeId.set, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.set))
   }
 
   def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] = {
-    val typeId = TypeId.applied[List[A]](
-      TypeId.list,
-      TypeRepr.Ref(element.typeId)
-    )
+    val typeId = TypeId.applied[List[A]](TypeId.list, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.list))
   }
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] = {
-    val typeId = TypeId.applied[Vector[A]](
-      TypeId.vector,
-      TypeRepr.Ref(element.typeId)
-    )
+    val typeId = TypeId.applied[Vector[A]](TypeId.vector, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.vector))
   }
 
   def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] = {
-    val typeId = TypeId.applied[IndexedSeq[A]](
-      TypeId.indexedSeq,
-      TypeRepr.Ref(element.typeId)
-    )
+    val typeId = TypeId.applied[IndexedSeq[A]](TypeId.indexedSeq, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.indexedSeq))
   }
 
   def seq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Seq] = {
-    val typeId = TypeId.applied[Seq[A]](
-      TypeId.seq,
-      TypeRepr.Ref(element.typeId)
-    )
+    val typeId = TypeId.applied[Seq[A]](TypeId.seq, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.seq))
   }
 
   def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] = {
-    val typeId = TypeId.applied[Chunk[A]](
-      TypeId.chunk,
-      TypeRepr.Ref(element.typeId)
-    )
+    val typeId = TypeId.applied[Chunk[A]](TypeId.chunk, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.chunk))
   }
 
