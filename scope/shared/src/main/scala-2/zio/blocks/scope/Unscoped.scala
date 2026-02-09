@@ -21,7 +21,7 @@ package zio.blocks.scope
  */
 trait Unscoped[A]
 
-object Unscoped {
+object Unscoped extends UnscopedVersionSpecific {
   // Primitives
   implicit val unscopedInt: Unscoped[Int]               = new Unscoped[Int] {}
   implicit val unscopedLong: Unscoped[Long]             = new Unscoped[Long] {}

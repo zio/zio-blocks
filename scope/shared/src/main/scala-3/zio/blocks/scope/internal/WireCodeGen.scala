@@ -1,7 +1,7 @@
 package zio.blocks.scope.internal
 
 import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.{::, InStack, Scope, Wire, Wireable}
+import zio.blocks.scope.{Finalizer, Wire, Wireable}
 import scala.quoted.*
 import scala.compiletime.summonInline
 
@@ -36,7 +36,6 @@ private[scope] object WireCodeGen {
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
 
-    // Validate: must be a concrete class (not trait, not abstract)
     if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
       MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
     }
@@ -48,14 +47,12 @@ private[scope] object WireCodeGen {
 
     val paramLists: List[List[Symbol]] = ctor.paramSymss
 
-    // Collect dependency types
     val depTypes: List[TypeRepr] = paramLists.flatten.flatMap { param =>
       val paramType     = tpe.memberType(param).dealias.simplified
       val (_, maybeDep) = MacroCore.classifyParam(paramType)
       maybeDep
     }
 
-    // Check for subtype conflicts
     MacroCore.checkSubtypeConflicts(tpe.show, depTypes) match {
       case Some(error) => MacroCore.abort(error)
       case None        => // ok
@@ -64,43 +61,31 @@ private[scope] object WireCodeGen {
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val inType          = MacroCore.computeInType(depTypes)
 
-    // Helper to generate argument term - defined inside to share Quotes context
-    def generateArgTerm[In: Type](paramType: TypeRepr, scopeExpr: Expr[Scope.Has[In]]): Term =
-      if (MacroCore.isScopeType(paramType)) {
-        MacroCore.extractScopeHasType(paramType) match {
-          case Some(depType) =>
-            depType.asType match {
-              case '[d] =>
-                '{ $scopeExpr.asInstanceOf[Scope.Has[d]] }.asTerm
-            }
-          case None =>
-            '{ $scopeExpr.asInstanceOf[Scope.Any] }.asTerm
-        }
+    def generateArgTerm(
+      paramType: TypeRepr,
+      finalizerExpr: Expr[Finalizer],
+      ctxExpr: Expr[Context[?]]
+    ): Term =
+      if (MacroCore.isFinalizerType(paramType)) {
+        finalizerExpr.asTerm
       } else {
         paramType.asType match {
           case '[d] =>
-            '{
-              $scopeExpr.get[d](using
-                summonInline[InStack[d, Context[In] :: scala.Any]],
-                summonInline[IsNominalType[d]]
-              )
-            }.asTerm
+            // Cast context to Context[d] so that get[d] satisfies the A >: R bound
+            '{ ${ ctxExpr.asExprOf[Context[d]] }.get[d](using summonInline[IsNominalType[d]]) }.asTerm
         }
       }
 
-    // Helper to generate wire body - defined inside to share Quotes context
-    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[Context[T]] = {
+    def generateWireBody[In: Type](finalizerExpr: Expr[Finalizer], ctxExpr: Expr[Context[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
-      // Generate argument lists preserving param list structure
       val argListTerms: List[List[Term]] = paramLists.map { params =>
         params.map { param =>
           val paramType = tpe.memberType(param).dealias.simplified
-          generateArgTerm[In](paramType, scopeExpr)
+          generateArgTerm(paramType, finalizerExpr, ctxExpr.asExprOf[Context[?]])
         }
       }
 
-      // Build constructor call: new T(args1)(args2)...
       val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
       val applied  = argListTerms.foldLeft[Term](ctorTerm) { (fn, args) =>
         Apply(fn, args)
@@ -111,34 +96,28 @@ private[scope] object WireCodeGen {
       if (isAutoCloseable) {
         '{
           val instance = $instanceExpr
-          $scopeExpr.defer(instance.asInstanceOf[AutoCloseable].close())
-          Context[T](instance)(using summonInline[IsNominalType[T]])
+          $finalizerExpr.defer(instance.asInstanceOf[AutoCloseable].close())
+          instance
         }
       } else {
-        '{
-          val instance = $instanceExpr
-          Context[T](instance)(using summonInline[IsNominalType[T]])
-        }
+        instanceExpr
       }
     }
 
-    // Generate the wire expression
     val wireExpr = inType.asType match {
       case '[inTpe] =>
         kind match {
           case WireKind.Shared =>
             '{
-              Wire.Shared[inTpe, T] {
-                val scope = summon[Scope.Has[inTpe]]
-                ${ generateWireBody[inTpe]('{ scope }) }
+              Wire.Shared[inTpe, T] { (finalizer, ctx) =>
+                ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
               }
             }
 
           case WireKind.Unique =>
             '{
-              Wire.Unique[inTpe, T] {
-                val scope = summon[Scope.Has[inTpe]]
-                ${ generateWireBody[inTpe]('{ scope }) }
+              Wire.Unique[inTpe, T] { (finalizer, ctx) =>
+                ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
               }
             }
         }
@@ -184,7 +163,6 @@ private[scope] object WireCodeGen {
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
 
-    // Validate: must be a concrete class (not trait, not abstract)
     if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
       MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
     }
@@ -196,14 +174,12 @@ private[scope] object WireCodeGen {
 
     val paramLists: List[List[Symbol]] = ctor.paramSymss
 
-    // Collect dependency types
     val depTypes: List[TypeRepr] = paramLists.flatten.flatMap { param =>
       val paramType     = tpe.memberType(param).dealias.simplified
       val (_, maybeDep) = MacroCore.classifyParam(paramType)
       maybeDep
     }
 
-    // Check for subtype conflicts
     MacroCore.checkSubtypeConflicts(tpe.show, depTypes) match {
       case Some(error) => MacroCore.abort(error)
       case None        => // ok
@@ -212,43 +188,31 @@ private[scope] object WireCodeGen {
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val inType          = MacroCore.computeInType(depTypes)
 
-    // Helper to generate argument term - defined inside to share Quotes context
-    def generateArgTerm[In: Type](paramType: TypeRepr, scopeExpr: Expr[Scope.Has[In]]): Term =
-      if (MacroCore.isScopeType(paramType)) {
-        MacroCore.extractScopeHasType(paramType) match {
-          case Some(depType) =>
-            depType.asType match {
-              case '[d] =>
-                '{ $scopeExpr.asInstanceOf[Scope.Has[d]] }.asTerm
-            }
-          case None =>
-            '{ $scopeExpr.asInstanceOf[Scope.Any] }.asTerm
-        }
+    def generateArgTerm(
+      paramType: TypeRepr,
+      finalizerExpr: Expr[Finalizer],
+      ctxExpr: Expr[Context[?]]
+    ): Term =
+      if (MacroCore.isFinalizerType(paramType)) {
+        finalizerExpr.asTerm
       } else {
         paramType.asType match {
           case '[d] =>
-            '{
-              $scopeExpr.get[d](using
-                summonInline[InStack[d, Context[In] :: scala.Any]],
-                summonInline[IsNominalType[d]]
-              )
-            }.asTerm
+            // Cast context to Context[d] so that get[d] satisfies the A >: R bound
+            '{ ${ ctxExpr.asExprOf[Context[d]] }.get[d](using summonInline[IsNominalType[d]]) }.asTerm
         }
       }
 
-    // Helper to generate wire body - defined inside to share Quotes context
-    def generateWireBody[In: Type](scopeExpr: Expr[Scope.Has[In]]): Expr[Context[T]] = {
+    def generateWireBody[In: Type](finalizerExpr: Expr[Finalizer], ctxExpr: Expr[Context[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
-      // Generate argument lists preserving param list structure
       val argListTerms: List[List[Term]] = paramLists.map { params =>
         params.map { param =>
           val paramType = tpe.memberType(param).dealias.simplified
-          generateArgTerm[In](paramType, scopeExpr)
+          generateArgTerm(paramType, finalizerExpr, ctxExpr.asExprOf[Context[?]])
         }
       }
 
-      // Build constructor call: new T(args1)(args2)...
       val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
       val applied  = argListTerms.foldLeft[Term](ctorTerm) { (fn, args) =>
         Apply(fn, args)
@@ -259,14 +223,11 @@ private[scope] object WireCodeGen {
       if (isAutoCloseable) {
         '{
           val instance = $instanceExpr
-          $scopeExpr.defer(instance.asInstanceOf[AutoCloseable].close())
-          Context[T](instance)(using summonInline[IsNominalType[T]])
+          $finalizerExpr.defer(instance.asInstanceOf[AutoCloseable].close())
+          instance
         }
       } else {
-        '{
-          val instance = $instanceExpr
-          Context[T](instance)(using summonInline[IsNominalType[T]])
-        }
+        instanceExpr
       }
     }
 
@@ -276,9 +237,153 @@ private[scope] object WireCodeGen {
           new Wireable[T] {
             type In = inTpe
 
-            def wire: Wire[inTpe, T] = Wire.Shared[inTpe, T] {
-              val scope = summon[Scope.Has[inTpe]]
-              ${ generateWireBody[inTpe]('{ scope }) }
+            def wire: Wire[inTpe, T] = Wire.Shared[inTpe, T] { (finalizer, ctx) =>
+              ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
+            }
+          }
+        }
+    }
+  }
+
+  /**
+   * Generate a Wireable[T] with wire overrides for some dependencies.
+   *
+   * The wires parameter provides overrides for some of T's dependencies.
+   * Dependencies covered by overrides are resolved from the wires; remaining
+   * dependencies become the In type.
+   */
+  def deriveWireableWithOverrides[T: Type](wiresExpr: Expr[Seq[Wire[?, ?]]])(using Quotes): Expr[Wireable[T]] = {
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[T]
+    val sym = tpe.typeSymbol
+
+    if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
+      MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
+    }
+
+    val ctor = sym.primaryConstructor
+    if (ctor == Symbol.noSymbol) {
+      MacroCore.abort(MacroCore.ScopeMacroError.NoPrimaryCtor(tpe.show))
+    }
+
+    val paramLists: List[List[Symbol]] = ctor.paramSymss
+
+    val allDepTypes: List[TypeRepr] = paramLists.flatten.flatMap { param =>
+      val paramType     = tpe.memberType(param).dealias.simplified
+      val (_, maybeDep) = MacroCore.classifyParam(paramType)
+      maybeDep
+    }
+
+    MacroCore.checkSubtypeConflicts(tpe.show, allDepTypes) match {
+      case Some(error) => MacroCore.abort(error)
+      case None        => // ok
+    }
+
+    val wireExprs: List[Expr[Wire[?, ?]]] = wiresExpr match {
+      case Varargs(wires) => wires.toList
+      case other          =>
+        report.errorAndAbort(s"Expected varargs of Wire expressions, got: ${other.show}")
+    }
+
+    val wireOutTypes: List[TypeRepr] = wireExprs.map { wireExpr =>
+      val wireTpe = wireExpr.asTerm.tpe.widen.dealias.simplified
+      wireTpe match {
+        case AppliedType(_, List(_, outType)) => outType.dealias.simplified
+        case other                            =>
+          report.errorAndAbort(s"Cannot extract output type from wire: ${other.show}")
+      }
+    }
+
+    val (_, remainingDeps) = allDepTypes.partition { depType =>
+      wireOutTypes.exists(outType => outType <:< depType)
+    }
+
+    val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
+    val inType          = MacroCore.computeInType(remainingDeps)
+
+    def findWireForType(depType: TypeRepr): Option[(Expr[Wire[?, ?]], TypeRepr)] =
+      wireExprs.zip(wireOutTypes).find { case (_, outType) =>
+        outType <:< depType
+      }
+
+    def generateArgTermWithOverrides(
+      paramType: TypeRepr,
+      finalizerExpr: Expr[Finalizer],
+      ctxExpr: Expr[Context[?]],
+      overrideCtxExpr: Expr[Context[?]]
+    ): Term =
+      if (MacroCore.isFinalizerType(paramType)) {
+        finalizerExpr.asTerm
+      } else {
+        findWireForType(paramType) match {
+          case Some((_, outType)) =>
+            outType.asType match {
+              case '[d] =>
+                '{ $overrideCtxExpr.asInstanceOf[Context[d]].get[d](using summonInline[IsNominalType[d]]) }.asTerm
+            }
+          case None =>
+            paramType.asType match {
+              case '[d] =>
+                '{ $ctxExpr.asInstanceOf[Context[d]].get[d](using summonInline[IsNominalType[d]]) }.asTerm
+            }
+        }
+      }
+
+    def generateWireBodyWithOverrides[In: Type](
+      finalizerExpr: Expr[Finalizer],
+      ctxExpr: Expr[Context[In]],
+      overrideCtxExpr: Expr[Context[?]]
+    ): Expr[T] = {
+      val ctorSym = tpe.typeSymbol.primaryConstructor
+
+      val argListTerms: List[List[Term]] = paramLists.map { params =>
+        params.map { param =>
+          val paramType = tpe.memberType(param).dealias.simplified
+          generateArgTermWithOverrides(paramType, finalizerExpr, ctxExpr.asExprOf[Context[?]], overrideCtxExpr)
+        }
+      }
+
+      val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
+      val applied  = argListTerms.foldLeft[Term](ctorTerm) { (fn, args) =>
+        Apply(fn, args)
+      }
+
+      val instanceExpr = applied.asExprOf[T]
+
+      if (isAutoCloseable) {
+        '{
+          val instance = $instanceExpr
+          $finalizerExpr.defer(instance.asInstanceOf[AutoCloseable].close())
+          instance
+        }
+      } else {
+        instanceExpr
+      }
+    }
+
+    def buildOverrideContext(finalizerExpr: Expr[Finalizer]): Expr[Context[?]] =
+      wireExprs.zip(wireOutTypes).foldLeft('{ Context.empty }: Expr[Context[?]]) {
+        case (ctxExpr, (wireExpr, outType)) =>
+          outType.asType match {
+            case '[d] =>
+              '{
+                val wire  = $wireExpr.asInstanceOf[Wire[Any, d]]
+                val value = wire.make($finalizerExpr, Context.empty)
+                $ctxExpr.add[d](value)(using summonInline[IsNominalType[d]])
+              }
+          }
+      }
+
+    inType.asType match {
+      case '[inTpe] =>
+        '{
+          new Wireable[T] {
+            type In = inTpe
+
+            def wire: Wire[inTpe, T] = Wire.Shared[inTpe, T] { (finalizer, ctx) =>
+              val overrideCtx = ${ buildOverrideContext('{ finalizer }) }
+              ${ generateWireBodyWithOverrides[inTpe]('{ finalizer }, '{ ctx }, '{ overrideCtx }) }
             }
           }
         }

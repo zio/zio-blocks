@@ -44,34 +44,41 @@ private[scope] object MacroCore {
   // Type analysis utilities
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Check if a type is a Scope type (Scope[?]) */
+  /** Check if a type is a Scope type (subtype of Scope) */
   def isScopeType(c: blackbox.Context)(tpe: c.Type): Boolean = {
     import c.universe._
-    tpe <:< typeOf[zio.blocks.scope.Scope[_]]
+    tpe <:< typeOf[zio.blocks.scope.Scope[_, _]]
+  }
+
+  /** Check if a type is a Finalizer type (subtype of Finalizer) */
+  def isFinalizerType(c: blackbox.Context)(tpe: c.Type): Boolean = {
+    import c.universe._
+    tpe <:< typeOf[zio.blocks.scope.Finalizer]
   }
 
   /**
    * Extract the dependency type from a Scope.Has[Y] type.
    *
-   * Returns Some(Y) if this is Scope[Context[Y] :: scala.Any] with Y being a
-   * concrete type (not Any/Nothing), otherwise None.
+   * In the new design, Scope is an HList:
+   *   - Scope.::[H, T] is a cons cell with head type H and tail T <: Scope
+   *   - Scope.Global is the empty scope
+   *   - Scope.Has[T] = Scope.::[T, Scope]
+   *
+   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type (not
+   * Any/Nothing), otherwise None.
    */
   def extractScopeHasType(c: blackbox.Context)(tpe: c.Type): Option[c.Type] = {
     import c.universe._
     val dealiased = tpe.dealias
     dealiased match {
-      case TypeRef(_, sym, List(stackType)) if sym.fullName == "zio.blocks.scope.Scope" =>
-        stackType.dealias match {
-          case TypeRef(_, consSym, List(contextType, _)) if consSym.name.toString == "::" =>
-            contextType.dealias match {
-              case TypeRef(_, ctxSym, List(innerType)) if ctxSym.fullName == "zio.blocks.context.Context" =>
-                val inner = innerType.dealias
-                if (inner =:= typeOf[Any] || inner =:= typeOf[Nothing]) None
-                else Some(inner)
-              case _ => None
-            }
-          case _ => None
-        }
+      case TypeRef(_, sym, List(headType, _)) if sym.name.toString == "$colon$colon" =>
+        // Check that this is Scope.:: not List.::
+        val owner = sym.owner
+        if (owner.fullName == "zio.blocks.scope.Scope") {
+          val head = headType.dealias
+          if (head =:= typeOf[Any] || head =:= typeOf[Nothing]) None
+          else Some(head)
+        } else None
       case _ => None
     }
   }
@@ -79,13 +86,15 @@ private[scope] object MacroCore {
   /**
    * Classify a parameter type and extract its dependency if applicable.
    *
+   *   - Finalizer → None (no dependency, passed as finalizer)
    *   - Scope.Has[Y] → Some(Y) as dependency
    *   - Scope.Any-like → None (no dependency)
    *   - Regular type → Some(type) as dependency
    */
   def classifyAndExtractDep(c: blackbox.Context)(paramType: c.Type): Option[c.Type] =
-    if (isScopeType(c)(paramType)) {
-      extractScopeHasType(c)(paramType)
+    if (isFinalizerType(c)(paramType)) {
+      if (isScopeType(c)(paramType)) extractScopeHasType(c)(paramType)
+      else None
     } else {
       Some(paramType)
     }
@@ -225,4 +234,62 @@ private[scope] object MacroCore {
     supertype: String
   ): Nothing =
     abort(c)(ScopeMacroError.SubtypeConflict(typeName, subtype, supertype))
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Warning model
+  // ─────────────────────────────────────────────────────────────────────────
+
+  sealed trait ScopeMacroWarning {
+    def render(color: Boolean): String
+  }
+
+  object ScopeMacroWarning {
+
+    final case class LeakWarning(
+      sourceCode: String,
+      scopeName: String
+    ) extends ScopeMacroWarning {
+      def render(color: Boolean): String =
+        WarningRenderer.renderLeakWarning(sourceCode, scopeName, color)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Warning rendering
+  // ─────────────────────────────────────────────────────────────────────────
+
+  object WarningRenderer {
+    import Colors._
+
+    private val lineWidth = 80
+
+    private def header(title: String, color: Boolean): String = {
+      val sep = "─" * (lineWidth - title.length - 4)
+      s"${gray("──", color)} ${bold(title, color)} ${gray(sep, color)}"
+    }
+
+    private def footer(color: Boolean): String =
+      gray("─" * lineWidth, color)
+
+    def renderLeakWarning(sourceCode: String, scopeName: String, color: Boolean): String = {
+      // Build the pointer line
+      val caretLine   = " " * ("leak(".length) + "^"
+      val pointerLine = " " * ("leak(".length) + "|"
+
+      s"""${header("Scope Warning", color)}
+         |
+         |  leak($sourceCode)
+         |  $caretLine
+         |  $pointerLine
+         |
+         |  ${yellow("Warning:", color)} ${cyan(sourceCode, color)} is being leaked from scope ${cyan(scopeName, color)}.
+         |  This may result in undefined behavior.
+         |
+         |  ${yellow("Hint:", color)}
+         |     If you know this data type is not resourceful, then add a ${cyan("given ScopeEscape", color)}
+         |     for it so you do not need to leak it.
+         |
+         |${footer(color)}""".stripMargin
+    }
+  }
 }
