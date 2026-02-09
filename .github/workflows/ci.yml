@@ -36,7 +36,7 @@ jobs:
           jvm: temurin:11
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Lint code
         run: sbt "++2.13; check; ++3.7; check"
 
@@ -65,7 +65,7 @@ jobs:
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
@@ -101,7 +101,7 @@ jobs:
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Run tests and compile docs
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
 
