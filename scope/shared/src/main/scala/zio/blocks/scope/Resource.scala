@@ -1,6 +1,7 @@
 package zio.blocks.scope
 
 import java.util.concurrent.atomic.AtomicReference
+import zio.blocks.context._
 import zio.blocks.scope.internal.ProxyFinalizer
 
 /**
@@ -128,6 +129,60 @@ sealed trait Resource[+A] { self =>
     val b = that.make(finalizer)
     (a, b)
   })
+
+  /**
+   * Wraps this resource's value in a [[Context]], enabling type-indexed access.
+   *
+   * This is useful when you want to combine multiple resources into a single
+   * [[Context]] that can be passed around and queried by type.
+   *
+   * @tparam A1
+   *   the type of value produced by this resource (must be a nominal type)
+   * @return
+   *   a resource producing a [[Context]] containing the original value
+   *
+   * @example
+   *   {{{
+   *   case class Database(url: String)
+   *   val dbResource: Resource[Database] = Resource(Database("jdbc://localhost"))
+   *   val ctxResource: Resource[Context[Database]] = dbResource.contextual
+   *   }}}
+   */
+  def contextual[A1 >: A](implicit ev: IsNominalType[A1]): Resource[Context[A1]] =
+    self.map(a => Context[A1](a)(ev))
+
+  /**
+   * Combines this resource's [[Context]] with another [[Context]], merging
+   * their contents.
+   *
+   * This method is available when the resource produces a `Context[R1]`. It
+   * combines the contexts using `Context.++`, with entries from `that` taking
+   * precedence when both contexts contain the same type.
+   *
+   * @tparam R1
+   *   the type parameter of this resource's Context
+   * @tparam R2
+   *   the type parameter of the other Context
+   * @param that
+   *   the context to merge with
+   * @param ev
+   *   evidence that this resource produces a `Context[R1]`
+   * @return
+   *   a resource producing a merged [[Context]] containing entries from both
+   *
+   * @example
+   *   {{{
+   *   case class Database(url: String)
+   *   case class Cache(size: Int)
+   *
+   *   val dbCtx: Resource[Context[Database]] = Resource(Database("jdbc://")).contextual
+   *   val cacheCtx: Context[Cache] = Context(Cache(100))
+   *
+   *   val combined: Resource[Context[Database & Cache]] = dbCtx ++ cacheCtx
+   *   }}}
+   */
+  def ++[R1, R2](that: Context[R2])(implicit ev: A <:< Context[R1]): Resource[Context[R1 & R2]] =
+    self.map(a => ev(a) ++ that)
 }
 
 object Resource extends ResourceCompanionVersionSpecific {

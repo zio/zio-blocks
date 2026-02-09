@@ -102,9 +102,50 @@ Scala 3's [ScopeMacros](../scope/shared/src/main/scala-3/zio/blocks/scope/ScopeM
 
 ---
 
-## 4. Inadequate Test Coverage
+## 4. Inconsistent Wireable Support
 
-### 4.1 No Cross-Entry-Point Tests
+### 4.1 Only `shared[T]`/`unique[T]` Look for Implicit Wireable
+
+When `shared[T]` or `unique[T]` is called, the macro first checks for an implicit `Wireable[T]` in scope ([ScopeMacros.scala lines 16, 36](../scope/shared/src/main/scala-3/zio/blocks/scope/ScopeMacros.scala#L16)). However, **none of the `wires*` accepting macros do this**:
+
+| Macro | Accepts `Wireable` implicitly? |
+|-------|-------------------------------|
+| `shared[T]` / `unique[T]` | ✅ Yes — `Expr.summon[Wireable[T]]` |
+| `Wire#toResource(wires*)` | ❌ No |
+| `Wireable.from[T](wires*)` | ❌ No |
+| `Resource.from[T](wires*)` | ❌ No |
+
+### 4.2 User Impact
+
+Users must explicitly pass wires even when `Wireable` instances exist:
+
+```scala
+// This works (shared[T] finds Wireable[Database] and Wireable[Cache]):
+class Service(db: Database, cache: Cache)
+val wire = shared[Service]  // ✅ Automatically resolves wireables
+
+// But this fails even though the same wireables exist:
+val resource = Resource.from[Service]  // ❌ "has dependencies: Database, Cache"
+
+// User is forced to write:
+val resource = Resource.from[Service](shared[Database], shared[Cache])  // Redundant!
+```
+
+### 4.3 The Fix
+
+All `wires*` macros should:
+1. Determine required dependencies from the target type
+2. For each dependency not covered by an explicit wire, attempt `Expr.summon[Wireable[Dep]]`
+3. If found, use `wireable.wire` as an implicit wire override
+4. Only fail if a dependency has neither an explicit wire nor an implicit `Wireable`
+
+This would make the API consistent and reduce boilerplate.
+
+---
+
+## 5. Inadequate Test Coverage
+
+### 5.1 No Cross-Entry-Point Tests
 
 There are **7 different entry points** that all generate similar code:
 1. `shared[T]`
@@ -117,17 +158,17 @@ There are **7 different entry points** that all generate similar code:
 
 **There is no test that verifies all 7 produce equivalent behavior for the same dependency graph.**
 
-### 4.2 Diamond Dependency Test Added Late
+### 5.2 Diamond Dependency Test Added Late
 
 [DependencySharingSpec.scala](../scope/shared/src/test/scala/zio/blocks/scope/DependencySharingSpec.scala) was just added to test diamond dependencies. Before this, **the bug existed in all entry points and went undetected**.
 
-### 4.3 No Equivalence Tests Between Scala Versions
+### 5.3 No Equivalence Tests Between Scala Versions
 
 There are no tests verifying that Scala 2 and Scala 3 produce semantically equivalent results.
 
 ---
 
-## 5. Maintenance Burden
+## 6. Maintenance Burden
 
 ### Current State
 
@@ -144,9 +185,9 @@ To fix a bug or add a feature:
 
 ---
 
-## 6. Proposed Solution
+## 7. Proposed Solution
 
-### 6.1 Consolidate Scala 3 Macros
+### 7.1 Consolidate Scala 3 Macros
 
 1. **Delete** `ResourceMacros.scala` — migrate to use `WireCodeGen`
 2. **Refactor** `WireCodeGen.scala` to eliminate internal duplication:
@@ -155,14 +196,14 @@ To fix a bug or add a feature:
    - Single `buildContext` function
    - Parameterize on output type (Wire vs Wireable vs Resource)
 
-### 6.2 Create Shared Logic Layer
+### 7.2 Create Shared Logic Layer
 
 Extract Scala-version-independent logic:
 - Error message strings
 - Dependency analysis algorithms (as pure data transformations)
 - Context-building strategy
 
-### 6.3 Comprehensive Test Suite
+### 7.3 Comprehensive Test Suite
 
 Create a test matrix:
 
@@ -178,7 +219,16 @@ Wireable.from[T](w*)   │            │ With Finalizer param
 wire.toResource(w*)    │            │ Mixed shared/unique
 ```
 
-### 6.4 Property-Based Equivalence Tests
+### 7.4 Add Implicit Wireable Resolution to `wires*` Macros
+
+All macros accepting `wires*` should attempt to summon `Wireable` for unresolved dependencies:
+- `Wire#toResource(wires*)`
+- `Wireable.from[T](wires*)`
+- `Resource.from[T](wires*)`
+
+This eliminates the inconsistency where `shared[T]` resolves wireables but the `wires*` variants don't.
+
+### 7.5 Property-Based Equivalence Tests
 
 Add tests that verify:
 - `shared[T].toResource()` ≡ `Resource.from[T]` (for same T)
@@ -187,7 +237,7 @@ Add tests that verify:
 
 ---
 
-## 7. Estimated Effort
+## 8. Estimated Effort
 
 | Task | Effort |
 |------|--------|
@@ -195,12 +245,13 @@ Add tests that verify:
 | Consolidate WireCodeGen internally | M (4-8 hours) |
 | Migrate ResourceMacros to WireCodeGen | M (4-8 hours) |
 | Extract shared error rendering | S (2-4 hours) |
+| Add implicit Wireable resolution to `wires*` macros | M (4-8 hours) |
 | Comprehensive test matrix | L (8-16 hours) |
-| **Total** | **~20-40 hours** |
+| **Total** | **~25-50 hours** |
 
 ---
 
-## 8. Risk of Inaction
+## 9. Risk of Inaction
 
 Without this overhaul:
 - **Every future bug fix risks being incomplete** (as the diamond bug was)

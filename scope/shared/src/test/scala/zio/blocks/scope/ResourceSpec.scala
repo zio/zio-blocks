@@ -2,6 +2,7 @@ package zio.blocks.scope
 
 import zio.{ZIO, Scope => _}
 import zio.test._
+import zio.blocks.context.Context
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ListBuffer
@@ -359,6 +360,160 @@ object ResourceSpec extends ZIOSpecDefault {
         close()
 
         assertTrue(order.toList == List("second-released", "first-released"))
+      }
+    ),
+    suite("contextual")(
+      test("wraps value in a Context") {
+        case class AppConfig(name: String)
+        val resource    = Resource(AppConfig("myapp"))
+        val ctxResource = resource.contextual[AppConfig]
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = ctxResource.make(scope)
+        close()
+
+        assertTrue(ctx.get[AppConfig].name == "myapp")
+      },
+      test("preserves finalizers from original resource") {
+        var closed = false
+
+        class Service extends AutoCloseable {
+          def close(): Unit = closed = true
+        }
+
+        val resource    = Resource.fromAutoCloseable(new Service)
+        val ctxResource = resource.contextual[Service]
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = ctxResource.make(scope)
+
+        assertTrue(ctx.get[Service].isInstanceOf[Service], !closed)
+        close()
+        assertTrue(closed)
+      },
+      test("works with shared resources") {
+        case class SharedService(id: Int)
+        val counter  = new AtomicInteger(0)
+        val resource = Resource.shared[SharedService] { _ =>
+          SharedService(counter.incrementAndGet())
+        }
+        val ctxResource = resource.contextual[SharedService]
+
+        val (scope1, close1) = Scope.createTestableScope()
+        val (scope2, close2) = Scope.createTestableScope()
+
+        val ctx1 = ctxResource.make(scope1)
+        val ctx2 = ctxResource.make(scope2)
+
+        close1()
+        close2()
+
+        assertTrue(
+          ctx1.get[SharedService].id == 1,
+          ctx2.get[SharedService].id == 1,
+          counter.get() == 1
+        )
+      }
+    ),
+    suite("++")(
+      test("combines resource Context with another Context") {
+        case class Database(url: String)
+        case class Cache(size: Int)
+
+        val dbResource = Resource(Database("jdbc://localhost")).contextual[Database]
+        val cacheCtx   = Context(Cache(100))
+        val combined   = dbResource ++ cacheCtx
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = combined.make(scope)
+        close()
+
+        assertTrue(
+          ctx.get[Database].url == "jdbc://localhost",
+          ctx.get[Cache].size == 100
+        )
+      },
+      test("preserves finalizers from resource") {
+        var closed = false
+
+        class Conn extends AutoCloseable {
+          def close(): Unit = closed = true
+        }
+        case class Logger(name: String)
+
+        val connResource = Resource.fromAutoCloseable(new Conn).contextual[Conn]
+        val loggerCtx    = Context(Logger("app"))
+        val combined     = connResource ++ loggerCtx
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = combined.make(scope)
+
+        assertTrue(ctx.get[Conn].isInstanceOf[Conn], ctx.get[Logger].name == "app", !closed)
+        close()
+        assertTrue(closed)
+      },
+      test("right Context takes precedence for duplicate types") {
+        case class Config(value: String)
+
+        val resource1 = Resource(Config("from-resource")).contextual[Config]
+        val ctx2      = Context(Config("from-context"))
+        val combined  = resource1 ++ ctx2
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = combined.make(scope)
+        close()
+
+        assertTrue(ctx.get[Config].value == "from-context")
+      },
+      test("chains multiple ++ operations") {
+        case class A(a: Int)
+        case class B(b: String)
+        case class C(c: Boolean)
+
+        val resourceA = Resource(A(1)).contextual[A]
+        val ctxB      = Context(B("two"))
+        val ctxC      = Context(C(true))
+        val combined  = resourceA ++ ctxB ++ ctxC
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = combined.make(scope)
+        close()
+
+        assertTrue(
+          ctx.get[A].a == 1,
+          ctx.get[B].b == "two",
+          ctx.get[C].c
+        )
+      },
+      test("works with shared resources") {
+        case class SharedDb(id: Int)
+        case class Config(env: String)
+
+        val counter    = new AtomicInteger(0)
+        val dbResource = Resource
+          .shared[SharedDb] { _ =>
+            SharedDb(counter.incrementAndGet())
+          }
+          .contextual[SharedDb]
+        val configCtx = Context(Config("prod"))
+        val combined  = dbResource ++ configCtx
+
+        val (scope1, close1) = Scope.createTestableScope()
+        val (scope2, close2) = Scope.createTestableScope()
+
+        val ctx1 = combined.make(scope1)
+        val ctx2 = combined.make(scope2)
+
+        close1()
+        close2()
+
+        assertTrue(
+          ctx1.get[SharedDb].id == 1,
+          ctx2.get[SharedDb].id == 1,
+          ctx1.get[Config].env == "prod",
+          ctx2.get[Config].env == "prod",
+          counter.get() == 1
+        )
       }
     )
   )
