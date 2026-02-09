@@ -145,7 +145,7 @@ private[scope] object ResourceMacros {
 
       val (inType, outType) = wireTpe.typeArgs match {
         case List(in, out) => (in.dealias, out.dealias)
-        case _ =>
+        case _             =>
           val color = zio.blocks.scope.internal.ErrorMessages.Colors.shouldUseColor
           c.abort(
             c.enclosingPosition,
@@ -318,9 +318,8 @@ private[scope] object ResourceMacros {
           single
 
         case multiple =>
-          val providers = multiple.map(we =>
-            zio.blocks.scope.internal.ErrorMessages.ProviderInfo(we.outType.toString, None)
-          )
+          val providers =
+            multiple.map(we => zio.blocks.scope.internal.ErrorMessages.ProviderInfo(we.outType.toString, None))
           MC.abortDuplicateProvider(c)(targetType.toString, providers)
       }
 
