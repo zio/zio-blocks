@@ -486,13 +486,13 @@ final case class SchemaObject(
     case obj: Json.Object =>
       val extra = Chunk.newBuilder[(String, Json)]
       discriminator.foreach { d =>
-        extra += ("discriminator" -> Schema[Discriminator].toDynamicValue(d).toJson)
+        extra += ("discriminator" -> OpenAPICodec.discriminatorJsonEncoder.encode(d))
       }
       xml.foreach { x =>
-        extra += ("xml" -> Schema[XML].toDynamicValue(x).toJson)
+        extra += ("xml" -> OpenAPICodec.xmlJsonEncoder.encode(x))
       }
       externalDocs.foreach { ed =>
-        extra += ("externalDocs" -> Schema[ExternalDocumentation].toDynamicValue(ed).toJson)
+        extra += ("externalDocs" -> OpenAPICodec.externalDocumentationJsonEncoder.encode(ed))
       }
       example.foreach { ex =>
         extra += ("example" -> ex)
