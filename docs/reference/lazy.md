@@ -314,12 +314,12 @@ The trampolining approach converts recursive calls into an iterative loop with a
 
 ## Comparison with Scala's `lazy val`
 
-| Feature            | `Lazy[A]`                    | Scala `lazy val`   |
-|--------------------|------------------------------|--------------------|
-| Monadic operations | Yes (`map`, `flatMap`)       | No                 |
-| Error handling     | Yes (`catchAll`, `ensuring`) | No                 |
-| Stack safety       | Yes (trampolining)           | No                 |
-| Composable         | Yes                          | Limited            |
+| Feature            | `Lazy[A]`                    | Scala `lazy val`             |
+|--------------------|------------------------------|------------------------------|
+| Monadic operations | Yes (`map`, `flatMap`)       | No                           |
+| Error handling     | Yes (`catchAll`, `ensuring`) | No                           |
+| Stack safety       | Yes (trampolined `flatMap`)  | N/A (no monadic chaining)    |
+| Composable         | Yes                          | Limited                      |
 
 
 ## API Reference
