@@ -57,6 +57,7 @@ lazy val root = project
     context.js,
     scope.jvm,
     scope.js,
+    `scope-examples`,
     schema.jvm,
     schema.js,
     `schema-avro`,
@@ -159,6 +160,16 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
       ".*scala-3/zio/blocks/scope/.*",
       ".*BuildInfo.*"
     ).mkString(";")
+  )
+
+lazy val `scope-examples` = project
+  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(scope.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
