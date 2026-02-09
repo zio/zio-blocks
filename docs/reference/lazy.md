@@ -358,4 +358,4 @@ Lazy(42) == Lazy(42)  // true (forces both)
 Lazy(42).hashCode == Lazy(42).hashCode  // true
 ```
 
-Note: Comparing `Lazy` values will force their evaluation.
+Note: Comparing `Lazy` values will force their evaluation. Also, `hashCode` forces the value and then calls `.hashCode` on it; if a `Lazy` evaluates to `null`, `hashCode` will throw a `NullPointerException`, and repeated equality checks may re-run the thunk because `null` is used internally as the “not yet evaluated” sentinel.
