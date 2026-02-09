@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.immutable.ArraySeq
@@ -1081,7 +1082,7 @@ object Optional {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
-      val nodes = Vector.newBuilder[DynamicOptic.Node]
+      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
       var idx   = 0
       while (idx < len) {
@@ -2446,7 +2447,7 @@ object Traversal {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
-      val nodes = Vector.newBuilder[DynamicOptic.Node]
+      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
       var idx   = 0
       while (idx < len) {

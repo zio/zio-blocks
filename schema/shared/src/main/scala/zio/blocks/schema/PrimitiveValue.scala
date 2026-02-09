@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.typeid.TypeId
 
 sealed trait PrimitiveValue {
@@ -421,19 +422,19 @@ object PrimitiveValue {
 
   implicit lazy val unitSchema: Schema[Unit.type] = new Schema(
     reflect = new Reflect.Record[Binding, Unit.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Unit.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Unit.type](Unit),
         deconstructor = new ConstantDeconstructor[Unit.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val booleanSchema: Schema[Boolean] = new Schema(
     reflect = new Reflect.Record[Binding, Boolean](
-      fields = Vector(Schema[scala.Boolean].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Boolean].reflect.asTerm("value")),
       typeId = TypeId.of[Boolean],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Boolean] {
@@ -447,13 +448,13 @@ object PrimitiveValue {
             out.setBoolean(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val byteSchema: Schema[Byte] = new Schema(
     reflect = new Reflect.Record[Binding, Byte](
-      fields = Vector(Schema[scala.Byte].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Byte].reflect.asTerm("value")),
       typeId = TypeId.of[Byte],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Byte] {
@@ -467,13 +468,13 @@ object PrimitiveValue {
             out.setByte(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val shortSchema: Schema[Short] = new Schema(
     reflect = new Reflect.Record[Binding, Short](
-      fields = Vector(Schema[scala.Short].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Short].reflect.asTerm("value")),
       typeId = TypeId.of[Short],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Short] {
@@ -487,13 +488,13 @@ object PrimitiveValue {
             out.setShort(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val intSchema: Schema[Int] = new Schema(
     reflect = new Reflect.Record[Binding, Int](
-      fields = Vector(Schema[scala.Int].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Int].reflect.asTerm("value")),
       typeId = TypeId.of[Int],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Int] {
@@ -507,13 +508,13 @@ object PrimitiveValue {
             out.setInt(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val longSchema: Schema[Long] = new Schema(
     reflect = new Reflect.Record[Binding, Long](
-      fields = Vector(Schema[scala.Long].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Long].reflect.asTerm("value")),
       typeId = TypeId.of[Long],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Long] {
@@ -527,13 +528,13 @@ object PrimitiveValue {
             out.setLong(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val floatSchema: Schema[Float] = new Schema(
     reflect = new Reflect.Record[Binding, Float](
-      fields = Vector(Schema[scala.Float].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Float].reflect.asTerm("value")),
       typeId = TypeId.of[Float],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Float] {
@@ -547,13 +548,13 @@ object PrimitiveValue {
             out.setFloat(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val doubleSchema: Schema[Double] = new Schema(
     reflect = new Reflect.Record[Binding, Double](
-      fields = Vector(Schema[scala.Double].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Double].reflect.asTerm("value")),
       typeId = TypeId.of[Double],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Double] {
@@ -567,13 +568,13 @@ object PrimitiveValue {
             out.setDouble(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val charSchema: Schema[Char] = new Schema(
     reflect = new Reflect.Record[Binding, Char](
-      fields = Vector(Schema[scala.Char].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Char].reflect.asTerm("value")),
       typeId = TypeId.of[Char],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Char] {
@@ -587,13 +588,13 @@ object PrimitiveValue {
             out.setChar(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val stringSchema: Schema[String] = new Schema(
     reflect = new Reflect.Record[Binding, String](
-      fields = Vector(Schema[java.lang.String].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.lang.String].reflect.asTerm("value")),
       typeId = TypeId.of[String],
       recordBinding = new Binding.Record(
         constructor = new Constructor[String] {
@@ -607,13 +608,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val bigIntSchema: Schema[BigInt] = new Schema(
     reflect = new Reflect.Record[Binding, BigInt](
-      fields = Vector(Schema[scala.BigInt].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.BigInt].reflect.asTerm("value")),
       typeId = TypeId.of[BigInt],
       recordBinding = new Binding.Record(
         constructor = new Constructor[BigInt] {
@@ -627,13 +628,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val bigDecimalSchema: Schema[BigDecimal] = new Schema(
     reflect = new Reflect.Record[Binding, BigDecimal](
-      fields = Vector(Schema[scala.BigDecimal].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.BigDecimal].reflect.asTerm("value")),
       typeId = TypeId.of[BigDecimal],
       recordBinding = new Binding.Record(
         constructor = new Constructor[BigDecimal] {
@@ -647,13 +648,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val dayOfWeekSchema: Schema[DayOfWeek] = new Schema(
     reflect = new Reflect.Record[Binding, DayOfWeek](
-      fields = Vector(Schema[java.time.DayOfWeek].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.DayOfWeek].reflect.asTerm("value")),
       typeId = TypeId.of[DayOfWeek],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DayOfWeek] {
@@ -667,13 +668,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val durationSchema: Schema[Duration] = new Schema(
     reflect = new Reflect.Record[Binding, Duration](
-      fields = Vector(Schema[java.time.Duration].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.Duration].reflect.asTerm("value")),
       typeId = TypeId.of[Duration],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Duration] {
@@ -687,13 +688,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val instantSchema: Schema[Instant] = new Schema(
     reflect = new Reflect.Record[Binding, Instant](
-      fields = Vector(Schema[java.time.Instant].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.Instant].reflect.asTerm("value")),
       typeId = TypeId.of[Instant],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Instant] {
@@ -707,13 +708,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val localDateSchema: Schema[LocalDate] = new Schema(
     reflect = new Reflect.Record[Binding, LocalDate](
-      fields = Vector(Schema[java.time.LocalDate].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.LocalDate].reflect.asTerm("value")),
       typeId = TypeId.of[LocalDate],
       recordBinding = new Binding.Record(
         constructor = new Constructor[LocalDate] {
@@ -727,13 +728,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val localDateTimeSchema: Schema[LocalDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, LocalDateTime](
-      fields = Vector(Schema[java.time.LocalDateTime].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.LocalDateTime].reflect.asTerm("value")),
       typeId = TypeId.of[LocalDateTime],
       recordBinding = new Binding.Record(
         constructor = new Constructor[LocalDateTime] {
@@ -747,13 +748,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val localTimeSchema: Schema[LocalTime] = new Schema(
     reflect = new Reflect.Record[Binding, LocalTime](
-      fields = Vector(Schema[java.time.LocalTime].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.LocalTime].reflect.asTerm("value")),
       typeId = TypeId.of[LocalTime],
       recordBinding = new Binding.Record(
         constructor = new Constructor[LocalTime] {
@@ -767,13 +768,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val monthSchema: Schema[Month] = new Schema(
     reflect = new Reflect.Record[Binding, Month](
-      fields = Vector(Schema[java.time.Month].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.Month].reflect.asTerm("value")),
       typeId = TypeId.of[Month],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Month] {
@@ -787,13 +788,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val monthDaySchema: Schema[MonthDay] = new Schema(
     reflect = new Reflect.Record[Binding, MonthDay](
-      fields = Vector(Schema[java.time.MonthDay].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.MonthDay].reflect.asTerm("value")),
       typeId = TypeId.of[MonthDay],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MonthDay] {
@@ -807,13 +808,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val offsetDateTimeSchema: Schema[OffsetDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, OffsetDateTime](
-      fields = Vector(Schema[java.time.OffsetDateTime].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.OffsetDateTime].reflect.asTerm("value")),
       typeId = TypeId.of[OffsetDateTime],
       recordBinding = new Binding.Record(
         constructor = new Constructor[OffsetDateTime] {
@@ -827,13 +828,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val offsetTimeSchema: Schema[OffsetTime] = new Schema(
     reflect = new Reflect.Record[Binding, OffsetTime](
-      fields = Vector(Schema[java.time.OffsetTime].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.OffsetTime].reflect.asTerm("value")),
       typeId = TypeId.of[OffsetTime],
       recordBinding = new Binding.Record(
         constructor = new Constructor[OffsetTime] {
@@ -847,13 +848,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val periodSchema: Schema[Period] = new Schema(
     reflect = new Reflect.Record[Binding, Period](
-      fields = Vector(Schema[java.time.Period].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.Period].reflect.asTerm("value")),
       typeId = TypeId.of[Period],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Period] {
@@ -867,13 +868,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val yearSchema: Schema[Year] = new Schema(
     reflect = new Reflect.Record[Binding, Year](
-      fields = Vector(Schema[java.time.Year].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.Year].reflect.asTerm("value")),
       typeId = TypeId.of[Year],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Year] {
@@ -887,13 +888,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val yearMonthSchema: Schema[YearMonth] = new Schema(
     reflect = new Reflect.Record[Binding, YearMonth](
-      fields = Vector(Schema[java.time.YearMonth].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.YearMonth].reflect.asTerm("value")),
       typeId = TypeId.of[YearMonth],
       recordBinding = new Binding.Record(
         constructor = new Constructor[YearMonth] {
@@ -907,13 +908,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val zoneIdSchema: Schema[ZoneId] = new Schema(
     reflect = new Reflect.Record[Binding, ZoneId](
-      fields = Vector(Schema[java.time.ZoneId].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.ZoneId].reflect.asTerm("value")),
       typeId = TypeId.of[ZoneId],
       recordBinding = new Binding.Record(
         constructor = new Constructor[ZoneId] {
@@ -927,13 +928,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val zoneOffsetSchema: Schema[ZoneOffset] = new Schema(
     reflect = new Reflect.Record[Binding, ZoneOffset](
-      fields = Vector(Schema[java.time.ZoneOffset].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.ZoneOffset].reflect.asTerm("value")),
       typeId = TypeId.of[ZoneOffset],
       recordBinding = new Binding.Record(
         constructor = new Constructor[ZoneOffset] {
@@ -947,13 +948,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val zonedDateTimeSchema: Schema[ZonedDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, ZonedDateTime](
-      fields = Vector(Schema[java.time.ZonedDateTime].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.time.ZonedDateTime].reflect.asTerm("value")),
       typeId = TypeId.of[ZonedDateTime],
       recordBinding = new Binding.Record(
         constructor = new Constructor[ZonedDateTime] {
@@ -967,13 +968,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val currencySchema: Schema[Currency] = new Schema(
     reflect = new Reflect.Record[Binding, Currency](
-      fields = Vector(Schema[java.util.Currency].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.util.Currency].reflect.asTerm("value")),
       typeId = TypeId.of[Currency],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Currency] {
@@ -987,13 +988,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val uuidSchema: Schema[UUID] = new Schema(
     reflect = new Reflect.Record[Binding, UUID](
-      fields = Vector(Schema[java.util.UUID].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.util.UUID].reflect.asTerm("value")),
       typeId = TypeId.of[UUID],
       recordBinding = new Binding.Record(
         constructor = new Constructor[UUID] {
@@ -1007,13 +1008,13 @@ object PrimitiveValue {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val schema: Schema[PrimitiveValue] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveValue](
-      cases = Vector(
+      cases = Chunk(
         unitSchema.reflect.asTerm("Unit"),
         booleanSchema.reflect.asTerm("Boolean"),
         byteSchema.reflect.asTerm("Byte"),
@@ -1171,7 +1172,7 @@ object PrimitiveValue {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 }

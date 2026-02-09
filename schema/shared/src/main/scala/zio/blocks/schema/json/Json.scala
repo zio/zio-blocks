@@ -888,9 +888,7 @@ object Json {
 
     override def typeIndex: Int = 0
 
-    override def compare(that: Json): Int =
-      if (that eq Null) 0
-      else typeIndex - that.typeIndex
+    override def compare(that: Json): Int = -that.typeIndex
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -2085,19 +2083,19 @@ object Json {
 
   implicit lazy val nullSchema: Schema[Null.type] = new Schema(
     reflect = new Reflect.Record[Binding, Null.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Null.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Null.type](Null),
         deconstructor = new ConstantDeconstructor[Null.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val booleanSchema: Schema[Boolean] = new Schema(
     reflect = new Reflect.Record[Binding, Boolean](
-      fields = Vector(Schema[scala.Boolean].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[scala.Boolean].reflect.asTerm("value")),
       typeId = TypeId.of[Boolean],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Boolean] {
@@ -2110,13 +2108,13 @@ object Json {
             out.setBoolean(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val numberSchema: Schema[Number] = new Schema(
     reflect = new Reflect.Record[Binding, Number](
-      fields = Vector(Schema[BigDecimal].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[BigDecimal].reflect.asTerm("value")),
       typeId = TypeId.of[Number],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Number] {
@@ -2130,13 +2128,13 @@ object Json {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val stringSchema: Schema[String] = new Schema(
     reflect = new Reflect.Record[Binding, String](
-      fields = Vector(Schema[java.lang.String].reflect.asTerm("value")),
+      fields = Chunk.single(Schema[java.lang.String].reflect.asTerm("value")),
       typeId = TypeId.of[String],
       recordBinding = new Binding.Record(
         constructor = new Constructor[String] {
@@ -2150,13 +2148,13 @@ object Json {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val arraySchema: Schema[Array] = new Schema(
     reflect = new Reflect.Record[Binding, Array](
-      fields = Vector(Reflect.Deferred(() => Reflect.indexedSeq(schema.reflect)).asTerm("value")),
+      fields = Chunk.single(Reflect.Deferred(() => Reflect.indexedSeq(schema.reflect)).asTerm("value")),
       typeId = TypeId.of[Array],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Array] {
@@ -2170,14 +2168,14 @@ object Json {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   private lazy val tupleReflect: Reflect[Binding, (java.lang.String, Json)] = {
     val stringReflect = Schema[java.lang.String].reflect
     new Reflect.Record[Binding, (java.lang.String, Json)](
-      fields = Vector(stringReflect.asTerm("_1"), new Reflect.Deferred(() => schema.reflect).asTerm("_2")),
+      fields = Chunk(stringReflect.asTerm("_1"), new Reflect.Deferred(() => schema.reflect).asTerm("_2")),
       typeId = TypeId.of[(java.lang.String, Json)],
       recordBinding = new Binding.Record(
         constructor = new Constructor[(java.lang.String, Json)] {
@@ -2193,13 +2191,13 @@ object Json {
           }
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   }
 
   implicit lazy val objectSchema: Schema[Object] = new Schema(
     reflect = new Reflect.Record[Binding, Object](
-      fields = Vector(Reflect.Deferred(() => Reflect.indexedSeq(tupleReflect)).asTerm("value")),
+      fields = Chunk.single(Reflect.Deferred(() => Reflect.indexedSeq(tupleReflect)).asTerm("value")),
       typeId = TypeId.of[Object],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Object] {
@@ -2213,13 +2211,13 @@ object Json {
             out.setObject(offset, in.value)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val schema: Schema[Json] = new Schema(
     reflect = new Reflect.Variant[Binding, Json](
-      cases = Vector(
+      cases = Chunk(
         nullSchema.reflect.asTerm("Null"),
         booleanSchema.reflect.asTerm("Boolean"),
         numberSchema.reflect.asTerm("Number"),
@@ -2278,7 +2276,7 @@ object Json {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
