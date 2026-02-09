@@ -17,6 +17,10 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   var composedMigration: DynamicMigration = uninitialized
   var nestedMigration: DynamicMigration   = uninitialized
   var sequenceMigration: DynamicMigration = uninitialized
+  var nestMigration: DynamicMigration     = uninitialized
+  var unnestMigration: DynamicMigration   = uninitialized
+  var nestableRecord: DynamicValue        = uninitialized
+  var nestedForUnnest: DynamicValue       = uninitialized
 
   @Setup
   def setup(): Unit = {
@@ -81,6 +85,38 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
         )
       )
     )
+
+    nestableRecord = DynamicValue.Record(
+      Chunk(
+        "name"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+        "street"  -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
+        "city"    -> DynamicValue.Primitive(PrimitiveValue.String("Springfield")),
+        "zip"     -> DynamicValue.Primitive(PrimitiveValue.String("62701")),
+        "country" -> DynamicValue.Primitive(PrimitiveValue.String("US"))
+      )
+    )
+
+    nestedForUnnest = DynamicValue.Record(
+      Chunk(
+        "name"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+        "address" -> DynamicValue.Record(
+          Chunk(
+            "street"  -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
+            "city"    -> DynamicValue.Primitive(PrimitiveValue.String("Springfield")),
+            "zip"     -> DynamicValue.Primitive(PrimitiveValue.String("62701")),
+            "country" -> DynamicValue.Primitive(PrimitiveValue.String("US"))
+          )
+        )
+      )
+    )
+
+    nestMigration = DynamicMigration.single(
+      MigrationAction.Nest(DynamicOptic.root, "address", Vector("street", "city", "zip", "country"))
+    )
+
+    unnestMigration = DynamicMigration.single(
+      MigrationAction.Unnest(DynamicOptic.root, "address", Vector("street", "city", "zip", "country"))
+    )
   }
 
   @Benchmark
@@ -106,4 +142,12 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
   @Benchmark
   def reverseMigration(): DynamicMigration =
     composedMigration.reverse
+
+  @Benchmark
+  def nestFields(): Either[SchemaError, DynamicValue] =
+    nestMigration(nestableRecord)
+
+  @Benchmark
+  def unnestFields(): Either[SchemaError, DynamicValue] =
+    unnestMigration(nestedForUnnest)
 }

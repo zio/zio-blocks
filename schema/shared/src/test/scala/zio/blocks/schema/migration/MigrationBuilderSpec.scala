@@ -146,6 +146,108 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
           }
         )
       }
+    ),
+    suite("Builder edge cases")(
+      test("identity migration is empty") {
+        import SimpleRecord._
+        val migration = Migration.identity[SimpleRecord]
+        assertTrue(migration.isEmpty, migration.size == 0)
+      },
+      test("single-action builder migration has size 1") {
+        val migration = Migration
+          .builder[Point2D, Point2DWithZ]
+          .addField(_.z, 0)
+          .buildPartial
+
+        assertTrue(migration.size == 1)
+      },
+      test("builder reverse preserves action count") {
+        val forward = Migration
+          .builder[UserV1, UserV2]
+          .renameField(_.name, _.fullName)
+          .addField(_.age, 0)
+          .buildPartial
+
+        val backward = forward.reverse
+        assertTrue(backward.size == forward.size)
+      },
+      test("identity applied to value returns the same value") {
+        import SimpleRecord._
+        val migration = Migration.identity[SimpleRecord]
+        val input     = SimpleRecord("hello", 123)
+        val result    = migration(input)
+        assertTrue(result == Right(input))
+      },
+      test("builder migration with only drop field works") {
+        val migration = Migration
+          .builder[UserV2, UserV1]
+          .renameField(_.fullName, _.name)
+          .dropField(_.age, 0)
+          .buildPartial
+
+        assertTrue(migration.size == 2)
+      }
+    ),
+    suite("Builder composition")(
+      test("compose two migrations with ++") {
+        import SimpleRecord._
+        val m1       = Migration.identity[SimpleRecord]
+        val m2       = Migration.identity[SimpleRecord]
+        val composed = m1 ++ m2
+        assertTrue(composed.isEmpty)
+      },
+      test("compose identity with non-empty migration") {
+        import SimpleRecord._
+        val identity = Migration.identity[SimpleRecord]
+        val input    = SimpleRecord("test", 42)
+        val result   = identity(input)
+        assertTrue(result == Right(input))
+      },
+      test("forward then reverse migration round-trips") {
+        val forward = Migration
+          .builder[UserV1, UserV2]
+          .renameField(_.name, _.fullName)
+          .addField(_.age, 0)
+          .buildPartial
+
+        val backward  = forward.reverse
+        val input     = UserV1("John", "john@example.com")
+        val roundTrip = forward(input).flatMap(backward(_))
+        assertTrue(
+          roundTrip.isRight,
+          roundTrip.toOption.get == input
+        )
+      },
+      test("reverse of reverse has same actions as original") {
+        val migration = Migration
+          .builder[UserV1, UserV2]
+          .renameField(_.name, _.fullName)
+          .addField(_.age, 0)
+          .buildPartial
+
+        val roundTrip = migration.reverse.reverse
+        assertTrue(roundTrip.size == migration.size)
+      },
+      test("composed DynamicMigration preserves action order") {
+        val m1 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val m2 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("b"), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+        val composed = m1 ++ m2
+        assertTrue(
+          composed.size == 2,
+          composed.actions.head match {
+            case MigrationAction.AddField(at, _) =>
+              at.nodes.lastOption.exists {
+                case DynamicOptic.Node.Field(name) => name == "a"
+                case _                             => false
+              }
+            case _ => false
+          }
+        )
+      }
     )
   )
 }

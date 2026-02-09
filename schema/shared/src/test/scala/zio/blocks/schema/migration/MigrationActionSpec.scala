@@ -880,6 +880,183 @@ object MigrationActionSpec extends SchemaBaseSpec {
           case _                                                  => false
         })
       }
+    ),
+    suite("Nest/Unnest reverse properties")(
+      test("Nest.reverse produces Unnest with same fields") {
+        val action   = MigrationAction.Nest(DynamicOptic.root, "address", Vector("street", "city"))
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.Unnest(_, name, fields) => name == "address" && fields == Vector("street", "city")
+          case _                                       => false
+        })
+      },
+      test("Unnest.reverse produces Nest with same fields") {
+        val action   = MigrationAction.Unnest(DynamicOptic.root, "address", Vector("street", "city"))
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.Nest(_, name, fields) => name == "address" && fields == Vector("street", "city")
+          case _                                     => false
+        })
+      },
+      test("Nest reverse of reverse equals original") {
+        val action = MigrationAction.Nest(DynamicOptic.root, "sub", Vector("a", "b", "c"))
+        assertTrue(action.reverse.reverse == action)
+      },
+      test("Unnest reverse of reverse equals original") {
+        val action = MigrationAction.Unnest(DynamicOptic.root.field("parent"), "sub", Vector("x"))
+        assertTrue(action.reverse.reverse == action)
+      }
+    ),
+    suite("Enum migration scenarios")(
+      test("RenameCase on matching case renames it") {
+        val action    = MigrationAction.RenameCase(DynamicOptic.root, "OldName", "NewName")
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Variant("OldName", DynamicValue.Record(Chunk.empty))
+        val result    = migration(input)
+        assertTrue(
+          result == Right(DynamicValue.Variant("NewName", DynamicValue.Record(Chunk.empty)))
+        )
+      },
+      test("RenameCase on non-matching case leaves it unchanged") {
+        val action    = MigrationAction.RenameCase(DynamicOptic.root, "OldName", "NewName")
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Variant("Other", DynamicValue.Record(Chunk.empty))
+        val result    = migration(input)
+        assertTrue(result == Right(input))
+      },
+      test("RenameCase reverse swaps from and to") {
+        val action   = MigrationAction.RenameCase(DynamicOptic.root, "A", "B")
+        val reversed = action.reverse
+        assertTrue(reversed == MigrationAction.RenameCase(DynamicOptic.root, "B", "A"))
+      },
+      test("TransformCase applies nested actions to matching case") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "Payment",
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("verified"),
+              DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+            )
+          )
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Variant(
+          "Payment",
+          DynamicValue.Record(
+            Chunk("amount" -> DynamicValue.Primitive(PrimitiveValue.Int(100)))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Variant("Payment", DynamicValue.Record(fields)) =>
+              fields.exists(_._1 == "amount") && fields.exists(_._1 == "verified")
+            case _ => false
+          }
+        )
+      },
+      test("TransformCase skips non-matching case") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "Payment",
+          Vector(MigrationAction.AddField(DynamicOptic.root.field("x"), DynamicValue.Null))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Variant("Other", DynamicValue.Record(Chunk.empty))
+        assertTrue(migration(input) == Right(input))
+      },
+      test("TransformCase reverse reverses nested actions") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "MyCase",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Null),
+            MigrationAction.Rename(DynamicOptic.root.field("b"), "c")
+          )
+        )
+        val reversed = action.reverse
+        assertTrue(reversed match {
+          case MigrationAction.TransformCase(_, name, actions) =>
+            name == "MyCase" && actions.length == 2
+          case _ => false
+        })
+      }
+    ),
+    suite("Reverse round-trip properties")(
+      test("AddField forward then reverse restores original") {
+        val action = MigrationAction.AddField(
+          DynamicOptic.root.field("new"),
+          DynamicValue.Primitive(PrimitiveValue.Int(0))
+        )
+        val migration = DynamicMigration.single(action)
+        val reverse   = migration.reverse
+        val input     = DynamicValue.Record(
+          Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+        )
+        val result = migration(input).flatMap(reverse(_))
+        assertTrue(result == Right(input))
+      },
+      test("Rename forward then reverse restores original") {
+        val action    = MigrationAction.Rename(DynamicOptic.root.field("old"), "new")
+        val migration = DynamicMigration.single(action)
+        val reverse   = migration.reverse
+        val input     = DynamicValue.Record(
+          Chunk("old" -> DynamicValue.Primitive(PrimitiveValue.String("value")))
+        )
+        val result = migration(input).flatMap(reverse(_))
+        assertTrue(result == Right(input))
+      },
+      test("Mandate then Optionalize round-trip") {
+        val mandate = DynamicMigration.single(
+          MigrationAction.Mandate(DynamicOptic.root.field("x"), DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        )
+        val optionalize = mandate.reverse
+        val input       = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val forward = mandate(input)
+        assertTrue(forward.isRight)
+        val back = forward.flatMap(optionalize(_))
+        assertTrue(back.isRight)
+      },
+      test("composed migration reverse undoes all actions") {
+        val migration = DynamicMigration(
+          MigrationAction.AddField(DynamicOptic.root.field("x"), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          MigrationAction.AddField(DynamicOptic.root.field("y"), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+        val reverse = migration.reverse
+        val input   = DynamicValue.Record(
+          Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("test")))
+        )
+        val result = migration(input).flatMap(reverse(_))
+        assertTrue(result == Right(input))
+      },
+      test("Nest forward then reverse is round-trip") {
+        val migration = DynamicMigration.single(
+          MigrationAction.Nest(DynamicOptic.root, "sub", Vector("a", "b"))
+        )
+        val reverse = migration.reverse
+        val input   = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
+        val result = migration(input).flatMap(reverse(_))
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.exists(_._1 == "a") &&
+              fields.exists(_._1 == "b") &&
+              fields.exists(_._1 == "c")
+            case _ => false
+          }
+        )
+      }
     )
   )
 }

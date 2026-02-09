@@ -813,6 +813,563 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         val result = migration(input)
         assertTrue(result.isLeft)
       }
+    ),
+    suite("Nest/Unnest operations")(
+      test("nest fields into sub-record") {
+        val action = MigrationAction.Nest(
+          DynamicOptic.root,
+          "address",
+          Vector("street", "city", "zip")
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "name"   -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
+            "city"   -> DynamicValue.Primitive(PrimitiveValue.String("Springfield")),
+            "zip"    -> DynamicValue.Primitive(PrimitiveValue.String("62701"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.length == 2 &&
+              fields.exists(_._1 == "name") &&
+              fields.exists { case (n, v) =>
+                n == "address" && (v match {
+                  case DynamicValue.Record(nested) =>
+                    nested.length == 3 &&
+                    nested.exists(_._1 == "street") &&
+                    nested.exists(_._1 == "city") &&
+                    nested.exists(_._1 == "zip")
+                  case _ => false
+                })
+              }
+            case _ => false
+          }
+        )
+      },
+      test("unnest fields from sub-record") {
+        val action = MigrationAction.Unnest(
+          DynamicOptic.root,
+          "address",
+          Vector("street", "city")
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "name"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "address" -> DynamicValue.Record(
+              Chunk(
+                "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")),
+                "city"   -> DynamicValue.Primitive(PrimitiveValue.String("Springfield"))
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.length == 3 &&
+              fields.exists(_._1 == "name") &&
+              fields.exists(_._1 == "street") &&
+              fields.exists(_._1 == "city")
+            case _ => false
+          }
+        )
+      },
+      test("nest at nested path") {
+        val action = MigrationAction.Nest(
+          DynamicOptic.root.field("user"),
+          "location",
+          Vector("city", "country")
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "user" -> DynamicValue.Record(
+              Chunk(
+                "name"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+                "city"    -> DynamicValue.Primitive(PrimitiveValue.String("NYC")),
+                "country" -> DynamicValue.Primitive(PrimitiveValue.String("US"))
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(result.isRight)
+      },
+      test("nest errors on missing source field") {
+        val action = MigrationAction.Nest(
+          DynamicOptic.root,
+          "address",
+          Vector("street", "nonexistent")
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk("street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main St")))
+        )
+        assertTrue(migration(input).isLeft)
+      },
+      test("nest errors on non-record") {
+        val action    = MigrationAction.Nest(DynamicOptic.root, "sub", Vector("a"))
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        assertTrue(migration(input).isLeft)
+      },
+      test("unnest errors on missing sub-record") {
+        val action    = MigrationAction.Unnest(DynamicOptic.root, "missing", Vector("a"))
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+        )
+        assertTrue(migration(input).isLeft)
+      },
+      test("unnest errors when field is not a record") {
+        val action    = MigrationAction.Unnest(DynamicOptic.root, "name", Vector("a"))
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+        )
+        assertTrue(migration(input).isLeft)
+      },
+      test("unnest errors on missing nested field") {
+        val action    = MigrationAction.Unnest(DynamicOptic.root, "sub", Vector("missing"))
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "sub" -> DynamicValue.Record(
+              Chunk("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            )
+          )
+        )
+        assertTrue(migration(input).isLeft)
+      },
+      test("nest then unnest is round-trip") {
+        val nest      = MigrationAction.Nest(DynamicOptic.root, "address", Vector("street", "city"))
+        val unnest    = MigrationAction.Unnest(DynamicOptic.root, "address", Vector("street", "city"))
+        val migration = DynamicMigration(nest, unnest)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "name"   -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "street" -> DynamicValue.Primitive(PrimitiveValue.String("123 Main")),
+            "city"   -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.exists(_._1 == "name") &&
+              fields.exists(_._1 == "street") &&
+              fields.exists(_._1 == "city")
+            case _ => false
+          }
+        )
+      },
+      test("nest with empty sourceFields creates empty sub-record") {
+        val action    = MigrationAction.Nest(DynamicOptic.root, "empty", Vector.empty)
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.exists { case (n, v) =>
+                n == "empty" && (v match {
+                  case DynamicValue.Record(inner) => inner.isEmpty
+                  case _                          => false
+                })
+              }
+            case _ => false
+          }
+        )
+      }
+    ),
+    suite("Multi-step migration scenarios")(
+      test("rename + add + nest combined migration") {
+        val migration = DynamicMigration(
+          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "name"),
+          MigrationAction.AddField(DynamicOptic.root.field("age"), DynamicValue.Primitive(PrimitiveValue.Int(0))),
+          MigrationAction.Nest(DynamicOptic.root, "meta", Vector("age"))
+        )
+        val input = DynamicValue.Record(
+          Chunk(
+            "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "email"     -> DynamicValue.Primitive(PrimitiveValue.String("j@e.com"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.exists(_._1 == "name") &&
+              fields.exists(_._1 == "email") &&
+              fields.exists(_._1 == "meta")
+            case _ => false
+          }
+        )
+      },
+      test("drop + rename + transform composed migration") {
+        val migration = DynamicMigration(
+          MigrationAction.DropField(
+            DynamicOptic.root.field("unused"),
+            DynamicValue.Primitive(PrimitiveValue.String("default"))
+          ),
+          MigrationAction.Rename(DynamicOptic.root.field("old_name"), "new_name"),
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("status"),
+            DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+          )
+        )
+        val input = DynamicValue.Record(
+          Chunk(
+            "unused"   -> DynamicValue.Primitive(PrimitiveValue.String("x")),
+            "old_name" -> DynamicValue.Primitive(PrimitiveValue.String("test")),
+            "status"   -> DynamicValue.Primitive(PrimitiveValue.String("active"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.length == 2 &&
+              fields.exists(_._1 == "new_name") &&
+              fields.exists { case (n, v) =>
+                n == "status" && v == DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+              }
+            case _ => false
+          }
+        )
+      },
+      test("full schema evolution: v1 -> v2 with multiple transforms") {
+        val migration = DynamicMigration(
+          MigrationAction.Rename(DynamicOptic.root.field("first_name"), "name"),
+          MigrationAction.DropField(
+            DynamicOptic.root.field("last_name"),
+            DynamicValue.Primitive(PrimitiveValue.String(""))
+          ),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("active"),
+            DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+          ),
+          MigrationAction.AddField(
+            DynamicOptic.root.field("role"),
+            DynamicValue.Primitive(PrimitiveValue.String("user"))
+          )
+        )
+        val input = DynamicValue.Record(
+          Chunk(
+            "first_name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "last_name"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe")),
+            "email"      -> DynamicValue.Primitive(PrimitiveValue.String("j@e.com"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.length == 4 &&
+              fields.exists(_._1 == "name") &&
+              fields.exists(_._1 == "email") &&
+              fields.exists(_._1 == "active") &&
+              fields.exists(_._1 == "role")
+            case _ => false
+          }
+        )
+      },
+      test("migration with nested path operations") {
+        val migration = DynamicMigration(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("user").field("role"),
+            DynamicValue.Primitive(PrimitiveValue.String("admin"))
+          ),
+          MigrationAction.Rename(
+            DynamicOptic.root.field("user").field("name"),
+            "fullName"
+          )
+        )
+        val input = DynamicValue.Record(
+          Chunk(
+            "user" -> DynamicValue.Record(
+              Chunk(
+                "name"  -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+                "email" -> DynamicValue.Primitive(PrimitiveValue.String("j@e.com"))
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(outer) =>
+              outer.exists { case (n, v) =>
+                n == "user" && (v match {
+                  case DynamicValue.Record(inner) =>
+                    inner.exists(_._1 == "fullName") &&
+                    inner.exists(_._1 == "email") &&
+                    inner.exists(_._1 == "role")
+                  case _ => false
+                })
+              }
+            case _ => false
+          }
+        )
+      },
+      test("5-action chain preserves all fields correctly") {
+        val migration = DynamicMigration(
+          MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          MigrationAction.AddField(DynamicOptic.root.field("b"), DynamicValue.Primitive(PrimitiveValue.Int(2))),
+          MigrationAction.AddField(DynamicOptic.root.field("c"), DynamicValue.Primitive(PrimitiveValue.Int(3))),
+          MigrationAction.Rename(DynamicOptic.root.field("x"), "y"),
+          MigrationAction.DropField(DynamicOptic.root.field("temp"), DynamicValue.Null)
+        )
+        val input = DynamicValue.Record(
+          Chunk(
+            "x"    -> DynamicValue.Primitive(PrimitiveValue.String("val")),
+            "temp" -> DynamicValue.Primitive(PrimitiveValue.String("remove"))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.length == 4 &&
+              fields.exists(_._1 == "y") &&
+              fields.exists(_._1 == "a") &&
+              fields.exists(_._1 == "b") &&
+              fields.exists(_._1 == "c")
+            case _ => false
+          }
+        )
+      },
+      test("composed migration using ++ operator") {
+        val m1 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val m2 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("b"), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+        val m3 = DynamicMigration.single(
+          MigrationAction.Rename(DynamicOptic.root.field("x"), "y")
+        )
+        val composed = m1 ++ m2 ++ m3
+        val input    = DynamicValue.Record(
+          Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("val")))
+        )
+        val result = composed(input)
+        assertTrue(
+          result.isRight,
+          composed.size == 3,
+          result.toOption.get match {
+            case DynamicValue.Record(fields) =>
+              fields.exists(_._1 == "y") &&
+              fields.exists(_._1 == "a") &&
+              fields.exists(_._1 == "b")
+            case _ => false
+          }
+        )
+      },
+      test("migration fails fast on first error in chain") {
+        val migration = DynamicMigration(
+          MigrationAction.DropField(DynamicOptic.root.field("nonexistent"), DynamicValue.Null),
+          MigrationAction.AddField(DynamicOptic.root.field("new"), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val input = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))))
+        assertTrue(migration(input).isLeft)
+      },
+      test("TransformElements with multi-action chain per element") {
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            DynamicOptic.root,
+            Vector(
+              MigrationAction.AddField(
+                DynamicOptic.root.field("active"),
+                DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+              ),
+              MigrationAction.Rename(DynamicOptic.root.field("id"), "itemId")
+            )
+          )
+        )
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("id" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))),
+            DynamicValue.Record(Chunk("id" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isRight,
+          result.toOption.get match {
+            case DynamicValue.Sequence(elems) =>
+              elems.length == 2 &&
+              elems.forall {
+                case DynamicValue.Record(fields) =>
+                  fields.exists(_._1 == "itemId") && fields.exists(_._1 == "active")
+                case _ => false
+              }
+            case _ => false
+          }
+        )
+      }
+    ),
+    suite("Laws")(
+      test("identity migration preserves value") {
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        val result = DynamicMigration.empty(input)
+        assertTrue(result == Right(input))
+      },
+      test("associativity: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
+        val m1 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("a"), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        )
+        val m2 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("b"), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        )
+        val m3 = DynamicMigration.single(
+          MigrationAction.AddField(DynamicOptic.root.field("c"), DynamicValue.Primitive(PrimitiveValue.Int(3)))
+        )
+        val input = DynamicValue.Record(Chunk("x" -> DynamicValue.Primitive(PrimitiveValue.String("val"))))
+
+        val leftAssoc  = (m1 ++ m2) ++ m3
+        val rightAssoc = m1 ++ (m2 ++ m3)
+
+        val r1 = leftAssoc(input)
+        val r2 = rightAssoc(input)
+        assertTrue(r1 == r2)
+      },
+      test("reverse of reverse equals original") {
+        val migration = DynamicMigration(
+          MigrationAction.AddField(DynamicOptic.root.field("age"), DynamicValue.Primitive(PrimitiveValue.Int(0))),
+          MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName")
+        )
+        val reversed = migration.reverse.reverse
+        assertTrue(
+          reversed.actions.length == migration.actions.length,
+          reversed.actions.zip(migration.actions).forall { case (a, b) => a == b }
+        )
+      }
+    ),
+    suite("Deep path operations")(
+      test("4-level nested field operation") {
+        val action = MigrationAction.AddField(
+          DynamicOptic.root.field("level1").field("level2").field("level3").field("newField"),
+          DynamicValue.Primitive(PrimitiveValue.String("deep"))
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "level1" -> DynamicValue.Record(
+              Chunk(
+                "level2" -> DynamicValue.Record(
+                  Chunk(
+                    "level3" -> DynamicValue.Record(
+                      Chunk("existing" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(result.isRight)
+      },
+      test("cross-type path: record -> sequence -> record -> field") {
+        val action = MigrationAction.TransformElements(
+          DynamicOptic.root.field("items"),
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("details").field("status"),
+              DynamicValue.Primitive(PrimitiveValue.String("active"))
+            )
+          )
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "items" -> DynamicValue.Sequence(
+              Chunk(
+                DynamicValue.Record(
+                  Chunk(
+                    "details" -> DynamicValue.Record(
+                      Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("item1")))
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(result.isRight)
+      },
+      test("nested enum case transformation") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root.field("payment"),
+          "CreditCard",
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("num"), "number")
+          )
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Record(
+          Chunk(
+            "payment" -> DynamicValue.Variant(
+              "CreditCard",
+              DynamicValue.Record(
+                Chunk("num" -> DynamicValue.Primitive(PrimitiveValue.String("4111")))
+              )
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(result.isRight)
+      },
+      test("map keys + nested record transformation") {
+        val action = MigrationAction.TransformValues(
+          DynamicOptic.root,
+          Vector(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("processed"),
+              DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+            )
+          )
+        )
+        val migration = DynamicMigration.single(action)
+        val input     = DynamicValue.Map(
+          Chunk(
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("key1")),
+              DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            ),
+            (
+              DynamicValue.Primitive(PrimitiveValue.String("key2")),
+              DynamicValue.Record(Chunk("value" -> DynamicValue.Primitive(PrimitiveValue.Int(2))))
+            )
+          )
+        )
+        val result = migration(input)
+        assertTrue(result.isRight)
+      }
     )
   )
 }

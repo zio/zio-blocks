@@ -155,6 +155,54 @@ object MigrationAction {
     override def reverse: MigrationAction = Mandate(at, DynamicValue.Null)
   }
 
+  // ==================== Nest/Unnest Actions ====================
+
+  /**
+   * Nest multiple fields from a record into a new sub-record.
+   *
+   * For example, nesting "street", "city", "zip" into an "address" sub-record
+   * transforms `{street: "...", city: "...", zip: "...", name: "..."}` into
+   * `{address: {street: "...", city: "...", zip: "..."}, name: "..."}`.
+   *
+   * @param at
+   *   The path to the record containing the fields
+   * @param fieldName
+   *   The name of the new sub-record field
+   * @param sourceFields
+   *   The names of the fields to nest into the sub-record
+   */
+  final case class Nest(
+    at: DynamicOptic,
+    fieldName: String,
+    sourceFields: Vector[String]
+  ) extends MigrationAction {
+    override def reverse: MigrationAction = Unnest(at, fieldName, sourceFields)
+  }
+
+  /**
+   * Unnest fields from a sub-record back into the parent record.
+   *
+   * This is the reverse of `Nest`. It extracts the specified fields from a
+   * sub-record and places them directly in the parent record, then removes the
+   * sub-record.
+   *
+   * @param at
+   *   The path to the record containing the sub-record
+   * @param fieldName
+   *   The name of the sub-record field to unnest
+   * @param extractedFields
+   *   The names of the fields to extract from the sub-record
+   */
+  final case class Unnest(
+    at: DynamicOptic,
+    fieldName: String,
+    extractedFields: Vector[String]
+  ) extends MigrationAction {
+    override def reverse: MigrationAction = Nest(at, fieldName, extractedFields)
+  }
+
+  // ==================== Join/Split Actions ====================
+
   /**
    * Join multiple fields into a single field.
    *

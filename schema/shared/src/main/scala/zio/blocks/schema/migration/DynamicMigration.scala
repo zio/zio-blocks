@@ -126,6 +126,12 @@ private[migration] object ActionExecutor {
       case Optionalize(at) =>
         executeOptionalize(at, value)
 
+      case Nest(at, fieldName, sourceFields) =>
+        executeNest(at, fieldName, sourceFields, value)
+
+      case Unnest(at, fieldName, extractedFields) =>
+        executeUnnest(at, fieldName, extractedFields, value)
+
       case Join(at, sourcePaths, combinedValue) =>
         executeJoin(at, sourcePaths, combinedValue, value)
 
@@ -275,6 +281,65 @@ private[migration] object ActionExecutor {
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value, at)(v => Right(DynamicValue.Variant("Some", v)))
+
+  // ==================== Nest/Unnest Action Execution ====================
+
+  private def executeNest(
+    at: DynamicOptic,
+    fieldName: String,
+    sourceFields: Vector[String],
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    modifyAt(at, value, at) {
+      case DynamicValue.Record(fields) =>
+        val extracted = Chunk.fromIterable(sourceFields.flatMap { name =>
+          fields.find(_._1 == name)
+        })
+        if (extracted.length != sourceFields.length) {
+          val missing = sourceFields.filterNot(n => fields.exists(_._1 == n))
+          Left(SchemaError.message(s"Fields not found: ${missing.mkString(", ")}", at))
+        } else {
+          val remaining    = fields.filterNot(f => sourceFields.contains(f._1))
+          val nestedRecord = DynamicValue.Record(extracted)
+          Right(DynamicValue.Record(remaining :+ (fieldName -> nestedRecord)))
+        }
+      case other =>
+        Left(SchemaError.message(s"Expected Record, got ${other.valueType}", at))
+    }
+
+  private def executeUnnest(
+    at: DynamicOptic,
+    fieldName: String,
+    extractedFields: Vector[String],
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    modifyAt(at, value, at) {
+      case DynamicValue.Record(fields) =>
+        val nestedIdx = fields.indexWhere(_._1 == fieldName)
+        if (nestedIdx < 0) {
+          Left(SchemaError.message(s"Nested field '$fieldName' not found", at))
+        } else {
+          fields(nestedIdx)._2 match {
+            case DynamicValue.Record(nestedFields) =>
+              val toExtract = Chunk.fromIterable(extractedFields.flatMap { name =>
+                nestedFields.find(_._1 == name)
+              })
+              if (toExtract.length != extractedFields.length) {
+                val missing = extractedFields.filterNot(n => nestedFields.exists(_._1 == n))
+                Left(SchemaError.message(s"Fields not found in nested record: ${missing.mkString(", ")}", at))
+              } else {
+                val withoutNested = fields.patch(nestedIdx, Nil, 1)
+                Right(DynamicValue.Record(withoutNested ++ toExtract))
+              }
+            case other =>
+              Left(SchemaError.message(s"Expected nested Record, got ${other.valueType}", at))
+          }
+        }
+      case other =>
+        Left(SchemaError.message(s"Expected Record, got ${other.valueType}", at))
+    }
+
+  // ==================== Join/Split Action Execution ====================
 
   private def executeJoin(
     at: DynamicOptic,

@@ -15,6 +15,8 @@ object DynamicMigrationBenchmarkSpec extends SchemaBaseSpec {
       val nestedResult  = benchmark.nestedFieldMigration()
       val seqResult     = benchmark.sequenceTransform()
       val reversed      = benchmark.reverseMigration()
+      val nestResult    = benchmark.nestFields()
+      val unnestResult  = benchmark.unnestFields()
 
       assertTrue(
         addResult.isRight,
@@ -22,7 +24,9 @@ object DynamicMigrationBenchmarkSpec extends SchemaBaseSpec {
         composeResult.isRight,
         nestedResult.isRight,
         seqResult.isRight,
-        reversed.actions.size == 2
+        reversed.actions.size == 2,
+        nestResult.isRight,
+        unnestResult.isRight
       )
     }
   )
