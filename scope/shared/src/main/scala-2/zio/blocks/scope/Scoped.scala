@@ -179,8 +179,9 @@ object Scoped {
    * Lifts a value into a Scoped computation.
    *
    * This allows ordinary values to participate in `Scoped` for-comprehensions
-   * alongside scoped values. The resulting computation has no scope requirements
-   * (uses `Any` as the tag), so it can be combined with any other `Scoped`.
+   * alongside scoped values. The resulting computation has no scope
+   * requirements (uses `Any` as the tag), so it can be combined with any other
+   * `Scoped`.
    *
    * The value is evaluated lazily when the Scoped computation is run.
    *
