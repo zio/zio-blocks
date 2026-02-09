@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import scala.annotation.meta.field
 import scala.annotation.StaticAnnotation
 import zio.blocks.schema.binding._
@@ -66,63 +67,59 @@ object Modifier {
 
   implicit lazy val transientSchema: Schema[transient] = new Schema(
     reflect = new Reflect.Record[Binding, transient](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[transient],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[transient](transient()),
         deconstructor = new ConstantDeconstructor[transient]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val renameSchema: Schema[rename] = new Schema(
     reflect = new Reflect.Record[Binding, rename](
-      fields = Vector(
-        Schema[String].reflect.asTerm("name")
-      ),
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
       typeId = TypeId.of[rename],
       recordBinding = new Binding.Record(
         constructor = new Constructor[rename] {
           def usedRegisters: RegisterOffset                            = 1
           def construct(in: Registers, offset: RegisterOffset): rename =
-            rename(in.getObject(offset + 0).asInstanceOf[String])
+            rename(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[rename] {
           def usedRegisters: RegisterOffset                                         = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: rename): Unit =
-            out.setObject(offset + 0, in.name)
+            out.setObject(offset, in.name)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val aliasSchema: Schema[alias] = new Schema(
     reflect = new Reflect.Record[Binding, alias](
-      fields = Vector(
-        Schema[String].reflect.asTerm("name")
-      ),
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
       typeId = TypeId.of[alias],
       recordBinding = new Binding.Record(
         constructor = new Constructor[alias] {
           def usedRegisters: RegisterOffset                           = 1
           def construct(in: Registers, offset: RegisterOffset): alias =
-            alias(in.getObject(offset + 0).asInstanceOf[String])
+            alias(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[alias] {
           def usedRegisters: RegisterOffset                                        = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: alias): Unit =
-            out.setObject(offset + 0, in.name)
+            out.setObject(offset, in.name)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val configSchema: Schema[config] = new Schema(
     reflect = new Reflect.Record[Binding, config](
-      fields = Vector(
+      fields = Chunk(
         Schema[String].reflect.asTerm("key"),
         Schema[String].reflect.asTerm("value")
       ),
@@ -132,25 +129,25 @@ object Modifier {
           def usedRegisters: RegisterOffset                            = 2
           def construct(in: Registers, offset: RegisterOffset): config =
             config(
-              in.getObject(offset + 0).asInstanceOf[String],
+              in.getObject(offset).asInstanceOf[String],
               in.getObject(offset + 1).asInstanceOf[String]
             )
         },
         deconstructor = new Deconstructor[config] {
           def usedRegisters: RegisterOffset                                         = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: config): Unit = {
-            out.setObject(offset + 0, in.key)
+            out.setObject(offset, in.key)
             out.setObject(offset + 1, in.value)
           }
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val termSchema: Schema[Term] = new Schema(
     reflect = new Reflect.Variant[Binding, Term](
-      cases = Vector(
+      cases = Chunk(
         transientSchema.reflect.asTerm("transient"),
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
@@ -193,15 +190,13 @@ object Modifier {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val reflectSchema: Schema[Reflect] = new Schema(
     reflect = new Reflect.Variant[Binding, Reflect](
-      cases = Vector(
-        configSchema.reflect.asTerm("config")
-      ),
+      cases = Chunk.single(configSchema.reflect.asTerm("config")),
       typeId = TypeId.of[Reflect],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Reflect] {
@@ -218,13 +213,13 @@ object Modifier {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val schema: Schema[Modifier] = new Schema(
     reflect = new Reflect.Variant[Binding, Modifier](
-      cases = Vector(
+      cases = Chunk(
         transientSchema.reflect.asTerm("transient"),
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
@@ -267,7 +262,7 @@ object Modifier {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 }

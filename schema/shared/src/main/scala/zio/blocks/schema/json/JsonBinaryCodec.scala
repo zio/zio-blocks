@@ -568,240 +568,237 @@ object JsonBinaryCodec {
 
     override def toJsonSchema: JsonSchema = JsonSchema.number()
   }
-  val dayOfWeekCodec: JsonBinaryCodec[DayOfWeek] = new JsonBinaryCodec[java.time.DayOfWeek]() {
-    def decodeValue(in: JsonReader, default: java.time.DayOfWeek): java.time.DayOfWeek = {
+  val dayOfWeekCodec: JsonBinaryCodec[DayOfWeek] = new JsonBinaryCodec[DayOfWeek]() {
+    def decodeValue(in: JsonReader, default: DayOfWeek): DayOfWeek = {
       val code = in.readString(if (default eq null) null else default.toString)
-      try java.time.DayOfWeek.valueOf(code)
+      try DayOfWeek.valueOf(code)
       catch {
         case error if NonFatal(error) => in.decodeError("illegal day of week value")
       }
     }
 
-    def encodeValue(x: java.time.DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
+    def encodeValue(x: DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
 
-    override def decodeKey(in: JsonReader): java.time.DayOfWeek = {
+    override def decodeKey(in: JsonReader): DayOfWeek = {
       val code = in.readKeyAsString()
-      try java.time.DayOfWeek.valueOf(code)
+      try DayOfWeek.valueOf(code)
       catch {
         case error if NonFatal(error) => in.decodeError("illegal day of week value")
       }
     }
 
-    override def encodeKey(x: java.time.DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
+    override def encodeKey(x: DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string()
   }
-  val durationCodec: JsonBinaryCodec[Duration] = new JsonBinaryCodec[java.time.Duration]() {
-    def decodeValue(in: JsonReader, default: java.time.Duration): java.time.Duration = in.readDuration(default)
+  val durationCodec: JsonBinaryCodec[Duration] = new JsonBinaryCodec[Duration]() {
+    def decodeValue(in: JsonReader, default: Duration): Duration = in.readDuration(default)
 
-    def encodeValue(x: java.time.Duration, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: Duration, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.Duration = in.readKeyAsDuration()
+    override def decodeKey(in: JsonReader): Duration = in.readKeyAsDuration()
 
-    override def encodeKey(x: java.time.Duration, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: Duration, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("duration"))
   }
-  val instantCodec: JsonBinaryCodec[Instant] = new JsonBinaryCodec[java.time.Instant]() {
-    def decodeValue(in: JsonReader, default: java.time.Instant): java.time.Instant = in.readInstant(default)
+  val instantCodec: JsonBinaryCodec[Instant] = new JsonBinaryCodec[Instant]() {
+    def decodeValue(in: JsonReader, default: Instant): Instant = in.readInstant(default)
 
-    def encodeValue(x: java.time.Instant, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: Instant, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.Instant = in.readKeyAsInstant()
+    override def decodeKey(in: JsonReader): Instant = in.readKeyAsInstant()
 
-    override def encodeKey(x: java.time.Instant, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: Instant, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("date-time"))
   }
-  val localDateCodec: JsonBinaryCodec[LocalDate] = new JsonBinaryCodec[java.time.LocalDate]() {
-    def decodeValue(in: JsonReader, default: java.time.LocalDate): java.time.LocalDate = in.readLocalDate(default)
+  val localDateCodec: JsonBinaryCodec[LocalDate] = new JsonBinaryCodec[LocalDate]() {
+    def decodeValue(in: JsonReader, default: LocalDate): LocalDate = in.readLocalDate(default)
 
-    def encodeValue(x: java.time.LocalDate, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.LocalDate = in.readKeyAsLocalDate()
+    override def decodeKey(in: JsonReader): LocalDate = in.readKeyAsLocalDate()
 
-    override def encodeKey(x: java.time.LocalDate, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: LocalDate, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("date"))
   }
-  val localDateTimeCodec: JsonBinaryCodec[LocalDateTime] = new JsonBinaryCodec[java.time.LocalDateTime]() {
-    def decodeValue(in: JsonReader, default: java.time.LocalDateTime): java.time.LocalDateTime =
-      in.readLocalDateTime(default)
+  val localDateTimeCodec: JsonBinaryCodec[LocalDateTime] = new JsonBinaryCodec[LocalDateTime]() {
+    def decodeValue(in: JsonReader, default: LocalDateTime): LocalDateTime = in.readLocalDateTime(default)
 
-    def encodeValue(x: java.time.LocalDateTime, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: LocalDateTime, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.LocalDateTime = in.readKeyAsLocalDateTime()
+    override def decodeKey(in: JsonReader): LocalDateTime = in.readKeyAsLocalDateTime()
 
-    override def encodeKey(x: java.time.LocalDateTime, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: LocalDateTime, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("date-time"))
   }
-  val localTimeCodec: JsonBinaryCodec[LocalTime] = new JsonBinaryCodec[java.time.LocalTime]() {
-    def decodeValue(in: JsonReader, default: java.time.LocalTime): java.time.LocalTime = in.readLocalTime(default)
+  val localTimeCodec: JsonBinaryCodec[LocalTime] = new JsonBinaryCodec[LocalTime]() {
+    def decodeValue(in: JsonReader, default: LocalTime): LocalTime = in.readLocalTime(default)
 
-    def encodeValue(x: java.time.LocalTime, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: LocalTime, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.LocalTime = in.readKeyAsLocalTime()
+    override def decodeKey(in: JsonReader): LocalTime = in.readKeyAsLocalTime()
 
-    override def encodeKey(x: java.time.LocalTime, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: LocalTime, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("time"))
   }
-  val monthCodec: JsonBinaryCodec[Month] = new JsonBinaryCodec[java.time.Month]() {
-    def decodeValue(in: JsonReader, default: java.time.Month): java.time.Month = {
+  val monthCodec: JsonBinaryCodec[Month] = new JsonBinaryCodec[Month]() {
+    def decodeValue(in: JsonReader, default: Month): Month = {
       val code = in.readString(if (default eq null) null else default.toString)
-      try java.time.Month.valueOf(code)
+      try Month.valueOf(code)
       catch {
         case error if NonFatal(error) => in.decodeError("illegal month value")
       }
     }
 
-    def encodeValue(x: java.time.Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
+    def encodeValue(x: Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
 
-    override def decodeKey(in: JsonReader): java.time.Month = {
+    override def decodeKey(in: JsonReader): Month = {
       val code = in.readKeyAsString()
-      try java.time.Month.valueOf(code)
+      try Month.valueOf(code)
       catch {
         case error if NonFatal(error) => in.decodeError("illegal month value")
       }
     }
 
-    override def encodeKey(x: java.time.Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
+    override def encodeKey(x: Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string()
   }
-  val monthDayCodec: JsonBinaryCodec[MonthDay] = new JsonBinaryCodec[java.time.MonthDay]() {
-    def decodeValue(in: JsonReader, default: java.time.MonthDay): java.time.MonthDay = in.readMonthDay(default)
+  val monthDayCodec: JsonBinaryCodec[MonthDay] = new JsonBinaryCodec[MonthDay]() {
+    def decodeValue(in: JsonReader, default: MonthDay): MonthDay = in.readMonthDay(default)
 
-    def encodeValue(x: java.time.MonthDay, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: MonthDay, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.MonthDay = in.readKeyAsMonthDay()
+    override def decodeKey(in: JsonReader): MonthDay = in.readKeyAsMonthDay()
 
-    override def encodeKey(x: java.time.MonthDay, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: MonthDay, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string()
   }
-  val offsetDateTimeCodec: JsonBinaryCodec[OffsetDateTime] = new JsonBinaryCodec[java.time.OffsetDateTime]() {
-    def decodeValue(in: JsonReader, default: java.time.OffsetDateTime): java.time.OffsetDateTime =
-      in.readOffsetDateTime(default)
+  val offsetDateTimeCodec: JsonBinaryCodec[OffsetDateTime] = new JsonBinaryCodec[OffsetDateTime]() {
+    def decodeValue(in: JsonReader, default: OffsetDateTime): OffsetDateTime = in.readOffsetDateTime(default)
 
-    def encodeValue(x: java.time.OffsetDateTime, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.OffsetDateTime = in.readKeyAsOffsetDateTime()
+    override def decodeKey(in: JsonReader): OffsetDateTime = in.readKeyAsOffsetDateTime()
 
-    override def encodeKey(x: java.time.OffsetDateTime, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: OffsetDateTime, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("date-time"))
   }
-  val offsetTimeCodec: JsonBinaryCodec[OffsetTime] = new JsonBinaryCodec[java.time.OffsetTime]() {
-    def decodeValue(in: JsonReader, default: java.time.OffsetTime): java.time.OffsetTime = in.readOffsetTime(default)
+  val offsetTimeCodec: JsonBinaryCodec[OffsetTime] = new JsonBinaryCodec[OffsetTime]() {
+    def decodeValue(in: JsonReader, default: OffsetTime): OffsetTime = in.readOffsetTime(default)
 
-    def encodeValue(x: java.time.OffsetTime, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: OffsetTime, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.OffsetTime = in.readKeyAsOffsetTime()
+    override def decodeKey(in: JsonReader): OffsetTime = in.readKeyAsOffsetTime()
 
-    override def encodeKey(x: java.time.OffsetTime, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: OffsetTime, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("time"))
   }
-  val periodCodec: JsonBinaryCodec[Period] = new JsonBinaryCodec[java.time.Period]() {
-    def decodeValue(in: JsonReader, default: java.time.Period): java.time.Period = in.readPeriod(default)
+  val periodCodec: JsonBinaryCodec[Period] = new JsonBinaryCodec[Period]() {
+    def decodeValue(in: JsonReader, default: Period): Period = in.readPeriod(default)
 
-    def encodeValue(x: java.time.Period, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: Period, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.Period = in.readKeyAsPeriod()
+    override def decodeKey(in: JsonReader): Period = in.readKeyAsPeriod()
 
-    override def encodeKey(x: java.time.Period, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: Period, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("duration"))
   }
-  val yearCodec: JsonBinaryCodec[Year] = new JsonBinaryCodec[java.time.Year]() {
-    def decodeValue(in: JsonReader, default: java.time.Year): java.time.Year = in.readYear(default)
+  val yearCodec: JsonBinaryCodec[Year] = new JsonBinaryCodec[Year]() {
+    def decodeValue(in: JsonReader, default: Year): Year = in.readYear(default)
 
-    def encodeValue(x: java.time.Year, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: Year, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.Year = in.readKeyAsYear()
+    override def decodeKey(in: JsonReader): Year = in.readKeyAsYear()
 
-    override def encodeKey(x: java.time.Year, out: JsonWriter): Unit = out.writeKey(x)
-
-    override def toJsonSchema: JsonSchema = JsonSchema.string()
-  }
-  val yearMonthCodec: JsonBinaryCodec[YearMonth] = new JsonBinaryCodec[java.time.YearMonth]() {
-    def decodeValue(in: JsonReader, default: java.time.YearMonth): java.time.YearMonth = in.readYearMonth(default)
-
-    def encodeValue(x: java.time.YearMonth, out: JsonWriter): Unit = out.writeVal(x)
-
-    override def decodeKey(in: JsonReader): java.time.YearMonth = in.readKeyAsYearMonth()
-
-    override def encodeKey(x: java.time.YearMonth, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: Year, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string()
   }
-  val zoneIdCodec: JsonBinaryCodec[ZoneId] = new JsonBinaryCodec[java.time.ZoneId]() {
-    def decodeValue(in: JsonReader, default: java.time.ZoneId): java.time.ZoneId = in.readZoneId(default)
+  val yearMonthCodec: JsonBinaryCodec[YearMonth] = new JsonBinaryCodec[YearMonth]() {
+    def decodeValue(in: JsonReader, default: YearMonth): YearMonth = in.readYearMonth(default)
 
-    def encodeValue(x: java.time.ZoneId, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: YearMonth, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.ZoneId = in.readKeyAsZoneId()
+    override def decodeKey(in: JsonReader): YearMonth = in.readKeyAsYearMonth()
 
-    override def encodeKey(x: java.time.ZoneId, out: JsonWriter): Unit = out.writeKey(x)
-
-    override def toJsonSchema: JsonSchema = JsonSchema.string()
-  }
-  val zoneOffsetCodec: JsonBinaryCodec[ZoneOffset] = new JsonBinaryCodec[java.time.ZoneOffset]() {
-    def decodeValue(in: JsonReader, default: java.time.ZoneOffset): java.time.ZoneOffset = in.readZoneOffset(default)
-
-    def encodeValue(x: java.time.ZoneOffset, out: JsonWriter): Unit = out.writeVal(x)
-
-    override def decodeKey(in: JsonReader): java.time.ZoneOffset = in.readKeyAsZoneOffset()
-
-    override def encodeKey(x: java.time.ZoneOffset, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: YearMonth, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string()
   }
-  val zonedDateTimeCodec: JsonBinaryCodec[ZonedDateTime] = new JsonBinaryCodec[java.time.ZonedDateTime]() {
-    def decodeValue(in: JsonReader, default: java.time.ZonedDateTime): java.time.ZonedDateTime =
-      in.readZonedDateTime(default)
+  val zoneIdCodec: JsonBinaryCodec[ZoneId] = new JsonBinaryCodec[ZoneId]() {
+    def decodeValue(in: JsonReader, default: ZoneId): ZoneId = in.readZoneId(default)
 
-    def encodeValue(x: java.time.ZonedDateTime, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: ZoneId, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.time.ZonedDateTime = in.readKeyAsZonedDateTime()
+    override def decodeKey(in: JsonReader): ZoneId = in.readKeyAsZoneId()
 
-    override def encodeKey(x: java.time.ZonedDateTime, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: ZoneId, out: JsonWriter): Unit = out.writeKey(x)
+
+    override def toJsonSchema: JsonSchema = JsonSchema.string()
+  }
+  val zoneOffsetCodec: JsonBinaryCodec[ZoneOffset] = new JsonBinaryCodec[ZoneOffset]() {
+    def decodeValue(in: JsonReader, default: ZoneOffset): ZoneOffset = in.readZoneOffset(default)
+
+    def encodeValue(x: ZoneOffset, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): ZoneOffset = in.readKeyAsZoneOffset()
+
+    override def encodeKey(x: ZoneOffset, out: JsonWriter): Unit = out.writeKey(x)
+
+    override def toJsonSchema: JsonSchema = JsonSchema.string()
+  }
+  val zonedDateTimeCodec: JsonBinaryCodec[ZonedDateTime] = new JsonBinaryCodec[ZonedDateTime]() {
+    def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readZonedDateTime(default)
+
+    def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): ZonedDateTime = in.readKeyAsZonedDateTime()
+
+    override def encodeKey(x: ZonedDateTime, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("date-time"))
   }
-  val currencyCodec: JsonBinaryCodec[Currency] = new JsonBinaryCodec[java.util.Currency]() {
-    def decodeValue(in: JsonReader, default: java.util.Currency): java.util.Currency = {
+  val currencyCodec: JsonBinaryCodec[Currency] = new JsonBinaryCodec[Currency]() {
+    def decodeValue(in: JsonReader, default: Currency): Currency = {
       val code = in.readString(if (default eq null) null else default.toString)
-      try java.util.Currency.getInstance(code)
+      try Currency.getInstance(code)
       catch {
         case error if NonFatal(error) => in.decodeError("illegal currency value")
       }
     }
 
-    def encodeValue(x: java.util.Currency, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
+    def encodeValue(x: Currency, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
 
-    override def decodeKey(in: JsonReader): java.util.Currency = {
+    override def decodeKey(in: JsonReader): Currency = {
       val code = in.readKeyAsString()
-      try java.util.Currency.getInstance(code)
+      try Currency.getInstance(code)
       catch {
         case error if NonFatal(error) => in.decodeError("illegal currency value")
       }
     }
 
-    override def encodeKey(x: java.util.Currency, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
+    override def encodeKey(x: Currency, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string()
   }
-  val uuidCodec: JsonBinaryCodec[UUID] = new JsonBinaryCodec[java.util.UUID]() {
-    def decodeValue(in: JsonReader, default: java.util.UUID): java.util.UUID = in.readUUID(default)
+  val uuidCodec: JsonBinaryCodec[UUID] = new JsonBinaryCodec[UUID]() {
+    def decodeValue(in: JsonReader, default: UUID): UUID = in.readUUID(default)
 
-    def encodeValue(x: java.util.UUID, out: JsonWriter): Unit = out.writeVal(x)
+    def encodeValue(x: UUID, out: JsonWriter): Unit = out.writeVal(x)
 
-    override def decodeKey(in: JsonReader): java.util.UUID = in.readKeyAsUUID()
+    override def decodeKey(in: JsonReader): UUID = in.readKeyAsUUID()
 
-    override def encodeKey(x: java.util.UUID, out: JsonWriter): Unit = out.writeKey(x)
+    override def encodeKey(x: UUID, out: JsonWriter): Unit = out.writeKey(x)
 
     override def toJsonSchema: JsonSchema = JsonSchema.string(format = Some("uuid"))
   }
@@ -897,10 +894,7 @@ object JsonBinaryCodec {
         }
       case record: DynamicValue.Record =>
         out.writeObjectStart()
-        val fields = record.fields
-        val it     = fields.iterator
-        while (it.hasNext) {
-          val kv = it.next()
+        record.fields.foreach { kv =>
           out.writeKey(kv._1)
           encodeValue(kv._2, out)
         }
@@ -912,18 +906,11 @@ object JsonBinaryCodec {
         out.writeObjectEnd()
       case sequence: DynamicValue.Sequence =>
         out.writeArrayStart()
-        val elements = sequence.elements
-        val it       = elements.iterator
-        while (it.hasNext) {
-          encodeValue(it.next(), out)
-        }
+        sequence.elements.foreach(encodeValue(_, out))
         out.writeArrayEnd()
       case map: DynamicValue.Map =>
         out.writeObjectStart()
-        val entries = map.entries
-        val it      = entries.iterator
-        while (it.hasNext) {
-          val kv = it.next()
+        map.entries.foreach { kv =>
           encodeKey(kv._1, out)
           encodeValue(kv._2, out)
         }

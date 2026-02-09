@@ -1,9 +1,8 @@
 package zio.blocks.schema
 
-import zio.blocks.chunk.ChunkBuilder
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.chunk.Chunk
 import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
@@ -1502,7 +1501,7 @@ object Reflect {
       TypeRepr.Ref(element.typeId)
     )
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       typeId,
       F.fromBinding(Binding.Record.some)
     )
@@ -1512,42 +1511,42 @@ object Reflect {
     element: Reflect[F, Double]
   )(implicit F: FromBinding[F]): Record[F, Some[Double]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Double]],
       F.fromBinding(Binding.Record.someDouble)
     )
 
   private[this] def someLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Record[F, Some[Long]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Long]],
       F.fromBinding(Binding.Record.someLong)
     )
 
   private[this] def someFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Record[F, Some[Float]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Float]],
       F.fromBinding(Binding.Record.someFloat)
     )
 
   private[this] def someInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Some[Int]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Int]],
       F.fromBinding(Binding.Record.someInt)
     )
 
   private[this] def someChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Record[F, Some[Char]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Char]],
       F.fromBinding(Binding.Record.someChar)
     )
 
   private[this] def someShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Record[F, Some[Short]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Short]],
       F.fromBinding(Binding.Record.someShort)
     )
@@ -1556,27 +1555,27 @@ object Reflect {
     element: Reflect[F, Boolean]
   )(implicit F: FromBinding[F]): Record[F, Some[Boolean]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Boolean]],
       F.fromBinding(Binding.Record.someBoolean)
     )
 
   private[this] def someByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Record[F, Some[Byte]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Byte]],
       F.fromBinding(Binding.Record.someByte)
     )
 
   private[this] def someUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Record[F, Some[Unit]] =
     new Record(
-      Vector(new Term("value", element)),
+      Chunk.single(new Term("value", element)),
       TypeId.of[Some[Unit]],
       F.fromBinding(Binding.Record.someUnit)
     )
 
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
-    new Record(Vector(), TypeId.none, F.fromBinding(Binding.Record.none))
+    new Record(Chunk.empty, TypeId.none, F.fromBinding(Binding.Record.none))
 
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] = {
     val typeId = TypeId.applied[Option[A]](
@@ -1584,7 +1583,7 @@ object Reflect {
       TypeRepr.Ref(element.typeId)
     )
     new Variant(
-      Vector(new Term("None", none), new Term("Some", some(element))),
+      Chunk(new Term("None", none), new Term("Some", some(element))),
       typeId,
       F.fromBinding(Binding.Variant.option)
     )
@@ -1592,63 +1591,63 @@ object Reflect {
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someDouble(element))),
+      Chunk(new Term("None", none), new Term("Some", someDouble(element))),
       TypeId.of[Option[Double]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, Option[Long]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someLong(element))),
+      Chunk(new Term("None", none), new Term("Some", someLong(element))),
       TypeId.of[Option[Long]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, Option[Float]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someFloat(element))),
+      Chunk(new Term("None", none), new Term("Some", someFloat(element))),
       TypeId.of[Option[Float]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, Option[Int]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someInt(element))),
+      Chunk(new Term("None", none), new Term("Some", someInt(element))),
       TypeId.of[Option[Int]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, Option[Char]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someChar(element))),
+      Chunk(new Term("None", none), new Term("Some", someChar(element))),
       TypeId.of[Option[Char]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, Option[Short]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someShort(element))),
+      Chunk(new Term("None", none), new Term("Some", someShort(element))),
       TypeId.of[Option[Short]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, Option[Boolean]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someBoolean(element))),
+      Chunk(new Term("None", none), new Term("Some", someBoolean(element))),
       TypeId.of[Option[Boolean]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, Option[Byte]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someByte(element))),
+      Chunk(new Term("None", none), new Term("Some", someByte(element))),
       TypeId.of[Option[Byte]],
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, Option[Unit]] =
     new Variant(
-      Vector(new Term("None", none), new Term("Some", someUnit(element))),
+      Chunk(new Term("None", none), new Term("Some", someUnit(element))),
       TypeId.of[Option[Unit]],
       F.fromBinding(Binding.Variant.option)
     )
@@ -1658,7 +1657,7 @@ object Reflect {
       TypeId.nominal[Left[?, ?]]("Left", Owner.fromPackagePath("scala.util")),
       TypeRepr.Ref(element.typeId)
     )
-    new Record(Vector(new Term("value", element)), typeId, F.fromBinding(Binding.Record.left))
+    new Record(Chunk.single(new Term("value", element)), typeId, F.fromBinding(Binding.Record.left))
   }
 
   private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] = {
@@ -1666,7 +1665,7 @@ object Reflect {
       TypeId.nominal[Right[?, ?]]("Right", Owner.fromPackagePath("scala.util")),
       TypeRepr.Ref(element.typeId)
     )
-    new Record(Vector(new Term("value", element)), typeId, F.fromBinding(Binding.Record.right))
+    new Record(Chunk.single(new Term("value", element)), typeId, F.fromBinding(Binding.Record.right))
   }
 
   def either[F[_, _], A, B](
@@ -1679,7 +1678,7 @@ object Reflect {
       TypeRepr.Ref(r.typeId)
     )
     new Variant(
-      Vector(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
+      Chunk(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
       typeId,
       F.fromBinding(Binding.Variant.either)
     )

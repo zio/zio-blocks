@@ -7,7 +7,7 @@ import zio.blocks.schema.patch._
 import java.time._
 
 object DynamicPatchToStringSpec extends ZIOSpecDefault {
-  def spec = suite("DynamicPatch toString")(
+  def spec = suite("DynamicPatchToStringSpec")(
     test("renders simple set operation") {
       val patch = DynamicPatch(
         Chunk(

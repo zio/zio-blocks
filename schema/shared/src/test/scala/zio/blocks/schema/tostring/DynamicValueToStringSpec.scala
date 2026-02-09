@@ -6,7 +6,7 @@ import zio.blocks.schema._
 import zio.test.{Spec, TestEnvironment, assertTrue}
 
 object DynamicValueToStringSpec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment, Any] = suite("DynamicValue toString (EJSON)")(
+  def spec: Spec[TestEnvironment, Any] = suite("DynamicValueToStringSpec")(
     suite("renders primitives") {
       test("renders string") {
         val value = DynamicValue.Primitive(PrimitiveValue.String("hello"))
