@@ -1,266 +1,714 @@
-# Urgent: Scope Macro Infrastructure Requires Complete Overhaul
+# Scope Macro Overhaul: A Simpler, Cleaner Design
 
 ## Executive Summary
 
-The scope library's macro infrastructure suffers from **massive code duplication**, **inconsistent bug fixes**, **feature drift between Scala versions**, and **inadequate testing**. This document presents evidence for an immediate, comprehensive overhaul.
+The current scope macro infrastructure suffers from duplication, inconsistency, and unnecessary complexity. This proposal describes a complete redesign that:
+
+1. **Reduces the API surface** from 7+ entry points to 3
+2. **Eliminates macro duplication** by leveraging Resource composition
+3. **Improves DX** with one obvious way to do things
+4. **Correctly handles uniqueness** by composing Resources, not accumulating values
+5. **Provides actionable errors** that tell users exactly how to fix problems
 
 ---
 
-## 1. Critical Bugs Still Present After "Fixes"
+## Part 1: Rationale
 
-### Bug: Diamond Dependency Sharing (Partially Fixed)
+### 1.1 Current Pain Points
 
-The diamond dependency sharing bug was fixed in 4 locations but **remains unfixed in at least one more**:
+**Massive Code Duplication**
+- `WireCodeGen.scala` contains 3 near-identical implementations
+- `ResourceMacros.scala` duplicates WireCodeGen logic instead of using it
+- Complete duplication between Scala 2 and Scala 3 implementations
+- Every bug fix must be applied to 7+ locations
 
-**Fixed locations:**
-- [ResourceMacros.scala (Scala 3)](../scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala#L211-L214)
-- [WireMacros.scala (Scala 3)](../scope/shared/src/main/scala-3/zio/blocks/scope/WireMacros.scala#L71-L74)
-- [ResourceVersionSpecific.scala (Scala 2)](../scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala#L184-L187)
-- [WireVersionSpecific.scala (Scala 2)](../scope/shared/src/main/scala-2/zio/blocks/scope/WireVersionSpecific.scala#L119-L122)
-- [WireableVersionSpecific.scala (Scala 2)](../scope/shared/src/main/scala-2/zio/blocks/scope/WireableVersionSpecific.scala#L178-L181)
+**Inconsistent Behavior**
+- `shared[T]`/`unique[T]` look for implicit `Wireable[T]`, but `wires*` macros don't
+- Different entry points produce subtly different behavior
+- Error messages differ between Scala versions
 
-**Also fixed (discovered during this audit):**
-- [WireCodeGen.scala (Scala 3) line 372](../scope/shared/src/main/scala-3/zio/blocks/scope/internal/WireCodeGen.scala#L370-L373): Was using `Context.empty` instead of accumulated context
+**Too Many Ways to Do Things**
+- 7 different entry points with overlapping functionality
+- Users must understand Wire vs Wireable vs Resource distinctions
+- Implicit Wireable resolution adds hidden magic
 
-**The fact that this bug existed in 6 separate locations demonstrates the core problem: identical logic duplicated across files inevitably leads to inconsistent fixes.**
-
----
-
-## 2. Massive Code Duplication
-
-### 2.1 Duplication Within Scala 3
-
-[WireCodeGen.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/internal/WireCodeGen.scala) contains **three near-identical implementations**:
-
-| Function | Lines | Purpose |
-|----------|-------|---------|
-| `deriveWire` | 29-127 | Generate Wire from constructor |
-| `deriveWireable` | 160-246 | Generate Wireable from constructor |
-| `deriveWireableWithOverrides` | 255-391 | Generate Wireable with wire overrides |
-
-All three contain:
-- Identical class validation (lines 39-46, 166-173, 261-268)
-- Identical `generateArgTerm` helper (lines 64-77, 191-204, 310-331)
-- Identical `generateWireBody` helper (lines 79-105, 206-232, 333-363)
-- Identical constructor call generation
-
-**Estimated duplicated code: ~200 lines within a single file.**
-
-### 2.2 ResourceMacros Doesn't Use WireCodeGen
-
-[ResourceMacros.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala) duplicates all of WireCodeGen's logic:
-
-- `generateArgTerm` (lines 158-175) — identical pattern
-- `buildOverrideContext` (lines 205-217) — identical pattern
-- Wire type extraction (lines 128-135) — identical pattern
-- Dependency checking (lines 137-149) — identical pattern
-
-**WireCodeGen was created to consolidate this, but ResourceMacros was never migrated to use it.**
-
-### 2.3 Complete Duplication Between Scala 2 and Scala 3
-
-Every macro has **two complete implementations** with nearly identical logic:
-
-| Scala 3 File | Scala 2 File | Duplicated Logic |
-|--------------|--------------|------------------|
-| [ResourceMacros.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala) | [ResourceVersionSpecific.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala) | 225 lines vs 237 lines |
-| [WireMacros.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/WireMacros.scala) | [WireVersionSpecific.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/WireVersionSpecific.scala) | 98 lines vs 146 lines |
-| [ScopeMacros.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/ScopeMacros.scala) | [ScopeMacros.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/ScopeMacros.scala) | 52 lines vs 159 lines |
-| [WireableMacros (in WireableVersionSpecific)](../scope/shared/src/main/scala-3/zio/blocks/scope/WireableVersionSpecific.scala) | [WireableVersionSpecific.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/WireableVersionSpecific.scala) | 60 lines vs 237 lines |
-| [MacroCore.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/internal/MacroCore.scala) | [MacroCore.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/internal/MacroCore.scala) | 620 lines vs 295 lines |
-
-### 2.4 Error Rendering Duplication
-
-[MacroCore.scala (Scala 3)](../scope/shared/src/main/scala-3/zio/blocks/scope/internal/MacroCore.scala#L310-L550) and [MacroCore.scala (Scala 2)](../scope/shared/src/main/scala-2/zio/blocks/scope/internal/MacroCore.scala#L157-L213) both contain:
-- Identical `Colors` object
-- Identical `ErrorRenderer` object
-- Identical error message formatting
-
-**This is pure text generation that could be shared between Scala versions.**
+**Broken Uniqueness Semantics**
+- The current context-accumulation approach cannot correctly handle `Wire.unique`
+- A type-indexed Context can only hold one value per type
+- True "unique per injection site" requires Resource-level composition
 
 ---
 
-## 3. Feature Drift Between Scala Versions
+## Part 2: The New Design
 
-### 3.1 Scala 3 Has Features Scala 2 Lacks
+### 2.1 API Surface
 
-[MacroCore.scala (Scala 3)](../scope/shared/src/main/scala-3/zio/blocks/scope/internal/MacroCore.scala) defines error types that don't exist in Scala 2:
-- `MissingDependency` with dependency tree visualization (lines 84-93)
-- `DuplicateProvider` (lines 95-101)
-- `DependencyCycle` with ASCII cycle visualization (lines 103-108)
+The new API has exactly **3 macro entry points**:
 
-The Scala 2 version only has:
-- `NotAClass`
-- `NoPrimaryCtor`
-- `SubtypeConflict`
+| Macro | Purpose |
+|-------|---------|
+| `Wire.shared[T]` | Create a shared wire from T's constructor |
+| `Wire.unique[T]` | Create a unique wire from T's constructor |
+| `Resource.from[T](wires*)` | Wire up T and all dependencies into a Resource |
 
-**Users get different error messages depending on which Scala version they use.**
+**Delete:**
+- `shared[T]` / `unique[T]` (top-level)
+- `Wireable` typeclass and all related code
+- `Wireable.from[T]` / `Wireable.from[T](wires*)`
+- `Wire#toResource(wires*)`
+- All Scala 2 macro duplicates that become unnecessary
 
-### 3.2 Scala 3 Uses WireCodeGen, Scala 2 Doesn't
+**Keep:**
+- `Wire#toResource(ctx: Context[In])` — used by generated code
+- `Wire(value)` — wrap a pre-existing value
+- `Wire.Shared.apply` / `Wire.Unique.apply` — manual wire construction
 
-Scala 3's [ScopeMacros](../scope/shared/src/main/scala-3/zio/blocks/scope/ScopeMacros.scala#L28) delegates to `WireCodeGen.deriveWire`, but Scala 2's [ScopeMacros](../scope/shared/src/main/scala-2/zio/blocks/scope/ScopeMacros.scala#L94-L158) has its own `deriveWire` implementation.
+### 2.2 User Mental Model
+
+```
+Wire.shared[T] / Wire.unique[T]
+    ↓
+    Creates a "recipe" for building T from its constructor parameters.
+    The wire knows what T needs but doesn't resolve those dependencies.
+    
+Resource.from[T](wires*)
+    ↓
+    The ONE place where dependency resolution happens.
+    Takes explicit wires, auto-creates missing ones with Wire.shared.
+    Produces a Resource[T] with proper lifecycle management.
+    
+    Sharing/uniqueness is determined by each wire:
+    - Wire.shared → Resource.Shared (one instance, ref-counted)
+    - Wire.unique → Resource.Unique (fresh instance per use)
+```
+
+### 2.3 Usage Examples
+
+**Leaf values must be provided:**
+```scala
+case class Config(host: String, port: Int)
+class Database(config: Config)
+class Cache(config: Config) 
+class App(db: Database, cache: Cache)
+
+// Must provide Wire(value) for types with primitive constructor params
+val appResource: Resource[App] = Resource.from[App](
+  Wire(Config("localhost", 8080))
+)
+// Database, Cache, App are auto-created with Wire.shared
+```
+
+**With explicit wires:**
+```scala
+// Override Cache to be unique (fresh instance per dependent)
+val appResource = Resource.from[App](
+  Wire(Config("localhost", 8080)),
+  Wire.unique[Cache]
+)
+```
+
+**Mixing shared and unique:**
+```scala
+class Handler1(session: Session)
+class Handler2(session: Session)
+class App(h1: Handler1, h2: Handler2)
+
+// Each Handler gets its own Session
+val appResource = Resource.from[App](
+  Wire.unique[Session]
+)
+// Handler1 and Handler2 each receive a fresh Session instance
+```
+
+### 2.4 Unmakeable Types
+
+Some types cannot be auto-created because they have no constructor we can call:
+
+- **Primitives**: `String`, `Int`, `Long`, `Double`, `Boolean`, etc.
+- **Functions**: `Function1`, `Function2`, `() => A`, `A => B`, etc.
+- **Collections**: `List[A]`, `Map[K, V]`, `Option[A]`, etc.
+- **Abstract types**: traits, abstract classes
+
+When `Resource.from` attempts to auto-create a wire for an unmakeable type, it produces an **actionable** compile-time error:
+
+```
+Cannot auto-create String: primitives cannot be auto-created.
+
+  Required by: Config(host: String, port: Int)
+  Required by: App(config: Config)
+
+  Fix: provide Wire("...") or Wire(Config(...)) with the desired values:
+  
+    Resource.from[App](
+      Wire(Config("localhost", 8080)),
+      ...
+    )
+```
+
+### 2.5 What Wire.shared[T] / Wire.unique[T] Do
+
+These macros are intentionally simple:
+
+1. Inspect T's primary constructor (all parameter lists, including `using` clauses)
+2. Extract parameter types (these become the wire's `In` type)
+3. Filter out `Finalizer` parameters (auto-injected at make time)
+4. Generate a `Wire[In, T]` that:
+   - Takes `(Finalizer, Context[In]) => T`
+   - Calls the constructor with values from the context
+   - Registers `close()` finalizer if T extends `AutoCloseable`
+
+**No dependency resolution. No implicit lookup. No graph logic.**
+
+The wire simply says: "Given these dependencies, here's how to build T."
+
+### 2.6 What Resource.from[T](wires*) Does
+
+This is the ONE macro that handles dependency wiring:
+
+1. Collects wires (explicit or auto-created with `Wire.shared`)
+2. Validates the dependency graph
+3. Generates Resource composition code using `flatMap`/`zip`
+
+The key insight: **compose Resources, don't accumulate values**. This correctly preserves sharing and uniqueness semantics.
 
 ---
 
-## 4. Inconsistent Wireable Support
+## Part 3: The Algorithm
 
-### 4.1 Only `shared[T]`/`unique[T]` Look for Implicit Wireable
+### 3.1 Overview
 
-When `shared[T]` or `unique[T]` is called, the macro first checks for an implicit `Wireable[T]` in scope ([ScopeMacros.scala lines 16, 36](../scope/shared/src/main/scala-3/zio/blocks/scope/ScopeMacros.scala#L16)). However, **none of the `wires*` accepting macros do this**:
+```
+Resource.from[T](explicitWires*):
+    
+    PHASE 1: Collect Wires
+    ─────────────────────────────────────────────────────────────
+    Build a Map[Type, Wire] for T and all its dependencies.
+    Use explicit wires when provided, otherwise auto-create with Wire.shared.
+    
+    PHASE 2: Validate
+    ─────────────────────────────────────────────────────────────
+    Check for errors: cycles, non-instantiable types, unmakeable types,
+    duplicate parameter types, private constructors, etc.
+    
+    PHASE 3: Topological Sort
+    ─────────────────────────────────────────────────────────────
+    Order types so leaves come first, T comes last.
+    Deterministic ordering for stable codegen.
+    
+    PHASE 4: Generate Resource Composition
+    ─────────────────────────────────────────────────────────────
+    Build a Map[Type, Expr[Resource]] where each Resource is composed
+    from its dependency Resources using flatMap/zip.
+```
 
-| Macro | Accepts `Wireable` implicitly? |
-|-------|-------------------------------|
-| `shared[T]` / `unique[T]` | ✅ Yes — `Expr.summon[Wireable[T]]` |
-| `Wire#toResource(wires*)` | ❌ No |
-| `Wireable.from[T](wires*)` | ❌ No |
-| `Resource.from[T](wires*)` | ❌ No |
+### 3.2 Pseudocode
 
-### 4.2 User Impact
+```
+Resource.from[T](explicitWires*):
 
-Users must explicitly pass wires even when `Wireable` instances exist:
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 1: Collect Wires
+  // ═══════════════════════════════════════════════════════════════
+  wireMap: Map[Type, Wire] = {}
+  
+  def resolveWire(type: Type): Unit =
+    if wireMap.contains(type): return
+    
+    // Check explicit wires first (including subtype matches)
+    wire = explicitWires.find(w => w.Out <:< type)
+           .getOrElse(autoCreateWire(type))
+    
+    wireMap[type] = wire
+    
+    // Recurse into dependencies (excluding Finalizer params)
+    for dep in wire.inputTypes:
+      resolveWire(dep)
+  
+  def autoCreateWire(type: Type): Wire =
+    // Cannot auto-create unmakeable types
+    if isUnmakeableType(type):
+      error(renderUnmakeableError(type, dependencyChain))
+    
+    // Cannot auto-create abstract types
+    if type.isTraitOrAbstract:
+      error(s"Cannot instantiate $type — provide a wire for a concrete subtype")
+    
+    // Cannot auto-create types with inaccessible constructors
+    if !type.primaryConstructor.isAccessible:
+      error(s"Cannot instantiate $type — constructor is not accessible")
+    
+    Wire.shared[type]
+  
+  resolveWire(T)
+  
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 2: Validate
+  // ═══════════════════════════════════════════════════════════════
+  
+  // Check for cycles
+  detectCycles(wireMap) match
+    case Some(cycle) => error(renderCycleError(cycle))
+    case None => // ok
+  
+  // Check for duplicate parameter types in any constructor
+  for (type, wire) <- wireMap:
+    val paramTypes = wire.inputTypes
+    val duplicates = paramTypes.groupBy(identity).filter(_._2.size > 1).keys
+    if duplicates.nonEmpty:
+      error(
+        s"""Constructor of $type has multiple parameters of type ${duplicates.head}.
+           |Context is type-indexed and cannot supply distinct values.
+           |
+           |Fix: wrap one parameter in an opaque type to distinguish them.""".stripMargin
+      )
+  
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 3: Topological Sort
+  // ═══════════════════════════════════════════════════════════════
+  
+  // Sort by dependency order (leaves first), with deterministic tie-breaking
+  sorted: List[Type] = topologicalSort(wireMap, tieBreaker = _.fullName)
+  
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 4: Generate Resource Composition
+  // ═══════════════════════════════════════════════════════════════
+  //
+  // Key insight: Build a Map[Type, Expr[Resource[Type]]], then compose
+  // Resources using flatMap/zip. This preserves sharing/uniqueness semantics.
+  //
+  // For diamond: Config → Database, Cache → App
+  //
+  // Generated code:
+  //
+  //   lazy val configResource: Resource[Config] = 
+  //     Resource.shared(f => configWire.make(f, Context.empty))
+  //
+  //   lazy val databaseResource: Resource[Database] =
+  //     configResource.flatMap { config =>
+  //       Resource.shared(f => databaseWire.make(f, Context(config)))
+  //     }
+  //
+  //   lazy val cacheResource: Resource[Cache] =
+  //     configResource.flatMap { config =>
+  //       Resource.shared(f => cacheWire.make(f, Context(config)))
+  //     }
+  //
+  //   lazy val appResource: Resource[App] =
+  //     databaseResource.flatMap { db =>
+  //       cacheResource.flatMap { cache =>
+  //         Resource.shared(f => appWire.make(f, Context(db, cache)))
+  //       }
+  //     }
+  //
+  //   appResource
+  
+  resourceMap: Map[Type, Expr[Resource]] = {}
+  
+  for type in sorted:
+    wire = wireMap[type]
+    deps = wire.inputTypes
+    
+    resourceExpr = if deps.isEmpty:
+      // Leaf node: no dependencies
+      if wire.isShared:
+        '{ Resource.shared[$type](f => $wire.make(f, Context.empty)) }
+      else:
+        '{ Resource.unique[$type](f => $wire.make(f, Context.empty)) }
+    else:
+      // Has dependencies: compose with flatMap
+      // Build nested flatMap chain over dependency resources
+      buildFlatMapChain(type, wire, deps, resourceMap)
+    
+    resourceMap[type] = resourceExpr
+  
+  resourceMap[T]
+
+def buildFlatMapChain(type, wire, deps, resourceMap): Expr[Resource[type]] =
+  // Generate:
+  //   dep1Resource.flatMap { dep1 =>
+  //     dep2Resource.flatMap { dep2 =>
+  //       ...
+  //       Resource.shared/unique(f => wire.make(f, Context(dep1, dep2, ...)))
+  //     }
+  //   }
+  
+  def loop(remainingDeps: List[Type], accumulatedBindings: List[(Type, Term)]): Expr[Resource[type]] =
+    remainingDeps match
+      case Nil =>
+        // Base case: all deps bound, create the resource
+        val ctxExpr = buildContextExpr(accumulatedBindings)
+        if wire.isShared:
+          '{ Resource.shared[$type](f => $wire.make(f, $ctxExpr)) }
+        else:
+          '{ Resource.unique[$type](f => $wire.make(f, $ctxExpr)) }
+      
+      case dep :: rest =>
+        val depResource = resourceMap[dep]
+        '{
+          $depResource.flatMap { depValue =>
+            ${ loop(rest, accumulatedBindings :+ (dep, 'depValue)) }
+          }
+        }
+  
+  loop(deps, Nil)
+```
+
+### 3.3 Why This Works
+
+**Sharing (Diamond Pattern):**
+```scala
+lazy val configResource = Resource.shared(...)  // ONE Resource instance
+
+lazy val databaseResource = configResource.flatMap { config => ... }
+lazy val cacheResource = configResource.flatMap { config => ... }
+```
+
+Both `databaseResource` and `cacheResource` reference the SAME `configResource` instance. When allocated:
+1. First `flatMap` calls `configResource.make(finalizer)` → initializes Config, refCount=1
+2. Second `flatMap` calls `configResource.make(finalizer)` → returns same Config, refCount=2
+3. On scope close, refCount decrements; finalizer runs when refCount=0
+
+**Uniqueness:**
+```scala
+lazy val sessionResource = Resource.unique(...)  // Creates fresh each time
+
+lazy val handler1Resource = sessionResource.flatMap { session => ... }
+lazy val handler2Resource = sessionResource.flatMap { session => ... }
+```
+
+Each `flatMap` calls `sessionResource.make(finalizer)`, and since it's `Resource.unique`, each call creates a fresh Session. Handler1 and Handler2 get different instances.
+
+### 3.4 Subtype Wire Matching
+
+When looking for a wire to satisfy dependency type `Service`:
+
+1. Check explicit wires for exact match: `w.Out =:= Service`
+2. Check explicit wires for subtype match: `w.Out <:< Service` (e.g., `Wire.shared[LiveService]`)
+3. If found, use that wire — the value produced is a subtype, which is valid
+
+For Context lookup at runtime, `Context` is covariant, so `Context[LiveService]` works where `Context[Service]` is expected.
+
+### 3.5 Default Parameters
+
+If a constructor parameter has a default value:
+
+1. If a wire exists for that type → use the wire (wire takes precedence)
+2. If no wire exists and type is unmakeable → use the default value
+3. If no wire exists and type is makeable → auto-create `Wire.shared[Type]`
+
+This allows convenient defaults for configuration while still permitting override:
 
 ```scala
-// This works (shared[T] finds Wireable[Database] and Wireable[Cache]):
-class Service(db: Database, cache: Cache)
-val wire = shared[Service]  // ✅ Automatically resolves wireables
+class Database(config: Config = Config.default)
 
-// But this fails even though the same wireables exist:
-val resource = Resource.from[Service]  // ❌ "has dependencies: Database, Cache"
+// Uses default
+Resource.from[Database]
 
-// User is forced to write:
-val resource = Resource.from[Service](shared[Database], shared[Cache])  // Redundant!
+// Overrides default
+Resource.from[Database](Wire(Config("custom", 9999)))
 ```
 
-### 4.3 The Fix
-
-All `wires*` macros should:
-1. Determine required dependencies from the target type
-2. For each dependency not covered by an explicit wire, attempt `Expr.summon[Wireable[Dep]]`
-3. If found, use `wireable.wire` as an implicit wire override
-4. Only fail if a dependency has neither an explicit wire nor an implicit `Wireable`
-
-This would make the API consistent and reduce boilerplate.
-
 ---
 
-## 5. Inadequate Test Coverage
+## Part 4: Validation & Errors
 
-### 5.1 No Cross-Entry-Point Tests
+### 4.1 Error Types
 
-There are **7 different entry points** that all generate similar code:
-1. `shared[T]`
-2. `unique[T]`
-3. `Resource.from[T]`
-4. `Resource.from[T](wires*)`
-5. `Wireable.from[T]`
-6. `Wireable.from[T](wires*)`
-7. `wire.toResource(wires*)`
+All errors must be **actionable** — tell the user exactly what to do.
 
-**There is no test that verifies all 7 produce equivalent behavior for the same dependency graph.**
+| Error | When | Message Pattern |
+|-------|------|-----------------|
+| Unmakeable type | Auto-creating primitive/function/collection | Show dependency chain + fix with `Wire(value)` |
+| Abstract type | Auto-creating trait/abstract class | Suggest providing wire for concrete subtype |
+| Private constructor | Constructor not accessible | State the problem clearly |
+| Cycle detected | A → B → A | Show cycle path with ASCII visualization |
+| Duplicate param types | `class X(a: T, b: T)` | Suggest opaque type wrapper |
+| Inner class | Requires outer instance | Not supported, suggest refactoring |
+| Java class ambiguity | Multiple constructors | Not supported for auto-creation |
 
-### 5.2 Diamond Dependency Test Added Late
+### 4.2 Error Message Examples
 
-[DependencySharingSpec.scala](../scope/shared/src/test/scala/zio/blocks/scope/DependencySharingSpec.scala) was just added to test diamond dependencies. Before this, **the bug existed in all entry points and went undetected**.
-
-### 5.3 No Equivalence Tests Between Scala Versions
-
-There are no tests verifying that Scala 2 and Scala 3 produce semantically equivalent results.
-
----
-
-## 6. Maintenance Burden
-
-### Current State
-
-To fix a bug or add a feature:
-1. Fix in [WireCodeGen.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/internal/WireCodeGen.scala) (3 places)
-2. Fix in [ResourceMacros.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala)
-3. Fix in [WireMacros.scala](../scope/shared/src/main/scala-3/zio/blocks/scope/WireMacros.scala)
-4. Port to [ResourceVersionSpecific.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala) (Scala 2)
-5. Port to [WireVersionSpecific.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/WireVersionSpecific.scala) (Scala 2)
-6. Port to [WireableVersionSpecific.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/WireableVersionSpecific.scala) (Scala 2)
-7. Port to [ScopeMacros.scala](../scope/shared/src/main/scala-2/zio/blocks/scope/ScopeMacros.scala) (Scala 2)
-
-**That's 7+ files to update for every change, with no automated verification of consistency.**
-
----
-
-## 7. Proposed Solution
-
-### 7.1 Consolidate Scala 3 Macros
-
-1. **Delete** `ResourceMacros.scala` — migrate to use `WireCodeGen`
-2. **Refactor** `WireCodeGen.scala` to eliminate internal duplication:
-   - Single `generateArgTerm` function
-   - Single `generateWireBody` function
-   - Single `buildContext` function
-   - Parameterize on output type (Wire vs Wireable vs Resource)
-
-### 7.2 Create Shared Logic Layer
-
-Extract Scala-version-independent logic:
-- Error message strings
-- Dependency analysis algorithms (as pure data transformations)
-- Context-building strategy
-
-### 7.3 Comprehensive Test Suite
-
-Create a test matrix:
-
+**Unmakeable type:**
 ```
-Entry Points × Scala Versions × Scenarios
-─────────────────────────────────────────
-shared[T]              │ Scala 2.13 │ Simple (no deps)
-unique[T]              │ Scala 3.x  │ Single dep
-Resource.from[T]       │            │ Multiple deps
-Resource.from[T](w*)   │            │ Diamond pattern
-Wireable.from[T]       │            │ AutoCloseable
-Wireable.from[T](w*)   │            │ With Finalizer param
-wire.toResource(w*)    │            │ Mixed shared/unique
+Cannot auto-create String: primitives cannot be auto-created.
+
+  Required by: Config(host: String, port: Int)
+  Required by: App(config: Config)
+
+  Fix: provide Wire("...") or Wire(Config(...)):
+  
+    Resource.from[App](
+      Wire(Config("localhost", 8080))
+    )
 ```
 
-### 7.4 Add Implicit Wireable Resolution to `wires*` Macros
+**Cycle:**
+```
+Dependency cycle detected:
 
-All macros accepting `wires*` should attempt to summon `Wireable` for unresolved dependencies:
-- `Wire#toResource(wires*)`
-- `Wireable.from[T](wires*)`
-- `Resource.from[T](wires*)`
+  A
+  ↓
+  B
+  ↓
+  A  ← cycle
 
-This eliminates the inconsistency where `shared[T]` resolves wireables but the `wires*` variants don't.
+Fix: break the cycle by restructuring dependencies or using lazy initialization.
+```
 
-### 7.5 Property-Based Equivalence Tests
+**Duplicate parameter types:**
+```
+Constructor of App has multiple parameters of type Config.
+Context is type-indexed and cannot supply distinct values.
 
-Add tests that verify:
-- `shared[T].toResource()` ≡ `Resource.from[T]` (for same T)
-- `Wireable.from[T].wire` ≡ `shared[T]` (for same T)
-- Scala 2 output ≡ Scala 3 output (runtime behavior)
+  class App(primary: Config, fallback: Config)
+            ^^^^^^^          ^^^^^^^^
+            
+Fix: wrap one parameter in an opaque type:
 
----
-
-## 8. Estimated Effort
-
-| Task | Effort |
-|------|--------|
-| Fix remaining WireCodeGen bug | S (1 hour) |
-| Consolidate WireCodeGen internally | M (4-8 hours) |
-| Migrate ResourceMacros to WireCodeGen | M (4-8 hours) |
-| Extract shared error rendering | S (2-4 hours) |
-| Add implicit Wireable resolution to `wires*` macros | M (4-8 hours) |
-| Comprehensive test matrix | L (8-16 hours) |
-| **Total** | **~25-50 hours** |
+  opaque type FallbackConfig = Config
+  class App(primary: Config, fallback: FallbackConfig)
+```
 
 ---
 
-## 9. Risk of Inaction
+## Part 5: Test Strategy
 
-Without this overhaul:
-- **Every future bug fix risks being incomplete** (as the diamond bug was)
-- **Feature parity between Scala versions will diverge further**
-- **Maintenance burden will continue to grow**
-- **Users will encounter inconsistent behavior across entry points**
+### 5.1 Test Matrix
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        TEST MATRIX                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Scenarios              Wire Variants         Validations       │
+│  ──────────────────     ─────────────────     ───────────────   │
+│  • No dependencies      • All Wire.shared     • Correct value   │
+│  • Single dependency    • All Wire.unique     • Sharing works   │
+│  • Multiple deps        • Mixed shared/unique • Uniqueness works│
+│  • Diamond pattern      • With Wire(value)    • Finalization    │
+│  • Deep chain           • Subtype wires       • Order correct   │
+│  • AutoCloseable        • Default params      • Error messages  │
+│  • With Finalizer param •                     • Cross-Scala     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 Structural Sharing Tests
+
+```scala
+test("diamond pattern shares single instance") {
+  var configCount = 0
+  class Config { configCount += 1 }
+  class Database(config: Config)
+  class Cache(config: Config)
+  class App(db: Database, cache: Cache)
+  
+  Scope.global.scoped { scope =>
+    val app = scope.allocate(Resource.from[App](Wire(new Config)))
+    assert(configCount == 1)  // Only one Config created
+  }
+}
+
+test("shared resource finalizes when last ref closes") {
+  var closed = false
+  class Shared extends AutoCloseable { def close() = closed = true }
+  class User1(s: Shared)
+  class User2(s: Shared)
+  class App(u1: User1, u2: User2)
+  
+  Scope.global.scoped { scope =>
+    scope.allocate(Resource.from[App](Wire(new Shared { ... })))
+    assert(!closed)
+  }
+  assert(closed)  // Finalized after scope closes
+}
+```
+
+### 5.3 Uniqueness Tests
+
+```scala
+test("unique wire creates fresh instances per dependent") {
+  var sessionCount = 0
+  class Session { sessionCount += 1 }
+  class Handler1(session: Session)
+  class Handler2(session: Session)
+  class App(h1: Handler1, h2: Handler2)
+  
+  Scope.global.scoped { scope =>
+    val app = scope.allocate(Resource.from[App](Wire.unique[Session]))
+    assert(sessionCount == 2)  // Two Sessions: one for Handler1, one for Handler2
+  }
+}
+
+test("unique at leaf, shared at intermediate") {
+  var leafCount = 0
+  var midCount = 0
+  class Leaf { leafCount += 1 }
+  class Mid(leaf: Leaf) { midCount += 1 }
+  class Top1(mid: Mid)
+  class Top2(mid: Mid)
+  class App(t1: Top1, t2: Top2)
+  
+  Scope.global.scoped { scope =>
+    scope.allocate(Resource.from[App](Wire.unique[Leaf]))
+    // Mid is shared (default), so only one Mid
+    // But each Mid creation triggers Leaf (unique), and Mid is created once
+    // Wait, Mid is shared so created once, Leaf is unique but only one Mid...
+    // Actually: Mid.shared means one Mid, Leaf.unique means fresh per Mid creation
+    // Since Mid created once, Leaf created once
+    assert(midCount == 1)
+    assert(leafCount == 1)
+  }
+}
+```
+
+### 5.4 Override Tests
+
+```scala
+test("explicit wire overrides auto-creation") {
+  class Config(val env: String)
+  class Database(config: Config)
+  
+  Scope.global.scoped { scope =>
+    val db = scope.allocate(Resource.from[Database](
+      Wire(new Config("test"))
+    ))
+    assert(scope.$(db)(_.config.env) == "test")
+  }
+}
+
+test("subtype wire satisfies supertype dependency") {
+  trait Service { def name: String }
+  class LiveService extends Service { def name = "live" }
+  class App(service: Service)
+  
+  Scope.global.scoped { scope =>
+    val app = scope.allocate(Resource.from[App](
+      Wire.shared[LiveService]
+    ))
+    assert(scope.$(app)(_.service.name) == "live")
+  }
+}
+```
+
+### 5.5 Finalization Tests
+
+```scala
+test("finalization runs in LIFO order") {
+  val order = mutable.ListBuffer[String]()
+  
+  class A extends AutoCloseable { def close() = order += "A" }
+  class B(a: A) extends AutoCloseable { def close() = order += "B" }
+  class C(b: B) extends AutoCloseable { def close() = order += "C" }
+  
+  Scope.global.scoped { scope =>
+    scope.allocate(Resource.from[C](Wire(new A), Wire.shared[B]))
+  }
+  
+  assert(order == List("C", "B", "A"))  // LIFO
+}
+```
+
+### 5.6 Error Tests
+
+```scala
+test("error for unmakeable type is actionable") {
+  case class Config(host: String, port: Int)
+  class App(config: Config)
+  
+  // Should fail with dependency chain and fix suggestion
+  assertCompileError("""Resource.from[App]""")
+}
+
+test("error for abstract type") {
+  trait Service
+  class App(s: Service)
+  
+  assertCompileError("""Resource.from[App]""")
+}
+
+test("error for duplicate param types") {
+  class App(c1: Config, c2: Config)
+  
+  assertCompileError("""Resource.from[App](Wire(Config(...)))""")
+}
+
+test("error for cycle") {
+  class A(b: B)
+  class B(a: A)
+  
+  assertCompileError("""Resource.from[A]""")
+}
+```
+
+### 5.7 Cross-Scala Tests
+
+The same test suite must run on both Scala 2.13 and Scala 3.x with identical results. Any divergence is a bug.
 
 ---
 
-## Conclusion
+## Part 6: Implementation Notes
 
-The current macro infrastructure is a **maintenance nightmare** that actively introduces bugs and inconsistencies. A focused 1-2 week effort to consolidate and properly test this code will pay dividends for the lifetime of the project.
+### 6.1 This Is a Sketch
+
+The pseudocode in this document is a **sketch**, not a specification. Implementers will need to:
+
+- Handle edge cases not explicitly covered
+- Make decisions about error message formatting
+- Optimize generated code if needed
+- Adapt to Scala 2 vs Scala 3 macro API differences
+
+### 6.2 Non-Negotiables
+
+1. **API Surface**: Exactly 3 macro entry points (`Wire.shared`, `Wire.unique`, `Resource.from`)
+2. **No Implicit Resolution**: Either supply wires explicitly or accept `Wire.shared` defaults
+3. **Correct Uniqueness**: `Wire.unique` must create fresh instances per injection site
+4. **Correct Sharing**: `Wire.shared` must share within diamond patterns
+5. **Test Coverage**: All scenarios in the test matrix must pass
+6. **Cross-Scala Parity**: Identical behavior on Scala 2.13 and Scala 3.x
+7. **Actionable Errors**: All compile errors must explain the fix
+
+### 6.3 Negotiables
+
+- Internal code organization
+- Exact error message wording (as long as actionable)
+- Performance optimizations in generated code
+- Helper methods and utilities
+
+### 6.4 What About the Resource Operators?
+
+The operators added to Resource (`contextual`, `++`, `:+`, `allocate`, `build`) remain useful for **manual Resource composition** by users. However, the macro-generated code uses the simpler `flatMap`/`zip` pattern directly, which correctly preserves sharing/uniqueness semantics.
+
+---
+
+## Part 7: Summary
+
+### Before
+- 7+ macro entry points
+- Duplicated logic across files
+- Broken uniqueness semantics (context accumulation)
+- Inconsistent implicit handling
+- Untestable macro internals
+
+### After
+- 3 macro entry points
+- Resource composition via flatMap/zip
+- Correct uniqueness (per injection site)
+- Correct sharing (per Resource instance)
+- No implicit magic
+- Simple mental model
+
+### The Key Insight
+
+**Compose Resources, don't accumulate values.**
+
+Each type gets its own `Resource` instance (shared or unique). Dependencies are composed using `flatMap`. This naturally preserves:
+- **Sharing**: Same `Resource.Shared` instance → same value
+- **Uniqueness**: `Resource.Unique` → fresh value per `flatMap` call
+
+The macro's job is simply to:
+1. Collect wires (explicit or auto-created)
+2. Validate the graph
+3. Generate a chain of `flatMap` calls
+
+All the interesting semantics live in `Resource.Shared` and `Resource.Unique`, which are runtime code and fully testable.
