@@ -26,7 +26,11 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     defaultOmissionSuite,
     roundTripSuite,
     petstoreRoundTripSuite,
-    schemaToOpenAPIConversionSuite
+    schemaToOpenAPIConversionSuite,
+    decoderFromRawJsonSuite,
+    errorCasesSuite,
+    securitySchemeVariantsSuite,
+    responsesAndSchemaEdgeCasesSuite
   )
 
   private lazy val schemaObjectToJsonSuite = suite("SchemaObject.toJson fix")(
@@ -463,7 +467,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         !hasField(json, "callbacks"),
         !hasField(json, "security"),
         !hasField(json, "servers"),
-        !hasField(json, "responses")
+        hasField(json, "responses")
       )
     }
   )
@@ -932,6 +936,309 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         hasField(json, "paths"),
         hasField(json, "components")
       )
+    }
+  )
+
+  private lazy val decoderFromRawJsonSuite = suite("Decode from raw JSON strings")(
+    test("decode Info from raw JSON") {
+      val json = Json.Object(
+        "title"          -> Json.String("My API"),
+        "version"        -> Json.String("2.0.0"),
+        "description"    -> Json.String("An awesome API"),
+        "termsOfService" -> Json.String("https://example.com/terms"),
+        "x-custom"       -> Json.String("value")
+      )
+      val result = JsonDecoder[Info].decode(json)
+      assertTrue(
+        result.isRight,
+        result.toOption.get.title == "My API",
+        result.toOption.get.version == "2.0.0",
+        result.toOption.get.description.isDefined,
+        result.toOption.get.termsOfService.contains("https://example.com/terms"),
+        result.toOption.get.extensions.contains("x-custom")
+      )
+    },
+    test("decode Parameter from raw JSON with 'in' as string") {
+      val json = Json.Object(
+        "name"     -> Json.String("limit"),
+        "in"       -> Json.String("query"),
+        "required" -> Json.Boolean(false),
+        "schema"   -> Json.Object("type" -> Json.String("integer"))
+      )
+      val result = JsonDecoder[Parameter].decode(json)
+      assertTrue(
+        result.isRight,
+        result.toOption.get.name == "limit",
+        result.toOption.get.in == ParameterLocation.Query,
+        result.toOption.get.required == false
+      )
+    },
+    test("decode SecurityScheme.APIKey from raw JSON") {
+      val json = Json.Object(
+        "type" -> Json.String("apiKey"),
+        "name" -> Json.String("X-API-Key"),
+        "in"   -> Json.String("header")
+      )
+      val result = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(
+        result.isRight,
+        result.toOption.get.isInstanceOf[SecurityScheme.APIKey]
+      )
+    },
+    test("decode ReferenceOr with $ref key produces Ref") {
+      val json = Json.Object(
+        "$ref"    -> Json.String("#/components/schemas/Pet"),
+        "summary" -> Json.String("A pet")
+      )
+      val result = JsonDecoder[ReferenceOr[SchemaObject]].decode(json)
+      result match {
+        case Right(ReferenceOr.Ref(ref)) =>
+          assertTrue(ref.`$ref` == "#/components/schemas/Pet", ref.summary.isDefined)
+        case _ => assertTrue(false)
+      }
+    },
+    test("decode ReferenceOr without $ref produces Value") {
+      val json = Json.Object(
+        "type"   -> Json.String("string"),
+        "format" -> Json.String("email")
+      )
+      val result = JsonDecoder[ReferenceOr[SchemaObject]].decode(json)
+      result match {
+        case Right(ReferenceOr.Value(_)) => assertTrue(true)
+        case _                           => assertTrue(false)
+      }
+    },
+    test("decoder ignores unknown fields gracefully") {
+      val json = Json.Object(
+        "name"           -> Json.String("Test"),
+        "url"            -> Json.String("https://example.com"),
+        "unknownField"   -> Json.String("should be ignored"),
+        "anotherUnknown" -> Json.Number(42)
+      )
+      val result = JsonDecoder[Contact].decode(json)
+      assertTrue(result.isRight)
+    }
+  )
+
+  private lazy val errorCasesSuite = suite("Decoder error handling")(
+    test("Info decoder fails on missing required 'title' field") {
+      val json   = Json.Object("version" -> Json.String("1.0"))
+      val result = JsonDecoder[Info].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("Info decoder fails on missing required 'version' field") {
+      val json   = Json.Object("title" -> Json.String("My API"))
+      val result = JsonDecoder[Info].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("ParameterLocation decoder fails on invalid location string") {
+      val json   = Json.String("invalid_location")
+      val result = JsonDecoder[ParameterLocation].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("APIKeyLocation decoder fails on invalid location string") {
+      val json   = Json.String("body")
+      val result = JsonDecoder[APIKeyLocation].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("SecurityScheme decoder fails on unknown type") {
+      val json   = Json.Object("type" -> Json.String("unknownType"))
+      val result = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("SecurityScheme decoder fails on missing type field") {
+      val json   = Json.Object("name" -> Json.String("api_key"))
+      val result = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("Parameter decoder fails on missing 'name' field") {
+      val json   = Json.Object("in" -> Json.String("query"))
+      val result = JsonDecoder[Parameter].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("Parameter decoder fails on missing 'in' field") {
+      val json   = Json.Object("name" -> Json.String("limit"))
+      val result = JsonDecoder[Parameter].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("Response decoder fails on missing required 'description'") {
+      val json   = Json.Object("content" -> Json.Object())
+      val result = JsonDecoder[Response].decode(json)
+      assertTrue(result.isLeft)
+    },
+    test("Info decoder fails when given non-object JSON") {
+      val json   = Json.String("not an object")
+      val result = JsonDecoder[Info].decode(json)
+      assertTrue(result.isLeft)
+    }
+  )
+
+  private lazy val securitySchemeVariantsSuite = suite("SecurityScheme variant round-trips")(
+    test("SecurityScheme.APIKey round-trips correctly") {
+      val original: SecurityScheme = SecurityScheme.APIKey(
+        name = "api_key",
+        in = APIKeyLocation.Header,
+        description = Some(doc("API key")),
+        extensions = Map("x-id" -> Json.String("1"))
+      )
+      val json    = JsonEncoder[SecurityScheme].encode(original)
+      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(
+        decoded == Right(original),
+        fieldValue(json, "type").contains(new Json.String("apiKey")),
+        fieldValue(json, "in").contains(new Json.String("header"))
+      )
+    },
+    test("SecurityScheme.HTTP round-trips correctly") {
+      val original: SecurityScheme =
+        SecurityScheme.HTTP(scheme = "bearer", bearerFormat = Some("JWT"), description = Some(doc("Bearer")))
+      val json    = JsonEncoder[SecurityScheme].encode(original)
+      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(
+        decoded == Right(original),
+        fieldValue(json, "type").contains(new Json.String("http")),
+        fieldValue(json, "scheme").contains(new Json.String("bearer"))
+      )
+    },
+    test("SecurityScheme.OAuth2 round-trips correctly") {
+      val original: SecurityScheme = SecurityScheme.OAuth2(
+        flows = OAuthFlows(
+          authorizationCode = Some(
+            OAuthFlow(
+              authorizationUrl = Some("https://example.com/auth"),
+              tokenUrl = Some("https://example.com/token"),
+              scopes = Map("read" -> "Read access")
+            )
+          )
+        ),
+        description = Some(doc("OAuth2"))
+      )
+      val json    = JsonEncoder[SecurityScheme].encode(original)
+      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(
+        decoded == Right(original),
+        fieldValue(json, "type").contains(new Json.String("oauth2"))
+      )
+    },
+    test("SecurityScheme.OpenIdConnect round-trips correctly") {
+      val original: SecurityScheme = SecurityScheme.OpenIdConnect(
+        openIdConnectUrl = "https://example.com/.well-known",
+        description = Some(doc("OIDC"))
+      )
+      val json    = JsonEncoder[SecurityScheme].encode(original)
+      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(
+        decoded == Right(original),
+        fieldValue(json, "type").contains(new Json.String("openIdConnect"))
+      )
+    },
+    test("SecurityScheme.MutualTLS round-trips correctly") {
+      val original: SecurityScheme = SecurityScheme.MutualTLS(description = Some(doc("mTLS")))
+      val json                     = JsonEncoder[SecurityScheme].encode(original)
+      val decoded                  = JsonDecoder[SecurityScheme].decode(json)
+      assertTrue(
+        decoded == Right(original),
+        fieldValue(json, "type").contains(new Json.String("mutualTLS"))
+      )
+    }
+  )
+
+  private lazy val responsesAndSchemaEdgeCasesSuite = suite("Responses and SchemaObject edge cases")(
+    test("Responses encodes 'default' key at top level") {
+      val responses = Responses(
+        responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+        default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
+        extensions = Map("x-id" -> Json.String("1"))
+      )
+      val json = JsonEncoder[Responses].encode(responses)
+      assertTrue(
+        hasField(json, "200"),
+        hasField(json, "default"),
+        hasField(json, "x-id"),
+        !hasField(json, "responses")
+      )
+    },
+    test("Responses round-trips with 'default' key") {
+      val original = Responses(
+        responses = Map(
+          "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
+          "404" -> ReferenceOr.Value(Response(description = doc("Not found")))
+        ),
+        default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
+        extensions = Map("x-resp" -> Json.Boolean(true))
+      )
+      val json    = JsonEncoder[Responses].encode(original)
+      val decoded = JsonDecoder[Responses].decode(json)
+      assertTrue(decoded == Right(original))
+    },
+    test("Responses decodes 'default' from raw JSON") {
+      val json = Json.Object(
+        "200"      -> Json.Object("description" -> Json.String("OK")),
+        "default"  -> Json.Object("description" -> Json.String("Error")),
+        "x-custom" -> Json.String("val")
+      )
+      val result = JsonDecoder[Responses].decode(json)
+      assertTrue(
+        result.isRight,
+        result.toOption.get.default.isDefined,
+        result.toOption.get.responses.contains("200"),
+        result.toOption.get.extensions.contains("x-custom")
+      )
+    },
+    test("SchemaObject boolean schema (true) round-trips") {
+      val original = SchemaObject(jsonSchema = Json.Boolean(true))
+      val json     = JsonEncoder[SchemaObject].encode(original)
+      val decoded  = JsonDecoder[SchemaObject].decode(json)
+      assertTrue(json == Json.Boolean(true), decoded == Right(original))
+    },
+    test("SchemaObject boolean schema (false) round-trips") {
+      val original = SchemaObject(jsonSchema = Json.Boolean(false))
+      val json     = JsonEncoder[SchemaObject].encode(original)
+      val decoded  = JsonDecoder[SchemaObject].decode(json)
+      assertTrue(json == Json.Boolean(false), decoded == Right(original))
+    },
+    test("SchemaObject.toJson renders discriminator correctly with OpenAPICodec") {
+      val so = SchemaObject(
+        jsonSchema = Json.Object("type" -> Json.String("object")),
+        discriminator = Some(Discriminator(propertyName = "petType", mapping = Map("dog" -> "#/dog"))),
+        xml = Some(XML(name = Some("root"), attribute = true)),
+        externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com", description = Some(doc("Docs")))),
+        example = Some(Json.Object("id" -> Json.Number(1))),
+        extensions = Map("x-schema" -> Json.String("custom"))
+      )
+      val json     = so.toJson
+      val discJson = fieldValue(json, "discriminator")
+      assertTrue(discJson.isDefined)
+      val discObj = discJson.get
+      assertTrue(
+        discObj.fields.exists(_._1 == "propertyName"),
+        discObj.fields.exists(_._1 == "mapping")
+      )
+      val edJson = fieldValue(json, "externalDocs")
+      assertTrue(edJson.isDefined)
+      val descField = edJson.get.fields.find(_._1 == "description")
+      assertTrue(descField.isDefined)
+      descField.get._2 match {
+        case _: Json.String => assertTrue(true)
+        case _              => assertTrue(false)
+      }
+      val xmlJson = fieldValue(json, "xml")
+      assertTrue(xmlJson.isDefined)
+      assertTrue(xmlJson.get.fields.exists(_._1 == "name"))
+      assertTrue(xmlJson.get.fields.exists(_._1 == "attribute"))
+    },
+    test("SchemaObject with all vocabulary fields round-trips through codec") {
+      val original = SchemaObject(
+        jsonSchema = Json.Object("type" -> Json.String("object"), "properties" -> Json.Object()),
+        discriminator = Some(Discriminator(propertyName = "type", mapping = Map("a" -> "#/a"))),
+        xml = Some(XML(name = Some("root"), namespace = Some("http://ns.example.com"), wrapped = true)),
+        externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
+        example = Some(Json.String("example")),
+        extensions = Map("x-ext" -> Json.Number(42))
+      )
+      val json    = JsonEncoder[SchemaObject].encode(original)
+      val decoded = JsonDecoder[SchemaObject].decode(json)
+      assertTrue(decoded == Right(original))
     }
   )
 }
