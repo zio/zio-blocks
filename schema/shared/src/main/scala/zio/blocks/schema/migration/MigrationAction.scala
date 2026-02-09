@@ -70,6 +70,14 @@ object MigrationAction {
   }
 
   /**
+   * Change the type of a field using a `MigrationExpr` (zero-closure, fully
+   * serializable).
+   */
+  final case class ChangeTypeExpr(at: DynamicOptic, fieldName: String, expr: MigrationExpr) extends MigrationAction {
+    def reverse: MigrationAction = ChangeTypeExpr(at, fieldName, expr.reverse)
+  }
+
+  /**
    * Nest multiple fields into a sub-record.
    */
   final case class Nest(at: DynamicOptic, fieldNames: Vector[String], intoField: String) extends MigrationAction {
@@ -81,6 +89,38 @@ object MigrationAction {
    */
   final case class Unnest(at: DynamicOptic, fieldName: String, expectedFields: Vector[String]) extends MigrationAction {
     def reverse: MigrationAction = Nest(at, expectedFields, fieldName)
+  }
+
+  /**
+   * Join multiple source fields into a single target field using a
+   * `MigrationExpr`.
+   *
+   * The `combiner` receives a Record containing the source fields and produces
+   * the target value. This is pure data — no closures.
+   */
+  final case class Join(
+    at: DynamicOptic,
+    sourcePaths: Vector[String],
+    targetField: String,
+    combiner: MigrationExpr
+  ) extends MigrationAction {
+    def reverse: MigrationAction = Split(at, targetField, sourcePaths, combiner.reverse)
+  }
+
+  /**
+   * Split a single source field into multiple target fields using a
+   * `MigrationExpr`.
+   *
+   * The `splitter` receives the source value and produces a Record containing
+   * the target fields. This is pure data — no closures.
+   */
+  final case class Split(
+    at: DynamicOptic,
+    sourceField: String,
+    targetFields: Vector[String],
+    splitter: MigrationExpr
+  ) extends MigrationAction {
+    def reverse: MigrationAction = Join(at, targetFields, sourceField, splitter.reverse)
   }
 
   // ──────────────── Enum Actions ────────────────

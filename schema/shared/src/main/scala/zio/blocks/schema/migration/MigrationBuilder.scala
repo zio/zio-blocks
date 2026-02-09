@@ -44,11 +44,37 @@ class MigrationBuilder[A, B](
   def changeFieldType(fieldName: String, converter: DynamicMigration): MigrationBuilder[A, B] =
     append(MigrationAction.ChangeType(DynamicOptic.root, fieldName, converter))
 
+  /**
+   * Change the type of a field using a `MigrationExpr` (zero-closure).
+   */
+  def changeFieldTypeExpr(fieldName: String, expr: MigrationExpr): MigrationBuilder[A, B] =
+    append(MigrationAction.ChangeTypeExpr(DynamicOptic.root, fieldName, expr))
+
   def nestFields(fieldNames: Vector[String], into: String): MigrationBuilder[A, B] =
     append(MigrationAction.Nest(DynamicOptic.root, fieldNames, into))
 
   def unnestField(fieldName: String): MigrationBuilder[A, B] =
     append(MigrationAction.Unnest(DynamicOptic.root, fieldName, Vector.empty))
+
+  /**
+   * Join multiple source fields into a single target field.
+   */
+  def joinFields(
+    sourcePaths: Vector[String],
+    targetField: String,
+    combiner: MigrationExpr
+  ): MigrationBuilder[A, B] =
+    append(MigrationAction.Join(DynamicOptic.root, sourcePaths, targetField, combiner))
+
+  /**
+   * Split a single source field into multiple target fields.
+   */
+  def splitField(
+    sourceField: String,
+    targetFields: Vector[String],
+    splitter: MigrationExpr
+  ): MigrationBuilder[A, B] =
+    append(MigrationAction.Split(DynamicOptic.root, sourceField, targetFields, splitter))
 
   // ──────────────── Enum Operations ────────────────
 
@@ -96,15 +122,54 @@ class MigrationBuilder[A, B](
 
   /**
    * Build the migration with validation.
+   *
+   * Validates:
+   *   - No duplicate rename targets on the same field
+   *   - No conflicting add/drop on the same field
    */
   def build: Migration[A, B] =
-    Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
+    validate() match {
+      case Nil    => Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
+      case errors => throw new IllegalArgumentException(s"Migration validation failed: ${errors.mkString("; ")}")
+    }
 
   /**
    * Build the migration without full validation.
    */
   def buildPartial: Migration[A, B] =
     Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
+
+  /**
+   * Validate the migration, returning a list of error messages (empty if
+   * valid).
+   */
+  def validate(): List[String] = {
+    val errors = List.newBuilder[String]
+
+    // Check for duplicate renames on the same source field
+    val renames = actions.collect { case MigrationAction.Rename(_, from, _) => from }
+    renames.groupBy(identity).foreach { case (field, occurrences) =>
+      if (occurrences.size > 1)
+        errors += s"Field '$field' is renamed ${occurrences.size} times"
+    }
+
+    // Check for conflicting add/drop on the same field
+    val addedFields   = actions.collect { case MigrationAction.AddField(_, name, _) => name }.toSet
+    val droppedFields = actions.collect { case MigrationAction.DropField(_, name, _) => name }.toSet
+    val conflicts     = addedFields.intersect(droppedFields)
+    conflicts.foreach { field =>
+      errors += s"Field '$field' is both added and dropped"
+    }
+
+    // Check for duplicate add on the same field
+    val addCounts = actions.collect { case MigrationAction.AddField(_, name, _) => name }
+    addCounts.groupBy(identity).foreach { case (field, occurrences) =>
+      if (occurrences.size > 1)
+        errors += s"Field '$field' is added ${occurrences.size} times"
+    }
+
+    errors.result()
+  }
 
   private def append(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder[A, B](sourceSchema, targetSchema, actions :+ action)

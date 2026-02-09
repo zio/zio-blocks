@@ -180,6 +180,50 @@ object DynamicMigration {
         case _ => Left(MigrationError.TypeMismatch("Record", value.getClass.getSimpleName, at))
       }
 
+    case MigrationAction.ChangeTypeExpr(at, fieldName, expr) =>
+      value match {
+        case DynamicValue.Record(fields) =>
+          val idx = indexOfField(fields, fieldName)
+          if (idx < 0) Left(MigrationError.FieldNotFound(fieldName, at))
+          else {
+            val (_, v) = fields(idx)
+            expr(v).map { newVal =>
+              DynamicValue.Record(fields.updated(idx, (fieldName, newVal)))
+            }
+          }
+        case _ => Left(MigrationError.TypeMismatch("Record", value.getClass.getSimpleName, at))
+      }
+
+    case MigrationAction.Join(at, sourcePaths, targetField, combiner) =>
+      value match {
+        case DynamicValue.Record(fields) =>
+          val sourceFields = fields.filter { case (k, _) => sourcePaths.contains(k) }
+          val remaining    = fields.filterNot { case (k, _) => sourcePaths.contains(k) }
+          val sourceRecord = DynamicValue.Record(sourceFields)
+          combiner(sourceRecord).map { combined =>
+            DynamicValue.Record(remaining :+ (targetField, combined))
+          }
+        case _ => Left(MigrationError.TypeMismatch("Record", value.getClass.getSimpleName, at))
+      }
+
+    case MigrationAction.Split(at, sourceField, targetFields, splitter) =>
+      value match {
+        case DynamicValue.Record(fields) =>
+          val idx = indexOfField(fields, sourceField)
+          if (idx < 0) Left(MigrationError.FieldNotFound(sourceField, at))
+          else {
+            val (_, v)   = fields(idx)
+            val remaining = fields.filterNot(_._1 == sourceField)
+            splitter(v).map {
+              case DynamicValue.Record(splitFields) =>
+                DynamicValue.Record(remaining ++ splitFields)
+              case other =>
+                DynamicValue.Record(remaining :+ (targetFields.headOption.getOrElse(sourceField), other))
+            }
+          }
+        case _ => Left(MigrationError.TypeMismatch("Record", value.getClass.getSimpleName, at))
+      }
+
     case MigrationAction.Nest(at, fieldNames, intoField) =>
       value match {
         case DynamicValue.Record(fields) =>
@@ -387,8 +431,11 @@ object DynamicMigration {
       case a: MigrationAction.Mandate           => a.copy(at = root)
       case a: MigrationAction.Optionalize       => a.copy(at = root)
       case a: MigrationAction.ChangeType        => a.copy(at = root)
+      case a: MigrationAction.ChangeTypeExpr    => a.copy(at = root)
       case a: MigrationAction.Nest              => a.copy(at = root)
       case a: MigrationAction.Unnest            => a.copy(at = root)
+      case a: MigrationAction.Join              => a.copy(at = root)
+      case a: MigrationAction.Split             => a.copy(at = root)
       case a: MigrationAction.RenameCase        => a.copy(at = root)
       case a: MigrationAction.TransformCase     => a.copy(at = root)
       case a: MigrationAction.TransformElements => a.copy(at = root)
