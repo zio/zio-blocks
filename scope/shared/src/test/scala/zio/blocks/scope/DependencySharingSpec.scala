@@ -66,6 +66,18 @@ object DependencySharingSpec extends ZIOSpecDefault {
   class Top2(@annotation.unused mid: Mid)
   class DiamondApp(@annotation.unused t1: Top1, @annotation.unused t2: Top2)
 
+  // For subtype canonicalization test
+  trait Service
+  val liveServiceCounter = new AtomicInteger(0)
+
+  class LiveService extends Service {
+    val id = liveServiceCounter.incrementAndGet()
+  }
+
+  class NeedsService(@annotation.unused s: Service)
+  class NeedsLive(@annotation.unused l: LiveService)
+  class SubtypeApp(@annotation.unused a: NeedsService, @annotation.unused b: NeedsLive)
+
   def spec = suite("Dependency sharing")(
     suite("Diamond dependency pattern")(
       test("shared non-leaf Mid is constructed once in diamond pattern") {
@@ -169,6 +181,23 @@ object DependencySharingSpec extends ZIOSpecDefault {
           dbCounter.get() == 1,
           db1.eq(db2)
         )
+      }
+    ),
+    suite("Subtype canonicalization")(
+      test("same wire satisfies both supertype and subtype dependencies - single instance") {
+        liveServiceCounter.set(0)
+
+        // LiveService wire should satisfy both Service and LiveService dependencies
+        val resource = Resource.from[SubtypeApp](
+          Wire.shared[LiveService]
+        )
+
+        val (scope, close) = Scope.createTestableScope()
+        resource.make(scope)
+        close()
+
+        // Should create only one LiveService instance
+        assertTrue(liveServiceCounter.get() == 1)
       }
     )
   ) @@ sequential

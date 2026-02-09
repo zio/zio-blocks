@@ -315,16 +315,21 @@ private[scope] object ResourceMacros {
     // PHASE 1: COLLECT WIRES
     // ═══════════════════════════════════════════════════════════════════════
 
-    val wireMap = mutable.Map[String, WireInfo]()
+    // wireMap: keyed by the wire's OUTPUT type (canonical key)
+    // aliasMap: maps required types to their canonical key (for subtype resolution)
+    val wireMap  = mutable.Map[String, WireInfo]()
+    val aliasMap = mutable.Map[String, String]()
 
     def resolveWire(targetType: Type, chain: List[String]): Unit = {
-      val key = typeKey(targetType)
-      if (wireMap.contains(key)) return
+      val requiredKey = typeKey(targetType)
 
-      // Check for cycle
-      if (chain.contains(key)) {
-        val cycleStart = chain.indexOf(key)
-        val cyclePath  = chain.drop(cycleStart) :+ key
+      // Check if we already have an alias for this type
+      if (aliasMap.contains(requiredKey)) return
+
+      // Check for cycle using required key
+      if (chain.contains(requiredKey)) {
+        val cycleStart = chain.indexOf(requiredKey)
+        val cyclePath  = chain.drop(cycleStart) :+ requiredKey
         c.abort(c.enclosingPosition, s"Dependency cycle detected: ${cyclePath.mkString(" → ")}")
       }
 
@@ -347,12 +352,21 @@ private[scope] object ResourceMacros {
           )
       }
 
-      wireMap(key) = wire
+      // Use the wire's output type as the canonical key
+      val canonicalKey = typeKey(wire.outType)
 
-      // Recurse into dependencies
-      val newChain = chain :+ key
-      wire.inTypes.foreach { depType =>
-        resolveWire(depType, newChain)
+      // Register the alias from required type to canonical type
+      aliasMap(requiredKey) = canonicalKey
+
+      // Only add to wireMap if not already present (another required type may have added it)
+      if (!wireMap.contains(canonicalKey)) {
+        wireMap(canonicalKey) = wire
+
+        // Recurse into dependencies using canonical key in chain
+        val newChain = chain :+ requiredKey
+        wire.inTypes.foreach { depType =>
+          resolveWire(depType, newChain)
+        }
       }
     }
 
@@ -379,6 +393,14 @@ private[scope] object ResourceMacros {
     // PHASE 3: TOPOLOGICAL SORT
     // ═══════════════════════════════════════════════════════════════════════
 
+    // Use aliasMap to resolve dependency types to their canonical keys
+    val aliasMapFinal = aliasMap.toMap
+
+    def canonicalKeyFor(depType: Type): String = {
+      val requiredKey = typeKey(depType)
+      aliasMapFinal.getOrElse(requiredKey, requiredKey)
+    }
+
     def topologicalSort(): List[String] = {
       val visited = mutable.Set[String]()
       val result  = mutable.ListBuffer[String]()
@@ -389,7 +411,7 @@ private[scope] object ResourceMacros {
 
         wireMap.get(key).foreach { we =>
           we.inTypes.foreach { dep =>
-            visit(typeKey(dep))
+            visit(canonicalKeyFor(dep))
           }
         }
 
@@ -401,7 +423,7 @@ private[scope] object ResourceMacros {
     }
 
     val sorted       = topologicalSort()
-    val targetKey    = typeKey(tpe)
+    val targetKey    = canonicalKeyFor(tpe)
     val wireMapFinal = wireMap.toMap
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -458,7 +480,7 @@ private[scope] object ResourceMacros {
               """
 
             case dep :: rest =>
-              val depKey     = typeKey(dep)
+              val depKey     = canonicalKeyFor(dep)
               val depValName = depValNames(depKey)
               val valName    = TermName(c.freshName("dep"))
               q"""
@@ -495,7 +517,7 @@ private[scope] object ResourceMacros {
               """
 
             case dep :: rest =>
-              val depKey     = typeKey(dep)
+              val depKey     = canonicalKeyFor(dep)
               val depValName = depValNames(depKey)
               val paramName  = TermName(c.freshName("dep"))
 
