@@ -152,19 +152,19 @@ sealed trait Resource[+A] { self =>
     self.map(a => Context[A1](a)(ev))
 
   /**
-   * Combines this resource's [[Context]] with another [[Context]], merging
-   * their contents.
+   * Combines this resource's [[Context]] with another resource's [[Context]],
+   * merging their contents.
    *
-   * This method is available when the resource produces a `Context[R1]`. It
-   * combines the contexts using `Context.++`, with entries from `that` taking
-   * precedence when both contexts contain the same type.
+   * This method is available when both resources produce contexts. It combines
+   * the contexts using `Context.++`, with entries from `that` taking precedence
+   * when both contexts contain the same type.
    *
    * @tparam R1
    *   the type parameter of this resource's Context
    * @tparam R2
-   *   the type parameter of the other Context
+   *   the type parameter of the other resource's Context
    * @param that
-   *   the context to merge with
+   *   the resource whose context to merge with
    * @param ev
    *   evidence that this resource produces a `Context[R1]`
    * @return
@@ -176,13 +176,46 @@ sealed trait Resource[+A] { self =>
    *   case class Cache(size: Int)
    *
    *   val dbCtx: Resource[Context[Database]] = Resource(Database("jdbc://")).contextual
-   *   val cacheCtx: Context[Cache] = Context(Cache(100))
+   *   val cacheCtx: Resource[Context[Cache]] = Resource(Cache(100)).contextual
    *
    *   val combined: Resource[Context[Database & Cache]] = dbCtx ++ cacheCtx
    *   }}}
    */
-  def ++[R1, R2](that: Context[R2])(implicit ev: A <:< Context[R1]): Resource[Context[R1 & R2]] =
-    self.map(a => ev(a) ++ that)
+  def ++[R1, R2](that: Resource[Context[R2]])(implicit ev: A <:< Context[R1]): Resource[Context[R1 & R2]] =
+    self.flatMap(a => that.map(b => ev(a) ++ b))
+
+  /**
+   * Appends a resource's value to this resource's [[Context]].
+   *
+   * This method is available when this resource produces a `Context[R1]`. It
+   * acquires the other resource and adds its value to the context, expanding
+   * the type to include the new entry.
+   *
+   * @tparam R1
+   *   the type parameter of this resource's Context
+   * @tparam B
+   *   the type of value produced by the other resource (must be a nominal type)
+   * @param that
+   *   the resource whose value to add to the context
+   * @param ev
+   *   evidence that this resource produces a `Context[R1]`
+   * @param evB
+   *   evidence that `B` is a nominal type
+   * @return
+   *   a resource producing a [[Context]] with the added value
+   *
+   * @example
+   *   {{{
+   *   case class Database(url: String)
+   *   case class Cache(size: Int)
+   *
+   *   val dbCtx: Resource[Context[Database]] = Resource(Database("jdbc://")).contextual
+   *   val cacheRes: Resource[Cache] = Resource(Cache(100))
+   *   val combined: Resource[Context[Database & Cache]] = dbCtx :+ cacheRes
+   *   }}}
+   */
+  def :+[R1, B](that: Resource[B])(implicit ev: A <:< Context[R1], evB: IsNominalType[B]): Resource[Context[R1 & B]] =
+    self.flatMap(a => that.map(b => ev(a).add[B](b)(evB)))
 }
 
 object Resource extends ResourceCompanionVersionSpecific {
