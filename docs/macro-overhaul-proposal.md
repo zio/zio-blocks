@@ -60,7 +60,7 @@ The new API has exactly **3 macro entry points**:
 
 **Keep:**
 - `Wire#toResource(ctx: Context[In])` — used by generated code
-- `Wire(value)` — wrap a pre-existing value
+- `Wire(value)` — wrap a pre-existing value (auto-finalizes if AutoCloseable)
 - `Wire.Shared.apply` / `Wire.Unique.apply` — manual wire construction
 
 ### 2.2 User Mental Model
@@ -384,7 +384,20 @@ When looking for a wire to satisfy dependency type `Service`:
 
 1. Check explicit wires for exact match: `w.Out =:= Service`
 2. Check explicit wires for subtype match: `w.Out <:< Service` (e.g., `Wire.shared[LiveService]`)
-3. If found, use that wire — the value produced is a subtype, which is valid
+3. **If multiple wires match → error** (ambiguous, don't silently pick one)
+4. If exactly one found, use that wire — the value produced is a subtype, which is valid
+
+**Ambiguity error example:**
+```
+Ambiguous wires for Service:
+  - Wire.shared[LiveService]
+  - Wire.shared[TestService]
+
+Fix: provide only one wire that satisfies Service, or use exact type matching.
+```
+
+**Same wire satisfying multiple types:**
+If `Wire.shared[LiveService]` is used to satisfy both a `LiveService` dependency and a `Service` dependency in the same graph, the Map key should be normalized to the wire's output type. This ensures a single Resource instance is created, preserving sharing semantics.
 
 For Context lookup at runtime, `Context` is covariant, so `Context[LiveService]` works where `Context[Service]` is expected.
 
@@ -396,10 +409,17 @@ If a constructor parameter has a default value:
 2. If no wire exists and type is unmakeable → use the default value
 3. If no wire exists and type is makeable → auto-create `Wire.shared[Type]`
 
-This allows convenient defaults for configuration while still permitting override:
+**Restriction:** Default parameters that depend on earlier parameters are not supported. If a default getter requires arguments, produce a compile error:
+
+```
+Default value for 'url' in Config depends on earlier parameter 'host'.
+This is not supported. Provide an explicit Wire(Config(...)) instead.
+```
+
+This allows convenient defaults for simple configuration while avoiding complexity:
 
 ```scala
-class Database(config: Config = Config.default)
+class Database(config: Config = Config.default)  // OK: parameterless default
 
 // Uses default
 Resource.from[Database]
@@ -407,6 +427,32 @@ Resource.from[Database]
 // Overrides default
 Resource.from[Database](Wire(Config("custom", 9999)))
 ```
+
+### 3.6 Type Key Normalization
+
+The `Map[Type, Wire]` and `Map[Type, Resource]` must use canonicalized type keys:
+
+1. Apply `dealias` to resolve type aliases
+2. Apply `widen` to remove singleton types
+3. Use consistent normalization across Scala 2 and Scala 3
+
+This prevents "same logical type, different key" bugs that would break sharing or cause duplicate Resources.
+
+### 3.7 AutoCloseable Finalization
+
+**All values are auto-finalized if AutoCloseable.** Whether created via `Wire.shared[T]`, `Wire.unique[T]`, or `Wire(value)`, if the produced value is an `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
+
+For `Wire.shared[T]` and `Wire.unique[T]`, the macro can check at compile time if `T <:< AutoCloseable` and insert the `defer(instance.close())` call. For `Wire(value)`, a runtime `isInstanceOf[AutoCloseable]` check is used since the type may not be statically known.
+
+```scala
+// All of these auto-finalize:
+Wire(new Database(...))           // runtime isInstanceOf check
+Wire.shared[Database]             // compile-time check (Database <: AutoCloseable)
+Wire.unique[Connection]           // compile-time check
+Resource.from[App](...)           // all constructed values handled
+```
+
+This is consistent and eliminates surprises — users never need to manually register `close()` finalizers.
 
 ---
 
@@ -423,6 +469,8 @@ All errors must be **actionable** — tell the user exactly what to do.
 | Private constructor | Constructor not accessible | State the problem clearly |
 | Cycle detected | A → B → A | Show cycle path with ASCII visualization |
 | Duplicate param types | `class X(a: T, b: T)` | Suggest opaque type wrapper |
+| Ambiguous wires | Multiple wires match same dependency | List matching wires, suggest using one |
+| Dependent default | Default param depends on earlier param | Not supported, provide explicit wire |
 | Inner class | Requires outer instance | Not supported, suggest refactoring |
 | Java class ambiguity | Multiple constructors | Not supported for auto-creation |
 
@@ -589,6 +637,22 @@ test("subtype wire satisfies supertype dependency") {
     assert(scope.$(app)(_.service.name) == "live")
   }
 }
+
+test("same wire satisfies both supertype and subtype dependencies - single instance") {
+  var count = 0
+  trait Service
+  class LiveService extends Service { count += 1 }
+  class NeedsService(s: Service)
+  class NeedsLive(l: LiveService)
+  class App(a: NeedsService, b: NeedsLive)
+  
+  Scope.global.scoped { scope =>
+    val app = scope.allocate(Resource.from[App](
+      Wire.shared[LiveService]
+    ))
+    assert(count == 1)  // Single instance satisfies both
+  }
+}
 ```
 
 ### 5.5 Finalization Tests
@@ -606,6 +670,32 @@ test("finalization runs in LIFO order") {
   }
   
   assert(order == List("C", "B", "A"))  // LIFO
+}
+
+test("Wire(value) auto-finalizes AutoCloseable") {
+  var closed = false
+  class Resource extends AutoCloseable { def close() = closed = true }
+  class App(r: Resource)
+  
+  Scope.global.scoped { scope =>
+    scope.allocate(Resource.from[App](Wire(new Resource)))
+    assert(!closed)
+  }
+  assert(closed)  // Wire(value) registered the finalizer
+}
+
+test("unique resource finalizes once per instance") {
+  var closeCount = 0
+  class Session extends AutoCloseable { def close() = closeCount += 1 }
+  class Handler1(s: Session)
+  class Handler2(s: Session)
+  class App(h1: Handler1, h2: Handler2)
+  
+  Scope.global.scoped { scope =>
+    scope.allocate(Resource.from[App](Wire.unique[Session]))
+  }
+  
+  assert(closeCount == 2)  // Two Sessions created, two closed
 }
 ```
 
@@ -638,6 +728,24 @@ test("error for cycle") {
   class B(a: A)
   
   assertCompileError("""Resource.from[A]""")
+}
+
+test("error for ambiguous wires") {
+  trait Service
+  class LiveService extends Service
+  class TestService extends Service
+  class App(s: Service)
+  
+  // Two wires both match Service
+  assertCompileError("""Resource.from[App](Wire.shared[LiveService], Wire.shared[TestService])""")
+}
+
+test("error for default param depending on earlier param") {
+  class Config(host: String, url: String = s"http://$host")
+  class App(c: Config)
+  
+  // Default for 'url' depends on 'host' - not supported
+  assertCompileError("""Resource.from[App](Wire("localhost"))""")
 }
 ```
 
@@ -675,7 +783,27 @@ The pseudocode in this document is a **sketch**, not a specification. Implemente
 - Performance optimizations in generated code
 - Helper methods and utilities
 
-### 6.4 What About the Resource Operators?
+### 6.4 Implementation Guidance
+
+**Prefer flatMap chains over zip:**
+```scala
+// Good: flatMap chain (no tuple arity issues)
+dep1.flatMap(d1 => dep2.flatMap(d2 => dep3.flatMap(d3 => make(d1, d2, d3))))
+
+// Avoid: nested zips (tuple arity pain, especially Scala 2)
+dep1.zip(dep2).zip(dep3).map { case ((d1, d2), d3) => ... }
+```
+
+**Type normalization:**
+Create a consistent `normalizeType` function used for all Map keys:
+```scala
+def normalizeType(tpe: TypeRepr): TypeRepr = 
+  tpe.dealias.widen.simplified
+```
+
+Apply this everywhere types are used as keys to prevent "same type, different key" bugs.
+
+### 6.5 What About the Resource Operators?
 
 The operators added to Resource (`contextual`, `++`, `:+`, `allocate`, `build`) remain useful for **manual Resource composition** by users. However, the macro-generated code uses the simpler `flatMap`/`zip` pattern directly, which correctly preserves sharing/uniqueness semantics.
 
