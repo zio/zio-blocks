@@ -1,5 +1,7 @@
 package zio.blocks.openapi
 
+import scala.collection.immutable.ListMap
+
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
@@ -65,7 +67,7 @@ object OpenAPISpec extends SchemaBaseSpec {
     test("OpenAPI with all optional fields populated") {
       val info         = Info(title = "Test API", version = "1.0.0")
       val server       = Server(url = "https://api.example.com")
-      val paths        = Paths(Map.empty)
+      val paths        = Paths(ListMap.empty)
       val components   = Components()
       val security     = List(SecurityRequirement(Map.empty))
       val tag          = Tag(name = "test")
@@ -97,7 +99,7 @@ object OpenAPISpec extends SchemaBaseSpec {
     test("OpenAPI fully-populated round-trips through DynamicValue") {
       val info         = Info(title = "Full API", version = "2.0.0")
       val server       = Server(url = "https://api.example.com")
-      val paths        = Paths(Map.empty)
+      val paths        = Paths(ListMap.empty)
       val components   = Components()
       val security     = List(SecurityRequirement(Map("bearer" -> List("read", "write"))))
       val tag          = Tag(name = "users")

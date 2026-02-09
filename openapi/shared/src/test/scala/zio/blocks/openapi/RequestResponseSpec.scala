@@ -1,5 +1,7 @@
 package zio.blocks.openapi
 
+import scala.collection.immutable.ListMap
+
 import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -258,7 +260,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val responsesMap = Map(
+        val responsesMap = ListMap(
           "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
           "404" -> ReferenceOr.Value(Response(description = doc("Not found")))
         )
@@ -278,7 +280,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves multiple status codes") {
-        val responsesMap = Map(
+        val responsesMap = ListMap(
           "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
           "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
           "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),
@@ -295,7 +297,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("supports reference to response") {
-        val responsesMap = Map(
+        val responsesMap = ListMap(
           "200" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/SuccessResponse"))
         )
         val responses = Responses(responses = responsesMap)
@@ -313,7 +315,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Responses round-trips through DynamicValue") {
         val responses = Responses(
-          responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+          responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
           default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
           extensions = Map("x-test" -> Json.Boolean(false))
         )
@@ -686,7 +688,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("can be constructed with callbacks") {
         val pathItem  = PathItem(summary = Some(doc("Callback path")))
-        val callbacks = Map(
+        val callbacks = ListMap(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Value(pathItem)
         )
 
@@ -700,7 +702,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("supports multiple callback expressions") {
         val pathItem1 = PathItem(summary = Some(doc("Webhook 1")))
         val pathItem2 = PathItem(summary = Some(doc("Webhook 2")))
-        val callbacks = Map(
+        val callbacks = ListMap(
           "{$request.body#/webhookUrl1}" -> ReferenceOr.Value(pathItem1),
           "{$request.body#/webhookUrl2}" -> ReferenceOr.Value(pathItem2)
         )
@@ -714,7 +716,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("supports reference to path item") {
-        val callbacks = Map(
+        val callbacks = ListMap(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Ref(
             Reference(`$ref` = "#/components/pathItems/WebhookPath")
           )
@@ -747,7 +749,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Callback round-trips through DynamicValue") {
         val callback = Callback(
-          callbacks = Map("{$request.body#/url}" -> ReferenceOr.Value(PathItem())),
+          callbacks = ListMap("{$request.body#/url}" -> ReferenceOr.Value(PathItem())),
           extensions = Map("x-test" -> Json.Boolean(true))
         )
 
