@@ -368,9 +368,10 @@ private[scope] object WireCodeGen {
           outType.asType match {
             case '[d] =>
               '{
+                val ctx   = $ctxExpr
                 val wire  = $wireExpr.asInstanceOf[Wire[Any, d]]
-                val value = wire.make($finalizerExpr, Context.empty)
-                $ctxExpr.add[d](value)(using summonInline[IsNominalType[d]])
+                val value = wire.make($finalizerExpr, ctx.asInstanceOf[Context[Any]])
+                ctx.add[d](value)(using summonInline[IsNominalType[d]])
               }
           }
       }
