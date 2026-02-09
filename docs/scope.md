@@ -382,7 +382,7 @@ There is also a package-level helper `defer` that only requires a `Finalizer`:
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
-  given Finalizer = scope 
+  given Finalizer = scope
 
   defer { println("cleanup") }
 }
