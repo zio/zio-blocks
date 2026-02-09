@@ -8,18 +8,17 @@ import scala.concurrent.duration.{Duration => ScalaDuration, FiniteDuration}
 
 /**
  * Tests that all expected Unscoped instances exist and work correctly. Each
- * instance is tested by verifying it can be summoned and used with
- * AutoUnscoped.
+ * instance is tested by verifying it can be summoned and used with ScopeEscape.
  */
 object UnscopedSpec extends ZIOSpecDefault {
 
-  // Helper to verify an Unscoped instance exists and AutoUnscoped returns raw type
+  // Helper to verify an Unscoped instance exists and ScopeEscape returns raw type
   def verifyUnscoped[A](value: A)(implicit ev: Unscoped[A]): Boolean = {
-    val auto = implicitly[AutoUnscoped[A, String]]
-    auto(value) == value
+    val escape = implicitly[ScopeEscape[A, String]]
+    escape(value) == value
   }
 
-  def spec = suite("Unscoped instances")(
+  def spec = suite("Unscoped")(
     suite("Primitives")(
       test("Int") {
         assertTrue(verifyUnscoped(42))

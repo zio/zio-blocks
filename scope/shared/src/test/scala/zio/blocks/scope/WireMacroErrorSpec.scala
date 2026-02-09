@@ -12,7 +12,7 @@ import zio.test._
  * Note: Error message formatting (colors, box-drawing) varies between Scala
  * versions and terminals. These tests focus on semantic content.
  */
-object MacroErrorSpec extends ZIOSpecDefault {
+object WireMacroErrorSpec extends ZIOSpecDefault {
 
   // Test fixtures - traits and classes for triggering errors
   trait DatabaseTrait {
@@ -25,7 +25,7 @@ object MacroErrorSpec extends ZIOSpecDefault {
   trait Animal
   trait Dog extends Animal
 
-  def spec = suite("MacroErrorSpec")(
+  def spec = suite("Wire macro errors")(
     suite("NotAClass errors")(
       test("shared[T] for trait fails with helpful message") {
         typeCheck("""
@@ -117,7 +117,7 @@ object MacroErrorSpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("Error message formatting")(
+    suite("error message format")(
       test("error contains Scope Error header") {
         typeCheck("""
           import zio.blocks.scope._
