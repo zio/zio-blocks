@@ -904,7 +904,7 @@ object OpenAPICodec {
   implicit lazy val requestBodyJsonEncoder: JsonEncoder[RequestBody] = JsonEncoder.instance[RequestBody] { rb =>
     withExtensions(
       obj(
-        "content"     -> mapField(rb.content)(mediaTypeJsonEncoder),
+        "content"     -> field(rb.content)(JsonEncoder.mapEncoder(mediaTypeJsonEncoder)),
         "description" -> optField(rb.description)(docJsonEncoder),
         "required"    -> boolField(rb.required)
       ),
@@ -1044,7 +1044,9 @@ object OpenAPICodec {
   implicit lazy val operationJsonEncoder: JsonEncoder[Operation] = JsonEncoder.instance[Operation] { op =>
     withExtensions(
       obj(
-        "responses"    -> mapField(op.responses)(referenceOrJsonEncoder[Response](responseJsonEncoder)),
+        "responses" -> field(op.responses)(
+          JsonEncoder.mapEncoder(referenceOrJsonEncoder[Response](responseJsonEncoder))
+        ),
         "tags"         -> listField(op.tags),
         "summary"      -> optField(op.summary)(docJsonEncoder),
         "description"  -> optField(op.description)(docJsonEncoder),
