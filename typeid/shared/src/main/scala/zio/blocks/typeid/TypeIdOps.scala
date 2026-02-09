@@ -121,8 +121,15 @@ private[typeid] object TypeIdOps {
     case TypeRepr.Ref(id) if id.isAlias =>
       id.aliasedTo match {
         case Some(TypeRepr.Applied(TypeRepr.Ref(underlying), aliasArgs)) =>
-          val resolvedArgs = resolveTypeArgs(id.typeParams, id.typeArgs, aliasArgs)
-          TypeRepr.Applied(TypeRepr.Ref(normalize(underlying)), resolvedArgs.map(normalizeTypeRepr))
+          val resolvedArgs     = resolveTypeArgs(id.typeParams, id.typeArgs, aliasArgs)
+          val normUnderlying   = normalize(underlying)
+          val normResolvedArgs = resolvedArgs.map(normalizeTypeRepr)
+          if (normUnderlying.isApplied) {
+            val allArgs = normUnderlying.typeArgs.map(normalizeTypeRepr) ++ normResolvedArgs
+            TypeRepr.Applied(TypeRepr.Ref(unapplied(normUnderlying)), allArgs)
+          } else {
+            TypeRepr.Applied(TypeRepr.Ref(normUnderlying), normResolvedArgs)
+          }
         case Some(TypeRepr.Ref(underlying)) =>
           normalizeTypeRepr(TypeRepr.Ref(normalizeWithArgs(underlying, id.typeArgs)))
         case _ => repr
@@ -135,7 +142,14 @@ private[typeid] object TypeIdOps {
         TypeRepr.Ref(normId)
       }
     case TypeRepr.Applied(tycon, args) =>
-      TypeRepr.Applied(normalizeTypeRepr(tycon), args.map(normalizeTypeRepr))
+      val normArgs  = args.map(normalizeTypeRepr)
+      val normTycon = normalizeTypeRepr(tycon)
+      normTycon match {
+        case TypeRepr.Applied(innerTycon, innerArgs) =>
+          TypeRepr.Applied(innerTycon, innerArgs ++ normArgs)
+        case otherTycon =>
+          TypeRepr.Applied(otherTycon, normArgs)
+      }
     case _ => repr
   }
 

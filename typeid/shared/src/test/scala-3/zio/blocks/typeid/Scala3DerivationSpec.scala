@@ -777,6 +777,24 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
         assertTrue(
           map.get(listIdFoo).contains("found")
         )
+      },
+      test("Option[FooId] equals Option[Id[Foo]]") {
+        val optFooId = TypeId.of[Option[FooId]]
+        val optIdFoo = TypeId.of[Option[OpaqueTypes.Id[Foo]]]
+
+        assertTrue(
+          optFooId == optIdFoo,
+          optFooId.hashCode() == optIdFoo.hashCode()
+        )
+      },
+      test("nested containers List[Option[FooId]] have consistent hashCodes") {
+        val nested1 = TypeId.of[List[Option[FooId]]]
+        val nested2 = TypeId.of[List[Option[OpaqueTypes.Id[Foo]]]]
+
+        assertTrue(
+          nested1 == nested2,
+          nested1.hashCode() == nested2.hashCode()
+        )
       }
     )
   )
