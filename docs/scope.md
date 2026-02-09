@@ -572,65 +572,162 @@ Scope.global.scoped { scope =>
 
 ## Common compile errors
 
-`Resource.from[T](wires*)` produces actionable compile-time errors that explain the fix:
+The scope macros produce beautiful, actionable compile-time error messages with ASCII diagrams and helpful hints:
+
+### Not a class (Wire.shared/unique on trait or abstract class)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Cannot derive Wire for MyTrait: not a class.
+
+  Hint: Use Wire.Shared / Wire.Unique directly.
+
+────────────────────────────────────────────────────────────────────────────
+```
 
 ### Unmakeable type (primitives, functions, collections)
 
 ```
-Cannot auto-create String: this type cannot be auto-created.
+── Scope Error ──────────────────────────────────────────────────────────────
 
-Required by:
-  → Config(host: String, port: Int)
-  → App(config: Config)
+  Cannot auto-create String
 
-Fix: provide Wire(value) with the desired value:
+  This type (primitive, collection, or function) cannot be auto-created.
 
-  Resource.from[...](
-    Wire(Config("localhost", 8080)),
-    ...
-  )
+  Required by:
+    └── Config
+        └── App
+
+  Fix: Provide Wire(value) with the desired value:
+
+    Resource.from[...](
+      Wire(...),  // provide a value for String
+      ...
+    )
+
+────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Abstract type (trait or abstract class)
 
 ```
-Cannot auto-create Logger: it is abstract.
+── Scope Error ──────────────────────────────────────────────────────────────
 
-Required by:
-  → App(logger: Logger)
+  Cannot auto-create Logger
 
-Fix: provide a wire for a concrete implementation:
+  This type is abstract (trait or abstract class).
 
-  Resource.from[...](
-    Wire.shared[ConsoleLogger],  // provides Logger
-    ...
-  )
+  Required by:
+    └── App
+
+  Fix: Provide a wire for a concrete implementation:
+
+    Resource.from[...](
+      Wire.shared[ConcreteImpl],  // provides Logger
+      ...
+    )
+
+────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Duplicate providers (ambiguous wires)
 
 ```
-Multiple wires match type Service:
-  - Wire.shared[LiveService]
-  - Wire.shared[TestService]
+── Scope Error ──────────────────────────────────────────────────────────────
 
-Provide exactly one wire for Service.
+  Multiple providers for Service
+
+  Conflicting wires:
+    1. LiveService
+    2. TestService
+
+  Hint: Remove duplicate wires or use distinct wrapper types.
+
+────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Dependency cycle
 
 ```
-Dependency cycle detected: A → B → C → A
+── Scope Error ──────────────────────────────────────────────────────────────
 
-Fix: break the cycle by using a factory or restructuring dependencies.
+  Dependency cycle detected
+
+  Cycle:
+    ┌───────────┐
+    │           ▼
+    A ──► B ──► C
+    ▲           │
+    └───────────┘
+
+  Break the cycle by:
+    • Introducing an interface/trait
+    • Using lazy initialization
+    • Restructuring dependencies
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Subtype conflict (related dependency types)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Dependency type conflict in MyService
+
+  FileInputStream is a subtype of InputStream.
+
+  When both types are dependencies, Context cannot reliably distinguish
+  them. The more specific type may be retrieved when the more general
+  type is requested.
+
+  To fix this, wrap one or both types in a distinct wrapper:
+
+    case class WrappedInputStream(value: InputStream)
+    or
+    opaque type WrappedInputStream = InputStream
+
+────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Duplicate parameter types in constructor
 
 ```
-Constructor of App has multiple parameters of type Config.
-Context is type-indexed and cannot supply distinct values.
-Fix: wrap one parameter in an opaque type to distinguish them.
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Constructor of App has multiple parameters of type String
+
+  Context is type-indexed and cannot supply distinct values for the same type.
+
+  Fix: Wrap one parameter in an opaque type to distinguish them:
+
+    opaque type FirstString = String
+    or
+    case class FirstString(value: String)
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Leak warning
+
+When using `leak(value)` to escape the scoped type system:
+
+```
+── Scope Warning ────────────────────────────────────────────────────────────
+
+  leak(db)
+       ^
+       |
+
+  Warning: db is being leaked from scope MyScope.
+  This may result in undefined behavior.
+
+  Hint:
+     If you know this data type is not resourceful, then add a given ScopeEscape
+     for it so you do not need to leak it.
+
+────────────────────────────────────────────────────────────────────────────
 ```
 
 ---
