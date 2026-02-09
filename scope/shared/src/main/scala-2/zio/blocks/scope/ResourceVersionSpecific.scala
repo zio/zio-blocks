@@ -2,42 +2,43 @@ package zio.blocks.scope
 
 import scala.language.experimental.macros
 
-private[scope] trait WireableVersionSpecific {
+private[scope] trait ResourceCompanionVersionSpecific {
 
   /**
-   * Derives a [[Wireable]] for type T from its primary constructor.
+   * Derives a Resource[T] from T's constructor.
    *
-   * Constructor parameters are analyzed to determine dependencies:
-   *   - Regular parameters: become dependencies (part of `In` type)
-   *   - `Finalizer` parameters: finalizer is passed
+   * Only works for types with no dependencies. If T has constructor parameters
+   * (other than an implicit Scope/Finalizer), use [[Wire]][T] and call
+   * `.toResource(deps)`.
    *
-   * The `In` type is the intersection of all dependencies.
+   * If T extends `AutoCloseable`, its `close()` method is automatically
+   * registered as a finalizer.
    *
-   * For AutoCloseable types, `close()` is automatically registered as a
-   * finalizer.
-   *
-   * Note: This is a whitebox macro that refines the return type to preserve the
-   * `In` type member. The actual return type is `Wireable[T] { type In = ...
-   * }`.
+   * @tparam T
+   *   the type to construct (must be a class with no dependencies)
+   * @return
+   *   a resource that creates T instances
    */
-  def from[T]: Wireable[T] = macro WireableMacros.fromImpl[T]
+  def from[T]: Resource[T] = macro ResourceMacros.deriveResourceImpl[T]
 
   /**
-   * Derives a [[Wireable]] for type T with wire overrides for some
+   * Derives a Resource[T] from T's constructor with wire overrides for all
    * dependencies.
    *
-   * Wire overrides allow you to provide specific wires for some of T's
-   * dependencies. The overridden dependencies are resolved using the provided
-   * wires, and the remaining dependencies become the `In` type.
+   * All of T's constructor dependencies must be satisfied by the provided
+   * wires. If any dependency is not covered, a compile-time error is produced.
+   *
+   * This is useful when you want to create a standalone resource that fully
+   * encapsulates its dependency graph.
    */
-  def from[T](wires: Wire[_, _]*): Wireable[T] = macro WireableMacros.fromWithOverridesImpl[T]
+  def from[T](wires: Wire[_, _]*): Resource[T] = macro ResourceMacros.deriveResourceWithOverridesImpl[T]
 }
 
-private[scope] object WireableMacros {
+private[scope] object ResourceMacros {
   import scala.reflect.macros.whitebox
   import zio.blocks.scope.internal.{MacroCore => MC}
 
-  def fromImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wireable[T]] = {
+  def deriveResourceImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Resource[T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -53,69 +54,66 @@ private[scope] object WireableMacros {
 
     val paramLists = ctor.paramLists
 
-    val allDepTypes: List[Type] = paramLists.flatten.flatMap { param =>
+    // Separate regular params from implicit params
+    val (regularParams, implicitParams) = paramLists.partition { params =>
+      params.headOption.forall(!_.isImplicit)
+    }
+
+    val allRegularParams = regularParams.flatten
+
+    // Check for Scope/Finalizer parameter in implicits
+    val hasScopeParam = implicitParams.flatten.exists { param =>
+      val paramType = param.typeSignature
+      MC.isScopeType(c)(paramType) || MC.isFinalizerType(c)(paramType)
+    }
+
+    // Collect dependencies (non-Scope/Finalizer regular params)
+    val depTypes: List[Type] = allRegularParams.flatMap { param =>
       val paramType = param.typeSignature
       MC.classifyAndExtractDep(c)(paramType)
     }
 
-    MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
-      case Some(error) => MC.abort(c)(error)
-      case None        =>
+    if (depTypes.nonEmpty) {
+      c.abort(
+        c.enclosingPosition,
+        s"Resource.from[${tpe}] cannot be derived: ${tpe} has dependencies: ${depTypes.mkString(", ")}. " +
+          s"Use Resource.from[${tpe}](wire1, wire2, ...) to provide wires for all dependencies."
+      )
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
-    val inType          =
-      if (allDepTypes.isEmpty) typeOf[Any]
-      else allDepTypes.reduceLeft((a, b) => c.universe.internal.refinedType(List(a, b), NoSymbol))
 
-    def generateArgs(params: List[Symbol]): List[Tree] =
-      params.map { param =>
-        val paramType = param.typeSignature
-        if (MC.isFinalizerType(c)(paramType)) {
-          q"finalizer"
-        } else {
-          q"ctx.get[$paramType]"
-        }
-      }
-
-    val argLists = paramLists.map(generateArgs)
-    val ctorCall = if (argLists.isEmpty) {
-      q"new $tpe()"
-    } else {
-      argLists.foldLeft[Tree](Select(New(TypeTree(tpe)), termNames.CONSTRUCTOR)) { (acc, args) =>
-        Apply(acc, args)
-      }
-    }
-
-    val wireBody = if (isAutoCloseable) {
+    val resourceBody = if (hasScopeParam) {
+      // Constructor takes implicit Scope/Finalizer
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (finalizer, ctx) =>
-          val instance = $ctorCall
-          finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
+        _root_.zio.blocks.scope.Resource.shared[$tpe] { scope =>
+          new $tpe()(scope)
+        }
+      """
+    } else if (isAutoCloseable) {
+      // AutoCloseable - register finalizer
+      q"""
+        _root_.zio.blocks.scope.Resource.shared[$tpe] { scope =>
+          val instance = new $tpe()
+          scope.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
         }
       """
     } else {
+      // Simple case - no dependencies, no cleanup
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (finalizer, ctx) =>
-          val instance = $ctorCall
-          instance
+        _root_.zio.blocks.scope.Resource.shared[$tpe] { _ =>
+          new $tpe()
         }
       """
     }
 
-    val result = q"""
-      new _root_.zio.blocks.scope.Wireable[$tpe] {
-        type In = $inType
-        def wire: _root_.zio.blocks.scope.Wire[$inType, $tpe] = $wireBody
-      }
-    """
-    c.Expr[Wireable[T]](result)
+    c.Expr[Resource[T]](resourceBody)
   }
 
-  def fromWithOverridesImpl[T: c.WeakTypeTag](
+  def deriveResourceWithOverridesImpl[T: c.WeakTypeTag](
     c: whitebox.Context
-  )(wires: c.Expr[Wire[_, _]]*): c.Expr[Wireable[T]] = {
+  )(wires: c.Expr[Wire[_, _]]*): c.Expr[Resource[T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
@@ -151,15 +149,23 @@ private[scope] object WireableMacros {
       }
     }
 
-    // Partition deps into covered (by wires) and remaining
+    // Check all deps are covered
     val (_, remainingDeps) = allDepTypes.partition { depType =>
       wireOutTypes.exists(outType => outType <:< depType)
     }
 
+    if (remainingDeps.nonEmpty) {
+      val missing  = remainingDeps.mkString(", ")
+      val provided = wireOutTypes.mkString(", ")
+      c.abort(
+        c.enclosingPosition,
+        s"Resource.from[${tpe}] has unresolved dependencies: $missing. " +
+          s"Provided wires produce: $provided. " +
+          s"Add wires for the missing dependencies."
+      )
+    }
+
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
-    val inType          =
-      if (remainingDeps.isEmpty) typeOf[Any]
-      else remainingDeps.reduceLeft((a, b) => c.universe.internal.refinedType(List(a, b), NoSymbol))
 
     // Find which wire provides a given type
     def findWireForType(depType: Type): Option[(c.Expr[Wire[_, _]], Type)] =
@@ -176,7 +182,7 @@ private[scope] object WireableMacros {
         q"""
         {
           val wire = ${wireExpr.tree}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, $outType]]
-          val value = wire.make(finalizer, _root_.zio.blocks.context.Context.empty)
+          val value = wire.make(scope, _root_.zio.blocks.context.Context.empty)
           $ctxExpr.add[$outType](value)
         }
       """
@@ -186,13 +192,13 @@ private[scope] object WireableMacros {
       params.map { param =>
         val paramType = param.typeSignature
         if (MC.isFinalizerType(c)(paramType)) {
-          q"finalizer"
+          q"scope"
         } else {
           findWireForType(paramType) match {
             case Some((_, outType)) =>
               q"overrideCtx.get[$outType].asInstanceOf[$paramType]"
             case None =>
-              q"ctx.get[$paramType]"
+              c.abort(c.enclosingPosition, s"No wire found for dependency: $paramType")
           }
         }
       }
@@ -206,18 +212,18 @@ private[scope] object WireableMacros {
       }
     }
 
-    val wireBody = if (isAutoCloseable) {
+    val resourceBody = if (isAutoCloseable) {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (finalizer, ctx) =>
+        _root_.zio.blocks.scope.Resource.shared[$tpe] { scope =>
           val overrideCtx = $buildOverrideCtx
           val instance = $ctorCall
-          finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
+          scope.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
         }
       """
     } else {
       q"""
-        _root_.zio.blocks.scope.Wire.Shared.apply[$inType, $tpe] { (finalizer, ctx) =>
+        _root_.zio.blocks.scope.Resource.shared[$tpe] { scope =>
           val overrideCtx = $buildOverrideCtx
           val instance = $ctorCall
           instance
@@ -225,12 +231,6 @@ private[scope] object WireableMacros {
       """
     }
 
-    val result = q"""
-      new _root_.zio.blocks.scope.Wireable[$tpe] {
-        type In = $inType
-        def wire: _root_.zio.blocks.scope.Wire[$inType, $tpe] = $wireBody
-      }
-    """
-    c.Expr[Wireable[T]](result)
+    c.Expr[Resource[T]](resourceBody)
   }
 }

@@ -1,84 +1,84 @@
 package zio.blocks
 
-import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.internal.Finalizers
-
 /**
- * Top-level functions for the Scope dependency injection library.
+ * Scope: A compile-time safe resource management library using existential
+ * types.
  *
- * Import `zio.blocks.scope._` to access these functions.
+ * ==Quick Start==
+ *
+ * {{{
+ * import zio.blocks.scope._
+ *
+ * Scope.global.scoped { scope =>
+ *   val db = scope.allocate(Resource[Database])
+ *   val result = scope.$(db)(_.query("SELECT 1"))
+ *   println(result)
+ * }
+ * }}}
+ *
+ * ==Key Concepts==
+ *
+ *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
+ *     escape
+ *   - '''`scope.allocate(resource)`''': Allocate a value in a scope
+ *   - '''`scope.$(value)(f)`''': Apply a function to a scoped value
+ *   - '''`scope.scoped { s => ... }`''': Create a child scope with existential
+ *     tag
+ *   - '''`scope.defer { ... }`''': Register cleanup to run when scope closes
+ *
+ * ==How It Works==
+ *
+ * The `.scoped` method creates a fresh existential `Tag` type for each
+ * invocation using a local `type Fresh <: ParentTag` declaration. This tag
+ * cannot be named outside the lambda, making it impossible to leak resources or
+ * capabilities.
+ *
+ * @see
+ *   [[scope.Scope]] for scope types and operations [[scope.@@]] for scoped
+ *   value operations [[scope.Resource]] for creating scoped values
+ *   [[scope.Scoped]] for deferred scoped computations
  */
 package object scope {
 
   /**
    * Registers a finalizer to run when the current scope closes.
    *
+   * Finalizers run in LIFO order (last registered runs first). If a finalizer
+   * throws, subsequent finalizers still run.
+   *
    * @example
    *   {{{
-   *   class MyService()(using Scope.Any) {
+   *   Scope.global.scoped { scope =>
    *     val resource = acquire()
-   *     defer { resource.release() }
+   *     scope.defer { resource.release() }
+   *     // use resource...
    *   }
    *   }}}
+   *
+   * @param finalizer
+   *   a by-name expression to execute on scope close
+   * @param fin
+   *   the finalizer capability to register cleanup with
    */
-  def defer(finalizer: => Unit)(using scope: Scope.Any): Unit =
-    scope.defer(finalizer)
-
-  /**
-   * Retrieves a service from the current scope, scoped with the scope's
-   * identity.
-   *
-   * The returned value is scoped to prevent escape. Use the `$` operator on the
-   * scoped value to access methods:
-   *
-   * @example
-   *   {{{
-   *   def doWork()(using scope: Scope.Has[Database]): Unit = {
-   *     val db = $[Database]           // Database @@ scope.Tag
-   *     db $ (_.query("SELECT ..."))   // String (unscoped, since String is Unscoped)
-   *   }
-   *   }}}
-   */
-  inline def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag =
-    @@.scoped(scope.get[T])
-
-  /**
-   * Creates a closeable scope containing the given value.
-   *
-   * If the value is `AutoCloseable`, its `close()` method is automatically
-   * registered as a finalizer.
-   *
-   * @example
-   *   {{{
-   *   val config = Config.load()
-   *   injected(config).run {
-   *     val cfg = $[Config]
-   *     cfg $ (_.dbUrl)
-   *   }
-   *   }}}
-   */
-  def injected[T](t: T)(using scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
-    val ctx        = Context(t)
-    val finalizers = new Finalizers
-    if (t.isInstanceOf[AutoCloseable]) {
-      finalizers.add(t.asInstanceOf[AutoCloseable].close())
-    }
-    Scope.makeCloseable(scope, ctx, finalizers)
-  }
+  def defer(finalizer: => Unit)(using fin: Finalizer): Unit =
+    fin.defer(finalizer)
 
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
    *
-   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
+   * If a [[Wireable]][T] exists in implicit scope, it is used. Otherwise, the
    * macro inspects `T`'s primary constructor and generates a wire that:
    *   - Retrieves constructor parameters from the scope
    *   - Passes an implicit `Scope` parameter if present
    *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
    *
-   * @example
-   *   {{{
-   *   Scope.global.injected[App](shared[Database], shared[Cache]).run { ... }
-   *   }}}
+   * Shared wires are memoized within a single scope, so multiple dependents
+   * receive the same instance.
+   *
+   * @tparam T
+   *   the service type to construct (must be a class, not a trait or abstract)
+   * @return
+   *   a shared wire for constructing `T`
    */
   transparent inline def shared[T]: Wire.Shared[?, T] = ${ ScopeMacros.sharedImpl[T] }
 
@@ -86,30 +86,42 @@ package object scope {
    * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
    *
    * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used.
+   * used. Use for services that should not be shared across dependents.
+   *
+   * @tparam T
+   *   the service type to construct (must be a class, not a trait or abstract)
+   * @return
+   *   a unique wire for constructing `T`
    */
   transparent inline def unique[T]: Wire.Unique[?, T] = ${ ScopeMacros.uniqueImpl[T] }
 
   /**
-   * Creates a child scope containing an instance of `T` and its dependencies.
+   * Leaks a scoped value out of its scope, returning the raw unwrapped value.
    *
-   * The macro inspects `T`'s constructor to determine dependencies.
-   * Dependencies are resolved from:
-   *   1. Provided wires (in order)
-   *   2. The parent scope's stack
+   * '''Warning''': This function emits a compiler warning because leaking
+   * resources bypasses Scope's compile-time safety guarantees. The resource may
+   * be closed while still in use, leading to runtime errors.
+   *
+   * Use only for interop where third-party or Java code cannot operate with
+   * scoped values.
    *
    * @example
    *   {{{
-   *   Scope.global.injected[App](shared[Config]).run {
-   *     // App and Config are available here
-   *     val app = $[App]
-   *     app.run()
+   *   Scope.global.scoped { scope =>
+   *     val stream = scope.allocate(Resource[InputStream])
+   *     val leaked = leak(stream)
+   *     ThirdPartyProcessor.process(leaked)
    *   }
    *   }}}
+   *
+   * @param scoped
+   *   the scoped value to leak
+   * @tparam A
+   *   the underlying value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   the raw unwrapped value
    */
-  inline def injected[T](using scope: Scope.Any): Scope.Closeable[T, ?] =
-    ${ ScopeMacros.injectedImpl[T]('{ Seq.empty[Wire[?, ?]] }, 'scope) }
-
-  inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
-    ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
+  inline def leak[A, S](inline scoped: A @@ S): A = ${ LeakMacros.leakImpl[A, S]('scoped) }
 }
