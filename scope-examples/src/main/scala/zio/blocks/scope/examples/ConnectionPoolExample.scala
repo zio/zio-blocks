@@ -4,119 +4,142 @@ import zio.blocks.scope._
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Demonstrates `Resource.Shared` with reference counting.
+ * Demonstrates `Resource.Shared` with reference counting and nested resource
+ * acquisition.
  *
- * Multiple components share a connection pool; the pool's finalizer runs only
- * when the last user's scope exits. This pattern is useful for expensive
- * resources (database pools, HTTP clients, thread pools) that should be
- * initialized once and shared across components.
+ * This example shows a realistic connection pool pattern where:
+ *   - The pool itself is a shared resource (created once, ref-counted)
+ *   - Individual connections are resources that must be allocated in a scope
+ *   - `pool.acquire` returns `Resource[PooledConnection]`, forcing proper
+ *     scoping
+ *
+ * This pattern is common for database pools, HTTP client pools, and thread
+ * pools.
  */
 
 /** Configuration for the connection pool. */
 final case class PoolConfig(maxConnections: Int, timeout: Long)
 
-/** A connection retrieved from the pool. */
-final case class PooledConnection(id: Int)
+/**
+ * A connection retrieved from the pool.
+ *
+ * Connections are resources - they must be released back to the pool when done.
+ * This is enforced by making `acquire` return a `Resource[PooledConnection]`.
+ */
+final class PooledConnection(val id: Int, pool: ConnectionPool) extends AutoCloseable {
+  println(s"    [Conn#$id] Acquired from pool")
+
+  def execute(sql: String): String = {
+    println(s"    [Conn#$id] Executing: $sql")
+    s"Result from connection $id"
+  }
+
+  override def close(): Unit =
+    pool.release(this)
+}
 
 /**
  * A connection pool that manages pooled connections.
  *
- * The pool tracks active connections and provides acquire/release semantics.
- * Implements `AutoCloseable` so it can be used with `Resource.shared`.
+ * Key design: `acquire` returns `Resource[PooledConnection]`, not a raw
+ * connection. This forces callers to allocate the connection in a scope,
+ * ensuring proper release even if exceptions occur.
  */
 final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
   private val nextId  = new AtomicInteger(0)
   private val active  = new AtomicInteger(0)
   private val _closed = new AtomicInteger(0)
 
-  def acquire(): PooledConnection = {
+  println(s"  [Pool] Created with max ${config.maxConnections} connections")
+
+  /**
+   * Acquires a connection from the pool.
+   *
+   * Returns a `Resource[PooledConnection]` that must be allocated in a scope.
+   * The connection is automatically released when the scope exits.
+   */
+  def acquire: Resource[PooledConnection] = Resource.acquireRelease {
     if (_closed.get() > 0) throw new IllegalStateException("Pool is closed")
-    val conn = PooledConnection(nextId.incrementAndGet())
+    if (active.get() >= config.maxConnections)
+      throw new IllegalStateException(s"Pool exhausted (max: ${config.maxConnections})")
+
+    val id   = nextId.incrementAndGet()
+    val conn = new PooledConnection(id, this)
     active.incrementAndGet()
-    println(s"  [Pool] Acquired connection ${conn.id} (active: ${active.get()})")
+    println(s"  [Pool] Active connections: ${active.get()}/${config.maxConnections}")
     conn
+  } { conn =>
+    // Release is handled by PooledConnection.close()
+    conn.close()
   }
 
-  def release(conn: PooledConnection): Unit = {
-    active.decrementAndGet()
-    println(s"  [Pool] Released connection ${conn.id} (active: ${active.get()})")
+  private[examples] def release(conn: PooledConnection): Unit = {
+    val count = active.decrementAndGet()
+    println(s"    [Conn#${conn.id}] Released back to pool (active: $count)")
   }
 
   def activeConnections: Int = active.get()
 
   override def close(): Unit =
     if (_closed.compareAndSet(0, 1)) {
-      println(s"  [Pool] *** POOL CLOSED *** (was serving up to ${config.maxConnections} connections)")
+      println(s"  [Pool] *** POOL CLOSED *** (served ${nextId.get()} total connections)")
     }
-}
-
-/** First service that uses the shared connection pool. */
-final class ServiceA(pool: ConnectionPool) {
-  def doWork(): Unit = {
-    val conn = pool.acquire()
-    try {
-      println(s"  [ServiceA] Working with connection ${conn.id}")
-      Thread.sleep(50)
-    } finally pool.release(conn)
-  }
-}
-
-/** Second service that uses the shared connection pool. */
-final class ServiceB(pool: ConnectionPool) {
-  def doWork(): Unit = {
-    val conn = pool.acquire()
-    try {
-      println(s"  [ServiceB] Working with connection ${conn.id}")
-      Thread.sleep(50)
-    } finally pool.release(conn)
-  }
 }
 
 @main def connectionPoolExample(): Unit = {
-  println("=== Connection Pool Sharing Example ===\n")
+  println("=== Connection Pool with Resource-based Acquire ===\n")
 
-  val poolConfig = PoolConfig(maxConnections = 10, timeout = 5000L)
+  val poolConfig = PoolConfig(maxConnections = 3, timeout = 5000L)
 
-  val sharedPoolResource: Resource[ConnectionPool] = Resource.shared { finalizer =>
-    println("[Main] Creating shared ConnectionPool...")
-    val pool = new ConnectionPool(poolConfig)
-    finalizer.defer {
-      println("[Main] Running shared pool finalizer...")
-      pool.close()
+  // The pool itself is a resource
+  val poolResource: Resource[ConnectionPool] =
+    Resource.fromAutoCloseable(new ConnectionPool(poolConfig))
+
+  Scope.global.scoped { appScope =>
+    println("[App] Allocating pool\n")
+    val pool = appScope.allocate(poolResource)
+
+    // Get the raw pool for use in nested scopes
+    val rawPool = @@.unscoped(pool)
+
+    // Each unit of work gets its own connection scope
+    println("--- ServiceA doing work (connection scoped to this block) ---")
+    appScope.scoped { workScope =>
+      // pool.acquire returns Resource[PooledConnection] - must allocate!
+      val conn   = workScope.allocate(rawPool.acquire)
+      val result = workScope.$(conn)(_.execute("SELECT * FROM service_a_table"))
+      println(s"  [ServiceA] Got: $result")
+      // Connection automatically released when workScope exits
     }
-    pool
+    println()
+
+    println("--- ServiceB doing work ---")
+    appScope.scoped { workScope =>
+      val conn   = workScope.allocate(rawPool.acquire)
+      val result = workScope.$(conn)(_.execute("SELECT * FROM service_b_table"))
+      println(s"  [ServiceB] Got: $result")
+    }
+    println()
+
+    // Demonstrate multiple concurrent connections from the same pool
+    println("--- Multiple connections in same scope ---")
+    appScope.scoped { workScope =>
+      // Both allocate from the same pool, each gets their own connection
+      val connA = workScope.allocate(rawPool.acquire)
+      val connB = workScope.allocate(rawPool.acquire)
+
+      println(s"  [Parallel] Using connections ${workScope.$(connA)(_.id)} and ${workScope.$(connB)(_.id)}")
+      workScope.$(connA)(_.execute("UPDATE table_a SET x = 1"))
+      workScope.$(connB)(_.execute("UPDATE table_b SET y = 2"))
+
+      // Both connections released in LIFO order when scope exits
+    }
+    println()
+
+    println("[App] All work complete, exiting app scope...")
   }
 
-  Scope.global.scoped { outerScope =>
-    println("[Main] Entering outer scope\n")
-
-    outerScope.scoped { scopeA =>
-      println("[ScopeA] Allocating shared pool (ref count -> 1)")
-      val poolA    = scopeA.allocate(sharedPoolResource)
-      val serviceA = new ServiceA(@@.unscoped(poolA))
-
-      scopeA.scoped { scopeB =>
-        println("[ScopeB] Allocating shared pool (ref count -> 2)")
-        val poolB    = scopeB.allocate(sharedPoolResource)
-        val serviceB = new ServiceB(@@.unscoped(poolB))
-
-        println("\n--- Both services working concurrently ---")
-        serviceA.doWork()
-        serviceB.doWork()
-        println("--- Work complete ---\n")
-
-        println("[ScopeB] Exiting (ref count -> 1)")
-      }
-      println("[ScopeB] Exited — pool still open (ServiceA still using it)\n")
-
-      println("[ScopeA] Doing more work after ScopeB closed...")
-      serviceA.doWork()
-      println()
-
-      println("[ScopeA] Exiting (ref count -> 0)")
-    }
-    println("[ScopeA] Exited — pool finalizer ran (last reference gone)\n")
-  }
-
-  println("=== Example Complete ===")
+  println("\n=== Example Complete ===")
+  println("\nKey insight: pool.acquire returns Resource[PooledConnection],")
+  println("forcing proper scoped allocation and automatic release.")
 }
