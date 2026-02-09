@@ -60,6 +60,24 @@ object ScopeSpec extends ZIOSpecDefault {
         close()
         assertTrue(cleaned)
       }
+    ),
+    suite("allocate")(
+      test("allocate AutoCloseable directly registers close() as finalizer") {
+        val (scope, close) = Scope.createTestableScope()
+        var closed         = false
+
+        class TestCloseable extends AutoCloseable {
+          def value: String          = "test"
+          override def close(): Unit = closed = true
+        }
+
+        val resource = scope.allocate(new TestCloseable)
+        val result   = scope.$(resource)(_.value)
+
+        assertTrue(result == "test", !closed)
+        close()
+        assertTrue(closed)
+      }
     )
   )
 }
