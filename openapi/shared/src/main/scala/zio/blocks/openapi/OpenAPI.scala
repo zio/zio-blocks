@@ -1,5 +1,7 @@
 package zio.blocks.openapi
 
+import scala.collection.immutable.ListMap
+
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
@@ -47,6 +49,7 @@ final case class OpenAPI(
   jsonSchemaDialect: Option[String] = None,
   servers: List[Server] = Nil,
   paths: Option[Paths] = None,
+  webhooks: ListMap[String, ReferenceOr[PathItem]] = ListMap.empty,
   components: Option[Components] = None,
   security: List[SecurityRequirement] = Nil,
   tags: List[Tag] = Nil,
@@ -207,7 +210,7 @@ object ServerVariable {
  * Holds the relative paths to the individual endpoints and their operations.
  */
 final case class Paths(
-  paths: Map[String, PathItem] = Map.empty,
+  paths: ListMap[String, PathItem] = ListMap.empty,
   extensions: Map[String, Json] = Map.empty
 )
 
@@ -242,16 +245,16 @@ object PathItem {
  * Holds a set of reusable objects for different aspects of the OAS.
  */
 final case class Components(
-  schemas: Map[String, ReferenceOr[SchemaObject]] = Map.empty,
-  responses: Map[String, ReferenceOr[Response]] = Map.empty,
-  parameters: Map[String, ReferenceOr[Parameter]] = Map.empty,
-  examples: Map[String, ReferenceOr[Example]] = Map.empty,
-  requestBodies: Map[String, ReferenceOr[RequestBody]] = Map.empty,
-  headers: Map[String, ReferenceOr[Header]] = Map.empty,
-  securitySchemes: Map[String, ReferenceOr[SecurityScheme]] = Map.empty,
-  links: Map[String, ReferenceOr[Link]] = Map.empty,
-  callbacks: Map[String, ReferenceOr[Callback]] = Map.empty,
-  pathItems: Map[String, ReferenceOr[PathItem]] = Map.empty,
+  schemas: ListMap[String, ReferenceOr[SchemaObject]] = ListMap.empty,
+  responses: ListMap[String, ReferenceOr[Response]] = ListMap.empty,
+  parameters: ListMap[String, ReferenceOr[Parameter]] = ListMap.empty,
+  examples: ListMap[String, ReferenceOr[Example]] = ListMap.empty,
+  requestBodies: ListMap[String, ReferenceOr[RequestBody]] = ListMap.empty,
+  headers: ListMap[String, ReferenceOr[Header]] = ListMap.empty,
+  securitySchemes: ListMap[String, ReferenceOr[SecurityScheme]] = ListMap.empty,
+  links: ListMap[String, ReferenceOr[Link]] = ListMap.empty,
+  callbacks: ListMap[String, ReferenceOr[Callback]] = ListMap.empty,
+  pathItems: ListMap[String, ReferenceOr[PathItem]] = ListMap.empty,
   extensions: Map[String, Json] = Map.empty
 )
 
@@ -329,7 +332,7 @@ object ExternalDocumentation {
  *   Extension fields starting with x-.
  */
 final case class Operation(
-  responses: Map[String, ReferenceOr[Response]] = Map.empty,
+  responses: Responses = Responses(),
   tags: List[String] = Nil,
   summary: Option[Doc] = None,
   description: Option[Doc] = None,
@@ -867,7 +870,7 @@ object Encoding {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Responses(
-  responses: Map[String, ReferenceOr[Response]] = Map.empty,
+  responses: ListMap[String, ReferenceOr[Response]] = ListMap.empty,
   default: Option[ReferenceOr[Response]] = None,
   extensions: Map[String, Json] = Map.empty
 )
@@ -1071,7 +1074,7 @@ object Link {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Callback(
-  callbacks: Map[String, ReferenceOr[PathItem]] = Map.empty,
+  callbacks: ListMap[String, ReferenceOr[PathItem]] = ListMap.empty,
   extensions: Map[String, Json] = Map.empty
 )
 
