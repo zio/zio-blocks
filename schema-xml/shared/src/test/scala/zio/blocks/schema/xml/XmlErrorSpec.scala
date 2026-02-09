@@ -42,6 +42,15 @@ object XmlErrorSpec extends SchemaBaseSpec {
           path.nodes(0) == DynamicOptic.Node.Field("b"),
           path.nodes(1) == DynamicOptic.Node.Field("a")
         )
+      },
+      test("atSpan returns new instance without modifying original") {
+        val error    = XmlError("test error", List(DynamicOptic.Node.Field("a")))
+        val withSpan = error.atSpan(DynamicOptic.Node.Field("b"))
+        assertTrue(
+          error.spans == List(DynamicOptic.Node.Field("a")),
+          withSpan.spans == List(DynamicOptic.Node.Field("b"), DynamicOptic.Node.Field("a")),
+          error ne withSpan
+        )
       }
     ),
     suite("factory methods")(
@@ -64,6 +73,74 @@ object XmlErrorSpec extends SchemaBaseSpec {
       test("patchError includes prefix") {
         val error = XmlError.patchError("operation failed")
         assertTrue(error.getMessage.startsWith("Patch error:"))
+      }
+    ),
+    suite("XmlName")(
+      test("withPrefix adds prefix to name") {
+        val name       = XmlName("local")
+        val withPrefix = name.withPrefix("ns")
+        assertTrue(
+          withPrefix.prefix.contains("ns"),
+          withPrefix.localName == "local",
+          name.prefix.isEmpty
+        )
+      },
+      test("withoutPrefix removes prefix") {
+        val name          = XmlName("local", Some("ns"), None)
+        val withoutPrefix = name.withoutPrefix
+        assertTrue(
+          withoutPrefix.prefix.isEmpty,
+          withoutPrefix.localName == "local",
+          name.prefix.contains("ns")
+        )
+      },
+      test("qualifiedName concatenates prefix and local name") {
+        val withPrefix = XmlName("local", Some("ns"), None)
+        assertTrue(withPrefix.qualifiedName == "ns:local")
+      },
+      test("qualifiedName returns local name when no prefix") {
+        val noPrefix = XmlName("local")
+        assertTrue(noPrefix.qualifiedName == "local")
+      },
+      test("parse handles namespace and prefix together") {
+        val parsed = XmlName.parse("{http://example.com}ns:local")
+        assertTrue(
+          parsed.namespace.contains("http://example.com"),
+          parsed.prefix.contains("ns"),
+          parsed.localName == "local"
+        )
+      },
+      test("parse handles namespace only") {
+        val parsed = XmlName.parse("{http://example.com}local")
+        assertTrue(
+          parsed.namespace.contains("http://example.com"),
+          parsed.prefix.isEmpty,
+          parsed.localName == "local"
+        )
+      },
+      test("parse handles prefix only") {
+        val parsed = XmlName.parse("ns:local")
+        assertTrue(
+          parsed.prefix.contains("ns"),
+          parsed.namespace.isEmpty,
+          parsed.localName == "local"
+        )
+      },
+      test("parse handles local name only") {
+        val parsed = XmlName.parse("local")
+        assertTrue(
+          parsed.prefix.isEmpty,
+          parsed.namespace.isEmpty,
+          parsed.localName == "local"
+        )
+      },
+      test("parse handles malformed namespace (no closing brace)") {
+        val parsed = XmlName.parse("{http://example.comlocal")
+        assertTrue(
+          parsed.prefix.isEmpty,
+          parsed.namespace.isEmpty,
+          parsed.localName == "{http://example.comlocal"
+        )
       }
     )
   )
