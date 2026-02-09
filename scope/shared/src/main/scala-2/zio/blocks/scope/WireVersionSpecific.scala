@@ -44,18 +44,12 @@ private[scope] trait WireCompanionVersionSpecific {
 
 private[scope] trait SharedVersionSpecific {
 
-  def apply[In, Out](f: (Finalizer, Context[In]) => Out): Wire.Shared[In, Out] =
-    new Wire.Shared[In, Out](f)
-
   def fromFunction[In, Out](f: (Finalizer, Context[In]) => Out): Wire.Shared[In, Out] =
-    new Wire.Shared[In, Out](f)
+    Wire.Shared[In, Out](f)
 }
 
 private[scope] trait UniqueVersionSpecific {
 
-  def apply[In, Out](f: (Finalizer, Context[In]) => Out): Wire.Unique[In, Out] =
-    new Wire.Unique[In, Out](f)
-
   def fromFunction[In, Out](f: (Finalizer, Context[In]) => Out): Wire.Unique[In, Out] =
-    new Wire.Unique[In, Out](f)
+    Wire.Unique[In, Out](f)
 }

@@ -112,14 +112,14 @@ object Wire extends WireCompanionVersionSpecific {
    * When multiple services depend on the same shared wire, only one instance is
    * created and reused. This is the default wire type produced by `shared[T]`.
    *
+   * @param makeFn
+   *   the function that constructs the service given a finalizer and context
    * @tparam In
    *   the dependencies required to construct the service
    * @tparam Out
    *   the service type produced
    */
-  final class Shared[-In, +Out] private[scope] (
-    private[scope] val makeFn: (Finalizer, Context[In]) => Out
-  ) extends Wire[In, Out] {
+  final case class Shared[-In, +Out](makeFn: (Finalizer, Context[In]) => Out) extends Wire[In, Out] {
 
     /**
      * Returns true since this is a shared wire.
@@ -143,7 +143,7 @@ object Wire extends WireCompanionVersionSpecific {
      * @return
      *   a new unique wire with the same construction function
      */
-    def unique: Unique[In, Out] = new Unique[In, Out](makeFn)
+    def unique: Unique[In, Out] = Unique[In, Out](makeFn)
 
     /**
      * Constructs the service using the given finalizer and context.
@@ -181,14 +181,14 @@ object Wire extends WireCompanionVersionSpecific {
    * service. Use for services that should not be shared, like request-scoped
    * resources or per-call state.
    *
+   * @param makeFn
+   *   the function that constructs the service given a finalizer and context
    * @tparam In
    *   the dependencies required to construct the service
    * @tparam Out
    *   the service type produced
    */
-  final class Unique[-In, +Out] private[scope] (
-    private[scope] val makeFn: (Finalizer, Context[In]) => Out
-  ) extends Wire[In, Out] {
+  final case class Unique[-In, +Out](makeFn: (Finalizer, Context[In]) => Out) extends Wire[In, Out] {
 
     /**
      * Returns false since this is a unique wire.
@@ -204,7 +204,7 @@ object Wire extends WireCompanionVersionSpecific {
      * @return
      *   a new shared wire with the same construction function
      */
-    def shared: Shared[In, Out] = new Shared[In, Out](makeFn)
+    def shared: Shared[In, Out] = Shared[In, Out](makeFn)
 
     /**
      * Returns this wire since it is already unique.
