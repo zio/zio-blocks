@@ -95,25 +95,26 @@ object XmlReader {
       Xml.Element(name, attributes, children)
     }
 
-    private def parseName(): XmlName = {
-      if (!isNameStartChar(current)) error("Invalid element name")
+     private def parseName(): XmlName = {
+       if (!isNameStartChar(current)) error("Invalid element name")
 
-      val sb = new StringBuilder
+       val sb = new StringBuilder
 
-      while (isNameChar(current)) {
-        sb.append(current)
-        advance()
-      }
+       while (isNameChar(current)) {
+         sb.append(current)
+         advance()
+       }
 
-      val fullName = sb.toString
-      val colonIdx = fullName.indexOf(':')
-      if (colonIdx > 0) {
-        val localName = fullName.substring(colonIdx + 1)
-        XmlName(localName)
-      } else {
-        XmlName(fullName)
-      }
-    }
+       val fullName = sb.toString
+       val colonIdx = fullName.indexOf(':')
+       if (colonIdx > 0) {
+         val prefix = fullName.substring(0, colonIdx)
+         val localName = fullName.substring(colonIdx + 1)
+         XmlName(localName, Some(prefix), None)
+       } else {
+         XmlName(fullName)
+       }
+     }
 
     private def parseAttributes(): Chunk[(XmlName, String)] = {
       val attrs = ArrayBuffer[(XmlName, String)]()
