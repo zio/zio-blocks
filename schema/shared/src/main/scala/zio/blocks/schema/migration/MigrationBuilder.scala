@@ -16,7 +16,7 @@ class MigrationBuilder[A, B](
   val sourceSchema: Schema[A],
   val targetSchema: Schema[B],
   val actions: Vector[MigrationAction]
-) {
+) extends MigrationBuilderVersionSpecific[A, B] {
 
   // ──────────────── Record Operations ────────────────
 

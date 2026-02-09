@@ -97,6 +97,35 @@ object DynamicMigration {
   def mandate(fieldName: String, default: DynamicValue): DynamicMigration =
     DynamicMigration(MigrationAction.Mandate(DynamicOptic.root, fieldName, default))
 
+  def changeFieldTypeExpr(fieldName: String, expr: MigrationExpr): DynamicMigration =
+    DynamicMigration(MigrationAction.ChangeTypeExpr(DynamicOptic.root, fieldName, expr))
+
+  def joinFields(
+    sourcePaths: Vector[String],
+    targetField: String,
+    combiner: MigrationExpr
+  ): DynamicMigration =
+    DynamicMigration(MigrationAction.Join(DynamicOptic.root, sourcePaths, targetField, combiner))
+
+  def splitField(
+    sourceField: String,
+    targetFields: Vector[String],
+    splitter: MigrationExpr
+  ): DynamicMigration =
+    DynamicMigration(MigrationAction.Split(DynamicOptic.root, sourceField, targetFields, splitter))
+
+  /** Alias for [[nest]] */
+  def nestFields(fieldNames: Vector[String], intoField: String): DynamicMigration =
+    nest(fieldNames, intoField)
+
+  /** Alias for [[optionalize]] */
+  def optionalizeField(fieldName: String): DynamicMigration =
+    optionalize(fieldName)
+
+  /** Alias for [[mandate]] */
+  def mandateField(fieldName: String, default: DynamicValue): DynamicMigration =
+    mandate(fieldName, default)
+
   // ──────────────── Action Execution Engine ────────────────
 
   // format: off

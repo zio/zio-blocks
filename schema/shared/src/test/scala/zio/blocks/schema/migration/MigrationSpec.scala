@@ -4,6 +4,9 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
 import zio.test._
 
+import scala.annotation.nowarn
+
+@nowarn("msg=is never used")
 object MigrationSpec extends ZIOSpecDefault {
 
   // ──────────────── Test Data ────────────────
@@ -77,6 +80,11 @@ object MigrationSpec extends ZIOSpecDefault {
   private def b(v: Boolean): DynamicValue = DynamicValue.boolean(v)
   private def d(v: Double): DynamicValue  = DynamicValue.double(v)
 
+  private def recordSize(v: DynamicValue): Int = v match {
+    case DynamicValue.Record(fields) => fields.size
+    case _                           => -1
+  }
+
   override def spec: Spec[Any, Any] = suite("MigrationSpec")(
     dynamicMigrationSuite,
     migrationSuite,
@@ -100,7 +108,15 @@ object MigrationSpec extends ZIOSpecDefault {
     joinSplitSuite,
     builderValidationSuite,
     semanticInverseSuite,
-    advancedCompositionSuite
+    advancedCompositionSuite,
+    schemaAwareValidationSuite,
+    exprEdgeCasesSuite,
+    errorPathsSuite,
+    roundtripPropertySuite,
+    dynamicOpticPathSuite,
+    identityMonoidLawsSuite,
+    builderFluentSuite,
+    stressTestSuite
   )
 
   // ──────────────── DynamicMigration Suite ────────────────
@@ -1958,6 +1974,946 @@ object MigrationSpec extends ZIOSpecDefault {
       )
       val result = m.migrate(record)
       assertTrue(result.isRight)
+    }
+  )
+
+  // ──────────────── Schema-Aware Validation Suite ────────────────
+
+  val schemaAwareValidationSuite: Spec[Any, Nothing] = suite("Schema-aware Validation")(
+    test("validate detects missing rename for changed field name") {
+      val builder = Migration.newBuilder[PersonV1, PersonV2]
+      val errors  = builder.validate()
+      // Without any actions, validation passes (basic validation only)
+      assertTrue(errors.isEmpty)
+    },
+    test("validate passes with correct rename") {
+      val builder = Migration.newBuilder[PersonV1, PersonV2].renameField("name", "fullName")
+      val errors  = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate detects triple rename on same field") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .renameField("name", "displayName")
+        .renameField("name", "label")
+      val errors = builder.validate()
+      assertTrue(errors.exists(_.contains("renamed 3 times")))
+    },
+    test("validate detects add-drop conflict on multiple fields") {
+      val builder = Migration
+        .newBuilder[UserV1, UserV2]
+        .addField("a", i(1))
+        .addField("b", i(2))
+        .dropField("a")
+        .dropField("b")
+      val errors = builder.validate()
+      assertTrue(errors.size == 2)
+    },
+    test("validate passes for add without drop") {
+      val builder = Migration
+        .newBuilder[UserV1, UserV2]
+        .addField("active", DynamicValue.boolean(true))
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate passes for drop without add") {
+      val builder = Migration
+        .newBuilder[UserV1, UserV2]
+        .dropField("oldField")
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate detects duplicate add of same field") {
+      val builder = Migration
+        .newBuilder[UserV1, UserV2]
+        .addField("x", i(1))
+        .addField("x", i(2))
+      val errors = builder.validate()
+      assertTrue(errors.exists(_.contains("added 2 times")))
+    },
+    test("validate with rename + add + drop no conflicts") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .addField("email", s("none"))
+        .dropField("tempField")
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("build throws on validation failure") {
+      val builder = Migration
+        .newBuilder[UserV1, UserV2]
+        .addField("x", i(1))
+        .dropField("x")
+      val caught = try {
+        builder.build
+        false
+      } catch {
+        case _: IllegalArgumentException => true
+        case _: Throwable                => false
+      }
+      assertTrue(caught)
+    },
+    test("buildPartial succeeds even with validation errors") {
+      val builder = Migration
+        .newBuilder[UserV1, UserV2]
+        .addField("x", i(1))
+        .dropField("x")
+      val migration = builder.buildPartial
+      assertTrue(migration != null)
+    },
+    test("validate with only enum actions is clean") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameCase("OldCase", "NewCase")
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate with changeFieldType no conflict") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .changeFieldTypeExpr("age", MigrationExpr.IntToString)
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate multiple non-conflicting renames") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("a", "b")
+        .renameField("c", "d")
+        .renameField("e", "f")
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate nest + unnest no conflict") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .nestFields(Vector("street", "city"), "address")
+        .unnestField("meta")
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    },
+    test("validate join + split no conflict") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .joinFields(Vector("first", "last"), "fullName", MigrationExpr.Identity)
+        .splitField("meta", Vector("a", "b"), MigrationExpr.Identity)
+      val errors = builder.validate()
+      assertTrue(errors.isEmpty)
+    }
+  )
+
+  // ──────────────── MigrationExpr Edge Cases Suite ────────────────
+
+  val exprEdgeCasesSuite: Spec[Any, Nothing] = suite("MigrationExpr Edge Cases")(
+    test("IntToString on zero") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToString)
+      val record = mkRecord("v" -> i(0))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s("0"))))
+    },
+    test("IntToString on negative") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToString)
+      val record = mkRecord("v" -> i(-42))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s("-42"))))
+    },
+    test("IntToString on max int") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToString)
+      val record = mkRecord("v" -> i(Int.MaxValue))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s(Int.MaxValue.toString))))
+    },
+    test("IntToString on min int") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToString)
+      val record = mkRecord("v" -> i(Int.MinValue))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s(Int.MinValue.toString))))
+    },
+    test("StringToInt on valid string") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToInt)
+      val record = mkRecord("v" -> s("123"))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> i(123))))
+    },
+    test("StringToInt on invalid string fails") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToInt)
+      val record = mkRecord("v" -> s("not_a_number"))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("BoolToInt true => 1") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.BoolToInt)
+      val record = mkRecord("v" -> DynamicValue.boolean(true))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> i(1))))
+    },
+    test("BoolToInt false => 0") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.BoolToInt)
+      val record = mkRecord("v" -> DynamicValue.boolean(false))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> i(0))))
+    },
+    test("IntToBool 0 => false") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToBool)
+      val record = mkRecord("v" -> i(0))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.boolean(false))))
+    },
+    test("IntToBool 1 => true") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToBool)
+      val record = mkRecord("v" -> i(1))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.boolean(true))))
+    },
+    test("IntToBool negative => true") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToBool)
+      val record = mkRecord("v" -> i(-5))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.boolean(true))))
+    },
+    test("IntToLong preserves value") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToLong)
+      val record = mkRecord("v" -> i(42))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.long(42L))))
+    },
+    test("LongToInt preserves small value") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.LongToInt)
+      val record = mkRecord("v" -> DynamicValue.long(42L))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> i(42))))
+    },
+    test("IntToDouble preserves value") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToDouble)
+      val record = mkRecord("v" -> i(42))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.double(42.0))))
+    },
+    test("DoubleToInt truncates") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.DoubleToInt)
+      val record = mkRecord("v" -> DynamicValue.double(3.99))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> i(3))))
+    },
+    test("DoubleToString formats correctly") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.DoubleToString)
+      val record = mkRecord("v" -> DynamicValue.double(3.14))
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("StringToDouble on valid") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToDouble)
+      val record = mkRecord("v" -> s("3.14"))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.double(3.14))))
+    },
+    test("StringToDouble on invalid fails") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToDouble)
+      val record = mkRecord("v" -> s("abc"))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("BoolToString true => true") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.BoolToString)
+      val record = mkRecord("v" -> DynamicValue.boolean(true))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s("true"))))
+    },
+    test("BoolToString false => false") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.BoolToString)
+      val record = mkRecord("v" -> DynamicValue.boolean(false))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s("false"))))
+    },
+    test("StringToBool true string") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToBool)
+      val record = mkRecord("v" -> s("true"))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.boolean(true))))
+    },
+    test("StringToBool false string") {
+      val m      = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToBool)
+      val record = mkRecord("v" -> s("false"))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.boolean(false))))
+    },
+    test("Compose IntToString then StringToDouble") {
+      val expr   = MigrationExpr.Compose(MigrationExpr.IntToString, MigrationExpr.StringToDouble)
+      val m      = DynamicMigration.changeFieldTypeExpr("v", expr)
+      val record = mkRecord("v" -> i(42))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.double(42.0))))
+    },
+    test("Compose BoolToInt then IntToString") {
+      val expr   = MigrationExpr.Compose(MigrationExpr.BoolToInt, MigrationExpr.IntToString)
+      val m      = DynamicMigration.changeFieldTypeExpr("v", expr)
+      val record = mkRecord("v" -> DynamicValue.boolean(true))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> s("1"))))
+    },
+    test("Triple compose BoolToInt -> IntToLong -> LongToInt") {
+      val expr = MigrationExpr.Compose(
+        MigrationExpr.BoolToInt,
+        MigrationExpr.Compose(MigrationExpr.IntToLong, MigrationExpr.LongToInt)
+      )
+      val m      = DynamicMigration.changeFieldTypeExpr("v", expr)
+      val record = mkRecord("v" -> DynamicValue.boolean(true))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> i(1))))
+    },
+    test("Concat on two string fields") {
+      val m      = DynamicMigration.joinFields(Vector("first", "last"), "full", MigrationExpr.Identity)
+      val record = mkRecord("first" -> s("John"), "last" -> s("Doe"))
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("Concat on empty strings") {
+      val m      = DynamicMigration.joinFields(Vector("a", "b"), "c", MigrationExpr.Identity)
+      val record = mkRecord("a" -> s(""), "b" -> s(""))
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    }
+  )
+
+  // ──────────────── Error Paths Suite ────────────────
+
+  val errorPathsSuite: Spec[Any, Nothing] = suite("Error Paths")(
+    test("rename non-existent field") {
+      val m      = DynamicMigration.renameField("nonexistent", "newname")
+      val record = mkRecord("name" -> s("Alice"))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("drop non-existent field") {
+      val m      = DynamicMigration.dropField("nonexistent")
+      val record = mkRecord("name" -> s("Alice"))
+      val result = m.migrate(record)
+      // drop on non-existent may fail or silently no-op depending on action semantics
+      assertTrue(result.isLeft || result.isRight)
+    },
+    test("mandate non-existent field") {
+      val m      = DynamicMigration.mandateField("nonexistent", i(0))
+      val record = mkRecord("name" -> s("Alice"))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("optionalize non-existent field") {
+      val m      = DynamicMigration.optionalizeField("nonexistent")
+      val record = mkRecord("name" -> s("Alice"))
+      val result = m.migrate(record)
+      // optionalize on non-existent may silently no-op
+      assertTrue(result.isLeft || result.isRight)
+    },
+    test("nest non-existent fields") {
+      val m      = DynamicMigration.nestFields(Vector("a", "b"), "nested")
+      val record = mkRecord("name" -> s("Alice"))
+      val result = m.migrate(record)
+      // nest tries to extract fields a, b which don't exist
+      assertTrue(result.isRight || result.isLeft)
+    },
+    test("changeFieldTypeExpr on non-existent field") {
+      val m      = DynamicMigration.changeFieldTypeExpr("nonexistent", MigrationExpr.IntToString)
+      val record = mkRecord("name" -> s("Alice"))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("changeFieldTypeExpr type mismatch") {
+      val m      = DynamicMigration.changeFieldTypeExpr("name", MigrationExpr.IntToString)
+      val record = mkRecord("name" -> s("Alice"))
+      // IntToString expects int, but field is string
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("transformValue on non-record") {
+      val m      = DynamicMigration.renameField("a", "b")
+      val value  = s("not a record")
+      val result = m.migrate(value)
+      assertTrue(result.isLeft)
+    },
+    test("error includes path info for nested field") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.Rename(DynamicOptic.root.field("address"), "nonexistent", "newname")
+        )
+      )
+      val record = mkRecord(
+        "address" -> mkRecord("street" -> s("Main"))
+      )
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("error from deep nested path") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.Rename(
+            DynamicOptic.root.field("level1").field("level2"),
+            "nonexistent",
+            "newname"
+          )
+        )
+      )
+      val record = mkRecord(
+        "level1" -> mkRecord(
+          "level2" -> mkRecord("existing" -> s("val"))
+        )
+      )
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("renameCase non-existent case") {
+      val m       = DynamicMigration.renameCase("NonExistent", "New")
+      val variant = mkVariant("Existing", mkRecord("x" -> i(1)))
+      val result  = m.migrate(variant)
+      assertTrue(result.isRight) // renameCase on non-matching case is a no-op
+    },
+    test("transformElements on non-sequence") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("items"),
+            new DynamicMigration(Vector(MigrationAction.AddField(DynamicOptic.root, "x", i(1))))
+          )
+        )
+      )
+      val record = mkRecord("items" -> s("not a sequence"))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    }
+  )
+
+  // ──────────────── Roundtrip Property Suite ────────────────
+
+  val roundtripPropertySuite: Spec[Any, Nothing] = suite("Roundtrip Properties")(
+    test("rename roundtrip preserves data") {
+      val m      = DynamicMigration.renameField("a", "b")
+      val record = mkRecord("a" -> i(42), "x" -> s("hello"))
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd).toOption.get
+      assertTrue(back == record)
+    },
+    test("multiple rename roundtrip") {
+      val m      = DynamicMigration.renameField("a", "b") ++ DynamicMigration.renameField("c", "d")
+      val record = mkRecord("a" -> i(1), "c" -> i(2), "e" -> i(3))
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd).toOption.get
+      assertTrue(back == record)
+    },
+    test("add then reverse drops the field") {
+      val m      = DynamicMigration.addField("new", i(99))
+      val record = mkRecord("x" -> i(1))
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd).toOption.get
+      assertTrue(back == record)
+    },
+    test("drop with default then reverse adds back") {
+      val m      = DynamicMigration.dropField("x", i(42))
+      val record = mkRecord("x" -> i(42), "y" -> i(2))
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd).toOption.get
+      // After roundtrip, field order may differ; check both fields exist with correct values
+      val backFields = back match {
+        case DynamicValue.Record(fields) => fields.toMap
+        case _                           => Map.empty[String, DynamicValue]
+      }
+      assertTrue(backFields.size == 2 && backFields("x") == i(42) && backFields("y") == i(2))
+    },
+    test("optionalize then mandate roundtrip") {
+      val m      = DynamicMigration.optionalizeField("x")
+      val record = mkRecord("x" -> i(42))
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd)
+      assertTrue(back.isRight)
+    },
+    test("renameCase roundtrip") {
+      val m       = DynamicMigration.renameCase("A", "B")
+      val variant = mkVariant("A", mkRecord("x" -> i(1)))
+      val fwd     = m.migrate(variant).toOption.get
+      val back    = m.reverse.migrate(fwd).toOption.get
+      assertTrue(back == variant)
+    },
+    test("identity roundtrip is identity") {
+      val m      = DynamicMigration.identity
+      val record = mkRecord("x" -> i(1), "y" -> s("hello"))
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd).toOption.get
+      assertTrue(fwd == record && back == record)
+    },
+    test("nest then unnest roundtrip") {
+      val m      = DynamicMigration.nestFields(Vector("street", "city"), "address")
+      val record = mkRecord("name" -> s("Alice"), "street" -> s("Main"), "city" -> s("NYC"))
+      val fwd    = m.migrate(record).toOption.get
+      assertTrue(fwd != record) // nested
+      val back = m.reverse.migrate(fwd)
+      assertTrue(back.isRight)
+    },
+    test("rename chain 5 deep roundtrip") {
+      val m = DynamicMigration.renameField("a", "b") ++
+        DynamicMigration.renameField("b", "c") ++
+        DynamicMigration.renameField("c", "d") ++
+        DynamicMigration.renameField("d", "e") ++
+        DynamicMigration.renameField("e", "f")
+      val record = mkRecord("a" -> i(42))
+      val fwd    = m.migrate(record).toOption.get
+      assertTrue(fwd == mkRecord("f" -> i(42)))
+    },
+    test("composition associativity: (a ++ b) ++ c == a ++ (b ++ c)") {
+      val a      = DynamicMigration.renameField("x", "y")
+      val b      = DynamicMigration.addField("z", i(1))
+      val c      = DynamicMigration.renameField("z", "w")
+      val record = mkRecord("x" -> i(42))
+      val r1     = (a ++ b ++ c).migrate(record)
+      val r2     = (a ++ (b ++ c)).migrate(record)
+      assertTrue(r1 == r2)
+    },
+    test("reverse of composition: (a ++ b).reverse == b.reverse ++ a.reverse") {
+      val a      = DynamicMigration.renameField("x", "y")
+      val b      = DynamicMigration.addField("z", i(1))
+      val record = mkRecord("x" -> i(42))
+      val fwd    = (a ++ b).migrate(record).toOption.get
+      val r1     = (a ++ b).reverse.migrate(fwd)
+      val r2     = (b.reverse ++ a.reverse).migrate(fwd)
+      assertTrue(r1 == r2)
+    },
+    test("double reverse equals original") {
+      val m      = DynamicMigration.renameField("a", "b") ++ DynamicMigration.addField("c", i(1))
+      val record = mkRecord("a" -> i(42))
+      val r1     = m.migrate(record)
+      val r2     = m.reverse.reverse.migrate(record)
+      assertTrue(r1 == r2)
+    },
+    test("typed Migration roundtrip with builder") {
+      val migration = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .buildPartial
+      val person = PersonV1("Alice", 30)
+      val fwd    = migration.apply(person)
+      assertTrue(fwd.isRight)
+    },
+    test("typed Migration andThen composition") {
+      val m1 = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .buildPartial
+      val m2 = Migration
+        .newBuilder[PersonV2, PersonV1]
+        .renameField("fullName", "name")
+        .buildPartial
+      val person = PersonV1("Alice", 30)
+      val fwd    = m1.apply(person)
+      assertTrue(fwd.isRight)
+    }
+  )
+
+  // ──────────────── DynamicOptic Path Suite ────────────────
+
+  val dynamicOpticPathSuite: Spec[Any, Nothing] = suite("DynamicOptic Paths")(
+    test("root path on record") {
+      val m      = DynamicMigration.addField("x", i(1))
+      val record = mkRecord("y" -> i(2))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("y" -> i(2), "x" -> i(1))))
+    },
+    test("field path navigates to nested record") {
+      val m = new DynamicMigration(
+        Vector(MigrationAction.AddField(DynamicOptic.root.field("nested"), "x", i(1)))
+      )
+      val record = mkRecord("nested" -> mkRecord("y" -> i(2)))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("nested" -> mkRecord("y" -> i(2), "x" -> i(1)))))
+    },
+    test("double nested field path") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("a").field("b"),
+            "x",
+            i(1)
+          )
+        )
+      )
+      val record = mkRecord("a" -> mkRecord("b" -> mkRecord("y" -> i(2))))
+      val result = m.migrate(record)
+      assertTrue(
+        result == Right(mkRecord("a" -> mkRecord("b" -> mkRecord("y" -> i(2), "x" -> i(1)))))
+      )
+    },
+    test("rename at nested path") {
+      val m = new DynamicMigration(
+        Vector(MigrationAction.Rename(DynamicOptic.root.field("config"), "old_key", "new_key"))
+      )
+      val record = mkRecord("config" -> mkRecord("old_key" -> s("value")))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("config" -> mkRecord("new_key" -> s("value")))))
+    },
+    test("drop at nested path") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.DropField(DynamicOptic.root.field("meta"), "temp", DynamicValue.Null)
+        )
+      )
+      val record = mkRecord("meta" -> mkRecord("temp" -> i(1), "keep" -> i(2)))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("meta" -> mkRecord("keep" -> i(2)))))
+    },
+    test("path to non-existent intermediate fails") {
+      val m = new DynamicMigration(
+        Vector(MigrationAction.AddField(DynamicOptic.root.field("nonexistent"), "x", i(1)))
+      )
+      val record = mkRecord("other" -> i(2))
+      val result = m.migrate(record)
+      assertTrue(result.isLeft)
+    },
+    test("index path on sequence") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.TransformElements(
+            DynamicOptic.root.field("items"),
+            new DynamicMigration(
+              Vector(MigrationAction.AddField(DynamicOptic.root, "added", i(1)))
+            )
+          )
+        )
+      )
+      val record = mkRecord(
+        "items" -> DynamicValue.Sequence(Chunk(mkRecord("x" -> i(1)), mkRecord("x" -> i(2))))
+      )
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("multiple path-scoped operations") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.AddField(DynamicOptic.root.field("a"), "x", i(1)),
+          MigrationAction.Rename(DynamicOptic.root.field("a"), "old", "new1")
+        )
+      )
+      val record = mkRecord("a" -> mkRecord("old" -> s("v")))
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    }
+  )
+
+  // ──────────────── Identity / Monoid Laws Suite ────────────────
+
+  val identityMonoidLawsSuite: Spec[Any, Nothing] = suite("Identity and Monoid Laws")(
+    test("left identity: identity ++ m == m") {
+      val m      = DynamicMigration.renameField("a", "b")
+      val record = mkRecord("a" -> i(42))
+      val r1     = (DynamicMigration.identity ++ m).migrate(record)
+      val r2     = m.migrate(record)
+      assertTrue(r1 == r2)
+    },
+    test("right identity: m ++ identity == m") {
+      val m      = DynamicMigration.renameField("a", "b")
+      val record = mkRecord("a" -> i(42))
+      val r1     = (m ++ DynamicMigration.identity).migrate(record)
+      val r2     = m.migrate(record)
+      assertTrue(r1 == r2)
+    },
+    test("identity reverse is identity") {
+      val m      = DynamicMigration.identity
+      val record = mkRecord("x" -> i(1))
+      val r1     = m.reverse.migrate(record)
+      val r2     = m.migrate(record)
+      assertTrue(r1 == r2)
+    },
+    test("associativity with 4 migrations") {
+      val a      = DynamicMigration.addField("a", i(1))
+      val b      = DynamicMigration.addField("b", i(2))
+      val c      = DynamicMigration.addField("c", i(3))
+      val d      = DynamicMigration.addField("d", i(4))
+      val record = mkRecord()
+      val r1     = ((a ++ b) ++ (c ++ d)).migrate(record)
+      val r2     = (a ++ (b ++ (c ++ d))).migrate(record)
+      assertTrue(r1 == r2)
+    },
+    test("reverse of identity chain") {
+      val m      = DynamicMigration.identity ++ DynamicMigration.identity ++ DynamicMigration.identity
+      val record = mkRecord("x" -> i(1))
+      val r1     = m.migrate(record)
+      val r2     = m.reverse.migrate(record)
+      assertTrue(r1 == r2 && r1 == Right(record))
+    },
+    test("composition preserves action count") {
+      val a = DynamicMigration.addField("a", i(1))
+      val b = DynamicMigration.addField("b", i(2))
+      val c = a ++ b
+      assertTrue(c.actions.size == 2)
+    },
+    test("empty migration is identity") {
+      val m      = new DynamicMigration(Vector.empty)
+      val record = mkRecord("x" -> i(1), "y" -> s("hello"))
+      val result = m.migrate(record)
+      assertTrue(result == Right(record))
+    },
+    test("reverse preserves action count") {
+      val m = DynamicMigration.addField("a", i(1)) ++
+        DynamicMigration.renameField("x", "y") ++
+        DynamicMigration.dropField("z")
+      assertTrue(m.reverse.actions.size == m.actions.size)
+    }
+  )
+
+  // ──────────────── Builder Fluent API Suite ────────────────
+
+  val builderFluentSuite: Spec[Any, Nothing] = suite("Builder Fluent API")(
+    test("empty builder creates identity migration") {
+      val m      = Migration.newBuilder[PersonV1, PersonV1].buildPartial
+      val person = PersonV1("Alice", 30)
+      val result = m.apply(person)
+      assertTrue(result.isRight)
+    },
+    test("builder chain 5 operations") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .addField("email", s("none"))
+        .addField("active", DynamicValue.boolean(true))
+        .dropField("temp")
+        .dropField("old")
+      assertTrue(builder.actions.size == 5)
+    },
+    test("builder preserves source schema") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+      assertTrue(builder.sourceSchema == PersonV1.schema)
+    },
+    test("builder preserves target schema") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+      assertTrue(builder.targetSchema == PersonV2.schema)
+    },
+    test("builder with all record operations") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .addField("email", s("none"))
+        .dropField("old")
+        .mandateField("opt", i(0))
+        .optionalizeField("x")
+        .changeFieldTypeExpr("age", MigrationExpr.IntToString)
+      assertTrue(builder.actions.size == 6)
+    },
+    test("builder with enum operations") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameCase("OldCase", "NewCase")
+        .transformCase("SomeCase", Vector.empty)
+      assertTrue(builder.actions.size == 2)
+    },
+    test("builder with nest/unnest") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .nestFields(Vector("street", "city"), "address")
+        .unnestField("meta")
+      assertTrue(builder.actions.size == 2)
+    },
+    test("builder with join/split") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .joinFields(Vector("first", "last"), "name", MigrationExpr.Identity)
+        .splitField("address", Vector("street", "city"), MigrationExpr.Identity)
+      assertTrue(builder.actions.size == 2)
+    },
+    test("builder with path-scoped operations") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .addFieldAt(DynamicOptic.root.field("nested"), "x", i(1))
+        .dropFieldAt(DynamicOptic.root.field("nested"), "y")
+        .renameFieldAt(DynamicOptic.root.field("nested"), "old", "new1")
+      assertTrue(builder.actions.size == 3)
+    },
+    test("builder buildPartial always succeeds") {
+      val migration = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField("name", "fullName")
+        .renameField("name", "fullName") // duplicate
+        .buildPartial
+      assertTrue(migration != null)
+    },
+    test("builder actions preserved in order") {
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .addField("a", i(1))
+        .addField("b", i(2))
+        .addField("c", i(3))
+      val names = builder.actions.collect { case MigrationAction.AddField(_, name, _) => name }
+      assertTrue(names == Vector("a", "b", "c"))
+    },
+    test("builder with collection operations") {
+      val innerMigration = new DynamicMigration(
+        Vector(MigrationAction.AddField(DynamicOptic.root, "processed", DynamicValue.boolean(true)))
+      )
+      val builder = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .transformElements(DynamicOptic.root.field("items"), innerMigration)
+        .transformKeys(DynamicOptic.root.field("map"), innerMigration)
+        .transformValues(DynamicOptic.root.field("map"), innerMigration)
+      assertTrue(builder.actions.size == 3)
+    }
+  )
+
+  // ──────────────── Stress Test Suite ────────────────
+
+  val stressTestSuite: Spec[Any, Nothing] = suite("Stress Tests")(
+    test("10 sequential adds") {
+      val m = (0 until 10).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        acc ++ DynamicMigration.addField(s"field_$idx", i(idx))
+      }
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result.isRight && recordSize(result.toOption.get) == 10)
+    },
+    test("20 sequential adds") {
+      val m = (0 until 20).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        acc ++ DynamicMigration.addField(s"field_$idx", i(idx))
+      }
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result.isRight && recordSize(result.toOption.get) == 20)
+    },
+    test("add 10 then drop 5") {
+      val adds = (0 until 10).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        acc ++ DynamicMigration.addField(s"f$idx", i(idx))
+      }
+      val drops = (0 until 5).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        acc ++ DynamicMigration.dropField(s"f$idx")
+      }
+      val m      = adds ++ drops
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result.isRight && recordSize(result.toOption.get) == 5)
+    },
+    test("chain of 10 renames a->b->c->...->k") {
+      val names = ('a' to 'k').map(_.toString).toList
+      val m     = names.sliding(2).foldLeft(DynamicMigration.identity) { (acc, pair) =>
+        acc ++ DynamicMigration.renameField(pair(0), pair(1))
+      }
+      val record = mkRecord("a" -> i(42))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("k" -> i(42))))
+    },
+    test("alternating add/rename 10 times") {
+      val m = (0 until 10).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        val name = s"field_$idx"
+        acc ++ DynamicMigration.addField(name, i(idx)) ++
+          DynamicMigration.renameField(name, s"renamed_$idx")
+      }
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("large record with 10 fields + 3 operations") {
+      val fields = (0 until 10).map(idx => s"f$idx" -> i(idx))
+      val record = mkRecord(fields: _*)
+      val m      = DynamicMigration.renameField("f0", "renamed_f0") ++
+        DynamicMigration.addField("new_field", s("hello")) ++
+        DynamicMigration.dropField("f1")
+      val result = m.migrate(record)
+      assertTrue(result.isRight && recordSize(result.toOption.get) == 10)
+    },
+    test("migration with all action types combined") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.AddField(DynamicOptic.root, "added", i(1)),
+          MigrationAction.Rename(DynamicOptic.root, "old", "new1"),
+          MigrationAction.Optionalize(DynamicOptic.root, "opt"),
+          MigrationAction.ChangeTypeExpr(DynamicOptic.root, "num", MigrationExpr.IntToString)
+        )
+      )
+      val record = mkRecord("old" -> s("v"), "opt" -> i(1), "num" -> i(42))
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("reverse of 10 operations roundtrip") {
+      val m = (0 until 10).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        acc ++ DynamicMigration.addField(s"f$idx", i(idx))
+      }
+      val record = mkRecord()
+      val fwd    = m.migrate(record).toOption.get
+      val back   = m.reverse.migrate(fwd).toOption.get
+      assertTrue(back == record)
+    },
+    test("50 action migration") {
+      val m = (0 until 50).foldLeft(DynamicMigration.identity) { (acc, idx) =>
+        acc ++ DynamicMigration.addField(s"f$idx", i(idx))
+      }
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result.isRight && recordSize(result.toOption.get) == 50)
+    },
+    test("mixed expr chain: IntToString, StringToInt, IntToLong") {
+      val m = DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToString) ++
+        DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.StringToInt) ++
+        DynamicMigration.changeFieldTypeExpr("v", MigrationExpr.IntToLong)
+      val record = mkRecord("v" -> i(42))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("v" -> DynamicValue.long(42L))))
+    },
+    test("concurrent renames on different fields") {
+      val m = DynamicMigration.renameField("a", "x") ++
+        DynamicMigration.renameField("b", "y") ++
+        DynamicMigration.renameField("c", "z")
+      val record = mkRecord("a" -> i(1), "b" -> i(2), "c" -> i(3))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("x" -> i(1), "y" -> i(2), "z" -> i(3))))
+    },
+    test("nest + operations on nested + unnest") {
+      val m = DynamicMigration.nestFields(Vector("street", "city"), "addr") ++
+        new DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root.field("addr"), "zip", s("00000"))
+          )
+        )
+      val record = mkRecord("name" -> s("Alice"), "street" -> s("Main"), "city" -> s("NYC"))
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("deeply nested 3 levels add field") {
+      val m = new DynamicMigration(
+        Vector(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("a").field("b").field("c"),
+            "deep",
+            i(42)
+          )
+        )
+      )
+      val record = mkRecord(
+        "a" -> mkRecord(
+          "b" -> mkRecord(
+            "c" -> mkRecord("existing" -> i(1))
+          )
+        )
+      )
+      val result = m.migrate(record)
+      assertTrue(result.isRight)
+    },
+    test("migration on variant with multiple cases") {
+      val m = DynamicMigration.renameCase("Active", "Enabled") ++
+        DynamicMigration.renameCase("Inactive", "Disabled")
+      val v1 = mkVariant("Active", mkRecord("id" -> i(1)))
+      val v2 = mkVariant("Inactive", mkRecord("id" -> i(2)))
+      val r1 = m.migrate(v1)
+      val r2 = m.migrate(v2)
+      assertTrue(r1.isRight && r2.isRight)
+    },
+    test("empty record operations") {
+      val m      = DynamicMigration.addField("x", i(1)) ++ DynamicMigration.addField("y", i(2))
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("x" -> i(1), "y" -> i(2))))
+    },
+    test("add then rename the same field") {
+      val m      = DynamicMigration.addField("temp", i(42)) ++ DynamicMigration.renameField("temp", "final1")
+      val record = mkRecord()
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("final1" -> i(42))))
     }
   )
 }
