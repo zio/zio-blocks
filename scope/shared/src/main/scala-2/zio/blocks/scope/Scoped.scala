@@ -218,8 +218,29 @@ final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
 object Scoped {
 
   /**
-   * Creates a Scoped computation from a thunk.
+   * Lifts a value into a Scoped computation.
+   *
+   * This allows ordinary values to participate in `Scoped` for-comprehensions
+   * alongside scoped values. The resulting computation has no scope requirements
+   * (uses `Any` as the tag), so it can be combined with any other `Scoped`.
+   *
+   * The value is evaluated lazily when the Scoped computation is run.
+   *
+   * @param a
+   *   the value to lift (by-name, evaluated lazily)
+   * @tparam A
+   *   the value type
+   * @return
+   *   a Scoped computation that produces `a` when run
    */
-  def create[Tag, A](f: () => A): Scoped[Tag, A] =
+  def apply[A](a: => A): Scoped[Any, A] =
+    new Scoped(() => a)
+
+  /**
+   * Creates a Scoped computation from a thunk with an explicit tag.
+   *
+   * This is an internal factory used by the `@@` extension methods.
+   */
+  private[scope] def create[Tag, A](f: () => A): Scoped[Tag, A] =
     new Scoped(f)
 }
