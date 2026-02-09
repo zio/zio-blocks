@@ -19,7 +19,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => derive(format))
+      .computeIfAbsent(format, _ => deriving(format.deriver).derive)
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
@@ -31,8 +31,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
-
-  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
     new DerivationBuilder[TC, A](this, deriver, Chunk.empty, Chunk.empty)
@@ -84,7 +82,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def toDynamicSchema: DynamicSchema = new DynamicSchema(reflect.noBinding)
 
   /** Derives a JSON Schema from this Schema. */
-  def toJsonSchema: JsonSchema = derive(JsonFormat).toJsonSchema
+  def toJsonSchema: JsonSchema = deriving(JsonFormat.deriver).derive.toJsonSchema
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))

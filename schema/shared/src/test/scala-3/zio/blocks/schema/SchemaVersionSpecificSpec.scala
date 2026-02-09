@@ -793,6 +793,21 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         )
       }
     ),
+    suite("derive with Format")(
+      test("compiles when explicit type annotation is used with schema.derive(Format)") {
+        typeCheck {
+          """
+          import zio.blocks.schema._
+          import zio.blocks.schema.json.{JsonBinaryCodec, JsonFormat}
+
+          case class Person(name: String, age: Int) derives Schema
+
+          val schema = Schema[Person]
+          val jsonCodec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
+          """
+        }.map(result => assertTrue(result.isRight))
+      }
+    ),
     suite("transform captures TypeId")(
       test("transform captures the correct TypeId automatically") {
         case class Age(value: Int)
