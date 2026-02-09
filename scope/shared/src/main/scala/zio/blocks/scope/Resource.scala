@@ -216,6 +216,81 @@ sealed trait Resource[+A] { self =>
    */
   def :+[R1, B](that: Resource[B])(implicit ev: A <:< Context[R1], evB: IsNominalType[B]): Resource[Context[R1 & B]] =
     self.flatMap(a => that.map(b => ev(a).add[B](b)(evB)))
+
+  /**
+   * Allocates a resource using this [[Context]] and adds the result to the
+   * context.
+   *
+   * This method is available when this resource produces a `Context[R1]`. It
+   * passes the context to the provided function to create a new resource, then
+   * adds the resulting value to the context.
+   *
+   * @tparam R1
+   *   the type parameter of this resource's Context
+   * @tparam B
+   *   the type of value produced by the allocated resource (must be a nominal
+   *   type)
+   * @param f
+   *   a function that takes the current context and returns a resource to
+   *   allocate
+   * @param ev
+   *   evidence that this resource produces a `Context[R1]`
+   * @param evB
+   *   evidence that `B` is a nominal type
+   * @return
+   *   a resource producing a [[Context]] with the allocated value added
+   *
+   * @example
+   *   {{{
+   *   case class Config(url: String)
+   *   case class Database(config: Config)
+   *
+   *   val configCtx: Resource[Context[Config]] = Resource(Config("jdbc://")).contextual
+   *   val withDb: Resource[Context[Config & Database]] = configCtx.allocate { ctx =>
+   *     Resource(Database(ctx.get[Config]))
+   *   }
+   *   }}}
+   */
+  def allocate[R1, B](f: Context[R1] => Resource[B])(implicit
+    ev: A <:< Context[R1],
+    evB: IsNominalType[B]
+  ): Resource[Context[R1 & B]] =
+    self.flatMap { a =>
+      val ctx = ev(a)
+      f(ctx).map(b => ctx.add[B](b)(evB))
+    }
+
+  /**
+   * Builds a resource using this [[Context]], returning just the built value.
+   *
+   * This method is available when this resource produces a `Context[R1]`. It
+   * passes the context to the provided function to create a new resource,
+   * returning the result without wrapping it in the context.
+   *
+   * @tparam R1
+   *   the type parameter of this resource's Context
+   * @tparam B
+   *   the type of value produced by the built resource
+   * @param f
+   *   a function that takes the current context and returns a resource to build
+   * @param ev
+   *   evidence that this resource produces a `Context[R1]`
+   * @return
+   *   a resource producing the built value
+   *
+   * @example
+   *   {{{
+   *   case class Config(url: String)
+   *   case class Database(config: Config)
+   *
+   *   val configCtx: Resource[Context[Config]] = Resource(Config("jdbc://")).contextual
+   *   val db: Resource[Database] = configCtx.build { (ctx: Context[Config]) =>
+   *     Resource(Database(ctx.get[Config]))
+   *   }
+   *   }}}
+   */
+  def build[R1, B](f: Context[R1] => Resource[B])(implicit ev: A <:< Context[R1]): Resource[B] =
+    self.flatMap(a => f(ev(a)))
 }
 
 object Resource extends ResourceCompanionVersionSpecific {

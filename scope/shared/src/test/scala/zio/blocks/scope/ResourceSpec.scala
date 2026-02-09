@@ -2,6 +2,7 @@ package zio.blocks.scope
 
 import zio.{ZIO, Scope => _}
 import zio.test._
+import zio.blocks.context._
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ListBuffer
@@ -649,6 +650,191 @@ object ResourceSpec extends ZIOSpecDefault {
           ctx.get[A].a == 1,
           ctx.get[B].b == "two",
           ctx.get[C].c
+        )
+      }
+    ),
+    suite("allocate")(
+      test("allocates resource using context and adds to context") {
+        case class Config(url: String)
+        case class Database(config: Config)
+
+        val configCtx = Resource(Config("jdbc://localhost")).contextual[Config]
+        val withDb    = configCtx.allocate { (ctx: Context[Config]) =>
+          Resource(Database(ctx.get[Config]))
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = withDb.make(scope)
+        close()
+
+        assertTrue(
+          ctx.get[Config].url == "jdbc://localhost",
+          ctx.get[Database].config.url == "jdbc://localhost"
+        )
+      },
+      test("preserves finalizers from both context resource and allocated resource") {
+        var configClosed = false
+        var dbClosed     = false
+
+        class Config extends AutoCloseable {
+          val url           = "jdbc://"
+          def close(): Unit = configClosed = true
+        }
+        class Database(val config: Config) extends AutoCloseable {
+          def close(): Unit = dbClosed = true
+        }
+
+        val configCtx = Resource.fromAutoCloseable(new Config).contextual[Config]
+        val withDb    = configCtx.allocate { (ctx: Context[Config]) =>
+          Resource.fromAutoCloseable(new Database(ctx.get[Config]))
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = withDb.make(scope)
+
+        assertTrue(
+          ctx.get[Config].url == "jdbc://",
+          ctx.get[Database].config.url == "jdbc://",
+          !configClosed,
+          !dbClosed
+        )
+        close()
+        assertTrue(configClosed, dbClosed)
+      },
+      test("chains multiple allocate operations") {
+        case class Config(url: String)
+        case class Database(config: Config)
+        case class Cache(db: Database)
+
+        val configCtx = Resource(Config("jdbc://")).contextual[Config]
+        val full      = configCtx.allocate { (ctx: Context[Config]) =>
+          Resource(Database(ctx.get[Config]))
+        }.allocate { (ctx: Context[Config & Database]) =>
+          Resource(Cache(ctx.get[Database]))
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = full.make(scope)
+        close()
+
+        assertTrue(
+          ctx.get[Config].url == "jdbc://",
+          ctx.get[Database].config.url == "jdbc://",
+          ctx.get[Cache].db.config.url == "jdbc://"
+        )
+      },
+      test("works with shared resources") {
+        case class Config(url: String)
+        case class Database(id: Int, config: Config)
+
+        val counter   = new AtomicInteger(0)
+        val configCtx = Resource(Config("jdbc://")).contextual[Config]
+        val withDb    = configCtx.allocate { (ctx: Context[Config]) =>
+          Resource.shared[Database] { _ =>
+            Database(counter.incrementAndGet(), ctx.get[Config])
+          }
+        }
+
+        val (scope1, close1) = Scope.createTestableScope()
+        val (scope2, close2) = Scope.createTestableScope()
+
+        val ctx1 = withDb.make(scope1)
+        val ctx2 = withDb.make(scope2)
+
+        close1()
+        close2()
+
+        assertTrue(
+          ctx1.get[Database].id == 1,
+          ctx2.get[Database].id == 2,
+          counter.get() == 2
+        )
+      }
+    ),
+    suite("build")(
+      test("builds resource using context and returns value") {
+        case class Config(url: String)
+        case class Database(config: Config)
+
+        val configCtx = Resource(Config("jdbc://localhost")).contextual[Config]
+        val dbRes     = configCtx.build { (ctx: Context[Config]) =>
+          Resource(Database(ctx.get[Config]))
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        val db             = dbRes.make(scope)
+        close()
+
+        assertTrue(db.config.url == "jdbc://localhost")
+      },
+      test("preserves finalizers from both context resource and built resource") {
+        var configClosed = false
+        var dbClosed     = false
+
+        class Config extends AutoCloseable {
+          val url           = "jdbc://"
+          def close(): Unit = configClosed = true
+        }
+        class Database(val config: Config) extends AutoCloseable {
+          def close(): Unit = dbClosed = true
+        }
+
+        val configCtx = Resource.fromAutoCloseable(new Config).contextual[Config]
+        val dbRes     = configCtx.build { (ctx: Context[Config]) =>
+          Resource.fromAutoCloseable(new Database(ctx.get[Config]))
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        val db             = dbRes.make(scope)
+
+        assertTrue(db.config.url == "jdbc://", !configClosed, !dbClosed)
+        close()
+        assertTrue(configClosed, dbClosed)
+      },
+      test("can chain with contextual to re-wrap result") {
+        case class Config(url: String)
+        case class Database(config: Config)
+
+        val configCtx = Resource(Config("jdbc://")).contextual[Config]
+        val dbCtx     = configCtx.build { (ctx: Context[Config]) =>
+          Resource(Database(ctx.get[Config]))
+        }
+          .contextual[Database]
+
+        val (scope, close) = Scope.createTestableScope()
+        val ctx            = dbCtx.make(scope)
+        close()
+
+        assertTrue(ctx.get[Database].config.url == "jdbc://")
+      },
+      test("works with shared resources in context") {
+        case class Config(url: String)
+        case class Database(id: Int, config: Config)
+
+        val counter   = new AtomicInteger(0)
+        val configCtx = Resource
+          .shared[Config] { _ =>
+            Config("jdbc://")
+          }
+          .contextual[Config]
+        val dbRes = configCtx.build { (ctx: Context[Config]) =>
+          Resource(Database(counter.incrementAndGet(), ctx.get[Config]))
+        }
+
+        val (scope1, close1) = Scope.createTestableScope()
+        val (scope2, close2) = Scope.createTestableScope()
+
+        val db1 = dbRes.make(scope1)
+        val db2 = dbRes.make(scope2)
+
+        close1()
+        close2()
+
+        assertTrue(
+          db1.id == 1,
+          db2.id == 2,
+          db1.config.url == "jdbc://",
+          db2.config.url == "jdbc://"
         )
       }
     )
