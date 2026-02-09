@@ -107,7 +107,7 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     composedMigration.migrate(personV1)
 
   @Benchmark
-  def reverseMigration(): Either[MigrationError, PersonV2] = {
+  def reverseMigration(): Either[MigrationError, PersonV1] = {
     val forward = renameMigration.migrate(personV1).toOption.get
     renameMigration.reverse.migrate(forward)
   }
