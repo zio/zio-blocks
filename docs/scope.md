@@ -179,8 +179,8 @@ How to build them:
 - From scoped values:
   - `val s: Scoped[S, B] = (a: A @@ S).map(f)`
   - `flatMap` composes scoped values while tracking combined requirements
-- Or directly:
-  - `Scoped.create(() => ...)` (advanced/internal style)
+- From ordinary values:
+  - `Scoped(value)` lifts a value into a `Scoped[Any, A]` (which can be used anywhere due to contravariance)
 
 `Scoped` is contravariant in `Tag`, which is what allows a **child** scope (more specific tag) to run computations that only require a **parent** tag.
 
