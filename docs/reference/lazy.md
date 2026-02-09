@@ -336,16 +336,16 @@ The trampolining approach converts recursive calls into an iterative loop with a
 
 | Method                                       | Description                               |
 |----------------------------------------------|-------------------------------------------|
-| `force: A`                                   | Evaluate and return the result (memoized) |
-| `isEvaluated: Boolean`                       | Check if the value has been computed      |
-| `map[B](f: A => B): Lazy[B]`                 | Transform the value                       |
-| `flatMap[B](f: A => Lazy[B]): Lazy[B]`       | Chain computations                        |
-| `flatten: Lazy[B]`                           | Flatten nested `Lazy`                     |
-| `as[B](b: => B): Lazy[B]`                    | Replace the value with a constant         |
-| `unit: Lazy[Unit]`                           | Discard the value                         |
-| `zip[B](that: Lazy[B]): Lazy[(A, B)]`        | Combine with another `Lazy`               |
-| `catchAll(f: Throwable => Lazy[B]): Lazy[B]` | Handle errors                             |
-| `ensuring(finalizer: Lazy[Any]): Lazy[A]`    | Run finalizer on completion               |
+| `force: A`                                          | Evaluate and return the result (memoized) |
+| `isEvaluated: Boolean`                              | Check if the value has been computed      |
+| `map[B](f: A => B): Lazy[B]`                        | Transform the value                       |
+| `flatMap[B](f: A => Lazy[B]): Lazy[B]`              | Chain computations                        |
+| `flatten: Lazy[B]`                                  | Flatten nested `Lazy`                     |
+| `as[B](b: => B): Lazy[B]`                           | Replace the value with a constant         |
+| `unit: Lazy[Unit]`                                  | Discard the value                         |
+| `zip[B](that: Lazy[B]): Lazy[(A, B)]`               | Combine with another `Lazy`               |
+| `catchAll[B >: A](f: Throwable => Lazy[B]): Lazy[B]` | Handle errors                            |
+| `ensuring(finalizer: Lazy[Any]): Lazy[A]`           | Run finalizer on completion               |
 
 ### Equality and Hashing
 
