@@ -42,7 +42,7 @@ Here's a simplified view of how `Lazy` enables this:
 // In DerivationBuilder
 def transformRecord[A](
   fields: IndexedSeq[Term[F, A, ?]],
-  metadata: F[BindingType.Record, A0],
+  metadata: F[BindingType.Record, A],
   // ...
 ): Lazy[Reflect.Record[G, A]] = Lazy {
   // Get instances for field types (may trigger evaluation of other Lazy values)
