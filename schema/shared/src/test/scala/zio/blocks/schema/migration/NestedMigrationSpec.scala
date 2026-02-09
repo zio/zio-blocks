@@ -670,10 +670,13 @@ object NestedMigrationSpec extends SchemaBaseSpec {
 
         val actions = migration.dynamicMigration.actions
 
-        // Verify AddField is prefixed with .address
+        // Verify AddField is wrapped in TransformField for .address
         assertTrue(actions.exists {
-          case MigrationAction.AddField(path, "city", _) =>
-            path.toString == ".address"
+          case MigrationAction.TransformField(_, "address", fieldActions) =>
+            fieldActions.exists {
+              case MigrationAction.AddField(_, "city", _) => true
+              case _                                      => false
+            }
           case _ => false
         })
       }
@@ -908,14 +911,16 @@ object NestedMigrationSpec extends SchemaBaseSpec {
 
         val actions = migration.dynamicMigration.actions
 
-        // Should have two AddField actions with different paths
-        val addFieldActions = actions.collect { case af @ MigrationAction.AddField(_, "city", _) =>
-          af
+        // Should have two TransformField actions wrapping AddField for city
+        val nestedFieldNames = actions.collect {
+          case MigrationAction.TransformField(_, fieldName, fieldActions) if fieldActions.exists {
+                case MigrationAction.AddField(_, "city", _) => true
+                case _                                      => false
+              } =>
+            fieldName
         }
-        assertTrue(addFieldActions.size == 2)
-
-        val paths = addFieldActions.map(_.at.toString).toSet
-        assertTrue(paths == Set(".homeOffice", ".branch"))
+        assertTrue(nestedFieldNames.size == 2)
+        assertTrue(nestedFieldNames.toSet == Set("homeOffice", "branch"))
       }
     ),
     suite("Val-safe builder pattern")(
@@ -979,11 +984,15 @@ object NestedMigrationSpec extends SchemaBaseSpec {
 
         val actions = migration.dynamicMigration.actions
 
-        // Should have ChangeType actions prefixed with .metrics
-        val changeTypeActions = actions.collect {
-          case ct @ MigrationAction.ChangeType(path, _, _, _) if path.toString == ".metrics" => ct
-        }
-        assertTrue(changeTypeActions.size == 2)
+        // Should have ChangeType actions wrapped in TransformField for .metrics
+        assertTrue(actions.exists {
+          case MigrationAction.TransformField(_, "metrics", fieldActions) =>
+            fieldActions.count {
+              case MigrationAction.ChangeType(_, _, _, _) => true
+              case _                                      => false
+            } == 2
+          case _ => false
+        })
       }
     ),
     suite("Nested migration edge cases")(
@@ -1005,10 +1014,13 @@ object NestedMigrationSpec extends SchemaBaseSpec {
 
         val actions = migration.dynamicMigration.actions
 
-        // Should have exactly one ChangeType action
+        // Should have ChangeType wrapped in TransformField for .inner
         assertTrue(actions.exists {
-          case MigrationAction.ChangeType(path, "value", _, _) =>
-            path.toString == ".inner"
+          case MigrationAction.TransformField(_, "inner", fieldActions) =>
+            fieldActions.exists {
+              case MigrationAction.ChangeType(_, "value", _, _) => true
+              case _                                            => false
+            }
           case _ => false
         })
       },
@@ -1069,10 +1081,13 @@ object NestedMigrationSpec extends SchemaBaseSpec {
 
         val reverse = migration.dynamicMigration.reverse
 
-        // Reverse should have DropField at .address path
+        // Reverse should have DropField wrapped in TransformField for .address
         assertTrue(reverse.actions.exists {
-          case MigrationAction.DropField(path, "city", _) =>
-            path.toString == ".address"
+          case MigrationAction.TransformField(_, "address", fieldActions) =>
+            fieldActions.exists {
+              case MigrationAction.DropField(_, "city", _) => true
+              case _                                       => false
+            }
           case _ => false
         })
       },

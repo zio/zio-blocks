@@ -241,10 +241,13 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
       Some(MigrationAction.Rename(DynamicOptic.root, srcField.name, tgtField.name))
     } else None
 
-    val fieldPath       = DynamicOptic.root.field(tgtField.name)
-    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    val nestedAction = MigrationAction.TransformField(
+      DynamicOptic.root,
+      tgtField.name,
+      nestedMigration.dynamicMigration.actions
+    )
 
-    new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector ++ prefixedActions)
+    new MigrationBuilder(sourceSchema, targetSchema, actions ++ renameAction.toVector :+ nestedAction)
   }
 
   /**
@@ -261,10 +264,13 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     srcRemove: Remove[SrcRemaining, Name],
     tgtRemove: Remove[TgtRemaining, Name]
   ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
-    val fieldPath       = DynamicOptic.root.field(field.name)
-    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    val nestedAction = MigrationAction.TransformField(
+      DynamicOptic.root,
+      field.name,
+      nestedMigration.dynamicMigration.actions
+    )
 
-    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ nestedAction)
   }
 
   /**
@@ -295,10 +301,13 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     srcRemove: Remove[SrcRemaining, Name],
     tgtRemove: Remove[TgtRemaining, Name]
   ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
-    val fieldPath       = DynamicOptic.root.field(field.name).elements
-    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    val nestedAction = MigrationAction.TransformEachElement(
+      DynamicOptic.root,
+      field.name,
+      nestedMigration.dynamicMigration.actions
+    )
 
-    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ nestedAction)
   }
 
   /**
@@ -314,10 +323,13 @@ final class MigrationBuilder[A, B, SrcRemaining, TgtRemaining] private[migration
     srcRemove: Remove[SrcRemaining, Name],
     tgtRemove: Remove[TgtRemaining, Name]
   ): MigrationBuilder[A, B, srcRemove.Out, tgtRemove.Out] = {
-    val fieldPath       = DynamicOptic.root.field(field.name).mapValues
-    val prefixedActions = nestedMigration.dynamicMigration.actions.map(_.prefixPath(fieldPath))
+    val nestedAction = MigrationAction.TransformEachMapValue(
+      DynamicOptic.root,
+      field.name,
+      nestedMigration.dynamicMigration.actions
+    )
 
-    new MigrationBuilder(sourceSchema, targetSchema, actions ++ prefixedActions)
+    new MigrationBuilder(sourceSchema, targetSchema, actions :+ nestedAction)
   }
 
   /**

@@ -450,6 +450,141 @@ object MigrationAction {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Nested Migration Actions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Apply a nested migration to a record field.
+   *
+   * The nested actions are applied sequentially to the field's value within the
+   * record at `at`. This provides structurally nested migrations where the
+   * nesting is visible in the serialized representation as a tree rather than a
+   * flat list of path-prefixed actions.
+   *
+   * The root document is threaded through to all nested actions, enabling
+   * cross-branch expressions (e.g., `RootAccess`) within nested contexts.
+   *
+   * Reverse: [[TransformField]] with reversed nested actions
+   */
+  final case class TransformField(
+    at: DynamicOptic,
+    fieldName: String,
+    fieldActions: Vector[MigrationAction]
+  ) extends MigrationAction {
+
+    def reverse: MigrationAction = TransformField(
+      at,
+      fieldName,
+      fieldActions.reverseIterator.map(_.reverse).toVector
+    )
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
+      modifyRecord(value, at) { fields =>
+        val fieldIdx = fields.indexWhere(_._1 == fieldName)
+        if (fieldIdx < 0) {
+          Left(MigrationError.FieldNotFound(at, fieldName))
+        } else {
+          val (name, fieldValue) = fields(fieldIdx)
+          fieldActions
+            .foldLeft[Either[MigrationError, DynamicValue]](Right(fieldValue)) {
+              case (Right(v), action) => action.applyWithRoot(v, root)
+              case (left, _)          => left
+            }
+            .map(newValue => fields.updated(fieldIdx, (name, newValue)))
+        }
+      }
+  }
+
+  /**
+   * Apply a nested migration to each element in a sequence field.
+   *
+   * The nested actions are applied sequentially to each element of the sequence
+   * stored at `fieldName` within the record at `at`. This enables structural
+   * migrations on collection elements where each element undergoes a full
+   * sub-migration.
+   *
+   * Reverse: [[TransformEachElement]] with reversed nested actions
+   */
+  final case class TransformEachElement(
+    at: DynamicOptic,
+    fieldName: String,
+    elementActions: Vector[MigrationAction]
+  ) extends MigrationAction {
+
+    def reverse: MigrationAction = TransformEachElement(
+      at,
+      fieldName,
+      elementActions.reverseIterator.map(_.reverse).toVector
+    )
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
+      modifyRecord(value, at) { fields =>
+        val fieldIdx = fields.indexWhere(_._1 == fieldName)
+        if (fieldIdx < 0) {
+          Left(MigrationError.FieldNotFound(at, fieldName))
+        } else {
+          val (name, fieldValue) = fields(fieldIdx)
+          fieldValue match {
+            case DynamicValue.Sequence(elements) =>
+              applyActionsToAll(elements.toVector, elementActions, at.field(fieldName), root)
+                .map(newElems => fields.updated(fieldIdx, (name, DynamicValue.Sequence(newElems: _*))))
+            case other =>
+              Left(MigrationError.ExpectedSequence(at.field(fieldName), other))
+          }
+        }
+      }
+  }
+
+  /**
+   * Apply a nested migration to each value in a map field.
+   *
+   * The nested actions are applied sequentially to each value of the map stored
+   * at `fieldName` within the record at `at`. Maps are represented as
+   * [[DynamicValue.Record]] or [[DynamicValue.Map]], and both representations
+   * are handled.
+   *
+   * Reverse: [[TransformEachMapValue]] with reversed nested actions
+   */
+  final case class TransformEachMapValue(
+    at: DynamicOptic,
+    fieldName: String,
+    valueActions: Vector[MigrationAction]
+  ) extends MigrationAction {
+
+    def reverse: MigrationAction = TransformEachMapValue(
+      at,
+      fieldName,
+      valueActions.reverseIterator.map(_.reverse).toVector
+    )
+
+    def prefixPath(prefix: DynamicOptic): MigrationAction = copy(at = prefix(at))
+
+    def applyWithRoot(value: DynamicValue, root: DynamicValue): Either[MigrationError, DynamicValue] =
+      modifyRecord(value, at) { fields =>
+        val fieldIdx = fields.indexWhere(_._1 == fieldName)
+        if (fieldIdx < 0) {
+          Left(MigrationError.FieldNotFound(at, fieldName))
+        } else {
+          val (name, fieldValue) = fields(fieldIdx)
+          fieldValue match {
+            case DynamicValue.Record(entries) =>
+              applyActionsToMapValues(entries.toVector, valueActions, at.field(fieldName), root)
+                .map(newEntries => fields.updated(fieldIdx, (name, DynamicValue.Record(newEntries: _*))))
+            case DynamicValue.Map(entries) =>
+              applyActionsToFullMapValues(entries.toVector, valueActions, at.field(fieldName), root)
+                .map(newEntries => fields.updated(fieldIdx, (name, DynamicValue.Map(newEntries: _*))))
+            case other =>
+              Left(MigrationError.ExpectedMap(at.field(fieldName), other))
+          }
+        }
+      }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Helper Methods
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -646,6 +781,115 @@ object MigrationAction {
           idx += 1
         case Left(err) =>
           return Left(MigrationError.ExpressionFailed(path, err))
+      }
+    }
+    Right(results.result())
+  }
+
+  /**
+   * Apply a sequence of migration actions to each element of a vector.
+   */
+  private def applyActionsToAll(
+    elements: Vector[DynamicValue],
+    actions: Vector[MigrationAction],
+    @annotation.unused path: DynamicOptic,
+    root: DynamicValue
+  ): Either[MigrationError, Vector[DynamicValue]] = {
+    var idx     = 0
+    val len     = elements.length
+    val results = Vector.newBuilder[DynamicValue]
+    results.sizeHint(len)
+
+    while (idx < len) {
+      val elem                                          = elements(idx)
+      var current: Either[MigrationError, DynamicValue] = Right(elem)
+      var actIdx                                        = 0
+      val actLen                                        = actions.length
+
+      while (actIdx < actLen && current.isRight) {
+        current = current.flatMap(v => actions(actIdx).applyWithRoot(v, root))
+        actIdx += 1
+      }
+
+      current match {
+        case Right(v) =>
+          results += v
+          idx += 1
+        case Left(err) =>
+          return Left(err)
+      }
+    }
+    Right(results.result())
+  }
+
+  /**
+   * Apply a sequence of migration actions to each value in a Record-encoded
+   * map.
+   */
+  private def applyActionsToMapValues(
+    entries: Vector[(String, DynamicValue)],
+    actions: Vector[MigrationAction],
+    @annotation.unused path: DynamicOptic,
+    root: DynamicValue
+  ): Either[MigrationError, Vector[(String, DynamicValue)]] = {
+    var idx     = 0
+    val len     = entries.length
+    val results = Vector.newBuilder[(String, DynamicValue)]
+    results.sizeHint(len)
+
+    while (idx < len) {
+      val (k, v)                                        = entries(idx)
+      var current: Either[MigrationError, DynamicValue] = Right(v)
+      var actIdx                                        = 0
+      val actLen                                        = actions.length
+
+      while (actIdx < actLen && current.isRight) {
+        current = current.flatMap(cv => actions(actIdx).applyWithRoot(cv, root))
+        actIdx += 1
+      }
+
+      current match {
+        case Right(newV) =>
+          results += ((k, newV))
+          idx += 1
+        case Left(err) =>
+          return Left(err)
+      }
+    }
+    Right(results.result())
+  }
+
+  /**
+   * Apply a sequence of migration actions to each value in a Map-encoded map.
+   */
+  private def applyActionsToFullMapValues(
+    entries: Vector[(DynamicValue, DynamicValue)],
+    actions: Vector[MigrationAction],
+    @annotation.unused path: DynamicOptic,
+    root: DynamicValue
+  ): Either[MigrationError, Vector[(DynamicValue, DynamicValue)]] = {
+    var idx     = 0
+    val len     = entries.length
+    val results = Vector.newBuilder[(DynamicValue, DynamicValue)]
+    results.sizeHint(len)
+
+    while (idx < len) {
+      val (k, v)                                        = entries(idx)
+      var current: Either[MigrationError, DynamicValue] = Right(v)
+      var actIdx                                        = 0
+      val actLen                                        = actions.length
+
+      while (actIdx < actLen && current.isRight) {
+        current = current.flatMap(cv => actions(actIdx).applyWithRoot(cv, root))
+        actIdx += 1
+      }
+
+      current match {
+        case Right(newV) =>
+          results += ((k, newV))
+          idx += 1
+        case Left(err) =>
+          return Left(err)
       }
     }
     Right(results.result())

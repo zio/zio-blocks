@@ -1013,6 +1013,99 @@ object MigrationSchemas {
     )
   )
 
+  private lazy val transformFieldSchema: Schema[MigrationAction.TransformField] = new Schema(
+    reflect = new Reflect.Record[Binding, MigrationAction.TransformField](
+      fields = Vector(
+        Schema[DynamicOptic].reflect.asTerm("at"),
+        Schema[String].reflect.asTerm("fieldName"),
+        Reflect.Deferred(() => Schema.vector(migrationActionSchema).reflect).asTerm("fieldActions")
+      ),
+      typeId = TypeId.of[MigrationAction.TransformField],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[MigrationAction.TransformField] {
+          def usedRegisters: RegisterOffset                                                    = 3
+          def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformField =
+            MigrationAction.TransformField(
+              in.getObject(offset + 0).asInstanceOf[DynamicOptic],
+              in.getObject(offset + 1).asInstanceOf[String],
+              in.getObject(offset + 2).asInstanceOf[Vector[MigrationAction]]
+            )
+        },
+        deconstructor = new Deconstructor[MigrationAction.TransformField] {
+          def usedRegisters: RegisterOffset                                                                 = 3
+          def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformField): Unit = {
+            out.setObject(offset + 0, in.at)
+            out.setObject(offset + 1, in.fieldName)
+            out.setObject(offset + 2, in.fieldActions)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  private lazy val transformEachElementSchema: Schema[MigrationAction.TransformEachElement] = new Schema(
+    reflect = new Reflect.Record[Binding, MigrationAction.TransformEachElement](
+      fields = Vector(
+        Schema[DynamicOptic].reflect.asTerm("at"),
+        Schema[String].reflect.asTerm("fieldName"),
+        Reflect.Deferred(() => Schema.vector(migrationActionSchema).reflect).asTerm("elementActions")
+      ),
+      typeId = TypeId.of[MigrationAction.TransformEachElement],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[MigrationAction.TransformEachElement] {
+          def usedRegisters: RegisterOffset                                                          = 3
+          def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformEachElement =
+            MigrationAction.TransformEachElement(
+              in.getObject(offset + 0).asInstanceOf[DynamicOptic],
+              in.getObject(offset + 1).asInstanceOf[String],
+              in.getObject(offset + 2).asInstanceOf[Vector[MigrationAction]]
+            )
+        },
+        deconstructor = new Deconstructor[MigrationAction.TransformEachElement] {
+          def usedRegisters: RegisterOffset                                                                       = 3
+          def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformEachElement): Unit = {
+            out.setObject(offset + 0, in.at)
+            out.setObject(offset + 1, in.fieldName)
+            out.setObject(offset + 2, in.elementActions)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  private lazy val transformEachMapValueSchema: Schema[MigrationAction.TransformEachMapValue] = new Schema(
+    reflect = new Reflect.Record[Binding, MigrationAction.TransformEachMapValue](
+      fields = Vector(
+        Schema[DynamicOptic].reflect.asTerm("at"),
+        Schema[String].reflect.asTerm("fieldName"),
+        Reflect.Deferred(() => Schema.vector(migrationActionSchema).reflect).asTerm("valueActions")
+      ),
+      typeId = TypeId.of[MigrationAction.TransformEachMapValue],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[MigrationAction.TransformEachMapValue] {
+          def usedRegisters: RegisterOffset                                                           = 3
+          def construct(in: Registers, offset: RegisterOffset): MigrationAction.TransformEachMapValue =
+            MigrationAction.TransformEachMapValue(
+              in.getObject(offset + 0).asInstanceOf[DynamicOptic],
+              in.getObject(offset + 1).asInstanceOf[String],
+              in.getObject(offset + 2).asInstanceOf[Vector[MigrationAction]]
+            )
+        },
+        deconstructor = new Deconstructor[MigrationAction.TransformEachMapValue] {
+          def usedRegisters: RegisterOffset                                                                        = 3
+          def deconstruct(out: Registers, offset: RegisterOffset, in: MigrationAction.TransformEachMapValue): Unit = {
+            out.setObject(offset + 0, in.at)
+            out.setObject(offset + 1, in.fieldName)
+            out.setObject(offset + 2, in.valueActions)
+          }
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
   private lazy val transformElementsSchema: Schema[MigrationAction.TransformElements] = new Schema(
     reflect = new Reflect.Record[Binding, MigrationAction.TransformElements](
       fields = Vector(
@@ -1121,24 +1214,30 @@ object MigrationSchemas {
         transformCaseSchema.reflect.asTerm("TransformCase"),
         transformElementsSchema.reflect.asTerm("TransformElements"),
         transformKeysSchema.reflect.asTerm("TransformKeys"),
-        transformValuesSchema.reflect.asTerm("TransformValues")
+        transformValuesSchema.reflect.asTerm("TransformValues"),
+        transformFieldSchema.reflect.asTerm("TransformField"),
+        transformEachElementSchema.reflect.asTerm("TransformEachElement"),
+        transformEachMapValueSchema.reflect.asTerm("TransformEachMapValue")
       ),
       typeId = TypeId.of[MigrationAction],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[MigrationAction] {
           def discriminate(a: MigrationAction): Int = a match {
-            case _: MigrationAction.AddField          => 0
-            case _: MigrationAction.DropField         => 1
-            case _: MigrationAction.Rename            => 2
-            case _: MigrationAction.TransformValue    => 3
-            case _: MigrationAction.Mandate           => 4
-            case _: MigrationAction.Optionalize       => 5
-            case _: MigrationAction.ChangeType        => 6
-            case _: MigrationAction.RenameCase        => 7
-            case _: MigrationAction.TransformCase     => 8
-            case _: MigrationAction.TransformElements => 9
-            case _: MigrationAction.TransformKeys     => 10
-            case _: MigrationAction.TransformValues   => 11
+            case _: MigrationAction.AddField              => 0
+            case _: MigrationAction.DropField             => 1
+            case _: MigrationAction.Rename                => 2
+            case _: MigrationAction.TransformValue        => 3
+            case _: MigrationAction.Mandate               => 4
+            case _: MigrationAction.Optionalize           => 5
+            case _: MigrationAction.ChangeType            => 6
+            case _: MigrationAction.RenameCase            => 7
+            case _: MigrationAction.TransformCase         => 8
+            case _: MigrationAction.TransformElements     => 9
+            case _: MigrationAction.TransformKeys         => 10
+            case _: MigrationAction.TransformValues       => 11
+            case _: MigrationAction.TransformField        => 12
+            case _: MigrationAction.TransformEachElement  => 13
+            case _: MigrationAction.TransformEachMapValue => 14
           }
         },
         matchers = Matchers(
@@ -1212,6 +1311,24 @@ object MigrationSchemas {
             def downcastOrNull(a: Any): MigrationAction.TransformValues = a match {
               case x: MigrationAction.TransformValues => x
               case _                                  => null.asInstanceOf[MigrationAction.TransformValues]
+            }
+          },
+          new Matcher[MigrationAction.TransformField] {
+            def downcastOrNull(a: Any): MigrationAction.TransformField = a match {
+              case x: MigrationAction.TransformField => x
+              case _                                 => null.asInstanceOf[MigrationAction.TransformField]
+            }
+          },
+          new Matcher[MigrationAction.TransformEachElement] {
+            def downcastOrNull(a: Any): MigrationAction.TransformEachElement = a match {
+              case x: MigrationAction.TransformEachElement => x
+              case _                                       => null.asInstanceOf[MigrationAction.TransformEachElement]
+            }
+          },
+          new Matcher[MigrationAction.TransformEachMapValue] {
+            def downcastOrNull(a: Any): MigrationAction.TransformEachMapValue = a match {
+              case x: MigrationAction.TransformEachMapValue => x
+              case _                                        => null.asInstanceOf[MigrationAction.TransformEachMapValue]
             }
           }
         )

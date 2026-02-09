@@ -156,9 +156,15 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) { self =>
     case MigrationAction.RenameCase(at, from, to)       => s"RenameCase($from -> $to) at ${at.toString}"
     case MigrationAction.TransformCase(at, name, acts)  =>
       s"TransformCase($name, ${acts.length} actions) at ${at.toString}"
-    case MigrationAction.TransformElements(at, _, _) => s"TransformElements at ${at.toString}"
-    case MigrationAction.TransformKeys(at, _, _)     => s"TransformKeys at ${at.toString}"
-    case MigrationAction.TransformValues(at, _, _)   => s"TransformValues at ${at.toString}"
+    case MigrationAction.TransformElements(at, _, _)    => s"TransformElements at ${at.toString}"
+    case MigrationAction.TransformKeys(at, _, _)        => s"TransformKeys at ${at.toString}"
+    case MigrationAction.TransformValues(at, _, _)      => s"TransformValues at ${at.toString}"
+    case MigrationAction.TransformField(at, name, acts) =>
+      s"TransformField($name, ${acts.length} actions) at ${at.toString}"
+    case MigrationAction.TransformEachElement(at, name, acts) =>
+      s"TransformEachElement($name, ${acts.length} actions) at ${at.toString}"
+    case MigrationAction.TransformEachMapValue(at, name, acts) =>
+      s"TransformEachMapValue($name, ${acts.length} actions) at ${at.toString}"
   }
 }
 
