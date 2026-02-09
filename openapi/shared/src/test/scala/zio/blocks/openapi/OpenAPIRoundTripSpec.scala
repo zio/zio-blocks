@@ -1,5 +1,7 @@
 package zio.blocks.openapi
 
+import scala.collection.immutable.ListMap
+
 import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -308,8 +310,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Operation and Parameter types round-trip")(
       test("Operation round-trips with all fields") {
         val original = Operation(
-          responses = Map(
-            "200" -> ReferenceOr.Value(Response(description = doc("Success")))
+          responses = Responses(
+            responses = ListMap(
+              "200" -> ReferenceOr.Value(Response(description = doc("Success")))
+            )
           ),
           tags = List("users", "admin"),
           summary = Some(doc("Get user")),
@@ -465,7 +469,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Responses round-trips") {
         val original = Responses(
-          responses = Map(
+          responses = ListMap(
             "200" -> ReferenceOr.Value(
               Response(
                 description = doc("Success"),
@@ -576,7 +580,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Callback round-trip")(
       test("Callback round-trips") {
         val original = Callback(
-          callbacks = Map(
+          callbacks = ListMap(
             "{$request.body#/callbackUrl}" -> ReferenceOr.Value(
               PathItem(
                 summary = Some(doc("Callback path")),
@@ -749,23 +753,26 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Container types round-trip")(
       test("Components round-trips") {
         val original = Components(
-          schemas =
-            Map("User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))),
-          responses = Map("NotFound" -> ReferenceOr.Value(Response(description = doc("Not found")))),
-          parameters = Map("limit" -> ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))),
-          examples =
-            Map("user" -> ReferenceOr.Value(Example(value = Some(Json.Object("name" -> Json.String("John")))))),
-          requestBodies = Map(
+          schemas = ListMap(
+            "User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
+          ),
+          responses = ListMap("NotFound" -> ReferenceOr.Value(Response(description = doc("Not found")))),
+          parameters = ListMap("limit" -> ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))),
+          examples = ListMap(
+            "user" -> ReferenceOr.Value(Example(value = Some(Json.Object("name" -> Json.String("John")))))
+          ),
+          requestBodies = ListMap(
             "UserBody" -> ReferenceOr.Value(
               RequestBody(content = Map("application/json" -> MediaType()), required = true)
             )
           ),
-          headers = Map("X-Custom" -> ReferenceOr.Value(Header())),
-          securitySchemes =
-            Map("api_key" -> ReferenceOr.Value(SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header))),
-          links = Map("next" -> ReferenceOr.Value(Link(operationId = Some("getNext")))),
-          callbacks = Map("onEvent" -> ReferenceOr.Value(Callback())),
-          pathItems = Map("/users" -> ReferenceOr.Value(PathItem(summary = Some(doc("Users"))))),
+          headers = ListMap("X-Custom" -> ReferenceOr.Value(Header())),
+          securitySchemes = ListMap(
+            "api_key" -> ReferenceOr.Value(SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header))
+          ),
+          links = ListMap("next" -> ReferenceOr.Value(Link(operationId = Some("getNext")))),
+          callbacks = ListMap("onEvent" -> ReferenceOr.Value(Callback())),
+          pathItems = ListMap("/users" -> ReferenceOr.Value(PathItem(summary = Some(doc("Users"))))),
           extensions = Map("x-components" -> Json.String("custom"))
         )
 
@@ -776,7 +783,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Paths round-trips") {
         val original = Paths(
-          paths = Map(
+          paths = ListMap(
             "/users" -> PathItem(
               summary = Some(doc("Users endpoint")),
               description = Some(doc("Operations on users"))
@@ -847,7 +854,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           ),
           paths = Some(
             Paths(
-              paths = Map(
+              paths = ListMap(
                 "/users" -> PathItem(summary = Some(doc("Users")), description = Some(doc("User operations"))),
                 "/posts" -> PathItem(summary = Some(doc("Posts")))
               )
@@ -855,10 +862,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           ),
           components = Some(
             Components(
-              schemas = Map(
+              schemas = ListMap(
                 "User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
               ),
-              securitySchemes = Map("bearerAuth" -> ReferenceOr.Value(SecurityScheme.HTTP(scheme = "bearer")))
+              securitySchemes = ListMap("bearerAuth" -> ReferenceOr.Value(SecurityScheme.HTTP(scheme = "bearer")))
             )
           ),
           security = List(
