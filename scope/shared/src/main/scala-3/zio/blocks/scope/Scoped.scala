@@ -101,7 +101,7 @@ object @@ {
      *   a Scoped computation that will apply f when executed
      */
     inline def map[B](inline f: A => B): Scoped[S, B] =
-      Scoped.create(() => f(@@.unscoped(scoped)))
+      Scoped(f(@@.unscoped(scoped)))
 
     /**
      * FlatMaps over a scoped value, combining scope tags via intersection.
@@ -128,7 +128,7 @@ object @@ {
      *   a Scoped computation with combined scope tag `S & T`
      */
     inline def flatMap[B, T](inline f: A => B @@ T): Scoped[S & T, B] =
-      Scoped.create(() => @@.unscoped(f(@@.unscoped(scoped))))
+      Scoped(@@.unscoped(f(@@.unscoped(scoped))))
 
     /**
      * Extracts the first element of a scoped tuple.
@@ -278,12 +278,4 @@ object Scoped {
    */
   def apply[A](a: => A): Scoped[Any, A] =
     new Scoped(() => a)
-
-  /**
-   * Creates a Scoped computation from a thunk with an explicit tag.
-   *
-   * This is an internal factory used by the `@@` extension methods.
-   */
-  private[scope] def create[Tag, A](f: () => A): Scoped[Tag, A] =
-    new Scoped(f)
 }

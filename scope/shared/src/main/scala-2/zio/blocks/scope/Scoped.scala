@@ -85,7 +85,7 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   a Scoped computation that will apply f when executed
    */
   def map[B](f: A => B): Scoped[S, B] =
-    Scoped.create(() => f(@@.unscoped(scoped)))
+    Scoped(f(@@.unscoped(scoped)))
 
   /**
    * FlatMaps over a scoped value, combining scope tags via intersection.
@@ -104,7 +104,7 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   a Scoped computation with combined scope tag `S with T`
    */
   def flatMap[B, T](f: A => B @@ T): Scoped[S with T, B] =
-    Scoped.create(() => @@.unscoped(f(@@.unscoped(scoped))))
+    Scoped(@@.unscoped(f(@@.unscoped(scoped))))
 
   /**
    * Extracts the first element of a scoped tuple.
@@ -193,12 +193,4 @@ object Scoped {
    */
   def apply[A](a: => A): Scoped[Any, A] =
     new Scoped(() => a)
-
-  /**
-   * Creates a Scoped computation from a thunk with an explicit tag.
-   *
-   * This is an internal factory used by the `@@` extension methods.
-   */
-  private[scope] def create[Tag, A](f: () => A): Scoped[Tag, A] =
-    new Scoped(f)
 }
