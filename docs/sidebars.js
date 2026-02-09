@@ -6,22 +6,22 @@ const sidebars = {
       collapsed: false,
       link: { type: "doc", id: "index" },
       items: [
+         "reference/schema",
+         "reference/reflect",
          "reference/binding",
+         "reference/registers",
+         "reference/typeid",
+         "reference/dynamic-value",
+         "reference/optics",
          "reference/chunk",
+         "reference/validation"
+         "reference/schema-evolution",
          "reference/context",
          "reference/docs",
-         "reference/dynamic-value",
          "reference/formats",
          "reference/json",
          "reference/json-schema",
-         "reference/optics",
-         "reference/reflect",
-         "reference/registers",
-         "reference/schema",
-         "reference/schema-evolution",
          "reference/syntax",
-         "reference/typeid",
-         "reference/validation"
       ]
     }
   ]
