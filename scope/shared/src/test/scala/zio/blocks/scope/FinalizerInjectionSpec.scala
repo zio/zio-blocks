@@ -21,7 +21,7 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
       class Service(val config: Config)(implicit finalizer: Finalizer) {
         var cleaned = false
         finalizerClass = finalizer.getClass.getName
-        finalizer.defer { cleaned = true }
+        defer { cleaned = true }
       }
 
       val wire           = shared[Service]
@@ -44,9 +44,9 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
       var order: List[Int] = Nil
 
       class Service(val n: Int)(implicit finalizer: Finalizer) {
-        finalizer.defer { order = 1 :: order }
-        finalizer.defer { order = 2 :: order }
-        finalizer.defer { order = 3 :: order }
+        defer { order = 1 :: order }
+        defer { order = 2 :: order }
+        defer { order = 3 :: order }
       }
 
       val wire           = shared[Service]
@@ -64,7 +64,7 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
       class Service(val config: Config)(implicit finalizer: Finalizer) {
         var cleaned = false
         finalizerClass = finalizer.getClass.getName
-        finalizer.defer { cleaned = true }
+        defer { cleaned = true }
       }
 
       val wire           = unique[Service]

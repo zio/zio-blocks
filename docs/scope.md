@@ -374,8 +374,7 @@ There is also a package-level helper `defer` that only requires a `Finalizer`:
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
-  given Finalizer = scope
-  defer { println("cleanup") }
+  scope.defer { println("cleanup") }
 }
 ```
 
@@ -390,7 +389,7 @@ import zio.blocks.scope._
 
 class ConnectionPool(config: Config)(implicit finalizer: Finalizer) {
   private val pool = createPool(config)
-  finalizer.defer { pool.shutdown() }
+  defer { pool.shutdown() }
   
   def getConnection(): Connection = pool.acquire()
 }
