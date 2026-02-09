@@ -84,4 +84,45 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
     val dynV1 = PersonV1.schema.toDynamicValue(personV1)
     DynamicMigration.renameField("name", "fullName").migrate(dynV1)
   }
+
+  // ──────────────── Additional Benchmarks ────────────────
+
+  var composedMigration: Migration[PersonV1, PersonV1] = null.asInstanceOf[Migration[PersonV1, PersonV1]]
+  var nestMigration: DynamicMigration                  = null.asInstanceOf[DynamicMigration]
+
+  @Setup
+  def setupExtra(): Unit = {
+    composedMigration = Migration
+      .newBuilder[PersonV1, PersonV1]
+      .renameField("name", "fullName")
+      .addField("email", DynamicValue.string("default@example.com"))
+      .dropField("age")
+      .buildPartial
+
+    nestMigration = DynamicMigration.nest(Vector("name", "age"), "info")
+  }
+
+  @Benchmark
+  def composedThreeStep(): Either[MigrationError, PersonV1] =
+    composedMigration.migrate(personV1)
+
+  @Benchmark
+  def reverseMigration(): Either[MigrationError, PersonV2] = {
+    val forward = renameMigration.migrate(personV1).toOption.get
+    renameMigration.reverse.migrate(forward)
+  }
+
+  @Benchmark
+  def nestUnnestRoundtrip(): Either[MigrationError, DynamicValue] = {
+    val dynV1    = PersonV1.schema.toDynamicValue(personV1)
+    val nested   = nestMigration.migrate(dynV1)
+    val unnested = nestMigration.reverse.migrate(nested.toOption.get)
+    unnested
+  }
+
+  @Benchmark
+  def dynamicMigrationAddField(): Either[MigrationError, DynamicValue] = {
+    val dynV1 = UserV1.schema.toDynamicValue(userV1)
+    DynamicMigration.addField("active", DynamicValue.boolean(true)).migrate(dynV1)
+  }
 }

@@ -35,6 +35,13 @@ class MigrationBuilder[A, B](
   def transformField(fieldName: String, migration: DynamicMigration): MigrationBuilder[A, B] =
     append(MigrationAction.TransformValue(DynamicOptic.root.field(fieldName), migration))
 
+  /**
+   * Transform a field's value using a `MigrationExpr` (zero-closure, fully
+   * serializable).
+   */
+  def transformFieldExpr(fieldName: String, expr: MigrationExpr): MigrationBuilder[A, B] =
+    append(MigrationAction.TransformValueExpr(DynamicOptic.root.field(fieldName), expr))
+
   def mandateField(fieldName: String, default: DynamicValue): MigrationBuilder[A, B] =
     append(MigrationAction.Mandate(DynamicOptic.root, fieldName, default))
 

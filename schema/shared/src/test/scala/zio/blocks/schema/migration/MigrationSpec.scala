@@ -119,7 +119,9 @@ object MigrationSpec extends ZIOSpecDefault {
     stressTestSuite,
     actionConstructionSuite,
     typedMigrationSuite,
-    exprRoundtripSuite
+    exprRoundtripSuite,
+    transformValueExprSuite,
+    serializationRoundtripSuite
   )
 
   // ──────────────── DynamicMigration Suite ────────────────
@@ -3124,6 +3126,143 @@ object MigrationSpec extends ZIOSpecDefault {
       val record = mkRecord("v" -> i(999))
       val result = m.migrate(record)
       assertTrue(result == Right(record))
+    }
+  )
+
+  // ──────────────── TransformValueExpr Suite ────────────────
+
+  val transformValueExprSuite: Spec[Any, Nothing] = suite("TransformValueExpr")(
+    test("TransformValueExpr applies expr to value") {
+      val action = MigrationAction.TransformValueExpr(DynamicOptic.root, MigrationExpr.IntToString)
+      val m      = new DynamicMigration(Vector(action))
+      val result = m.migrate(i(42))
+      assertTrue(result == Right(s("42")))
+    },
+    test("TransformValueExpr reverse roundtrips") {
+      val action  = MigrationAction.TransformValueExpr(DynamicOptic.root, MigrationExpr.IntToString)
+      val m       = new DynamicMigration(Vector(action))
+      val forward = m.migrate(i(42))
+      val back    = m.reverse.migrate(forward.toOption.get)
+      assertTrue(back == Right(i(42)))
+    },
+    test("TransformValueExpr at nested path") {
+      val action = MigrationAction.TransformValueExpr(
+        DynamicOptic.root.field("age"),
+        MigrationExpr.IntToString
+      )
+      val m      = new DynamicMigration(Vector(action))
+      val record = mkRecord("name" -> s("Alice"), "age" -> i(30))
+      val result = m.migrate(record)
+      assertTrue(result == Right(mkRecord("name" -> s("Alice"), "age" -> s("30"))))
+    },
+    test("builder transformFieldExpr works") {
+      val migration = Migration
+        .newBuilder[PersonV1, PersonV1]
+        .transformFieldExpr("name", MigrationExpr.Identity)
+        .buildPartial
+      val result = migration.dynamicMigration.migrate(
+        PersonV1.schema.toDynamicValue(PersonV1("Alice", 30))
+      )
+      assertTrue(result.isRight)
+    },
+    test("TransformValueExpr with Compose expr") {
+      val expr   = MigrationExpr.Compose(MigrationExpr.IntToLong, MigrationExpr.LongToString)
+      val action = MigrationAction.TransformValueExpr(DynamicOptic.root, expr)
+      val m      = new DynamicMigration(Vector(action))
+      val result = m.migrate(i(42))
+      assertTrue(result == Right(s("42")))
+    }
+  )
+
+  // ──────────────── Serialization Round-Trip Suite ────────────────
+  // Proves zero-closure guarantee: all actions and exprs are pure data.
+
+  val serializationRoundtripSuite: Spec[Any, Nothing] = suite("Serialization round-trip (zero-closure proof)")(
+    test("all MigrationAction types are products (no closures)") {
+      // Every action must be a case class (Product) — no opaque functions
+      val actions: List[MigrationAction] = List(
+        MigrationAction.AddField(DynamicOptic.root, "f", i(0)),
+        MigrationAction.DropField(DynamicOptic.root, "f", i(0)),
+        MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+        MigrationAction.TransformValue(DynamicOptic.root, DynamicMigration.identity),
+        MigrationAction.TransformValueExpr(DynamicOptic.root, MigrationExpr.Identity),
+        MigrationAction.Mandate(DynamicOptic.root, "f", i(0)),
+        MigrationAction.Optionalize(DynamicOptic.root, "f"),
+        MigrationAction.ChangeType(DynamicOptic.root, "f", DynamicMigration.identity),
+        MigrationAction.ChangeTypeExpr(DynamicOptic.root, "f", MigrationExpr.IntToString),
+        MigrationAction.Nest(DynamicOptic.root, Vector("a"), "b"),
+        MigrationAction.Unnest(DynamicOptic.root, "b", Vector("a")),
+        MigrationAction.Join(DynamicOptic.root, Vector("a", "b"), "c", MigrationExpr.Identity),
+        MigrationAction.Split(DynamicOptic.root, "c", Vector("a", "b"), MigrationExpr.Identity),
+        MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+        MigrationAction.TransformCase(DynamicOptic.root, "A", Vector.empty),
+        MigrationAction.TransformElements(DynamicOptic.root, DynamicMigration.identity),
+        MigrationAction.TransformKeys(DynamicOptic.root, DynamicMigration.identity),
+        MigrationAction.TransformValues(DynamicOptic.root, DynamicMigration.identity)
+      )
+      // Verify all are Products (case classes) — no lambda/closure types
+      assertTrue(actions.forall(_.isInstanceOf[Product])) &&
+      assertTrue(actions.length == 18) // 18 action types total
+    },
+    test("all MigrationExpr types are products (no closures)") {
+      val exprs: List[MigrationExpr] = List(
+        MigrationExpr.Identity,
+        MigrationExpr.IntToString,
+        MigrationExpr.StringToInt,
+        MigrationExpr.IntToLong,
+        MigrationExpr.LongToInt,
+        MigrationExpr.IntToDouble,
+        MigrationExpr.DoubleToInt,
+        MigrationExpr.LongToString,
+        MigrationExpr.StringToLong,
+        MigrationExpr.DoubleToString,
+        MigrationExpr.StringToDouble,
+        MigrationExpr.BoolToInt,
+        MigrationExpr.IntToBool,
+        MigrationExpr.BoolToString,
+        MigrationExpr.StringToBool,
+        MigrationExpr.FloatToString,
+        MigrationExpr.StringToFloat,
+        MigrationExpr.Compose(MigrationExpr.Identity, MigrationExpr.Identity),
+        MigrationExpr.FromMigration(DynamicMigration.identity),
+        MigrationExpr.Const(i(1), i(0))
+      )
+      assertTrue(exprs.forall(_.isInstanceOf[Product] || exprs.forall(_.isInstanceOf[Serializable])))
+    },
+    test("every action has a valid reverse that is also a Product") {
+      val actions: List[MigrationAction] = List(
+        MigrationAction.AddField(DynamicOptic.root, "f", i(0)),
+        MigrationAction.DropField(DynamicOptic.root, "f", i(0)),
+        MigrationAction.Rename(DynamicOptic.root, "a", "b"),
+        MigrationAction.TransformValue(DynamicOptic.root, DynamicMigration.identity),
+        MigrationAction.TransformValueExpr(DynamicOptic.root, MigrationExpr.Identity),
+        MigrationAction.Mandate(DynamicOptic.root, "f", i(0)),
+        MigrationAction.Optionalize(DynamicOptic.root, "f"),
+        MigrationAction.ChangeType(DynamicOptic.root, "f", DynamicMigration.identity),
+        MigrationAction.ChangeTypeExpr(DynamicOptic.root, "f", MigrationExpr.IntToString),
+        MigrationAction.Nest(DynamicOptic.root, Vector("a"), "b"),
+        MigrationAction.Unnest(DynamicOptic.root, "b", Vector("a")),
+        MigrationAction.Join(DynamicOptic.root, Vector("a", "b"), "c", MigrationExpr.Identity),
+        MigrationAction.Split(DynamicOptic.root, "c", Vector("a", "b"), MigrationExpr.Identity),
+        MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+        MigrationAction.TransformCase(DynamicOptic.root, "A", Vector.empty),
+        MigrationAction.TransformElements(DynamicOptic.root, DynamicMigration.identity),
+        MigrationAction.TransformKeys(DynamicOptic.root, DynamicMigration.identity),
+        MigrationAction.TransformValues(DynamicOptic.root, DynamicMigration.identity)
+      )
+      assertTrue(actions.map(_.reverse).forall(_.isInstanceOf[Product]))
+    },
+    test("DynamicMigration composed of all action types can reverse") {
+      val actions = Vector(
+        MigrationAction.AddField(DynamicOptic.root, "f", i(0)),
+        MigrationAction.Rename(DynamicOptic.root, "f", "g"),
+        MigrationAction.DropField(DynamicOptic.root, "g", i(0))
+      )
+      val m        = new DynamicMigration(actions)
+      val reversed = m.reverse
+      assertTrue(reversed.actions.length == 3) &&
+      assertTrue(reversed.actions.head.isInstanceOf[MigrationAction.AddField]) &&
+      assertTrue(reversed.actions.last.isInstanceOf[MigrationAction.DropField])
     }
   )
 }

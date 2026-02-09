@@ -175,6 +175,9 @@ object DynamicMigration {
     case MigrationAction.TransformValue(_, migration) =>
       migration.migrate(value)
 
+    case MigrationAction.TransformValueExpr(_, expr) =>
+      expr(value)
+
     case MigrationAction.Mandate(at, fieldName, default) =>
       value match {
         case DynamicValue.Record(fields) =>
@@ -453,23 +456,24 @@ object DynamicMigration {
   private def adjustActionToRoot(action: MigrationAction): MigrationAction = {
     val root = DynamicOptic.root
     action match {
-      case a: MigrationAction.AddField          => a.copy(at = root)
-      case a: MigrationAction.DropField         => a.copy(at = root)
-      case a: MigrationAction.Rename            => a.copy(at = root)
-      case a: MigrationAction.TransformValue    => a.copy(at = root)
-      case a: MigrationAction.Mandate           => a.copy(at = root)
-      case a: MigrationAction.Optionalize       => a.copy(at = root)
-      case a: MigrationAction.ChangeType        => a.copy(at = root)
-      case a: MigrationAction.ChangeTypeExpr    => a.copy(at = root)
-      case a: MigrationAction.Nest              => a.copy(at = root)
-      case a: MigrationAction.Unnest            => a.copy(at = root)
-      case a: MigrationAction.Join              => a.copy(at = root)
-      case a: MigrationAction.Split             => a.copy(at = root)
-      case a: MigrationAction.RenameCase        => a.copy(at = root)
-      case a: MigrationAction.TransformCase     => a.copy(at = root)
-      case a: MigrationAction.TransformElements => a.copy(at = root)
-      case a: MigrationAction.TransformKeys     => a.copy(at = root)
-      case a: MigrationAction.TransformValues   => a.copy(at = root)
+      case a: MigrationAction.AddField           => a.copy(at = root)
+      case a: MigrationAction.DropField          => a.copy(at = root)
+      case a: MigrationAction.Rename             => a.copy(at = root)
+      case a: MigrationAction.TransformValue     => a.copy(at = root)
+      case a: MigrationAction.TransformValueExpr => a.copy(at = root)
+      case a: MigrationAction.Mandate            => a.copy(at = root)
+      case a: MigrationAction.Optionalize        => a.copy(at = root)
+      case a: MigrationAction.ChangeType         => a.copy(at = root)
+      case a: MigrationAction.ChangeTypeExpr     => a.copy(at = root)
+      case a: MigrationAction.Nest               => a.copy(at = root)
+      case a: MigrationAction.Unnest             => a.copy(at = root)
+      case a: MigrationAction.Join               => a.copy(at = root)
+      case a: MigrationAction.Split              => a.copy(at = root)
+      case a: MigrationAction.RenameCase         => a.copy(at = root)
+      case a: MigrationAction.TransformCase      => a.copy(at = root)
+      case a: MigrationAction.TransformElements  => a.copy(at = root)
+      case a: MigrationAction.TransformKeys      => a.copy(at = root)
+      case a: MigrationAction.TransformValues    => a.copy(at = root)
     }
   }
 

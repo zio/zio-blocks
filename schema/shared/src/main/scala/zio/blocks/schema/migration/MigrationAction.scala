@@ -48,6 +48,15 @@ object MigrationAction {
   }
 
   /**
+   * Transform the value of a field using a `MigrationExpr` (zero-closure, fully
+   * serializable). Prefer this over `TransformValue` when the transformation
+   * can be expressed as a pure expression.
+   */
+  final case class TransformValueExpr(at: DynamicOptic, expr: MigrationExpr) extends MigrationAction {
+    def reverse: MigrationAction = TransformValueExpr(at, expr.reverse)
+  }
+
+  /**
    * Make an optional field mandatory, providing a default for `None` values.
    */
   final case class Mandate(at: DynamicOptic, fieldName: String, default: DynamicValue) extends MigrationAction {
