@@ -378,7 +378,9 @@ There is also a package-level helper `defer` that only requires a `Finalizer`:
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
-  scope.defer { println("cleanup") }
+  given Finalizer = scope 
+
+  defer { println("cleanup") }
 }
 ```
 
@@ -667,15 +669,12 @@ object Resource {
   def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
   def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
 
-  // Macro - primary DI entry point:
+  // Macro - DI entry point (can also be called with no args for zero-dep classes):
   def from[T](wires: Wire[?, ?]*): Resource[T]
 
-  // Internal / produced by wires:
-  def shared[A](f: Finalizer => A): Resource.Shared[A]
-  def unique[A](f: Finalizer => A): Resource.Unique[A]
-
-  final class Shared[+A] extends Resource[A]
-  final class Unique[+A] extends Resource[A]
+  // Internal (used by generated code):
+  def shared[A](f: Finalizer => A): Resource[A]
+  def unique[A](f: Finalizer => A): Resource[A]
 }
 ```
 
