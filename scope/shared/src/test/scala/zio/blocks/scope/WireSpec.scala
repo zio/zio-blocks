@@ -66,37 +66,9 @@ object WireSpec extends ZIOSpecDefault {
       assertTrue(sharedWire eq sameWire)
     },
     suite("toResource")(
-      test("Wire.Shared.toResource with wires creates shared resource") {
-        val wire = Wire.Shared.fromFunction[Config, Database] { (scope, ctx) =>
-          val config = ctx.get[Config]
-          val db     = new Database(config)
-          scope.defer(db.close())
-          db
-        }
-        val configWire     = Wire(Config(true))
-        val resource       = wire.toResource(configWire)
-        val (scope, close) = Scope.createTestableScope()
-        val db             = resource.make(scope)
-        close()
-        assertTrue(db.isInstanceOf[Database], db.closed)
-      },
-      test("Wire.Unique.toResource with wires creates unique resource") {
-        var counter = 0
-        val wire    = Wire.Unique.fromFunction[Config, Int] { (_, _) =>
-          counter += 1
-          counter
-        }
-        val configWire     = Wire(Config(true))
-        val resource       = wire.toResource(configWire)
-        val (scope, close) = Scope.createTestableScope()
-        val a              = resource.make(scope)
-        val b              = resource.make(scope)
-        close()
-        assertTrue(a == 1, b == 2)
-      },
-      test("Wire with no deps uses toResource()") {
+      test("Wire with no deps uses toResource(Context.empty)") {
         val wire           = Wire(Config(true))
-        val resource       = wire.toResource()
+        val resource       = wire.toResource(Context.empty)
         val (scope, close) = Scope.createTestableScope()
         val config         = resource.make(scope)
         close()

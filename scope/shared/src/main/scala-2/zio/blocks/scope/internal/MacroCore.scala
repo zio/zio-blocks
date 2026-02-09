@@ -6,8 +6,7 @@ import scala.reflect.macros.blackbox
  * Shared macro infrastructure for Scope DI macros (Scala 2 version).
  *
  * Provides common type analysis, dependency extraction, error rendering, and
- * code generation utilities used by shared[T], unique[T], injected[T], and
- * Wireable.from[T].
+ * code generation utilities used by shared[T], unique[T], and injected[T].
  */
 private[scope] object MacroCore {
 
@@ -172,8 +171,7 @@ private[scope] object MacroCore {
          |
          |  Cannot derive Wire for ${cyan(typeName, color)}: not a class.
          |
-         |  ${yellow("Hint:", color)} Provide a ${cyan(s"Wireable[$typeName]", color)} instance
-         |        or use ${cyan("Wire.Shared", color)} / ${cyan("Wire.Unique", color)} directly.
+         |  ${yellow("Hint:", color)} Use ${cyan("Wire.Shared", color)} / ${cyan("Wire.Unique", color)} directly.
          |
          |${footer(color)}""".stripMargin
 
@@ -182,7 +180,7 @@ private[scope] object MacroCore {
          |
          |  ${cyan(typeName, color)} has no primary constructor.
          |
-         |  ${yellow("Hint:", color)} Provide a ${cyan(s"Wireable[$typeName]", color)} instance
+         |  ${yellow("Hint:", color)} Use ${cyan("Wire.Shared", color)} / ${cyan("Wire.Unique", color)} directly
          |        with a custom construction strategy.
          |
          |${footer(color)}""".stripMargin

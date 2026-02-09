@@ -246,7 +246,7 @@ object ResourceSpec extends ZIOSpecDefault {
         )
 
         val configWire     = Wire(Cfg(false))
-        val dbWire         = shared[Db]
+        val dbWire         = Wire.shared[Db]
         val portWire       = Wire(Port(8080))
         val resource       = Resource.from[MultiDepService](configWire, dbWire, portWire)
         val (scope, close) = Scope.createTestableScope()

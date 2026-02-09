@@ -1,6 +1,7 @@
 package zio.blocks.scope
 
 import zio.{Scope => _}
+import zio.blocks.context.Context
 import zio.test._
 import zio.test.TestAspect._
 
@@ -55,9 +56,9 @@ object DependencySharingSpec extends ZIOSpecDefault {
         resetCounters()
 
         // All wires are shared
-        val dbWire    = shared[Database]
-        val userWire  = shared[UserService]
-        val orderWire = shared[OrderService]
+        val dbWire    = Wire.shared[Database]
+        val userWire  = Wire.shared[UserService]
+        val orderWire = Wire.shared[OrderService]
 
         // Whole graph wireup via Resource.from
         val resource = Resource.from[App](dbWire, userWire, orderWire)
@@ -76,15 +77,15 @@ object DependencySharingSpec extends ZIOSpecDefault {
       test("shared Database via Wire#toResource is constructed once") {
         resetCounters()
 
-        val dbWire    = shared[Database]
-        val userWire  = shared[UserService]
-        val orderWire = shared[OrderService]
+        val dbWire    = Wire.shared[Database]
+        val userWire  = Wire.shared[UserService]
+        val orderWire = Wire.shared[OrderService]
 
         // Partially wire: App wire depends on userWire and orderWire
         // Both userWire and orderWire depend on dbWire
         // Whole graph wireup via toResource should share Database
-        val appWire  = shared[App]
-        val resource = appWire.toResource(dbWire, userWire, orderWire)
+        val appWire  = Wire.shared[App]
+        val resource = Resource.from[App](appWire, dbWire, userWire, orderWire)
 
         val (scope, close) = Scope.createTestableScope()
         resource.make(scope)
@@ -98,17 +99,17 @@ object DependencySharingSpec extends ZIOSpecDefault {
       }
     ),
     suite("Separate wireups create separate instances")(
-      test("different shared[Database] wires create separate instances") {
+      test("different Wire.shared[Database] wires create separate instances") {
         resetCounters()
 
         // Two separate Database wires - even though both are "shared",
         // they are different Wire instances, so each creates its own Database
-        val dbWire1 = shared[Database]
-        val dbWire2 = shared[Database]
+        val dbWire1 = Wire.shared[Database]
+        val dbWire2 = Wire.shared[Database]
 
         val (scope, close) = Scope.createTestableScope()
-        val db1            = dbWire1.toResource().make(scope)
-        val db2            = dbWire2.toResource().make(scope)
+        val db1            = dbWire1.toResource(Context.empty).make(scope)
+        val db2            = dbWire2.toResource(Context.empty).make(scope)
         close()
 
         // Two databases - different Wire instances = different Resources
@@ -122,8 +123,8 @@ object DependencySharingSpec extends ZIOSpecDefault {
       test("Resource.shared memoizes across makes within same Resource instance") {
         resetCounters()
 
-        val dbWire   = shared[Database]
-        val resource = dbWire.toResource()
+        val dbWire   = Wire.shared[Database]
+        val resource = dbWire.toResource(Context.empty)
 
         val (scope, close) = Scope.createTestableScope()
         val db1            = resource.make(scope)
@@ -132,7 +133,7 @@ object DependencySharingSpec extends ZIOSpecDefault {
 
         assertTrue(
           dbCounter.get() == 1,
-          db1 eq db2
+          db1.eq(db2)
         )
       }
     )

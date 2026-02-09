@@ -6,8 +6,7 @@ import scala.quoted.*
  * Shared macro infrastructure for Scope DI macros.
  *
  * Provides common type analysis, dependency extraction, error rendering, and
- * code generation utilities used by shared[T], unique[T], injected[T], and
- * Wireable.from[T].
+ * code generation utilities used by shared[T], unique[T], and injected[T].
  */
 private[scope] object MacroCore {
 
@@ -212,35 +211,6 @@ private[scope] object MacroCore {
   }
 
   /**
-   * Extract the In type from a Wireable refinement type.
-   *
-   * Wireable.Typed[In, Out] = Wireable[Out] { type In >: In0 } Look for the
-   * refinement that constrains type In.
-   */
-  def extractWireableInType(using
-    Quotes
-  )(
-    wireableTpe: quotes.reflect.TypeRepr
-  ): quotes.reflect.TypeRepr = {
-    import quotes.reflect.*
-    wireableTpe.widen.dealias match {
-      case Refinement(_, "In", TypeBounds(lo, _)) =>
-        // In a refinement like { type In >: Config }, lo is the concrete type
-        lo
-      case other =>
-        // Fallback: try to get from member type
-        val inMember = other.typeSymbol.typeMember("In")
-        if (inMember != Symbol.noSymbol) {
-          other.memberType(inMember) match {
-            case TypeBounds(lo, hi) if lo =:= hi => lo
-            case TypeBounds(_, hi)               => hi
-            case t                               => t
-          }
-        } else TypeRepr.of[Any]
-    }
-  }
-
-  /**
    * Analyze a class constructor for Wire derivation.
    *
    * Examines all parameter lists, classifies each parameter, extracts
@@ -341,8 +311,7 @@ private[scope] object MacroCore {
          |
          |  Cannot derive Wire for ${cyan(typeName, color)}: not a class.
          |
-         |  ${yellow("Hint:", color)} Provide a ${cyan(s"Wireable[$typeName]", color)} instance
-         |        or use ${cyan("Wire.Shared", color)} / ${cyan("Wire.Unique", color)} directly.
+         |  ${yellow("Hint:", color)} Use ${cyan("Wire.Shared", color)} / ${cyan("Wire.Unique", color)} directly.
          |
          |${footer(color)}""".stripMargin
 
@@ -351,7 +320,7 @@ private[scope] object MacroCore {
          |
          |  ${cyan(typeName, color)} has no primary constructor.
          |
-         |  ${yellow("Hint:", color)} Provide a ${cyan(s"Wireable[$typeName]", color)} instance
+         |  ${yellow("Hint:", color)} Use ${cyan("Wire.Shared", color)} / ${cyan("Wire.Unique", color)} directly
          |        with a custom construction strategy.
          |
          |${footer(color)}""".stripMargin

@@ -103,36 +103,6 @@ package object scope {
     fin.defer(finalizer)
 
   /**
-   * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
-   *
-   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
-   * macro inspects `T`'s primary constructor and generates a wire that:
-   *   - Retrieves constructor parameters from the scope
-   *   - Passes an implicit `Scope` parameter if present
-   *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
-   *
-   * @example
-   *   {{{
-   *   // Create a shared wire for Database
-   *   val dbWire = shared[Database]
-   *   }}}
-   */
-  def shared[T]: Wire.Shared[_, T] = macro ScopeMacros.sharedImpl[T]
-
-  /**
-   * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
-   *
-   * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used. Use for services that should not be shared across dependents.
-   *
-   * @tparam T
-   *   the service type to construct (must be a class, not a trait or abstract)
-   * @return
-   *   a unique wire for constructing `T`
-   */
-  def unique[T]: Wire.Unique[_, T] = macro ScopeMacros.uniqueImpl[T]
-
-  /**
    * Leaks a scoped value out of its scope, returning the raw unwrapped value.
    *
    * '''Warning''': This function emits a compiler warning because leaking

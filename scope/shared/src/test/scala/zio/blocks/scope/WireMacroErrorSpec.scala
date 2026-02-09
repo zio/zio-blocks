@@ -27,11 +27,11 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
 
   def spec = suite("Wire macro errors")(
     suite("NotAClass errors")(
-      test("shared[T] for trait fails with helpful message") {
+      test("Wire.shared[T] for trait fails with helpful message") {
         typeCheck("""
           import zio.blocks.scope._
           trait MyTrait
-          shared[MyTrait]
+          Wire.shared[MyTrait]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -39,11 +39,11 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
           )
         }
       },
-      test("unique[T] for trait fails with helpful message") {
+      test("Wire.unique[T] for trait fails with helpful message") {
         typeCheck("""
           import zio.blocks.scope._
           trait MyTrait
-          unique[MyTrait]
+          Wire.unique[MyTrait]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -51,15 +51,15 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
           )
         }
       },
-      test("error mentions providing Wireable as alternative") {
+      test("error suggests using Wire.Shared/Wire.Unique directly") {
         typeCheck("""
           import zio.blocks.scope._
           trait MyTrait
-          shared[MyTrait]
+          Wire.shared[MyTrait]
         """).map { result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(msg => msg.contains("Wireable"))
+            result.left.exists(msg => msg.contains("Wire.Shared") || msg.contains("Wire.Unique"))
           )
         }
       },
@@ -67,7 +67,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
         typeCheck("""
           import zio.blocks.scope._
           abstract class MyAbstract
-          shared[MyAbstract]
+          Wire.shared[MyAbstract]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -83,7 +83,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
           import java.io.{InputStream, FileInputStream}
 
           class BadService(input: InputStream, file: FileInputStream)
-          shared[BadService]
+          Wire.shared[BadService]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -102,7 +102,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
           import java.io.{InputStream, FileInputStream}
 
           class BadService(input: InputStream, file: FileInputStream)
-          shared[BadService]
+          Wire.shared[BadService]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -122,7 +122,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
         typeCheck("""
           import zio.blocks.scope._
           trait SomeTrait
-          shared[SomeTrait]
+          Wire.shared[SomeTrait]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -134,7 +134,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
         typeCheck("""
           import zio.blocks.scope._
           trait SpecificTraitName
-          shared[SpecificTraitName]
+          Wire.shared[SpecificTraitName]
         """).map { result =>
           assertTrue(
             result.isLeft,
@@ -146,7 +146,7 @@ object WireMacroErrorSpec extends ZIOSpecDefault {
         typeCheck("""
           import zio.blocks.scope._
           trait FormattedError
-          shared[FormattedError]
+          Wire.shared[FormattedError]
         """).map { result =>
           assertTrue(
             result.isLeft,

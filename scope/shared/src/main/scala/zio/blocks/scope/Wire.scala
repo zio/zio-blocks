@@ -15,8 +15,8 @@ import zio.blocks.context.Context
  *
  * ==Creating Wires==
  *
- * Use the `shared[T]` and `unique[T]` macros for automatic derivation from
- * constructors, or create wires manually for custom construction logic.
+ * Use `Wire.shared[T]` and `Wire.unique[T]` macros for automatic derivation
+ * from constructors, or create wires manually for custom construction logic.
  *
  * ==Usage Example==
  *
@@ -24,27 +24,26 @@ import zio.blocks.context.Context
  * // Define a service with its wire
  * class Database(config: Config)
  * object Database {
- *   implicit val wire: Wire[Config, Database] = shared[Database]
+ *   val wire: Wire[Config, Database] = Wire.shared[Database]
  * }
  *
  * // Create a unique wire for request-scoped services
  * class RequestHandler(db: Database)
  * object RequestHandler {
- *   implicit val wire: Wire[Database, RequestHandler] = unique[RequestHandler]
+ *   val wire: Wire[Database, RequestHandler] = Wire.unique[RequestHandler]
  * }
  *
- * // Convert sharing mode
- * val sharedWire: Wire.Shared[Config, Database] = Database.wire.shared
- * val uniqueWire: Wire.Unique[Config, Database] = Database.wire.unique
+ * // Create a Resource from wires
+ * val appResource = Resource.from[App](
+ *   Wire(Config("localhost", 8080)),
+ *   Wire.shared[Database]
+ * )
  * }}}
  *
  * @tparam In
  *   the dependencies required (contravariant - accepts supertypes)
  * @tparam Out
  *   the service(s) produced (covariant - produces subtypes)
- *
- * @see
- *   [[Wireable]] for defining wires in companion objects
  */
 sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 
