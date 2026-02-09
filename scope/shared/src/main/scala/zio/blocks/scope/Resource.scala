@@ -34,7 +34,8 @@ import zio.blocks.scope.internal.ProxyFinalizer
  *   the type of value this resource produces
  *
  * @see
- *   [[Scope.allocate]] for using resources
+ *   [[Scope.allocate[A](resource:zio\.blocks\.scope\.Resource[A])* Scope.allocate]]
+ *   for using resources
  * @see
  *   `Wire.toResource` for converting wires
  */
