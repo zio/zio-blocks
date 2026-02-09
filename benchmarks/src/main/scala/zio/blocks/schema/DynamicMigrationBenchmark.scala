@@ -9,14 +9,14 @@ import scala.compiletime.uninitialized
 
 class DynamicMigrationBenchmark extends BaseBenchmark {
 
-  var simpleRecord: DynamicValue           = uninitialized
-  var nestedRecord: DynamicValue           = uninitialized
-  var sequenceValue: DynamicValue          = uninitialized
-  var addFieldMigration: DynamicMigration  = uninitialized
-  var renameMigration: DynamicMigration    = uninitialized
-  var composedMigration: DynamicMigration  = uninitialized
-  var nestedMigration: DynamicMigration    = uninitialized
-  var sequenceMigration: DynamicMigration  = uninitialized
+  var simpleRecord: DynamicValue          = uninitialized
+  var nestedRecord: DynamicValue          = uninitialized
+  var sequenceValue: DynamicValue         = uninitialized
+  var addFieldMigration: DynamicMigration = uninitialized
+  var renameMigration: DynamicMigration   = uninitialized
+  var composedMigration: DynamicMigration = uninitialized
+  var nestedMigration: DynamicMigration   = uninitialized
+  var sequenceMigration: DynamicMigration = uninitialized
 
   @Setup
   def setup(): Unit = {
