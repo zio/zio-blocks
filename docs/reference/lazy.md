@@ -155,11 +155,11 @@ val lazyHello: Lazy[String] = lazy42.as("Hello")
 println(lazyHello.force)  // "Hello"
 ```
 
-### unit mdoc:compile-only
+### unit
 
 Discard the value, keeping only the side effects:
 
-```scala
+```scala mdoc:compile-only
 val lazyWithSideEffect: Lazy[Int] = Lazy {
   println("Side effect!")
   42
