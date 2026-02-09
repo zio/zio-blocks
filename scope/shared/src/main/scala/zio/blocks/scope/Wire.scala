@@ -246,8 +246,9 @@ object Wire extends WireCompanionVersionSpecific {
   /**
    * Creates a wire that injects a pre-existing value.
    *
-   * The value is wrapped in a shared wire with no dependencies. No cleanup is
-   * registered because the value was created externally.
+   * The value is wrapped in a shared wire with no dependencies. If the value is
+   * `AutoCloseable`, `close()` is registered automatically when the wire is
+   * used.
    *
    * @param t
    *   the value to inject
@@ -257,5 +258,11 @@ object Wire extends WireCompanionVersionSpecific {
    *   a shared wire that provides the value
    */
   def apply[T](t: T): Wire.Shared[Any, T] =
-    new Shared[Any, T]((_, _) => t)
+    new Shared[Any, T]((finalizer, _) => {
+      t match {
+        case c: AutoCloseable => finalizer.defer(c.close())
+        case _                => ()
+      }
+      t
+    })
 }

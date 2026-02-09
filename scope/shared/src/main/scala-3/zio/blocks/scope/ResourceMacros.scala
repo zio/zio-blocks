@@ -44,10 +44,10 @@ private[scope] object ResourceMacros {
 
     val allRegularParams = regularParams.flatten
 
-    // Check for Scope/Finalizer parameter in implicits
-    val hasScopeParam = implicitParams.flatten.exists { param =>
+    // Check for Finalizer parameter in implicits (not Scope - Scope is not supported)
+    val hasFinalizerParam = implicitParams.flatten.exists { param =>
       val paramType = tpe.memberType(param)
-      paramType <:< TypeRepr.of[Scope[?, ?]] || MacroCore.isFinalizerType(paramType)
+      MacroCore.isFinalizerType(paramType)
     }
 
     // Collect dependencies (non-Finalizer regular params)
@@ -67,14 +67,40 @@ private[scope] object ResourceMacros {
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val ctorSym         = sym.primaryConstructor
 
+    // Pre-compute which params are Finalizer type (before entering splice)
+    val finalizerParamFlags: List[List[Boolean]] = paramLists.map { params =>
+      params.map { param =>
+        val paramType = tpe.memberType(param)
+        MacroCore.isFinalizerType(paramType)
+      }
+    }
+
     // Generate resource body
-    if (hasScopeParam) {
-      // Constructor takes implicit Scope/Finalizer
+    if (hasFinalizerParam) {
+      // Constructor takes implicit Finalizer - build correct Apply chain
       '{
         Resource.shared[T] { finalizer =>
           ${
             val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
-            val applied  = Apply(Apply(ctorTerm, Nil), List('{ finalizer }.asTerm))
+            // Build Apply chain matching the actual param lists
+            val applied =
+              paramLists.zip(finalizerParamFlags).foldLeft(ctorTerm: Term) { case (acc, (params, isFinalizerFlags)) =>
+                if (params.isEmpty) {
+                  Apply(acc, Nil)
+                } else if (params.exists(p => p.flags.is(Flags.Given) || p.flags.is(Flags.Implicit))) {
+                  // Implicit/given param list - inject finalizer for Finalizer params
+                  val args = params.zip(isFinalizerFlags).map { case (param, isFinalizer) =>
+                    if (isFinalizer) '{ finalizer }.asTerm
+                    else {
+                      val paramType = tpe.memberType(param)
+                      report.errorAndAbort(s"Unsupported implicit parameter type: ${paramType.show}")
+                    }
+                  }
+                  Apply(acc, args)
+                } else {
+                  Apply(acc, Nil)
+                }
+              }
             applied.asExprOf[T]
           }
         }

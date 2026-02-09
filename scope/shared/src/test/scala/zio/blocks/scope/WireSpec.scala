@@ -87,6 +87,20 @@ object WireSpec extends ZIOSpecDefault {
         val b              = resource.make(scope)
         close()
         assertTrue(a == 1, b == 2)
+      },
+      test("Wire(value) auto-finalizes AutoCloseable") {
+        var closed = false
+        class Closeable extends AutoCloseable {
+          def close(): Unit = closed = true
+        }
+        val closeable        = new Closeable
+        val wire             = Wire(closeable)
+        val (scope, doClose) = Scope.createTestableScope()
+        val _                = wire.make(scope, Context.empty)
+        val closedBefore     = closed // capture value before close
+        doClose()
+        val closedAfter = closed // capture value after close
+        assertTrue(!closedBefore, closedAfter)
       }
     )
   )
