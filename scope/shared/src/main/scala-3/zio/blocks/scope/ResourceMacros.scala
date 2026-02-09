@@ -329,12 +329,20 @@ private[scope] object ResourceMacros {
     // PHASE 4: Generate Resource Composition
     // ═══════════════════════════════════════════════════════════════════════
     //
-    // We generate a block that creates Resource values for each type in
-    // topological order. The key is that Resource.Shared provides memoization -
-    // calling .make() on the same Resource.Shared instance returns the same value.
+    // The key insight: Resource.shared must wrap the ENTIRE construction
+    // including dependency acquisition. If we put Resource.shared inside a
+    // flatMap, we get a new Resource.shared instance per call, breaking sharing.
     //
-    // We use ValDef.let to properly bind each Resource to a val, then reference
-    // those vals in subsequent flatMap chains.
+    // Correct structure for shared type Mid with dependency Leaf:
+    //   val resMid = Resource.shared[Mid] { finalizer =>
+    //     val leaf = resLeaf.make(finalizer)
+    //     wire.make(finalizer, ctx.add(leaf))
+    //   }
+    //
+    // NOT:
+    //   val resMid = resLeaf.flatMap { leaf =>
+    //     Resource.shared[Mid](f => wire.make(f, ctx))  // Wrong: new instance per call!
+    //   }
 
     // Build a helper to create context from values
     def buildContextFromValues(values: List[(TypeRepr, Expr[?])]): Expr[Context[?]] =
@@ -347,6 +355,8 @@ private[scope] object ResourceMacros {
       }
 
     // Create a Resource expression for a type given its dependencies' Resource expressions
+    // For shared resources, wrap the entire construction (including dep acquisition) in Resource.shared
+    // For unique resources, use flatMap chain so each use creates fresh instances
     def createResourceExpr(
       we: WireInfo,
       depResources: Map[String, (TypeRepr, Expr[Resource[?]])]
@@ -369,26 +379,59 @@ private[scope] object ResourceMacros {
                 Resource.unique[outT](f => wire.make(f, Context.empty.asInstanceOf[Context[Any]]))
               }
             }
+          } else if (we.isShared) {
+            // Shared type with dependencies - wrap entire construction in Resource.shared
+            // This ensures we get ONE Resource.shared instance, not one per use
+            val wireExpr = we.wireExpr
+
+            // Generate code to acquire all deps and build context inside Resource.shared
+            def buildDepAcquisition(
+              remainingDeps: List[TypeRepr],
+              boundValues: List[(TypeRepr, Expr[?])],
+              finalizerExpr: Expr[Finalizer]
+            ): Expr[outT] =
+              remainingDeps match {
+                case Nil =>
+                  val ctxExpr = buildContextFromValues(boundValues)
+                  '{
+                    val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
+                    wire.make($finalizerExpr, $ctxExpr.asInstanceOf[Context[Any]])
+                  }
+
+                case dep :: rest =>
+                  val depKey      = typeKey(dep)
+                  val (_, depRes) = depResources(depKey)
+
+                  dep.asType match {
+                    case '[depT] =>
+                      val typedDepRes = depRes.asExprOf[Resource[depT]]
+                      '{
+                        val depValue: depT = $typedDepRes.make($finalizerExpr)
+                        ${ buildDepAcquisition(rest, boundValues :+ (dep, 'depValue), finalizerExpr) }
+                      }
+                  }
+              }
+
+            '{
+              Resource.shared[outT] { finalizer =>
+                ${ buildDepAcquisition(deps, Nil, 'finalizer) }
+              }
+            }
           } else {
-            // Has dependencies - generate flatMap chain
+            // Unique type with dependencies - use flatMap chain
+            // Each use creates fresh instances (that's what unique means)
+            val wireExpr = we.wireExpr
+
             def buildChain(
               remainingDeps: List[TypeRepr],
               boundValues: List[(TypeRepr, Expr[?])]
             ): Expr[Resource[outT]] =
               remainingDeps match {
                 case Nil =>
-                  val ctxExpr  = buildContextFromValues(boundValues)
-                  val wireExpr = we.wireExpr
-                  if (we.isShared) {
-                    '{
-                      val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                      Resource.shared[outT](f => wire.make(f, $ctxExpr.asInstanceOf[Context[Any]]))
-                    }
-                  } else {
-                    '{
-                      val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                      Resource.unique[outT](f => wire.make(f, $ctxExpr.asInstanceOf[Context[Any]]))
-                    }
+                  val ctxExpr = buildContextFromValues(boundValues)
+                  '{
+                    val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
+                    Resource.unique[outT](f => wire.make(f, $ctxExpr.asInstanceOf[Context[Any]]))
                   }
 
                 case dep :: rest =>

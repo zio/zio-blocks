@@ -437,36 +437,62 @@ private[scope] object ResourceMacros {
             }
           """
         }
+      } else if (we.isShared) {
+        // Shared type with dependencies - wrap entire construction in Resource.shared
+        // This ensures we get ONE Resource.shared instance, not one per use
+        def buildDepAcquisition(
+          remainingDeps: List[Type],
+          boundValues: List[(Type, TermName)],
+          finalizerName: TermName
+        ): Tree =
+          remainingDeps match {
+            case Nil =>
+              val ctxExpr = boundValues.foldLeft[Tree](
+                q"_root_.zio.blocks.context.Context.empty"
+              ) { case (ctx, (depType, valName)) =>
+                q"$ctx.add[$depType]($valName)"
+              }
+              q"""
+                val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
+                wire.make($finalizerName, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+              """
+
+            case dep :: rest =>
+              val depKey     = typeKey(dep)
+              val depValName = depValNames(depKey)
+              val valName    = TermName(c.freshName("dep"))
+              q"""
+                val $valName: $dep = $depValName.make($finalizerName)
+                ${buildDepAcquisition(rest, boundValues :+ (dep, valName), finalizerName)}
+              """
+          }
+
+        val finalizerName = TermName(c.freshName("finalizer"))
+        q"""
+          _root_.zio.blocks.scope.Resource.shared[${we.outType}] { ($finalizerName: _root_.zio.blocks.scope.Finalizer) =>
+            ${buildDepAcquisition(deps, Nil, finalizerName)}
+          }
+        """
       } else {
-        // Has dependencies - generate flatMap chain
+        // Unique type with dependencies - use flatMap chain
+        // Each use creates fresh instances (that's what unique means)
         def buildChain(
           remainingDeps: List[Type],
           boundValues: List[(Type, TermName)]
         ): Tree =
           remainingDeps match {
             case Nil =>
-              // Build context from bound values
               val ctxExpr = boundValues.foldLeft[Tree](
                 q"_root_.zio.blocks.context.Context.empty"
               ) { case (ctx, (depType, valName)) =>
                 q"$ctx.add[$depType]($valName)"
               }
-
-              if (we.isShared) {
-                q"""
-                  _root_.zio.blocks.scope.Resource.shared[${we.outType}] { finalizer =>
-                    val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
-                    wire.make(finalizer, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
-                  }
-                """
-              } else {
-                q"""
-                  _root_.zio.blocks.scope.Resource.unique[${we.outType}] { finalizer =>
-                    val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
-                    wire.make(finalizer, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
-                  }
-                """
-              }
+              q"""
+                _root_.zio.blocks.scope.Resource.unique[${we.outType}] { finalizer =>
+                  val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
+                  wire.make(finalizer, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+                }
+              """
 
             case dep :: rest =>
               val depKey     = typeKey(dep)

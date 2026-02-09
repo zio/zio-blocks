@@ -50,8 +50,42 @@ object DependencySharingSpec extends ZIOSpecDefault {
     @annotation.unused orderService: OrderService
   )
 
+  // Additional counters for non-leaf node test
+  val leafCounter = new AtomicInteger(0)
+  val midCounter  = new AtomicInteger(0)
+
+  class Leaf {
+    val id = leafCounter.incrementAndGet()
+  }
+
+  class Mid(@annotation.unused leaf: Leaf) {
+    val id = midCounter.incrementAndGet()
+  }
+
+  class Top1(@annotation.unused mid: Mid)
+  class Top2(@annotation.unused mid: Mid)
+  class DiamondApp(@annotation.unused t1: Top1, @annotation.unused t2: Top2)
+
   def spec = suite("Dependency sharing")(
     suite("Diamond dependency pattern")(
+      test("shared non-leaf Mid is constructed once in diamond pattern") {
+        leafCounter.set(0)
+        midCounter.set(0)
+
+        // Mid is a non-leaf shared node (has Leaf dependency)
+        // Both Top1 and Top2 depend on Mid
+        // Mid should be constructed once and shared
+        val resource = Resource.from[DiamondApp]()
+
+        val (scope, close) = Scope.createTestableScope()
+        resource.make(scope)
+        close()
+
+        assertTrue(
+          leafCounter.get() == 1,
+          midCounter.get() == 1
+        )
+      },
       test("shared Database is constructed once when both UserService and OrderService depend on it") {
         resetCounters()
 
