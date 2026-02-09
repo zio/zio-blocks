@@ -167,7 +167,7 @@ private[scope] object WireableMacros {
         outType <:< depType
       }
 
-    // Build override context from wires at runtime
+    // Build override context from wires at runtime, passing accumulated context to each wire
     val buildOverrideCtx: Tree = wires.toList
       .zip(wireOutTypes)
       .foldLeft[Tree](
@@ -175,9 +175,10 @@ private[scope] object WireableMacros {
       ) { case (ctxExpr, (wireExpr, outType)) =>
         q"""
         {
+          val ctx = $ctxExpr
           val wire = ${wireExpr.tree}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, $outType]]
-          val value = wire.make(finalizer, _root_.zio.blocks.context.Context.empty)
-          $ctxExpr.add[$outType](value)
+          val value = wire.make(finalizer, ctx.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+          ctx.add[$outType](value)
         }
       """
       }

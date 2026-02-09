@@ -89,27 +89,18 @@ package object scope {
   implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
 
   /**
-   * Registers a finalizer to run when the current scope closes.
+   * Registers a finalizer to run when the finalizer closes.
    *
-   * Finalizers run in LIFO order (last registered runs first). If a finalizer
-   * throws, subsequent finalizers still run.
-   *
-   * @example
-   *   {{{
-   *   Scope.global.scoped { scope =>
-   *     val resource = acquire()
-   *     scope.defer { resource.release() }
-   *     // use resource...
-   *   }
-   *   }}}
+   * This overload allows classes that accept an implicit Finalizer to use the
+   * top-level defer syntax.
    *
    * @param finalizer
-   *   a by-name expression to execute on scope close
-   * @param scope
-   *   the scope capability to register cleanup with
+   *   a by-name expression to execute on finalizer close
+   * @param fin
+   *   the finalizer capability to register cleanup with
    */
-  def defer(finalizer: => Unit)(implicit scope: Scope[_, _]): Unit =
-    scope.defer(finalizer)
+  def defer(finalizer: => Unit)(implicit fin: Finalizer): Unit =
+    fin.defer(finalizer)
 
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
