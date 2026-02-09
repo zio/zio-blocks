@@ -37,25 +37,24 @@ private[scope] object WireCodeGen {
     val sym = tpe.typeSymbol
 
     if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-      MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
+      MacroCore.abortNotAClass(tpe.show)
     }
 
     val ctor = sym.primaryConstructor
     if (ctor == Symbol.noSymbol) {
-      MacroCore.abort(MacroCore.ScopeMacroError.NoPrimaryCtor(tpe.show))
+      MacroCore.abortNoPrimaryCtor(tpe.show)
     }
 
     val paramLists: List[List[Symbol]] = ctor.paramSymss
 
     val depTypes: List[TypeRepr] = paramLists.flatten.flatMap { param =>
-      val paramType     = tpe.memberType(param).dealias.simplified
-      val (_, maybeDep) = MacroCore.classifyParam(paramType)
-      maybeDep
+      val paramType = tpe.memberType(param).dealias.simplified
+      MacroCore.classifyParam(paramType)
     }
 
-    MacroCore.checkSubtypeConflicts(tpe.show, depTypes) match {
-      case Some(error) => MacroCore.abort(error)
-      case None        => // ok
+    MacroCore.checkSubtypeConflicts(depTypes) match {
+      case Some((subtype, supertype)) => MacroCore.abortSubtypeConflict(tpe.show, subtype, supertype)
+      case None                       => // ok
     }
 
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]

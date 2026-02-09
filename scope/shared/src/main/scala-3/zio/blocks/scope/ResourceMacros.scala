@@ -27,12 +27,12 @@ private[scope] object ResourceMacros {
     val sym = tpe.typeSymbol
 
     if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-      MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
+      MacroCore.abortNotAClass(tpe.show)
     }
 
     val ctor = sym.primaryConstructor
     if (ctor == Symbol.noSymbol) {
-      MacroCore.abort(MacroCore.ScopeMacroError.NoPrimaryCtor(tpe.show))
+      MacroCore.abortNoPrimaryCtor(tpe.show)
     }
 
     val paramLists = ctor.paramSymss
@@ -58,10 +58,7 @@ private[scope] object ResourceMacros {
     }
 
     if (depTypes.nonEmpty) {
-      report.errorAndAbort(
-        s"Resource.from[${tpe.show}] cannot be derived: ${tpe.show} has dependencies: ${depTypes.map(_.show).mkString(", ")}. " +
-          s"Use Resource.from[${tpe.show}](wire1, wire2, ...) to provide wires for all dependencies."
-      )
+      MacroCore.abortHasDependencies(tpe.show, depTypes.map(_.show))
     }
 
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
@@ -93,7 +90,7 @@ private[scope] object ResourceMacros {
                     if (isFinalizer) '{ finalizer }.asTerm
                     else {
                       val paramType = tpe.memberType(param)
-                      report.errorAndAbort(s"Unsupported implicit parameter type: ${paramType.show}")
+                      MacroCore.abortUnsupportedImplicitParam(tpe.show, paramType.show)
                     }
                   }
                   Apply(acc, args)
@@ -147,7 +144,7 @@ private[scope] object ResourceMacros {
     val wireExprs: List[Expr[Wire[?, ?]]] = wiresExpr match {
       case Varargs(wires) => wires.toList
       case other          =>
-        report.errorAndAbort(s"Expected varargs of Wire expressions, got: ${other.show}")
+        MacroCore.abortInvalidVarargs(other.show)
     }
 
     // Parse explicit wires: Map from type key to (wireExpr, outType, inTypes, isShared)
@@ -165,7 +162,7 @@ private[scope] object ResourceMacros {
       val (inType, outType) = wireTpe match {
         case AppliedType(_, List(in, out)) => (in.dealias.simplified, out.dealias.simplified)
         case other                         =>
-          report.errorAndAbort(s"Cannot extract types from wire: ${other.show}")
+          MacroCore.abortCannotExtractWireTypes(other.show)
       }
 
       val inTypes  = MacroCore.flattenIntersection(inType)
@@ -217,42 +214,16 @@ private[scope] object ResourceMacros {
       val sym = targetType.typeSymbol
 
       if (isUnmakeableType(targetType)) {
-        val chainStr = chain.map(s => s"  → $s").mkString("\n")
-        report.errorAndAbort(
-          s"""Cannot auto-create ${targetType.show}: this type cannot be auto-created.
-             |
-             |Required by:
-             |$chainStr
-             |
-             |Fix: provide Wire(value) with the desired value:
-             |
-             |  Resource.from[...](
-             |    Wire(...),  // provide a value for ${targetType.show}
-             |    ...
-             |  )""".stripMargin
-        )
+        MacroCore.abortUnmakeableType(targetType.show, chain)
       }
 
       if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-        val chainStr = chain.map(s => s"  → $s").mkString("\n")
-        report.errorAndAbort(
-          s"""Cannot auto-create ${targetType.show}: it is abstract.
-             |
-             |Required by:
-             |$chainStr
-             |
-             |Fix: provide a wire for a concrete implementation:
-             |
-             |  Resource.from[...](
-             |    Wire.shared[ConcreteImpl],  // provides ${targetType.show}
-             |    ...
-             |  )""".stripMargin
-        )
+        MacroCore.abortAbstractType(targetType.show, chain)
       }
 
       val ctor = sym.primaryConstructor
       if (ctor == Symbol.noSymbol) {
-        report.errorAndAbort(s"Cannot auto-create ${targetType.show}: no primary constructor")
+        MacroCore.abortNoCtorForAutoCreate(targetType.show, chain)
       }
 
       // Use WireCodeGen to derive the wire
@@ -280,7 +251,7 @@ private[scope] object ResourceMacros {
       if (chain.contains(requiredKey)) {
         val cycleStart = chain.indexOf(requiredKey)
         val cyclePath  = chain.drop(cycleStart) :+ requiredKey
-        MacroCore.abort(MacroCore.ScopeMacroError.DependencyCycle(cyclePath))
+        MacroCore.abortDependencyCycle(cyclePath)
       }
 
       // Find matching wire from explicit wires (including subtype matches)
@@ -299,10 +270,11 @@ private[scope] object ResourceMacros {
 
         case multiple =>
           // Multiple matches - ambiguity error
+          import zio.blocks.scope.internal.ErrorMessages
           val providers = multiple.map { we =>
-            MacroCore.ProviderInfo(we.outType.show, None)
+            ErrorMessages.ProviderInfo(we.outType.show, None)
           }
-          MacroCore.abort(MacroCore.ScopeMacroError.DuplicateProvider(targetType.show, providers))
+          MacroCore.abortDuplicateProvider(targetType.show, providers)
       }
 
       // Use the wire's output type as the canonical key
@@ -331,11 +303,7 @@ private[scope] object ResourceMacros {
       val paramTypes = we.inTypes.map(t => typeKey(t))
       val duplicates = paramTypes.groupBy(identity).filter(_._2.size > 1).keys
       if (duplicates.nonEmpty) {
-        report.errorAndAbort(
-          s"Constructor of ${we.outType.show} has multiple parameters of type ${duplicates.head}.\n" +
-            s"Context is type-indexed and cannot supply distinct values.\n" +
-            s"Fix: wrap one parameter in an opaque type to distinguish them."
-        )
+        MacroCore.abortDuplicateParamType(we.outType.show, duplicates.head)
       }
     }
 

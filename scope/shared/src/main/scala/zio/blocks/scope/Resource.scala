@@ -71,7 +71,7 @@ sealed trait Resource[+A] { self =>
    * @example
    *   {{{
    *   val portResource: Resource[Int] = Resource(8080)
-   *   val urlResource: Resource[String] = portResource.map(port => s"http://localhost:$port")
+   *   val urlResource: Resource[String] = portResource.map(port => s"http://localhost:$$port")
    *   }}}
    */
   def map[B](f: A => B): Resource[B] = new Resource.Unique[B](finalizer => f(self.make(finalizer)))

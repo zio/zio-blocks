@@ -75,11 +75,7 @@ private[scope] object ResourceMacros {
     }
 
     if (depTypes.nonEmpty) {
-      c.abort(
-        c.enclosingPosition,
-        s"Resource.from[${tpe}] cannot be derived: ${tpe} has dependencies: ${depTypes.mkString(", ")}. " +
-          s"Use Resource.from[${tpe}](wire1, wire2, ...) to provide wires for all dependencies."
-      )
+      MC.abortHasDependencies(c)(tpe.toString, depTypes.map(_.toString))
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
@@ -149,8 +145,12 @@ private[scope] object ResourceMacros {
 
       val (inType, outType) = wireTpe.typeArgs match {
         case List(in, out) => (in.dealias, out.dealias)
-        case _             =>
-          c.abort(c.enclosingPosition, s"Cannot extract types from wire: ${wireTpe}")
+        case _ =>
+          val color = zio.blocks.scope.internal.ErrorMessages.Colors.shouldUseColor
+          c.abort(
+            c.enclosingPosition,
+            zio.blocks.scope.internal.ErrorMessages.renderCannotExtractWireTypes(wireTpe.toString, color)
+          )
       }
 
       val inTypes = flattenIntersection(inType)
@@ -223,45 +223,17 @@ private[scope] object ResourceMacros {
       val tsym = targetType.typeSymbol
 
       if (isUnmakeableType(targetType)) {
-        val chainStr = chain.map(s => s"  → $s").mkString("\n")
-        c.abort(
-          c.enclosingPosition,
-          s"""Cannot auto-create ${targetType}: this type cannot be auto-created.
-             |
-             |Required by:
-             |$chainStr
-             |
-             |Fix: provide Wire(value) with the desired value:
-             |
-             |  Resource.from[...](
-             |    Wire(...),  // provide a value for ${targetType}
-             |    ...
-             |  )""".stripMargin
-        )
+        MC.abortUnmakeableType(c)(targetType.toString, chain)
       }
 
       if (!tsym.isClass || tsym.asClass.isTrait || tsym.asClass.isAbstract) {
-        val chainStr = chain.map(s => s"  → $s").mkString("\n")
-        c.abort(
-          c.enclosingPosition,
-          s"""Cannot auto-create ${targetType}: it is abstract.
-             |
-             |Required by:
-             |$chainStr
-             |
-             |Fix: provide a wire for a concrete implementation:
-             |
-             |  Resource.from[...](
-             |    Wire.shared[ConcreteImpl],  // provides ${targetType}
-             |    ...
-             |  )""".stripMargin
-        )
+        MC.abortAbstractType(c)(targetType.toString, chain)
       }
 
       val ctor = targetType.decls.collectFirst {
         case m: MethodSymbol if m.isPrimaryConstructor => m
       }.getOrElse {
-        c.abort(c.enclosingPosition, s"Cannot auto-create ${targetType}: no primary constructor")
+        MC.abortNoCtorForAutoCreate(c)(targetType.toString, chain)
       }
 
       // Generate Wire.shared[targetType] inline
@@ -330,7 +302,7 @@ private[scope] object ResourceMacros {
       if (chain.contains(requiredKey)) {
         val cycleStart = chain.indexOf(requiredKey)
         val cyclePath  = chain.drop(cycleStart) :+ requiredKey
-        c.abort(c.enclosingPosition, s"Dependency cycle detected: ${cyclePath.mkString(" → ")}")
+        MC.abortDependencyCycle(c)(cyclePath)
       }
 
       // Find matching wire from explicit wires (including subtype matches)
@@ -346,10 +318,10 @@ private[scope] object ResourceMacros {
           single
 
         case multiple =>
-          c.abort(
-            c.enclosingPosition,
-            s"Multiple wires provide ${targetType}: ${multiple.map(_.outType).mkString(", ")}"
+          val providers = multiple.map(we =>
+            zio.blocks.scope.internal.ErrorMessages.ProviderInfo(we.outType.toString, None)
           )
+          MC.abortDuplicateProvider(c)(targetType.toString, providers)
       }
 
       // Use the wire's output type as the canonical key
@@ -380,12 +352,7 @@ private[scope] object ResourceMacros {
       val paramTypes = we.inTypes.map(t => typeKey(t))
       val duplicates = paramTypes.groupBy(identity).filter(_._2.size > 1).keys
       if (duplicates.nonEmpty) {
-        c.abort(
-          c.enclosingPosition,
-          s"Constructor of ${we.outType} has multiple parameters of type ${duplicates.head}.\n" +
-            s"Context is type-indexed and cannot supply distinct values.\n" +
-            s"Fix: wrap one parameter in an opaque type to distinguish them."
-        )
+        MC.abortDuplicateParamType(c)(we.outType.toString, duplicates.head)
       }
     }
 

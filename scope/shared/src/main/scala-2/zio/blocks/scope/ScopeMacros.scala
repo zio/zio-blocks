@@ -38,9 +38,9 @@ private[scope] object ScopeMacros {
       MC.classifyAndExtractDep(c)(paramType)
     }
 
-    MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
-      case Some(error) => MC.abort(c)(error)
-      case None        =>
+    MC.checkSubtypeConflicts(c)(allDepTypes) match {
+      case Some((subtype, supertype)) => MC.abortSubtypeConflict(c)(tpe.toString, subtype, supertype)
+      case None                       =>
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]

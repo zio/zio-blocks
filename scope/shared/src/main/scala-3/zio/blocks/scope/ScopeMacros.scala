@@ -13,7 +13,7 @@ private[scope] object ScopeMacros {
     val sym = tpe.typeSymbol
 
     if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-      MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
+      MacroCore.abortNotAClass(tpe.show)
     }
 
     val (_, wireExpr) = WireCodeGen.deriveWire[T](WireKind.Shared)
@@ -27,7 +27,7 @@ private[scope] object ScopeMacros {
     val sym = tpe.typeSymbol
 
     if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-      MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
+      MacroCore.abortNotAClass(tpe.show)
     }
 
     val (_, wireExpr) = WireCodeGen.deriveWire[T](WireKind.Unique)
