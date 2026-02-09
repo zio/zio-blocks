@@ -1,5 +1,7 @@
 package zio.blocks.openapi
 
+import scala.collection.immutable.ListMap
+
 import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -12,7 +14,7 @@ object OperationSpec extends SchemaBaseSpec {
       val operation = Operation()
 
       assertTrue(
-        operation.responses.isEmpty,
+        operation.responses.responses.isEmpty,
         operation.tags.isEmpty,
         operation.summary.isEmpty,
         operation.description.isEmpty,
@@ -28,9 +30,11 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("can be constructed with all fields populated") {
-      val responses = Map(
-        "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
-        "404" -> ReferenceOr.Value(Response(description = doc("Not Found")))
+      val responses = Responses(
+        responses = ListMap(
+          "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+          "404" -> ReferenceOr.Value(Response(description = doc("Not Found")))
+        )
       )
       val tags         = List("users", "admin")
       val summary      = doc("Get user by ID")
@@ -93,11 +97,11 @@ object OperationSpec extends SchemaBaseSpec {
         operation.extensions == extensions
       )
     },
-    test("responses field defaults to empty map") {
+    test("responses field defaults to empty Responses") {
       val operation = Operation()
 
       assertTrue(
-        operation.responses.isEmpty
+        operation.responses.responses.isEmpty
       )
     },
     test("has separate summary and description fields") {
@@ -248,9 +252,11 @@ object OperationSpec extends SchemaBaseSpec {
       assertTrue(schema != null, operation != null)
     },
     test("Operation round-trips through DynamicValue") {
-      val responses = Map(
-        "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
-        "400" -> ReferenceOr.Value(Response(description = doc("Bad Request")))
+      val responses = Responses(
+        responses = ListMap(
+          "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+          "400" -> ReferenceOr.Value(Response(description = doc("Bad Request")))
+        )
       )
       val operation = Operation(
         responses = responses,
@@ -280,18 +286,20 @@ object OperationSpec extends SchemaBaseSpec {
       val operation = Operation()
 
       assertTrue(
-        operation.responses.isEmpty
+        operation.responses.responses.isEmpty
       )
     },
     test("Operation supports complex nested structures") {
-      val responses = Map(
-        "200" -> ReferenceOr.Value(
-          Response(
-            description = doc("Success"),
-            content = Map(
-              "application/json" -> MediaType(
-                schema =
-                  Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
+      val responses = Responses(
+        responses = ListMap(
+          "200" -> ReferenceOr.Value(
+            Response(
+              description = doc("Success"),
+              content = Map(
+                "application/json" -> MediaType(
+                  schema =
+                    Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
+                )
               )
             )
           )
@@ -313,7 +321,7 @@ object OperationSpec extends SchemaBaseSpec {
       )
 
       assertTrue(
-        operation.responses.nonEmpty,
+        operation.responses.responses.nonEmpty,
         operation.tags.contains("complex"),
         operation.parameters.nonEmpty
       )
@@ -327,25 +335,28 @@ object OperationSpec extends SchemaBaseSpec {
         operation.callbacks == Map.empty[String, ReferenceOr[Callback]],
         operation.security == Nil,
         operation.servers == Nil,
-        operation.extensions == Map.empty[String, Json]
+        operation.extensions == Map.empty[String, Json],
+        operation.responses == Responses()
       )
     },
     test("multiple responses with different status codes") {
-      val responses = Map(
-        "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
-        "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
-        "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),
-        "401" -> ReferenceOr.Value(Response(description = doc("Unauthorized"))),
-        "404" -> ReferenceOr.Value(Response(description = doc("Not Found"))),
-        "500" -> ReferenceOr.Value(Response(description = doc("Internal Server Error")))
+      val responses = Responses(
+        responses = ListMap(
+          "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
+          "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
+          "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),
+          "401" -> ReferenceOr.Value(Response(description = doc("Unauthorized"))),
+          "404" -> ReferenceOr.Value(Response(description = doc("Not Found"))),
+          "500" -> ReferenceOr.Value(Response(description = doc("Internal Server Error")))
+        )
       )
       val operation = Operation(responses = responses)
 
       assertTrue(
-        operation.responses.size == 6,
-        operation.responses.contains("200"),
-        operation.responses.contains("404"),
-        operation.responses.contains("500")
+        operation.responses.responses.size == 6,
+        operation.responses.responses.contains("200"),
+        operation.responses.responses.contains("404"),
+        operation.responses.responses.contains("500")
       )
     }
   )

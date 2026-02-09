@@ -1,5 +1,7 @@
 package zio.blocks.openapi
 
+import scala.collection.immutable.ListMap
+
 import zio.blocks.docs.{Doc, Parser}
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonDecoder, JsonEncoder}
@@ -30,7 +32,8 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     decoderFromRawJsonSuite,
     errorCasesSuite,
     securitySchemeVariantsSuite,
-    responsesAndSchemaEdgeCasesSuite
+    responsesAndSchemaEdgeCasesSuite,
+    webhooksSuite
   )
 
   private lazy val schemaObjectToJsonSuite = suite("SchemaObject.toJson fix")(
@@ -312,7 +315,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Operation extensions are flattened at top level") {
       val op = Operation(
-        responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+        responses = Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
         extensions = Map("x-rate-limit" -> Json.Number(100))
       )
       val json = JsonEncoder[Operation].encode(op)
@@ -366,7 +369,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Paths encodes with path keys at top level") {
       val paths =
-        Paths(paths = Map("/pets" -> PathItem()), extensions = Map("x-id" -> Json.String("v1")))
+        Paths(paths = ListMap("/pets" -> PathItem()), extensions = Map("x-id" -> Json.String("v1")))
       val json = JsonEncoder[Paths].encode(paths)
       assertTrue(
         hasField(json, "/pets"),
@@ -376,7 +379,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Callback encodes with callback keys at top level") {
       val cb = Callback(
-        callbacks = Map(
+        callbacks = ListMap(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Value(PathItem(summary = Some(doc("Callback"))))
         ),
         extensions = Map("x-cb" -> Json.String("v1"))
@@ -390,7 +393,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Responses encodes with status code keys at top level") {
       val resps = Responses(
-        responses = Map(
+        responses = ListMap(
           "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
           "404" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/NotFound"))
         ),
@@ -579,7 +582,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Operation round-trips") {
       val original = Operation(
-        responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+        responses = Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
         tags = List("users"),
         summary = Some(doc("Get users")),
         operationId = Some("getUsers"),
@@ -692,7 +695,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         summary = Some(doc("API endpoint")),
         description = Some(doc("Detailed description")),
         get = Some(
-          Operation(responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
+          Operation(responses =
+            Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
+          )
         ),
         servers = List(Server(url = "https://api.example.com")),
         parameters = List(
@@ -710,11 +715,11 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         info = Info(title = "Test API", version = "1.0.0"),
         servers = List(Server(url = "https://api.example.com")),
         paths = Some(
-          Paths(paths = Map("/users" -> PathItem(summary = Some(doc("Users")))))
+          Paths(paths = ListMap("/users" -> PathItem(summary = Some(doc("Users")))))
         ),
         components = Some(
           Components(
-            schemas = Map(
+            schemas = ListMap(
               "User" -> ReferenceOr.Value(
                 SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))
               )
@@ -895,15 +900,17 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         info = Info(title = "Pet Store", version = "1.0.0"),
         paths = Some(
           Paths(
-            paths = Map(
+            paths = ListMap(
               "/pets" -> PathItem(
                 get = Some(
                   Operation(
-                    responses = Map(
-                      "200" -> ReferenceOr.Value(
-                        Response(
-                          description = doc("List of pets"),
-                          content = Map("application/json" -> MediaType(schema = Some(petRef)))
+                    responses = Responses(
+                      responses = ListMap(
+                        "200" -> ReferenceOr.Value(
+                          Response(
+                            description = doc("List of pets"),
+                            content = Map("application/json" -> MediaType(schema = Some(petRef)))
+                          )
                         )
                       )
                     ),
@@ -924,7 +931,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         ),
         components = Some(
           Components(
-            schemas = petDefs.map { case (k, v) => k -> ReferenceOr.Value(v) }
+            schemas = ListMap.from(petDefs.map { case (k, v) => k -> ReferenceOr.Value(v) })
           )
         )
       )
@@ -1146,7 +1153,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val responsesAndSchemaEdgeCasesSuite = suite("Responses and SchemaObject edge cases")(
     test("Responses encodes 'default' key at top level") {
       val responses = Responses(
-        responses = Map("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+        responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
         extensions = Map("x-id" -> Json.String("1"))
       )
@@ -1160,7 +1167,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Responses round-trips with 'default' key") {
       val original = Responses(
-        responses = Map(
+        responses = ListMap(
           "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
           "404" -> ReferenceOr.Value(Response(description = doc("Not found")))
         ),
@@ -1239,6 +1246,37 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val json    = JsonEncoder[SchemaObject].encode(original)
       val decoded = JsonDecoder[SchemaObject].decode(json)
       assertTrue(decoded == Right(original))
+    }
+  )
+
+  private lazy val webhooksSuite = suite("Webhooks")(
+    test("OpenAPI with webhooks round-trips") {
+      val original = OpenAPI(
+        openapi = "3.1.0",
+        info = Info(title = "API", version = "1.0"),
+        webhooks = ListMap(
+          "newPet" -> ReferenceOr.Value(
+            PathItem(
+              post = Some(
+                Operation(responses =
+                  Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
+                )
+              )
+            )
+          )
+        )
+      )
+      val json = JsonEncoder[OpenAPI].encode(original)
+      assertTrue(hasField(json, "webhooks")) &&
+      assertTrue(JsonDecoder[OpenAPI].decode(json) == Right(original))
+    },
+    test("OpenAPI without webhooks omits field") {
+      val original = OpenAPI(
+        openapi = "3.1.0",
+        info = Info(title = "API", version = "1.0")
+      )
+      val json = JsonEncoder[OpenAPI].encode(original)
+      assertTrue(!hasField(json, "webhooks"))
     }
   )
 }
