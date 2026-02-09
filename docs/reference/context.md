@@ -1,3 +1,8 @@
+---
+id: context
+title: "Context"
+---
+
 # Context
 
 `Context[+R]` is a type-indexed heterogeneous collection. It stores values of different types, indexed by their types, with compile-time type safety for lookups.
