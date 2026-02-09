@@ -267,7 +267,15 @@ object TypeIdSpec extends ZIOSpecDefault {
         val listInt = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.int)))
         assertTrue(
           TypeIdPrinter.render(TypeRepr.Ref(TypeId.int)) == "Int",
-          TypeIdPrinter.render(listInt) == "List[+A][Int]"
+          TypeIdPrinter.render(listInt) == "List[Int]"
+        )
+      },
+      test("renders Applied with nested generics without formal type params") {
+        val vectorString       = TypeRepr.Applied(TypeRepr.Ref(TypeId.vector), List(TypeRepr.Ref(TypeId.string)))
+        val optionVectorString = TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(vectorString))
+        assertTrue(
+          TypeIdPrinter.render(vectorString) == "Vector[String]",
+          TypeIdPrinter.render(optionVectorString) == "Option[Vector[String]]"
         )
       },
       test("renders intersection and union types") {
@@ -687,6 +695,78 @@ object TypeIdSpec extends ZIOSpecDefault {
           val intersection1 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
           val intersection2 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
           assertTrue(TypeIdOps.typeReprHash(intersection1) == TypeIdOps.typeReprHash(intersection2))
+        }
+      ),
+      suite("Ref(applied) vs Applied(Ref(unapplied), args) consistency")(
+        test("equality: Ref(applied) equals Applied(Ref(unapplied), args)") {
+          val refForm = TypeRepr.Ref(
+            TypeId.applied[Vector[Int]](TypeId.vector, TypeRepr.Ref(TypeId.int))
+          )
+          val appliedForm = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          assertTrue(TypeIdOps.typeReprEqual(refForm, appliedForm))
+        },
+        test("equality: Applied(Ref(unapplied), args) equals Ref(applied)") {
+          val appliedForm = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          val refForm = TypeRepr.Ref(
+            TypeId.applied[Vector[Int]](TypeId.vector, TypeRepr.Ref(TypeId.int))
+          )
+          assertTrue(TypeIdOps.typeReprEqual(appliedForm, refForm))
+        },
+        test("hash: Ref(applied) and Applied(Ref(unapplied), args) produce same hash") {
+          val refForm = TypeRepr.Ref(
+            TypeId.applied[Vector[Int]](TypeId.vector, TypeRepr.Ref(TypeId.int))
+          )
+          val appliedForm = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          assertTrue(TypeIdOps.typeReprHash(refForm) == TypeIdOps.typeReprHash(appliedForm))
+        },
+        test("Ref(Tuple2[A, B]) equals Tuple(List(TupleElement(A), TupleElement(B)))") {
+          val tuple2Id = TypeId.nominal[Tuple2[Int, String]](
+            "Tuple2",
+            Owner.fromPackagePath("scala"),
+            List(TypeParam("_1", 0), TypeParam("_2", 1)),
+            List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)),
+            TypeDefKind.Unknown,
+            None,
+            Nil
+          )
+          val refForm   = TypeRepr.Ref(tuple2Id)
+          val tupleForm = TypeRepr.Tuple(
+            List(
+              TupleElement(None, TypeRepr.Ref(TypeId.int)),
+              TupleElement(None, TypeRepr.Ref(TypeId.string))
+            )
+          )
+          assertTrue(
+            TypeIdOps.typeReprEqual(refForm, tupleForm),
+            TypeIdOps.typeReprEqual(tupleForm, refForm),
+            TypeIdOps.typeReprHash(refForm) == TypeIdOps.typeReprHash(tupleForm)
+          )
+        },
+        test("nested: Option[Vector[String]] is consistent across representations") {
+          val vectorStringRef = TypeRepr.Ref(
+            TypeId.applied[Vector[String]](TypeId.vector, TypeRepr.Ref(TypeId.string))
+          )
+          val vectorStringApplied = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.string))
+          )
+          val optionViaRef     = TypeId.applied[Option[Vector[String]]](TypeId.option, vectorStringRef)
+          val optionViaApplied = TypeId.applied[Option[Vector[String]]](TypeId.option, vectorStringApplied)
+          assertTrue(
+            TypeId.structurallyEqual(optionViaRef, optionViaApplied),
+            optionViaRef.hashCode() == optionViaApplied.hashCode(),
+            optionViaRef.toString == "Option[Vector[String]]",
+            optionViaApplied.toString == "Option[Vector[String]]"
+          )
         }
       )
     ),

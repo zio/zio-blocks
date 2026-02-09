@@ -160,6 +160,12 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue2)))(
         isLeft(hasField[SchemaError, String]("getMessage", _.getMessage, containsString("Validation Failed")))
       )
+    },
+    test("auto-derived TypeId through newTypeSchema has correct name") {
+      val schema    = Schema[AutoDerivedRecord]
+      val fields    = schema.reflect.asRecord.get.fields
+      val customAge = fields.find(_.name == "age").get
+      assert(customAge.value.typeId.name)(equalTo("CustomAge"))
     }
   )
 
@@ -340,4 +346,13 @@ object NeotypeSupportSpec extends SchemaBaseSpec {
     given TypeId[EmojiDataId] =
       TypeId.opaque("EmojiDataId", neotypeSupportOwner, representation = TypeRepr.Ref(TypeId.int))
   }
+
+  // CustomAge has no explicit given TypeId - TypeId is auto-derived through newTypeSchema
+  type CustomAge = CustomAge.Type
+
+  object CustomAge extends Newtype[Int] {
+    inline override def validate(input: Int): Boolean = input >= 0
+  }
+
+  case class AutoDerivedRecord(age: CustomAge) derives Schema
 }

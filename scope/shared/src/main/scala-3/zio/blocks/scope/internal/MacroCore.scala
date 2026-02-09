@@ -128,42 +128,22 @@ private[scope] object MacroCore {
   // Type analysis utilities (Scala 3 specific)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Check if a type is a Scope type (Scope[?]) */
-  def isScopeType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
-    import quotes.reflect.*
-    tpe <:< TypeRepr.of[zio.blocks.scope.Scope[?]]
-  }
-
   /**
-   * Extract the dependency type from a Scope.Has[Y] type.
+   * Check if a type is a Finalizer type (subtype of Finalizer).
    *
-   * Returns Some(Y) if this is Scope[Context[Y] :: scala.Any] with Y being a
-   * concrete type (not Any/Nothing), otherwise None.
+   * Finalizer is the minimal interface for registering cleanup actions.
+   * Constructors can take Finalizer as a parameter to register their own
+   * cleanup logic.
    */
-  def extractScopeHasType(using Quotes)(tpe: quotes.reflect.TypeRepr): Option[quotes.reflect.TypeRepr] = {
+  def isFinalizerType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
-    tpe.dealias match {
-      case AppliedType(_, List(stackType)) =>
-        stackType.dealias match {
-          case AppliedType(cons, List(contextType, _)) if cons.typeSymbol.name == "::" =>
-            contextType.dealias match {
-              case AppliedType(_, List(innerType)) =>
-                val inner = innerType.dealias.simplified
-                if (inner =:= TypeRepr.of[scala.Any] || inner =:= TypeRepr.of[Nothing]) None
-                else Some(inner)
-              case _ => None
-            }
-          case _ => None
-        }
-      case _ => None
-    }
+    tpe <:< TypeRepr.of[zio.blocks.scope.Finalizer]
   }
 
   /**
    * Classify a parameter type and extract its dependency if applicable.
    *
-   *   - Scope.Has[Y] → ScopeHas(Y) with Y as dependency
-   *   - Scope.Any-like → ScopeAny with no dependency
+   *   - Finalizer → ScopeAny with no dependency (finalizer is passed through)
    *   - Regular type → ValueDep with the type as dependency
    */
   def classifyParam(using
@@ -171,13 +151,8 @@ private[scope] object MacroCore {
   )(
     paramType: quotes.reflect.TypeRepr
   ): (ParamKind, Option[quotes.reflect.TypeRepr]) =
-    if (isScopeType(paramType)) {
-      extractScopeHasType(paramType) match {
-        case Some(depType) =>
-          (ParamKind.ScopeHas(depType.show), Some(depType))
-        case None =>
-          (ParamKind.ScopeAny, None)
-      }
+    if (isFinalizerType(paramType)) {
+      (ParamKind.ScopeAny, None)
     } else {
       (ParamKind.ValueDep(paramType.show), Some(paramType))
     }
@@ -216,6 +191,24 @@ private[scope] object MacroCore {
   def computeInType(using Quotes)(depTypes: List[quotes.reflect.TypeRepr]): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
     depTypes.reduceLeftOption(AndType(_, _)).getOrElse(TypeRepr.of[Any])
+  }
+
+  /**
+   * Flatten an intersection type (A & B & C) into a list of component types.
+   *
+   * Returns empty list for Any type, or a single-element list for
+   * non-intersection types.
+   */
+  def flattenIntersection(using Quotes)(tpe: quotes.reflect.TypeRepr): List[quotes.reflect.TypeRepr] = {
+    import quotes.reflect.*
+
+    def flatten(t: TypeRepr): List[TypeRepr] = t.dealias.simplified match {
+      case AndType(left, right)        => flatten(left) ++ flatten(right)
+      case t if t =:= TypeRepr.of[Any] => Nil
+      case t                           => List(t)
+    }
+
+    flatten(tpe)
   }
 
   /**
@@ -552,6 +545,64 @@ private[scope] object MacroCore {
          |    ${gray("•", color)} Introducing an interface/trait
          |    ${gray("•", color)} Using lazy initialization
          |    ${gray("•", color)} Restructuring dependencies
+         |
+         |${footer(color)}""".stripMargin
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Warning model
+  // ─────────────────────────────────────────────────────────────────────────
+
+  sealed trait ScopeMacroWarning {
+    def render(color: Boolean): String
+  }
+
+  object ScopeMacroWarning {
+
+    final case class LeakWarning(
+      sourceCode: String,
+      scopeName: String
+    ) extends ScopeMacroWarning {
+      def render(color: Boolean): String =
+        WarningRenderer.renderLeakWarning(sourceCode, scopeName, color)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Warning rendering
+  // ─────────────────────────────────────────────────────────────────────────
+
+  object WarningRenderer {
+    import Colors.*
+
+    private val lineWidth = 80
+
+    private def header(title: String, color: Boolean): String = {
+      val sep = "─" * (lineWidth - title.length - 4)
+      s"${gray("──", color)} ${bold(title, color)} ${gray(sep, color)}"
+    }
+
+    private def footer(color: Boolean): String =
+      gray("─" * lineWidth, color)
+
+    def renderLeakWarning(sourceCode: String, scopeName: String, color: Boolean): String = {
+      // Build the pointer line
+      val caretLine   = " " * ("leak(".length) + "^"
+      val pointerLine = " " * ("leak(".length) + "|"
+
+      s"""${header("Scope Warning", color)}
+         |
+         |  leak($sourceCode)
+         |  $caretLine
+         |  $pointerLine
+         |
+         |  ${yellow("Warning:", color)} ${cyan(sourceCode, color)} is being leaked from scope ${cyan(scopeName, color)}.
+         |  This may result in undefined behavior.
+         |
+         |  ${yellow("Hint:", color)}
+         |     If you know this data type is not resourceful, then add a ${cyan("given ScopeEscape", color)}
+         |     for it so you do not need to leak it.
          |
          |${footer(color)}""".stripMargin
     }

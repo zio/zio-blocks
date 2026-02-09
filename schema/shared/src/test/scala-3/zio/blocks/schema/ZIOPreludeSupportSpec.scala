@@ -142,8 +142,10 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       val derivedTypeId1 = TypeId.of[NInt.Type]
       val derivedTypeId2 = TypeId.of[NInt.Type]
       assert(derivedTypeId1)(equalTo(derivedTypeId2)) &&
-      assert(derivedTypeId1.name)(equalTo("Type")) &&
-      assert(derivedTypeId1.owner.toString)(containsString("NInt"))
+      assert(derivedTypeId1.name)(equalTo("NInt")) &&
+      assert(derivedTypeId1.owner)(
+        equalTo(Owner.fromPackagePath("zio.blocks.schema").term("ZIOPreludeSupportSpec"))
+      )
     }
   )
 

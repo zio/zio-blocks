@@ -33,6 +33,55 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
   type RefinedTrait          = SimpleTrait { def extra: Boolean }
 
   def spec = suite("Scala 3 TypeId Derivation")(
+    suite("Tuples")(
+      test("*: cons syntax derives same TypeId as parenthesized tuple") {
+        val fromParens = TypeId.of[(Int, String)]
+        val fromCons   = TypeId.of[Int *: String *: EmptyTuple]
+        assertTrue(
+          fromParens == fromCons,
+          fromParens.hashCode() == fromCons.hashCode()
+        )
+      },
+      test("tuple with > 22 elements derives consistently") {
+        val fromParens = TypeId.of[
+          (
+            Int,
+            String,
+            Boolean,
+            Double,
+            Float,
+            Long,
+            Short,
+            Byte,
+            Char,
+            Int,
+            String,
+            Boolean,
+            Double,
+            Float,
+            Long,
+            Short,
+            Byte,
+            Char,
+            Int,
+            String,
+            Boolean,
+            Double,
+            Float
+          )
+        ]
+        val fromCons = TypeId.of[
+          Int *: String *: Boolean *: Double *: Float *: Long *: Short *: Byte *: Char *: Int *: String *: Boolean *:
+            Double *: Float *: Long *: Short *: Byte *: Char *: Int *: String *: Boolean *: Double *: Float *:
+            EmptyTuple
+        ]
+
+        assertTrue(
+          fromParens == fromCons,
+          fromParens.hashCode() == fromCons.hashCode()
+        )
+      }
+    ),
     suite("Opaque Types")(
       test("opaque types are detected correctly") {
         val emailId = TypeId.of[OpaqueTypes.Email]
