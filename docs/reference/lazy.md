@@ -21,8 +21,9 @@ object Lazy {
 }
 ```
 
-Once a `Lazy` computation is evaluated, the result is cached. Subsequent calls to `force` return the cached value without re-executing the computation.
+Once a `Lazy` computation is evaluated, the result is cached and `isEvaluated` becomes `true`. Subsequent calls to `force` return the cached value without re-executing the computation, as long as the computed result is not `null`.
 
+Note: the current implementation uses `null` internally as the sentinel for “not evaluated”. If a `Lazy` computation legitimately returns `null`, it will be recomputed on every `force` call and `isEvaluated` will remain `false`. To benefit from memoization, prefer non-null results (for example, use `Option[A]` instead of returning `null`).
 The `force` method uses trampolining (an explicit stack) to evaluate deeply nested `Lazy` computations without risking stack overflow.
 
 ## Why Lazy Exists?
