@@ -18,7 +18,12 @@ object XmlWriter {
 
   def writeToBytes(xml: Xml, config: WriterConfig = WriterConfig.default): Array[Byte] = {
     val str = write(xml, config)
-    str.getBytes(config.encoding)
+    try {
+      str.getBytes(config.encoding)
+    } catch {
+      case _: Exception =>
+        throw XmlError.encodingError(s"Unsupported encoding: ${config.encoding}")
+    }
   }
 
   private def writeNode(xml: Xml, sb: StringBuilder, depth: Int, config: WriterConfig): Unit = xml match {
@@ -107,13 +112,13 @@ object XmlWriter {
     }
   }
 
-  private def writeName(name: XmlName, sb: StringBuilder): Unit =
-    name.namespace match {
-      case Some(_) =>
-        sb.append(name.localName)
-      case None =>
-        sb.append(name.localName)
+  private def writeName(name: XmlName, sb: StringBuilder): Unit = {
+    name.prefix.foreach { p =>
+      sb.append(p)
+      sb.append(':')
     }
+    sb.append(name.localName)
+  }
 
   private def writeIndent(sb: StringBuilder, depth: Int, indentStep: Int): Unit = {
     var i     = 0

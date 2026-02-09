@@ -1,5 +1,7 @@
 package zio.blocks.schema.xml
 
+import java.nio.charset.{Charset, UnsupportedCharsetException}
+
 import zio.blocks.chunk.Chunk
 
 /**
@@ -41,7 +43,13 @@ object XmlWriter {
    */
   def writeToBytes(xml: Xml, config: WriterConfig = WriterConfig.default): Array[Byte] = {
     val str = write(xml, config)
-    str.getBytes(config.encoding)
+    try {
+      val charset = Charset.forName(config.encoding)
+      str.getBytes(charset)
+    } catch {
+      case _: UnsupportedCharsetException =>
+        throw XmlError.encodingError(s"Unsupported encoding: ${config.encoding}")
+    }
   }
 
   private def writeNode(xml: Xml, sb: StringBuilder, depth: Int, config: WriterConfig): Unit = xml match {
@@ -130,8 +138,13 @@ object XmlWriter {
     }
   }
 
-  private def writeName(name: XmlName, sb: StringBuilder): Unit =
+  private def writeName(name: XmlName, sb: StringBuilder): Unit = {
+    name.prefix.foreach { p =>
+      sb.append(p)
+      sb.append(':')
+    }
     sb.append(name.localName)
+  }
 
   private def writeIndent(sb: StringBuilder, depth: Int, indentStep: Int): Unit = {
     var i     = 0

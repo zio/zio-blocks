@@ -64,7 +64,7 @@ object XmlWriterSpec extends SchemaBaseSpec {
         assertTrue(result == "<root><child1/><child2/></root>")
       },
       test("writes element with namespace") {
-        val elem   = Xml.Element(XmlName("root", Some("http://example.com")), Chunk.empty, Chunk.empty)
+        val elem   = Xml.Element(XmlName("root", "http://example.com"), Chunk.empty, Chunk.empty)
         val result = XmlWriter.write(elem)
         assertTrue(result.contains("root") && result.contains("http://example.com"))
       }

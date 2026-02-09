@@ -17,7 +17,7 @@ import zio.blocks.schema.DynamicOptic
  *   Optional column number where the error occurred (for parse errors).
  */
 class XmlError(
-  var spans: List[DynamicOptic.Node],
+  val spans: List[DynamicOptic.Node],
   message: String,
   val line: Option[Int] = None,
   val column: Option[Int] = None
@@ -32,10 +32,8 @@ class XmlError(
   def path: DynamicOptic = DynamicOptic(spans.reverse.toIndexedSeq)
 
   /** Creates a new XmlError with an additional span prepended. */
-  def atSpan(span: DynamicOptic.Node): XmlError = {
-    spans = span :: spans
-    this
-  }
+  def atSpan(span: DynamicOptic.Node): XmlError =
+    new XmlError(span :: spans, message, line, column)
 }
 
 object XmlError {

@@ -241,8 +241,16 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
                   codecMap.get(caseName) match {
                     case Some(codec) =>
                       children.headOption match {
-                        case Some(child) => codec.decodeValue(child)
-                        case None        => codec.decodeValue(xmlElement(caseName))
+                        case Some(child @ Xml.Element(childName, _, _)) if childName.localName == caseName =>
+                          // Old double-wrapped format: <Dog><Dog>...</Dog></Dog>
+                          codec.decodeValue(child)
+                        case Some(_) =>
+                          // New format: <Dog><name>...</name></Dog>
+                          // Decode the element itself, not its children
+                          codec.decodeValue(xml)
+                        case None =>
+                          // No children, decode as empty case
+                          codec.decodeValue(xmlElement(caseName))
                       }
                     case None =>
                       Left(XmlError.parseError(s"Unknown variant case: $caseName", 0, 0))
@@ -256,7 +264,14 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
                 val caseName  = cases(caseIdx).name
                 val caseCodec = codecMap(caseName)
                 val inner     = caseCodec.encodeValue(x)
-                xmlElement(caseName, inner)
+                inner match {
+                  case elem: Xml.Element if elem.name.localName == caseName =>
+                    // Already wrapped with correct name, return as-is
+                    elem
+                  case _ =>
+                    // Wrap with case name
+                    xmlElement(caseName, inner)
+                }
               }
             }
         }
@@ -665,43 +680,26 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     codec: XmlBinaryCodec[Any],
     regs: Registers,
     offset: RegisterOffset.RegisterOffset
-  ): Option[XmlError] =
-    try {
-      (codec.valueType: @switch) match {
-        case 0 =>
-          regs.setObject(offset, attrValue)
-          None
-        case 1 =>
-          regs.setInt(offset, attrValue.toInt)
-          None
-        case 2 =>
-          regs.setLong(offset, attrValue.toLong)
-          None
-        case 3 =>
-          regs.setFloat(offset, attrValue.toFloat)
-          None
-        case 4 =>
-          regs.setDouble(offset, attrValue.toDouble)
-          None
-        case 5 =>
-          regs.setBoolean(offset, attrValue.toBoolean)
-          None
-        case 6 =>
-          regs.setByte(offset, attrValue.toByte)
-          None
-        case 7 =>
-          regs.setChar(offset, if (attrValue.nonEmpty) attrValue.charAt(0) else '\u0000')
-          None
-        case 8 =>
-          regs.setShort(offset, attrValue.toShort)
-          None
-        case _ =>
-          None
-      }
-    } catch {
-      case e: Exception =>
-        Some(XmlError.parseError(s"Invalid attribute value: ${e.getMessage}", 0, 0))
+  ): Option[XmlError] = {
+    val wrappedXml = Xml.Element(XmlName("value"), Chunk.empty, Chunk(Xml.Text(attrValue)))
+    codec.decodeValue(wrappedXml) match {
+      case Right(v) =>
+        (codec.valueType: @switch) match {
+          case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
+          case 1 => regs.setInt(offset, v.asInstanceOf[Int])
+          case 2 => regs.setLong(offset, v.asInstanceOf[Long])
+          case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
+          case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
+          case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
+          case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
+          case 7 => regs.setChar(offset, v.asInstanceOf[Char])
+          case 8 => regs.setShort(offset, v.asInstanceOf[Short])
+          case _ => ()
+        }
+        None
+      case Left(err) => Some(err)
     }
+  }
 
   private val dayOfWeekCodec: XmlBinaryCodec[DayOfWeek] = new XmlBinaryCodec[DayOfWeek]() {
     def decodeValue(xml: Xml): Either[XmlError, DayOfWeek] = decodeText(xml)(s => DayOfWeek.valueOf(s.toUpperCase))
