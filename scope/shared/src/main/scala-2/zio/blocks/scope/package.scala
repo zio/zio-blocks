@@ -89,57 +89,18 @@ package object scope {
   implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
 
   /**
-   * Registers a finalizer to run when the current scope closes.
+   * Registers a finalizer to run when the finalizer closes.
    *
-   * Finalizers run in LIFO order (last registered runs first). If a finalizer
-   * throws, subsequent finalizers still run.
-   *
-   * @example
-   *   {{{
-   *   Scope.global.scoped { scope =>
-   *     val resource = acquire()
-   *     scope.defer { resource.release() }
-   *     // use resource...
-   *   }
-   *   }}}
+   * This overload allows classes that accept an implicit Finalizer to use the
+   * top-level defer syntax.
    *
    * @param finalizer
-   *   a by-name expression to execute on scope close
-   * @param scope
-   *   the scope capability to register cleanup with
+   *   a by-name expression to execute on finalizer close
+   * @param fin
+   *   the finalizer capability to register cleanup with
    */
-  def defer(finalizer: => Unit)(implicit scope: Scope[_, _]): Unit =
-    scope.defer(finalizer)
-
-  /**
-   * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
-   *
-   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
-   * macro inspects `T`'s primary constructor and generates a wire that:
-   *   - Retrieves constructor parameters from the scope
-   *   - Passes an implicit `Scope` parameter if present
-   *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
-   *
-   * @example
-   *   {{{
-   *   // Create a shared wire for Database
-   *   val dbWire = shared[Database]
-   *   }}}
-   */
-  def shared[T]: Wire.Shared[_, T] = macro ScopeMacros.sharedImpl[T]
-
-  /**
-   * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
-   *
-   * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used. Use for services that should not be shared across dependents.
-   *
-   * @tparam T
-   *   the service type to construct (must be a class, not a trait or abstract)
-   * @return
-   *   a unique wire for constructing `T`
-   */
-  def unique[T]: Wire.Unique[_, T] = macro ScopeMacros.uniqueImpl[T]
+  def defer(finalizer: => Unit)(implicit fin: Finalizer): Unit =
+    fin.defer(finalizer)
 
   /**
    * Leaks a scoped value out of its scope, returning the raw unwrapped value.

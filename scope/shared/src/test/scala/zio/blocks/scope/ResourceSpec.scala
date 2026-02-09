@@ -246,13 +246,119 @@ object ResourceSpec extends ZIOSpecDefault {
         )
 
         val configWire     = Wire(Cfg(false))
-        val dbWire         = shared[Db]
+        val dbWire         = Wire.shared[Db]
         val portWire       = Wire(Port(8080))
         val resource       = Resource.from[MultiDepService](configWire, dbWire, portWire)
         val (scope, close) = Scope.createTestableScope()
         val service        = resource.make(scope)
         close()
         assertTrue(service.isInstanceOf[MultiDepService])
+      }
+    ),
+    suite("map")(
+      test("transforms the resource value") {
+        val portResource = Resource(8080)
+        val urlResource  = portResource.map(port => s"http://localhost:$port")
+
+        val (scope, close) = Scope.createTestableScope()
+        val url            = urlResource.make(scope)
+        close()
+
+        assertTrue(url == "http://localhost:8080")
+      },
+      test("preserves finalizers from original resource") {
+        var closed = false
+
+        class Conn extends AutoCloseable {
+          def close(): Unit = closed = true
+        }
+
+        val connResource = Resource.fromAutoCloseable(new Conn)
+        val idResource   = connResource.map(_ => "connection-id")
+
+        val (scope, close) = Scope.createTestableScope()
+        val id             = idResource.make(scope)
+
+        assertTrue(id == "connection-id", !closed)
+        close()
+        assertTrue(closed)
+      }
+    ),
+    suite("flatMap")(
+      test("sequences two resources") {
+        val configResource = Resource(Config("jdbc://localhost"))
+        val dbResource     = configResource.flatMap { config =>
+          Resource.fromAutoCloseable(new Database(config))
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        val db             = dbResource.make(scope)
+
+        assertTrue(!db.closed)
+        close()
+        assertTrue(db.closed)
+      },
+      test("runs finalizers in LIFO order (inner before outer)") {
+        val order = ListBuffer[String]()
+
+        val outer    = Resource.acquireRelease("outer")(_ => order += "outer-released")
+        val combined = outer.flatMap { _ =>
+          Resource.acquireRelease("inner")(_ => order += "inner-released")
+        }
+
+        val (scope, close) = Scope.createTestableScope()
+        combined.make(scope)
+        close()
+
+        assertTrue(order.toList == List("inner-released", "outer-released"))
+      }
+    ),
+    suite("zip")(
+      test("combines two resources into a tuple") {
+        val dbResource    = Resource(new Database(Config("url")))
+        val cacheResource = Resource(42)
+        val combined      = dbResource.zip(cacheResource)
+
+        val (scope, close) = Scope.createTestableScope()
+        val (db, cache)    = combined.make(scope)
+        close()
+
+        assertTrue(db.isInstanceOf[Database], cache == 42)
+      },
+      test("runs both finalizers") {
+        var dbClosed    = false
+        var cacheClosed = false
+
+        class Db extends AutoCloseable {
+          def close(): Unit = dbClosed = true
+        }
+        class Cache extends AutoCloseable {
+          def close(): Unit = cacheClosed = true
+        }
+
+        val dbResource    = Resource.fromAutoCloseable(new Db)
+        val cacheResource = Resource.fromAutoCloseable(new Cache)
+        val combined      = dbResource.zip(cacheResource)
+
+        val (scope, close) = Scope.createTestableScope()
+        combined.make(scope)
+
+        assertTrue(!dbClosed, !cacheClosed)
+        close()
+        assertTrue(dbClosed, cacheClosed)
+      },
+      test("runs finalizers in LIFO order (second before first)") {
+        val order = ListBuffer[String]()
+
+        val first    = Resource.acquireRelease("first")(_ => order += "first-released")
+        val second   = Resource.acquireRelease("second")(_ => order += "second-released")
+        val combined = first.zip(second)
+
+        val (scope, close) = Scope.createTestableScope()
+        combined.make(scope)
+        close()
+
+        assertTrue(order.toList == List("second-released", "first-released"))
       }
     )
   )

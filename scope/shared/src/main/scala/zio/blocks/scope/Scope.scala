@@ -73,6 +73,22 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
     @@.scoped(resource.make(this))
 
   /**
+   * Allocates an AutoCloseable value directly in this scope.
+   *
+   * This is a convenience overload that wraps the value in a Resource and
+   * registers its `close()` method as a finalizer.
+   *
+   * @param value
+   *   a by-name expression that creates the AutoCloseable
+   * @tparam A
+   *   the value type (must be AutoCloseable)
+   * @return
+   *   the created value tagged with this scope's Tag
+   */
+  def allocate[A <: AutoCloseable](value: => A): A @@ Tag =
+    allocate(Resource(value))
+
+  /**
    * Registers a finalizer to run when this scope closes.
    *
    * Finalizers run in LIFO order (last registered runs first). If a finalizer

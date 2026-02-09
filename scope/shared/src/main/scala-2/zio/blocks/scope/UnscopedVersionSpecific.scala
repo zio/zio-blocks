@@ -2,6 +2,7 @@ package zio.blocks.scope
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
+import zio.blocks.scope.internal.ErrorMessages
 
 private[scope] trait UnscopedVersionSpecific {
   def derived[A]: Unscoped[A] = macro UnscopedMacros.derivedImpl[A]
@@ -11,7 +12,8 @@ private[scope] object UnscopedMacros {
   def derivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Unscoped[A]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[A].dealias
+    val tpe   = weakTypeOf[A].dealias
+    val color = ErrorMessages.Colors.shouldUseColor
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
@@ -60,7 +62,12 @@ private[scope] object UnscopedMacros {
                       case Some(typeArg) => typeArg
                       case _             =>
                         fail(
-                          s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$t'."
+                          ErrorMessages.renderTypeParamNotDeducible(
+                            typeParam.name.toString,
+                            symbol.toString,
+                            t.toString,
+                            color
+                          )
                         )
                     }
                 }
@@ -74,7 +81,7 @@ private[scope] object UnscopedMacros {
 
     def primaryConstructor(t: Type): MethodSymbol = t.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
-    }.getOrElse(fail(s"Cannot find a primary constructor for '$t'"))
+    }.getOrElse(fail(ErrorMessages.renderNoPrimaryCtorForUnscoped(t.toString, color)))
 
     def getConstructorParams(t: Type): List[Type] = {
       val ctor          = primaryConstructor(t)
@@ -117,7 +124,7 @@ private[scope] object UnscopedMacros {
       if (isSealedTraitOrAbstractClass(dealiased)) {
         val subtypes = directSubTypes(dealiased)
         if (subtypes.isEmpty) {
-          fail(s"Cannot derive Unscoped for sealed type '$dealiased' with no known subclasses.")
+          fail(ErrorMessages.renderSealedNoSubclasses(dealiased.toString, color))
         }
         subtypes.foreach { subtype =>
           requireUnscopedForType(subtype, s"subtype of $dealiased", newSeen)
@@ -125,10 +132,7 @@ private[scope] object UnscopedMacros {
         return
       }
 
-      fail(
-        s"Cannot derive Unscoped for '$tpe': no Unscoped instance found for $context type '$dealiased'. " +
-          "Only case classes, sealed traits, case objects, and types with existing Unscoped instances are supported."
-      )
+      fail(ErrorMessages.renderNoUnscopedInstance(tpe.toString, dealiased.toString, context, color))
     }
 
     requireUnscopedForType(tpe, "top-level", Set.empty)

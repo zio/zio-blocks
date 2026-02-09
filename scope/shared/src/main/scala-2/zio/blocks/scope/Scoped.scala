@@ -1,6 +1,5 @@
 package zio.blocks.scope
 
-import scala.language.experimental.macros
 import scala.language.implicitConversions
 
 /**
@@ -72,47 +71,6 @@ object @@ {
 final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
 
   /**
-   * Applies a function to the scoped value within the scope context.
-   *
-   * The result type depends on whether `B` is [[Unscoped]]:
-   *   - If `B` is `Unscoped`, returns raw `B`
-   *   - Otherwise, returns `B @@ S` (stays scoped)
-   *
-   * This is a macro that finds the appropriate implicit scope at compile time
-   * by searching for all implicit Scope values and selecting the one whose Tag
-   * is compatible with S (Tag >: S). Among compatible scopes, picks the most
-   * specific (innermost) one.
-   *
-   * @param f
-   *   The function to apply to the underlying value
-   * @param u
-   *   Typeclass determining the result type
-   * @return
-   *   Either raw `B` or `B @@ S` depending on ScopeEscape instance
-   */
-  def $[B](f: A => B)(implicit u: ScopeEscape[B, S]): u.Out = macro ScopedMacros.dollarImpl[A, S, B]
-
-  /**
-   * Extracts the scoped value, auto-unscoping if the type is [[Unscoped]].
-   *
-   * Equivalent to `scoped $ identity`. The result type depends on whether `A`
-   * is [[Unscoped]]:
-   *   - If `A` is `Unscoped`, returns raw `A`
-   *   - Otherwise, returns `A @@ S` (stays scoped)
-   *
-   * This is a macro that finds the appropriate implicit scope at compile time
-   * by searching for all implicit Scope values and selecting the one whose Tag
-   * is compatible with S (Tag >: S). Among compatible scopes, picks the most
-   * specific (innermost) one.
-   *
-   * @param u
-   *   Typeclass determining the result type
-   * @return
-   *   Either raw `A` or `A @@ S` depending on ScopeEscape instance
-   */
-  def get(implicit u: ScopeEscape[A, S]): u.Out = macro ScopedMacros.getImpl[A, S]
-
-  /**
    * Maps over a scoped value, returning a Scoped computation.
    *
    * The function `f` is applied to the underlying value when the Scoped
@@ -127,7 +85,7 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   a Scoped computation that will apply f when executed
    */
   def map[B](f: A => B): Scoped[S, B] =
-    Scoped.create(() => f(@@.unscoped(scoped)))
+    Scoped(f(@@.unscoped(scoped)))
 
   /**
    * FlatMaps over a scoped value, combining scope tags via intersection.
@@ -146,7 +104,7 @@ final class ScopedOps[A, S](private val scoped: A @@ S) extends AnyVal {
    *   a Scoped computation with combined scope tag `S with T`
    */
   def flatMap[B, T](f: A => B @@ T): Scoped[S with T, B] =
-    Scoped.create(() => @@.unscoped(f(@@.unscoped(scoped))))
+    Scoped(@@.unscoped(f(@@.unscoped(scoped))))
 
   /**
    * Extracts the first element of a scoped tuple.
@@ -218,8 +176,22 @@ final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
 object Scoped {
 
   /**
-   * Creates a Scoped computation from a thunk.
+   * Lifts a value into a Scoped computation.
+   *
+   * This allows ordinary values to participate in `Scoped` for-comprehensions
+   * alongside scoped values. The resulting computation has no scope
+   * requirements (uses `Any` as the tag), so it can be combined with any other
+   * `Scoped`.
+   *
+   * The value is evaluated lazily when the Scoped computation is run.
+   *
+   * @param a
+   *   the value to lift (by-name, evaluated lazily)
+   * @tparam A
+   *   the value type
+   * @return
+   *   a Scoped computation that produces `a` when run
    */
-  def create[Tag, A](f: () => A): Scoped[Tag, A] =
-    new Scoped(f)
+  def apply[A](a: => A): Scoped[Any, A] =
+    new Scoped(() => a)
 }

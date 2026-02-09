@@ -8,8 +8,6 @@ private[scope] object LeakMacros {
   def leakImpl[A: Type, S: Type](scopedExpr: Expr[A @@ S])(using Quotes): Expr[A] = {
     import quotes.reflect.*
 
-    val color = MacroCore.Colors.shouldUseColor
-
     // Get the source code and position of the scoped expression
     val scopedTerm = scopedExpr.asTerm
     val pos        = scopedTerm.pos
@@ -19,10 +17,8 @@ private[scope] object LeakMacros {
     // Extract a human-readable scope name from the tag type
     val scopeName = extractScopeName(scopeTag)
 
-    // Build the warning message using the shared renderer
-    val warning = MacroCore.ScopeMacroWarning.LeakWarning(sourceCode, scopeName).render(color)
-
-    report.warning(warning, pos)
+    // Emit compiler warning using shared renderer
+    MacroCore.warnLeak(pos, sourceCode, scopeName)
 
     // Return the unwrapped value
     '{ @@.unscoped($scopedExpr) }

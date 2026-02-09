@@ -34,11 +34,12 @@ import zio.blocks.scope.internal.ProxyFinalizer
  *   the type of value this resource produces
  *
  * @see
- *   [[Scope.allocate]] for using resources
+ *   [[Scope.allocate[A](resource:zio\.blocks\.scope\.Resource[A])* Scope.allocate]]
+ *   for using resources
  * @see
  *   `Wire.toResource` for converting wires
  */
-sealed trait Resource[+A] {
+sealed trait Resource[+A] { self =>
 
   /**
    * Acquires the resource value using the given finalizer for cleanup
@@ -54,6 +55,80 @@ sealed trait Resource[+A] {
    *   the acquired resource value
    */
   private[scope] def make(finalizer: Finalizer): A
+
+  /**
+   * Transforms the value produced by this resource.
+   *
+   * The transformation function `f` is applied after the resource is acquired.
+   * Finalizers from the original resource still run when the scope closes.
+   *
+   * @param f
+   *   the transformation function
+   * @tparam B
+   *   the result type
+   * @return
+   *   a new resource that produces transformed values
+   *
+   * @example
+   *   {{{
+   *   val portResource: Resource[Int] = Resource(8080)
+   *   val urlResource: Resource[String] = portResource.map(port => s"http://localhost:$$port")
+   *   }}}
+   */
+  def map[B](f: A => B): Resource[B] = new Resource.Unique[B](finalizer => f(self.make(finalizer)))
+
+  /**
+   * Sequences two resources, using the result of this resource to create
+   * another.
+   *
+   * Both resources' finalizers are registered: the inner resource's finalizers
+   * run before the outer resource's finalizers (LIFO order).
+   *
+   * @param f
+   *   a function that produces a resource from the value of this resource
+   * @tparam B
+   *   the type produced by the resulting resource
+   * @return
+   *   a new resource combining both acquisitions
+   *
+   * @example
+   *   {{{
+   *   val configResource: Resource[Config] = Resource(loadConfig())
+   *   val dbResource: Resource[Database] = configResource.flatMap { config =>
+   *     Resource.fromAutoCloseable(new Database(config.url))
+   *   }
+   *   }}}
+   */
+  def flatMap[B](f: A => Resource[B]): Resource[B] = new Resource.Unique[B](finalizer => {
+    val a = self.make(finalizer)
+    f(a).make(finalizer)
+  })
+
+  /**
+   * Combines this resource with another, producing a tuple of both values.
+   *
+   * Both resources are acquired, and both sets of finalizers are registered.
+   * Finalizers run in LIFO order (second resource's finalizers before first).
+   *
+   * @param that
+   *   the resource to combine with
+   * @tparam B
+   *   the type produced by the other resource
+   * @return
+   *   a new resource producing a tuple of both values
+   *
+   * @example
+   *   {{{
+   *   val dbResource: Resource[Database] = Resource.fromAutoCloseable(new Database())
+   *   val cacheResource: Resource[Cache] = Resource.fromAutoCloseable(new Cache())
+   *   val combined: Resource[(Database, Cache)] = dbResource.zip(cacheResource)
+   *   }}}
+   */
+  def zip[B](that: Resource[B]): Resource[(A, B)] = new Resource.Unique[(A, B)](finalizer => {
+    val a = self.make(finalizer)
+    val b = that.make(finalizer)
+    (a, b)
+  })
 }
 
 object Resource extends ResourceCompanionVersionSpecific {

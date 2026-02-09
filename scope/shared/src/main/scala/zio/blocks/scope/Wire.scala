@@ -15,8 +15,8 @@ import zio.blocks.context.Context
  *
  * ==Creating Wires==
  *
- * Use the `shared[T]` and `unique[T]` macros for automatic derivation from
- * constructors, or create wires manually for custom construction logic.
+ * Use `Wire.shared[T]` and `Wire.unique[T]` macros for automatic derivation
+ * from constructors, or create wires manually for custom construction logic.
  *
  * ==Usage Example==
  *
@@ -24,27 +24,26 @@ import zio.blocks.context.Context
  * // Define a service with its wire
  * class Database(config: Config)
  * object Database {
- *   implicit val wire: Wire[Config, Database] = shared[Database]
+ *   val wire: Wire[Config, Database] = Wire.shared[Database]
  * }
  *
  * // Create a unique wire for request-scoped services
  * class RequestHandler(db: Database)
  * object RequestHandler {
- *   implicit val wire: Wire[Database, RequestHandler] = unique[RequestHandler]
+ *   val wire: Wire[Database, RequestHandler] = Wire.unique[RequestHandler]
  * }
  *
- * // Convert sharing mode
- * val sharedWire: Wire.Shared[Config, Database] = Database.wire.shared
- * val uniqueWire: Wire.Unique[Config, Database] = Database.wire.unique
+ * // Create a Resource from wires
+ * val appResource = Resource.from[App](
+ *   Wire(Config("localhost", 8080)),
+ *   Wire.shared[Database]
+ * )
  * }}}
  *
  * @tparam In
  *   the dependencies required (contravariant - accepts supertypes)
  * @tparam Out
  *   the service(s) produced (covariant - produces subtypes)
- *
- * @see
- *   [[Wireable]] for defining wires in companion objects
  */
 sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 
@@ -113,14 +112,14 @@ object Wire extends WireCompanionVersionSpecific {
    * When multiple services depend on the same shared wire, only one instance is
    * created and reused. This is the default wire type produced by `shared[T]`.
    *
+   * @param makeFn
+   *   the function that constructs the service given a finalizer and context
    * @tparam In
    *   the dependencies required to construct the service
    * @tparam Out
    *   the service type produced
    */
-  final class Shared[-In, +Out] private[scope] (
-    private[scope] val makeFn: (Finalizer, Context[In]) => Out
-  ) extends Wire[In, Out] {
+  final case class Shared[-In, +Out](makeFn: (Finalizer, Context[In]) => Out) extends Wire[In, Out] {
 
     /**
      * Returns true since this is a shared wire.
@@ -144,7 +143,7 @@ object Wire extends WireCompanionVersionSpecific {
      * @return
      *   a new unique wire with the same construction function
      */
-    def unique: Unique[In, Out] = new Unique[In, Out](makeFn)
+    def unique: Unique[In, Out] = Unique[In, Out](makeFn)
 
     /**
      * Constructs the service using the given finalizer and context.
@@ -182,14 +181,14 @@ object Wire extends WireCompanionVersionSpecific {
    * service. Use for services that should not be shared, like request-scoped
    * resources or per-call state.
    *
+   * @param makeFn
+   *   the function that constructs the service given a finalizer and context
    * @tparam In
    *   the dependencies required to construct the service
    * @tparam Out
    *   the service type produced
    */
-  final class Unique[-In, +Out] private[scope] (
-    private[scope] val makeFn: (Finalizer, Context[In]) => Out
-  ) extends Wire[In, Out] {
+  final case class Unique[-In, +Out](makeFn: (Finalizer, Context[In]) => Out) extends Wire[In, Out] {
 
     /**
      * Returns false since this is a unique wire.
@@ -205,7 +204,7 @@ object Wire extends WireCompanionVersionSpecific {
      * @return
      *   a new shared wire with the same construction function
      */
-    def shared: Shared[In, Out] = new Shared[In, Out](makeFn)
+    def shared: Shared[In, Out] = Shared[In, Out](makeFn)
 
     /**
      * Returns this wire since it is already unique.
@@ -247,8 +246,9 @@ object Wire extends WireCompanionVersionSpecific {
   /**
    * Creates a wire that injects a pre-existing value.
    *
-   * The value is wrapped in a shared wire with no dependencies. No cleanup is
-   * registered because the value was created externally.
+   * The value is wrapped in a shared wire with no dependencies. If the value is
+   * `AutoCloseable`, `close()` is registered automatically when the wire is
+   * used.
    *
    * @param t
    *   the value to inject
@@ -258,5 +258,11 @@ object Wire extends WireCompanionVersionSpecific {
    *   a shared wire that provides the value
    */
   def apply[T](t: T): Wire.Shared[Any, T] =
-    new Shared[Any, T]((_, _) => t)
+    new Shared[Any, T]((finalizer, _) => {
+      t match {
+        case c: AutoCloseable => finalizer.defer(c.close())
+        case _                => ()
+      }
+      t
+    })
 }

@@ -12,89 +12,20 @@ private[scope] object ScopeMacros {
   }
 
   def sharedImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wire.Shared[_, T]] =
-    deriveWireWithWireable[T](c)(WireKind.Shared).asInstanceOf[c.Expr[Wire.Shared[_, T]]]
+    deriveWire[T](c)(WireKind.Shared).asInstanceOf[c.Expr[Wire.Shared[_, T]]]
 
   def uniqueImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Wire.Unique[_, T]] =
-    deriveWireWithWireable[T](c)(WireKind.Unique).asInstanceOf[c.Expr[Wire.Unique[_, T]]]
-
-  private def deriveWireWithWireable[T: c.WeakTypeTag](c: whitebox.Context)(kind: WireKind): c.Expr[Wire[_, T]] = {
-    import c.universe._
-
-    val tpe = weakTypeOf[T]
-    val sym = tpe.typeSymbol
-
-    val wireableTpe =
-      c.typecheck(q"_root_.scala.Predef.implicitly[_root_.zio.blocks.scope.Wireable[$tpe]]", silent = true)
-
-    if (wireableTpe.nonEmpty && wireableTpe.tpe != NoType) {
-      val actualImplicitTpe = wireableTpe match {
-        case Apply(_, List(implicitVal)) if implicitVal.symbol != null && implicitVal.symbol != NoSymbol =>
-          implicitVal.symbol.typeSignature
-        case _ =>
-          wireableTpe.tpe
-      }
-      val inType                    = extractWireableInType(c)(actualImplicitTpe)
-      val (wireTpe, wireMethodName) = kind match {
-        case WireKind.Shared =>
-          (appliedType(typeOf[Wire.Shared[_, _]].typeConstructor, List(inType, tpe)), TermName("shared"))
-        case WireKind.Unique =>
-          (appliedType(typeOf[Wire.Unique[_, _]].typeConstructor, List(inType, tpe)), TermName("unique"))
-      }
-      val result = q"$wireableTpe.wire.$wireMethodName.asInstanceOf[$wireTpe]"
-      c.Expr(result)(c.WeakTypeTag(wireTpe))
-    } else {
-      if (!sym.isClass || sym.asClass.isTrait || sym.asClass.isAbstract) {
-        MC.abortNotAClass(c)(tpe.toString)
-      }
-      deriveWire[T](c)(kind)
-    }
-  }
-
-  /** Extract the In type member from a Wireable type */
-  private def extractWireableInType(c: whitebox.Context)(wireableTpe: c.Type): c.Type = {
-    import c.universe._
-
-    val unwrapped = wireableTpe match {
-      case NullaryMethodType(resultType) => resultType
-      case other                         => other
-    }
-
-    unwrapped match {
-      case TypeRef(_, sym, args) if sym.fullName == "zio.blocks.scope.Wireable.Typed" && args.nonEmpty =>
-        return args.head
-      case _ =>
-    }
-
-    val dealiased = wireableTpe.dealias
-    dealiased match {
-      case RefinedType(_, scope) =>
-        val inSym = scope.find(_.name == TypeName("In"))
-        inSym.map { sym =>
-          sym.typeSignature match {
-            case TypeBounds(lo, _) if !(lo =:= typeOf[Nothing]) => lo.dealias
-            case TypeBounds(_, hi)                              => hi.dealias
-            case t                                              => t.dealias
-          }
-        }.getOrElse(typeOf[Any])
-      case _ =>
-        val inMember = dealiased.member(TypeName("In"))
-        if (inMember != NoSymbol) {
-          val sig = inMember.typeSignatureIn(dealiased).dealias
-          sig match {
-            case TypeBounds(lo, hi) if lo =:= hi => lo.dealias
-            case TypeBounds(_, hi)               => hi.dealias
-            case t                               => t
-          }
-        } else {
-          typeOf[Any]
-        }
-    }
-  }
+    deriveWire[T](c)(WireKind.Unique).asInstanceOf[c.Expr[Wire.Unique[_, T]]]
 
   private def deriveWire[T: c.WeakTypeTag](c: whitebox.Context)(kind: WireKind): c.Expr[Wire[_, T]] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
+    val sym = tpe.typeSymbol
+
+    if (!sym.isClass || sym.asClass.isTrait || sym.asClass.isAbstract) {
+      MC.abortNotAClass(c)(tpe.toString)
+    }
 
     val ctor = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
@@ -107,9 +38,9 @@ private[scope] object ScopeMacros {
       MC.classifyAndExtractDep(c)(paramType)
     }
 
-    MC.checkSubtypeConflicts(c)(tpe.toString, allDepTypes) match {
-      case Some(error) => MC.abort(c)(error)
-      case None        =>
+    MC.checkSubtypeConflicts(c)(allDepTypes) match {
+      case Some((subtype, supertype)) => MC.abortSubtypeConflict(c)(tpe.toString, subtype, supertype)
+      case None                       =>
     }
 
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]

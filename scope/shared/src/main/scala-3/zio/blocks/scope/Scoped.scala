@@ -101,7 +101,7 @@ object @@ {
      *   a Scoped computation that will apply f when executed
      */
     inline def map[B](inline f: A => B): Scoped[S, B] =
-      Scoped.create(() => f(@@.unscoped(scoped)))
+      Scoped(f(@@.unscoped(scoped)))
 
     /**
      * FlatMaps over a scoped value, combining scope tags via intersection.
@@ -128,7 +128,7 @@ object @@ {
      *   a Scoped computation with combined scope tag `S & T`
      */
     inline def flatMap[B, T](inline f: A => B @@ T): Scoped[S & T, B] =
-      Scoped.create(() => @@.unscoped(f(@@.unscoped(scoped))))
+      Scoped(@@.unscoped(f(@@.unscoped(scoped))))
 
     /**
      * Extracts the first element of a scoped tuple.
@@ -207,7 +207,7 @@ object @@ {
  * @see
  *   [[Scope.apply]] for executing Scoped computations
  */
-final case class Scoped[-Tag, +A] private (private val executeFn: () => A) {
+final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
 
   /**
    * Maps over the result of this Scoped computation.
@@ -252,19 +252,30 @@ final case class Scoped[-Tag, +A] private (private val executeFn: () => A) {
 object Scoped {
 
   /**
-   * Creates a Scoped computation from a thunk.
+   * Lifts a value into a Scoped computation.
    *
-   * This is the primary factory method for creating Scoped computations.
+   * This allows ordinary values to participate in `Scoped` for-comprehensions
+   * alongside scoped values. The resulting computation has no scope
+   * requirements (uses `Any` as the tag), so it can be combined with any other
+   * `Scoped`.
    *
-   * @tparam Tag
-   *   the scope tag required to execute this computation
+   * The value is evaluated lazily when the Scoped computation is run.
+   *
+   * @example
+   *   {{{
+   *   val program: Scoped[scope.Tag, Result] = for {
+   *     db     <- scopedDb         // Database @@ scope.Tag
+   *     config <- Scoped(myConfig) // lift ordinary value
+   *   } yield db.query(config.sql)
+   *   }}}
+   *
+   * @param a
+   *   the value to lift (by-name, evaluated lazily)
    * @tparam A
-   *   the result type of the computation
-   * @param f
-   *   the thunk that produces the result when executed
+   *   the value type
    * @return
-   *   a new Scoped computation wrapping the thunk
+   *   a Scoped computation that produces `a` when run
    */
-  def create[Tag, A](f: () => A): Scoped[Tag, A] =
-    new Scoped(f)
+  def apply[A](a: => A): Scoped[Any, A] =
+    new Scoped(() => a)
 }

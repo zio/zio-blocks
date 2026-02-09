@@ -6,47 +6,31 @@ import scala.quoted.*
 
 private[scope] object ScopeMacros {
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // shared[T] / unique[T] implementations
-  // ─────────────────────────────────────────────────────────────────────────
-
   def sharedImpl[T: Type](using Quotes): Expr[Wire.Shared[?, T]] = {
     import quotes.reflect.*
 
-    Expr.summon[Wireable[T]] match {
-      case Some(wireableExpr) =>
-        WireCodeGen.wireFromWireable(wireableExpr, WireKind.Shared).asExprOf[Wire.Shared[?, T]]
+    val tpe = TypeRepr.of[T]
+    val sym = tpe.typeSymbol
 
-      case None =>
-        val tpe = TypeRepr.of[T]
-        val sym = tpe.typeSymbol
-
-        if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-          MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
-        }
-
-        val (_, wireExpr) = WireCodeGen.deriveWire[T](WireKind.Shared)
-        wireExpr.asExprOf[Wire.Shared[?, T]]
+    if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
+      MacroCore.abortNotAClass(tpe.show)
     }
+
+    val (_, wireExpr) = WireCodeGen.deriveWire[T](WireKind.Shared)
+    wireExpr.asExprOf[Wire.Shared[?, T]]
   }
 
   def uniqueImpl[T: Type](using Quotes): Expr[Wire.Unique[?, T]] = {
     import quotes.reflect.*
 
-    Expr.summon[Wireable[T]] match {
-      case Some(wireableExpr) =>
-        WireCodeGen.wireFromWireable(wireableExpr, WireKind.Unique).asExprOf[Wire.Unique[?, T]]
+    val tpe = TypeRepr.of[T]
+    val sym = tpe.typeSymbol
 
-      case None =>
-        val tpe = TypeRepr.of[T]
-        val sym = tpe.typeSymbol
-
-        if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
-          MacroCore.abort(MacroCore.ScopeMacroError.NotAClass(tpe.show))
-        }
-
-        val (_, wireExpr) = WireCodeGen.deriveWire[T](WireKind.Unique)
-        wireExpr.asExprOf[Wire.Unique[?, T]]
+    if (!sym.isClassDef || sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)) {
+      MacroCore.abortNotAClass(tpe.show)
     }
+
+    val (_, wireExpr) = WireCodeGen.deriveWire[T](WireKind.Unique)
+    wireExpr.asExprOf[Wire.Unique[?, T]]
   }
 }

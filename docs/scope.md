@@ -2,6 +2,8 @@
 
 `zio.blocks.scope` provides **compile-time verified resource safety** for synchronous code by tagging values with an unnameable, type-level **scope identity**. Values allocated in a scope can only be used when you hold a compatible `Scope`, and values allocated in a *child* scope cannot be returned to the parent in a usable form.
 
+**Structured scopes.** Scopes follow the structured-concurrency philosophy: child scopes are nested within parent scopes, resources are tied to the lifetime of the scope that allocated them, and cleanup happens deterministically when the scope exits (finalizers run LIFO). This "nesting = lifetime" structure provides clear ownership boundaries in addition to compile-time leak prevention.
+
 If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
 
 - **Compile-time prevention of scope leaks**
@@ -20,7 +22,6 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [4) `Scoped[Tag, A]`: deferred computations](#4-scopedtag-a-deferred-computations)
   - [5) `ScopeEscape` and `Unscoped`: what may escape](#5-scopeescape-and-unscoped-what-may-escape)
   - [6) `Wire[-In, +Out]`: dependency recipes](#6-wire-in-out-dependency-recipes)
-  - [7) `Wireable[Out]`: DI for traits/abstract classes](#7-wireableout-di-for-traitsabstract-classes)
 - [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
 - [Usage examples](#usage-examples)
   - [Allocating and using a resource](#allocating-and-using-a-resource)
@@ -28,9 +29,10 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [Building a `Scoped` program (map/flatMap)](#building-a-scoped-program-mapflatmap)
   - [Registering cleanup manually with `defer`](#registering-cleanup-manually-with-defer)
   - [Dependency injection with `Wire` + `Context`](#dependency-injection-with-wire--context)
-  - [Supplying dependencies with `Resource.from[T](wire1, wire2, ...)`](#supplying-dependencies-with-resourcefromtwire1-wire2-)
-  - [DI for traits via `Wireable`](#di-for-traits-via-wireable)
+  - [Dependency injection with `Resource.from[T](wires*)`](#dependency-injection-with-resourcefromtwires)
+  - [Injecting traits via subtype wires](#injecting-traits-via-subtype-wires)
   - [Interop escape hatch: `leak`](#interop-escape-hatch-leak)
+- [Common compile errors](#common-compile-errors)
 - [API reference (selected)](#api-reference-selected)
 
 ---
@@ -139,12 +141,12 @@ Common constructors:
   - Explicit lifecycle.
 - `Resource.fromAutoCloseable(thunk)`
   - A type-safe helper for `AutoCloseable`.
-- `Resource.from[T]` (macro)
-  - Derives a resource from `T`'s constructor.
-  - If `T` is `AutoCloseable`, registers `close()` automatically.
-  - If `T` has dependencies, either:
-    - use `Wire` + `toResource(deps)`, or
-    - use `Resource.from[T](wire1, wire2, ...)` (see below).
+- `Resource.from[T](wires*)` (macro)
+  - The primary entry point for dependency injection.
+  - Resolves `T` and all its dependencies into a single `Resource[T]`.
+  - Auto-creates missing wires using `Wire.shared` for concrete classes.
+  - Requires explicit wires for: primitives, functions, collections, and abstract types.
+  - If `T` or any dependency is `AutoCloseable`, registers `close()` automatically.
 
 #### Resource "sharing" vs "uniqueness"
 
@@ -177,8 +179,8 @@ How to build them:
 - From scoped values:
   - `val s: Scoped[S, B] = (a: A @@ S).map(f)`
   - `flatMap` composes scoped values while tracking combined requirements
-- Or directly:
-  - `Scoped.create(() => ...)` (advanced/internal style)
+- From ordinary values:
+  - `Scoped(value)` lifts a value into a `Scoped[Any, A]` (which can be used anywhere due to contravariance)
 
 `Scoped` is contravariant in `Tag`, which is what allows a **child** scope (more specific tag) to run computations that only require a **parent** tag.
 
@@ -205,49 +207,55 @@ Rule of thumb:
 
 ### 6) `Wire[-In, +Out]`: dependency recipes
 
-`Wire` is a recipe for constructing services, commonly used for dependency injection.
+`Wire` is a recipe for constructing services. It describes **how** to build a service given its dependencies, but does not resolve those dependencies itself.
 
 - `In` is the required dependencies (provided as a `Context[In]`)
 - `Out` is the produced service
 
 There are two wire flavors:
 
-- `Wire.Shared`: a shared recipe
-- `Wire.Unique`: a unique recipe
+- `Wire.Shared`: produces a shared (memoized) instance
+- `Wire.Unique`: produces a fresh instance each time
 
-**Important clarification:** `Wire` itself is just a recipe. The actual memoization/sharing behavior happens when you convert the wire into a `Resource`:
+**Important clarification:** `Wire` itself is just a recipe. The sharing/uniqueness behavior is realized when the wire is used inside `Resource.from`, which composes `Resource.Shared` or `Resource.Unique` instances accordingly.
 
-```scala
-val r: Resource[Out] = wire.toResource(deps)
-val out: Out @@ scope.Tag = scope.allocate(r)
-```
+#### Creating wires
 
-- `Wire.Shared#toResource` produces a `Resource.Shared`, which is where the reference-counted sharing is implemented.
-- `Wire.Unique#toResource` produces a `Resource.Unique`.
+There are exactly **3 macro entry points**:
 
-Macros available at package level:
+| Macro | Purpose |
+|-------|---------|
+| `Wire.shared[T]` | Create a shared wire from `T`'s constructor |
+| `Wire.unique[T]` | Create a unique wire from `T`'s constructor |
+| `Resource.from[T](wires*)` | Wire up `T` and all dependencies into a `Resource` |
 
-- `shared[T]`: derive a shared wire from `T`'s constructor (or from a `Wireable[T]` if present)
-- `unique[T]`: derive a unique wire
+For wrapping pre-existing values:
 
----
+- `Wire(value)` — wraps a value; if `AutoCloseable`, registers `close()` automatically
 
-### 7) `Wireable[Out]`: DI for traits/abstract classes
+#### How `Resource.from[T](wires*)` works
 
-`shared[T]` / `unique[T]` can derive wires from **concrete classes** with constructors. But traits and abstract classes are not instantiable, so you need a way to tell the macros "when someone asks for `T`, build it like *this*".
+1. **Collect wires**: Uses explicit wires when provided, otherwise auto-creates with `Wire.shared`
+2. **Validate**: Checks for cycles, unmakeable types, duplicate providers
+3. **Topological sort**: Orders dependencies so leaves are allocated first
+4. **Generate composition**: Produces a `Resource[T]` via flatMap chains
 
-That's what `Wireable[T]` is: a typeclass that supplies a `Wire` for a service.
+Key insight: **Compose Resources, don't accumulate values.** Each wire becomes a `Resource`, and they are composed via `flatMap`. This correctly preserves:
 
-Typical use:
+- **Sharing**: Same `Resource.Shared` instance → same value (even in diamond patterns)
+- **Uniqueness**: `Resource.Unique` → fresh value per injection site
 
-- Define a `Wireable[MyTrait]` in `MyTrait`'s companion object.
-- `shared[MyTrait]` or `unique[MyTrait]` will pick it up automatically.
+#### Subtype resolution
 
-This is especially useful when you want to inject an interface but construct a concrete implementation (and still register finalizers correctly).
+When `Resource.from` needs a dependency of type `Service`, it will accept a wire whose output is a subtype (e.g., `Wire.shared[LiveService]` where `LiveService extends Service`). This enables trait injection without extra boilerplate.
+
+If the same concrete wire satisfies multiple types (e.g., `Service` and `LiveService`), only **one instance** is created and reused for both.
 
 ---
 
 ## Safety model (why leaking is prevented)
+
+**Pragmatic safety.** The type-level tagging prevents *accidental* scope misuse in normal code, but it is not a security boundary. A determined developer can bypass it via `leak` (which emits a compiler warning), unsafe casts (`asInstanceOf`), or storing scoped references in mutable state (`var`). The guarantees are "good enough" to catch mistakes in regular usage, not protection against intentional circumvention.
 
 The library prevents scope leaks via two reinforcing mechanisms:
 
@@ -375,6 +383,7 @@ import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
   given Finalizer = scope
+
   defer { println("cleanup") }
 }
 ```
@@ -390,7 +399,7 @@ import zio.blocks.scope._
 
 class ConnectionPool(config: Config)(implicit finalizer: Finalizer) {
   private val pool = createPool(config)
-  finalizer.defer { pool.shutdown() }
+  defer { pool.shutdown() }
   
   def getConnection(): Connection = pool.acquire()
 }
@@ -413,13 +422,15 @@ Why `Finalizer` instead of `Scope`?
 
 ### Dependency injection with `Wire` + `Context`
 
+For manual wiring (when you already have dependencies assembled), use `wire.toResource(ctx)`:
+
 ```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
 final case class Config(debug: Boolean)
 
-val w: Wire.Shared[Boolean, Config] = shared[Config]
+val w: Wire.Shared[Boolean, Config] = Wire.shared[Config]
 val deps: Context[Boolean] = Context[Boolean](true)
 
 Scope.global.scoped { scope =>
@@ -438,21 +449,65 @@ Sharing vs uniqueness at the wire level:
 ```scala
 import zio.blocks.scope._
 
-val ws = shared[Config] // shared recipe; sharing happens via Resource.Shared when allocated
-val wu = unique[Config] // unique recipe; each allocation is fresh
+val ws = Wire.shared[Config] // shared recipe; sharing happens via Resource.Shared when allocated
+val wu = Wire.unique[Config] // unique recipe; each allocation is fresh
 ```
 
 ---
 
-### Supplying dependencies with `Resource.from[T](wire1, wire2, ...)`
+### Dependency injection with `Resource.from[T](wires*)`
 
-`Resource.from[T]` can also be used as a "standalone mini graph" by providing wires for constructor dependencies.
+`Resource.from[T](wires*)` is the **primary entry point** for dependency injection. It resolves `T` and all its dependencies into a single `Resource[T]`.
 
 ```scala
 import zio.blocks.scope._
-import zio.blocks.context.Context
 
 final case class Config(url: String)
+
+final class Logger {
+  def info(msg: String): Unit = println(msg)
+}
+
+final class Database(cfg: Config) extends AutoCloseable {
+  def query(sql: String): String = s"[${cfg.url}] $sql"
+  def close(): Unit = println("database closed")
+}
+
+final class Service(db: Database, logger: Logger) extends AutoCloseable {
+  def run(): Unit = logger.info(s"running with ${db.query("SELECT 1")}")
+  def close(): Unit = println("service closed")
+}
+
+// Only provide leaf values (primitives, configs) - the rest is auto-wired:
+val serviceResource: Resource[Service] =
+  Resource.from[Service](
+    Wire(Config("jdbc:postgresql://localhost/db"))
+  )
+
+Scope.global.scoped { scope =>
+  val svc = scope.allocate(serviceResource)
+  scope.$(svc)(_.run())
+}
+// Output: running with [jdbc:postgresql://localhost/db] SELECT 1
+// Then: service closed, database closed (LIFO order)
+```
+
+**What you must provide:**
+- Leaf values: primitives, configs, pre-existing instances via `Wire(value)`
+- Abstract types: traits/abstract classes via `Wire.shared[ConcreteImpl]`
+- Overrides: when you want `unique` instead of the default `shared`
+
+**What is auto-created:**
+- Concrete classes with accessible primary constructors (default: `Wire.shared`)
+
+---
+
+### Injecting traits via subtype wires
+
+When a dependency is a trait or abstract class, provide a wire for a concrete implementation:
+
+```scala
+import zio.blocks.scope._
 
 trait Logger {
   def info(msg: String): Unit
@@ -462,71 +517,37 @@ final class ConsoleLogger extends Logger {
   def info(msg: String): Unit = println(msg)
 }
 
-final class Service(cfg: Config, logger: Logger) extends AutoCloseable {
-  def run(): Unit = logger.info(s"running with ${cfg.url}")
-  def close(): Unit = println("service closed")
+final class App(logger: Logger) {
+  def run(): Unit = logger.info("Hello!")
 }
 
-// Provide wires for *all* dependencies of Service:
-val serviceResource: Resource[Service] =
-  Resource.from[Service](
-    Wire(Config("jdbc:postgresql://localhost/db")),
-    Wire(new ConsoleLogger: Logger)
+// Wire.shared[ConsoleLogger] satisfies the Logger dependency via subtyping:
+val appResource: Resource[App] =
+  Resource.from[App](
+    Wire.shared[ConsoleLogger]
   )
 
 Scope.global.scoped { scope =>
-  val svc = scope.allocate(serviceResource)
-  scope.$(svc)(_.run())
+  val app = scope.allocate(appResource)
+  scope.$(app)(_.run())
 }
 ```
 
-Notes:
-- All dependencies of `T` must be covered by the provided wires, otherwise you get a compile-time error.
-- If `T` is `AutoCloseable`, `close()` is registered automatically.
-
----
-
-### DI for traits via `Wireable`
-
-When you want to inject a trait (or abstract class), define a `Wireable` in the companion so `shared[T]` / `unique[T]` can resolve it.
+**Single instance for diamond patterns:**
 
 ```scala
-import zio.blocks.scope._
-import zio.blocks.context.Context
+trait Service
+class LiveService extends Service
+class NeedsService(s: Service)
+class NeedsLive(l: LiveService)
+class App(a: NeedsService, b: NeedsLive)
 
-trait DatabaseApi {
-  def query(sql: String): String
-}
-
-final class LiveDatabaseApi(cfg: Config) extends DatabaseApi with AutoCloseable {
-  def query(sql: String): String = s"[${cfg.url}] $sql"
-  def close(): Unit = println("LiveDatabaseApi closed")
-}
-
-object DatabaseApi {
-  // Tell Scope how to build the trait by wiring a concrete implementation.
-  given Wireable.Typed[Config, DatabaseApi] =
-    Wireable.fromWire(shared[LiveDatabaseApi].shared.asInstanceOf[Wire[Config, DatabaseApi]])
-}
-
-final case class Config(url: String)
-
-Scope.global.scoped { scope =>
-  val deps = Context(Config("jdbc:postgresql://localhost/db"))
-
-  val db: DatabaseApi @@ scope.Tag =
-    scope.allocate(shared[DatabaseApi].toResource(deps))
-
-  val out: String =
-    scope.$(db)(_.query("SELECT 1"))
-
-  println(out)
-}
+// One LiveService instance satisfies both Service and LiveService dependencies:
+val appResource = Resource.from[App](
+  Wire.shared[LiveService]
+)
+// count of LiveService instantiations: 1
 ```
-
-Practical guidance:
-- Prefer `Wireable.fromWire(...)` when you already have a `Wire` you trust.
-- Put `given Wireable[...]` / `implicit val wireable: Wireable[...]` in the companion of the trait being injected.
 
 ---
 
@@ -546,6 +567,168 @@ Scope.global.scoped { scope =>
 ```
 
 **Warning:** leaking bypasses compile-time guarantees. The value may be used after its scope closes. Use only when unavoidable.
+
+---
+
+## Common compile errors
+
+The scope macros produce beautiful, actionable compile-time error messages with ASCII diagrams and helpful hints:
+
+### Not a class (Wire.shared/unique on trait or abstract class)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Cannot derive Wire for MyTrait: not a class.
+
+  Hint: Use Wire.Shared / Wire.Unique directly.
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Unmakeable type (primitives, functions, collections)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Cannot auto-create String
+
+  This type (primitive, collection, or function) cannot be auto-created.
+
+  Required by:
+    └── Config
+        └── App
+
+  Fix: Provide Wire(value) with the desired value:
+
+    Resource.from[...](
+      Wire(...),  // provide a value for String
+      ...
+    )
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Abstract type (trait or abstract class)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Cannot auto-create Logger
+
+  This type is abstract (trait or abstract class).
+
+  Required by:
+    └── App
+
+  Fix: Provide a wire for a concrete implementation:
+
+    Resource.from[...](
+      Wire.shared[ConcreteImpl],  // provides Logger
+      ...
+    )
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Duplicate providers (ambiguous wires)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Multiple providers for Service
+
+  Conflicting wires:
+    1. LiveService
+    2. TestService
+
+  Hint: Remove duplicate wires or use distinct wrapper types.
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Dependency cycle
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Dependency cycle detected
+
+  Cycle:
+    ┌───────────┐
+    │           ▼
+    A ──► B ──► C
+    ▲           │
+    └───────────┘
+
+  Break the cycle by:
+    • Introducing an interface/trait
+    • Using lazy initialization
+    • Restructuring dependencies
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Subtype conflict (related dependency types)
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Dependency type conflict in MyService
+
+  FileInputStream is a subtype of InputStream.
+
+  When both types are dependencies, Context cannot reliably distinguish
+  them. The more specific type may be retrieved when the more general
+  type is requested.
+
+  To fix this, wrap one or both types in a distinct wrapper:
+
+    case class WrappedInputStream(value: InputStream)
+    or
+    opaque type WrappedInputStream = InputStream
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Duplicate parameter types in constructor
+
+```
+── Scope Error ──────────────────────────────────────────────────────────────
+
+  Constructor of App has multiple parameters of type String
+
+  Context is type-indexed and cannot supply distinct values for the same type.
+
+  Fix: Wrap one parameter in an opaque type to distinguish them:
+
+    opaque type FirstString = String
+    or
+    case class FirstString(value: String)
+
+────────────────────────────────────────────────────────────────────────────
+```
+
+### Leak warning
+
+When using `leak(value)` to escape the scoped type system:
+
+```
+── Scope Warning ────────────────────────────────────────────────────────────
+
+  leak(db)
+       ^
+       |
+
+  Warning: db is being leaked from scope MyScope.
+  This may result in undefined behavior.
+
+  Hint:
+     If you know this data type is not resourceful, then add a given ScopeEscape
+     for it so you do not need to leak it.
+
+────────────────────────────────────────────────────────────────────────────
+```
 
 ---
 
@@ -587,20 +770,16 @@ object Resource {
   def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
   def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
 
-  // Macro-derived constructors:
-  def from[T]: Resource[T]
+  // Macro - DI entry point (can also be called with no args for zero-dep classes):
   def from[T](wires: Wire[?, ?]*): Resource[T]
 
-  // Internal / produced by wires:
-  def shared[A](f: Finalizer => A): Resource.Shared[A]
-  def unique[A](f: Finalizer => A): Resource.Unique[A]
-
-  final class Shared[+A] extends Resource[A]
-  final class Unique[+A] extends Resource[A]
+  // Internal (used by generated code):
+  def shared[A](f: Finalizer => A): Resource[A]
+  def unique[A](f: Finalizer => A): Resource[A]
 }
 ```
 
-### `Wire` and `Wireable`
+### `Wire`
 
 ```scala
 sealed trait Wire[-In, +Out] {
@@ -610,9 +789,16 @@ sealed trait Wire[-In, +Out] {
   def toResource(deps: zio.blocks.context.Context[In]): Resource[Out]
 }
 
-trait Wireable[+Out] {
-  type In
-  def wire: Wire[In, Out]
+object Wire {
+  // Macro entry points:
+  def shared[T]: Wire[?, T]  // derive from T's constructor
+  def unique[T]: Wire[?, T]  // derive from T's constructor
+  
+  // Wrap pre-existing value (auto-finalizes if AutoCloseable):
+  def apply[T](value: T): Wire.Shared[Any, T]
+  
+  final class Shared[-In, +Out] extends Wire[In, Out]
+  final class Unique[-In, +Out] extends Wire[In, Out]
 }
 ```
 
@@ -621,7 +807,13 @@ trait Wireable[+Out] {
 ## Mental model recap
 
 - Use `Scope.global.scoped { scope => ... }` to create a safe region.
-- Allocate managed things with `scope.allocate(Resource(...))` (or `Resource.from[...]`).
+- For simple resources: `scope.allocate(Resource(value))` or `scope.allocate(Resource.acquireRelease(...)(...))`
+- For dependency injection: `scope.allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
 - Use scoped values only via `scope.$(value)(...)` or via `Scoped` computations executed by `scope(scoped)`.
 - Nest with `scope.scoped { child => ... }` to create a tighter lifetime boundary.
 - If it doesn't typecheck, it would have been unsafe at runtime.
+
+**The 3 macro entry points:**
+- `Wire.shared[T]` — shared wire from constructor
+- `Wire.unique[T]` — unique wire from constructor
+- `Resource.from[T](wires*)` — wire up T and all dependencies
