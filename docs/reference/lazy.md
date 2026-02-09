@@ -326,13 +326,14 @@ The trampolining approach converts recursive calls into an iterative loop with a
 
 ### Constructors
 
-| Method                    | Description                                          |
-|---------------------------|------------------------------------------------------|
-| `Lazy(expr: => A)`        | Create a `Lazy` from a by-name expression            |
-| `Lazy.fail(e: Throwable)` | Create a `Lazy` that fails with the given exception  |
-| `Lazy.collectAll(values)` | Combine a collection of `Lazy` into a single `Lazy`  |
-| `Lazy.foreach(values)(f)` | Apply a function to each element, collecting results |
+| Method                    | Description                                                         |
+|---------------------------|---------------------------------------------------------------------|
+| `Lazy(expr: => A)`        | Create a `Lazy` from a by-name expression                          |
+| `Lazy.fail(e: Throwable)` | Create a `Lazy` that fails with the given exception                |
+| `Lazy.collectAll(values)` | Combine an `IndexedSeq` of `Lazy` into a single `Lazy`             |
+| `Lazy.foreach(values)(f)` | Apply a function to each element of an `IndexedSeq`, collecting results |
 
+Note: For other collection types, convert them using `.toIndexedSeq` before calling `Lazy.collectAll` or `Lazy.foreach`.
 ### Instance Methods
 
 | Method                                       | Description                               |
