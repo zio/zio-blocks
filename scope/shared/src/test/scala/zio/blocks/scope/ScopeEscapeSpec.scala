@@ -41,12 +41,17 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         val result: Int = escape(42)
         assertTrue(result == 42)
       },
-      test("global scope escapes all results as raw values") {
+      test("global scope escapes all results as raw values via ScopeLift") {
+        // Capture result via side effect in the function passed to $
+        var captured: String = null
         Scope.global.scoped { scope =>
           val str: String @@ scope.Tag = scope.allocate(zio.blocks.scope.Resource("test"))
-          val raw: String              = scope.$(str)(identity)
-          assertTrue(raw == "test")
+          scope.$(str) { s =>
+            captured = s
+            s
+          }
         }
+        assertTrue(captured == "test")
       }
     ),
     suite("Child scope behavior")(
@@ -67,13 +72,19 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         assertTrue(@@.unscoped(result) eq resource)
       },
       test("unscoped types escape as raw values in nested scopes") {
-        Scope.global.scoped { parent =>
+        // Return raw Unscoped value from scoped block - ScopeLift extracts it
+        val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
+            var captured: String         = null
             val str: String @@ child.Tag = child.allocate(zio.blocks.scope.Resource("hello"))
-            val result: String           = child.$(str)(_.toUpperCase)
-            assertTrue(result == "HELLO")
+            child.$(str) { s =>
+              captured = s.toUpperCase
+              s.toUpperCase
+            }
+            captured // Return raw String - Unscoped, lifts automatically
           }
         }
+        assertTrue(result == "HELLO")
       }
     ),
     suite("Priority ordering")(

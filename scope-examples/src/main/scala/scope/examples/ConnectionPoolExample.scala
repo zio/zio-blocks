@@ -1,4 +1,4 @@
-package zio.blocks.scope.examples
+package scope.examples
 
 import zio.blocks.scope._
 import java.util.concurrent.atomic.AtomicInteger
@@ -69,7 +69,6 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println(s"  [Pool] Active connections: ${active.get()}/${config.maxConnections}")
     conn
   } { conn =>
-    // Release is handled by PooledConnection.close()
     conn.close()
   }
 
@@ -91,7 +90,6 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
 
   val poolConfig = PoolConfig(maxConnections = 3, timeout = 5000L)
 
-  // The pool itself is a resource
   val poolResource: Resource[ConnectionPool] =
     Resource.fromAutoCloseable(new ConnectionPool(poolConfig))
 
@@ -99,40 +97,44 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("[App] Allocating pool\n")
     val pool = appScope.allocate(poolResource)
 
-    // Get the raw pool for use in nested scopes
-    val rawPool = @@.unscoped(pool)
-
-    // Each unit of work gets its own connection scope
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>
-      // pool.acquire returns Resource[PooledConnection] - must allocate!
-      val conn   = workScope.allocate(rawPool.acquire)
-      val result = workScope.$(conn)(_.execute("SELECT * FROM service_a_table"))
-      println(s"  [ServiceA] Got: $result")
-      // Connection automatically released when workScope exits
+      appScope.$(pool) { p =>
+        val conn = workScope.allocate(p.acquire)
+        workScope.$(conn) { c =>
+          val result = c.execute("SELECT * FROM service_a_table")
+          println(s"  [ServiceA] Got: $result")
+        }
+      }
     }
     println()
 
     println("--- ServiceB doing work ---")
     appScope.scoped { workScope =>
-      val conn   = workScope.allocate(rawPool.acquire)
-      val result = workScope.$(conn)(_.execute("SELECT * FROM service_b_table"))
-      println(s"  [ServiceB] Got: $result")
+      appScope.$(pool) { p =>
+        val conn = workScope.allocate(p.acquire)
+        workScope.$(conn) { c =>
+          val result = c.execute("SELECT * FROM service_b_table")
+          println(s"  [ServiceB] Got: $result")
+        }
+      }
     }
     println()
 
-    // Demonstrate multiple concurrent connections from the same pool
     println("--- Multiple connections in same scope ---")
     appScope.scoped { workScope =>
-      // Both allocate from the same pool, each gets their own connection
-      val connA = workScope.allocate(rawPool.acquire)
-      val connB = workScope.allocate(rawPool.acquire)
+      appScope.$(pool) { p =>
+        val connA = workScope.allocate(p.acquire)
+        val connB = workScope.allocate(p.acquire)
 
-      println(s"  [Parallel] Using connections ${workScope.$(connA)(_.id)} and ${workScope.$(connB)(_.id)}")
-      workScope.$(connA)(_.execute("UPDATE table_a SET x = 1"))
-      workScope.$(connB)(_.execute("UPDATE table_b SET y = 2"))
-
-      // Both connections released in LIFO order when scope exits
+        workScope.$(connA) { a =>
+          workScope.$(connB) { b =>
+            println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
+            a.execute("UPDATE table_a SET x = 1")
+            b.execute("UPDATE table_b SET y = 2")
+          }
+        }
+      }
     }
     println()
 

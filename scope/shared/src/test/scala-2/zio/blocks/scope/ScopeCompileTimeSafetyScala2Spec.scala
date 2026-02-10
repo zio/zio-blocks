@@ -50,6 +50,76 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
           }
         """))(isLeft)
       }
+    ),
+    suite("ScopeLift prevents scope leaks")(
+      test("closure capturing child scope is rejected") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { parent =>
+            parent.scoped { child =>
+              val db: Database @@ child.Tag = child.allocate(Resource(new Database))
+
+              // Attempt to leak via closure - should fail to compile
+              // Now child.$(db)(_.query(...)) returns String @@ child.Tag, not String
+              // But () => ... is not liftable anyway
+              val leakedAction: () => String = () => {
+                val scoped = child.$(db)(_.query("SELECT 1"))
+                child.execute(scoped).run() // trying to extract the string
+              }
+              leakedAction
+            }
+          }
+        """))(isLeft)
+      },
+      test("returning child scope itself is rejected") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          Scope.global.scoped { parent =>
+            parent.scoped { child =>
+              child // attempt to return the scope itself
+            }
+          }
+        """))(isLeft)
+      },
+      test("returning unscoped values is allowed") {
+        // Return raw Unscoped value from scoped block - ScopeLift extracts it
+        val result: String = Scope.global.scoped { parent =>
+          parent.scoped { child =>
+            val db: Database @@ child.Tag = child.allocate(Resource(new Database))
+            // Capture result via side effect
+            var captured: String = null
+            child.$(db) { d =>
+              val r = d.query("SELECT 1")
+              captured = r
+              r
+            }
+            captured // Return raw String - Unscoped, lifts automatically
+          }
+        }
+        assertTrue(result == "result: SELECT 1")
+      },
+      test("returning parent-scoped values is allowed") {
+        var captured: Boolean = false
+        Scope.global.scoped { parent =>
+          val parentDb: Database @@ parent.Tag = parent.allocate(Resource(new Database))
+          val result: Database @@ parent.Tag   = parent.scoped { _ =>
+            parentDb // parent-tagged value can be returned from child
+          }
+          parent.$(result) { db =>
+            captured = !db.closed
+            db.closed
+          }
+        }
+        assertTrue(captured) // Was not closed while in scope
+      }
     )
     // NOTE: @@.unscoped IS package-private (private[scope]) but ZIO Test's typeCheck
     // macro does not correctly evaluate package visibility, so this test passes when

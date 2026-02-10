@@ -9,50 +9,49 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
   self: Scope[ParentTag, Tag0] =>
 
   /**
-   * Applies a function to a scoped value, escaping if the result is Unscoped.
+   * Applies a function to a scoped value.
    *
    * Accepts any scoped value whose tag is a supertype of this scope's Tag. Due
    * to contravariance in `S`, an `A @@ ParentTag` is a subtype of
    * `A @@ ChildTag`, so parent-scoped values can be passed to child scopes.
    *
+   * The result is always tagged with the scope's Tag, preventing closures from
+   * escaping with an unscoped result that could be executed after scope close.
+   *
    * @param scoped
    *   the scoped computation to execute
    * @param f
    *   the function to apply to the computed value
-   * @param escape
-   *   typeclass determining whether the result escapes
    * @tparam A
    *   the scoped computation's result type
    * @tparam B
    *   the function result type
    * @return
-   *   either raw B or B @@ Tag depending on ScopeEscape
+   *   B @@ Tag (result is always scoped)
    */
-  def $[A, B](scoped: A @@ self.Tag)(f: A => B)(implicit
-    escape: ScopeEscape[B, self.Tag]
-  ): escape.Out =
-    escape(f(scoped.run()))
+  def $[A, B](scoped: A @@ self.Tag)(f: A => B): B @@ self.Tag = {
+    val result = f(scoped.run()) // Execute immediately
+    Scoped.scoped[B, self.Tag](result) // Wrap already-computed result
+  }
 
   /**
    * Executes a scoped computation.
    *
    * Accepts any scoped computation whose tag is a supertype of this scope's
-   * Tag. The escape typeclass determines whether the result stays scoped or
-   * escapes as a raw value.
+   * Tag. The result is always tagged with the scope's Tag, preventing closures
+   * from escaping with an unscoped result.
    *
    * @param scoped
    *   the scoped computation to execute
-   * @param escape
-   *   typeclass determining whether the result escapes
    * @tparam A
    *   the computation result type
    * @return
-   *   either raw A or A @@ Tag depending on ScopeEscape
+   *   A @@ Tag (result is always scoped)
    */
-  def execute[A](scoped: A @@ self.Tag)(implicit
-    escape: ScopeEscape[A, self.Tag]
-  ): escape.Out =
-    escape(scoped.run())
+  def execute[A](scoped: A @@ self.Tag): A @@ self.Tag = {
+    val result = scoped.run() // Execute immediately
+    Scoped.scoped[A, self.Tag](result) // Wrap already-computed result
+  }
 
   /**
    * Creates a child scope with an existential tag.
@@ -65,17 +64,30 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * compile-time resource safety by preventing child-scoped resources from
    * escaping.
    *
+   * ==Return Type Safety==
+   *
+   * The return type `A` must satisfy [[ScopeLift]], which allows:
+   *   - [[Unscoped]] types (pure data) - lifted as raw value
+   *   - Scoped values `B @@ T` where `T` is this scope's tag or above - lifted
+   *     as-is
+   *
+   * This prevents returning closures that capture the child scope, which would
+   * allow use-after-close of child-scoped resources.
+   *
    * @param f
    *   the function to execute with the child scope
+   * @param lift
+   *   typeclass determining how the result is lifted to the parent scope
    * @tparam A
-   *   the result type
+   *   the result type (must have a [[ScopeLift]] instance)
    * @return
-   *   the result of the function
+   *   the lifted result (type depends on `lift.Out`)
    */
-  def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A): A = {
+  def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A)(implicit lift: ScopeLift[A, self.Tag]): lift.Out = {
     val childScope         = new Scope[self.Tag, self.Tag](new Finalizers)
     var primary: Throwable = null.asInstanceOf[Throwable]
-    try f(childScope)
+    var result: A          = null.asInstanceOf[A]
+    try result = f(childScope)
     catch {
       case t: Throwable =>
         primary = t
@@ -90,5 +102,6 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
         throw first
       }
     }
+    lift(result)
   }
 }

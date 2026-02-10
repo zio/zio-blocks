@@ -1,14 +1,14 @@
-package zio.blocks.scope.examples
+package scope.examples
 
 import zio.blocks.scope._
 
 /**
- * Demonstrates the `Unscoped` marker trait and `ScopeEscape` behavior.
+ * Demonstrates the `Unscoped` marker trait and `ScopeLift` behavior.
  *
  * ==Key Concepts==
  *
  *   - '''`Unscoped`''' marks pure data types that can safely escape a scope
- *   - '''`ScopeEscape`''' controls whether `scope.$` returns raw `A` or
+ *   - '''`ScopeLift`''' controls whether `scope.scoped` returns raw `A` or
  *     `A @@ S`
  *   - Pure data escapes freely; resources remain scope-bound
  *
@@ -26,7 +26,7 @@ import zio.blocks.scope._
  * Pure configuration data that can safely escape any scope.
  *
  * By deriving `Unscoped`, we declare this type contains no resources. When
- * extracted via `scope.$`, the raw `ConfigData` is returned instead of
+ * extracted via `scope.scoped`, the raw `ConfigData` is returned instead of
  * `ConfigData @@ Tag`.
  */
 case class ConfigData(
@@ -43,10 +43,8 @@ case class ConfigData(
 class ConfigReader extends AutoCloseable {
   private var closed = false
 
-  /** Reads and parses configuration from the given path. */
   def readConfig(@annotation.unused path: String): ConfigData = {
     require(!closed, "ConfigReader is closed")
-    // Simulate reading a config file
     ConfigData(
       appName = "MyApplication",
       version = "1.0.0",
@@ -74,7 +72,6 @@ class ConfigReader extends AutoCloseable {
 class SecretStore extends AutoCloseable {
   private var closed = false
 
-  /** Retrieves a secret by key. */
   def getSecret(key: String): String = {
     require(!closed, "SecretStore is closed")
     s"secret-value-for-$key"
@@ -91,15 +88,14 @@ class SecretStore extends AutoCloseable {
 // ---------------------------------------------------------------------------
 
 @main def runConfigReaderExample(): Unit = {
-  println("=== ScopeEscape & Unscoped Example ===\n")
+  println("=== ScopeLift & Unscoped Example ===\n")
 
-  // ConfigData escapes because it derives Unscoped
-  val escapedConfig: ConfigData = Scope.global.scoped { outer =>
-    val reader = outer.allocate(Resource(new ConfigReader))
+  var escapedConfig: ConfigData = null.asInstanceOf[ConfigData]
+  Scope.global.scoped { scope =>
+    val reader = scope.allocate(Resource(new ConfigReader))
 
-    // Extract config in a nested scope — it escapes as raw ConfigData
-    outer.scoped { inner =>
-      inner.$(reader)(_.readConfig("/etc/app/config.json"))
+    scope.$(reader) { r =>
+      escapedConfig = r.readConfig("/etc/app/config.json")
     }
   }
 
@@ -108,17 +104,14 @@ class SecretStore extends AutoCloseable {
   escapedConfig.settings.foreach { case (k, v) => println(s"    $k = $v") }
   println()
 
-  // SecretStore does NOT escape — it remains scoped
-  println("SecretStore stays scoped (cannot escape child scope):")
+  println("SecretStore stays scoped:")
   Scope.global.scoped { scope =>
     val secrets = scope.allocate(Resource(new SecretStore))
 
-    // This returns SecretStore @@ scope.Tag, not raw SecretStore
-    val stillScoped = scope.$(secrets)(identity)
-
-    // We can use it within this scope via scope.$
-    val dbPassword = scope.$(stillScoped)(_.getSecret("database.password"))
-    println(s"  Retrieved secret: $dbPassword")
+    scope.$(secrets) { s =>
+      val dbPassword = s.getSecret("database.password")
+      println(s"  Retrieved secret: $dbPassword")
+    }
   }
   println("\n=== Example Complete ===")
 }

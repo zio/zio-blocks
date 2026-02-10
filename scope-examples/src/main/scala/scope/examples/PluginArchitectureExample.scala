@@ -1,4 +1,4 @@
-package zio.blocks.scope.examples
+package scope.examples
 
 import zio.blocks.scope._
 
@@ -88,8 +88,10 @@ final class CheckoutService(gateway: PaymentGateway) extends AutoCloseable {
 
   Scope.global.scoped { scope =>
     val checkout = scope.allocate(stripeResource)
-    val result   = scope.$(checkout)(_.processOrder("ORD-001", BigDecimal("99.99")))
-    println(s"Result: ${result.message}")
+    scope.$(checkout) { c =>
+      val result = c.processOrder("ORD-001", BigDecimal("99.99"))
+      println(s"Result: ${result.message}")
+    }
   }
 
   println("\n=== Using PayPal Gateway ===")
@@ -100,7 +102,9 @@ final class CheckoutService(gateway: PaymentGateway) extends AutoCloseable {
 
   Scope.global.scoped { scope =>
     val checkout = scope.allocate(paypalResource)
-    val result   = scope.$(checkout)(_.processOrder("ORD-002", BigDecimal("149.99")))
-    println(s"Result: ${result.message}")
+    scope.$(checkout) { c =>
+      val result = c.processOrder("ORD-002", BigDecimal("149.99"))
+      println(s"Result: ${result.message}")
+    }
   }
 }

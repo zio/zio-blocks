@@ -68,40 +68,62 @@ object ScopeScala2Spec extends ZIOSpecDefault {
         assertTrue(db.closed)
       },
       test("scope.allocate returns tagged value and $ works") {
+        // Capture result via side effect in the function passed to $
+        var captured: String = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val result                    = scope.$(db)(_.query("SELECT 1"))
-          assertTrue(result == "result: SELECT 1")
+          // $ executes immediately, so side effect happens now
+          scope.$(db) { d =>
+            val result = d.query("SELECT 1")
+            captured = result
+            result
+          }
         }
+        assertTrue(captured == "result: SELECT 1")
       }
     ),
     suite("scope.$ operator")(
       test("$ extracts value and applies function") {
+        var captured: Boolean = false
         Scope.global.scoped { scope =>
           val config: Config @@ scope.Tag = scope.allocate(Resource(Config(true)))
-          val debug                       = scope.$(config)(_.debug)
-          assertTrue(debug)
+          scope.$(config) { c =>
+            val debug = c.debug
+            captured = debug
+            debug
+          }
         }
+        assertTrue(captured == true)
       },
-      test("$ on Unscoped type returns raw value") {
+      test("$ always returns tagged value") {
+        var captured: String = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val result                    = scope.$(db)(_.query("test"))
-          assertTrue(result == "result: test")
+          scope.$(db) { d =>
+            val result = d.query("test")
+            captured = result
+            result
+          }
         }
+        assertTrue(captured == "result: test")
       }
     ),
     suite("nested scopes")(
       test("child scope can access parent resources via Tag subtyping") {
+        var captured: String = null
         Scope.global.scoped { parentScope =>
           val db: Database @@ parentScope.Tag = parentScope.allocate(Resource.from[Database])
 
           parentScope.scoped { childScope =>
-            // Child scope should be able to access parent-tagged value
-            val result = childScope.$(db)(_.query("child"))
-            assertTrue(result == "result: child")
+            childScope.$(db) { d =>
+              val result = d.query("child")
+              captured = result
+              result
+            }
+            () // Return Unit (Unscoped)
           }
         }
+        assertTrue(captured == "result: child")
       },
       test("child scope closes before parent") {
         val order = scala.collection.mutable.ArrayBuffer.empty[String]
@@ -119,26 +141,30 @@ object ScopeScala2Spec extends ZIOSpecDefault {
     ),
     suite("Scoped monad")(
       test("map creates Scoped computation") {
+        var captured: String = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-
-          val computation = db.map(_.query("mapped"))
-
-          // Execute via scope.execute
-          val result = scope.execute(computation)
-          assertTrue(result == "result: mapped")
+          val computation               = db.map { d =>
+            val result = d.query("mapped")
+            captured = result
+            result
+          }
+          scope.execute(computation) // execute runs the computation
         }
+        assertTrue(captured == "result: mapped")
       },
       test("map and Scoped.map composition") {
+        var captured: String = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-
-          // Chain using Scoped.map
-          val computation = db.map(_.query("a")).map(s => s.toUpperCase)
-
-          val result = scope.execute(computation)
-          assertTrue(result == "RESULT: A")
+          val computation               = db.map(_.query("a")).map { s =>
+            val result = s.toUpperCase
+            captured = result
+            result
+          }
+          scope.execute(computation)
         }
+        assertTrue(captured == "RESULT: A")
       }
     ),
     suite("defer")(
@@ -221,17 +247,25 @@ object ScopeScala2Spec extends ZIOSpecDefault {
     ),
     suite("edge cases")(
       test("runtime cast is unsafe with sibling scopes (demonstration)") {
+        // This demonstrates that runtime casts can bypass type safety
+        var captured: String = null
         Scope.global.scoped { parent =>
           var leaked: Any = null
           parent.scoped { child1 =>
             leaked = child1.allocate(Resource.from[Database])
+            () // Return Unit
           }
           parent.scoped { child2 =>
             val db: Database @@ child2.Tag = leaked.asInstanceOf[Database @@ child2.Tag]
-            val r                          = child2.$(db)(_.query("test"))
-            assertTrue(r == "result: test")
+            child2.$(db) { d =>
+              val result = d.query("test")
+              captured = result
+              result
+            }
+            () // Return Unit
           }
         }
+        assertTrue(captured == "result: test")
       }
     )
   )
