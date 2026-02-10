@@ -124,6 +124,59 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
         """))(isLeft)
       }
     ),
+    suite("SafeToReturn prevents scope leaks")(
+      test("closure capturing child scope is rejected") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { parent =>
+            parent.scoped { child =>
+              val db: Database @@ child.Tag = child.allocate(Resource(new Database))
+
+              // Attempt to leak via closure - should fail to compile
+              val leakedAction: () => String = () => child.$(db)(_.query("SELECT 1"))
+              leakedAction
+            }
+          }
+        """))(isLeft)
+      },
+      test("returning child scope itself is rejected") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          Scope.global.scoped { parent =>
+            parent.scoped { child =>
+              child // attempt to return the scope itself
+            }
+          }
+        """))(isLeft)
+      },
+      test("returning unscoped values is allowed") {
+        val result: String = Scope.global.scoped { parent =>
+          parent.scoped { child =>
+            val db: Database @@ child.Tag = child.allocate(Resource(new Database))
+            child.$(db)(_.query("SELECT 1")) // String is Unscoped, can escape
+          }
+        }
+        assertTrue(result == "result: SELECT 1")
+      },
+      test("returning parent-scoped values is allowed") {
+        val notClosed: Boolean = Scope.global.scoped { parent =>
+          val parentDb: Database @@ parent.Tag = parent.allocate(Resource(new Database))
+          val result: Database @@ parent.Tag   = parent.scoped { child =>
+            parentDb // parent-tagged value can be returned from child
+          }
+          parent.$(result)(_.closed) == false
+        }
+        assertTrue(notClosed)
+      }
+    ),
     suite("ScopeEscape compile-time safety")(
       test("resourceful results stay scoped in non-global scope") {
         assertZIO(typeCheck("""

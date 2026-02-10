@@ -67,13 +67,13 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         assertTrue(@@.unscoped(result) eq resource)
       },
       test("unscoped types escape as raw values in nested scopes") {
-        Scope.global.scoped { parent =>
+        val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
             val str: String @@ child.Tag = child.allocate(zio.blocks.scope.Resource("hello"))
-            val result: String           = child.$(str)(_.toUpperCase)
-            assertTrue(result == "HELLO")
+            child.$(str)(_.toUpperCase)
           }
         }
+        assertTrue(result == "HELLO")
       }
     ),
     suite("Priority ordering")(

@@ -65,14 +65,23 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * compile-time resource safety by preventing child-scoped resources from
    * escaping.
    *
+   * ==Return Type Safety==
+   *
+   * The return type `A` must satisfy [[SafeToReturn]], which allows:
+   *   - [[Unscoped]] types (pure data)
+   *   - Scoped values `B @@ T` where `T` is this scope's tag or above
+   *
+   * This prevents returning closures that capture the child scope, which
+   * would allow use-after-close of child-scoped resources.
+   *
    * @param f
    *   the function to execute with the child scope
    * @tparam A
-   *   the result type
+   *   the result type (must be [[SafeToReturn]])
    * @return
    *   the result of the function
    */
-  def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A): A = {
+  def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A)(implicit ev: SafeToReturn[A, self.Tag]): A = {
     val childScope         = new Scope[self.Tag, self.Tag](new Finalizers)
     var primary: Throwable = null.asInstanceOf[Throwable]
     try f(childScope)

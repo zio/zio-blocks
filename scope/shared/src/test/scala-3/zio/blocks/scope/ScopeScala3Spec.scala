@@ -93,15 +93,15 @@ object ScopeScala3Spec extends ZIOSpecDefault {
     ),
     suite("nested scopes")(
       test("child scope can access parent resources via Tag subtyping") {
-        Scope.global.scoped { parentScope =>
+        val result = Scope.global.scoped { parentScope =>
           val db = parentScope.allocate(Resource.from[Database])
 
           parentScope.scoped { childScope =>
             // Child scope should be able to access parent-tagged value
-            val result = childScope.$(db)(_.query("child"))
-            assertTrue(result == "result: child")
+            childScope.$(db)(_.query("child"))
           }
         }
+        assertTrue(result == "result: child")
       },
       test("child scope closes before parent") {
         val order = scala.collection.mutable.ArrayBuffer.empty[String]
@@ -272,17 +272,17 @@ object ScopeScala3Spec extends ZIOSpecDefault {
     ),
     suite("edge cases")(
       test("runtime cast is unsafe with sibling scopes (demonstration)") {
-        Scope.global.scoped { parent =>
+        val r = Scope.global.scoped { parent =>
           var leaked: Any = null
           parent.scoped { child1 =>
             leaked = child1.allocate(Resource.from[Database])
           }
           parent.scoped { child2 =>
             val db = leaked.asInstanceOf[Database @@ child2.Tag]
-            val r  = child2.$(db)(_.query("test"))
-            assertTrue(r == "result: test")
+            child2.$(db)(_.query("test"))
           }
         }
+        assertTrue(r == "result: test")
       }
     )
   )
