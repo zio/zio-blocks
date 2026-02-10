@@ -1,6 +1,7 @@
-# Path Interpolator
-
-## Overview
+---
+id: path-interpolator
+title: "Path Interpolator"
+---
 
 The path interpolator `p"..."` is a compile-time string interpolator for constructing `DynamicOptic` instances in ZIO Blocks. It provides a clean, concise syntax for building optic paths that navigate through complex data structures, with all parsing and validation happening at compile time for zero runtime overhead.
 
@@ -215,14 +216,14 @@ p"<A><B><C>"       // Nested variants
 
 String and character literals support standard escape sequences:
 
-| Escape | Result | Description |
-|--------|--------|-------------|
-| `\n`   | newline | Line feed |
-| `\t`   | tab | Horizontal tab |
-| `\r`   | return | Carriage return |
-| `\'`   | `'` | Single quote |
-| `\"`   | `"` | Double quote |
-| `\\`   | `\` | Backslash |
+| Escape | Result  | Description     |
+|--------|---------|-----------------|
+| `\n`   | newline | Line feed       |
+| `\t`   | tab     | Horizontal tab  |
+| `\r`   | return  | Carriage return |
+| `\'`   | `'`     | Single quote    |
+| `\"`   | `"`     | Double quote    |
+| `\\`   | `\`     | Backslash       |
 
 **Examples:**
 
@@ -618,19 +619,19 @@ val same = p".users[*].email"
 
 **Examples:**
 
-| DynamicOptic Construction | toString Output |
-|---------------------------|-----------------|
-| `DynamicOptic.root.field("name")` | `.name` |
+| DynamicOptic Construction                            | toString Output   |
+|------------------------------------------------------|-------------------|
+| `DynamicOptic.root.field("name")`                    | `.name`           |
 | `DynamicOptic.root.field("address").field("street")` | `.address.street` |
-| `DynamicOptic.root.caseOf("Some")` | `<Some>` |
-| `DynamicOptic.root.at(0)` | `[0]` |
-| `DynamicOptic.root.atIndices(0, 2, 5)` | `[0,2,5]` |
-| `DynamicOptic.elements` | `[*]` |
-| `DynamicOptic.root.atKey("host")` | `{"host"}` |
-| `DynamicOptic.root.atKey(80)` | `{80}` |
-| `DynamicOptic.mapValues` | `{*}` |
-| `DynamicOptic.mapKeys` | `{*:}` |
-| `DynamicOptic.wrapped` | `.~` |
+| `DynamicOptic.root.caseOf("Some")`                   | `<Some>`          |
+| `DynamicOptic.root.at(0)`                            | `[0]`             |
+| `DynamicOptic.root.atIndices(0, 2, 5)`               | `[0,2,5]`         |
+| `DynamicOptic.elements`                              | `[*]`             |
+| `DynamicOptic.root.atKey("host")`                    | `{"host"}`        |
+| `DynamicOptic.root.atKey(80)`                        | `{80}`            |
+| `DynamicOptic.mapValues`                             | `{*}`             |
+| `DynamicOptic.mapKeys`                               | `{*:}`            |
+| `DynamicOptic.wrapped`                               | `.~`              |
 
 ## Summary
 
