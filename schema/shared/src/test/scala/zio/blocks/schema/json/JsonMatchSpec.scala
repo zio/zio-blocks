@@ -62,6 +62,36 @@ object JsonMatchSpec extends SchemaBaseSpec {
           JsonMatch.matches(SchemaRepr.Primitive("INT"), Json.Number(42)),
           JsonMatch.matches(SchemaRepr.Primitive("Boolean"), Json.Boolean(true))
         )
+      },
+      test("Primitive(short) matches Json.Number") {
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("short"), Json.Number(42)))
+      },
+      test("Primitive(byte) matches Json.Number") {
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("byte"), Json.Number(7)))
+      },
+      test("Primitive(float) matches Json.Number") {
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("float"), Json.Number(1.5)))
+      },
+      test("Primitive(bigint) matches Json.Number") {
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("bigint"), Json.Number(999999999999L)))
+      },
+      test("Primitive(bigdecimal) matches Json.Number") {
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("bigdecimal"), Json.Number(3.14159)))
+      },
+      test("Primitive(unit) matches Json.Null") {
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("unit"), Json.Null))
+      },
+      test("Primitive(short) rejects non-number values") {
+        assertTrue(
+          !JsonMatch.matches(SchemaRepr.Primitive("short"), Json.String("42")),
+          !JsonMatch.matches(SchemaRepr.Primitive("short"), Json.Boolean(true))
+        )
+      },
+      test("Primitive(unit) rejects non-null values") {
+        assertTrue(
+          !JsonMatch.matches(SchemaRepr.Primitive("unit"), Json.String("test")),
+          !JsonMatch.matches(SchemaRepr.Primitive("unit"), Json.Number(0))
+        )
       }
     ),
     suite("Record matching")(
@@ -107,6 +137,26 @@ object JsonMatchSpec extends SchemaBaseSpec {
         assertTrue(
           JsonMatch.matches(pattern, Json.Object.empty),
           JsonMatch.matches(pattern, Json.Object("x" -> Json.Number(1)))
+        )
+      },
+      test("Empty Record does not match non-object types") {
+        val pattern = SchemaRepr.Record(Vector.empty)
+        assertTrue(
+          !JsonMatch.matches(pattern, Json.Array.empty),
+          !JsonMatch.matches(pattern, Json.String("test")),
+          !JsonMatch.matches(pattern, Json.Number(42)),
+          !JsonMatch.matches(pattern, Json.Boolean(true)),
+          !JsonMatch.matches(pattern, Json.Null)
+        )
+      },
+      test("Primitive pattern rejects Json.Object and Json.Array") {
+        assertTrue(
+          !JsonMatch.matches(SchemaRepr.Primitive("string"), Json.Object("a" -> Json.String("test"))),
+          !JsonMatch.matches(SchemaRepr.Primitive("string"), Json.Array(Json.String("test"))),
+          !JsonMatch.matches(SchemaRepr.Primitive("int"), Json.Object.empty),
+          !JsonMatch.matches(SchemaRepr.Primitive("int"), Json.Array.empty),
+          !JsonMatch.matches(SchemaRepr.Primitive("boolean"), Json.Object.empty),
+          !JsonMatch.matches(SchemaRepr.Primitive("boolean"), Json.Array.empty)
         )
       }
     ),
@@ -181,6 +231,16 @@ object JsonMatchSpec extends SchemaBaseSpec {
         val pattern = SchemaRepr.Map(SchemaRepr.Sequence(SchemaRepr.Primitive("string")), SchemaRepr.Primitive("int"))
         val json    = Json.Object("a" -> Json.Number(1))
         assertTrue(!JsonMatch.matches(pattern, json))
+      },
+      test("Map pattern rejects non-Object types") {
+        val pattern = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int"))
+        assertTrue(
+          !JsonMatch.matches(pattern, Json.Array(Json.Number(1))),
+          !JsonMatch.matches(pattern, Json.String("test")),
+          !JsonMatch.matches(pattern, Json.Number(42)),
+          !JsonMatch.matches(pattern, Json.Boolean(true)),
+          !JsonMatch.matches(pattern, Json.Null)
+        )
       }
     ),
     suite("Optional matching")(

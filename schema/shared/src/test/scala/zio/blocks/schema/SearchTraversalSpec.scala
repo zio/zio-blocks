@@ -77,6 +77,10 @@ object SearchTraversalSpec extends SchemaBaseSpec {
     Person.schema.reflect.asInstanceOf[Reflect.Record.Bound[Person]]
   lazy val personNameLens: Lens[Person, String] =
     Lens(personRecord, personRecord.fields(0).asInstanceOf[Term.Bound[Person, String]])
+  lazy val teamRecord: Reflect.Record.Bound[Team] =
+    Team.schema.reflect.asInstanceOf[Reflect.Record.Bound[Team]]
+  lazy val teamNameLens: Lens[Team, String] =
+    Lens(teamRecord, teamRecord.fields(0).asInstanceOf[Term.Bound[Team, String]])
 
   def spec: Spec[TestEnvironment, Any] = suite("SearchTraversalSpec")(
     suite("fold")(
@@ -210,7 +214,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
 
         val result = traversal.modifyOption(company, p => p.copy(age = p.age + 1))
 
-        assert(result)(isSome(hasField("ceo", (c: Company) => c.ceo.age, equalTo(51))))
+        assert(result)(isSome(hasField("ceo", (c: Company) => c.ceo.age, equalTo(51)))) &&
+        assert(result.get.employees.map(_.age))(equalTo(List(31)))
       },
       test("returns None when no modifications") {
         val company   = Company("Acme", Person("CEO", 50), List.empty)
@@ -223,12 +228,13 @@ object SearchTraversalSpec extends SchemaBaseSpec {
     ),
     suite("modifyOrFail")(
       test("returns Right when modifications made") {
-        val company   = Company("Acme", Person("CEO", 50), List.empty)
+        val company   = Company("Acme", Person("CEO", 50), List(Person("Alice", 30)))
         val traversal = SearchTraversal[Company, Person]
 
         val result = traversal.modifyOrFail(company, p => p.copy(age = p.age + 1))
 
-        assert(result)(isRight(hasField("ceo", (c: Company) => c.ceo.age, equalTo(51))))
+        assert(result)(isRight(hasField("ceo", (c: Company) => c.ceo.age, equalTo(51)))) &&
+        assert(result.toOption.get.employees.map(_.age))(equalTo(List(31)))
       },
       test("returns Left with OpticCheck when no matches") {
         val company   = Company("Acme", Person("CEO", 50), List.empty)
@@ -236,7 +242,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
 
         val result = traversal.modifyOrFail(company, t => t.copy(name = "X"))
 
-        assert(result)(isLeft)
+        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything))))
       }
     ),
     suite("check")(
@@ -275,12 +281,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val traversal = SearchTraversal[Company, Person]
         val dynamic   = traversal.toDynamic
 
-        dynamic.nodes.head match {
-          case DynamicOptic.Node.TypeSearch(typeId) =>
-            assert(typeId.name)(equalTo("Person"))
-          case _ =>
-            assert(false)(isTrue)
-        }
+        assert(dynamic.nodes.head)(isSubtype[DynamicOptic.Node.TypeSearch](
+          hasField("typeId", (ts: DynamicOptic.Node.TypeSearch) => ts.typeId.name, equalTo("Person"))
+        ))
       }
     ),
     suite("toString")(
@@ -469,7 +472,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPC, search)
 
         val result = composed.modifyOption(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isSome)
+        assert(result)(isSome(equalTo(PersonContainer(Person("Alice", 99)): Container)))
       },
       test("Prism then SearchTraversal modifyOption - non-matching") {
         val container: Container = StringContainer("hello")
@@ -485,7 +488,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPC, search)
 
         val result = composed.modifyOrFail(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isRight)
+        assert(result)(isRight(equalTo(PersonContainer(Person("Alice", 99)): Container)))
       },
       test("Prism then SearchTraversal modifyOrFail - non-matching") {
         val container: Container = StringContainer("hello")
@@ -493,7 +496,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPC, search)
 
         val result = composed.modifyOrFail(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isLeft)
+        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything))))
       }
     ),
     suite("Optional prefix composition")(
@@ -542,7 +545,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPerson, search)
 
         val result = composed.modifyOption(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isSome)
+        assert(result)(isSome(equalTo(PersonContainer(Person("Alice", 99)): Container)))
       },
       test("Optional then SearchTraversal modifyOption - absent") {
         val container: Container = StringContainer("hello")
@@ -558,7 +561,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPerson, search)
 
         val result = composed.modifyOrFail(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isRight)
+        assert(result)(isRight(equalTo(PersonContainer(Person("Alice", 99)): Container)))
       },
       test("Optional then SearchTraversal modifyOrFail - absent") {
         val container: Container = StringContainer("hello")
@@ -566,7 +569,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPerson, search)
 
         val result = composed.modifyOrFail(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isLeft)
+        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything))))
       }
     ),
     suite("ComposedSearchTraversal further composition")(
@@ -602,8 +605,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
 
         // Prism won't match StringContainer, so check on inner should report issues
         val result = composed.check(holder)
-        // The search finds Container values, but prism doesn't match
-        assert(result)(isSome)
+        // The search finds Container values, but prism doesn't match — errors should contain inner check failure
+        assert(result)(isSome(hasField("errors", (c: OpticCheck) => c.errors.nonEmpty, isTrue)))
       },
       test("ComposedSearchTraversal modifyOption with no matches") {
         val holder   = ContainerHolder(List(StringContainer("hello")))
@@ -611,6 +614,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed = search(containerToPC)
 
         val result = composed.modifyOption(holder, (_: PersonContainer) => PersonContainer(Person("X", 0)))
+        // StringContainer doesn't match prism, so anyModified stays false → None
         assert(result)(isNone)
       },
       test("ComposedSearchTraversal modifyOrFail with matches") {
@@ -619,7 +623,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed = search(containerToPC)
 
         val result = composed.modifyOrFail(holder, (_: PersonContainer) => PersonContainer(Person("X", 0)))
-        assert(result)(isRight)
+        assert(result)(isRight(hasField("containers", (h: ContainerHolder) => h.containers, equalTo(List[Container](PersonContainer(Person("X", 0)))))))
       },
       test("ComposedSearchTraversal modifyOrFail with no matches") {
         val holder   = ContainerHolder(List(StringContainer("hello")))
@@ -627,7 +631,65 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed = search(containerToPC)
 
         val result = composed.modifyOrFail(holder, (_: PersonContainer) => PersonContainer(Person("X", 0)))
-        assert(result)(isLeft)
+        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.UnexpectedCase](anything))))
+      },
+      test("check returns Some when outer search has no matches") {
+        val company  = Company("Acme", Person("CEO", 50), List.empty)
+        val search   = SearchTraversal[Company, Team]
+        val composed = search(teamNameLens) // ComposedSearchTraversal[Company, Team, String]
+
+        val result = composed.check(company)
+        // search.check(company) returns Some because no Team found in Company
+        assert(result)(isSome)
+      },
+      test("modifyOption returns Some when inner optic matches") {
+        val holder   = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val search   = SearchTraversal[ContainerHolder, Container]
+        val composed = search(containerToPC)
+
+        val result = composed.modifyOption(
+          holder,
+          (pc: PersonContainer) => PersonContainer(Person(pc.person.name.toUpperCase, pc.person.age))
+        )
+
+        assert(result)(isSome) &&
+        assert(result.get.containers.collect { case PersonContainer(p) => p.name })(equalTo(List("ALICE"))) &&
+        assert(result.get.containers.collect { case s: StringContainer => s.value })(equalTo(List("hello")))
+      },
+      test("modifyOrFail returns Left when inner optic fails and short-circuits remaining") {
+        // Two containers: StringContainer fails the prism, PersonContainer is skipped via early termination
+        val holder   = ContainerHolder(List(StringContainer("hello"), PersonContainer(Person("Alice", 30))))
+        val search   = SearchTraversal[ContainerHolder, Container]
+        val composed = search(containerToPC)
+
+        val result = composed.modifyOrFail(
+          holder,
+          (_: PersonContainer) => PersonContainer(Person("X", 0))
+        )
+
+        // StringContainer found first → containerToPC.modifyOrFail fails → firstError set
+        // PersonContainer found second → firstError.isLeft guard triggers early return
+        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.nonEmpty, isTrue)))
+      },
+      test("ComposedSearchTraversal apply(Prism) extends inner optic chain") {
+        val holder          = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val searchContainer = SearchTraversal[ContainerHolder, Container]
+        val identitySearch  = SearchTraversal[Container, Container]
+        val composed1       = searchContainer(identitySearch) // ComposedSearchTraversal with focus=Container
+        val composed2       = composed1(containerToPC) // ComposedSearchTraversal.apply(Prism)
+
+        val names = composed2.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      test("ComposedSearchTraversal apply(Optional) extends inner optic chain") {
+        val holder          = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val searchContainer = SearchTraversal[ContainerHolder, Container]
+        val identitySearch  = SearchTraversal[Container, Container]
+        val composed1       = searchContainer(identitySearch) // ComposedSearchTraversal with focus=Container
+        val composed3       = composed1(containerToPerson) // ComposedSearchTraversal.apply(Optional)
+
+        val names = composed3.fold[List[String]](holder)(List.empty, (acc, p) => acc :+ p.name)
+        assert(names)(equalTo(List("Alice")))
       }
     ),
     suite("PrefixedSearchTraversal further composition")(
@@ -709,10 +771,12 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         assert(names)(equalTo(List("Alice")))
       },
       test("Traversal.apply(Traversal, Traversal) with ComposedSearchTraversal on right") {
+        val holder          = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
         val searchContainer = SearchTraversal[ContainerHolder, Container]
         val composedInner   = searchContainer(containerToPC) // ComposedSearchTraversal
-        // Verify the composed result is the expected type
-        assert(composedInner.isInstanceOf[Traversal.ComposedSearchTraversal[_, _, _]])(isTrue)
+        // Verify the composed result is the expected type and works correctly
+        assert(composedInner.isInstanceOf[Traversal.ComposedSearchTraversal[_, _, _]])(isTrue) &&
+        assert(composedInner.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name))(equalTo(List("Alice")))
       },
       test("Traversal.apply(Prism, ComposedSearchTraversal)") {
         // Prism[Container, PersonContainer] → ComposedSearchTraversal[PersonContainer, Person, String]
@@ -837,7 +901,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val prefixed     = Traversal(teamsLens, searchPerson)
 
         val result = prefixed.modifyOption(dept, (p: Person) => p.copy(age = 99))
-        assert(result)(isSome)
+        assert(result)(isSome(hasField("teams", (d: Department) => d.teams.head.lead.age, equalTo(99)))) &&
+        assert(result.get.teams.head.members.head.age)(equalTo(99)) &&
+        assert(result.get.manager.age)(equalTo(45)) // Director not touched (not in teams)
       },
       test("modifyOrFail with Traversal prefix - matches found") {
         val dept = Department(
@@ -856,7 +922,239 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val prefixed     = Traversal(teamsLens, searchPerson)
 
         val result = prefixed.modifyOrFail(dept, (p: Person) => p.copy(age = 99))
-        assert(result)(isRight)
+        assert(result)(isRight(hasField("teams", (d: Department) => d.teams.head.lead.age, equalTo(99)))) &&
+        assert(result.toOption.get.teams.head.members.head.age)(equalTo(99)) &&
+        assert(result.toOption.get.manager.age)(equalTo(45)) // Director not touched
+      }
+    ),
+    suite("PrefixedSearchTraversal with non-Lens Traversal prefix")(
+      test("fold with Traversal prefix collects values from all traversed items") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(
+            Team("Frontend", Person("Lead", 35), List(Person("Dev1", 28))),
+            Team("Backend", Person("BE Lead", 38), List(Person("Dev2", 30)))
+          )
+        )
+        // SearchTraversal extends Traversal but NOT Lens/Prism/Optional — hits the Traversal branch
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+
+        val names = prefixed.fold[List[String]](dept)(List.empty, (acc, p) => acc :+ p.name)
+        // Director is NOT inside a Team, so not found through this path
+        assert(names.sorted)(equalTo(List("BE Lead", "Dev1", "Dev2", "Lead")))
+      },
+      test("modify with Traversal prefix modifies values in all traversed items") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(
+            Team("Frontend", Person("Lead", 35), List(Person("Dev1", 28))),
+            Team("Backend", Person("BE Lead", 38), List(Person("Dev2", 30)))
+          )
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+
+        val modified = prefixed.modify(dept, (p: Person) => p.copy(age = p.age + 100))
+
+        // Director is NOT in any Team, so unchanged
+        assert(modified.manager.age)(equalTo(45)) &&
+        assert(modified.teams(0).lead.age)(equalTo(135)) &&
+        assert(modified.teams(0).members(0).age)(equalTo(128)) &&
+        assert(modified.teams(1).lead.age)(equalTo(138)) &&
+        assert(modified.teams(1).members(0).age)(equalTo(130))
+      },
+      test("modifyOption with Traversal prefix returns Some when matches found") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+
+        val result = prefixed.modifyOption(dept, (p: Person) => p.copy(age = 99))
+
+        assert(result)(isSome) &&
+        assert(result.get.teams.head.lead.age)(equalTo(99)) &&
+        assert(result.get.teams.head.members.head.age)(equalTo(99))
+      },
+      test("modifyOption with Traversal prefix returns None when no inner matches") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchTreeNode                           = SearchTraversal[Team, TreeNode]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, TreeNode](searchTeam, searchTreeNode)
+
+        val result = prefixed.modifyOption(dept, (t: TreeNode) => t.copy(value = "X"))
+
+        assert(result)(isNone)
+      },
+      test("modifyOrFail with Traversal prefix returns Right on success") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+
+        val result = prefixed.modifyOrFail(dept, (p: Person) => p.copy(age = 99))
+
+        assert(result.isRight)(isTrue) &&
+        assert(result.toOption.get.teams.head.lead.age)(equalTo(99)) &&
+        assert(result.toOption.get.teams.head.members.head.age)(equalTo(99))
+      },
+      test("modifyOrFail with Traversal prefix returns Left when inner fails") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(
+            Team("Team1", Person("Lead1", 35), List()),
+            Team("Team2", Person("Lead2", 38), List())
+          )
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchTreeNode                           = SearchTraversal[Team, TreeNode]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, TreeNode](searchTeam, searchTreeNode)
+
+        val result = prefixed.modifyOrFail(dept, (t: TreeNode) => t.copy(value = "X"))
+
+        assert(result)(isLeft)
+      },
+      test("modifyOrFail with Traversal prefix returns Left(EmptySequence) when prefix finds no items") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTreeNode: Traversal[Department, TreeNode] = SearchTraversal[Department, TreeNode]
+        val searchPerson                                     = SearchTraversal[TreeNode, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, TreeNode, Person](searchTreeNode, searchPerson)
+
+        val result = prefixed.modifyOrFail(dept, (p: Person) => p.copy(age = 99))
+
+        assert(result)(isLeft) &&
+        assert(result.swap.toOption.get.errors.head)(isSubtype[OpticCheck.EmptySequence](anything))
+      },
+      test("check with Traversal prefix returns None when inner checks pass") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+
+        assert(prefixed.check(dept))(isNone)
+      },
+      test("check with Traversal prefix returns Some when inner checks fail") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchTreeNode                           = SearchTraversal[Team, TreeNode]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, TreeNode](searchTeam, searchTreeNode)
+
+        val result = prefixed.check(dept)
+        assert(result)(isSome)
+      },
+      test("apply(Traversal) further composes PrefixedSearchTraversal with Traversal prefix") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(
+            Team("Frontend", Person("Lead", 35), List(Person("Dev1", 28))),
+            Team("Backend", Person("BE Lead", 38), List(Person("Dev2", 30)))
+          )
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+        // apply(Traversal) — compose with another SearchTraversal (a Traversal, not Lens/Prism/Optional)
+        val searchPersonIdentity = SearchTraversal[Person, Person]
+        val composed             = prefixed.apply(searchPersonIdentity)
+
+        val names = composed.fold[List[String]](dept)(List.empty, (acc, p) => acc :+ p.name)
+        assert(names.sorted)(equalTo(List("BE Lead", "Dev1", "Dev2", "Lead")))
+      }
+    ),
+    suite("error recovery paths")(
+      test("modify returns original when fromDynamicValue fails") {
+        // Create a validated source schema that rejects negative ages
+        val validatedSchema = Company.schema.transform[Company](
+          c => {
+            if (c.ceo.age < 0 || c.employees.exists(_.age < 0))
+              throw new Exception("Ages must be non-negative")
+            c
+          },
+          identity
+        )
+        val traversal = SearchTraversal(validatedSchema.reflect, Person.schema.reflect)
+        val company   = Company("Acme", Person("CEO", 50), List(Person("Alice", 30)))
+
+        // Modify ages to -1 — searchModify succeeds but sourceReflect.fromDynamicValue fails
+        val result = traversal.modify(company, p => p.copy(age = -1))
+
+        // modify returns the original value when fromDynamicValue returns Left
+        assert(result)(equalTo(company))
+      },
+      test("modifyOption returns None when anyModified but fromDynamicValue fails") {
+        val validatedSchema = Company.schema.transform[Company](
+          c => {
+            if (c.ceo.age < 0 || c.employees.exists(_.age < 0))
+              throw new Exception("Ages must be non-negative")
+            c
+          },
+          identity
+        )
+        val traversal = SearchTraversal(validatedSchema.reflect, Person.schema.reflect)
+        val company   = Company("Acme", Person("CEO", 50), List(Person("Alice", 30)))
+
+        val result = traversal.modifyOption(company, p => p.copy(age = -1))
+
+        // modifyOption returns None when anyModified=true but fromDynamicValue returns Left
+        assert(result)(isNone)
+      },
+      test("modifyOrFail returns Left with WrappingError when anyModified but fromDynamicValue fails") {
+        val validatedSchema = Company.schema.transform[Company](
+          c => {
+            if (c.ceo.age < 0 || c.employees.exists(_.age < 0))
+              throw new Exception("Ages must be non-negative")
+            c
+          },
+          identity
+        )
+        val traversal = SearchTraversal(validatedSchema.reflect, Person.schema.reflect)
+        val company   = Company("Acme", Person("CEO", 50), List(Person("Alice", 30)))
+
+        val result = traversal.modifyOrFail(company, p => p.copy(age = -1))
+
+        // modifyOrFail returns Left with WrappingError wrapping the SchemaError
+        assert(result)(isLeft) &&
+        assert(result.swap.toOption.get.errors.head)(isSubtype[OpticCheck.WrappingError](anything))
       }
     ),
     suite("PrefixedSearchTraversal toString and toDynamic")(
@@ -865,14 +1163,226 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed = Traversal(containerToPC, search)
         val str      = composed.toString
         // Should include both the prism and search parts
-        assert(str)(containsString("search"))
+        assert(str)(containsString("search")) &&
+        assert(str)(containsString("PersonContainer"))
       },
       test("toDynamic includes prefix and search nodes") {
         val search   = SearchTraversal[PersonContainer, Person]
         val composed = Traversal(containerToPC, search)
         val dynamic  = composed.toDynamic
         // Should have at least 2 nodes (prism + search)
-        assert(dynamic.nodes.length >= 2)(isTrue)
+        assert(dynamic.nodes.length >= 2)(isTrue) &&
+        assert(dynamic.nodes.exists(_.isInstanceOf[DynamicOptic.Node.TypeSearch]))(isTrue) &&
+        assert(dynamic.nodes.exists(_.isInstanceOf[DynamicOptic.Node.Case]))(isTrue)
+      }
+    ),
+    suite("Traversal.apply companion routing - untested branches")(
+      // Traversal.apply(Traversal, Traversal): case (search: SearchTraversal, _) with non-SearchTraversal right (line 1202)
+      test("Traversal(SearchTraversal, non-SearchTraversal Traversal) creates ComposedSearchTraversal") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val searchTeam                             = SearchTraversal[Department, Team]
+        val searchPersonName: Traversal[Team, String] = SearchTraversal[Team, Person].apply(personNameLens)
+        // searchPersonName is a ComposedSearchTraversal (not SearchTraversal), so hits case 2
+        val composed = Traversal(searchTeam: Traversal[Department, Team], searchPersonName)
+
+        val names = composed.fold[List[String]](dept)(List.empty, (acc, name) => acc :+ name)
+        assert(names.sorted)(equalTo(List("Dev", "Lead")))
+      },
+      // Traversal.apply(Traversal, Traversal): case (prefixed: PrefixedSearchTraversal, _) (line 1208)
+      test("Traversal(PrefixedSearchTraversal, SearchTraversal) via companion apply") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(
+            Team("Frontend", Person("Lead", 35), List(Person("Dev1", 28))),
+            Team("Backend", Person("BE Lead", 38), List(Person("Dev2", 30)))
+          )
+        )
+        val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
+        val searchPerson                             = SearchTraversal[Team, Person]
+        val prefixed: Traversal[Department, Person] =
+          Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
+        val searchString = SearchTraversal[Person, String]
+        // Call companion's apply(Traversal, Traversal) where first is PrefixedSearchTraversal
+        val composed = Traversal(prefixed, searchString)
+
+        val names = composed.fold[List[String]](dept)(List.empty, (acc, name) => acc :+ name)
+        assert(names.sorted)(equalTo(List("BE Lead", "Dev1", "Dev2", "Lead")))
+      },
+      // Traversal.apply(Traversal, Traversal): case (_, search: SearchTraversal) with TraversalImpl left (line 1211)
+      test("Traversal(regular TraversalImpl, SearchTraversal) creates PrefixedSearchTraversal") {
+        val containers: List[Container] =
+          List(PersonContainer(Person("Alice", 30)), StringContainer("hello"))
+        val listTraversal = Traversal.listValues(Container.schema.reflect)
+        val searchPerson  = SearchTraversal[Container, Person]
+        val composed      = Traversal(listTraversal, searchPerson)
+
+        val names = composed.fold[List[String]](containers)(List.empty, (acc, p) => acc :+ p.name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      // Traversal.apply(Traversal, Traversal): case (_, composed: ComposedSearchTraversal) with TraversalImpl left (line 1214)
+      test("Traversal(regular TraversalImpl, ComposedSearchTraversal) creates PrefixedSearchTraversal") {
+        val containers: List[Container] =
+          List(PersonContainer(Person("Alice", 30)), StringContainer("hello"))
+        val listTraversal                          = Traversal.listValues(Container.schema.reflect)
+        val composedSearch: Traversal[Container, String] =
+          SearchTraversal[Container, Person].apply(personNameLens)
+        val composed = Traversal(listTraversal, composedSearch)
+
+        val names = composed.fold[List[String]](containers)(List.empty, (acc, name) => acc :+ name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      // Traversal.apply(Traversal, Traversal): case (_, prefixed: PrefixedSearchTraversal) with TraversalImpl left (line 1217)
+      test("Traversal(regular TraversalImpl, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
+        val containers: List[Container] =
+          List(PersonContainer(Person("Alice", 30)), StringContainer("hello"))
+        val listTraversal = Traversal.listValues(Container.schema.reflect)
+        val searchPerson  = SearchTraversal[Container, Person]
+        val searchString  = SearchTraversal[Person, String]
+        val prefixedSearch: Traversal[Container, String] =
+          Traversal.PrefixedSearchTraversal[Container, Person, String](searchPerson, searchString)
+        val composed = Traversal(listTraversal, prefixedSearch)
+
+        val names = composed.fold[List[String]](containers)(List.empty, (acc, name) => acc :+ name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      // Traversal.apply(Traversal, Prism): case composed: ComposedSearchTraversal (line 1255)
+      test("Traversal(ComposedSearchTraversal, Prism) delegates to composed.apply") {
+        val holder = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val searchContainer                                  = SearchTraversal[ContainerHolder, Container]
+        val identitySearch                                   = SearchTraversal[Container, Container]
+        val composedLeft: Traversal[ContainerHolder, Container] = searchContainer(identitySearch)
+        val result                                           = Traversal(composedLeft, containerToPC)
+
+        val names = result.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      // Traversal.apply(Traversal, Optional): case composed: ComposedSearchTraversal (line 1274)
+      test("Traversal(ComposedSearchTraversal, Optional) delegates to composed.apply") {
+        val holder = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val searchContainer                                  = SearchTraversal[ContainerHolder, Container]
+        val identitySearch                                   = SearchTraversal[Container, Container]
+        val composedLeft: Traversal[ContainerHolder, Container] = searchContainer(identitySearch)
+        val result                                           = Traversal(composedLeft, containerToPerson)
+
+        val names = result.fold[List[String]](holder)(List.empty, (acc, p) => acc :+ p.name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      // Traversal.apply(Lens, Traversal): case composed: ComposedSearchTraversal (line 1293)
+      test("Traversal(Lens, ComposedSearchTraversal) creates PrefixedSearchTraversal") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val teamsLens = Lens(
+          Department.schema.reflect.asInstanceOf[Reflect.Record.Bound[Department]],
+          Department.schema.reflect
+            .asInstanceOf[Reflect.Record.Bound[Department]]
+            .fields(2)
+            .asInstanceOf[Term.Bound[Department, List[Team]]]
+        )
+        val composedSearch: Traversal[List[Team], String] =
+          SearchTraversal[List[Team], Person].apply(personNameLens)
+        val result = Traversal(teamsLens, composedSearch)
+
+        val names = result.fold[List[String]](dept)(List.empty, (acc, name) => acc :+ name)
+        assert(names.sorted)(equalTo(List("Dev", "Lead")))
+      },
+      // Traversal.apply(Lens, Traversal): case prefixed: PrefixedSearchTraversal (line 1295)
+      test("Traversal(Lens, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
+        val dept = Department(
+          "Engineering",
+          Person("Director", 45),
+          List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
+        )
+        val teamsLens = Lens(
+          Department.schema.reflect.asInstanceOf[Reflect.Record.Bound[Department]],
+          Department.schema.reflect
+            .asInstanceOf[Reflect.Record.Bound[Department]]
+            .fields(2)
+            .asInstanceOf[Term.Bound[Department, List[Team]]]
+        )
+        val searchTeam   = SearchTraversal[List[Team], Team]
+        val searchPerson = SearchTraversal[Team, Person]
+        val prefixedSearch: Traversal[List[Team], Person] =
+          Traversal.PrefixedSearchTraversal[List[Team], Team, Person](searchTeam, searchPerson)
+        val result = Traversal(teamsLens, prefixedSearch)
+
+        val names = result.fold[List[String]](dept)(List.empty, (acc, p) => acc :+ p.name)
+        assert(names.sorted)(equalTo(List("Dev", "Lead")))
+      },
+      // Traversal.apply(Prism, Traversal): case prefixed: PrefixedSearchTraversal (line 1314)
+      test("Traversal(Prism, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
+        val container: Container = PersonContainer(Person("Alice", 30))
+        val searchPerson         = SearchTraversal[PersonContainer, Person]
+        val searchString         = SearchTraversal[Person, String]
+        val prefixedSearch: Traversal[PersonContainer, String] =
+          Traversal.PrefixedSearchTraversal[PersonContainer, Person, String](searchPerson, searchString)
+        val result = Traversal(containerToPC, prefixedSearch)
+
+        val names = result.fold[List[String]](container)(List.empty, (acc, name) => acc :+ name)
+        assert(names)(equalTo(List("Alice")))
+      },
+      // Traversal.apply(Optional, Traversal): case prefixed: PrefixedSearchTraversal (line 1333)
+      test("Traversal(Optional, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
+        val container: Container = PersonContainer(Person("Alice", 30))
+        val searchPerson         = SearchTraversal[Person, Person]
+        val searchString         = SearchTraversal[Person, String]
+        val prefixedSearch: Traversal[Person, String] =
+          Traversal.PrefixedSearchTraversal[Person, Person, String](searchPerson, searchString)
+        val result = Traversal(containerToPerson, prefixedSearch)
+
+        val names = result.fold[List[String]](container)(List.empty, (acc, name) => acc :+ name)
+        assert(names)(equalTo(List("Alice")))
+      }
+    ),
+    suite("searchModify short-circuit optimizations")(
+      test("Record no-change short-circuit returns original when identity modify applied") {
+        // When modify function returns the same value, the Record short-circuit should
+        // detect no change and return the original structure unchanged
+        val company   = Company("Acme", Person("CEO", 50), List(Person("Alice", 30)))
+        val traversal = SearchTraversal[Company, Person]
+
+        // Identity modification — all persons are "modified" to same values
+        val modified = traversal.modify(company, identity)
+
+        // Should be equal to original (short-circuit should preserve structure)
+        assert(modified)(equalTo(company))
+      },
+      test("Variant no-change short-circuit returns original when no inner change") {
+        // Test that Variant payloads that don't change are short-circuited
+        val holder    = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val traversal = SearchTraversal[ContainerHolder, Person]
+
+        // Identity modification
+        val modified = traversal.modify(holder, identity)
+
+        assert(modified)(equalTo(holder))
+      },
+      test("Sequence no-change short-circuit returns original when elements unchanged") {
+        // Test that Sequence elements that don't change are short-circuited
+        val company   = Company("Acme", Person("CEO", 50), List(Person("Alice", 30), Person("Bob", 25)))
+        val traversal = SearchTraversal[Company, Person]
+
+        // Identity modification
+        val modified = traversal.modify(company, identity)
+
+        assert(modified)(equalTo(company))
+      },
+      test("Map no-change short-circuit returns original when entries unchanged") {
+        // Test that Map entries that don't change are short-circuited
+        val registry  = Registry(Map("a" -> Person("Alice", 30), "b" -> Person("Bob", 25)))
+        val traversal = SearchTraversal[Registry, Person]
+
+        // Identity modification
+        val modified = traversal.modify(registry, identity)
+
+        assert(modified)(equalTo(registry))
       }
     )
   )
