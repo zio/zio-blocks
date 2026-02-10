@@ -91,7 +91,7 @@ object TransactionBoundaryExample {
         val rawConn = @@.unscoped(conn)
         // beginTransaction returns Resource[DbTransaction] - must allocate it!
         val tx = txScope.allocate(rawConn.beginTransaction("tx-001"))
-        val t = @@.unscoped(tx)
+        val t  = @@.unscoped(tx)
 
         val rows = t.execute("INSERT INTO users VALUES (1, 'Alice')")
         t.commit()
@@ -104,7 +104,7 @@ object TransactionBoundaryExample {
       val result2 = connScope.scoped { txScope =>
         val rawConn = @@.unscoped(conn)
         val tx      = txScope.allocate(rawConn.beginTransaction("tx-002"))
-        val t = @@.unscoped(tx)
+        val t       = @@.unscoped(tx)
 
         val rows1 = t.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
         val rows2 = t.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
@@ -118,7 +118,7 @@ object TransactionBoundaryExample {
       val result3 = connScope.scoped { txScope =>
         val rawConn = @@.unscoped(conn)
         val tx      = txScope.allocate(rawConn.beginTransaction("tx-003"))
-        val t = @@.unscoped(tx)
+        val t       = @@.unscoped(tx)
 
         t.execute("DELETE FROM audit_log")
         println("    [App] Not committing - scope exit will trigger auto-rollback...")

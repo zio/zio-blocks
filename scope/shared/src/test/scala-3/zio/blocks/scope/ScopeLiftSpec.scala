@@ -13,7 +13,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
 
   // Test types
   class Database extends AutoCloseable {
-    var closed = false
+    var closed        = false
     def close(): Unit = closed = true
   }
 
@@ -46,7 +46,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         assertTrue(result)
       },
       test("Unit escapes from child scope as Unit") {
-        var sideEffect = false
+        var sideEffect   = false
         val result: Unit = Scope.global.scoped { parent =>
           parent.scoped { child =>
             sideEffect = true
@@ -74,7 +74,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         // parent.scoped { child => parentDb } returns Database @@ parent.Tag
         // because ScopeLift.scoped matches (parent.Tag <:< parent.Tag)
         Scope.global.scoped { parent =>
-          val parentDb: Database @@ parent.Tag = parent.allocate(Resource(new Database))
+          val parentDb: Database @@ parent.Tag  = parent.allocate(Resource(new Database))
           val escapedDb: Database @@ parent.Tag = parent.scoped { child =>
             parentDb // Return parent-scoped value from child - lifts as-is
           }
@@ -194,7 +194,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
             // Work with scoped values using for-comprehension
-            val db = child.allocate(Resource("data"))
+            val db    = child.allocate(Resource("data"))
             val upper = db.map(_.toUpperCase)
             // Extract using Scoped's run (package-private, but we're in scope package)
             // NO - we should NOT use run
@@ -205,8 +205,8 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         assertTrue(result == "COMPUTED RESULT")
       },
       test("nested scopes with unscoped return values") {
-        var innerRan = false
-        var outerRan = false
+        var innerRan    = false
+        var outerRan    = false
         val result: Int = Scope.global.scoped { outer =>
           outer.defer { outerRan = true }
           outer.scoped { inner =>

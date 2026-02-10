@@ -183,7 +183,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
         var captured: Boolean = false
         Scope.global.scoped { parent =>
           val parentDb: Database @@ parent.Tag = parent.allocate(Resource(new Database))
-          val result: Database @@ parent.Tag = parent.scoped { _ =>
+          val result: Database @@ parent.Tag   = parent.scoped { _ =>
             parentDb // parent-tagged value can be returned from child
           }
           parent.$(result) { db =>

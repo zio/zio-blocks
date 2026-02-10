@@ -12,7 +12,7 @@ import zio.test.Assertion._
 object ScopeLiftSpec extends ZIOSpecDefault {
 
   class Database extends AutoCloseable {
-    var closed = false
+    var closed        = false
     def close(): Unit = closed = true
   }
 
@@ -71,7 +71,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
     suite("Parent-scoped values can be returned from child")(
       test("parent-tagged value returns from child as-is") {
         Scope.global.scoped { parent =>
-          val parentDb: Database @@ parent.Tag = parent.allocate(Resource(new Database))
+          val parentDb: Database @@ parent.Tag  = parent.allocate(Resource(new Database))
           val escapedDb: Database @@ parent.Tag = parent.scoped { _ =>
             parentDb
           }
@@ -189,8 +189,8 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         assertTrue(result == "COMPUTED RESULT")
       },
       test("nested scopes with unscoped return values") {
-        var innerRan = false
-        var outerRan = false
+        var innerRan    = false
+        var outerRan    = false
         val result: Int = Scope.global.scoped { outer =>
           outer.defer { outerRan = true }
           outer.scoped { inner =>

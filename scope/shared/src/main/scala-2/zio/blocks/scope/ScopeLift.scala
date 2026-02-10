@@ -1,8 +1,8 @@
 package zio.blocks.scope
 
 /**
- * Typeclass that controls what types can be returned from a child scope and
- * how they are lifted to the parent scope.
+ * Typeclass that controls what types can be returned from a child scope and how
+ * they are lifted to the parent scope.
  *
  * When calling `scope.scoped { child => ... }`, the return type must have a
  * `ScopeLift` instance. This serves two purposes:
@@ -39,8 +39,8 @@ trait ScopeLift[A, S] {
   /**
    * The output type after lifting.
    *
-   * For unscoped types and global scope, this is the raw type `A`.
-   * For parent-scoped values `B @@ T`, this stays as `B @@ T`.
+   * For unscoped types and global scope, this is the raw type `A`. For
+   * parent-scoped values `B @@ T`, this stays as `B @@ T`.
    */
   type Out
 
@@ -121,8 +121,8 @@ trait ScopeLiftLowPriority {
    * Parent-scoped values lift as-is.
    *
    * A value `B @@ T` is safe to return from a child of scope `S` when
-   * `S <:< T`, meaning `T` is `S` or a supertype. Such values are scoped to
-   * the parent or an ancestor, so they outlive the child scope.
+   * `S <:< T`, meaning `T` is `S` or a supertype. Such values are scoped to the
+   * parent or an ancestor, so they outlive the child scope.
    */
   implicit def scoped[B, T, S](implicit ev: S <:< T): ScopeLift.Aux[B @@ T, S, B @@ T] =
     new ScopeLift[B @@ T, S] {

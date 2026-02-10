@@ -144,7 +144,7 @@ object ScopeScala2Spec extends ZIOSpecDefault {
         var captured: String = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation = db.map { d =>
+          val computation               = db.map { d =>
             val result = d.query("mapped")
             captured = result
             result
@@ -157,7 +157,7 @@ object ScopeScala2Spec extends ZIOSpecDefault {
         var captured: String = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation = db.map(_.query("a")).map { s =>
+          val computation               = db.map(_.query("a")).map { s =>
             val result = s.toUpperCase
             captured = result
             result

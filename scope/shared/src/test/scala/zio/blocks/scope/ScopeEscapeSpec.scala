@@ -75,7 +75,7 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         // Return raw Unscoped value from scoped block - ScopeLift extracts it
         val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
-            var captured: String = null
+            var captured: String         = null
             val str: String @@ child.Tag = child.allocate(zio.blocks.scope.Resource("hello"))
             child.$(str) { s =>
               captured = s.toUpperCase

@@ -144,7 +144,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation = db.map { d =>
+          val computation               = db.map { d =>
             val result = d.query("mapped")
             captured = result
             result
@@ -157,7 +157,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation = db.map(_.query("a")).map { s =>
+          val computation               = db.map(_.query("a")).map { s =>
             val result = s.toUpperCase
             captured = result
             result
@@ -170,7 +170,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation = for {
+          val computation               = for {
             d <- db
             r <- Scoped(d.query("chained"))
           } yield {
@@ -194,8 +194,8 @@ object ScopeScala3Spec extends ZIOSpecDefault {
           def close(): Unit   = closed = true
         }
 
-        var poolClosed = false
-        var connClosed = false
+        var poolClosed              = false
+        var connClosed              = false
         var captured: String | Null = null
 
         Scope.global.scoped { scope =>

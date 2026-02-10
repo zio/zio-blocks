@@ -12,8 +12,8 @@ package zio.blocks.scope
  *   - '''[[Unscoped]] types''': Pure data (primitives, strings, collections)
  *     can always be returned safely.
  *   - '''Scoped values with parent-level tags''': `A @@ T` where `T` is the
- *     parent's tag or above (i.e., `ParentTag <:< T`). These values outlive
- *     the child scope.
+ *     parent's tag or above (i.e., `ParentTag <:< T`). These values outlive the
+ *     child scope.
  *
  * ==Rejected Types==
  *
@@ -39,8 +39,8 @@ object SafeToReturn extends SafeToReturnMidPriority {
   /**
    * Anything can be returned from global scope (highest priority).
    *
-   * The global scope never closes during normal execution, so there's no
-   * risk of use-after-close. This matches [[ScopeEscape.globalScope]].
+   * The global scope never closes during normal execution, so there's no risk
+   * of use-after-close. This matches [[ScopeEscape.globalScope]].
    */
   implicit def globalScope[A]: SafeToReturn[A, Scope.GlobalTag] =
     instance.asInstanceOf[SafeToReturn[A, Scope.GlobalTag]]
@@ -78,8 +78,8 @@ trait SafeToReturnLowPriority {
    * Scoped values can be returned if their tag is at parent level or above.
    *
    * A value `B @@ T` is safe to return from a child of scope `S` when
-   * `S <:< T`, meaning `T` is `S` or a supertype. Such values are scoped to
-   * the parent or an ancestor, so they outlive the child scope.
+   * `S <:< T`, meaning `T` is `S` or a supertype. Such values are scoped to the
+   * parent or an ancestor, so they outlive the child scope.
    */
   implicit def scoped[B, T, S](implicit ev: S <:< T): SafeToReturn[B @@ T, S] =
     SafeToReturn.instance.asInstanceOf[SafeToReturn[B @@ T, S]]

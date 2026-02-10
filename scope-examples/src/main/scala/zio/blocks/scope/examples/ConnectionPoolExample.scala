@@ -106,8 +106,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>
       // pool.acquire returns Resource[PooledConnection] - must allocate!
-      val conn = workScope.allocate(rawPool.acquire)
-      val c = @@.unscoped(conn)
+      val conn   = workScope.allocate(rawPool.acquire)
+      val c      = @@.unscoped(conn)
       val result = c.execute("SELECT * FROM service_a_table")
       println(s"  [ServiceA] Got: $result")
       // Connection automatically released when workScope exits
@@ -116,8 +116,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
 
     println("--- ServiceB doing work ---")
     appScope.scoped { workScope =>
-      val conn = workScope.allocate(rawPool.acquire)
-      val c = @@.unscoped(conn)
+      val conn   = workScope.allocate(rawPool.acquire)
+      val c      = @@.unscoped(conn)
       val result = c.execute("SELECT * FROM service_b_table")
       println(s"  [ServiceB] Got: $result")
     }
@@ -129,8 +129,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
       // Both allocate from the same pool, each gets their own connection
       val connA = workScope.allocate(rawPool.acquire)
       val connB = workScope.allocate(rawPool.acquire)
-      val a = @@.unscoped(connA)
-      val b = @@.unscoped(connB)
+      val a     = @@.unscoped(connA)
+      val b     = @@.unscoped(connB)
 
       println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
       a.execute("UPDATE table_a SET x = 1")

@@ -114,7 +114,7 @@ class SecretStore extends AutoCloseable {
   println("SecretStore stays scoped:")
   Scope.global.scoped { scope =>
     val secrets = scope.allocate(Resource(new SecretStore))
-    val s = @@.unscoped(secrets)
+    val s       = @@.unscoped(secrets)
 
     val dbPassword = s.getSecret("database.password")
     println(s"  Retrieved secret: $dbPassword")

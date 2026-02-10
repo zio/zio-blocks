@@ -68,10 +68,11 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *
    * The return type `A` must satisfy [[ScopeLift]], which allows:
    *   - [[Unscoped]] types (pure data) - lifted as raw value
-   *   - Scoped values `B @@ T` where `T` is this scope's tag or above - lifted as-is
+   *   - Scoped values `B @@ T` where `T` is this scope's tag or above - lifted
+   *     as-is
    *
-   * This prevents returning closures that capture the child scope, which
-   * would allow use-after-close of child-scoped resources.
+   * This prevents returning closures that capture the child scope, which would
+   * allow use-after-close of child-scoped resources.
    *
    * @param f
    *   the function to execute with the child scope
