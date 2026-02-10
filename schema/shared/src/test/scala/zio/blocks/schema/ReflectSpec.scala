@@ -953,6 +953,34 @@ object ReflectSpec extends SchemaBaseSpec {
         val optic       = DynamicOptic.root.search(tupleTypeId).field("_1")
         val result      = nestedRecord.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      },
+      test("TypeSearch returns None when all Variant cases miss") {
+        // eitherReflect is Either[Int, Long] — search for Float which is in neither case
+        val optic  = DynamicOptic.root.search[Float]
+        val result = eitherReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("TypeSearch returns None when Sequence element doesn't match") {
+        val listReflect = Reflect.list(Reflect.int[Binding])
+        val optic       = DynamicOptic.root.search[Float]
+        val result      = listReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("TypeSearch returns None when Map neither key nor value matches") {
+        val mapReflect = Reflect.map(Reflect.string[Binding], Reflect.long[Binding])
+        val optic      = DynamicOptic.root.search[Float]
+        val result     = mapReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("TypeSearch returns None when Wrapper wrapped doesn't match") {
+        val optic  = DynamicOptic.root.search[Float]
+        val result = wrapperReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("TypeSearch returns None on Dynamic terminal node") {
+        val optic  = DynamicOptic.root.search[Float]
+        val result = Reflect.dynamic[Binding].get(optic)
+        assert(result)(isNone)
       }
     ),
     suite("Reflect.get with SchemaSearch")(
@@ -982,7 +1010,7 @@ object ReflectSpec extends SchemaBaseSpec {
         val pattern      = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("string"))))
         val optic        = DynamicOptic.root.searchSchema(pattern)
         val result       = personSchema.reflect.get(optic)
-        assert(result.isDefined)(isTrue)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.of[PersonRecord])))
       },
       test("SchemaSearch with Sequence pattern matches element type") {
         val listReflect = Reflect.list(Reflect.string[Binding])
@@ -1013,6 +1041,174 @@ object ReflectSpec extends SchemaBaseSpec {
         val pattern      = SchemaRepr.Primitive("string")
         val optic        = DynamicOptic.root.field("_2").searchSchema(pattern)
         val result       = nestedSchema.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
+      },
+      // 10a: primitiveTypeNameMatches — exercise all untested primitive branches
+      test("SchemaSearch Primitive pattern matches boolean") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("boolean"))
+        assert(Reflect.boolean[Binding].get(optic))(isSome(equalTo(Reflect.boolean[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches byte") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("byte"))
+        assert(Reflect.byte[Binding].get(optic))(isSome(equalTo(Reflect.byte[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches short") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("short"))
+        assert(Reflect.short[Binding].get(optic))(isSome(equalTo(Reflect.short[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches long") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("long"))
+        assert(Reflect.long[Binding].get(optic))(isSome(equalTo(Reflect.long[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches float") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("float"))
+        assert(Reflect.float[Binding].get(optic))(isSome(equalTo(Reflect.float[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches double") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("double"))
+        assert(Reflect.double[Binding].get(optic))(isSome(equalTo(Reflect.double[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches char") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("char"))
+        assert(Reflect.char[Binding].get(optic))(isSome(equalTo(Reflect.char[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches bigint") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("bigint"))
+        assert(Reflect.bigInt[Binding].get(optic))(isSome(equalTo(Reflect.bigInt[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches bigdecimal") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("bigdecimal"))
+        assert(Reflect.bigDecimal[Binding].get(optic))(isSome(equalTo(Reflect.bigDecimal[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches uuid") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("uuid"))
+        assert(Reflect.uuid[Binding].get(optic))(isSome(equalTo(Reflect.uuid[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches currency") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("currency"))
+        assert(Reflect.currency[Binding].get(optic))(isSome(equalTo(Reflect.currency[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches instant") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("instant"))
+        assert(Reflect.instant[Binding].get(optic))(isSome(equalTo(Reflect.instant[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches localdate") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("localdate"))
+        assert(Reflect.localDate[Binding].get(optic))(isSome(equalTo(Reflect.localDate[Binding])))
+      },
+      test("SchemaSearch Primitive pattern matches duration") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("duration"))
+        assert(Reflect.duration[Binding].get(optic))(isSome(equalTo(Reflect.duration[Binding])))
+      },
+      // 10b: matchesSchemaRepr — untested SchemaRepr patterns
+      // TODO: Variant case names may differ from "Left"/"Right" — investigate caseByName convention
+      // test("SchemaSearch Variant pattern matches variant type") {
+      //   // Use file-level eitherReflect: Variant[Either[Int, Long]]
+      //   val pattern = SchemaRepr.Variant(Vector(
+      //     ("Left", SchemaRepr.Primitive("int")),
+      //     ("Right", SchemaRepr.Primitive("long"))
+      //   ))
+      //   val optic  = DynamicOptic.root.searchSchema(pattern)
+      //   val result = eitherReflect.get(optic)
+      //   assert(result)(isSome) &&
+      //   assert(result.get.isVariant)(isTrue)
+      // },
+      test("SchemaSearch Optional pattern matches Option type") {
+        val optionReflect = Schema[Option[Int]].reflect
+        val pattern       = SchemaRepr.Optional(SchemaRepr.Primitive("int"))
+        val optic         = DynamicOptic.root.searchSchema(pattern)
+        val result        = optionReflect.get(optic)
+        assert(result)(isSome)
+      },
+      test("SchemaSearch Primitive pattern returns false for non-Primitive node") {
+        // PersonRecord has name: String and age: Int — no UUID field anywhere
+        val optic  = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("uuid"))
+        val result = Schema.derived[PersonRecord].reflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Record pattern does not match when field is missing") {
+        val pattern = SchemaRepr.Record(Vector(("nonexistent", SchemaRepr.Primitive("string"))))
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = Schema.derived[PersonRecord].reflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Record pattern does not match when field type is wrong") {
+        // PersonRecord.name is String, not Int
+        val pattern = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("int"))))
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = Schema.derived[PersonRecord].reflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Record pattern does not match non-Record node") {
+        val pattern = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("string"))))
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = Reflect.int[Binding].get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Sequence pattern does not match when element type differs") {
+        val listReflect = Reflect.list(Reflect.string[Binding])
+        val pattern     = SchemaRepr.Sequence(SchemaRepr.Primitive("int"))
+        val optic       = DynamicOptic.root.searchSchema(pattern)
+        val result      = listReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Map pattern does not match when key type differs") {
+        val mapReflect = Reflect.map(Reflect.string[Binding], Reflect.int[Binding])
+        val pattern    = SchemaRepr.Map(SchemaRepr.Primitive("int"), SchemaRepr.Primitive("int"))
+        val optic      = DynamicOptic.root.searchSchema(pattern)
+        val result     = mapReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Map pattern does not match when value type differs") {
+        val mapReflect = Reflect.map(Reflect.string[Binding], Reflect.int[Binding])
+        val pattern    = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("string"))
+        val optic      = DynamicOptic.root.searchSchema(pattern)
+        val result     = mapReflect.get(optic)
+        assert(result)(isNone)
+      },
+      test("SchemaSearch Nominal pattern does not match different type name") {
+        val optic  = DynamicOptic.root.searchSchema(SchemaRepr.Nominal("NonExistent"))
+        val result = Reflect.int[Binding].get(optic)
+        assert(result)(isNone)
+      },
+      // 10c: schemaSearch DFS traversal gaps
+      test("SchemaSearch DFS traverses through Variant cases") {
+        // eitherReflect is Either[Int, Long] — search for Int inside Variant
+        val pattern = SchemaRepr.Primitive("int")
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = eitherReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("SchemaSearch DFS traverses through Wrapper nodes") {
+        // wrapperReflect wraps Long
+        val pattern = SchemaRepr.Primitive("long")
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = wrapperReflect.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.long)))
+      },
+      test("SchemaSearch DFS traverses through Map as child node") {
+        // Root is Record, Map is a child field — exercises DFS into Map children
+        val schema  = Schema.derived[(Boolean, Map[String, Int])].reflect
+        val pattern = SchemaRepr.Primitive("int")
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = schema.get(optic)
+        assert(result.map(_.typeId))(isSome(equalTo(TypeId.int)))
+      },
+      test("SchemaSearch returns None on Dynamic terminal node") {
+        val pattern = SchemaRepr.Primitive("string")
+        val optic   = DynamicOptic.root.searchSchema(pattern)
+        val result  = Reflect.dynamic[Binding].get(optic)
+        assert(result)(isNone)
+      },
+      // 10e: SchemaSearch path composition — searchSchema then field
+      test("SchemaSearch with path composition: searchSchema then field") {
+        val nestedSchema = Schema.derived[(Int, PersonRecord)].reflect
+        val pattern = SchemaRepr.Record(Vector(
+          ("name", SchemaRepr.Primitive("string")),
+          ("age", SchemaRepr.Primitive("int"))
+        ))
+        val optic  = DynamicOptic.root.searchSchema(pattern).field("name")
+        val result = nestedSchema.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
       }
     )
