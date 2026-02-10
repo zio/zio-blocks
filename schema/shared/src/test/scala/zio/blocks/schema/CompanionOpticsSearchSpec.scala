@@ -173,10 +173,6 @@ object CompanionOpticsSearchSpec extends SchemaBaseSpec {
         assert(modified.employees.map(_.name))(equalTo(List("ALICE", "BOB")))
       }
     ),
-    // NOTE: The following tests use explicit imports for `each` extension method.
-    // This is a workaround for a Scala 3 limitation where extension methods defined in
-    // CompanionOptics[S] are not automatically in scope within the optic macro lambda.
-    // See Plan.md Phase 11 known issues.
     suite("optic(_.each.searchFor[T]) - search after traversal") {
       import ContainerHolder._
       suite("with imported each extension")(

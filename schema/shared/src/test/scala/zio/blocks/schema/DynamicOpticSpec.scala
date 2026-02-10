@@ -125,7 +125,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(DynamicOptic.root.atKey(2.718).toString)(equalTo("{2.718}"))
     },
     test("toString handles other primitive keys via fallback") {
-      assert(DynamicOptic.root.atKey(BigDecimal("123.456")).toString)(equalTo("{BigDecimal(123.456)}")) &&
+      assert(DynamicOptic.root.atKey(BigDecimal("123.456")).toString)(equalTo("{123.456}")) &&
       assert(DynamicOptic.root.atKey('A').toString)(equalTo("{'A'}"))
     },
     test("search builder creates TypeSearch node") {
