@@ -1195,6 +1195,715 @@ object NestedMigrationSpec extends SchemaBaseSpec {
         assertTrue(actions.size == 1)
         assertTrue(actions.head.at.toString == ".address.city")
       }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // TransformField - direct application
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("TransformField - direct application")(
+      test("applies single action to named field") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("Unknown")))
+        )
+
+        val input = dynamicRecord(
+          "name"    -> dynamicString("Alice"),
+          "address" -> dynamicRecord("street" -> dynamicString("123 Main St"))
+        )
+
+        val expected = dynamicRecord(
+          "name"    -> dynamicString("Alice"),
+          "address" -> dynamicRecord("street" -> dynamicString("123 Main St"), "city" -> dynamicString("Unknown"))
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("applies multiple actions to named field in order") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("Unknown")),
+            MigrationAction.Rename(DynamicOptic.root, "street", "streetAddress")
+          )
+        )
+
+        val input = dynamicRecord(
+          "name"    -> dynamicString("Alice"),
+          "address" -> dynamicRecord("street" -> dynamicString("123 Main St"))
+        )
+
+        val expected = dynamicRecord(
+          "name"    -> dynamicString("Alice"),
+          "address" -> dynamicRecord(
+            "streetAddress" -> dynamicString("123 Main St"),
+            "city"          -> dynamicString("Unknown")
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("empty fieldActions leaves field unchanged") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector.empty
+        )
+
+        val input = dynamicRecord(
+          "name"    -> dynamicString("Alice"),
+          "address" -> dynamicRecord("street" -> dynamicString("123 Main St"))
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(input))
+      },
+      test("returns FieldNotFound when target field is missing") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "nonexistent",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input = dynamicRecord("name" -> dynamicString("Alice"))
+
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.FieldNotFound]))
+      },
+      test("returns ExpectedRecord when value is not a record") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("X")))
+        )
+
+        val result = action.apply(dynamicString("not a record"))
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.ExpectedRecord]))
+      },
+      test("propagates error when a nested action fails") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("X")),
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "missing",
+              Vector(MigrationAction.AddField(DynamicOptic.root, "y", Resolved.Literal.int(0)))
+            )
+          )
+        )
+
+        val input = dynamicRecord(
+          "address" -> dynamicRecord("street" -> dynamicString("123 Main St"))
+        )
+
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+      },
+      test("nested TransformField within TransformField") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "city",
+              Vector(MigrationAction.AddField(DynamicOptic.root, "country", Resolved.Literal.string("USA")))
+            )
+          )
+        )
+
+        val input = dynamicRecord(
+          "address" -> dynamicRecord(
+            "city" -> dynamicRecord("name" -> dynamicString("NYC"))
+          )
+        )
+
+        val expected = dynamicRecord(
+          "address" -> dynamicRecord(
+            "city" -> dynamicRecord("name" -> dynamicString("NYC"), "country" -> dynamicString("USA"))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // TransformEachElement - direct application
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("TransformEachElement - direct application")(
+      test("applies action to each element of a sequence field") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "addresses",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("Unknown")))
+        )
+
+        val input = dynamicRecord(
+          "name"      -> dynamicString("Alice"),
+          "addresses" -> dynamicSequence(
+            dynamicRecord("street" -> dynamicString("123 Main St")),
+            dynamicRecord("street" -> dynamicString("456 Oak Ave"))
+          )
+        )
+
+        val expected = dynamicRecord(
+          "name"      -> dynamicString("Alice"),
+          "addresses" -> dynamicSequence(
+            dynamicRecord("street" -> dynamicString("123 Main St"), "city" -> dynamicString("Unknown")),
+            dynamicRecord("street" -> dynamicString("456 Oak Ave"), "city" -> dynamicString("Unknown"))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("applies multiple actions to each element") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "count", Resolved.Literal.int(0)),
+            MigrationAction.Rename(DynamicOptic.root, "label", "title")
+          )
+        )
+
+        val input = dynamicRecord(
+          "items" -> dynamicSequence(
+            dynamicRecord("label" -> dynamicString("A")),
+            dynamicRecord("label" -> dynamicString("B"))
+          )
+        )
+
+        val expected = dynamicRecord(
+          "items" -> dynamicSequence(
+            dynamicRecord("title" -> dynamicString("A"), "count" -> dynamicInt(0)),
+            dynamicRecord("title" -> dynamicString("B"), "count" -> dynamicInt(0))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("empty sequence succeeds with no elements to transform") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input    = dynamicRecord("items" -> dynamicSequence())
+        val expected = dynamicRecord("items" -> dynamicSequence())
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("single element sequence") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "added", Resolved.Literal.string("yes")))
+        )
+
+        val input = dynamicRecord(
+          "items" -> dynamicSequence(dynamicRecord("name" -> dynamicString("only")))
+        )
+
+        val expected = dynamicRecord(
+          "items" -> dynamicSequence(dynamicRecord("name" -> dynamicString("only"), "added" -> dynamicString("yes")))
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("returns FieldNotFound when sequence field is missing") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "missing",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input  = dynamicRecord("name" -> dynamicString("Alice"))
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.FieldNotFound]))
+      },
+      test("returns ExpectedSequence when field is not a sequence") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "address",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input  = dynamicRecord("address" -> dynamicString("not a sequence"))
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.ExpectedSequence]))
+      },
+      test("returns ExpectedRecord when root is not a record") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val result = action.apply(dynamicString("not a record"))
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.ExpectedRecord]))
+      },
+      test("propagates error when action fails on an element") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "nested",
+              Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+            )
+          )
+        )
+
+        // Elements don't have "nested" field, so TransformField will fail
+        val input = dynamicRecord(
+          "items" -> dynamicSequence(dynamicRecord("name" -> dynamicString("A")))
+        )
+
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+      },
+      test("empty elementActions leaves each element unchanged") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector.empty
+        )
+
+        val input = dynamicRecord(
+          "items" -> dynamicSequence(
+            dynamicRecord("name" -> dynamicString("A")),
+            dynamicRecord("name" -> dynamicString("B"))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(input))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // TransformEachMapValue - direct application
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("TransformEachMapValue - direct application")(
+      test("applies action to each value in a Record-encoded map") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "scores",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "grade", Resolved.Literal.string("A")))
+        )
+
+        val input = dynamicRecord(
+          "name"   -> dynamicString("Alice"),
+          "scores" -> dynamicRecord(
+            "math"    -> dynamicRecord("score" -> dynamicInt(95)),
+            "english" -> dynamicRecord("score" -> dynamicInt(88))
+          )
+        )
+
+        val expected = dynamicRecord(
+          "name"   -> dynamicString("Alice"),
+          "scores" -> dynamicRecord(
+            "math"    -> dynamicRecord("score" -> dynamicInt(95), "grade" -> dynamicString("A")),
+            "english" -> dynamicRecord("score" -> dynamicInt(88), "grade" -> dynamicString("A"))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("applies action to each value in a Map-encoded map") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "extra", Resolved.Literal.string("added")))
+        )
+
+        val mapField = DynamicValue.Map(
+          (dynamicString("key1"), dynamicRecord("val" -> dynamicInt(1))),
+          (dynamicString("key2"), dynamicRecord("val" -> dynamicInt(2)))
+        )
+
+        val input = dynamicRecord("data" -> mapField)
+
+        val expectedMap = DynamicValue.Map(
+          (dynamicString("key1"), dynamicRecord("val" -> dynamicInt(1), "extra" -> dynamicString("added"))),
+          (dynamicString("key2"), dynamicRecord("val" -> dynamicInt(2), "extra" -> dynamicString("added")))
+        )
+
+        val expected = dynamicRecord("data" -> expectedMap)
+        val result   = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("empty Record-encoded map succeeds") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input    = dynamicRecord("data" -> dynamicRecord())
+        val expected = dynamicRecord("data" -> dynamicRecord())
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("empty Map-encoded map succeeds") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input    = dynamicRecord("data" -> DynamicValue.Map())
+        val expected = dynamicRecord("data" -> DynamicValue.Map())
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      },
+      test("returns FieldNotFound when map field is missing") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "missing",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input  = dynamicRecord("name" -> dynamicString("Alice"))
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.FieldNotFound]))
+      },
+      test("returns ExpectedMap when field is not a record or map") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val input  = dynamicRecord("data" -> dynamicSequence(dynamicInt(1)))
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.ExpectedMap]))
+      },
+      test("returns ExpectedRecord when root is not a record") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val result = action.apply(dynamicString("not a record"))
+        assertTrue(result.isLeft)
+        assertTrue(result.left.exists(_.isInstanceOf[MigrationError.ExpectedRecord]))
+      },
+      test("propagates error when action fails on a map value (Record)") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "missing",
+              Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+            )
+          )
+        )
+
+        val input = dynamicRecord(
+          "data" -> dynamicRecord("k1" -> dynamicRecord("v" -> dynamicInt(1)))
+        )
+
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+      },
+      test("propagates error when action fails on a map value (Map)") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "missing",
+              Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+            )
+          )
+        )
+
+        val mapField = DynamicValue.Map(
+          (dynamicString("k1"), dynamicRecord("v" -> dynamicInt(1)))
+        )
+
+        val input  = dynamicRecord("data" -> mapField)
+        val result = action.apply(input)
+        assertTrue(result.isLeft)
+      },
+      test("empty valueActions leaves each map value unchanged") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector.empty
+        )
+
+        val input = dynamicRecord(
+          "data" -> dynamicRecord(
+            "k1" -> dynamicRecord("v" -> dynamicInt(1)),
+            "k2" -> dynamicRecord("v" -> dynamicInt(2))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(input))
+      },
+      test("multiple actions applied to each map value") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "extra", Resolved.Literal.string("new")),
+            MigrationAction.Rename(DynamicOptic.root, "v", "value")
+          )
+        )
+
+        val input = dynamicRecord(
+          "data" -> dynamicRecord(
+            "k1" -> dynamicRecord("v" -> dynamicInt(1))
+          )
+        )
+
+        val expected = dynamicRecord(
+          "data" -> dynamicRecord(
+            "k1" -> dynamicRecord("value" -> dynamicInt(1), "extra" -> dynamicString("new"))
+          )
+        )
+
+        val result = action.apply(input)
+        assertTrue(result == Right(expected))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Nested action prefixPath
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Nested action prefixPath")(
+      test("TransformField prefixPath updates the at path") {
+        val action   = MigrationAction.TransformField(DynamicOptic.root, "inner", Vector.empty)
+        val prefix   = DynamicOptic.root.field("outer")
+        val prefixed = action.prefixPath(prefix)
+        assertTrue(prefixed.at == prefix)
+      },
+      test("TransformEachElement prefixPath updates the at path") {
+        val action   = MigrationAction.TransformEachElement(DynamicOptic.root, "items", Vector.empty)
+        val prefix   = DynamicOptic.root.field("outer")
+        val prefixed = action.prefixPath(prefix)
+        assertTrue(prefixed.at == prefix)
+      },
+      test("TransformEachMapValue prefixPath updates the at path") {
+        val action   = MigrationAction.TransformEachMapValue(DynamicOptic.root, "data", Vector.empty)
+        val prefix   = DynamicOptic.root.field("outer")
+        val prefixed = action.prefixPath(prefix)
+        assertTrue(prefixed.at == prefix)
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Nested action reverse
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Nested action reverse")(
+      test("TransformField reverse reverses inner actions") {
+        val action = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("X")),
+            MigrationAction.Rename(DynamicOptic.root, "a", "b")
+          )
+        )
+
+        val reversed = action.reverse
+        reversed match {
+          case MigrationAction.TransformField(_, "address", acts) =>
+            // Reversed order, each action also reversed
+            assertTrue(acts.size == 2) &&
+            assertTrue(acts(0).isInstanceOf[MigrationAction.Rename]) &&
+            assertTrue(acts(1).isInstanceOf[MigrationAction.DropField])
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformEachElement reverse reverses inner actions") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)),
+            MigrationAction.AddField(DynamicOptic.root, "y", Resolved.Literal.int(0))
+          )
+        )
+
+        val reversed = action.reverse
+        reversed match {
+          case MigrationAction.TransformEachElement(_, "items", acts) =>
+            // Two DropField actions in reversed order
+            assertTrue(acts.size == 2) &&
+            assertTrue(acts(0).isInstanceOf[MigrationAction.DropField]) &&
+            assertTrue(acts(1).isInstanceOf[MigrationAction.DropField])
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformEachMapValue reverse reverses inner actions") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "extra", Resolved.Literal.string("v")))
+        )
+
+        val reversed = action.reverse
+        reversed match {
+          case MigrationAction.TransformEachMapValue(_, "data", acts) =>
+            assertTrue(acts.size == 1) &&
+            assertTrue(acts(0).isInstanceOf[MigrationAction.DropField])
+          case _ => assertTrue(false)
+        }
+      },
+      test("TransformField reverse round-trips correctly") {
+        val addAction = MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("Unknown"))
+        val action    = MigrationAction.TransformField(DynamicOptic.root, "address", Vector(addAction))
+        val migration = DynamicMigration(Vector(action))
+
+        val input = dynamicRecord(
+          "address" -> dynamicRecord("street" -> dynamicString("123 Main St"))
+        )
+
+        val forward = migration.apply(input)
+        assertTrue(forward.isRight)
+
+        val reversed = migration.reverse.apply(forward.toOption.get)
+        assertTrue(reversed == Right(input))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Nested action describe
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Nested action describe")(
+      test("describe includes TransformField") {
+        val action    = MigrationAction.TransformField(DynamicOptic.root, "address", Vector.empty)
+        val migration = DynamicMigration(Vector(action))
+        val desc      = migration.describe
+        assertTrue(desc.contains("TransformField(address, 0 actions)"))
+      },
+      test("describe includes TransformEachElement") {
+        val action = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+        val migration = DynamicMigration(Vector(action))
+        val desc      = migration.describe
+        assertTrue(desc.contains("TransformEachElement(items, 1 actions)"))
+      },
+      test("describe includes TransformEachMapValue") {
+        val action = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "a", Resolved.Literal.int(0)),
+            MigrationAction.AddField(DynamicOptic.root, "b", Resolved.Literal.int(0))
+          )
+        )
+        val migration = DynamicMigration(Vector(action))
+        val desc      = migration.describe
+        assertTrue(desc.contains("TransformEachMapValue(data, 2 actions)"))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Nested action serialization via Schema
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Nested action serialization")(
+      test("TransformField round-trips through DynamicValue") {
+        val action: MigrationAction = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "address",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("Unknown")))
+        )
+
+        val dv       = Schema[MigrationAction].toDynamicValue(action)
+        val restored = Schema[MigrationAction].fromDynamicValue(dv)
+        assertTrue(restored == Right(action))
+      },
+      test("TransformEachElement round-trips through DynamicValue") {
+        val action: MigrationAction = MigrationAction.TransformEachElement(
+          DynamicOptic.root,
+          "items",
+          Vector(MigrationAction.AddField(DynamicOptic.root, "x", Resolved.Literal.int(0)))
+        )
+
+        val dv       = Schema[MigrationAction].toDynamicValue(action)
+        val restored = Schema[MigrationAction].fromDynamicValue(dv)
+        assertTrue(restored == Right(action))
+      },
+      test("TransformEachMapValue round-trips through DynamicValue") {
+        val action: MigrationAction = MigrationAction.TransformEachMapValue(
+          DynamicOptic.root,
+          "data",
+          Vector(MigrationAction.Rename(DynamicOptic.root, "old", "new"))
+        )
+
+        val dv       = Schema[MigrationAction].toDynamicValue(action)
+        val restored = Schema[MigrationAction].fromDynamicValue(dv)
+        assertTrue(restored == Right(action))
+      },
+      test("nested TransformField round-trips through DynamicValue") {
+        val action: MigrationAction = MigrationAction.TransformField(
+          DynamicOptic.root,
+          "outer",
+          Vector(
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "inner",
+              Vector(MigrationAction.AddField(DynamicOptic.root, "deep", Resolved.Literal.string("value")))
+            )
+          )
+        )
+
+        val dv       = Schema[MigrationAction].toDynamicValue(action)
+        val restored = Schema[MigrationAction].fromDynamicValue(dv)
+        assertTrue(restored == Right(action))
+      },
+      test("DynamicMigration with nested actions round-trips") {
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root, "old", "new"),
+            MigrationAction.TransformField(
+              DynamicOptic.root,
+              "address",
+              Vector(
+                MigrationAction.AddField(DynamicOptic.root, "city", Resolved.Literal.string("Unknown")),
+                MigrationAction.TransformEachElement(
+                  DynamicOptic.root,
+                  "tags",
+                  Vector(MigrationAction.AddField(DynamicOptic.root, "label", Resolved.Literal.string("default")))
+                )
+              )
+            )
+          )
+        )
+
+        val dv       = Schema[DynamicMigration].toDynamicValue(migration)
+        val restored = Schema[DynamicMigration].fromDynamicValue(dv)
+        assertTrue(restored == Right(migration))
+      }
     )
   )
 }
