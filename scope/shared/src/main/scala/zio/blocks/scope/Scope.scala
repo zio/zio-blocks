@@ -71,7 +71,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
    */
   def allocate[A](resource: Resource[A]): A @@ Tag = {
     val value = resource.make(this)
-    @@.scoped(value)
+    Scoped.eager(value)
   }
 
   /**

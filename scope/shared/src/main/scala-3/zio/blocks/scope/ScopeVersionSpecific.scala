@@ -34,11 +34,11 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
     // is needed to fully prevent use-after-close in concurrent scenarios.
     if (self.isClosed) {
       // Scope is closed - stay lazy to prevent use-after-close
-      Scoped.scoped[B, self.Tag](f(scoped.run()))
+      Scoped.deferred[B, self.Tag](f(Scoped.run(scoped)))
     } else {
       // Scope is open - execute eagerly
-      val result = f(scoped.run())
-      Scoped.scoped[B, self.Tag](result)
+      val result = f(Scoped.run(scoped))
+      Scoped.eager[B, self.Tag](result)
     }
 
   /**
@@ -60,11 +60,11 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
     // is needed to fully prevent use-after-close in concurrent scenarios.
     if (self.isClosed) {
       // Scope is closed - stay lazy to prevent use-after-close
-      Scoped.scoped[A, self.Tag](scoped.run())
+      Scoped.deferred[A, self.Tag](Scoped.run(scoped))
     } else {
       // Scope is open - execute eagerly
-      val result = scoped.run()
-      Scoped.scoped[A, self.Tag](result)
+      val result = Scoped.run(scoped)
+      Scoped.eager[A, self.Tag](result)
     }
 
   /**

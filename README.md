@@ -6,13 +6,13 @@
 
 **Modular, zero-dependency building blocks for modern Scala applications.**
 
-[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-blocks-schema_3.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-blocks-schema_3/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-blocks-schema_3.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-blocks-schema_3/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-blocks-docs_3/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-blocks-docs_3) [![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)
+[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-blocks-next-schema_3.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-blocks-next-schema_3/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-blocks-next-schema_3.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-blocks-next-schema_3/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-blocks-docs_3/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-blocks-docs_3) [![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)
 
 ## What Is ZIO Blocks?
 
 ZIO Blocks is a **family of type-safe, modular building blocks** for Scala applications. Each block is a standalone library with zero or minimal dependencies, designed to work with *any* Scala stack—ZIO, Cats Effect, Kyo, Ox, Akka, or plain Scala.
 
-The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, Scala.js), and designed to compose with other blocks or your existing code.
+The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, JS), and designed to compose with other blocks or your existing code.
 
 ## The Blocks
 
@@ -81,14 +81,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.20"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.14"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.14"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.14"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.14"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.20"
 ```
 
 ### Example: Optics
@@ -143,7 +143,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.20"
 ```
 
 ### Example
@@ -206,11 +206,11 @@ import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
   val db: Database @@ scope.Tag = scope.allocate(Resource(openDatabase()))
-  
+
   // Methods are hidden - can't call db.query() directly
   // Must use scope.$ to access:
   val result = scope.$(db)(_.query("SELECT 1"))
-  
+
   // Trying to return `db` would be a compile error!
   result  // Only pure data escapes
 }
@@ -228,7 +228,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.20"
 ```
 
 ### Example: Basic Resource Management
@@ -236,7 +236,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.14"
 ```scala
 import zio.blocks.scope._
 
-class Database extends AutoCloseable {
+final class Database extends AutoCloseable {
   def query(sql: String): String = s"Result: $sql"
   def close(): Unit = println("Database closed")
 }
@@ -244,7 +244,7 @@ class Database extends AutoCloseable {
 Scope.global.scoped { scope =>
   // Allocate returns Database @@ scope.Tag (scoped value)
   val db = scope.allocate(Resource(new Database))
-  
+
   // Access via scope.$ - result (String) escapes, db does not
   val result = scope.$(db)(_.query("SELECT * FROM users"))
   println(result)
@@ -281,7 +281,7 @@ Scope.global.scoped { scope =>
 ```scala
 Scope.global.scoped { connScope =>
   val conn = connScope.allocate(Resource.fromAutoCloseable(new Connection))
-  
+
   // Transaction lives in child scope - cleaned up before connection
   val result = connScope.scoped { txScope =>
     val tx = txScope.allocate(conn.beginTransaction())  // Returns Resource!
@@ -290,7 +290,7 @@ Scope.global.scoped { connScope =>
     "success"
   }
   // Transaction closed here, connection still open
-  
+
   println(result)
 }
 // Connection closed here
@@ -322,7 +322,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.20"
 ```
 
 ### Example
@@ -406,7 +406,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.20"
 ```
 
 ### Example
@@ -449,7 +449,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.14"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.20"
 ```
 
 ### Example
@@ -549,10 +549,10 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Other Blocks
 
 - [Chunk](docs/./reference/chunk.md) - High-performance immutable sequences
-- [Scope](docs/scope.md) - Compile-time safe resource management and DI
+- [Scope](docs/./scope.md) - Compile-time safe resource management and DI
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
-- [Docs (Markdown)](docs/./reference/docs.md) - Markdown parsing and rendering
+- [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 
 ## Documentation
 

@@ -21,7 +21,7 @@ private[scope] object LeakMacros {
     MacroCore.warnLeak(pos, sourceCode, scopeName)
 
     // Return the unwrapped value (run the thunk)
-    '{ $scopedExpr.run() }
+    '{ Scoped.run($scopedExpr) }
   }
 
   private def extractScopeName(scopeTag: String): String =
