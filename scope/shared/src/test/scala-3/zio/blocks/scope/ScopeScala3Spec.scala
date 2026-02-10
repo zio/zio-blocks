@@ -324,6 +324,49 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         }
         assertTrue(captured == "result: test")
       }
+    ),
+    suite("scope + scoped value leak prevention")(
+      test("scoped on closed scope creates already-closed child preventing use-after-close") {
+        var accessedAfterClose = false
+        var resourceClosed     = false
+
+        class TrackedResource extends AutoCloseable {
+          def read(): Int = {
+            accessedAfterClose = resourceClosed
+            42
+          }
+          def close(): Unit = resourceClosed = true
+        }
+
+        // The attack: return both the child scope AND a scoped value from global.scoped
+        // globalScope ScopeLift instance allows ANY type to escape from GlobalTag parent
+        // Use a case class to bundle them with matching existential types
+        case class Leaked[T <: Scope.GlobalTag](scope: Scope[Scope.GlobalTag, T], value: TrackedResource @@ T)
+
+        val leaked = Scope.global.scoped { child =>
+          val resource = child.allocate(Resource(new TrackedResource))
+          Leaked(child, resource)
+        }
+        // Child scope is now CLOSED, but we have both the scope and the scoped value
+
+        assertTrue(resourceClosed) // Finalizer ran, resource is closed
+
+        // Attempted attack: call scoped() on the closed scope
+        // Before fix: scoped() would create an open child, allowing eager execution
+        // After fix: scoped() creates an already-closed child, so $ stays lazy
+        var result: Int = 0
+        leaked.scope.scoped { newChild =>
+          // newChild is created as already-closed (because parent is closed)
+          // newChild.$ checks isClosed → true → stays lazy, doesn't execute
+          newChild.$(leaked.value) { r =>
+            result = r.read() // This never executes!
+          }
+          ()
+        }
+
+        // Fix verified: resource was NOT accessed after close
+        assertTrue(!accessedAfterClose, result == 0)
+      }
     )
   )
 }

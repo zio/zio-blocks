@@ -200,33 +200,33 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(callCount == 0) // No calls executed because scope was closed
       },
       test("$ executes eagerly when scope is open") {
-        var executed = false
+        val (scope, close) = Scope.createTestableScope()
+        var executed       = false
 
         class TrackedResource extends AutoCloseable {
           def doWork(): Unit = executed = true
           def close(): Unit  = ()
         }
 
-        Scope.global.scoped { scope =>
-          val resource = scope.allocate(Resource(new TrackedResource))
-          scope.$(resource)(_.doWork())
-          assertTrue(executed) // Should have executed immediately
-        }
+        val resource = scope.allocate(Resource(new TrackedResource))
+        scope.$(resource)(_.doWork())
+        close()
+        assertTrue(executed)
       },
       test("execute runs eagerly when scope is open") {
-        var executed = false
+        val (scope, close) = Scope.createTestableScope()
+        var executed       = false
 
         class TrackedResource extends AutoCloseable {
           def doWork(): Boolean = { executed = true; true }
           def close(): Unit     = ()
         }
 
-        Scope.global.scoped { scope =>
-          val resource    = scope.allocate(Resource(new TrackedResource))
-          val computation = resource.map(_.doWork())
-          scope.execute(computation)
-          assertTrue(executed) // Should have executed immediately
-        }
+        val resource    = scope.allocate(Resource(new TrackedResource))
+        val computation = resource.map(_.doWork())
+        scope.execute(computation)
+        close()
+        assertTrue(executed)
       }
     )
   )

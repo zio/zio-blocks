@@ -98,7 +98,11 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *   the lifted result (type depends on `lift.Out`)
    */
   def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A)(implicit lift: ScopeLift[A, self.Tag]): lift.Out = {
-    val childScope         = new Scope[self.Tag, self.Tag](new Finalizers)
+    // If parent scope is closed, create child as already-closed.
+    // This makes all child operations ($ , execute, defer, allocate) no-ops,
+    // preventing use-after-close when a leaked scope is misused.
+    val childFinalizers    = if (self.isClosed) Finalizers.closed else new Finalizers
+    val childScope         = new Scope[self.Tag, self.Tag](childFinalizers)
     var primary: Throwable = null.asInstanceOf[Throwable]
     var result: A          = null.asInstanceOf[A]
     try result = f(childScope)

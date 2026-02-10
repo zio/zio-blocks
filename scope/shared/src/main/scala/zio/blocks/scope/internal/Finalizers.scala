@@ -89,4 +89,16 @@ private[scope] final class Finalizers {
 
 private[scope] object Finalizers {
   private[internal] final case class Node(run: () => Unit, next: Node)
+
+  /**
+   * Creates a Finalizers instance that starts in the closed state.
+   *
+   * All operations on a closed Finalizers are no-ops: add() is ignored,
+   * runAll() returns empty, isClosed returns true.
+   */
+  def closed: Finalizers = {
+    val f = new Finalizers
+    f.runAll() // Transitions from Open(null) to Closed
+    f
+  }
 }
