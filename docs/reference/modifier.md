@@ -317,10 +317,10 @@ Schema[Modifier]
 
 This means you can serialize modifiers as part of your schema metadata, allowing you to persist and exchange schema information with full modifier details.
 
-## Format Support
-
-Different serialization formats interpret modifiers according to their semantics.
-
+[//]: # (## Format Support)
+[//]: # ()
+[//]: # (Different serialization formats interpret modifiers according to their semantics.)
+[//]: # ()
 [//]: # (TODO: Add a table comparing how each modifier is supported across formats like JSON, BSON, Avro, Protobuf, etc. For example:)
 [//]: # (| Modifier    | JSON                 | BSON                 | Avro              | Protobuf          |)
 [//]: # (|-------------|----------------------|----------------------|-------------------|-------------------|)
