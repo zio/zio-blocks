@@ -13,6 +13,7 @@ const sidebars = {
          "reference/typeid",
          "reference/dynamic-value",
          "reference/optics",
+         "reference/dynamic-optic",
          "reference/chunk",
          "reference/validation",
          "reference/schema-evolution",
