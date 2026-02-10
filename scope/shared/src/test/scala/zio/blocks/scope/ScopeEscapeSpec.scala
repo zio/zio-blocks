@@ -43,8 +43,8 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
       },
       test("global scope escapes all results as raw values") {
         Scope.global.scoped { scope =>
-          val str         = scope.allocate(zio.blocks.scope.Resource("test"))
-          val raw: String = scope.$(str)(identity)
+          val str: String @@ scope.Tag = scope.allocate(zio.blocks.scope.Resource("test"))
+          val raw: String              = scope.$(str)(identity)
           assertTrue(raw == "test")
         }
       }
@@ -69,8 +69,8 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
       test("unscoped types escape as raw values in nested scopes") {
         Scope.global.scoped { parent =>
           parent.scoped { child =>
-            val str            = child.allocate(zio.blocks.scope.Resource("hello"))
-            val result: String = child.$(str)(_.toUpperCase)
+            val str: String @@ child.Tag = child.allocate(zio.blocks.scope.Resource("hello"))
+            val result: String           = child.$(str)(_.toUpperCase)
             assertTrue(result == "HELLO")
           }
         }

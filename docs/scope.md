@@ -7,7 +7,7 @@
 If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
 
 - **Compile-time prevention of scope leaks**
-- **Zero runtime overhead for the scoped tag** (`A @@ S` is represented as `A`)
+- **Unified scoped type** (`A @@ S` is a type alias for `Scoped[S, A]`)
 - **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
 
 ---
@@ -19,7 +19,7 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [1) `Scope[ParentTag, Tag]`](#1-scopeparenttag-tag)
   - [2) Scoped values: `A @@ S`](#2-scoped-values-a--s)
   - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
-  - [4) `Scoped[Tag, A]`: deferred computations](#4-scopedtag-a-deferred-computations)
+  - [4) `Scoped[-S, +A]` and `A @@ S`: unified scoped type](#4-scoped-s-a-and-a--s-unified-scoped-type)
   - [5) `ScopeEscape` and `Unscoped`: what may escape](#5-scopeescape-and-unscoped-what-may-escape)
   - [6) `Wire[-In, +Out]`: dependency recipes](#6-wire-in-out-dependency-recipes)
 - [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
@@ -110,18 +110,26 @@ object Scope {
 
 ### 2) Scoped values: `A @@ S`
 
-`A @@ S` means: "a value of type `A` that is locked to scope tag `S`".
+`A @@ S` is a type alias for `Scoped[S, A]` — a deferred computation that produces `A` and is locked to scope tag `S`.
 
-- **Runtime representation:** just `A` (no wrapper allocation)
-- **Key effect:** methods on `A` are hidden, so you can't call `a.method` without proving scope access
+- **Runtime representation:** a boxed thunk (lightweight wrapper)
+- **Key effect:** methods on `A` are hidden until executed; the thunk defers access
 - **Access paths:**
-  - `scope.$(a)(f)` to use a scoped value immediately
-  - `a.map / a.flatMap` to build a `Scoped` computation, then run it via `scope.execute(scoped)`
+  - `scope.$(a)(f)` to execute and apply a function immediately
+  - `a.map / a.flatMap` to build composite `Scoped` computations
+  - `scope.execute(scoped)` to run a computation
 
-#### Scala 3 vs Scala 2 note
+#### Scala 2 note
 
-- In **Scala 3**, `@@` is implemented as an `opaque` type.
-- In **Scala 2**, the library emulates the same "opaque-like" behavior using the *module pattern* (still zero-overhead at runtime).
+In Scala 2, explicit type annotations are required when assigning scoped values to avoid existential type inference issues:
+
+```scala
+// Scala 2 requires explicit type annotation
+val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
+
+// Scala 3 can infer the type
+val db = scope.allocate(Resource[Database])
+```
 
 ---
 
@@ -164,9 +172,9 @@ Common constructors:
 
 ---
 
-### 4) `Scoped[Tag, A]`: deferred computations
+### 4) `Scoped[-S, +A]` and `A @@ S`: unified scoped type
 
-`Scoped[-Tag, +A]` represents a computation that produces `A`, but can only be executed by a scope whose tag is compatible with `Tag`.
+`Scoped[-S, +A]` is the core type representing a deferred computation that produces `A` and requires scope tag `S` to execute. The type alias `A @@ S = Scoped[S, A]` provides convenient syntax with swapped parameters.
 
 Execution happens via:
 
@@ -176,14 +184,30 @@ scope.execute(scopedComputation)
 
 How to build them:
 
-- From scoped values:
+- From `scope.allocate`:
+  - `scope.allocate(resource)` returns `A @@ scope.Tag` (= `Scoped[scope.Tag, A]`)
+- Using combinators:
   - `(a: A @@ S).map(f: A => B)` returns `Scoped[S, B]`
-  - `(a: A @@ S).flatMap(f: A => B @@ T)` returns `Scoped[S & T, B]`
-  - Use for-comprehensions: each `<-` on a `@@` value chains via `flatMap`
+  - `(a: A @@ S).flatMap(f: A => Scoped[T, B])` returns `Scoped[S & T, B]` (Scala 3) / `Scoped[S with T, B]` (Scala 2)
+  - Use for-comprehensions to chain scoped computations
 - From ordinary values:
   - `Scoped(value)` lifts a value into a `Scoped[Any, A]` (which can be used anywhere due to contravariance)
 
-`Scoped` is contravariant in `Tag`, which is what allows a **child** scope (more specific tag) to run computations that only require a **parent** tag.
+**Contravariance:** `Scoped[-S, +A]` is contravariant in `S`. This means a `Scoped[ParentTag, A]` is a subtype of `Scoped[ChildTag, A]` when `ChildTag <: ParentTag`. Child scopes can execute parent-scoped computations automatically.
+
+**For-comprehension example:**
+
+```scala
+Scope.global.scoped { scope =>
+  val program: Scoped[scope.Tag, Result] = for {
+    pool <- scope.allocate(Resource[Pool])
+    conn <- scope.allocate(Resource(pool.lease()))
+    data <- conn.map(_.query("SELECT *"))
+  } yield process(data)
+
+  scope.execute(program)
+}
+```
 
 ---
 
@@ -778,14 +802,14 @@ final class Scope[ParentTag, Tag0 <: ParentTag] {
   def allocate[A](resource: Resource[A]): A @@ Tag
   def defer(f: => Unit): Unit
 
-  def $[A, B, S](scoped: A @@ S)(f: A => B)(
-    using ev: this.Tag <:< S,
-          escape: ScopeEscape[B, S]
+  // Execute scoped value with function, escape based on ScopeEscape
+  def $[A, B](scoped: A @@ this.Tag)(f: A => B)(
+    using escape: ScopeEscape[B, this.Tag]
   ): escape.Out
 
-  def execute[A, S](scoped: Scoped[S, A])(
-    using ev: this.Tag <:< S,
-          escape: ScopeEscape[A, S]
+  // Execute scoped computation, escape based on ScopeEscape
+  def execute[A](scoped: Scoped[this.Tag, A])(
+    using escape: ScopeEscape[A, this.Tag]
   ): escape.Out
 
   // Creates a child scope with an existential tag (fresh per call)
