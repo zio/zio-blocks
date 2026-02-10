@@ -24,35 +24,37 @@ private[migration] object MigrationBuilderMacros {
         c.abort(c.enclosingPosition, s"Expected a lambda expression, got '$tree'")
     }
 
-    def extractFieldPath(tree: c.Tree): List[String] = {
-      def loop(t: c.Tree, acc: List[String]): List[String] = t match {
+    def extractOpticExpr(tree: c.Tree): c.Expr[DynamicOptic] = {
+      def loop(t: c.Tree, depth: Int): c.Expr[DynamicOptic] = t match {
+        // .each/.eachKey/.eachValue are recognized but stripped — the corresponding
+        // TransformElements/TransformKeys/TransformValues actions handle traversal
+        case q"$_[..$_]($parent).each" =>
+          loop(parent, depth + 1)
+        case q"$_[..$_]($parent).eachKey" =>
+          loop(parent, depth + 1)
+        case q"$_[..$_]($parent).eachValue" =>
+          loop(parent, depth + 1)
         case Select(parent, fieldName) =>
-          loop(parent, fieldName.decodedName.toString :: acc)
+          val parentOptic   = loop(parent, depth + 1)
+          val fieldNameExpr = c.Expr[String](Literal(Constant(fieldName.decodedName.toString)))
+          reify(parentOptic.splice.field(fieldNameExpr.splice))
+        case _: Ident if depth > 0 =>
+          reify(DynamicOptic.root)
         case _: Ident =>
-          acc
-        case Typed(expr, _) => // Handle type ascriptions like (_: Type)
-          loop(expr, acc)
+          c.abort(c.enclosingPosition, "Selector must access at least one field")
+        case Typed(expr, _) =>
+          loop(expr, depth)
         case _ =>
           c.abort(
             c.enclosingPosition,
-            s"Unsupported selector pattern: '$t'. Only simple field access is supported (e.g., _.field or _.field.nested)"
+            s"Unsupported selector: '$t'. Supported: _.field, _.field.nested, _.seq.each, _.map.eachKey, _.map.eachValue"
           )
       }
-      loop(tree, Nil)
+      loop(tree, 0)
     }
 
-    val pathBody  = toPathBody(selector.tree)
-    val fieldPath = extractFieldPath(pathBody)
-
-    if (fieldPath.isEmpty) {
-      c.abort(c.enclosingPosition, "Selector must access at least one field")
-    }
-
-    // Build nested DynamicOptic: DynamicOptic.root.field("f1").field("f2")...
-    fieldPath.foldLeft(reify(DynamicOptic.root)) { (opticExpr, fieldName) =>
-      val fieldNameExpr = c.Expr[String](Literal(Constant(fieldName)))
-      reify(opticExpr.splice.field(fieldNameExpr.splice))
-    }
+    val pathBody = toPathBody(selector.tree)
+    extractOpticExpr(pathBody)
   }
 
   // Extracts just the field name from a selector (for renameField target).
@@ -146,12 +148,39 @@ private[migration] object MigrationBuilderMacros {
         c.abort(c.enclosingPosition, s"Expected a lambda expression, got '$tree'")
     }
 
-    def extractFieldPathAndCaseName(tree: c.Tree): (List[String], String) = tree match {
+    def extractOpticExpr(tree: c.Tree): c.Expr[DynamicOptic] = {
+      def loop(t: c.Tree, depth: Int): c.Expr[DynamicOptic] = t match {
+        case q"$_[..$_]($parent).each" =>
+          loop(parent, depth + 1)
+        case q"$_[..$_]($parent).eachKey" =>
+          loop(parent, depth + 1)
+        case q"$_[..$_]($parent).eachValue" =>
+          loop(parent, depth + 1)
+        case Select(parent, fieldName) =>
+          val parentOptic   = loop(parent, depth + 1)
+          val fieldNameExpr = c.Expr[String](Literal(Constant(fieldName.decodedName.toString)))
+          reify(parentOptic.splice.field(fieldNameExpr.splice))
+        case _: Ident if depth > 0 =>
+          reify(DynamicOptic.root)
+        case _: Ident =>
+          reify(DynamicOptic.root)
+        case Typed(expr, _) =>
+          loop(expr, depth)
+        case _ =>
+          c.abort(
+            c.enclosingPosition,
+            s"Unsupported selector before .when[]: '$t'. Supported: _.field, _.field.nested, _.seq.each, _.map.eachKey, _.map.eachValue"
+          )
+      }
+      loop(tree, 0)
+    }
+
+    def extractOpticAndCaseName(tree: c.Tree): (c.Expr[DynamicOptic], String) = tree match {
       // _.when[CaseType] or _.field.when[CaseType]
       case q"$_[..$_]($parent).when[$caseTree]" =>
-        val caseName  = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
-        val fieldPath = extractFieldPath(parent)
-        (fieldPath, caseName)
+        val caseName = caseTree.tpe.dealias.typeSymbol.name.decodedName.toString
+        val optic    = extractOpticExpr(parent)
+        (optic, caseName)
       case _ =>
         c.abort(
           c.enclosingPosition,
@@ -159,31 +188,8 @@ private[migration] object MigrationBuilderMacros {
         )
     }
 
-    def extractFieldPath(tree: c.Tree): List[String] = {
-      def loop(t: c.Tree, acc: List[String]): List[String] = t match {
-        case Select(parent, fieldName) =>
-          loop(parent, fieldName.decodedName.toString :: acc)
-        case _: Ident =>
-          acc
-        case Typed(expr, _) => // Handle type ascriptions like (_: Type)
-          loop(expr, acc)
-        case _ =>
-          c.abort(
-            c.enclosingPosition,
-            s"Unsupported selector pattern before .when[]: '$t'. Only simple field access is supported (e.g., _.field or _.field.nested)"
-          )
-      }
-      loop(tree, Nil)
-    }
-
     val pathBody              = toPathBody(selector.tree)
-    val (fieldPath, caseName) = extractFieldPathAndCaseName(pathBody)
-
-    // Build nested DynamicOptic: DynamicOptic.root.field("f1").field("f2")...
-    val opticExpr = fieldPath.foldLeft(reify(DynamicOptic.root)) { (opticExpr, fieldName) =>
-      val fieldNameExpr = c.Expr[String](Literal(Constant(fieldName)))
-      reify(opticExpr.splice.field(fieldNameExpr.splice))
-    }
+    val (opticExpr, caseName) = extractOpticAndCaseName(pathBody)
 
     (opticExpr, c.Expr[String](Literal(Constant(caseName))))
   }

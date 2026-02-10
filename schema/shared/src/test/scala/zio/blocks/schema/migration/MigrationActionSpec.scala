@@ -49,6 +49,57 @@ object MigrationActionSpec extends ZIOSpecDefault {
         assertTrue(result.swap.exists(_.isInstanceOf[MigrationError.FieldAlreadyExists]))
       }
     ),
+    suite("AddField with DefaultValue")(
+      test("should add a field using SchemaExpr.DefaultValue") {
+        val record = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("John"))
+          )
+        )
+        val action = MigrationAction.AddField(
+          at = DynamicOptic.root.field("age"),
+          default = SchemaExpr.DefaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        )
+
+        val result = action.execute(record)
+
+        assertTrue(result.isRight) &&
+        assertTrue(
+          result.toOption.get == DynamicValue.Record(
+            Chunk(
+              "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+              "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
+            )
+          )
+        )
+      },
+      test("DropField reverse with DefaultValue should restore field") {
+        val record = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+          )
+        )
+        val drop = MigrationAction.DropField(
+          at = DynamicOptic.root.field("age"),
+          defaultForReverse = SchemaExpr.DefaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        )
+
+        val dropped  = drop.execute(record)
+        val restored = drop.reverse.execute(dropped.toOption.get)
+
+        assertTrue(dropped.isRight) &&
+        assertTrue(restored.isRight) &&
+        assertTrue(
+          restored.toOption.get == DynamicValue.Record(
+            Chunk(
+              "name" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+              "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
+            )
+          )
+        )
+      }
+    ),
     suite("DropField")(
       test("should remove a field from a record") {
         val record = DynamicValue.Record(

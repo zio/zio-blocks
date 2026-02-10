@@ -56,6 +56,9 @@ object MigrationAction {
       case SchemaExpr.StringLowercase(expr) =>
         Some(SchemaExpr.StringUppercase(expr))
 
+      // DefaultValue is self-inverse (same default value in both directions)
+      case dv: SchemaExpr.DefaultValue[?] => Some(dv.asInstanceOf[SchemaExpr[DynamicValue, ?]])
+
       // Irreversible: StringLength, Relational, Logical, StringRegexMatch, etc.
       case _ => None
     }

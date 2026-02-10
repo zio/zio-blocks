@@ -19,7 +19,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
   case class WithInt(age: Int)
 
   case class WithList(items: Vector[Int])
+  object WithList extends CompanionOptics[WithList]
+
   case class WithMap(data: Map[String, Int])
+  object WithMap extends CompanionOptics[WithMap]
 
   sealed trait PaymentMethod
   case class CreditCard(number: String, cvv: String) extends PaymentMethod
@@ -858,6 +861,63 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         }
       ),
       suite("Collection Operations with Selectors")(
+        test("transformElements with .each selector") {
+          import WithList._
+          val migration = MigrationBuilder
+            .newBuilder[WithList, WithList]
+            .transformElements(
+              (_: WithList).items.each,
+              SchemaExpr.Arithmetic[DynamicValue, Int](
+                SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
+                SchemaExpr.Literal[DynamicValue, Int](10, Schema.int),
+                SchemaExpr.ArithmeticOperator.Add,
+                IsNumeric.IsInt
+              )
+            )
+            .build
+
+          val v1     = WithList(Vector(1, 2, 3))
+          val result = migration(v1)
+
+          assertTrue(result == Right(WithList(Vector(11, 12, 13))))
+        },
+        test("transformKeys with .eachKey selector") {
+          import WithMap._
+          val migration = MigrationBuilder
+            .newBuilder[WithMap, WithMap]
+            .transformKeys(
+              (_: WithMap).data.eachKey,
+              SchemaExpr.StringUppercase[DynamicValue](
+                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+              )
+            )
+            .build
+
+          val v1     = WithMap(Map("foo" -> 1, "bar" -> 2))
+          val result = migration(v1)
+
+          assertTrue(result == Right(WithMap(Map("FOO" -> 1, "BAR" -> 2))))
+        },
+        test("transformValues with .eachValue selector") {
+          import WithMap._
+          val migration = MigrationBuilder
+            .newBuilder[WithMap, WithMap]
+            .transformValues(
+              (_: WithMap).data.eachValue,
+              SchemaExpr.Arithmetic[DynamicValue, Int](
+                SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
+                SchemaExpr.Literal[DynamicValue, Int](100, Schema.int),
+                SchemaExpr.ArithmeticOperator.Add,
+                IsNumeric.IsInt
+              )
+            )
+            .build
+
+          val v1     = WithMap(Map("foo" -> 1, "bar" -> 2))
+          val result = migration(v1)
+
+          assertTrue(result == Right(WithMap(Map("foo" -> 101, "bar" -> 102))))
+        },
         test("transformElements with selector") {
           val migration = MigrationBuilder
             .newBuilder[WithList, WithList]

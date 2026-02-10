@@ -183,6 +183,60 @@ object SchemaExprExtensionSpec extends ZIOSpecDefault {
         }
       )
     ),
+    suite("DefaultValue")(
+      test("evalDynamic returns the stored DynamicValue") {
+        val dv   = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val expr = SchemaExpr.DefaultValue[Unit](dv)
+
+        val result = expr.evalDynamic(())
+
+        assertTrue(result == Right(Seq(dv)))
+      },
+      test("evalDynamic returns string DynamicValue") {
+        val dv   = DynamicValue.Primitive(PrimitiveValue.String("default"))
+        val expr = SchemaExpr.DefaultValue[Unit](dv)
+
+        val result = expr.evalDynamic(())
+
+        assertTrue(result == Right(Seq(dv)))
+      },
+      test("evalDynamic returns record DynamicValue") {
+        val dv = DynamicValue.Record(
+          zio.blocks.chunk.Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("test")))
+        )
+        val expr = SchemaExpr.DefaultValue[Unit](dv)
+
+        val result = expr.evalDynamic(())
+
+        assertTrue(result == Right(Seq(dv)))
+      },
+      test("eval returns empty Nil (DefaultValue only works via evalDynamic)") {
+        val dv   = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val expr = SchemaExpr.DefaultValue[Unit](dv)
+
+        val result = expr.eval(())
+
+        assertTrue(result == Right(Nil))
+      },
+      test("ignores input value") {
+        val dv   = DynamicValue.Primitive(PrimitiveValue.Boolean(true))
+        val expr = SchemaExpr.DefaultValue[String](dv)
+
+        val result = expr.evalDynamic("anything")
+
+        assertTrue(result == Right(Seq(dv)))
+      },
+      test("works with DynamicValue input for migration usage") {
+        val defaultDv = DynamicValue.Primitive(PrimitiveValue.Int(0))
+        val expr      = SchemaExpr.DefaultValue[DynamicValue](defaultDv)
+        val input     =
+          DynamicValue.Record(zio.blocks.chunk.Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
+
+        val result = expr.evalDynamic(input)
+
+        assertTrue(result == Right(Seq(defaultDv)))
+      }
+    ),
     suite("Convert - Reverse")(
       test("should reverse StringToInt to IntToString") {
         val converter = PrimitiveConverter.StringToInt

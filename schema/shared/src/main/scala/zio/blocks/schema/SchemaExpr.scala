@@ -45,6 +45,26 @@ sealed trait SchemaExpr[A, +B] { self =>
 }
 
 object SchemaExpr {
+
+  /**
+   * Represents the schema-defined default value for a field. Used in migrations
+   * where the default is resolved from the field's schema at compile time (via
+   * macro) and stored as a DynamicValue for serialization and reverse
+   * migrations.
+   *
+   * Unlike Literal, DefaultValue signals that the value came from the schema's
+   * default, enabling introspection and tooling to distinguish user-provided
+   * values from schema defaults.
+   */
+  final case class DefaultValue[S](value: DynamicValue) extends SchemaExpr[S, Nothing] {
+    def eval(input: S): Either[OpticCheck, Seq[Nothing]] = result
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
+
+    private[this] val result        = new Right(Nil)
+    private[this] val dynamicResult = new Right(value :: Nil)
+  }
+
   final case class Literal[S, A](value: A, schema: Schema[A]) extends SchemaExpr[S, A] {
     def eval(input: S): Either[OpticCheck, Seq[A]] = result
 
