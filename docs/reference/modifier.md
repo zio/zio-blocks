@@ -179,10 +179,12 @@ The `alias` modifier provides an alternative name for a term during decoding. Th
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
-@Modifier.rename("NewName")
-@Modifier.alias("OldName")
-@Modifier.alias("LegacyName")
-case class MyClass(value: String)
+case class MyClass(
+  @Modifier.rename("NewName")
+  @Modifier.alias("OldName")
+  @Modifier.alias("LegacyName")
+  value: String
+)
 
 object MyClass {
   implicit val schema: Schema[MyClass] = Schema.derived
