@@ -44,11 +44,11 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
               ),
               MigrationAction.DropField(
                 at = DynamicOptic.root.field("lastName"),
-                defaultForReverse = SchemaExpr.Literal("", Schema.string)
+                defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
               ),
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = SchemaExpr.Literal(0, Schema.int)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
               )
             )
           ),
@@ -79,17 +79,17 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
                   DynamicOptic.root.field("firstName"),
                   DynamicOptic.root.field("lastName")
                 ),
-                combiner = SchemaExpr.StringConcat(
-                  SchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
-                  SchemaExpr.StringConcat(
-                    SchemaExpr.Literal(" ", Schema.string),
-                    SchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
+                combiner = DynamicSchemaExpr.StringConcat(
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+                  DynamicSchemaExpr.StringConcat(
+                    DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+                    DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
                   )
                 )
               ),
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = SchemaExpr.Literal(25, Schema.int)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(25)))
               )
             )
           ),
@@ -121,11 +121,11 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
             ),
             MigrationAction.DropField(
               at = DynamicOptic.root.field("lastName"),
-              defaultForReverse = SchemaExpr.Literal("", Schema.string)
+              defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
             ),
             MigrationAction.AddField(
               at = DynamicOptic.root.field("age"),
-              default = SchemaExpr.Literal(42, Schema.int)
+              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
             )
           )
         )
@@ -185,11 +185,11 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
               ),
               MigrationAction.DropField(
                 at = DynamicOptic.root.field("lastName"),
-                defaultForReverse = SchemaExpr.Literal("", Schema.string)
+                defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
               ),
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = SchemaExpr.Literal(30, Schema.int)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(30)))
               )
             )
           ),
@@ -203,7 +203,7 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("country"),
-                default = SchemaExpr.Literal("US", Schema.string)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("US")))
               )
             )
           ),
@@ -242,7 +242,7 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("zip"),
-                default = SchemaExpr.Literal("00000", Schema.string)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
               )
             )
           ),
@@ -256,7 +256,7 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("country"),
-                default = SchemaExpr.Literal("US", Schema.string)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("US")))
               )
             )
           ),
@@ -284,7 +284,7 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("country"),
-              default = SchemaExpr.Literal("US", Schema.string)
+              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("US")))
             )
           )
         )
@@ -317,11 +317,11 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
               ),
               MigrationAction.DropField(
                 at = DynamicOptic.root.field("lastName"),
-                defaultForReverse = SchemaExpr.Literal("", Schema.string)
+                defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
               ),
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = SchemaExpr.Literal(0, Schema.int)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
               )
             )
           ),

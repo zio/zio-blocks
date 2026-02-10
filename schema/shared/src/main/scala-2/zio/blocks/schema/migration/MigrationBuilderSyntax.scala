@@ -37,7 +37,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def addField(
     target: B => Any,
-    default: SchemaExpr[DynamicValue, _]
+    default: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, _ <: TList] =
     macro MigrationBuilderMacrosImpl.addFieldImpl[A, B, Handled, Provided]
 
@@ -47,7 +47,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def dropField(
     source: A => Any,
-    defaultForReverse: SchemaExpr[DynamicValue, _]
+    defaultForReverse: DynamicSchemaExpr
   ): MigrationBuilder[A, B, _ <: TList, Provided] =
     macro MigrationBuilderMacrosImpl.dropFieldImpl[A, B, Handled, Provided]
 
@@ -67,7 +67,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def transformField(
     at: A => Any,
-    transform: SchemaExpr[DynamicValue, _]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.transformFieldImpl[A, B, Handled, Provided]
 
@@ -77,7 +77,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def mandateField(
     at: A => Any,
-    default: SchemaExpr[DynamicValue, _]
+    default: DynamicSchemaExpr
   ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.mandateFieldImpl[A, B, Handled, Provided]
 
@@ -87,7 +87,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def optionalizeField(
     at: A => Any,
-    defaultForReverse: SchemaExpr[DynamicValue, _]
+    defaultForReverse: DynamicSchemaExpr
   ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.optionalizeFieldImpl[A, B, Handled, Provided]
 
@@ -111,7 +111,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
   def joinFields(
     target: B => Any,
     sourcePaths: Seq[A => Any],
-    combiner: SchemaExpr[DynamicValue, _]
+    combiner: DynamicSchemaExpr
   ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.joinFieldsImpl[A, B, Handled, Provided]
 
@@ -125,7 +125,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
   def splitField(
     source: A => Any,
     targetPaths: Seq[B => Any],
-    splitter: SchemaExpr[DynamicValue, _]
+    splitter: DynamicSchemaExpr
   ): MigrationBuilder[A, B, _ <: TList, _ <: TList] =
     macro MigrationBuilderMacrosImpl.splitFieldImpl[A, B, Handled, Provided]
 
@@ -135,7 +135,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def transformElements(
     at: A => Any,
-    transform: SchemaExpr[DynamicValue, _]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Provided] =
     macro MigrationBuilderMacrosImpl.transformElementsImpl[A, B, Handled, Provided]
 
@@ -145,7 +145,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def transformKeys(
     at: A => Any,
-    transform: SchemaExpr[DynamicValue, _]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Provided] =
     macro MigrationBuilderMacrosImpl.transformKeysImpl[A, B, Handled, Provided]
 
@@ -155,7 +155,7 @@ final class MigrationBuilderSyntax[A, B, Handled <: TList, Provided <: TList](
    */
   def transformValues(
     at: A => Any,
-    transform: SchemaExpr[DynamicValue, _]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Provided] =
     macro MigrationBuilderMacrosImpl.transformValuesImpl[A, B, Handled, Provided]
 
@@ -377,7 +377,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     target: c.Expr[B => Any],
-    default: c.Expr[SchemaExpr[DynamicValue, _]]
+    default: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
 
@@ -406,7 +406,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     source: c.Expr[A => Any],
-    defaultForReverse: c.Expr[SchemaExpr[DynamicValue, _]]
+    defaultForReverse: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
 
@@ -509,7 +509,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     at: c.Expr[A => Any],
-    transform: c.Expr[SchemaExpr[DynamicValue, _]]
+    transform: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
@@ -521,7 +521,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     at: c.Expr[A => Any],
-    default: c.Expr[SchemaExpr[DynamicValue, _]]
+    default: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
@@ -533,7 +533,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     at: c.Expr[A => Any],
-    defaultForReverse: c.Expr[SchemaExpr[DynamicValue, _]]
+    defaultForReverse: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
@@ -558,7 +558,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(
     target: c.Expr[B => Any],
     sourcePaths: c.Expr[Seq[A => Any]],
-    combiner: c.Expr[SchemaExpr[DynamicValue, _]]
+    combiner: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
 
@@ -613,7 +613,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   )(
     source: c.Expr[A => Any],
     targetPaths: c.Expr[Seq[B => Any]],
-    splitter: c.Expr[SchemaExpr[DynamicValue, _]]
+    splitter: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
 
@@ -694,7 +694,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     at: c.Expr[A => Any],
-    transform: c.Expr[SchemaExpr[DynamicValue, _]]
+    transform: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
     passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
@@ -706,7 +706,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     at: c.Expr[A => Any],
-    transform: c.Expr[SchemaExpr[DynamicValue, _]]
+    transform: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
     passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
@@ -718,7 +718,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     c: whitebox.Context
   )(
     at: c.Expr[A => Any],
-    transform: c.Expr[SchemaExpr[DynamicValue, _]]
+    transform: c.Expr[DynamicSchemaExpr]
   ): c.Tree = {
     import c.universe._
     passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>

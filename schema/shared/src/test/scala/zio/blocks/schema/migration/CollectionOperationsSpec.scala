@@ -6,9 +6,9 @@ import zio.test._
 
 /**
  * Tests for collection migration operations:
- *   - TransformElements: maps SchemaExpr over Sequence elements
- *   - TransformKeys: maps SchemaExpr over Map keys
- *   - TransformValues: maps SchemaExpr over Map values
+ *   - TransformElements: maps DynamicSchemaExpr over Sequence elements
+ *   - TransformKeys: maps DynamicSchemaExpr over Map keys
+ *   - TransformValues: maps DynamicSchemaExpr over Map values
  */
 object CollectionOperationsSpec extends ZIOSpecDefault {
 
@@ -25,11 +25,11 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         )
 
         // Transform: add 1 to each element
-        val addOne = SchemaExpr.Arithmetic(
-          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-          SchemaExpr.Literal[DynamicValue, Int](1, Schema.int),
-          SchemaExpr.ArithmeticOperator.Add,
-          IsNumeric.IsInt
+        val addOne = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          DynamicSchemaExpr.ArithmeticOperator.Add,
+          DynamicSchemaExpr.NumericType.IntType
         )
 
         val action = MigrationAction.TransformElements(
@@ -59,8 +59,8 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         )
 
         // Transform: uppercase each string
-        val uppercase = SchemaExpr.StringUppercase[DynamicValue](
-          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+        val uppercase = DynamicSchemaExpr.StringUppercase(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root)
         )
 
         val action = MigrationAction.TransformElements(
@@ -84,7 +84,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformElements(
           at = DynamicOptic.root,
-          transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(emptySequence)
@@ -104,11 +104,11 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
           )
         )
 
-        val multiplyByTwo = SchemaExpr.Arithmetic(
-          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-          SchemaExpr.Literal[DynamicValue, Int](2, Schema.int),
-          SchemaExpr.ArithmeticOperator.Multiply,
-          IsNumeric.IsInt
+        val multiplyByTwo = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+          DynamicSchemaExpr.ArithmeticOperator.Multiply,
+          DynamicSchemaExpr.NumericType.IntType
         )
 
         val action = MigrationAction.TransformElements(
@@ -141,7 +141,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         )
 
         // This will fail because we're trying to access a field on a primitive
-        val invalidTransform = SchemaExpr.Dynamic[DynamicValue, Int](
+        val invalidTransform = DynamicSchemaExpr.Dynamic(
           DynamicOptic.root.field("nonexistent")
         )
 
@@ -159,7 +159,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformElements(
           at = DynamicOptic.root,
-          transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(notASequence)
@@ -183,8 +183,8 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
           )
         )
 
-        val uppercase = SchemaExpr.StringUppercase[DynamicValue](
-          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+        val uppercase = DynamicSchemaExpr.StringUppercase(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root)
         )
 
         val action = MigrationAction.TransformKeys(
@@ -214,7 +214,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformKeys(
           at = DynamicOptic.root,
-          transform = SchemaExpr.Literal[DynamicValue, String]("key", Schema.string)
+          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
         )
 
         val result = action.execute(emptyMap)
@@ -235,8 +235,8 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
           )
         )
 
-        val uppercase = SchemaExpr.StringUppercase[DynamicValue](
-          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+        val uppercase = DynamicSchemaExpr.StringUppercase(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root)
         )
 
         val action = MigrationAction.TransformKeys(
@@ -266,7 +266,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformKeys(
           at = DynamicOptic.root,
-          transform = SchemaExpr.Literal[DynamicValue, String]("key", Schema.string)
+          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
         )
 
         val result = action.execute(notAMap)
@@ -290,11 +290,11 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
           )
         )
 
-        val addOne = SchemaExpr.Arithmetic(
-          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-          SchemaExpr.Literal[DynamicValue, Int](1, Schema.int),
-          SchemaExpr.ArithmeticOperator.Add,
-          IsNumeric.IsInt
+        val addOne = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          DynamicSchemaExpr.ArithmeticOperator.Add,
+          DynamicSchemaExpr.NumericType.IntType
         )
 
         val action = MigrationAction.TransformValues(
@@ -333,8 +333,8 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
           )
         )
 
-        val lowercase = SchemaExpr.StringLowercase[DynamicValue](
-          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+        val lowercase = DynamicSchemaExpr.StringLowercase(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root)
         )
 
         val action = MigrationAction.TransformValues(
@@ -364,7 +364,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformValues(
           at = DynamicOptic.root,
-          transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(emptyMap)
@@ -389,11 +389,11 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
           )
         )
 
-        val addBonus = SchemaExpr.Arithmetic(
-          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-          SchemaExpr.Literal[DynamicValue, Int](5, Schema.int),
-          SchemaExpr.ArithmeticOperator.Add,
-          IsNumeric.IsInt
+        val addBonus = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          DynamicSchemaExpr.ArithmeticOperator.Add,
+          DynamicSchemaExpr.NumericType.IntType
         )
 
         val action = MigrationAction.TransformValues(
@@ -427,7 +427,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformValues(
           at = DynamicOptic.root,
-          transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(notAMap)
@@ -437,19 +437,19 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
     ),
     suite("Reverse operations")(
       test("TransformElements.reverse of irreversible transform returns Irreversible") {
-        val transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         val action    = MigrationAction.TransformElements(DynamicOptic.root, transform)
 
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
       test("TransformKeys.reverse of irreversible transform returns Irreversible") {
-        val transform = SchemaExpr.Literal[DynamicValue, String]("key", Schema.string)
+        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
         val action    = MigrationAction.TransformKeys(DynamicOptic.root, transform)
 
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
       test("TransformValues.reverse of irreversible transform returns Irreversible") {
-        val transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         val action    = MigrationAction.TransformValues(DynamicOptic.root, transform)
 
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])

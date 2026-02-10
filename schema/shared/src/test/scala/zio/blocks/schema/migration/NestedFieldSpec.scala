@@ -72,7 +72,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonV1, PersonV2]
           .addField(
             DynamicOptic.root.field("address").field("country"),
-            SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
           )
           .build
 
@@ -87,7 +87,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[EmployeeV1, EmployeeV2]
           .addField(
             DynamicOptic.root.field("company").field("address").field("country"),
-            SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
           )
           .build
 
@@ -102,7 +102,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonV1, PersonV2]
           .addField(
             DynamicOptic.root.field("nonexistent").field("street"),
-            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
           )
           .build
 
@@ -117,7 +117,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonV1, PersonV2]
           .addField(
             DynamicOptic.root.field("name").field("street"),
-            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
           )
           .build
 
@@ -137,7 +137,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("address").field("zip"),
-              SchemaExpr.Literal[DynamicValue, String]("00000", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
             )
           )
         )
@@ -155,7 +155,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("company").field("address").field("zip"),
-              SchemaExpr.Literal[DynamicValue, String]("00000", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
             )
           )
         )
@@ -171,7 +171,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonV1, PersonV2]
           .dropField(
             DynamicOptic.root.field("address").field("nonexistent"),
-            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
           )
           .build
 
@@ -247,8 +247,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonV1, PersonV2]
           .transformField(
             DynamicOptic.root.field("address").field("city"),
-            SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           .build
@@ -267,8 +267,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[EmployeeV1, EmployeeV2]
           .transformField(
             DynamicOptic.root.field("company").field("address").field("city"),
-            SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           .build
@@ -392,7 +392,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root.field("address").field("apartment"),
-              SchemaExpr.Literal[DynamicValue, String]("N/A", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("N/A")))
             )
           )
         )
@@ -425,7 +425,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root.field("address").field("apartment"),
-              SchemaExpr.Literal[DynamicValue, String]("N/A", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("N/A")))
             )
           )
         )
@@ -459,7 +459,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Optionalize(
               DynamicOptic.root.field("address").field("zip"),
-              SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
             )
           )
         )
@@ -492,7 +492,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Optionalize(
               DynamicOptic.root.field("company").field("address").field("zip"),
-              SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
             )
           )
         )
@@ -538,12 +538,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
                 DynamicOptic.root.field("address").field("street"),
                 DynamicOptic.root.field("address").field("city")
               ),
-              SchemaExpr.StringConcat(
-                SchemaExpr.StringConcat(
-                  SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
-                  SchemaExpr.Literal[DynamicValue, String](", ", Schema.string)
+              DynamicSchemaExpr.StringConcat(
+                DynamicSchemaExpr.StringConcat(
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(", ")))
                 ),
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
               )
             )
           )
@@ -579,12 +579,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
                 DynamicOptic.root.field("company").field("address").field("street"),
                 DynamicOptic.root.field("company").field("address").field("city")
               ),
-              SchemaExpr.StringConcat(
-                SchemaExpr.StringConcat(
-                  SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
-                  SchemaExpr.Literal[DynamicValue, String](", ", Schema.string)
+              DynamicSchemaExpr.StringConcat(
+                DynamicSchemaExpr.StringConcat(
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(", ")))
                 ),
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
               )
             )
           )
@@ -637,8 +637,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
                 DynamicOptic.root.field("address").field("street"),
                 DynamicOptic.root.field("address").field("city")
               ),
-              SchemaExpr.StringSplit(
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
+              DynamicSchemaExpr.StringSplit(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root),
                 ", "
               )
             )
@@ -683,8 +683,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
                 DynamicOptic.root.field("company").field("address").field("street"),
                 DynamicOptic.root.field("company").field("address").field("city")
               ),
-              SchemaExpr.StringSplit(
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
+              DynamicSchemaExpr.StringSplit(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root),
                 ", "
               )
             )
@@ -717,11 +717,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[CompanyWithDept, CompanyWithDept]
           .transformElements(
             DynamicOptic.root.field("department").field("employeeIds"),
-            SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal[DynamicValue, Int](10, Schema.int),
-              SchemaExpr.ArithmeticOperator.Multiply,
-              IsNumeric.IsInt
+            DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+              DynamicSchemaExpr.ArithmeticOperator.Multiply,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           .build
@@ -746,8 +746,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonWithMetadata, PersonWithMetadata]
           .transformKeys(
             DynamicOptic.root.field("address").field("metadata"),
-            SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           .build
@@ -775,8 +775,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonWithMetadata, PersonWithMetadata]
           .transformValues(
             DynamicOptic.root.field("address").field("metadata"),
-            SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           .build
@@ -858,7 +858,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("address").field("country"),
-              SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
             ),
             MigrationAction.Rename(
               DynamicOptic.root.field("address").field("street"),
@@ -866,8 +866,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
             ),
             MigrationAction.TransformValue(
               DynamicOptic.root.field("address").field("city"),
-              SchemaExpr.StringUppercase(
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+              DynamicSchemaExpr.StringUppercase(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root)
               )
             )
           )
@@ -900,8 +900,8 @@ object NestedFieldSpec extends ZIOSpecDefault {
             ),
             MigrationAction.TransformValue(
               DynamicOptic.root.field("address").field("city"),
-              SchemaExpr.StringUppercase(
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+              DynamicSchemaExpr.StringUppercase(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root)
               )
             )
           )
@@ -929,7 +929,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           .newBuilder[PersonV1, PersonV2]
           .addField(
             DynamicOptic.root.field("address").field("city").field("street"),
-            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
           )
           .build
 
@@ -951,7 +951,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("address").field("country"),
-              SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
             )
           )
         )

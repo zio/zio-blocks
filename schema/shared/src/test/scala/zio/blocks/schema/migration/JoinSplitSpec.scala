@@ -7,9 +7,9 @@ import zio.test._
 object JoinSplitSpec extends ZIOSpecDefault {
 
   // Helper to create a splitter that returns multiple values for testing
-  def testSplitter(value: String, delimiter: String): SchemaExpr[DynamicValue, String] = {
-    val literal = SchemaExpr.Literal[DynamicValue, String](value, Schema.string)
-    SchemaExpr.StringSplit(literal, delimiter)
+  def testSplitter(value: String, delimiter: String): DynamicSchemaExpr = {
+    val literal = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(value)))
+    DynamicSchemaExpr.StringSplit(literal, delimiter)
   }
 
   def spec = suite("Join and Split Migration Actions")(
@@ -26,11 +26,11 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val lastNameOptic  = DynamicOptic.root.field("lastName")
 
         // Combiner: field0 + " " + field1 (reads actual source values)
-        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.StringConcat(
-          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
-          SchemaExpr.StringConcat(
-            SchemaExpr.Literal(" ", Schema.string),
-            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+        val combiner: DynamicSchemaExpr = DynamicSchemaExpr.StringConcat(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+          DynamicSchemaExpr.StringConcat(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
           )
         )
 
@@ -63,11 +63,11 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val bonusOptic    = DynamicOptic.root.field("bonus")
 
         // Combiner: field0 + field1 (reads actual source values)
-        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Arithmetic[DynamicValue, Int](
-          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field0")),
-          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field1")),
-          SchemaExpr.ArithmeticOperator.Add,
-          IsNumeric.IsInt
+        val combiner: DynamicSchemaExpr = DynamicSchemaExpr.Arithmetic(
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1")),
+          DynamicSchemaExpr.ArithmeticOperator.Add,
+          DynamicSchemaExpr.NumericType.IntType
         )
 
         val joinAction = MigrationAction.Join(
@@ -95,7 +95,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val firstNameOptic = DynamicOptic.root.field("firstName")
         val lastNameOptic  = DynamicOptic.root.field("lastName") // Does not exist
 
-        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+        val combiner: DynamicSchemaExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
 
         val joinAction = MigrationAction.Join(
           at = DynamicOptic.root.field("fullName"),
@@ -114,11 +114,11 @@ object JoinSplitSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("firstName"),
             DynamicOptic.root.field("lastName")
           ),
-          combiner = SchemaExpr.StringConcat(
-            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
-            SchemaExpr.StringConcat(
-              SchemaExpr.Literal(" ", Schema.string),
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+          combiner = DynamicSchemaExpr.StringConcat(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+            DynamicSchemaExpr.StringConcat(
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
             )
           )
         )
@@ -134,7 +134,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("firstName"),
             DynamicOptic.root.field("lastName")
           ),
-          combiner = SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+          combiner = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
         )
 
         val reversed = joinAction.reverse
@@ -156,7 +156,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("meta").field("id"),
             DynamicOptic.root.field("data").field("name")
           ),
-          combiner = SchemaExpr.Literal[DynamicValue, String]("combined", Schema.string)
+          combiner = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("combined")))
         )
 
         val result = joinAction.execute(record)
@@ -187,11 +187,11 @@ object JoinSplitSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("address").field("street"),
             DynamicOptic.root.field("address").field("city")
           ),
-          combiner = SchemaExpr.StringConcat(
-            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
-            SchemaExpr.StringConcat(
-              SchemaExpr.Literal(", ", Schema.string),
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+          combiner = DynamicSchemaExpr.StringConcat(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+            DynamicSchemaExpr.StringConcat(
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(", "))),
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
             )
           )
         )
@@ -371,15 +371,15 @@ object JoinSplitSpec extends ZIOSpecDefault {
         })
       }
     ),
-    suite("StringSplit SchemaExpr")(
+    suite("StringSplit DynamicSchemaExpr")(
       test("should split string by delimiter") {
         val input = DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
 
         // StringSplit expression: split by " "
-        val stringExpr = SchemaExpr.Literal[DynamicValue, String]("John Doe", Schema.string)
-        val splitExpr  = SchemaExpr.StringSplit(stringExpr, " ")
+        val stringExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("John Doe")))
+        val splitExpr  = DynamicSchemaExpr.StringSplit(stringExpr, " ")
 
-        val result = splitExpr.evalDynamic(input)
+        val result = splitExpr.eval(input)
 
         assertTrue(result.isRight) &&
         assertTrue(result.exists { seq =>
@@ -391,10 +391,10 @@ object JoinSplitSpec extends ZIOSpecDefault {
       test("should handle empty string") {
         val input = DynamicValue.Primitive(PrimitiveValue.String(""))
 
-        val stringExpr = SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
-        val splitExpr  = SchemaExpr.StringSplit(stringExpr, " ")
+        val stringExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+        val splitExpr  = DynamicSchemaExpr.StringSplit(stringExpr, " ")
 
-        val result = splitExpr.evalDynamic(input)
+        val result = splitExpr.eval(input)
 
         assertTrue(result.isRight) &&
         assertTrue(result.exists(_.length == 1))
@@ -402,10 +402,10 @@ object JoinSplitSpec extends ZIOSpecDefault {
       test("should handle string with no delimiter") {
         val input = DynamicValue.Primitive(PrimitiveValue.String("John"))
 
-        val stringExpr = SchemaExpr.Literal[DynamicValue, String]("John", Schema.string)
-        val splitExpr  = SchemaExpr.StringSplit(stringExpr, " ")
+        val stringExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("John")))
+        val splitExpr  = DynamicSchemaExpr.StringSplit(stringExpr, " ")
 
-        val result = splitExpr.evalDynamic(input)
+        val result = splitExpr.eval(input)
 
         assertTrue(result.isRight) &&
         assertTrue(result.exists { seq =>

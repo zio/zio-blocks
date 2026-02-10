@@ -24,7 +24,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val addAction = MigrationAction.AddField(
             at = DynamicOptic.root.field("age"),
-            default = SchemaExpr.Literal(30, Schema.int)
+            default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(30)))
           )
           val dropAction = addAction.reverse
 
@@ -44,7 +44,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val dropAction = MigrationAction.DropField(
             at = DynamicOptic.root.field("age"),
-            defaultForReverse = SchemaExpr.Literal(25, Schema.int)
+            defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(25)))
           )
           val addAction = dropAction.reverse
 
@@ -110,7 +110,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val mandateAction = MigrationAction.Mandate(
             at = DynamicOptic.root.field("age"),
-            default = SchemaExpr.Literal(0, Schema.int)
+            default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
           )
           val optionalizeAction = mandateAction.reverse
 
@@ -129,7 +129,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val optionalizeAction = MigrationAction.Optionalize(
             at = DynamicOptic.root.field("age"),
-            defaultForReverse = SchemaExpr.Literal(0, Schema.int)
+            defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
           )
           val mandateAction = optionalizeAction.reverse
 
@@ -178,7 +178,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
             actions = Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("cvv"),
-                default = SchemaExpr.Literal("000", Schema.string)
+                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("000")))
               )
             )
           )
@@ -203,11 +203,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val addAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("price"),
-            transform = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(50, Schema.int),
-              SchemaExpr.ArithmeticOperator.Add,
-              IsNumeric.IsInt
+            transform = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(50))),
+              DynamicSchemaExpr.ArithmeticOperator.Add,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           val subtractAction = addAction.reverse
@@ -232,11 +232,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val subtractAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("balance"),
-            transform = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(200, Schema.int),
-              SchemaExpr.ArithmeticOperator.Subtract,
-              IsNumeric.IsInt
+            transform = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(200))),
+              DynamicSchemaExpr.ArithmeticOperator.Subtract,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           val addAction = subtractAction.reverse
@@ -263,11 +263,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val multiplyAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("quantity"),
-            transform = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(5, Schema.int),
-              SchemaExpr.ArithmeticOperator.Multiply,
-              IsNumeric.IsInt
+            transform = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+              DynamicSchemaExpr.ArithmeticOperator.Multiply,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           val divideAction = multiplyAction.reverse
@@ -294,8 +294,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val notAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("active"),
-            transform = SchemaExpr.Not(
-              SchemaExpr.Dynamic[DynamicValue, Boolean](DynamicOptic.root)
+            transform = DynamicSchemaExpr.Not(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           val reverseNotAction = notAction.reverse
@@ -324,8 +324,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val uppercaseAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("name"),
-            transform = SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            transform = DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           val lowercaseAction = uppercaseAction.reverse
@@ -349,8 +349,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val lowercaseAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("name"),
-            transform = SchemaExpr.StringLowercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            transform = DynamicSchemaExpr.StringLowercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           val uppercaseAction = lowercaseAction.reverse
@@ -374,8 +374,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val uppercaseAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("name"),
-            transform = SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            transform = DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           val lowercaseAction = uppercaseAction.reverse
@@ -409,11 +409,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("firstName"),
               DynamicOptic.root.field("lastName")
             ),
-            combiner = SchemaExpr.StringConcat(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
-              SchemaExpr.StringConcat(
-                SchemaExpr.Literal(" ", Schema.string),
-                SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+            combiner = DynamicSchemaExpr.StringConcat(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+              DynamicSchemaExpr.StringConcat(
+                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
               )
             )
           )
@@ -444,8 +444,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("firstName"),
               DynamicOptic.root.field("lastName")
             ),
-            splitter = SchemaExpr.StringSplit(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
+            splitter = DynamicSchemaExpr.StringSplit(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
               " "
             )
           )
@@ -479,8 +479,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("month"),
               DynamicOptic.root.field("day")
             ),
-            splitter = SchemaExpr.StringSplit(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
+            splitter = DynamicSchemaExpr.StringSplit(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
               "-"
             )
           )
@@ -499,8 +499,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         test("StringLength cannot reverse (info lost)") {
           val lengthAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("name"),
-            transform = SchemaExpr.StringLength(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            transform = DynamicSchemaExpr.StringLength(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           val reverseAction = lengthAction.reverse
@@ -511,10 +511,10 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         test("Relational operations cannot reverse (boolean result)") {
           val relationalAction = MigrationAction.TransformValue(
             at = DynamicOptic.root.field("age"),
-            transform = SchemaExpr.Relational(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(18, Schema.int),
-              SchemaExpr.RelationalOperator.GreaterThan
+            transform = DynamicSchemaExpr.Relational(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(18))),
+              DynamicSchemaExpr.RelationalOperator.GreaterThan
             )
           )
           val reverseAction = relationalAction.reverse
@@ -538,11 +538,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("x"),
               DynamicOptic.root.field("y")
             ),
-            combiner = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field0")),
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field1")),
-              SchemaExpr.ArithmeticOperator.Add,
-              IsNumeric.IsInt
+            combiner = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1")),
+              DynamicSchemaExpr.ArithmeticOperator.Add,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           val reverseAction = joinAction.reverse
@@ -566,7 +566,7 @@ object MigrationReverseSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("part1"),
               DynamicOptic.root.field("part2")
             ),
-            splitter = SchemaExpr.Dynamic[DynamicValue, DynamicValue](DynamicOptic.root)
+            splitter = DynamicSchemaExpr.Dynamic(DynamicOptic.root)
           )
           val reverseAction = splitAction.reverse
 
@@ -595,11 +595,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val addAction = MigrationAction.TransformElements(
             at = DynamicOptic.root.field("prices"),
-            transform = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(10, Schema.int),
-              SchemaExpr.ArithmeticOperator.Add,
-              IsNumeric.IsInt
+            transform = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+              DynamicSchemaExpr.ArithmeticOperator.Add,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           val subtractAction = addAction.reverse
@@ -627,8 +627,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val uppercaseAction = MigrationAction.TransformKeys(
             at = DynamicOptic.root.field("metadata"),
-            transform = SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            transform = DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           )
           val lowercaseAction = uppercaseAction.reverse
@@ -656,11 +656,11 @@ object MigrationReverseSpec extends ZIOSpecDefault {
 
           val addAction = MigrationAction.TransformValues(
             at = DynamicOptic.root.field("scores"),
-            transform = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(5, Schema.int),
-              SchemaExpr.ArithmeticOperator.Add,
-              IsNumeric.IsInt
+            transform = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+              DynamicSchemaExpr.ArithmeticOperator.Add,
+              DynamicSchemaExpr.NumericType.IntType
             )
           )
           val subtractAction = addAction.reverse
@@ -689,22 +689,22 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           ),
           MigrationAction.TransformValue(
             at = DynamicOptic.root.field("name"),
-            transform = SchemaExpr.StringUppercase(
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
+            transform = DynamicSchemaExpr.StringUppercase(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
             )
           ),
           MigrationAction.TransformValue(
             at = DynamicOptic.root.field("salary"),
-            transform = SchemaExpr.Arithmetic(
-              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root),
-              SchemaExpr.Literal(10000, Schema.int),
-              SchemaExpr.ArithmeticOperator.Add,
-              IsNumeric.IsInt
+            transform = DynamicSchemaExpr.Arithmetic(
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10000))),
+              DynamicSchemaExpr.ArithmeticOperator.Add,
+              DynamicSchemaExpr.NumericType.IntType
             )
           ),
           MigrationAction.Optionalize(
             at = DynamicOptic.root.field("age"),
-            defaultForReverse = SchemaExpr.Literal(0, Schema.int)
+            defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
           )
         )
 

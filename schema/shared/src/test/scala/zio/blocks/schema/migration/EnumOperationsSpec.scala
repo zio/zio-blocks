@@ -169,7 +169,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
           actions = Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("expiryDate"),
-              SchemaExpr.Literal[DynamicValue, String]("2030-12", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("2030-12")))
             )
           )
         )
@@ -247,7 +247,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
           actions = Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("expiryDate"),
-              SchemaExpr.Literal[DynamicValue, String]("2030-12", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("2030-12")))
             )
           )
         )
@@ -275,11 +275,11 @@ object EnumOperationsSpec extends ZIOSpecDefault {
             MigrationAction.Rename(DynamicOptic.root.field("number"), to = "cardNumber"),
             MigrationAction.AddField(
               DynamicOptic.root.field("expiryDate"),
-              SchemaExpr.Literal[DynamicValue, String]("2030-12", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("2030-12")))
             ),
             MigrationAction.DropField(
               DynamicOptic.root.field("cvv"),
-              SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             )
           )
         )
@@ -315,7 +315,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
           actions = Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("expiryDate"),
-              SchemaExpr.Literal[DynamicValue, String]("2030-12", Schema.string)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("2030-12")))
             )
           )
         )
@@ -370,7 +370,7 @@ object EnumOperationsSpec extends ZIOSpecDefault {
           actions = Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("nonExistentField"),
-              SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             )
           )
         )

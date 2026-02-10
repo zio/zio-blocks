@@ -1,7 +1,18 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
+import zio.blocks.schema.{
+  DynamicOptic,
+  DynamicSchemaExpr,
+  DynamicValue,
+  PrimitiveConverter,
+  PrimitiveValue,
+  Reflect,
+  Schema
+}
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.typeid.TypeId
 
 /**
  * Represents an atomic migration operation. All actions operate at a specific
@@ -27,41 +38,10 @@ private[migration] sealed trait MigrationAction {
 
 object MigrationAction {
 
-  // Helper to compute the inverse of a SchemaExpr for reversible transformations.
-  // Returns None for irreversible operations (StringLength, Relational, Logical, etc.)
-  private def inverseTransform(transform: SchemaExpr[DynamicValue, ?]): Option[SchemaExpr[DynamicValue, ?]] =
-    transform match {
-      // Lossless: Arithmetic Add/Subtract
-      case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num) =>
-        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num))
-
-      case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num) =>
-        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num))
-
-      // Lossless: Arithmetic Multiply/Divide
-      case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num) =>
-        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num))
-
-      case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num) =>
-        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num))
-
-      // Lossless: Boolean Not (self-inverse)
-      case SchemaExpr.Not(expr) =>
-        Some(SchemaExpr.Not(expr))
-
-      // Lossy: String case conversions (loses original casing)
-      case SchemaExpr.StringUppercase(expr) =>
-        Some(SchemaExpr.StringLowercase(expr))
-
-      case SchemaExpr.StringLowercase(expr) =>
-        Some(SchemaExpr.StringUppercase(expr))
-
-      // DefaultValue is self-inverse (same default value in both directions)
-      case dv: SchemaExpr.DefaultValue[?] => Some(dv.asInstanceOf[SchemaExpr[DynamicValue, ?]])
-
-      // Irreversible: StringLength, Relational, Logical, StringRegexMatch, etc.
-      case _ => None
-    }
+  // Helper to compute the inverse of a DynamicSchemaExpr for reversible transformations.
+  // Delegates to DynamicSchemaExpr.inverse.
+  private def inverseTransform(transform: DynamicSchemaExpr): Option[DynamicSchemaExpr] =
+    transform.inverse
 
   // Private helpers for navigating and updating nested DynamicValue structures.
   private object NavigationHelpers {
@@ -279,15 +259,15 @@ object MigrationAction {
    */
   private[migration] final case class AddField(
     at: DynamicOptic,
-    default: SchemaExpr[DynamicValue, ?]
+    default: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       // Evaluate default expression first
-      val defaultValue = default.evalDynamic(value) match {
+      val defaultValue = default.eval(value) match {
         case Right(seq) if seq.nonEmpty => seq.head
         case Right(_)                   => return Left(MigrationError.EvaluationError(at, "Default expression returned empty sequence"))
         case Left(err)                  =>
-          return Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: ${err.getMessage}"))
+          return Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: $err"))
       }
 
       NavigationHelpers.modifyRecordAt(
@@ -308,7 +288,7 @@ object MigrationAction {
    */
   private[migration] final case class DropField(
     at: DynamicOptic,
-    defaultForReverse: SchemaExpr[DynamicValue, ?]
+    defaultForReverse: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] =
       NavigationHelpers.modifyRecordAt(
@@ -359,13 +339,13 @@ object MigrationAction {
   }
 
   /**
-   * Transforms a field value using a SchemaExpr. Can use any existing
-   * SchemaExpr (Arithmetic, StringConcat, etc.) Reverse: TransformValue with
-   * reverse SchemaExpr (best-effort)
+   * Transforms a field value using a DynamicSchemaExpr. Can use any existing
+   * expression (Arithmetic, StringConcat, etc.) Reverse: TransformValue with
+   * inverse expression (best-effort)
    */
   private[migration] final case class TransformValue(
     at: DynamicOptic,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       if (at.nodes.isEmpty) {
@@ -376,11 +356,11 @@ object MigrationAction {
         value,
         at,
         fieldValue =>
-          transform.evalDynamic(fieldValue) match {
+          transform.eval(fieldValue) match {
             case Right(seq) if seq.nonEmpty => Right(seq.head)
             case Right(_)                   => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
             case Left(err)                  =>
-              Left(MigrationError.EvaluationError(at, s"Failed to evaluate transform: ${err.getMessage}"))
+              Left(MigrationError.EvaluationError(at, s"Failed to evaluate transform: $err"))
           }
       )
     }
@@ -424,7 +404,7 @@ object MigrationAction {
    */
   private[migration] final case class Mandate(
     at: DynamicOptic,
-    default: SchemaExpr[DynamicValue, ?]
+    default: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(rootValue: DynamicValue): Either[MigrationError, DynamicValue] = {
       def unwrapOption(optionValue: DynamicValue): Either[MigrationError, DynamicValue] = optionValue match {
@@ -444,11 +424,11 @@ object MigrationAction {
                   Left(MigrationError.InvalidStructure(at, "Record inside Some", innerValue.getClass.getSimpleName))
               }
             case "None" =>
-              default.evalDynamic(rootValue) match {
+              default.eval(rootValue) match {
                 case Right(seq) if seq.nonEmpty => Right(seq.head)
                 case Right(_)                   => Left(MigrationError.EvaluationError(at, "Default expression returned empty sequence"))
                 case Left(err)                  =>
-                  Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: ${err.getMessage}"))
+                  Left(MigrationError.EvaluationError(at, s"Failed to evaluate default: $err"))
               }
             case other =>
               Left(MigrationError.InvalidStructure(at, "Variant with 'Some' or 'None'", s"Variant with case '$other'"))
@@ -468,7 +448,7 @@ object MigrationAction {
    */
   private[migration] final case class Optionalize(
     at: DynamicOptic,
-    defaultForReverse: SchemaExpr[DynamicValue, ?]
+    defaultForReverse: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       def wrapInSome(originalValue: DynamicValue): DynamicValue =
@@ -497,7 +477,7 @@ object MigrationAction {
   private[migration] final case class Join(
     at: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
-    combiner: SchemaExpr[DynamicValue, ?]
+    combiner: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       // Validate sibling constraint for nested paths
@@ -540,7 +520,7 @@ object MigrationAction {
             sourceValuesResult.flatMap { sourceValues =>
               // Build temporary Record with field0, field1, etc. and evaluate combiner
               val tempFields = Chunk.fromIterable(sourceValues.zipWithIndex.map { case (v, idx) => s"field$idx" -> v })
-              combiner.evalDynamic(DynamicValue.Record(tempFields)) match {
+              combiner.eval(DynamicValue.Record(tempFields)) match {
                 case Right(seq) if seq.nonEmpty =>
                   val combinedValue = seq.head
                   // Add combined value and remove source fields
@@ -556,7 +536,7 @@ object MigrationAction {
                   Right(DynamicValue.Record(resultFields))
                 case Right(_)  => Left(MigrationError.EvaluationError(at, "Combiner expression returned empty sequence"))
                 case Left(err) =>
-                  Left(MigrationError.EvaluationError(at, s"Failed to evaluate combiner: ${err.getMessage}"))
+                  Left(MigrationError.EvaluationError(at, s"Failed to evaluate combiner: $err"))
               }
             }
           }
@@ -564,8 +544,16 @@ object MigrationAction {
     }
 
     def reverse: MigrationAction = combiner match {
-      case SchemaExpr.StringConcat(_, SchemaExpr.StringConcat(SchemaExpr.Literal(delimiter: String, _), _)) =>
-        val splitter = SchemaExpr.StringSplit(SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root), delimiter)
+      case DynamicSchemaExpr.StringConcat(
+            _,
+            DynamicSchemaExpr.StringConcat(DynamicSchemaExpr.Literal(delimiterDv), _)
+          ) =>
+        val delimiter = delimiterDv match {
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+          case _                                                =>
+            return Irreversible(at, "Cannot reverse Join: delimiter is not a String literal")
+        }
+        val splitter = DynamicSchemaExpr.StringSplit(DynamicSchemaExpr.Dynamic(DynamicOptic.root), delimiter)
         Split(at, sourcePaths, splitter)
       case _ =>
         Irreversible(
@@ -593,7 +581,7 @@ object MigrationAction {
   private[migration] final case class Split(
     at: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
-    splitter: SchemaExpr[DynamicValue, ?]
+    splitter: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       // Validate sibling constraint for nested paths
@@ -618,9 +606,9 @@ object MigrationAction {
             val (_, sourceValue) = record.fields(sourceFieldIndex)
 
             // Evaluate splitter on source value
-            splitter.evalDynamic(sourceValue) match {
+            splitter.eval(sourceValue) match {
               case Left(err) =>
-                Left(MigrationError.EvaluationError(at, s"Failed to evaluate splitter: ${err.getMessage}"))
+                Left(MigrationError.EvaluationError(at, s"Failed to evaluate splitter: $err"))
               case Right(splitResults) =>
                 if (splitResults.length != targetPaths.length) {
                   Left(
@@ -665,18 +653,16 @@ object MigrationAction {
     }
 
     def reverse: MigrationAction = splitter match {
-      case SchemaExpr.StringSplit(_, delimiter) if targetPaths.nonEmpty =>
+      case DynamicSchemaExpr.StringSplit(_, delimiter) if targetPaths.nonEmpty =>
         // Build StringConcat chain: field0 + delimiter + field1 + delimiter + field2 + ...
-        val lastIdx                                    = targetPaths.length - 1
-        val lastExpr: SchemaExpr[DynamicValue, String] =
-          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field(s"field$lastIdx"))
-        val combiner = (lastIdx - 1 to 0 by -1).foldLeft(lastExpr) { (acc, idx) =>
-          SchemaExpr.StringConcat(
-            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field(s"field$idx")),
-            SchemaExpr.StringConcat(
-              SchemaExpr.Literal(delimiter, zio.blocks.schema.Schema.string),
-              acc
-            )
+        val lastIdx                     = targetPaths.length - 1
+        val lastExpr: DynamicSchemaExpr =
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root.field(s"field$lastIdx"))
+        val delimiterLit = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(delimiter)))
+        val combiner     = (lastIdx - 1 to 0 by -1).foldLeft(lastExpr) { (acc, idx) =>
+          DynamicSchemaExpr.StringConcat(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field(s"field$idx")),
+            DynamicSchemaExpr.StringConcat(delimiterLit, acc)
           )
         }
         Join(at, targetPaths, combiner)
@@ -693,16 +679,16 @@ object MigrationAction {
    */
   private[migration] final case class TransformElements(
     at: DynamicOptic,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       def transformSequence(seq: DynamicValue.Sequence): Either[MigrationError, DynamicValue] = {
         val transformedResults = seq.elements.map { element =>
-          transform.evalDynamic(element) match {
+          transform.eval(element) match {
             case Right(results) if results.nonEmpty => Right(results.head)
             case Right(_)                           => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
             case Left(err)                          =>
-              Left(MigrationError.EvaluationError(at, s"Failed to transform element: ${err.getMessage}"))
+              Left(MigrationError.EvaluationError(at, s"Failed to transform element: $err"))
           }
         }
         transformedResults.collectFirst { case Left(err) => err }
@@ -733,15 +719,15 @@ object MigrationAction {
    */
   private[migration] final case class TransformKeys(
     at: DynamicOptic,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       def transformMapKeys(map: DynamicValue.Map): Either[MigrationError, DynamicValue] = {
         val transformedResults = map.entries.map { case (key, v) =>
-          transform.evalDynamic(key) match {
+          transform.eval(key) match {
             case Right(results) if results.nonEmpty => Right((results.head, v))
             case Right(_)                           => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-            case Left(err)                          => Left(MigrationError.EvaluationError(at, s"Failed to transform key: ${err.getMessage}"))
+            case Left(err)                          => Left(MigrationError.EvaluationError(at, s"Failed to transform key: $err"))
           }
         }
         transformedResults.collectFirst { case Left(err) => err }
@@ -772,15 +758,15 @@ object MigrationAction {
    */
   private[migration] final case class TransformValues(
     at: DynamicOptic,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def execute(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       def transformMapValues(map: DynamicValue.Map): Either[MigrationError, DynamicValue] = {
         val transformedResults = map.entries.map { case (key, v) =>
-          transform.evalDynamic(v) match {
+          transform.eval(v) match {
             case Right(results) if results.nonEmpty => Right((key, results.head))
             case Right(_)                           => Left(MigrationError.EvaluationError(at, "Transform expression returned empty sequence"))
-            case Left(err)                          => Left(MigrationError.EvaluationError(at, s"Failed to transform value: ${err.getMessage}"))
+            case Left(err)                          => Left(MigrationError.EvaluationError(at, s"Failed to transform value: $err"))
           }
         }
         transformedResults.collectFirst { case Left(err) => err }
@@ -871,4 +857,293 @@ object MigrationAction {
 
     def reverse: MigrationAction = this
   }
+
+  // --- Schema definitions ---
+
+  private def obj2Schema[A](id: TypeId[A], f1: String, s1: => Schema[_], f2: String, s2: => Schema[_])(
+    mk: (AnyRef, AnyRef) => A,
+    get: A => (AnyRef, AnyRef)
+  ): Schema[A] = new Schema(
+    new Reflect.Record[Binding, A](
+      fields = Chunk(
+        Reflect.Deferred(() => s1.reflect.asInstanceOf[Reflect.Bound[Any]]).asTerm(f1),
+        Reflect.Deferred(() => s2.reflect.asInstanceOf[Reflect.Bound[Any]]).asTerm(f2)
+      ),
+      typeId = id,
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[A] {
+          def usedRegisters: RegisterOffset                       = RegisterOffset(objects = 2)
+          def construct(in: Registers, offset: RegisterOffset): A =
+            mk(in.getObject(offset), in.getObject(RegisterOffset.incrementObjects(offset)))
+        },
+        deconstructor = new Deconstructor[A] {
+          def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 2)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit = {
+            val (a, b) = get(in); out.setObject(offset, a); out.setObject(RegisterOffset.incrementObjects(offset), b)
+          }
+        }
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  private def obj3Schema[A](
+    id: TypeId[A],
+    f1: String,
+    s1: => Schema[_],
+    f2: String,
+    s2: => Schema[_],
+    f3: String,
+    s3: => Schema[_]
+  )(
+    mk: (AnyRef, AnyRef, AnyRef) => A,
+    get: A => (AnyRef, AnyRef, AnyRef)
+  ): Schema[A] = new Schema(
+    new Reflect.Record[Binding, A](
+      fields = Chunk(
+        Reflect.Deferred(() => s1.reflect.asInstanceOf[Reflect.Bound[Any]]).asTerm(f1),
+        Reflect.Deferred(() => s2.reflect.asInstanceOf[Reflect.Bound[Any]]).asTerm(f2),
+        Reflect.Deferred(() => s3.reflect.asInstanceOf[Reflect.Bound[Any]]).asTerm(f3)
+      ),
+      typeId = id,
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[A] {
+          def usedRegisters: RegisterOffset                       = RegisterOffset(objects = 3)
+          def construct(in: Registers, offset: RegisterOffset): A = {
+            val off1 = RegisterOffset.incrementObjects(offset)
+            mk(in.getObject(offset), in.getObject(off1), in.getObject(RegisterOffset.incrementObjects(off1)))
+          }
+        },
+        deconstructor = new Deconstructor[A] {
+          def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 3)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit = {
+            val (a, b, c) = get(in); val off1 = RegisterOffset.incrementObjects(offset)
+            out.setObject(offset, a); out.setObject(off1, b); out.setObject(RegisterOffset.incrementObjects(off1), c)
+          }
+        }
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  private[migration] implicit lazy val addFieldSchema: Schema[AddField] =
+    obj2Schema(TypeId.of[AddField], "at", Schema[DynamicOptic], "default", DynamicSchemaExpr.schema)(
+      (a, b) => AddField(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.default)
+    )
+
+  private[migration] implicit lazy val dropFieldSchema: Schema[DropField] =
+    obj2Schema(TypeId.of[DropField], "at", Schema[DynamicOptic], "defaultForReverse", DynamicSchemaExpr.schema)(
+      (a, b) => DropField(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.defaultForReverse)
+    )
+
+  private[migration] implicit lazy val renameSchema: Schema[Rename] =
+    obj2Schema(TypeId.of[Rename], "at", Schema[DynamicOptic], "to", Schema.string)(
+      (a, b) => Rename(a.asInstanceOf[DynamicOptic], b.asInstanceOf[String]),
+      a => (a.at, a.to)
+    )
+
+  private[migration] implicit lazy val transformValueSchema: Schema[TransformValue] =
+    obj2Schema(TypeId.of[TransformValue], "at", Schema[DynamicOptic], "transform", DynamicSchemaExpr.schema)(
+      (a, b) => TransformValue(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.transform)
+    )
+
+  private[migration] implicit lazy val changeTypeSchema: Schema[ChangeType] =
+    obj2Schema(TypeId.of[ChangeType], "at", Schema[DynamicOptic], "converter", PrimitiveConverter.schema)(
+      (a, b) => ChangeType(a.asInstanceOf[DynamicOptic], b.asInstanceOf[PrimitiveConverter]),
+      a => (a.at, a.converter)
+    )
+
+  private[migration] implicit lazy val mandateSchema: Schema[Mandate] =
+    obj2Schema(TypeId.of[Mandate], "at", Schema[DynamicOptic], "default", DynamicSchemaExpr.schema)(
+      (a, b) => Mandate(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.default)
+    )
+
+  private[migration] implicit lazy val optionalizeSchema: Schema[Optionalize] =
+    obj2Schema(TypeId.of[Optionalize], "at", Schema[DynamicOptic], "defaultForReverse", DynamicSchemaExpr.schema)(
+      (a, b) => Optionalize(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.defaultForReverse)
+    )
+
+  private[migration] implicit lazy val joinSchema: Schema[Join] =
+    obj3Schema(
+      TypeId.of[Join],
+      "at",
+      Schema[DynamicOptic],
+      "sourcePaths",
+      Schema[Vector[DynamicOptic]],
+      "combiner",
+      DynamicSchemaExpr.schema
+    )(
+      (a, b, c) =>
+        Join(a.asInstanceOf[DynamicOptic], b.asInstanceOf[Vector[DynamicOptic]], c.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.sourcePaths, a.combiner)
+    )
+
+  private[migration] implicit lazy val splitSchema: Schema[Split] =
+    obj3Schema(
+      TypeId.of[Split],
+      "at",
+      Schema[DynamicOptic],
+      "targetPaths",
+      Schema[Vector[DynamicOptic]],
+      "splitter",
+      DynamicSchemaExpr.schema
+    )(
+      (a, b, c) =>
+        Split(a.asInstanceOf[DynamicOptic], b.asInstanceOf[Vector[DynamicOptic]], c.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.targetPaths, a.splitter)
+    )
+
+  private[migration] implicit lazy val transformElementsSchema: Schema[TransformElements] =
+    obj2Schema(TypeId.of[TransformElements], "at", Schema[DynamicOptic], "transform", DynamicSchemaExpr.schema)(
+      (a, b) => TransformElements(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.transform)
+    )
+
+  private[migration] implicit lazy val transformKeysSchema: Schema[TransformKeys] =
+    obj2Schema(TypeId.of[TransformKeys], "at", Schema[DynamicOptic], "transform", DynamicSchemaExpr.schema)(
+      (a, b) => TransformKeys(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.transform)
+    )
+
+  private[migration] implicit lazy val transformValuesSchema: Schema[TransformValues] =
+    obj2Schema(TypeId.of[TransformValues], "at", Schema[DynamicOptic], "transform", DynamicSchemaExpr.schema)(
+      (a, b) => TransformValues(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicSchemaExpr]),
+      a => (a.at, a.transform)
+    )
+
+  private[migration] implicit lazy val renameCaseSchema: Schema[RenameCase] =
+    obj3Schema(TypeId.of[RenameCase], "at", Schema[DynamicOptic], "from", Schema.string, "to", Schema.string)(
+      (a, b, c) => RenameCase(a.asInstanceOf[DynamicOptic], b.asInstanceOf[String], c.asInstanceOf[String]),
+      a => (a.at, a.from, a.to)
+    )
+
+  private[migration] implicit lazy val transformCaseSchema: Schema[TransformCase] =
+    obj3Schema(
+      TypeId.of[TransformCase],
+      "at",
+      Schema[DynamicOptic],
+      "caseName",
+      Schema.string,
+      "actions",
+      Schema[Vector[MigrationAction]]
+    )(
+      (a, b, c) =>
+        TransformCase(a.asInstanceOf[DynamicOptic], b.asInstanceOf[String], c.asInstanceOf[Vector[MigrationAction]]),
+      a => (a.at, a.caseName, a.actions)
+    )
+
+  private[migration] implicit lazy val irreversibleSchema: Schema[Irreversible] =
+    obj2Schema(TypeId.of[Irreversible], "at", Schema[DynamicOptic], "reason", Schema.string)(
+      (a, b) => Irreversible(a.asInstanceOf[DynamicOptic], b.asInstanceOf[String]),
+      a => (a.at, a.reason)
+    )
+
+  private[migration] implicit lazy val schema: Schema[MigrationAction] = new Schema(
+    new Reflect.Variant[Binding, MigrationAction](
+      cases = Chunk(
+        addFieldSchema.reflect.asTerm("AddField"),
+        dropFieldSchema.reflect.asTerm("DropField"),
+        renameSchema.reflect.asTerm("Rename"),
+        transformValueSchema.reflect.asTerm("TransformValue"),
+        changeTypeSchema.reflect.asTerm("ChangeType"),
+        mandateSchema.reflect.asTerm("Mandate"),
+        optionalizeSchema.reflect.asTerm("Optionalize"),
+        joinSchema.reflect.asTerm("Join"),
+        splitSchema.reflect.asTerm("Split"),
+        transformElementsSchema.reflect.asTerm("TransformElements"),
+        transformKeysSchema.reflect.asTerm("TransformKeys"),
+        transformValuesSchema.reflect.asTerm("TransformValues"),
+        renameCaseSchema.reflect.asTerm("RenameCase"),
+        transformCaseSchema.reflect.asTerm("TransformCase"),
+        irreversibleSchema.reflect.asTerm("Irreversible")
+      ),
+      typeId = TypeId.of[MigrationAction],
+      variantBinding = new Binding.Variant(
+        discriminator = new Discriminator[MigrationAction] {
+          def discriminate(a: MigrationAction): Int = a match {
+            case _: AddField        => 0; case _: DropField         => 1; case _: Rename        => 2; case _: TransformValue => 3
+            case _: ChangeType      => 4; case _: Mandate           => 5; case _: Optionalize   => 6; case _: Join           => 7
+            case _: Split           => 8; case _: TransformElements => 9; case _: TransformKeys => 10;
+            case _: TransformValues => 11
+            case _: RenameCase      => 12; case _: TransformCase    => 13; case _: Irreversible => 14
+          }
+        },
+        matchers = Matchers(
+          new Matcher[AddField] {
+            def downcastOrNull(a: Any): AddField = a match {
+              case x: AddField => x; case _ => null.asInstanceOf[AddField]
+            }
+          },
+          new Matcher[DropField] {
+            def downcastOrNull(a: Any): DropField = a match {
+              case x: DropField => x; case _ => null.asInstanceOf[DropField]
+            }
+          },
+          new Matcher[Rename] {
+            def downcastOrNull(a: Any): Rename = a match { case x: Rename => x; case _ => null.asInstanceOf[Rename] }
+          },
+          new Matcher[TransformValue] {
+            def downcastOrNull(a: Any): TransformValue = a match {
+              case x: TransformValue => x; case _ => null.asInstanceOf[TransformValue]
+            }
+          },
+          new Matcher[ChangeType] {
+            def downcastOrNull(a: Any): ChangeType = a match {
+              case x: ChangeType => x; case _ => null.asInstanceOf[ChangeType]
+            }
+          },
+          new Matcher[Mandate] {
+            def downcastOrNull(a: Any): Mandate = a match { case x: Mandate => x; case _ => null.asInstanceOf[Mandate] }
+          },
+          new Matcher[Optionalize] {
+            def downcastOrNull(a: Any): Optionalize = a match {
+              case x: Optionalize => x; case _ => null.asInstanceOf[Optionalize]
+            }
+          },
+          new Matcher[Join] {
+            def downcastOrNull(a: Any): Join = a match { case x: Join => x; case _ => null.asInstanceOf[Join] }
+          },
+          new Matcher[Split] {
+            def downcastOrNull(a: Any): Split = a match { case x: Split => x; case _ => null.asInstanceOf[Split] }
+          },
+          new Matcher[TransformElements] {
+            def downcastOrNull(a: Any): TransformElements = a match {
+              case x: TransformElements => x; case _ => null.asInstanceOf[TransformElements]
+            }
+          },
+          new Matcher[TransformKeys] {
+            def downcastOrNull(a: Any): TransformKeys = a match {
+              case x: TransformKeys => x; case _ => null.asInstanceOf[TransformKeys]
+            }
+          },
+          new Matcher[TransformValues] {
+            def downcastOrNull(a: Any): TransformValues = a match {
+              case x: TransformValues => x; case _ => null.asInstanceOf[TransformValues]
+            }
+          },
+          new Matcher[RenameCase] {
+            def downcastOrNull(a: Any): RenameCase = a match {
+              case x: RenameCase => x; case _ => null.asInstanceOf[RenameCase]
+            }
+          },
+          new Matcher[TransformCase] {
+            def downcastOrNull(a: Any): TransformCase = a match {
+              case x: TransformCase => x; case _ => null.asInstanceOf[TransformCase]
+            }
+          },
+          new Matcher[Irreversible] {
+            def downcastOrNull(a: Any): Irreversible = a match {
+              case x: Irreversible => x; case _ => null.asInstanceOf[Irreversible]
+            }
+          }
+        )
+      ),
+      modifiers = Chunk.empty
+    )
+  )
 }

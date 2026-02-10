@@ -102,8 +102,9 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
   // Tests specific to Scala 2's syntax() wrapper pattern
   val syntaxWrapperSuite = suite("syntax stored in variable - build without re-wrap")(
     test("syntax stored in variable - dropField then build without re-wrap") {
-      val ops       = syntax(MigrationBuilder.newBuilder[DropSource, DropTarget])
-      val withDrop  = ops.dropField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
+      val ops      = syntax(MigrationBuilder.newBuilder[DropSource, DropTarget])
+      val withDrop =
+        ops.dropField(_.extra, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
       val migration = withDrop.build
 
       val source = DropSource("test", 42, true)
@@ -114,8 +115,9 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
       assertTrue(result.map(_.age) == Right(42))
     },
     test("syntax stored in variable - addField then build without re-wrap") {
-      val ops       = syntax(MigrationBuilder.newBuilder[AddSource, AddTarget])
-      val withAdd   = ops.addField(_.extra, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
+      val ops     = syntax(MigrationBuilder.newBuilder[AddSource, AddTarget])
+      val withAdd =
+        ops.addField(_.extra, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
       val migration = withAdd.build
 
       val source = AddSource("test", 42)
@@ -137,7 +139,10 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
     test("syntax stored in variable - transformField then build without re-wrap") {
       val ops           = syntax(MigrationBuilder.newBuilder[PersonA, PersonB])
       val withTransform =
-        ops.transformField(_.name, SchemaExpr.Literal[DynamicValue, String]("transformed", Schema.string))
+        ops.transformField(
+          _.name,
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+        )
       val migration = withTransform.build
 
       val source = PersonA("John", 30)
@@ -158,9 +163,11 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
     test("chained operations with syntax wrappers - build without final re-wrap") {
       val step1 = syntax(MigrationBuilder.newBuilder[ComplexSource, ComplexTarget])
         .renameField(_.a, _.x)
-      val step2     = syntax(step1).renameField(_.c, _.y)
-      val step3     = syntax(step2).dropField(_.d, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
-      val step4     = syntax(step3).addField(_.e, SchemaExpr.Literal[DynamicValue, Long](0L, Schema.long))
+      val step2 = syntax(step1).renameField(_.c, _.y)
+      val step3 =
+        syntax(step2).dropField(_.d, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0))))
+      val step4 =
+        syntax(step3).addField(_.e, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L))))
       val migration = step4.build
 
       val source = ComplexSource("hello", 42, true, 3.14)
@@ -172,9 +179,11 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
     },
     test("chained drops with syntax wrappers - build without final re-wrap") {
       val step1 = syntax(MigrationBuilder.newBuilder[MultiDropSource, MultiDropTarget])
-        .dropField(_.drop1, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
-      val step2     = syntax(step1).dropField(_.drop2, SchemaExpr.Literal[DynamicValue, Boolean](false, Schema.boolean))
-      val step3     = syntax(step2).dropField(_.drop3, SchemaExpr.Literal[DynamicValue, Double](0.0, Schema.double))
+        .dropField(_.drop1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+      val step2 = syntax(step1)
+        .dropField(_.drop2, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+      val step3 =
+        syntax(step2).dropField(_.drop3, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0))))
       val migration = step3.build
 
       val source = MultiDropSource("keep", 1, true, 2.5)
@@ -185,9 +194,11 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
     },
     test("chained adds with syntax wrappers - build without final re-wrap") {
       val step1 = syntax(MigrationBuilder.newBuilder[MultiAddSource, MultiAddTarget])
-        .addField(_.add1, SchemaExpr.Literal[DynamicValue, Int](42, Schema.int))
-      val step2     = syntax(step1).addField(_.add2, SchemaExpr.Literal[DynamicValue, Boolean](true, Schema.boolean))
-      val step3     = syntax(step2).addField(_.add3, SchemaExpr.Literal[DynamicValue, Double](3.14, Schema.double))
+        .addField(_.add1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+      val step2 =
+        syntax(step1).addField(_.add2, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+      val step3 =
+        syntax(step2).addField(_.add3, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14))))
       val migration = step3.build
 
       val source = MultiAddSource("keep")
@@ -197,9 +208,10 @@ object CompileTimeValidationSpecScala2 extends ZIOSpecDefault {
     },
     test("nested path with syntax wrappers - build without final re-wrap") {
       val step1 = syntax(MigrationBuilder.newBuilder[NestedPersonV1, NestedPersonV2])
-        .dropField(_.address.city, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+        .dropField(_.address.city, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(""))))
       val step2 =
-        syntax(step1).addField(_.address.zip, SchemaExpr.Literal[DynamicValue, String]("00000", Schema.string))
+        syntax(step1)
+          .addField(_.address.zip, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
       val migration = step2.build
 
       val source = NestedPersonV1("John", AddressV1("Main St", "NYC"))

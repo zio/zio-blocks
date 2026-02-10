@@ -55,7 +55,7 @@ object MigrationErrorSpec extends ZIOSpecDefault {
         assertTrue(error.message.contains("Expected Record")) &&
         assertTrue(error.message.contains("found Primitive"))
       },
-      test("EvaluationError should capture SchemaExpr error") {
+      test("EvaluationError should capture DynamicSchemaExpr error") {
         val optic = DynamicOptic.root.field("computed")
         val error = MigrationError.EvaluationError(optic, "Division by zero")
 

@@ -17,7 +17,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Mandate(
           at = DynamicOptic.root,
-          default = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(someValue)
@@ -35,7 +35,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Mandate(
           at = DynamicOptic.root,
-          default = SchemaExpr.Literal[DynamicValue, Int](99, Schema.int)
+          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(99)))
         )
 
         val result = action.execute(noneValue)
@@ -57,7 +57,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Mandate(
           at = DynamicOptic.root.field("age"),
-          default = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(record)
@@ -82,7 +82,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Mandate(
           at = DynamicOptic.root.field("age"),
-          default = SchemaExpr.Literal[DynamicValue, Int](18, Schema.int)
+          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(18)))
         )
 
         val result = action.execute(record)
@@ -102,7 +102,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Mandate(
           at = DynamicOptic.root,
-          default = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(plainValue)
@@ -116,7 +116,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Optionalize(
           at = DynamicOptic.root,
-          defaultForReverse = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(plainValue)
@@ -140,7 +140,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Optionalize(
           at = DynamicOptic.root.field("age"),
-          defaultForReverse = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val result = action.execute(record)
@@ -168,7 +168,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.Optionalize(
           at = DynamicOptic.root,
-          defaultForReverse = SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
+          defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
         )
 
         val result = action.execute(complexValue)
@@ -187,7 +187,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
       test("reverse of Mandate is Optionalize") {
         val action = MigrationAction.Mandate(
           at = DynamicOptic.root.field("age"),
-          default = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val reversed = action.reverse
@@ -201,7 +201,7 @@ object OptionalFieldSpec extends ZIOSpecDefault {
       test("reverse of Optionalize is Mandate with default None behavior") {
         val action = MigrationAction.Optionalize(
           at = DynamicOptic.root.field("age"),
-          defaultForReverse = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         )
 
         val reversed = action.reverse
@@ -217,11 +217,11 @@ object OptionalFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root.field("age"),
-              SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             ),
             MigrationAction.Mandate(
               DynamicOptic.root.field("score"),
-              SchemaExpr.Literal[DynamicValue, Int](100, Schema.int)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100)))
             )
           )
         )
@@ -250,10 +250,13 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         val migration = DynamicMigration(
           Vector(
             MigrationAction
-              .Optionalize(DynamicOptic.root.field("age"), SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)),
+              .Optionalize(
+                DynamicOptic.root.field("age"),
+                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              ),
             MigrationAction.Optionalize(
               DynamicOptic.root.field("score"),
-              SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             )
           )
         )
@@ -287,10 +290,13 @@ object OptionalFieldSpec extends ZIOSpecDefault {
         val migration = DynamicMigration(
           Vector(
             MigrationAction
-              .Optionalize(DynamicOptic.root.field("age"), SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)),
+              .Optionalize(
+                DynamicOptic.root.field("age"),
+                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              ),
             MigrationAction.Mandate(
               DynamicOptic.root.field("age"),
-              SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             )
           )
         )

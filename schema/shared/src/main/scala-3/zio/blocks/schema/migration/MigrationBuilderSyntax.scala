@@ -35,7 +35,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def addField[FieldPath <: Tuple](
     inline target: B => Any,
-    default: SchemaExpr[DynamicValue, ?]
+    default: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldPath]] =
     ${ MigrationBuilderMacrosImpl.addFieldImpl[A, B, Handled, Provided, FieldPath]('builder, 'target, 'default) }
 
@@ -45,7 +45,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def dropField[FieldPath <: Tuple](
     inline source: A => Any,
-    defaultForReverse: SchemaExpr[DynamicValue, ?]
+    defaultForReverse: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Provided] =
     ${
       MigrationBuilderMacrosImpl.dropFieldImpl[A, B, Handled, Provided, FieldPath](
@@ -71,7 +71,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def transformField[FieldPath <: Tuple](
     inline at: A => Any,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
     ${ MigrationBuilderMacrosImpl.transformFieldImpl[A, B, Handled, Provided, FieldPath]('builder, 'at, 'transform) }
 
@@ -82,7 +82,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def mandateField[FieldPath <: Tuple](
     inline at: A => Any,
-    default: SchemaExpr[DynamicValue, ?]
+    default: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
     ${ MigrationBuilderMacrosImpl.mandateFieldImpl[A, B, Handled, Provided, FieldPath]('builder, 'at, 'default) }
 
@@ -92,7 +92,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def optionalizeField[FieldPath <: Tuple](
     inline at: A => Any,
-    defaultForReverse: SchemaExpr[DynamicValue, ?]
+    defaultForReverse: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]] =
     ${
       MigrationBuilderMacrosImpl.optionalizeFieldImpl[A, B, Handled, Provided, FieldPath](
@@ -122,7 +122,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
   transparent inline def joinFields(
     inline target: B => Any,
     inline sourcePaths: Seq[A => Any],
-    combiner: SchemaExpr[DynamicValue, ?]
+    combiner: DynamicSchemaExpr
   ): MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple] =
     ${
       MigrationBuilderMacrosImpl.joinFieldsImpl[A, B, Handled, Provided](
@@ -143,7 +143,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
   transparent inline def splitField(
     inline source: A => Any,
     inline targetPaths: Seq[B => Any],
-    splitter: SchemaExpr[DynamicValue, ?]
+    splitter: DynamicSchemaExpr
   ): MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple] =
     ${
       MigrationBuilderMacrosImpl.splitFieldImpl[A, B, Handled, Provided](
@@ -161,7 +161,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def transformElements(
     inline at: A => Any,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Provided] =
     ${ MigrationBuilderMacrosImpl.transformElementsImpl[A, B, Handled, Provided]('builder, 'at, 'transform) }
 
@@ -171,7 +171,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def transformKeys(
     inline at: A => Any,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Provided] =
     ${ MigrationBuilderMacrosImpl.transformKeysImpl[A, B, Handled, Provided]('builder, 'at, 'transform) }
 
@@ -181,7 +181,7 @@ extension [A, B, Handled <: Tuple, Provided <: Tuple](builder: MigrationBuilder[
    */
   transparent inline def transformValues(
     inline at: A => Any,
-    transform: SchemaExpr[DynamicValue, ?]
+    transform: DynamicSchemaExpr
   ): MigrationBuilder[A, B, Handled, Provided] =
     ${ MigrationBuilderMacrosImpl.transformValuesImpl[A, B, Handled, Provided]('builder, 'at, 'transform) }
 
@@ -558,7 +558,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     target: Expr[B => Any],
-    default: Expr[SchemaExpr[DynamicValue, ?]]
+    default: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldPath]]] = {
     import q.reflect.*
 
@@ -585,7 +585,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     source: Expr[A => Any],
-    defaultForReverse: Expr[SchemaExpr[DynamicValue, ?]]
+    defaultForReverse: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Provided]] = {
     import q.reflect.*
 
@@ -648,7 +648,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
-    transform: Expr[SchemaExpr[DynamicValue, ?]]
+    transform: Expr[DynamicSchemaExpr]
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
@@ -665,7 +665,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
-    default: Expr[SchemaExpr[DynamicValue, ?]]
+    default: Expr[DynamicSchemaExpr]
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
@@ -682,7 +682,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
-    defaultForReverse: Expr[SchemaExpr[DynamicValue, ?]]
+    defaultForReverse: Expr[DynamicSchemaExpr]
   )(using
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
@@ -718,7 +718,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     target: Expr[B => Any],
     sourcePaths: Expr[Seq[A => Any]],
-    combiner: Expr[SchemaExpr[DynamicValue, ?]]
+    combiner: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple]] = {
     import q.reflect.*
 
@@ -780,7 +780,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     source: Expr[A => Any],
     targetPaths: Expr[Seq[B => Any]],
-    splitter: Expr[SchemaExpr[DynamicValue, ?]]
+    splitter: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ? <: Tuple, ? <: Tuple]] = {
     import q.reflect.*
 
@@ -838,21 +838,21 @@ private[migration] object MigrationBuilderMacrosImpl {
   def transformElementsImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
-    transform: Expr[SchemaExpr[DynamicValue, ?]]
+    transform: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
     passthroughOpImpl(builder, at)((b, o) => '{ $b.transformElements($o, $transform) })
 
   def transformKeysImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
-    transform: Expr[SchemaExpr[DynamicValue, ?]]
+    transform: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
     passthroughOpImpl(builder, at)((b, o) => '{ $b.transformKeys($o, $transform) })
 
   def transformValuesImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
-    transform: Expr[SchemaExpr[DynamicValue, ?]]
+    transform: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
     passthroughOpImpl(builder, at)((b, o) => '{ $b.transformValues($o, $transform) })
 
