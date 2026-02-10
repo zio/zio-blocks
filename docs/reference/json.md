@@ -222,8 +222,8 @@ val anyValue: Either[SchemaError, Json] = selection.any
 val allValues: Either[SchemaError, Json] = selection.all
 
 // Get underlying result
-val underlying: Either[SchemaError, Vector[Json]] = selection.either
-val asVector: Vector[Json] = selection.toVector  // empty on error
+val underlying: Option[zio.blocks.chunk.Chunk[Json]] = selection.values
+val asChunk: zio.blocks.chunk.Chunk[Json] = selection.toChunk  // empty on error
 
 // Decode to specific types
 val asString: Either[SchemaError, String] = selection.as[String]
@@ -433,7 +433,7 @@ val json = Json.parseUnsafe("""{"values": [1, 2, 3, 4, 5]}""")
 // Sum all numbers
 val sum = json.foldUp(BigDecimal(0)) { (path, value, acc) =>
   value match {
-    case n: Json.Number => acc + n.toBigDecimal
+    case n: Json.Number => acc + n.value
     case _ => acc
   }
 }

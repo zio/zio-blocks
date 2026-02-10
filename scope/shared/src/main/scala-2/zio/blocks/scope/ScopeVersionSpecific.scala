@@ -1,38 +1,96 @@
 package zio.blocks.scope
 
-import zio.blocks.context.Context
-import zio.blocks.scope.internal.{Finalizers, ScopeImplScala2}
-import scala.language.experimental.macros
+import zio.blocks.scope.internal.Finalizers
 
-private[scope] trait ScopeVersionSpecific[+Stack] { self: Scope[Stack] =>
-
-  def injected[T]: Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfNoArgsImpl[T]
-
-  def injected[T](wires: Wire[_, _]*): Scope.Closeable[T, _] = macro ScopeMacros.injectedFromSelfImpl[T]
-}
-
-private[scope] trait CloseableVersionSpecific[+Head, +Tail] { self: Scope.Closeable[Head, Tail] =>
+/**
+ * Scala 2-specific extension methods for Scope.
+ */
+private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
+  self: Scope[ParentTag, Tag0] =>
 
   /**
-   * Executes the given function with this scope, then closes the scope.
+   * Applies a function to a scoped value, escaping if the result is Unscoped.
    *
-   * Finalizer errors are silently discarded. Use `runWithErrors` if you need to
-   * handle cleanup errors.
+   * @param scoped
+   *   the scoped value to access
+   * @param f
+   *   the function to apply to the underlying value
+   * @param ev
+   *   evidence that this scope's Tag is a subtype of S
+   * @param escape
+   *   typeclass determining whether the result escapes
+   * @tparam A
+   *   the underlying value type
+   * @tparam B
+   *   the function result type
+   * @tparam S
+   *   the scoped value's tag
+   * @return
+   *   either raw B or B @@ S depending on ScopeEscape
    */
-  def run[B](f: Scope.Has[Head] => B): B
+  def $[A, B, S](scoped: A @@ S)(f: A => B)(implicit
+    ev: self.Tag <:< S,
+    escape: ScopeEscape[B, S]
+  ): escape.Out =
+    escape(f(@@.unscoped(scoped)))
 
   /**
-   * Executes the given function with this scope, then closes the scope,
-   * returning both the result and any finalizer errors.
+   * Executes a Scoped computation.
+   *
+   * @param scoped
+   *   the Scoped computation to execute
+   * @param ev
+   *   evidence that this scope's Tag is a subtype of S
+   * @param escape
+   *   typeclass determining whether the result escapes
+   * @tparam A
+   *   the computation result type
+   * @tparam S
+   *   the computation's required tag
+   * @return
+   *   either raw A or A @@ S depending on ScopeEscape
    */
-  def runWithErrors[B](f: Scope.Has[Head] => B): (B, zio.blocks.chunk.Chunk[Throwable])
-}
+  def apply[A, S](scoped: Scoped[S, A])(implicit
+    ev: self.Tag <:< S,
+    escape: ScopeEscape[A, S]
+  ): escape.Out =
+    escape(scoped.run())
 
-private[scope] object ScopeFactory {
-  def createScopeImpl[T, S](
-    parent: Scope[_],
-    context: Context[T],
-    finalizers: Finalizers
-  ): Scope.Closeable[T, S] =
-    new ScopeImplScala2[T, S, parent.Tag](parent, context, finalizers)
+  /**
+   * Creates a child scope with an existential tag.
+   *
+   * The function receives a child scope that can access this scope's resources.
+   * The child scope closes when the block exits, running all finalizers.
+   *
+   * The child scope's Tag is existential - it's a fresh type for each
+   * invocation that cannot be named outside the lambda body. This provides
+   * compile-time resource safety by preventing child-scoped resources from
+   * escaping.
+   *
+   * @param f
+   *   the function to execute with the child scope
+   * @tparam A
+   *   the result type
+   * @return
+   *   the result of the function
+   */
+  def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A): A = {
+    val childScope         = new Scope[self.Tag, self.Tag](new Finalizers)
+    var primary: Throwable = null.asInstanceOf[Throwable]
+    try f(childScope)
+    catch {
+      case t: Throwable =>
+        primary = t
+        throw t
+    } finally {
+      val errors = childScope.close()
+      if (primary != null) {
+        errors.foreach(primary.addSuppressed)
+      } else if (errors.nonEmpty) {
+        val first = errors.head
+        errors.tail.foreach(first.addSuppressed)
+        throw first
+      }
+    }
+  }
 }

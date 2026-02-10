@@ -1,21 +1,28 @@
 package zio.blocks.scope
 
+// InStack is deprecated in the new Scope design.
+// The HList-based Scope structure has been replaced with
+// Scope[ParentTag, Tag]. Dependencies are now resolved via Resource/Wire,
+// not via type-level stack search.
+//
+// This file is kept for source compatibility but the type is unused.
+
 /**
- * Type-level evidence that service `T` exists somewhere in the `Stack`.
- *
- * This typeclass is resolved at compile time, ensuring you can only access
- * services that are actually available in the scope. Variance enables subtype
- * access:
- *   - Contravariant in `T`: If the stack has `Animal`, you can request `Dog`
- *     (if Dog <: Animal)
- *   - Covariant in `Stack`: Evidence for a larger stack implies evidence for a
- *     smaller stack
- *
  * @tparam T
- *   The service type being searched for
+ *   the type to search for in the stack
  * @tparam Stack
- *   The scope's type-level stack to search in
+ *   the HList-style stack to search within
+ *
+ * @deprecated
+ *   InStack is no longer used in the new Scope design. Dependencies are
+ *   resolved via Resource and Wire, not via HList type-level search.
  */
+@deprecated("InStack is no longer used in the new Scope design", "0.1.0")
 trait InStack[-T, +Stack]
 
+/**
+ * @deprecated
+ *   InStack is no longer used in the new Scope design.
+ */
+@deprecated("InStack is no longer used in the new Scope design", "0.1.0")
 object InStack extends InStackVersionSpecific

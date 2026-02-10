@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.chunk.ChunkBuilder
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
  * Pure Scala parser for the path interpolator syntax.
@@ -60,10 +60,10 @@ private[schema] object PathParser {
   }
 
   /**
-   * Parse a path string into a Vector of Nodes. Returns Left with error if
+   * Parse a path string into a Chunk of Nodes. Returns Left with error if
    * parsing fails, Right with nodes on success.
    */
-  def parse(input: String): Either[ParseError, Vector[Node]] = parseNodes(new ParseContext(input))
+  def parse(input: String): Either[ParseError, Chunk[Node]] = parseNodes(new ParseContext(input))
 
   private class ParseContext(val input: String) {
     var pos: Int = 0
@@ -84,12 +84,12 @@ private[schema] object PathParser {
     def skipWhitespace(): Unit = while (!atEnd && current.isWhitespace) advance()
   }
 
-  private def parseNodes(ctx: ParseContext): Either[ParseError, Vector[Node]] = {
-    val nodes = Vector.newBuilder[Node]
+  private def parseNodes(ctx: ParseContext): Either[ParseError, Chunk[Node]] = {
+    val nodes = ChunkBuilder.make[Node]()
     while (!ctx.atEnd) {
       parseNode(ctx) match {
         case Right(node) => nodes.addOne(node)
-        case l           => return l.asInstanceOf[Either[ParseError, Vector[Node]]]
+        case l           => return l.asInstanceOf[Either[ParseError, Chunk[Node]]]
       }
     }
     new Right(nodes.result())
@@ -159,7 +159,7 @@ private[schema] object PathParser {
                 new Right(new Node.AtIndex(first))
               case ',' =>
                 // Multiple indices
-                val indices = Vector.newBuilder[Int]
+                val indices = ChunkBuilder.make[Int]()
                 indices.addOne(first)
                 while (ctx.current == ',') {
                   ctx.advance()

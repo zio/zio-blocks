@@ -1,180 +1,181 @@
 package zio.blocks.scope
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.context.{Context, IsNominalType}
 import zio.blocks.scope.internal.Finalizers
 
 /**
- * A scope that manages resource lifecycle and tracks available services at the
- * type level.
+ * A scope that manages resource lifecycle with compile-time verified safety.
  *
- * The `Stack` type parameter encodes which services are available in this
- * scope, enabling compile-time verification that requested services exist. This
- * prevents lifecycle errors where resources are used outside their intended
- * scope.
+ * The key insight is tag-based scoping: each scope has a unique `Tag` type, and
+ * values created in a scope are tagged with that scope's Tag, preventing them
+ * from escaping to outer scopes.
  *
- * The `Tag` type member provides compile-time scope identity for preventing
- * resource escape. Values scoped with `A @@ scope.Tag` can only be accessed
- * through the `$` operator when the matching scope is in context.
+ * ==Two-Parameter Design==
+ *
+ * `Scope[ParentTag, Tag]` where `Tag <: ParentTag`:
+ *   - `ParentTag`: The parent scope's tag, bounding this scope's capabilities
+ *   - `Tag`: This scope's unique identity, enabling resource tracking
+ *
+ * The tag hierarchy follows: `child.Tag <: parent.Tag <: ... <: GlobalTag`
+ *
+ * ==Key Methods==
+ *
+ *   - `allocate`: Allocate a Resource into this scope
+ *   - `$`: Apply a function to a scoped value, escaping if Unscoped
+ *   - `apply`: Execute a Scoped computation
+ *   - `scoped`: Create a child scope
+ *   - `defer`: Register cleanup action
  *
  * @example
  *   {{{
- *   // Scala 3
- *   Scope.global.injected[Database].run {
- *     val db = $[Database]  // Compile-time verified
- *     db.query("SELECT ...")
+ *   Scope.global.scoped { scope =>
+ *     val db = scope.allocate(Resource[Database])
+ *     val result = scope.$(db)(_.query("SELECT 1"))
+ *     println(result)
  *   }
- *   // Database is automatically cleaned up here
  *   }}}
  *
- * @tparam Stack
- *   Type-level encoding of available services (e.g.,
- *   `Context[Database] :: Context[Config] :: TNil`)
+ * @tparam ParentTag
+ *   the parent scope's tag type
+ * @tparam Tag
+ *   this scope's tag type (subtype of ParentTag)
+ *
+ * @see
+ *   [[@@]] for scoped value type
+ * @see
+ *   [[Resource]] for creating scoped values
  */
-sealed trait Scope[+Stack] extends ScopeVersionSpecific[Stack] {
+final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
+  private[scope] val finalizers: Finalizers
+) extends ScopeVersionSpecific[ParentTag, Tag0]
+    with Finalizer {
 
   /**
-   * Path-dependent type that identifies this scope at the type level.
-   *
-   * Child scopes have tags that are SUPERtypes of their parent's tag (via
-   * union: `Tag = ParentTag | this.type`). This enables child scopes to use
-   * parent-scoped values: when accessing a value scoped with `ParentTag`, the
-   * `$` operator requires `scope.Tag >: ParentTag`, which is satisfied by child
-   * scopes since `ParentTag <: (ParentTag | this.type)`.
-   *
-   * The global scope has `Tag = this.type` (a singleton type). Each child
-   * scope's Tag includes the parent's Tag in a union, forming a chain where
-   * deeper scopes have "wider" tags that encompass all ancestor scopes.
+   * This scope's tag type, exposed as a type member for path-dependent typing.
    */
-  type Tag
+  type Tag = Tag0
 
-  private[scope] def getImpl[T](nom: IsNominalType[T]): T
+  /**
+   * Allocates a value in this scope using the given resource.
+   *
+   * The result is tagged with this scope's `Tag`, preventing escape. If the
+   * resource creates an `AutoCloseable`, its `close()` method is automatically
+   * registered as a finalizer.
+   *
+   * @param resource
+   *   the resource to create the value
+   * @tparam A
+   *   the value type
+   * @return
+   *   the created value tagged with this scope's Tag
+   */
+  def allocate[A](resource: Resource[A]): A @@ Tag =
+    @@.scoped(resource.make(this))
+
+  /**
+   * Allocates an AutoCloseable value directly in this scope.
+   *
+   * This is a convenience overload that wraps the value in a Resource and
+   * registers its `close()` method as a finalizer.
+   *
+   * @param value
+   *   a by-name expression that creates the AutoCloseable
+   * @tparam A
+   *   the value type (must be AutoCloseable)
+   * @return
+   *   the created value tagged with this scope's Tag
+   */
+  def allocate[A <: AutoCloseable](value: => A): A @@ Tag =
+    allocate(Resource(value))
 
   /**
    * Registers a finalizer to run when this scope closes.
    *
    * Finalizers run in LIFO order (last registered runs first). If a finalizer
-   * throws an exception, remaining finalizers still run, and the first
-   * exception is propagated.
+   * throws an exception, subsequent finalizers still run; all exceptions are
+   * collected.
    *
-   * @param finalizer
-   *   Code to execute on scope close (evaluated by-name)
+   * @param f
+   *   a by-name expression to execute when the scope closes
    */
-  def defer(finalizer: => Unit): Unit
+  def defer(f: => Unit): Unit = finalizers.add(f)
+
+  /**
+   * Closes this scope, running all registered finalizers in LIFO order.
+   *
+   * @return
+   *   a Chunk containing any exceptions thrown by finalizers
+   */
+  private[scope] def close(): Chunk[Throwable] = finalizers.runAll()
 }
 
 object Scope {
 
   /**
-   * A scope with an unknown stack type. Use in constructors that need `defer`
-   * but don't access services.
+   * The global tag type - the root of the scope tag hierarchy.
+   *
+   * All scope tags are subtypes of `GlobalTag`. Values tagged with `GlobalTag`
+   * can always be extracted because the global scope never closes during normal
+   * execution.
+   *
+   * @see
+   *   [[global]]
    */
-  type Any = Scope[scala.Any]
+  type GlobalTag
 
   /**
-   * A scope that has service `T` available.
+   * The global scope singleton.
    *
-   * This is the typical constraint for functions that need to access a service:
-   * {{{
-   * def doWork()(using Scope.Has[Database]): Unit = {
-   *   val db = $[Database]
-   *   // ...
-   * }
-   * }}}
+   * This is the root of all scope hierarchies. Use it as the starting point for
+   * creating scoped computations. The global scope:
+   *   - Never closes during normal execution
+   *   - Runs finalizers only during JVM shutdown
+   *
+   * @example
+   *   {{{
+   *   Scope.global.scoped { scope =>
+   *     val app = scope.allocate(Resource[App])
+   *     scope.$(app)(_.run())
+   *   }
+   *   }}}
    */
-  type Has[+T] = Scope[Context[T] :: scala.Any]
-
-  implicit final class ScopeOps[Stack](private val self: Scope[Stack]) extends AnyVal {
-
-    /**
-     * Retrieves a service from this scope.
-     *
-     * The `InStack` evidence ensures at compile time that `T` exists in the
-     * scope's stack.
-     *
-     * @tparam T
-     *   The service type to retrieve
-     * @return
-     *   The service instance
-     */
-    def get[T](implicit ev: InStack[T, Stack], nom: IsNominalType[T]): T = self.getImpl(nom)
-  }
-
-  /**
-   * A scope that can be explicitly closed, releasing all registered resources.
-   *
-   * Created by `injected[T]`.
-   *
-   * @tparam Head
-   *   The service type at the top of this scope's stack
-   * @tparam Tail
-   *   The remaining stack from the parent scope
-   */
-  trait Closeable[+Head, +Tail] extends Scope[Context[Head] :: Tail] with CloseableVersionSpecific[Head, Tail] {
-
-    /**
-     * Closes this scope, running all registered finalizers in LIFO order.
-     *
-     * This method is idempotent - calling it multiple times has no additional
-     * effect. Finalizers run even if previous finalizers threw exceptions; all
-     * exceptions are collected and returned.
-     *
-     * @return
-     *   A Chunk containing any exceptions thrown by finalizers. Empty if no
-     *   errors occurred or if the scope was already closed.
-     */
-    def close(): Chunk[Throwable]
-
-    /**
-     * Closes this scope and throws the first exception if any occurred.
-     *
-     * Convenience method for cases where you want traditional exception
-     * propagation.
-     */
-    def closeOrThrow(): Unit = close().headOption.foreach(throw _)
-  }
-
-  private[scope] def makeCloseable[T, S](
-    parent: Scope[?],
-    context: Context[T],
-    finalizers: Finalizers
-  ): Closeable[T, S] =
-    ScopeFactory.createScopeImpl[T, S](parent, context, finalizers)
-
-  private val globalInstance: GlobalScope = new GlobalScope
-
-  private[scope] def closeGlobal(): Unit = globalInstance.close()
-
-  /**
-   * The global scope, which never closes during normal execution.
-   *
-   * Use for application-lifetime services. A JVM shutdown hook ensures
-   * finalizers run on exit. For tests, use `injected[T]` to create child scopes
-   * with deterministic cleanup.
-   */
-  lazy val global: Scope[TNil] = {
-    PlatformScope.registerShutdownHook(() => closeGlobal())
-    globalInstance
-  }
-
-  private[scope] def createTestableScope(): (Scope[TNil], () => Unit) = {
-    val scope = new GlobalScope
-    (scope, () => scope.close())
-  }
-
-  private final class GlobalScope extends Scope[TNil] {
-    type Tag = this.type
-
-    private val finalizers = new Finalizers
-
-    private[scope] def getImpl[T](nom: IsNominalType[T]): T =
-      throw new IllegalStateException("Global scope has no services")
-
-    def defer(finalizer: => Unit): Unit = finalizers.add(finalizer)
-
-    private[scope] def close(): Unit = {
-      val errors = finalizers.runAll()
-      errors.headOption.foreach(throw _)
+  lazy val global: Scope[GlobalTag, GlobalTag] = {
+    val scope = new Scope[GlobalTag, GlobalTag](new Finalizers)
+    PlatformScope.registerShutdownHook { () =>
+      val errors = scope.close()
+      if (errors.nonEmpty) {
+        val first = errors.head
+        errors.tail.foreach(first.addSuppressed)
+        throw first
+      }
     }
+    scope
+  }
+
+  /**
+   * Creates a testable scope that can be manually closed.
+   *
+   * Unlike `Scope.global`, this scope's finalizers can be triggered manually
+   * for testing purposes.
+   *
+   * @note
+   *   The close function throws the first exception with any subsequent
+   *   exceptions added as suppressed if any finalizers fail.
+   * @return
+   *   a tuple of (scope, close function)
+   */
+  private[scope] def createTestableScope(): (Scope[GlobalTag, GlobalTag], () => Unit) = {
+    val scope = new Scope[GlobalTag, GlobalTag](new Finalizers)
+    (
+      scope,
+      () => {
+        val errors = scope.close()
+        if (errors.nonEmpty) {
+          val first = errors.head
+          errors.tail.foreach(first.addSuppressed)
+          throw first
+        }
+      }
+    )
   }
 }

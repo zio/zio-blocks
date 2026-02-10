@@ -1,5 +1,6 @@
 package zio.blocks.schema.derive
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import zio.blocks.typeid.TypeId
@@ -61,27 +62,27 @@ final case class DerivationBuilder[TC[_], A](
     val instanceByTypeMap =
       allInstanceOverrides.collect { case InstanceOverrideByType(typeId, instance) => (typeId, instance) }.toMap
     val modifierReflectByOpticMap =
-      allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier.Reflect]]](Map.empty) {
+      allModifierOverrides.foldLeft[Map[DynamicOptic, Chunk[Modifier.Reflect]]](Map.empty) {
         case (acc, ModifierReflectOverrideByOptic(optic, modifier)) =>
-          acc.updated(optic, acc.getOrElse(optic, Vector.empty).appended(modifier))
+          acc.updated(optic, acc.getOrElse(optic, Chunk.empty).appended(modifier))
         case (acc, _) => acc
       }
     val modifierReflectByTypeMap =
-      allModifierOverrides.foldLeft[Map[TypeId[?], Vector[Modifier.Reflect]]](Map.empty) {
+      allModifierOverrides.foldLeft[Map[TypeId[?], Chunk[Modifier.Reflect]]](Map.empty) {
         case (acc, ModifierReflectOverrideByType(typeId, modifier)) =>
-          acc.updated(typeId, acc.getOrElse(typeId, Vector.empty).appended(modifier))
+          acc.updated(typeId, acc.getOrElse(typeId, Chunk.empty).appended(modifier))
         case (acc, _) => acc
       }
     val modifierTermByOpticMap =
-      allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[(String, Modifier.Term)]]](Map.empty) {
+      allModifierOverrides.foldLeft[Map[DynamicOptic, Chunk[(String, Modifier.Term)]]](Map.empty) {
         case (acc, ModifierTermOverrideByOptic(optic, termName, modifier)) =>
-          acc.updated(optic, acc.getOrElse(optic, Vector.empty).appended((termName, modifier)))
+          acc.updated(optic, acc.getOrElse(optic, Chunk.empty).appended((termName, modifier)))
         case (acc, _) => acc
       }
     val modifierTermByTypeMap =
-      allModifierOverrides.foldLeft[Map[TypeId[?], Vector[(String, Modifier.Term)]]](Map.empty) {
+      allModifierOverrides.foldLeft[Map[TypeId[?], Chunk[(String, Modifier.Term)]]](Map.empty) {
         case (acc, ModifierTermOverrideByType(typeId, termName, modifier)) =>
-          acc.updated(typeId, acc.getOrElse(typeId, Vector.empty).appended((termName, modifier)))
+          acc.updated(typeId, acc.getOrElse(typeId, Chunk.empty).appended((termName, modifier)))
         case (acc, _) => acc
       }
 

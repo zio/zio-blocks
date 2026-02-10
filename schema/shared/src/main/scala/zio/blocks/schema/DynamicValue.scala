@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonBinaryCodec}
 import zio.blocks.schema.patch.{DynamicPatch, Differ}
 
 /**
@@ -446,7 +446,11 @@ sealed trait DynamicValue {
   /** Converts this DynamicValue to a Json value. */
   def toJson: Json = Json.fromDynamicValue(this)
 
-  def toEjson(indent: Int = 0): String = DynamicValue.toEjson(this, indent)
+  def toEjson(indent: Int = 0): String = {
+    val sb = new java.lang.StringBuilder
+    DynamicValue.toEjson(this, indent, sb)
+    sb.toString
+  }
 
   override def toString: String = toEjson()
 }
@@ -2054,116 +2058,126 @@ object DynamicValue {
    * @return
    *   EJSON string representation
    */
-  private def toEjson(value: DynamicValue, indent: Int): String = {
-    val indentStr = "  " * indent
-
+  private def toEjson(value: DynamicValue, indent: Int, sb: java.lang.StringBuilder): Unit =
     value match {
-      case Primitive(pv) =>
-        primitiveToEjson(pv)
-
+      case Primitive(pv)  => primitiveToEjson(pv, sb)
       case Record(fields) =>
-        if (fields.isEmpty) {
-          "{}"
-        } else {
-          val sb = new java.lang.StringBuilder
+        if (fields.isEmpty) sb.append("{}")
+        else {
           sb.append("{\n")
-          fields.zipWithIndex.foreach { case ((name, value), idx) =>
-            sb.append(indentStr).append("  ").append(escapeFieldName(name)).append(": ")
-            sb.append(toEjson(value, indent + 1))
-            if (idx < fields.length - 1) sb.append(',')
-            sb.append('\n')
+          fields.foreach {
+            val len = fields.length
+            var idx = 0
+            nv =>
+              indentStr(sb, indent + 1)
+              escapeFieldName(nv._1, sb)
+              sb.append(": ")
+              toEjson(nv._2, indent + 1, sb)
+              idx += 1
+              if (idx < len) sb.append(',')
+              sb.append('\n')
           }
-          sb.append(indentStr).append('}')
-          sb.toString
+          indentStr(sb, indent).append('}')
         }
-
       case Variant(caseName, value) =>
         // Variants use postfix @ metadata: { ... } @ {tag: "CaseName"}
-        val valueEjson = toEjson(value, indent)
-        s"$valueEjson @ {tag: ${quote(caseName)}}"
-
+        toEjson(value, indent, sb)
+        sb.append(" @ {tag: ")
+        quote(caseName, sb)
+        sb.append('}')
       case Sequence(elements) =>
-        if (elements.isEmpty) {
-          "[]"
-        } else if (elements.length == 1 && elements(0).isInstanceOf[Primitive]) {
+        if (elements.isEmpty) sb.append("[]")
+        else if (elements.length == 1 && elements(0).isInstanceOf[Primitive]) {
           // Only inline single-element sequences if the element is a primitive
-          "[" + toEjson(elements(0), indent) + "]"
+          sb.append('[')
+          toEjson(elements(0), indent, sb)
+          sb.append(']')
         } else {
-          val sb = new java.lang.StringBuilder
           sb.append("[\n")
-          elements.zipWithIndex.foreach { case (elem, idx) =>
-            sb.append(indentStr).append("  ")
-            sb.append(toEjson(elem, indent + 1))
-            if (idx < elements.length - 1) sb.append(',')
-            sb.append('\n')
+          elements.foreach {
+            val len = elements.length
+            var idx = 0
+            elem =>
+              indentStr(sb, indent + 1)
+              toEjson(elem, indent + 1, sb)
+              idx += 1
+              if (idx < len) sb.append(',')
+              sb.append('\n')
           }
-          sb.append(indentStr).append(']')
-          sb.toString
+          indentStr(sb, indent).append(']')
         }
-
       case Map(entries) =>
-        if (entries.isEmpty) {
-          "{}"
-        } else {
-          val sb = new java.lang.StringBuilder
+        if (entries.isEmpty) sb.append("{}")
+        else {
           sb.append("{\n")
-          entries.zipWithIndex.foreach { case ((key, value), idx) =>
-            sb.append(indentStr).append("  ")
-            // For string keys in maps, we quote them. For non-string keys, we don't quote them.
-            key match {
-              case Primitive(PrimitiveValue.String(str)) =>
-                sb.append(quote(str))
-              case _ =>
-                sb.append(toEjson(key, indent + 1))
-            }
-            sb.append(": ")
-            sb.append(toEjson(value, indent + 1))
-            if (idx < entries.length - 1) sb.append(',')
-            sb.append('\n')
+          entries.foreach {
+            val len = entries.length
+            var idx = 0
+            kv =>
+              indentStr(sb, indent + 1)
+              val key = kv._1
+              key match { // For string keys in maps, we quote them. For non-string keys, we don't quote them.
+                case Primitive(PrimitiveValue.String(str)) => quote(str, sb)
+                case _                                     => toEjson(key, indent + 1, sb)
+              }
+              sb.append(": ")
+              toEjson(kv._2, indent + 1, sb)
+              idx += 1
+              if (idx < len) sb.append(',')
+              sb.append('\n')
           }
-          sb.append(indentStr).append('}')
-          sb.toString
+          indentStr(sb, indent).append('}')
         }
-
-      case Null => "null"
+      case Null => sb.append("null")
     }
+
+  private[this] def indentStr(sb: java.lang.StringBuilder, indent: Int): java.lang.StringBuilder = {
+    var idx = 0
+    while (idx < indent) {
+      sb.append(' ').append(' ')
+      idx += 1
+    }
+    sb
   }
 
   /**
    * Convert a PrimitiveValue to EJSON format. Most primitives render as their
    * JSON equivalent. Some primitives need @ metadata for type information.
    */
-  private def primitiveToEjson(pv: PrimitiveValue): String = pv match {
-    case PrimitiveValue.Unit                  => "null"
-    case PrimitiveValue.Boolean(value)        => value.toString
-    case PrimitiveValue.Byte(value)           => value.toString
-    case PrimitiveValue.Short(value)          => value.toString
-    case PrimitiveValue.Int(value)            => value.toString
-    case PrimitiveValue.Long(value)           => value.toString
-    case PrimitiveValue.Float(value)          => value.toString
-    case PrimitiveValue.Double(value)         => value.toString
-    case PrimitiveValue.Char(value)           => quote(value.toString)
-    case PrimitiveValue.String(value)         => quote(value)
-    case PrimitiveValue.BigInt(value)         => value.toString
-    case PrimitiveValue.BigDecimal(value)     => value.toString
-    case PrimitiveValue.DayOfWeek(value)      => quote(value.toString)
-    case PrimitiveValue.Month(value)          => quote(value.toString)
-    case PrimitiveValue.Instant(value)        => s"${value.toEpochMilli} @ {type: ${quote("instant")}}"
-    case PrimitiveValue.LocalDate(value)      => s"${quote(value.toString)} @ {type: ${quote("localDate")}}"
-    case PrimitiveValue.LocalDateTime(value)  => quote(value.toString)
-    case PrimitiveValue.LocalTime(value)      => quote(value.toString)
-    case PrimitiveValue.OffsetDateTime(value) => quote(value.toString)
-    case PrimitiveValue.OffsetTime(value)     => quote(value.toString)
-    case PrimitiveValue.Year(value)           => value.getValue.toString
-    case PrimitiveValue.YearMonth(value)      => quote(value.toString)
-    case PrimitiveValue.ZoneOffset(value)     => quote(value.toString)
-    case PrimitiveValue.ZonedDateTime(value)  => quote(value.toString)
-    case PrimitiveValue.MonthDay(value)       => quote(value.toString)
-    case PrimitiveValue.Period(value)         => s"${quote(value.toString)} @ {type: ${quote("period")}}"
-    case PrimitiveValue.Duration(value)       => s"${quote(value.toString)} @ {type: ${quote("duration")}}"
-    case PrimitiveValue.ZoneId(value)         => quote(value.toString)
-    case PrimitiveValue.Currency(value)       => quote(value.getCurrencyCode)
-    case PrimitiveValue.UUID(value)           => quote(value.toString)
+  private def primitiveToEjson(pv: PrimitiveValue, sb: java.lang.StringBuilder): Unit = pv match {
+    case v: PrimitiveValue.Boolean    => sb.append(v.value)
+    case v: PrimitiveValue.Byte       => sb.append(v.value)
+    case v: PrimitiveValue.Short      => sb.append(v.value)
+    case v: PrimitiveValue.Int        => sb.append(v.value)
+    case v: PrimitiveValue.Long       => sb.append(v.value)
+    case v: PrimitiveValue.Float      => sb.append(JsonBinaryCodec.floatCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Double     => sb.append(JsonBinaryCodec.doubleCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Char       => quote(v.value.toString, sb)
+    case v: PrimitiveValue.String     => quote(v.value, sb)
+    case v: PrimitiveValue.BigInt     => sb.append(JsonBinaryCodec.bigIntCodec.encodeToString(v.value))
+    case v: PrimitiveValue.BigDecimal => sb.append(JsonBinaryCodec.bigDecimalCodec.encodeToString(v.value))
+    case v: PrimitiveValue.DayOfWeek  => sb.append(JsonBinaryCodec.dayOfWeekCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Month      => sb.append(JsonBinaryCodec.monthCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Instant    => sb.append(v.value.toEpochMilli).append(" @ {type: \"instant\"}")
+    case v: PrimitiveValue.LocalDate  =>
+      sb.append(JsonBinaryCodec.localDateCodec.encodeToString(v.value)).append(" @ {type: \"localDate\"}")
+    case v: PrimitiveValue.LocalDateTime  => sb.append(JsonBinaryCodec.localDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.LocalTime      => sb.append(JsonBinaryCodec.localTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetDateTime => sb.append(JsonBinaryCodec.offsetDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetTime     => sb.append(JsonBinaryCodec.offsetTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Year           => sb.append(v.value.getValue)
+    case v: PrimitiveValue.YearMonth      => sb.append(JsonBinaryCodec.yearMonthCodec.encodeToString(v.value))
+    case v: PrimitiveValue.ZoneOffset     => sb.append(JsonBinaryCodec.zoneOffsetCodec.encodeToString(v.value))
+    case v: PrimitiveValue.ZonedDateTime  => sb.append(JsonBinaryCodec.zonedDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.MonthDay       => sb.append(JsonBinaryCodec.monthDayCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Period         =>
+      sb.append(JsonBinaryCodec.periodCodec.encodeToString(v.value)).append(" @ {type: \"period\"}")
+    case v: PrimitiveValue.Duration =>
+      sb.append(JsonBinaryCodec.durationCodec.encodeToString(v.value)).append(" @ {type: \"duration\"}")
+    case v: PrimitiveValue.ZoneId    => sb.append(JsonBinaryCodec.zoneIdCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Currency  => sb.append(JsonBinaryCodec.currencyCodec.encodeToString(v.value))
+    case v: PrimitiveValue.UUID      => sb.append(JsonBinaryCodec.uuidCodec.encodeToString(v.value))
+    case _: PrimitiveValue.Unit.type => sb.append("null")
   }
 
   /**
@@ -2171,12 +2185,9 @@ object DynamicValue {
    * as-is; invalid identifiers are wrapped in backticks, with backticks doubled
    * for escaping.
    */
-  private def escapeFieldName(name: String): String =
-    if (isValidIdentifier(name)) name
-    else {
-      val escaped = name.replace("`", "``")
-      s"`$escaped`"
-    }
+  private[this] def escapeFieldName(name: String, sb: java.lang.StringBuilder): Unit =
+    if (isValidIdentifier(name)) sb.append(name)
+    else sb.append('`').append(name.replace("`", "``")).append('`')
 
   /**
    * Check if a string is a valid Scala identifier. A valid identifier:
@@ -2185,13 +2196,11 @@ object DynamicValue {
    *   - Cannot be a Scala keyword
    *   - Cannot contain $ (discouraged in user-written code)
    */
-  private def isValidIdentifier(s: String): Boolean = {
+  private[this] def isValidIdentifier(s: String): Boolean = {
     if (s.isEmpty) return false
     if (scalaKeywords.contains(s)) return false
-
     val first = s.charAt(0)
     if (!Character.isLetter(first) && first != '_') return false
-
     var i = 1
     while (i < s.length) {
       val c = s.charAt(i)
@@ -2204,7 +2213,7 @@ object DynamicValue {
   /**
    * Scala keywords that cannot be used as identifiers without backticks.
    */
-  private val scalaKeywords: Set[String] = Set(
+  private[this] val scalaKeywords: Set[String] = Set(
     "abstract",
     "case",
     "catch",
@@ -2260,8 +2269,7 @@ object DynamicValue {
   /**
    * Quote a string for JSON/EJSON output, escaping special characters.
    */
-  private def quote(s: String): String = {
-    val sb = new java.lang.StringBuilder
+  private[this] def quote(s: String, sb: java.lang.StringBuilder): Unit = {
     sb.append('"')
     var i = 0
     while (i < s.length) {
@@ -2284,6 +2292,5 @@ object DynamicValue {
       i += 1
     }
     sb.append('"')
-    sb.toString
   }
 }

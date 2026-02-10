@@ -24,13 +24,8 @@ private[schema] object ContextDetector {
    *   1)
    */
   def detectContexts(parts: Seq[String]): Either[String, List[InterpolationContext]] =
-    if (parts.isEmpty) {
-      Right(Nil)
-    } else if (parts.length == 1) {
-      Right(Nil)
-    } else {
-      detectContextsImpl(parts)
-    }
+    if (parts.isEmpty || parts.tail.isEmpty) new Right(Nil)
+    else detectContextsImpl(parts)
 
   private sealed trait ParseState
   private object ParseState {
@@ -54,110 +49,63 @@ private[schema] object ContextDetector {
     case object Array  extends Container
   }
 
-  private def detectContextsImpl(parts: Seq[String]): Either[String, List[InterpolationContext]] = {
+  private[this] def detectContextsImpl(parts: Seq[String]): Either[String, List[InterpolationContext]] = {
     import ParseState._
     import Container._
 
     var state: ParseState = TopLevel
     val containerStack    = mutable.Stack[Container]()
     val contexts          = mutable.ListBuffer[InterpolationContext]()
-    var partIndex         = 0
-
+    var remainingParts    = parts
     // Process each part except the last one (which has no following interpolation)
-    while (partIndex < parts.length - 1) {
-      val part = parts(partIndex)
-      var i    = 0
-
+    while (remainingParts.tail ne Nil) {
+      val part = remainingParts.head
+      var idx  = 0
       // Process characters in the current part
-      while (i < part.length) {
-        val ch = part.charAt(i)
-
+      while (idx < part.length) {
+        val ch = part.charAt(idx)
+        idx += 1
         state match {
-          case InString(returnState) =>
-            if (ch == '"') {
-              state = returnState
-              i += 1
-            } else if (ch == '\\' && i + 1 < part.length) {
-              // Skip escaped character
-              i += 2
-            } else {
-              i += 1
-            }
-
-          case TopLevel =>
+          case is: InString =>
+            if (ch == '"') state = is.returnState
+            else if (ch == '\\' && idx < part.length) idx += 1 // Skip escaped character
+          case _: TopLevel.type =>
             if (ch == '{') {
               containerStack.push(Object)
               state = ExpectingKey
-              i += 1
             } else if (ch == '[') {
               containerStack.push(Array)
               state = ExpectingValue
-              i += 1
             } else if (ch == '"') {
-              state = InString(TopLevel)
-              i += 1
-            } else if (isWhitespace(ch)) {
-              i += 1
-            } else {
+              state = new InString(TopLevel)
+            } else if (!isWhitespace(ch)) {
               // Start of a value at top level (number, boolean, null, etc.)
               // Skip until we hit something that ends the value
               state = AfterValue
-              i += 1
             }
-
-          case ExpectingKey =>
-            if (ch == '"') {
-              state = InString(ExpectingColon)
-              i += 1
-            } else if (ch == '}') {
+          case _: ExpectingKey.type =>
+            if (ch == '"') state = new InString(ExpectingColon)
+            else if (ch == '}') {
               // Empty object
               containerStack.pop()
               state = if (containerStack.isEmpty) TopLevel else AfterValue
-              i += 1
-            } else if (isWhitespace(ch)) {
-              i += 1
-            } else {
-              // Unquoted key or interpolation - we'll determine at interpolation point
-              i += 1
             }
-
-          case ExpectingColon =>
-            if (ch == ':') {
-              state = ExpectingValue
-              i += 1
-            } else if (isWhitespace(ch)) {
-              i += 1
-            } else {
-              // Unexpected character
-              i += 1
-            }
-
-          case ExpectingValue =>
-            if (ch == '"') {
-              state = InString(AfterValue)
-              i += 1
-            } else if (ch == '{') {
+          case _: ExpectingColon.type =>
+            if (ch == ':') state = ExpectingValue
+          case _: ExpectingValue.type =>
+            if (ch == '"') state = new InString(AfterValue)
+            else if (ch == '{') {
               containerStack.push(Object)
               state = ExpectingKey
-              i += 1
             } else if (ch == '[') {
               containerStack.push(Array)
               state = ExpectingValue
-              i += 1
             } else if (ch == ']') {
               // Empty array
               containerStack.pop()
               state = if (containerStack.isEmpty) TopLevel else AfterValue
-              i += 1
-            } else if (isWhitespace(ch)) {
-              i += 1
-            } else {
-              // Start of a literal value (number, true, false, null)
-              state = AfterValue
-              i += 1
-            }
-
-          case AfterValue =>
+            } else if (!isWhitespace(ch)) state = AfterValue // Start of a literal value (number, true, false, null)
+          case _ =>
             if (ch == ',') {
               if (containerStack.nonEmpty) {
                 containerStack.top match {
@@ -165,45 +113,33 @@ private[schema] object ContextDetector {
                   case Array  => state = ExpectingValue
                 }
               }
-              i += 1
-            } else if (ch == '}') {
+            } else if (ch == '}' || ch == ']') {
               containerStack.pop()
               state = if (containerStack.isEmpty) TopLevel else AfterValue
-              i += 1
-            } else if (ch == ']') {
-              containerStack.pop()
-              state = if (containerStack.isEmpty) TopLevel else AfterValue
-              i += 1
-            } else if (isWhitespace(ch)) {
-              i += 1
-            } else {
-              // Continue consuming value characters
-              i += 1
             }
         }
       }
-
       // At the end of this part, determine the context for the next interpolation
       val context = state match {
-        case InString(_)  => InterpolationContext.InString
-        case ExpectingKey =>
+        case _: InString          => InterpolationContext.InString
+        case _: ExpectingKey.type =>
           // After the interpolation, we'll need a colon
           state = ExpectingColon
           InterpolationContext.Key
-        case ExpectingValue | TopLevel =>
-          state = AfterValue
-          InterpolationContext.Value
-        case ExpectingColon =>
+        case _: ExpectingColon.type =>
           // This would be unusual - interpolation where we expect a colon
           // Treat as a value context (error will be caught by JSON parsing)
           state = AfterValue
           InterpolationContext.Value
-        case AfterValue =>
+        case _: AfterValue.type =>
           // Interpolation after a value - unusual but treat as value
+          InterpolationContext.Value
+        case _ =>
+          state = AfterValue
           InterpolationContext.Value
       }
       contexts.addOne(context)
-      partIndex += 1
+      remainingParts = remainingParts.tail
     }
     new Right(contexts.toList)
   }
