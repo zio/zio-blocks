@@ -1,4 +1,4 @@
-package zio.blocks.scope.examples
+package scope.examples
 
 import zio.blocks.scope._
 import java.util.concurrent.atomic.AtomicInteger
@@ -116,12 +116,13 @@ object CachingSharedLoggerExample {
       println("\n─── Verification ───")
       println(s"  Logger instances created: ${loggerInstances.get()} (expected: 1)")
       println(s"  Cache instances created:  ${cacheInstances.get()} (expected: 2)")
-      val a = @@.unscoped(app)
-      println(s"  ProductService.logger eq OrderService.logger: ${a.productService.logger eq a.orderService.logger}")
-      println(s"  ProductService.cache  eq OrderService.cache:  ${a.productService.cache eq a.orderService.cache}")
+      scope.$(app) { a =>
+        println(s"  ProductService.logger eq OrderService.logger: ${a.productService.logger eq a.orderService.logger}")
+        println(s"  ProductService.cache  eq OrderService.cache:  ${a.productService.cache eq a.orderService.cache}")
 
-      println("\n─── Running Application ───")
-      a.run()
+        println("\n─── Running Application ───")
+        a.run()
+      }
 
       println("\n─── Scope Closing (LIFO cleanup) ───")
     }

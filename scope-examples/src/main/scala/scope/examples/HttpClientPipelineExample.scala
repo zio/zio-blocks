@@ -1,4 +1,4 @@
-package zio.blocks.scope.examples
+package scope.examples
 
 import zio.blocks.scope._
 
@@ -62,7 +62,7 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
  * Key concepts:
  *   - `(scopedValue).map(f)` builds a `Scoped` computation lazily
  *   - `(scopedValue).flatMap(f)` chains scoped computations
- *   - `scope.execute(scopedComputation)` executes the deferred computation
+ *   - `scope.$(scopedValue) { v => ... }` executes and applies a function
  *   - The computation only runs when explicitly executed
  */
 @main def httpClientPipelineExample(): Unit = {
@@ -100,21 +100,25 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     println("Pipeline definitions built. Now executing each step...\n")
 
-    // Step 3: Execute each computation - this is when operations actually run
-    // Use @@.unscoped to get raw ParsedData from the scoped result
+    // Step 3: Execute each computation using scope.$
+    // Use scope.$ to apply a function to the scoped value
     println("--- Executing: fetchUsers ---")
-    val users = @@.unscoped(scope.execute(fetchUsers))
+    scope.$(scope.execute(fetchUsers)) { users =>
+      println(s"\n=== Users Result ===")
+      println(s"Users data: ${users.values}")
+    }
 
     println("\n--- Executing: fetchOrders ---")
-    val orders = @@.unscoped(scope.execute(fetchOrders))
+    scope.$(scope.execute(fetchOrders)) { orders =>
+      println(s"\n=== Orders Result ===")
+      println(s"Orders data: ${orders.values}")
+    }
 
     println("\n--- Executing: postAnalytics ---")
-    val analytics = @@.unscoped(scope.execute(postAnalytics))
-
-    println(s"\n=== Results ===")
-    println(s"Users data: ${users.values}")
-    println(s"Orders data: ${orders.values}")
-    println(s"Analytics: ${analytics.values}")
+    scope.$(scope.execute(postAnalytics)) { analytics =>
+      println(s"\n=== Analytics Result ===")
+      println(s"Analytics: ${analytics.values}")
+    }
   }
 
   println("\n[Scope closed - HttpClient was automatically cleaned up]")

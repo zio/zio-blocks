@@ -1,4 +1,4 @@
-package zio.blocks.scope.examples
+package scope.examples
 
 import zio.blocks.scope._
 
