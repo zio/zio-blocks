@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.blocks.typeid.TypeId
-import zio.test.Assertion.{equalTo, isNone, isSome}
+import zio.test.Assertion.{equalTo, isNone, isRight, isSome}
 import zio.test.{Spec, TestEnvironment, assert}
 
 object DynamicOpticSpec extends SchemaBaseSpec {
@@ -165,7 +165,51 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       val repr = SchemaRepr.Primitive("int")
       assert(DynamicOptic.root.elements.searchSchema(repr).toString)(equalTo("[*]#int")) &&
       assert(DynamicOptic.root.elements.searchSchema(repr).toScalaString)(equalTo(".each.searchSchema(int)"))
-    }
+    },
+    suite("Schema roundtrip")(
+      test("TypeSearch node roundtrips through DynamicValue") {
+        val node = DynamicOptic.Node.TypeSearch(TypeId.of[X])
+        val dv   = Schema[DynamicOptic.Node].toDynamicValue(node)
+        assert(Schema[DynamicOptic.Node].fromDynamicValue(dv))(isRight(equalTo(node: DynamicOptic.Node)))
+      },
+      test("SchemaSearch node roundtrips through DynamicValue") {
+        val node = DynamicOptic.Node.SchemaSearch(SchemaRepr.Nominal("Person"))
+        val dv   = Schema[DynamicOptic.Node].toDynamicValue(node)
+        assert(Schema[DynamicOptic.Node].fromDynamicValue(dv))(isRight(equalTo(node: DynamicOptic.Node)))
+      },
+      test("SchemaSearch node with complex SchemaRepr roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Record(
+          Vector(
+            "name" -> SchemaRepr.Primitive("string"),
+            "age"  -> SchemaRepr.Primitive("int")
+          )
+        )
+        val node = DynamicOptic.Node.SchemaSearch(repr)
+        val dv   = Schema[DynamicOptic.Node].toDynamicValue(node)
+        assert(Schema[DynamicOptic.Node].fromDynamicValue(dv))(isRight(equalTo(node: DynamicOptic.Node)))
+      },
+      test("DynamicOptic with TypeSearch node roundtrips through DynamicValue") {
+        val optic = DynamicOptic.root.search[X]
+        val dv    = Schema[DynamicOptic].toDynamicValue(optic)
+        assert(Schema[DynamicOptic].fromDynamicValue(dv))(isRight(equalTo(optic)))
+      },
+      test("DynamicOptic with SchemaSearch node roundtrips through DynamicValue") {
+        val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val dv    = Schema[DynamicOptic].toDynamicValue(optic)
+        assert(Schema[DynamicOptic].fromDynamicValue(dv))(isRight(equalTo(optic)))
+      },
+      test("DynamicOptic with search composed with field roundtrips through DynamicValue") {
+        val optic = DynamicOptic.root.field("x").search[Y].field("z")
+        val dv    = Schema[DynamicOptic].toDynamicValue(optic)
+        assert(Schema[DynamicOptic].fromDynamicValue(dv))(isRight(equalTo(optic)))
+      },
+      test("DynamicOptic with searchSchema composed with elements roundtrips through DynamicValue") {
+        val repr  = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Nominal("Person"))
+        val optic = DynamicOptic.root.elements.searchSchema(repr)
+        val dv    = Schema[DynamicOptic].toDynamicValue(optic)
+        assert(Schema[DynamicOptic].fromDynamicValue(dv))(isRight(equalTo(optic)))
+      }
+    )
   )
 
   sealed trait A

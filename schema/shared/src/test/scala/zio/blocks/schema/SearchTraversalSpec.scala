@@ -242,7 +242,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
 
         val result = traversal.modifyOrFail(company, t => t.copy(name = "X"))
 
-        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything))))
+        assert(result)(
+          isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything)))
+        )
       }
     ),
     suite("check")(
@@ -281,15 +283,17 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val traversal = SearchTraversal[Company, Person]
         val dynamic   = traversal.toDynamic
 
-        assert(dynamic.nodes.head)(isSubtype[DynamicOptic.Node.TypeSearch](
-          hasField("typeId", (ts: DynamicOptic.Node.TypeSearch) => ts.typeId.name, equalTo("Person"))
-        ))
+        assert(dynamic.nodes.head)(
+          isSubtype[DynamicOptic.Node.TypeSearch](
+            hasField("typeId", (ts: DynamicOptic.Node.TypeSearch) => ts.typeId.name, equalTo("Person"))
+          )
+        )
       }
     ),
     suite("toString")(
       test("produces readable output") {
         val traversal = SearchTraversal[Company, Person]
-        assert(traversal.toString)(equalTo("Traversal(_.search[Person])"))
+        assert(traversal.toString)(equalTo("Traversal(_.searchFor[Person])"))
       }
     ),
     suite("equals and hashCode")(
@@ -496,7 +500,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPC, search)
 
         val result = composed.modifyOrFail(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything))))
+        assert(result)(
+          isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything)))
+        )
       }
     ),
     suite("Optional prefix composition")(
@@ -569,7 +575,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed             = Traversal(containerToPerson, search)
 
         val result = composed.modifyOrFail(container, (p: Person) => p.copy(age = 99))
-        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything))))
+        assert(result)(
+          isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.EmptySequence](anything)))
+        )
       }
     ),
     suite("ComposedSearchTraversal further composition")(
@@ -623,7 +631,15 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed = search(containerToPC)
 
         val result = composed.modifyOrFail(holder, (_: PersonContainer) => PersonContainer(Person("X", 0)))
-        assert(result)(isRight(hasField("containers", (h: ContainerHolder) => h.containers, equalTo(List[Container](PersonContainer(Person("X", 0)))))))
+        assert(result)(
+          isRight(
+            hasField(
+              "containers",
+              (h: ContainerHolder) => h.containers,
+              equalTo(List[Container](PersonContainer(Person("X", 0))))
+            )
+          )
+        )
       },
       test("ComposedSearchTraversal modifyOrFail with no matches") {
         val holder   = ContainerHolder(List(StringContainer("hello")))
@@ -631,7 +647,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composed = search(containerToPC)
 
         val result = composed.modifyOrFail(holder, (_: PersonContainer) => PersonContainer(Person("X", 0)))
-        assert(result)(isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.UnexpectedCase](anything))))
+        assert(result)(
+          isLeft(hasField("errors", (c: OpticCheck) => c.errors.head, isSubtype[OpticCheck.UnexpectedCase](anything)))
+        )
       },
       test("check returns Some when outer search has no matches") {
         val company  = Company("Acme", Person("CEO", 50), List.empty)
@@ -676,7 +694,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val searchContainer = SearchTraversal[ContainerHolder, Container]
         val identitySearch  = SearchTraversal[Container, Container]
         val composed1       = searchContainer(identitySearch) // ComposedSearchTraversal with focus=Container
-        val composed2       = composed1(containerToPC) // ComposedSearchTraversal.apply(Prism)
+        val composed2       = composed1(containerToPC)        // ComposedSearchTraversal.apply(Prism)
 
         val names = composed2.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name)
         assert(names)(equalTo(List("Alice")))
@@ -686,7 +704,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val searchContainer = SearchTraversal[ContainerHolder, Container]
         val identitySearch  = SearchTraversal[Container, Container]
         val composed1       = searchContainer(identitySearch) // ComposedSearchTraversal with focus=Container
-        val composed3       = composed1(containerToPerson) // ComposedSearchTraversal.apply(Optional)
+        val composed3       = composed1(containerToPerson)    // ComposedSearchTraversal.apply(Optional)
 
         val names = composed3.fold[List[String]](holder)(List.empty, (acc, p) => acc :+ p.name)
         assert(names)(equalTo(List("Alice")))
@@ -752,31 +770,15 @@ object SearchTraversalSpec extends SchemaBaseSpec {
       }
     ),
     suite("Traversal.apply overloads with search variants")(
-      test("Traversal.apply(Traversal, Prism) with SearchTraversal on left") {
-        val holder                                        = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
-        val search: Traversal[ContainerHolder, Container] = SearchTraversal[ContainerHolder, Container]
-        // Traversal.apply(Traversal[S,T], Prism[T,A])
-        val composed = Traversal(search, containerToPC)
-
-        val names = composed.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name)
-        assert(names)(equalTo(List("Alice")))
-      },
-      test("Traversal.apply(Traversal, Optional) with SearchTraversal on left") {
-        val holder                                        = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
-        val search: Traversal[ContainerHolder, Container] = SearchTraversal[ContainerHolder, Container]
-        // Traversal.apply(Traversal[S,T], Optional[T,A])
-        val composed = Traversal(search, containerToPerson)
-
-        val names = composed.fold[List[String]](holder)(List.empty, (acc, p) => acc :+ p.name)
-        assert(names)(equalTo(List("Alice")))
-      },
       test("Traversal.apply(Traversal, Traversal) with ComposedSearchTraversal on right") {
         val holder          = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
         val searchContainer = SearchTraversal[ContainerHolder, Container]
         val composedInner   = searchContainer(containerToPC) // ComposedSearchTraversal
         // Verify the composed result is the expected type and works correctly
         assert(composedInner.isInstanceOf[Traversal.ComposedSearchTraversal[_, _, _]])(isTrue) &&
-        assert(composedInner.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name))(equalTo(List("Alice")))
+        assert(composedInner.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name))(
+          equalTo(List("Alice"))
+        )
       },
       test("Traversal.apply(Prism, ComposedSearchTraversal)") {
         // Prism[Container, PersonContainer] → ComposedSearchTraversal[PersonContainer, Person, String]
@@ -784,25 +786,6 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         val composedInner = searchPerson(personNameLens) // ComposedSearchTraversal[PersonContainer, Person, String]
         // Prism → ComposedSearchTraversal
         val composed = Traversal(containerToPC, composedInner)
-
-        val container: Container = PersonContainer(Person("Alice", 30))
-        val names                = composed.fold[List[String]](container)(List.empty, (acc, name) => acc :+ name)
-        assert(names)(equalTo(List("Alice")))
-      },
-      test("Traversal.apply(Optional, SearchTraversal)") {
-        val search = SearchTraversal(Person.schema.reflect, Person.schema.reflect)
-        // Optional → SearchTraversal
-        val composed = Traversal(containerToPerson, search)
-
-        val container: Container = PersonContainer(Person("Alice", 30))
-        val names                = composed.fold[List[String]](container)(List.empty, (acc, p) => acc :+ p.name)
-        assert(names)(equalTo(List("Alice")))
-      },
-      test("Traversal.apply(Optional, ComposedSearchTraversal)") {
-        val searchPerson  = SearchTraversal(Person.schema.reflect, Person.schema.reflect)
-        val composedInner = searchPerson(personNameLens) // ComposedSearchTraversal[Person, Person, String]
-        // Optional → ComposedSearchTraversal
-        val composed = Traversal(containerToPerson, composedInner)
 
         val container: Container = PersonContainer(Person("Alice", 30))
         val names                = composed.fold[List[String]](container)(List.empty, (acc, name) => acc :+ name)
@@ -939,8 +922,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
         )
         // SearchTraversal extends Traversal but NOT Lens/Prism/Optional — hits the Traversal branch
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
-        val prefixed =
+        val searchPerson                            = SearchTraversal[Team, Person]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
 
         val names = prefixed.fold[List[String]](dept)(List.empty, (acc, p) => acc :+ p.name)
@@ -957,8 +940,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           )
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
-        val prefixed =
+        val searchPerson                            = SearchTraversal[Team, Person]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
 
         val modified = prefixed.modify(dept, (p: Person) => p.copy(age = p.age + 100))
@@ -977,8 +960,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
-        val prefixed =
+        val searchPerson                            = SearchTraversal[Team, Person]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
 
         val result = prefixed.modifyOption(dept, (p: Person) => p.copy(age = 99))
@@ -994,8 +977,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchTreeNode                           = SearchTraversal[Team, TreeNode]
-        val prefixed =
+        val searchTreeNode                          = SearchTraversal[Team, TreeNode]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, TreeNode](searchTeam, searchTreeNode)
 
         val result = prefixed.modifyOption(dept, (t: TreeNode) => t.copy(value = "X"))
@@ -1009,8 +992,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
-        val prefixed =
+        val searchPerson                            = SearchTraversal[Team, Person]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
 
         val result = prefixed.modifyOrFail(dept, (p: Person) => p.copy(age = 99))
@@ -1029,8 +1012,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           )
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchTreeNode                           = SearchTraversal[Team, TreeNode]
-        val prefixed =
+        val searchTreeNode                          = SearchTraversal[Team, TreeNode]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, TreeNode](searchTeam, searchTreeNode)
 
         val result = prefixed.modifyOrFail(dept, (t: TreeNode) => t.copy(value = "X"))
@@ -1044,8 +1027,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
         val searchTreeNode: Traversal[Department, TreeNode] = SearchTraversal[Department, TreeNode]
-        val searchPerson                                     = SearchTraversal[TreeNode, Person]
-        val prefixed =
+        val searchPerson                                    = SearchTraversal[TreeNode, Person]
+        val prefixed                                        =
           Traversal.PrefixedSearchTraversal[Department, TreeNode, Person](searchTreeNode, searchPerson)
 
         val result = prefixed.modifyOrFail(dept, (p: Person) => p.copy(age = 99))
@@ -1060,8 +1043,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
-        val prefixed =
+        val searchPerson                            = SearchTraversal[Team, Person]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
 
         assert(prefixed.check(dept))(isNone)
@@ -1073,8 +1056,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchTreeNode                           = SearchTraversal[Team, TreeNode]
-        val prefixed =
+        val searchTreeNode                          = SearchTraversal[Team, TreeNode]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, TreeNode](searchTeam, searchTreeNode)
 
         val result = prefixed.check(dept)
@@ -1090,8 +1073,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           )
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
-        val prefixed =
+        val searchPerson                            = SearchTraversal[Team, Person]
+        val prefixed                                =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
         // apply(Traversal) — compose with another SearchTraversal (a Traversal, not Lens/Prism/Optional)
         val searchPersonIdentity = SearchTraversal[Person, Person]
@@ -1184,7 +1167,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           Person("Director", 45),
           List(Team("Frontend", Person("Lead", 35), List(Person("Dev", 28))))
         )
-        val searchTeam                             = SearchTraversal[Department, Team]
+        val searchTeam                                = SearchTraversal[Department, Team]
         val searchPersonName: Traversal[Team, String] = SearchTraversal[Team, Person].apply(personNameLens)
         // searchPersonName is a ComposedSearchTraversal (not SearchTraversal), so hits case 2
         val composed = Traversal(searchTeam: Traversal[Department, Team], searchPersonName)
@@ -1203,7 +1186,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
           )
         )
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
-        val searchPerson                             = SearchTraversal[Team, Person]
+        val searchPerson                            = SearchTraversal[Team, Person]
         val prefixed: Traversal[Department, Person] =
           Traversal.PrefixedSearchTraversal[Department, Team, Person](searchTeam, searchPerson)
         val searchString = SearchTraversal[Person, String]
@@ -1228,7 +1211,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
       test("Traversal(regular TraversalImpl, ComposedSearchTraversal) creates PrefixedSearchTraversal") {
         val containers: List[Container] =
           List(PersonContainer(Person("Alice", 30)), StringContainer("hello"))
-        val listTraversal                          = Traversal.listValues(Container.schema.reflect)
+        val listTraversal                                = Traversal.listValues(Container.schema.reflect)
         val composedSearch: Traversal[Container, String] =
           SearchTraversal[Container, Person].apply(personNameLens)
         val composed = Traversal(listTraversal, composedSearch)
@@ -1240,9 +1223,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
       test("Traversal(regular TraversalImpl, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
         val containers: List[Container] =
           List(PersonContainer(Person("Alice", 30)), StringContainer("hello"))
-        val listTraversal = Traversal.listValues(Container.schema.reflect)
-        val searchPerson  = SearchTraversal[Container, Person]
-        val searchString  = SearchTraversal[Person, String]
+        val listTraversal                                = Traversal.listValues(Container.schema.reflect)
+        val searchPerson                                 = SearchTraversal[Container, Person]
+        val searchString                                 = SearchTraversal[Person, String]
         val prefixedSearch: Traversal[Container, String] =
           Traversal.PrefixedSearchTraversal[Container, Person, String](searchPerson, searchString)
         val composed = Traversal(listTraversal, prefixedSearch)
@@ -1252,22 +1235,22 @@ object SearchTraversalSpec extends SchemaBaseSpec {
       },
       // Traversal.apply(Traversal, Prism): case composed: ComposedSearchTraversal (line 1255)
       test("Traversal(ComposedSearchTraversal, Prism) delegates to composed.apply") {
-        val holder = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
-        val searchContainer                                  = SearchTraversal[ContainerHolder, Container]
-        val identitySearch                                   = SearchTraversal[Container, Container]
+        val holder                                              = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val searchContainer                                     = SearchTraversal[ContainerHolder, Container]
+        val identitySearch                                      = SearchTraversal[Container, Container]
         val composedLeft: Traversal[ContainerHolder, Container] = searchContainer(identitySearch)
-        val result                                           = Traversal(composedLeft, containerToPC)
+        val result                                              = Traversal(composedLeft, containerToPC)
 
         val names = result.fold[List[String]](holder)(List.empty, (acc, pc) => acc :+ pc.person.name)
         assert(names)(equalTo(List("Alice")))
       },
       // Traversal.apply(Traversal, Optional): case composed: ComposedSearchTraversal (line 1274)
       test("Traversal(ComposedSearchTraversal, Optional) delegates to composed.apply") {
-        val holder = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
-        val searchContainer                                  = SearchTraversal[ContainerHolder, Container]
-        val identitySearch                                   = SearchTraversal[Container, Container]
+        val holder                                              = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val searchContainer                                     = SearchTraversal[ContainerHolder, Container]
+        val identitySearch                                      = SearchTraversal[Container, Container]
         val composedLeft: Traversal[ContainerHolder, Container] = searchContainer(identitySearch)
-        val result                                           = Traversal(composedLeft, containerToPerson)
+        val result                                              = Traversal(composedLeft, containerToPerson)
 
         val names = result.fold[List[String]](holder)(List.empty, (acc, p) => acc :+ p.name)
         assert(names)(equalTo(List("Alice")))
@@ -1307,8 +1290,8 @@ object SearchTraversalSpec extends SchemaBaseSpec {
             .fields(2)
             .asInstanceOf[Term.Bound[Department, List[Team]]]
         )
-        val searchTeam   = SearchTraversal[List[Team], Team]
-        val searchPerson = SearchTraversal[Team, Person]
+        val searchTeam                                    = SearchTraversal[List[Team], Team]
+        val searchPerson                                  = SearchTraversal[Team, Person]
         val prefixedSearch: Traversal[List[Team], Person] =
           Traversal.PrefixedSearchTraversal[List[Team], Team, Person](searchTeam, searchPerson)
         val result = Traversal(teamsLens, prefixedSearch)
@@ -1318,9 +1301,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
       },
       // Traversal.apply(Prism, Traversal): case prefixed: PrefixedSearchTraversal (line 1314)
       test("Traversal(Prism, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
-        val container: Container = PersonContainer(Person("Alice", 30))
-        val searchPerson         = SearchTraversal[PersonContainer, Person]
-        val searchString         = SearchTraversal[Person, String]
+        val container: Container                               = PersonContainer(Person("Alice", 30))
+        val searchPerson                                       = SearchTraversal[PersonContainer, Person]
+        val searchString                                       = SearchTraversal[Person, String]
         val prefixedSearch: Traversal[PersonContainer, String] =
           Traversal.PrefixedSearchTraversal[PersonContainer, Person, String](searchPerson, searchString)
         val result = Traversal(containerToPC, prefixedSearch)
@@ -1330,9 +1313,9 @@ object SearchTraversalSpec extends SchemaBaseSpec {
       },
       // Traversal.apply(Optional, Traversal): case prefixed: PrefixedSearchTraversal (line 1333)
       test("Traversal(Optional, PrefixedSearchTraversal) creates PrefixedSearchTraversal") {
-        val container: Container = PersonContainer(Person("Alice", 30))
-        val searchPerson         = SearchTraversal[Person, Person]
-        val searchString         = SearchTraversal[Person, String]
+        val container: Container                      = PersonContainer(Person("Alice", 30))
+        val searchPerson                              = SearchTraversal[Person, Person]
+        val searchString                              = SearchTraversal[Person, String]
         val prefixedSearch: Traversal[Person, String] =
           Traversal.PrefixedSearchTraversal[Person, Person, String](searchPerson, searchString)
         val result = Traversal(containerToPerson, prefixedSearch)

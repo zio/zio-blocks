@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.test.Assertion.equalTo
+import zio.test.Assertion.{equalTo, isRight}
 import zio.test.{Spec, TestEnvironment, assert}
 
 object SchemaReprSpec extends SchemaBaseSpec {
@@ -148,6 +148,78 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("Wildcard equality") {
         assert(SchemaRepr.Wildcard)(equalTo(SchemaRepr.Wildcard))
+      }
+    ),
+    suite("Schema roundtrip")(
+      test("Nominal roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Nominal("Person")
+        val dv   = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Primitive roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Primitive("string")
+        val dv   = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Record roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Record(
+          Vector(
+            "name" -> SchemaRepr.Primitive("string"),
+            "age"  -> SchemaRepr.Primitive("int")
+          )
+        )
+        val dv = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Variant roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Variant(
+          Vector(
+            "Left"  -> SchemaRepr.Primitive("int"),
+            "Right" -> SchemaRepr.Primitive("string")
+          )
+        )
+        val dv = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Sequence roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Sequence(SchemaRepr.Primitive("string"))
+        val dv   = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Map roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int"))
+        val dv   = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Optional roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Optional(SchemaRepr.Nominal("Person"))
+        val dv   = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("Wildcard roundtrips through DynamicValue") {
+        val repr: SchemaRepr = SchemaRepr.Wildcard
+        val dv               = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
+      },
+      test("deeply nested SchemaRepr roundtrips through DynamicValue") {
+        val repr = SchemaRepr.Record(
+          Vector(
+            "items" -> SchemaRepr.Sequence(
+              SchemaRepr.Map(
+                SchemaRepr.Primitive("string"),
+                SchemaRepr.Optional(SchemaRepr.Nominal("Person"))
+              )
+            ),
+            "tag" -> SchemaRepr.Variant(
+              Vector(
+                "A" -> SchemaRepr.Primitive("int"),
+                "B" -> SchemaRepr.Record(Vector("x" -> SchemaRepr.Wildcard))
+              )
+            )
+          )
+        )
+        val dv = Schema[SchemaRepr].toDynamicValue(repr)
+        assert(Schema[SchemaRepr].fromDynamicValue(dv))(isRight(equalTo(repr)))
       }
     )
   )

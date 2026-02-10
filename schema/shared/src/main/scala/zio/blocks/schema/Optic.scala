@@ -2627,35 +2627,29 @@ object Traversal {
 
     /**
      * Folds over all matching values using runtime value recursion. Converts to
-     * DynamicValue, searches for matches, decodes each match, and folds.
+     * DynamicValue, searches for matches via single-pass decode, and folds.
      */
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = {
       // Convert source value to DynamicValue for searching
       val dv = sourceReflect.toDynamicValue(s)
 
-      // Collect all candidates using iterative DFS
-      val candidates = searchCollect(dv)
+      // Collect all decoded matches using iterative DFS (single decode per candidate)
+      val matches = searchCollectDecoded(dv)
 
-      // Try to decode each candidate and fold over successes
+      // Fold over already-decoded values
       var result = zero
-      candidates.foreach { candidateDv =>
-        focusReflect.fromDynamicValue(candidateDv, Nil) match {
-          case Right(a) => result = f(result, a)
-          case Left(_)  => () // Skip values that don't decode
-        }
+      matches.foreach { a =>
+        result = f(result, a)
       }
       result
     }
 
     def check(s: S): Option[OpticCheck] = {
       // Convert to DynamicValue and search
-      val dv         = sourceReflect.toDynamicValue(s)
-      val candidates = searchCollect(dv)
+      val dv = sourceReflect.toDynamicValue(s)
 
-      // Check if at least one candidate decodes successfully
-      val anyMatch = candidates.exists { candidateDv =>
-        focusReflect.fromDynamicValue(candidateDv, Nil).isRight
-      }
+      // Check if at least one candidate decodes successfully (single decode per candidate)
+      val anyMatch = searchHasMatch(dv)
 
       if (anyMatch) None
       else Some(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
@@ -2709,7 +2703,7 @@ object Traversal {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic(Vector(DynamicOptic.Node.TypeSearch(focusReflect.typeId)))
 
-    override def toString: String = s"Traversal(_.search[${focusReflect.typeId.name}])"
+    override def toString: String = s"Traversal(_.searchFor[${focusReflect.typeId.name}])"
 
     // Override composition methods to handle SearchTraversal specially
     override def apply[B](that: Lens[A, B]): Traversal[S, B] =
@@ -2733,21 +2727,20 @@ object Traversal {
     }
 
     /**
-     * Iterative stack-based depth-first traversal to collect all values
-     * matching the focus type. Order is depth-first, left-to-right.
+     * Iterative stack-based depth-first traversal to collect all decoded values
+     * matching the focus type. Each candidate is decoded exactly once. Order is
+     * depth-first, left-to-right.
      */
-    private def searchCollect(root: DynamicValue): List[DynamicValue] = {
-      var stack: List[DynamicValue]                  = List(root)
-      val results: mutable.ArrayBuffer[DynamicValue] = mutable.ArrayBuffer.empty
+    private def searchCollectDecoded(root: DynamicValue): List[A] = {
+      var stack: List[DynamicValue]       = List(root)
+      val results: mutable.ArrayBuffer[A] = mutable.ArrayBuffer.empty
 
       while (stack.nonEmpty) {
         val current = stack.head
         stack = stack.tail
 
-        // Check if current can be decoded as the focus type
-        if (matchesFocusType(current)) {
-          results += current
-        }
+        // Try to decode — single decode per candidate
+        tryDecodeFocus(current).foreach(results += _)
 
         // Push children onto stack for DFS
         current match {
@@ -2769,28 +2762,55 @@ object Traversal {
     }
 
     /**
-     * Check if a DynamicValue matches the focus type structurally. Uses
-     * structural comparison based on the focus Reflect type.
+     * Iterative stack-based depth-first check for at least one match. Returns
+     * true as soon as a decodable candidate is found.
      */
-    private def matchesFocusType(dv: DynamicValue): Boolean =
-      // Try to decode - if it succeeds, the type matches
-      // This is a conservative approach that ensures type safety
-      focusReflect.fromDynamicValue(dv, Nil).isRight
+    private def searchHasMatch(root: DynamicValue): Boolean = {
+      var stack: List[DynamicValue] = List(root)
+
+      while (stack.nonEmpty) {
+        val current = stack.head
+        stack = stack.tail
+
+        if (tryDecodeFocus(current).isDefined) return true
+
+        current match {
+          case r: DynamicValue.Record =>
+            stack = r.fields.iterator.map(_._2).toList ++ stack
+          case v: DynamicValue.Variant =>
+            stack = v.value :: stack
+          case s: DynamicValue.Sequence =>
+            stack = s.elements.iterator.toList ++ stack
+          case m: DynamicValue.Map =>
+            stack = m.entries.iterator.flatMap { case (k, v) => Iterator(k, v) }.toList ++ stack
+          case _: DynamicValue.Primitive | DynamicValue.Null =>
+            ()
+        }
+      }
+
+      false
+    }
+
+    /**
+     * Try to decode a DynamicValue as the focus type. Returns Some(a) if
+     * successful, None otherwise. Single decode — no double decoding.
+     */
+    private def tryDecodeFocus(dv: DynamicValue): Option[A] =
+      focusReflect.fromDynamicValue(dv, Nil) match {
+        case Right(a) => Some(a)
+        case Left(_)  => None
+      }
 
     /**
      * Recursive modification of all values matching the focus type.
      */
     private def searchModify(dv: DynamicValue, f: A => A): DynamicValue = {
-      // First, check if this value matches and modify it
-      val afterSelf = if (matchesFocusType(dv)) {
-        focusReflect.fromDynamicValue(dv, Nil) match {
-          case Right(a) =>
-            val modified = f(a)
-            focusReflect.toDynamicValue(modified)
-          case Left(_) => dv
-        }
-      } else {
-        dv
+      // Try single decode — if it succeeds, apply f and re-encode
+      val afterSelf = tryDecodeFocus(dv) match {
+        case Some(a) =>
+          val modified = f(a)
+          focusReflect.toDynamicValue(modified)
+        case None => dv
       }
 
       // Then recurse into children
@@ -2934,7 +2954,8 @@ object Traversal {
 
     lazy val toDynamic: DynamicOptic = search.toDynamic(inner.toDynamic)
 
-    override def toString: String = s"Traversal(_.search[${search.focus.typeId.name}]${inner.toDynamic.toScalaString})"
+    override def toString: String =
+      s"Traversal(_.searchFor[${search.focus.typeId.name}]${inner.toDynamic.toScalaString})"
 
     override def hashCode: Int = search.hashCode ^ inner.hashCode
 

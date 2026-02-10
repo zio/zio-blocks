@@ -629,6 +629,128 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(err.message == "Something went wrong at position 15")
       }
     ),
+    suite("record UnexpectedEnd/UnexpectedChar errors")(
+      test("record with nothing after — missing opening brace") {
+        val result = parse("record")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("record field name then EOF — missing colon") {
+        val result = parse("record { name")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      }
+    ),
+    suite("variant UnexpectedEnd/UnexpectedChar errors")(
+      test("variant with nothing after — missing opening brace") {
+        val result = parse("variant")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("variant wrong char after keyword") {
+        val result = parse("variant X")
+        assertTrue(result match {
+          case Left(UnexpectedChar('X', 8, _)) => true
+          case _                               => false
+        })
+      },
+      test("variant missing comma between cases") {
+        val result = parse("variant { A: int B: string }")
+        assertTrue(result match {
+          case Left(UnexpectedChar('B', 17, _)) => true
+          case _                                => false
+        })
+      },
+      test("variant unclosed brace") {
+        val result = parse("variant { A: int")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      }
+    ),
+    suite("list UnexpectedEnd/UnexpectedChar errors")(
+      test("list with nothing after — missing opening paren") {
+        val result = parse("list")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("list wrong closing delimiter") {
+        val result = parse("list(string}")
+        assertTrue(result match {
+          case Left(UnexpectedChar('}', _, _)) => true
+          case _                               => false
+        })
+      }
+    ),
+    suite("map UnexpectedEnd/UnexpectedChar errors")(
+      test("map with nothing after — missing opening paren") {
+        val result = parse("map")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("map wrong char after keyword") {
+        val result = parse("map X")
+        assertTrue(result match {
+          case Left(UnexpectedChar('X', 4, _)) => true
+          case _                               => false
+        })
+      },
+      test("map missing comma after key") {
+        val result = parse("map(string")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("map wrong closing delimiter") {
+        val result = parse("map(string, int}")
+        assertTrue(result match {
+          case Left(UnexpectedChar('}', _, _)) => true
+          case _                               => false
+        })
+      }
+    ),
+    suite("option UnexpectedEnd/UnexpectedChar errors")(
+      test("option with nothing after — missing opening paren") {
+        val result = parse("option")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("option wrong char after keyword") {
+        val result = parse("option X")
+        assertTrue(result match {
+          case Left(UnexpectedChar('X', 7, _)) => true
+          case _                               => false
+        })
+      },
+      test("option unclosed paren") {
+        val result = parse("option(string")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("option wrong closing delimiter") {
+        val result = parse("option(string}")
+        assertTrue(result match {
+          case Left(UnexpectedChar('}', _, _)) => true
+          case _                               => false
+        })
+      }
+    ),
     suite("roundtrip tests")(
       test("Nominal roundtrip") {
         val original = SchemaRepr.Nominal("Person")

@@ -338,7 +338,7 @@ object CompanionOpticsSearchSpec extends SchemaBaseSpec {
     suite("toString")(
       test("produces readable output for search from root") {
         val traversal = Company.optic(_.searchFor[Person])
-        assert(traversal.toString)(equalTo("Traversal(_.search[Person])"))
+        assert(traversal.toString)(equalTo("Traversal(_.searchFor[Person])"))
       }
     ),
     suite("searches in complex structures")(

@@ -1203,10 +1203,12 @@ object ReflectSpec extends SchemaBaseSpec {
       // 10e: SchemaSearch path composition — searchSchema then field
       test("SchemaSearch with path composition: searchSchema then field") {
         val nestedSchema = Schema.derived[(Int, PersonRecord)].reflect
-        val pattern = SchemaRepr.Record(Vector(
-          ("name", SchemaRepr.Primitive("string")),
-          ("age", SchemaRepr.Primitive("int"))
-        ))
+        val pattern      = SchemaRepr.Record(
+          Vector(
+            ("name", SchemaRepr.Primitive("string")),
+            ("age", SchemaRepr.Primitive("int"))
+          )
+        )
         val optic  = DynamicOptic.root.searchSchema(pattern).field("name")
         val result = nestedSchema.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))

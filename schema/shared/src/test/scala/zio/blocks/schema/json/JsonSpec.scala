@@ -899,9 +899,9 @@ object JsonSpec extends SchemaBaseSpec {
         assertTrue(selection.toArray == Right(Json.Array(Json.Number(1), Json.Number(2))))
       },
       test("objects/arrays filters by type") {
-        val obj1 = Json.Object("a" -> Json.Number(1))
-        val arr1 = Json.Array(Json.Number(1))
-        val obj2 = Json.Object("b" -> Json.Number(2))
+        val obj1      = Json.Object("a" -> Json.Number(1))
+        val arr1      = Json.Array(Json.Number(1))
+        val obj2      = Json.Object("b" -> Json.Number(2))
         val selection = JsonSelection.succeedMany(
           Chunk(obj1, arr1, Json.String("hello"), obj2)
         )
@@ -2949,9 +2949,11 @@ object JsonSpec extends SchemaBaseSpec {
           "count"  -> Json.Number(5)
         )
         val path =
-          DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))).field(
-            "name"
-          )
+          DynamicOptic.root
+            .searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+            .field(
+              "name"
+            )
         val result = json.delete(path)
         // The matching object should have "name" deleted
         assertTrue(
@@ -2967,9 +2969,11 @@ object JsonSpec extends SchemaBaseSpec {
           Json.Object("name" -> Json.String("Bob"), "age"   -> Json.Number(25))
         )
         val path =
-          DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))).field(
-            "name"
-          )
+          DynamicOptic.root
+            .searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+            .field(
+              "name"
+            )
         val result = json.delete(path)
         // Both objects should have "name" removed
         val elems = result.elements
@@ -2997,9 +3001,11 @@ object JsonSpec extends SchemaBaseSpec {
           )
         )
         val path =
-          DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))).field(
-            "age"
-          )
+          DynamicOptic.root
+            .searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+            .field(
+              "age"
+            )
         val result = json.delete(path)
         // "age" should be deleted from the matching record
         assertTrue(
@@ -3016,9 +3022,11 @@ object JsonSpec extends SchemaBaseSpec {
           )
         )
         val path =
-          DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))).field(
-            "age"
-          )
+          DynamicOptic.root
+            .searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+            .field(
+              "age"
+            )
         val result = json.delete(path)
         val items  = result.get("items").toChunk
         assertTrue(
@@ -3034,9 +3042,11 @@ object JsonSpec extends SchemaBaseSpec {
         // Root itself matches, with remaining path after search
         val json = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
         val path =
-          DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))).field(
-            "age"
-          )
+          DynamicOptic.root
+            .searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+            .field(
+              "age"
+            )
         val result = json.delete(path)
         assertTrue(
           result.get("name").toChunk.toVector == Vector(Json.String("Alice")),
