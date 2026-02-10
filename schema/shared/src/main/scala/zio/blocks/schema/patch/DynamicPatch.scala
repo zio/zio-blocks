@@ -419,61 +419,27 @@ object DynamicPatch {
     var found       = false
     var globalError = Option.empty[SchemaError]
 
-    def applyToMatching(dv: DynamicValue): DynamicValue = {
-      // First check if this value matches the pattern
-      val afterSelf = if (SchemaMatch.matches(pattern, dv)) {
+    val result = DynamicValue.iterativeTransform(value) { dv =>
+      // If we've already hit an error in Strict mode, skip further processing
+      if (globalError.isDefined && mode == PatchMode.Strict) dv
+      else if (SchemaMatch.matches(pattern, dv)) {
         applyOperation(dv, operation, mode, trace) match {
           case Right(modified) =>
             found = true
             modified
           case Left(err) =>
-            // Handle error based on mode
             mode match {
               case PatchMode.Strict =>
                 if (globalError.isEmpty) globalError = Some(err)
-                dv // Return original on error
+                dv
               case PatchMode.Lenient | PatchMode.Clobber =>
-                dv // Skip this value on error
+                dv
             }
         }
       } else {
         dv
       }
-
-      // If we've already hit an error in Strict mode, don't continue recursing
-      if (globalError.isDefined && mode == PatchMode.Strict) {
-        return afterSelf
-      }
-
-      // Then recurse into children (regardless of whether this value matched)
-      afterSelf match {
-        case r: DynamicValue.Record =>
-          val newFields = r.fields.map { case (name, v) =>
-            (name, applyToMatching(v))
-          }
-          if (newFields == r.fields) afterSelf else DynamicValue.Record(newFields)
-
-        case v: DynamicValue.Variant =>
-          val modifiedPayload = applyToMatching(v.value)
-          if (modifiedPayload eq v.value) afterSelf else DynamicValue.Variant(v.caseNameValue, modifiedPayload)
-
-        case s: DynamicValue.Sequence =>
-          val newElems = s.elements.map(applyToMatching)
-          if (newElems == s.elements) afterSelf else DynamicValue.Sequence(newElems)
-
-        case m: DynamicValue.Map =>
-          val newEntries = m.entries.map { case (k, v) =>
-            (k, applyToMatching(v))
-          }
-          if (newEntries == m.entries) afterSelf else DynamicValue.Map(newEntries)
-
-        case _ =>
-          // Primitives and Null have no children
-          afterSelf
-      }
     }
-
-    val result = applyToMatching(value)
 
     globalError match {
       case Some(err) => Left(err)
@@ -488,8 +454,8 @@ object DynamicPatch {
 
   /**
    * Navigates through values matching a SchemaRepr pattern and continues with
-   * the remaining path. Uses recursive traversal to find matching values and
-   * apply remaining path operations.
+   * the remaining path. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
    */
   private def schemaSearchNavigate(
     value: DynamicValue,
@@ -507,66 +473,32 @@ object DynamicPatch {
     // rather than fail, even in Strict mode (this is Traversal semantics)
     val nextIsCase = pathIdx < path.length && path(pathIdx).isInstanceOf[DynamicOptic.Node.Case]
 
-    def navigateMatching(dv: DynamicValue): DynamicValue = {
-      // First check if this value matches the pattern
-      val afterSelf = if (SchemaMatch.matches(pattern, dv)) {
+    val result = DynamicValue.iterativeTransform(value) { dv =>
+      // If we've already hit an error in Strict mode, skip further processing
+      if (globalError.isDefined && mode == PatchMode.Strict) dv
+      else if (SchemaMatch.matches(pattern, dv)) {
         navigateAndApply(dv, path, pathIdx, operation, mode, trace) match {
           case Right(modified) =>
             found = true
             modified
           case Left(err) =>
-            // Handle error based on mode
             val shouldSkip = nextIsCase && isCaseMismatch(err)
             if (shouldSkip) {
-              dv // Skip case mismatch silently
+              dv
             } else {
               mode match {
                 case PatchMode.Strict =>
                   if (globalError.isEmpty) globalError = Some(err)
-                  dv // Return original on error
+                  dv
                 case PatchMode.Lenient | PatchMode.Clobber =>
-                  dv // Skip this value on error
+                  dv
               }
             }
         }
       } else {
         dv
       }
-
-      // If we've already hit an error in Strict mode, don't continue recursing
-      if (globalError.isDefined && mode == PatchMode.Strict) {
-        return afterSelf
-      }
-
-      // Then recurse into children (regardless of whether this value matched)
-      afterSelf match {
-        case r: DynamicValue.Record =>
-          val newFields = r.fields.map { case (name, v) =>
-            (name, navigateMatching(v))
-          }
-          if (newFields == r.fields) afterSelf else DynamicValue.Record(newFields)
-
-        case v: DynamicValue.Variant =>
-          val modifiedPayload = navigateMatching(v.value)
-          if (modifiedPayload eq v.value) afterSelf else DynamicValue.Variant(v.caseNameValue, modifiedPayload)
-
-        case s: DynamicValue.Sequence =>
-          val newElems = s.elements.map(navigateMatching)
-          if (newElems == s.elements) afterSelf else DynamicValue.Sequence(newElems)
-
-        case m: DynamicValue.Map =>
-          val newEntries = m.entries.map { case (k, v) =>
-            (k, navigateMatching(v))
-          }
-          if (newEntries == m.entries) afterSelf else DynamicValue.Map(newEntries)
-
-        case _ =>
-          // Primitives and Null have no children
-          afterSelf
-      }
     }
-
-    val result = navigateMatching(value)
 
     globalError match {
       case Some(err) => Left(err)

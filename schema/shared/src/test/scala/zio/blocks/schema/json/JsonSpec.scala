@@ -2932,7 +2932,7 @@ object JsonSpec extends SchemaBaseSpec {
         val result = current.get(path)
         assertTrue(result.toChunk.toVector == Vector(Json.String("leaf")))
       },
-      // 9c: schemaSearchModifyJson — Array recursion
+      // schemaSearchModifyJson — Array recursion
       test("modify with SchemaSearch updates matching values inside Array") {
         val json   = Json.Array(Json.String("a"), Json.Number(1), Json.String("b"))
         val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
@@ -2941,7 +2941,7 @@ object JsonSpec extends SchemaBaseSpec {
           result == Json.Array(Json.String("X"), Json.Number(1), Json.String("X"))
         )
       },
-      // 9d: schemaSearchDeleteJson — isLast=false branch
+      // schemaSearchDeleteJson — isLast=false branch
       test("delete with SchemaSearch followed by field deletes field from matching objects") {
         // SchemaSearch is NOT the last node — tests processValue + Object container in non-last path
         val json = Json.Object(
@@ -3037,6 +3037,63 @@ object JsonSpec extends SchemaBaseSpec {
           items(0).elements(1).get("name").toChunk.toVector == Vector(Json.String("Bob")),
           items(0).elements(1).get("age").isEmpty
         )
+      },
+      test("delete with SchemaSearch (non-last) propagates to nested matches inside matching parent") {
+        // Parent matches pattern AND contains children that also match — all must be modified
+        val json = Json.Object(
+          "name"    -> Json.String("Alice"),
+          "age"     -> Json.Number(30),
+          "reports" -> Json.Array(
+            Json.Object("name" -> Json.String("Bob"), "age"     -> Json.Number(25)),
+            Json.Object("name" -> Json.String("Charlie"), "age" -> Json.Number(20))
+          )
+        )
+        val path =
+          DynamicOptic.root
+            .searchSchema(
+              SchemaRepr.Record(
+                Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("number"))
+              )
+            )
+            .field("age")
+        val result  = json.delete(path)
+        val reports = result.get("reports").toChunk
+        // Root: "age" deleted
+        assertTrue(result.get("age").isEmpty) &&
+        // Nested in array: both children have "age" deleted
+        assertTrue(
+          reports.length == 1,
+          reports(0).elements(0).get("age").isEmpty,
+          reports(0).elements(0).get("name").toChunk.toVector == Vector(Json.String("Bob")),
+          reports(0).elements(1).get("age").isEmpty,
+          reports(0).elements(1).get("name").toChunk.toVector == Vector(Json.String("Charlie"))
+        )
+      },
+      test("delete with SchemaSearch (non-last) propagates through deeply nested matching objects") {
+        // Match at depth 1, with another match at depth 3 — both must be modified
+        val json = Json.Object(
+          "outer" -> Json.Object(
+            "name"  -> Json.String("outer"),
+            "age"   -> Json.Number(40),
+            "inner" -> Json.Object(
+              "name" -> Json.String("inner"),
+              "age"  -> Json.Number(10)
+            )
+          )
+        )
+        val path =
+          DynamicOptic.root
+            .searchSchema(
+              SchemaRepr.Record(
+                Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("number"))
+              )
+            )
+            .field("age")
+        val result = json.delete(path)
+        // outer: age deleted
+        assertTrue(result.get("outer").get("age").isEmpty) &&
+        // inner: age also deleted
+        assertTrue(result.get("outer").get("inner").get("age").isEmpty)
       },
       test("delete with SchemaSearch non-last root matches and isLast=false") {
         // Root itself matches, with remaining path after search

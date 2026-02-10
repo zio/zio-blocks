@@ -582,24 +582,18 @@ object SearchTraversalSpec extends SchemaBaseSpec {
     ),
     suite("ComposedSearchTraversal further composition")(
       test("ComposedSearchTraversal composed with Prism") {
-        val holder = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
-        val search = SearchTraversal[ContainerHolder, Container]
-        // First compose: search → lens (to get a ComposedSearchTraversal)
-        // Actually, search → prism gives ComposedSearchTraversal directly
-        val composed1 = search(containerToPC) // ComposedSearchTraversal[ContainerHolder, Container, PersonContainer]
-        // Then compose further with another optic to test ComposedSearchTraversal.apply(Lens)
+        val holder    = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val search    = SearchTraversal[ContainerHolder, Container]
+        val composed1 = search(containerToPC)     // ComposedSearchTraversal[ContainerHolder, Container, PersonContainer]
         val composed2 = composed1(pcToPersonLens) // ComposedSearchTraversal.apply(Lens)
 
         val names = composed2.fold[List[String]](holder)(List.empty, (acc, p) => acc :+ p.name)
         assert(names)(equalTo(List("Alice")))
       },
       test("ComposedSearchTraversal composed with Prism via Traversal.apply") {
-        val holder    = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
-        val search    = SearchTraversal[ContainerHolder, Container]
-        val composed1 = search(containerToPC) // ComposedSearchTraversal
-        // Use Traversal.apply(Traversal, Prism) with ComposedSearchTraversal on left
-        // Not directly possible since Prism[PersonContainer, ?] doesn't exist
-        // Instead test ComposedSearchTraversal.apply(Traversal)
+        val holder      = ContainerHolder(List(PersonContainer(Person("Alice", 30)), StringContainer("hello")))
+        val search      = SearchTraversal[ContainerHolder, Container]
+        val composed1   = search(containerToPC) // ComposedSearchTraversal
         val innerSearch = SearchTraversal[PersonContainer, Person]
         val composed2   = Traversal(composed1, innerSearch)
 
@@ -920,7 +914,7 @@ object SearchTraversalSpec extends SchemaBaseSpec {
             Team("Backend", Person("BE Lead", 38), List(Person("Dev2", 30)))
           )
         )
-        // SearchTraversal extends Traversal but NOT Lens/Prism/Optional — hits the Traversal branch
+        // SearchTraversal extends Traversal but NOT Lens/Prism/Optional
         val searchTeam: Traversal[Department, Team] = SearchTraversal[Department, Team]
         val searchPerson                            = SearchTraversal[Team, Person]
         val prefixed                                =

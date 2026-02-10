@@ -324,8 +324,9 @@ object JsonPatch {
     var found       = false
     var globalError = Option.empty[SchemaError]
 
-    def applyToMatching(json: Json): Json = {
-      val afterSelf = if (JsonMatch.matches(pattern, json)) {
+    val result = Json.iterativeTransform(value) { json =>
+      if (globalError.isDefined && mode == PatchMode.Strict) json
+      else if (JsonMatch.matches(pattern, json)) {
         applyOperation(json, operation, mode, trace) match {
           case Right(modified) =>
             found = true
@@ -342,28 +343,7 @@ object JsonPatch {
       } else {
         json
       }
-
-      if (globalError.isDefined && mode == PatchMode.Strict) {
-        return afterSelf
-      }
-
-      afterSelf match {
-        case obj: Json.Object =>
-          val fields    = obj.value
-          val newFields = fields.map { case (name, v) => (name, applyToMatching(v)) }
-          if (newFields == fields) afterSelf else new Json.Object(newFields)
-
-        case arr: Json.Array =>
-          val elems    = arr.value
-          val newElems = elems.map(applyToMatching)
-          if (newElems == elems) afterSelf else new Json.Array(newElems)
-
-        case _ =>
-          afterSelf
-      }
     }
-
-    val result = applyToMatching(value)
 
     globalError match {
       case Some(err) => Left(err)
@@ -388,8 +368,9 @@ object JsonPatch {
     var found       = false
     var globalError = Option.empty[SchemaError]
 
-    def navigateMatching(json: Json): Json = {
-      val afterSelf = if (JsonMatch.matches(pattern, json)) {
+    val result = Json.iterativeTransform(value) { json =>
+      if (globalError.isDefined && mode == PatchMode.Strict) json
+      else if (JsonMatch.matches(pattern, json)) {
         navigateAndApply(json, path, pathIdx, operation, mode, trace) match {
           case Right(modified) =>
             found = true
@@ -406,28 +387,7 @@ object JsonPatch {
       } else {
         json
       }
-
-      if (globalError.isDefined && mode == PatchMode.Strict) {
-        return afterSelf
-      }
-
-      afterSelf match {
-        case obj: Json.Object =>
-          val fields    = obj.value
-          val newFields = fields.map { case (name, v) => (name, navigateMatching(v)) }
-          if (newFields == fields) afterSelf else new Json.Object(newFields)
-
-        case arr: Json.Array =>
-          val elems    = arr.value
-          val newElems = elems.map(navigateMatching)
-          if (newElems == elems) afterSelf else new Json.Array(newElems)
-
-        case _ =>
-          afterSelf
-      }
     }
-
-    val result = navigateMatching(value)
 
     globalError match {
       case Some(err) => Left(err)

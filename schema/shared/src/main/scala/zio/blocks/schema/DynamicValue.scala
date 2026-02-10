@@ -1339,9 +1339,110 @@ object DynamicValue {
   }
 
   /**
+   * Iterative pre-order tree transformation. Applies `visit` to each node, then
+   * reconstructs the tree bottom-up using an explicit stack to avoid stack
+   * overflow on deeply nested/recursive structures.
+   */
+  private[schema] def iterativeTransform(root: DynamicValue)(visit: DynamicValue => DynamicValue): DynamicValue = {
+    sealed trait Frame
+    final case class Visit(value: DynamicValue)                           extends Frame
+    final case class RebuildRecord(original: Record, childCount: Int)     extends Frame
+    final case class RebuildVariant(original: Variant)                    extends Frame
+    final case class RebuildSequence(original: Sequence, childCount: Int) extends Frame
+    final case class RebuildMap(original: Map, childCount: Int)           extends Frame
+
+    val work    = new java.util.ArrayDeque[Frame]()
+    val results = new java.util.ArrayDeque[DynamicValue]()
+    work.push(Visit(root))
+
+    while (!work.isEmpty) {
+      work.pop() match {
+        case Visit(value) =>
+          val visited = visit(value)
+          visited match {
+            case r: Record =>
+              val n = r.fields.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildRecord(r, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(r.fields(i)._2)); i -= 1 }
+              }
+            case v: Variant =>
+              work.push(RebuildVariant(v))
+              work.push(Visit(v.value))
+            case s: Sequence =>
+              val n = s.elements.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildSequence(s, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(s.elements(i))); i -= 1 }
+              }
+            case m: Map =>
+              val n = m.entries.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildMap(m, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(m.entries(i)._2)); i -= 1 }
+              }
+            case _ =>
+              results.push(visited)
+          }
+
+        case RebuildRecord(original, childCount) =>
+          var changed = false
+          val fields  = new scala.Array[(String, DynamicValue)](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.fields(i)._2)) changed = true
+            fields(i) = (original.fields(i)._1, child)
+            i -= 1
+          }
+          results.push(if (changed) Record(Chunk.fromArray(fields)) else original)
+
+        case RebuildVariant(original) =>
+          val payload = results.pop()
+          results.push(if (payload eq original.value) original else Variant(original.caseNameValue, payload))
+
+        case RebuildSequence(original, childCount) =>
+          var changed = false
+          val elems   = new scala.Array[DynamicValue](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.elements(i))) changed = true
+            elems(i) = child
+            i -= 1
+          }
+          results.push(if (changed) Sequence(Chunk.fromArray(elems)) else original)
+
+        case RebuildMap(original, childCount) =>
+          var changed = false
+          val entries = new scala.Array[(DynamicValue, DynamicValue)](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.entries(i)._2)) changed = true
+            entries(i) = (original.entries(i)._1, child)
+            i -= 1
+          }
+          results.push(if (changed) Map(Chunk.fromArray(entries)) else original)
+      }
+    }
+
+    results.pop()
+  }
+
+  /**
    * Modifies all values matching a SchemaRepr pattern and continues with
-   * remaining path nodes. Uses recursive approach that traverses the entire
-   * structure, applying modifications to matching values.
+   * remaining path nodes. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
    */
   private def schemaSearchModify(
     dv: DynamicValue,
@@ -1350,12 +1451,9 @@ object DynamicValue {
     idx: Int,
     f: DynamicValue => DynamicValue
   ): Option[DynamicValue] = {
-    var found = false
-
-    def modifyMatching(value: DynamicValue): DynamicValue = {
-      // First check if this value matches
-      val afterSelf = if (SchemaMatch.matches(pattern, value)) {
-        // Apply remaining path and modification
+    var found  = false
+    val result = iterativeTransform(dv) { value =>
+      if (SchemaMatch.matches(pattern, value)) {
         modifyAtPathImpl(value, nodes, idx + 1, f) match {
           case Some(modified) =>
             found = true
@@ -1365,46 +1463,14 @@ object DynamicValue {
       } else {
         value
       }
-
-      // Then recurse into children (regardless of whether this value matched)
-      afterSelf match {
-        case r: Record =>
-          val newFields = r.fields.map { case (name, v) =>
-            val modified = modifyMatching(v)
-            (name, modified)
-          }
-          if (newFields == r.fields) afterSelf else Record(newFields)
-
-        case v: Variant =>
-          val modifiedPayload = modifyMatching(v.value)
-          if (modifiedPayload eq v.value) afterSelf else Variant(v.caseNameValue, modifiedPayload)
-
-        case s: Sequence =>
-          val newElems = s.elements.map(modifyMatching)
-          if (newElems == s.elements) afterSelf else Sequence(newElems)
-
-        case m: Map =>
-          val newEntries = m.entries.map { case (k, v) =>
-            val modifiedValue = modifyMatching(v)
-            (k, modifiedValue)
-          }
-          if (newEntries == m.entries) afterSelf else Map(newEntries)
-
-        case _ =>
-          // Primitives and Null have no children
-          afterSelf
-      }
     }
-
-    val result = modifyMatching(dv)
     if (found) Some(result) else None
   }
 
   /**
    * Deletes all values matching a SchemaRepr pattern and continues with
-   * remaining path nodes. If SchemaSearch is the last node, matching values are
-   * removed from their containers. Otherwise, deletion continues recursively
-   * through matching values.
+   * remaining path nodes. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
    */
   private def schemaSearchDelete(
     dv: DynamicValue,
@@ -1415,159 +1481,53 @@ object DynamicValue {
     val isLast = idx == nodes.length - 1
     var found  = false
 
-    def deleteMatchingLast(value: DynamicValue): Option[DynamicValue] =
-      value match {
-        case r: Record =>
-          val newFields = r.fields.flatMap { case (name, v) =>
-            if (SchemaMatch.matches(pattern, v)) {
-              found = true
-              Chunk.empty
-            } else {
-              deleteMatchingLast(v) match {
-                case Some(modified) => Chunk((name, modified))
-                case None           => Chunk((name, v))
-              }
-            }
-          }
-          if (found || newFields != r.fields) Some(Record(newFields)) else None
-
-        case v: Variant =>
-          if (SchemaMatch.matches(pattern, v.value)) {
-            // Cannot delete variant payload - replace with empty record
-            found = true
-            Some(Variant(v.caseNameValue, Record.empty))
-          } else {
-            deleteMatchingLast(v.value).map(modified => Variant(v.caseNameValue, modified))
-          }
-
-        case s: Sequence =>
-          val newElems = s.elements.flatMap { e =>
-            if (SchemaMatch.matches(pattern, e)) {
-              found = true
-              Chunk.empty
-            } else {
-              deleteMatchingLast(e) match {
-                case Some(modified) => Chunk(modified)
-                case None           => Chunk(e)
-              }
-            }
-          }
-          if (found || newElems != s.elements) Some(Sequence(newElems)) else None
-
-        case m: Map =>
-          val newEntries = m.entries.flatMap { case (k, v) =>
-            if (SchemaMatch.matches(pattern, v)) {
-              found = true
-              Chunk.empty
-            } else {
-              deleteMatchingLast(v) match {
-                case Some(modified) => Chunk((k, modified))
-                case None           => Chunk((k, v))
-              }
-            }
-          }
-          if (found || newEntries != m.entries) Some(Map(newEntries)) else None
-
-        case _ =>
-          // Primitives and Null: no children to delete from
-          None
-      }
-
-    // Traverses children to find matches for the pattern, applies remaining path,
-    // and recurses into nested structures. Used for both the non-last node case
-    // of deleteMatching and recursive descent into children.
-    def traverseChildren(value: DynamicValue): Option[DynamicValue] =
-      value match {
-        case r: Record =>
-          val newFields = r.fields.map { case (name, v) =>
-            val selfResult = if (SchemaMatch.matches(pattern, v)) {
-              deleteAtPathImpl(v, nodes, idx + 1) match {
-                case Some(modified) =>
-                  found = true
-                  Some(modified)
-                case None => None
-              }
-            } else None
-
-            val childResult = traverseChildren(v)
-            val combinedOpt = selfResult.orElse(childResult)
-            combinedOpt match {
-              case Some(modified) => (name, modified)
-              case None           => (name, v)
-            }
-          }
-          if (found) Some(Record(newFields)) else None
-
-        case v: Variant =>
-          val selfResult = if (SchemaMatch.matches(pattern, v.value)) {
-            deleteAtPathImpl(v.value, nodes, idx + 1) match {
-              case Some(modified) =>
-                found = true
-                Some(modified)
-              case None => None
-            }
-          } else None
-
-          val childResult = traverseChildren(v.value)
-          val combinedOpt = selfResult.orElse(childResult)
-          combinedOpt.map(modified => Variant(v.caseNameValue, modified))
-
-        case s: Sequence =>
-          val newElems = s.elements.map { e =>
-            val selfResult = if (SchemaMatch.matches(pattern, e)) {
-              deleteAtPathImpl(e, nodes, idx + 1) match {
-                case Some(modified) =>
-                  found = true
-                  Some(modified)
-                case None => None
-              }
-            } else None
-
-            val childResult = traverseChildren(e)
-            val combinedOpt = selfResult.orElse(childResult)
-            combinedOpt.getOrElse(e)
-          }
-          if (found) Some(Sequence(newElems)) else None
-
-        case m: Map =>
-          val newEntries = m.entries.map { case (k, v) =>
-            val selfResult = if (SchemaMatch.matches(pattern, v)) {
-              deleteAtPathImpl(v, nodes, idx + 1) match {
-                case Some(modified) =>
-                  found = true
-                  Some(modified)
-                case None => None
-              }
-            } else None
-
-            val childResult = traverseChildren(v)
-            val combinedOpt = selfResult.orElse(childResult)
-            combinedOpt match {
-              case Some(modified) => (k, modified)
-              case None           => (k, v)
-            }
-          }
-          if (found) Some(Map(newEntries)) else None
-
-        case _ =>
-          // Primitives and Null: no children
-          None
-      }
-
     if (isLast) {
-      // SchemaSearch is the last node - delete matching values from children
-      deleteMatchingLast(dv)
-    } else {
-      // SchemaSearch is not the last node - find matches and continue with remaining path
-      if (SchemaMatch.matches(pattern, dv)) {
-        // Root matches - apply remaining path
-        deleteAtPathImpl(dv, nodes, idx + 1) match {
-          case Some(modified) => Some(modified)
-          case None           => traverseChildren(dv)
+      // SchemaSearch is the last node - delete matching values from containers.
+      // The visit function filters out matching direct children at each container level;
+      // iterativeTransform handles recursion into remaining children.
+      val result = iterativeTransform(dv) { value =>
+        value match {
+          case r: Record =>
+            val newFields = r.fields.flatMap { case (name, v) =>
+              if (SchemaMatch.matches(pattern, v)) { found = true; Chunk.empty }
+              else Chunk((name, v))
+            }
+            if (newFields.length != r.fields.length) Record(newFields) else r
+          case v: Variant =>
+            if (SchemaMatch.matches(pattern, v.value)) {
+              found = true
+              Variant(v.caseNameValue, Record.empty)
+            } else v
+          case s: Sequence =>
+            val newElems = s.elements.flatMap { e =>
+              if (SchemaMatch.matches(pattern, e)) { found = true; Chunk.empty }
+              else Chunk(e)
+            }
+            if (newElems.length != s.elements.length) Sequence(newElems) else s
+          case m: Map =>
+            val newEntries = m.entries.flatMap { case (k, v) =>
+              if (SchemaMatch.matches(pattern, v)) { found = true; Chunk.empty }
+              else Chunk((k, v))
+            }
+            if (newEntries.length != m.entries.length) Map(newEntries) else m
+          case other => other
         }
-      } else {
-        traverseChildren(dv)
       }
+      if (found) Some(result) else None
+    } else {
+      // SchemaSearch is not the last node - find matches and continue with remaining path.
+      // iterativeTransform visits every node; matching ones get the remaining path applied.
+      val result = iterativeTransform(dv) { value =>
+        if (SchemaMatch.matches(pattern, value)) {
+          deleteAtPathImpl(value, nodes, idx + 1) match {
+            case Some(modified) =>
+              found = true
+              modified
+            case None => value
+          }
+        } else value
+      }
+      if (found) Some(result) else None
     }
   }
 

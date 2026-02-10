@@ -68,15 +68,14 @@ object PathMacros {
       case Node.AtMapKeys(keys) =>
         val keysExpr = Expr.ofSeq(keys.map(buildDynamicValueExpr))
         '{ Node.AtMapKeys(Seq($keysExpr: _*)) }
-      case Node.Elements  => '{ Node.Elements }
-      case Node.MapKeys   => '{ Node.MapKeys }
-      case Node.MapValues => '{ Node.MapValues }
-      case Node.Wrapped   => '{ Node.Wrapped }
+      case Node.Elements      => '{ Node.Elements }
+      case Node.MapKeys       => '{ Node.MapKeys }
+      case Node.MapValues     => '{ Node.MapValues }
+      case Node.Wrapped       => '{ Node.Wrapped }
       case Node.TypeSearch(_) =>
         quotes.reflect.report.errorAndAbort(
           "TypeSearch is not supported in path interpolators. Use SchemaSearch via #TypeName syntax instead."
         )
-
 
       case Node.SchemaSearch(schemaRepr) =>
         val schemaReprExpr = buildSchemaReprExpr(schemaRepr)

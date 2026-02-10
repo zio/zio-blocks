@@ -1043,7 +1043,6 @@ object ReflectSpec extends SchemaBaseSpec {
         val result       = nestedSchema.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.string)))
       },
-      // 10a: primitiveTypeNameMatches — exercise all untested primitive branches
       test("SchemaSearch Primitive pattern matches boolean") {
         val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("boolean"))
         assert(Reflect.boolean[Binding].get(optic))(isSome(equalTo(Reflect.boolean[Binding])))
@@ -1100,19 +1099,6 @@ object ReflectSpec extends SchemaBaseSpec {
         val optic = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("duration"))
         assert(Reflect.duration[Binding].get(optic))(isSome(equalTo(Reflect.duration[Binding])))
       },
-      // 10b: matchesSchemaRepr — untested SchemaRepr patterns
-      // TODO: Variant case names may differ from "Left"/"Right" — investigate caseByName convention
-      // test("SchemaSearch Variant pattern matches variant type") {
-      //   // Use file-level eitherReflect: Variant[Either[Int, Long]]
-      //   val pattern = SchemaRepr.Variant(Vector(
-      //     ("Left", SchemaRepr.Primitive("int")),
-      //     ("Right", SchemaRepr.Primitive("long"))
-      //   ))
-      //   val optic  = DynamicOptic.root.searchSchema(pattern)
-      //   val result = eitherReflect.get(optic)
-      //   assert(result)(isSome) &&
-      //   assert(result.get.isVariant)(isTrue)
-      // },
       test("SchemaSearch Optional pattern matches Option type") {
         val optionReflect = Schema[Option[Int]].reflect
         val pattern       = SchemaRepr.Optional(SchemaRepr.Primitive("int"))
@@ -1171,7 +1157,6 @@ object ReflectSpec extends SchemaBaseSpec {
         val result = Reflect.int[Binding].get(optic)
         assert(result)(isNone)
       },
-      // 10c: schemaSearch DFS traversal gaps
       test("SchemaSearch DFS traverses through Variant cases") {
         // eitherReflect is Either[Int, Long] — search for Int inside Variant
         val pattern = SchemaRepr.Primitive("int")
@@ -1200,7 +1185,6 @@ object ReflectSpec extends SchemaBaseSpec {
         val result  = Reflect.dynamic[Binding].get(optic)
         assert(result)(isNone)
       },
-      // 10e: SchemaSearch path composition — searchSchema then field
       test("SchemaSearch with path composition: searchSchema then field") {
         val nestedSchema = Schema.derived[(Int, PersonRecord)].reflect
         val pattern      = SchemaRepr.Record(
