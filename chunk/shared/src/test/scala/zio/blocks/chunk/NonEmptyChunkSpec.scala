@@ -21,18 +21,12 @@ import zio.test._
 
 object NonEmptyChunkSpec extends ChunkBaseSpec {
 
-  lazy val genChunkLocal: Gen[Any, Chunk[Int]] = genChunk(genInt)
-
-  lazy val genInt: Gen[Any, Int] = Gen.int(-10, 10)
-
-  lazy val genIntFunction: Gen[Any, Any => Int] = Gen.function(genInt)
-
-  lazy val genIntFunction2: Gen[Any, (Any, Any) => Int] = Gen.function2(genInt)
-
-  lazy val genNonEmptyChunkLocal: Gen[Any, NonEmptyChunk[Int]] = genNonEmptyChunk(genInt)
-
-  lazy val genNonEmptyChunkFunction: Gen[Any, Any => NonEmptyChunk[Int]] =
-    Gen.function(genNonEmptyChunkLocal)
+  val genInt: Gen[Any, Int]                                         = Gen.int(-10, 10)
+  val genChunkLocal: Gen[Any, Chunk[Int]]                           = genChunk(genInt)
+  val genIntFunction: Gen[Any, Any => Int]                          = Gen.function(genInt)
+  val genIntFunction2: Gen[Any, (Any, Any) => Int]                  = Gen.function2(genInt)
+  val genNonEmptyChunkLocal: Gen[Any, NonEmptyChunk[Int]]           = genNonEmptyChunk(genInt)
+  val genNonEmptyChunkFunction: Gen[Any, Any => NonEmptyChunk[Int]] = Gen.function(genNonEmptyChunkLocal)
 
   def spec = suite("NonEmptyChunkSpec")(
     test("+") {
@@ -72,6 +66,9 @@ object NonEmptyChunkSpec extends ChunkBaseSpec {
     test("map") {
       check(genNonEmptyChunkLocal, genIntFunction)((as, f) => assert(as.map(f).toChunk)(equalTo(as.toChunk.map(f))))
     },
+    test("materialize") {
+      check(genNonEmptyChunkLocal)(as => assert(as.materialize)(equalTo(as)))
+    },
     test("reduceMapLeft") {
       check(genNonEmptyChunkLocal, genIntFunction, genIntFunction2) { (as, map, reduce) =>
         val actual   = as.reduceMapLeft(map)(reduce)
@@ -85,6 +82,15 @@ object NonEmptyChunkSpec extends ChunkBaseSpec {
         val expected = as.init.foldRight(map(as.last))(reduce)
         assert(actual)(equalTo(expected))
       }
+    },
+    test("size") {
+      check(genNonEmptyChunkLocal)(as => assert(as.size)(equalTo(as.toChunk.size)))
+    },
+    test("toArray") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toArray)(equalTo(as.toChunk.toArray)))
+    },
+    test("toChunk") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toChunk)(equalTo(Chunk.from(as))))
     },
     suite("unapplySeq")(
       test("matches a nonempty chunk") {
