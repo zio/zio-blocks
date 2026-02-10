@@ -4,6 +4,7 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import java.net.URI
 import java.util.regex.{Pattern, PatternSyntaxException}
+import scala.collection.mutable
 import scala.util.control.NonFatal
 
 // =============================================================================
@@ -55,10 +56,10 @@ object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
 /**
  * ECMA-262 regular expression pattern.
  */
-final case class RegexPattern(value: String) extends AnyVal {
+final case class RegexPattern(value: String) {
 
   /** Compiles the pattern to a Java Pattern for validation. */
-  def compiled: Either[String, Pattern] =
+  lazy val compiled: Either[String, Pattern] =
     try new Right(Pattern.compile(value))
     catch {
       case e: PatternSyntaxException => new Left(e.getMessage)
@@ -83,7 +84,7 @@ object RegexPattern {
 /**
  * URI-Reference per RFC 3986 (may be relative).
  */
-final case class UriReference(value: String) extends AnyVal {
+final case class UriReference private[json] (value: String) extends AnyVal {
 
   /** Attempts to resolve this reference against a base URI. */
   def resolve(base: URI): Either[String, URI] =
@@ -100,7 +101,7 @@ object UriReference {
 /**
  * Anchor name (plain name fragment without #).
  */
-final case class Anchor(value: String) extends AnyVal
+final case class Anchor private[json] (value: String) extends AnyVal
 
 object Anchor {
   def apply(value: String): Anchor = new Anchor(value)
@@ -464,13 +465,14 @@ sealed trait JsonSchema extends Product with Serializable {
             case st: SchemaType.Single =>
               val t = st.value
               if (t eq JsonSchemaType.Null) s
-              else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, t :: Nil))))
+              else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, new ::(t, Nil)))))
             case ut: SchemaType.Union =>
               val ts = ut.values
               if (ts.contains(JsonSchemaType.Null)) s
               else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, ts))))
           }
-        case _ => new JsonSchema.Object(anyOf = new Some(new ::(JsonSchema.ofType(JsonSchemaType.Null), s :: Nil)))
+        case _ =>
+          new JsonSchema.Object(anyOf = new Some(new ::(JsonSchema.ofType(JsonSchemaType.Null), new ::(s, Nil))))
       }
   }
 }
@@ -1078,10 +1080,10 @@ object JsonSchema {
               schemas.foreach {
                 var idx = 0
                 schema =>
-                  if (idx < a.value.length) {
+                  if (idx < len) {
                     evaluatedIndices += idx
-                    val itemResult = collectFromSchema(schema, a.value(idx), options, trace)
-                    result = result.addErrors(itemResult.errors)
+                    val trace_ = new DynamicOptic.Node.AtIndex(idx) :: trace
+                    result = result.addErrors(collectFromSchema(schema, a.value(idx), options, trace_).errors)
                   }
                   idx += 1
               }
@@ -1094,12 +1096,12 @@ object JsonSchema {
                 case Some(pis) => pis.length
                 case _         => 0
               }
-              val items = a.value
-              val len   = items.length
+              val jsons = a.value
+              val len   = jsons.length
               while (idx < len) {
-                val item = items(idx)
                 evaluatedIndices += idx
-                result = result.addErrors(collectFromSchema(itemSchema, item, options, trace).errors)
+                val trace_ = new DynamicOptic.Node.AtIndex(idx) :: trace
+                result = result.addErrors(collectFromSchema(itemSchema, jsons(idx), options, trace_).errors)
                 idx += 1
               }
             case _ =>
@@ -1115,8 +1117,8 @@ object JsonSchema {
               if (matchCount < minC) {
                 result = result.addError(trace, s"Array must contain at least $minC matching items, found $matchCount")
               }
-              maxContains.map(_.value) match {
-                case Some(maxC) if matchCount > maxC =>
+              maxContains match {
+                case Some(NonNegativeInt(maxC)) if matchCount > maxC =>
                   result = result.addError(trace, s"Array must contain at most $maxC matching items, found $matchCount")
                 case _ =>
               }
@@ -1163,11 +1165,13 @@ object JsonSchema {
           var localEvaluatedProps = Set.empty[String] // Track which properties are evaluated locally
           properties match {
             case Some(props) =>
-              props.foreach { case (propName, propSchema) =>
+              props.foreach { kv =>
+                val propName = kv._1
                 fieldMap.get(propName) match {
                   case Some(propValue) =>
                     localEvaluatedProps += propName
-                    result = result.addErrors(collectFromSchema(propSchema, propValue, options, trace).errors)
+                    val trace_ = new DynamicOptic.Node.Field(propName) :: trace
+                    result = result.addErrors(collectFromSchema(kv._2, propValue, options, trace_).errors)
                   case _ =>
                 }
               }
@@ -1178,14 +1182,12 @@ object JsonSchema {
               patterns.foreach { case (pattern, propSchema) =>
                 pattern.compiled match {
                   case Right(regex) =>
-                    fieldKeys.foreach { key =>
+                    fieldMap.foreach { kv =>
+                      val key = kv._1
                       if (regex.matcher(key).find()) {
                         localEvaluatedProps += key
-                        fieldMap.get(key) match {
-                          case Some(propValue) =>
-                            result = result.addErrors(collectFromSchema(propSchema, propValue, options, trace).errors)
-                          case _ =>
-                        }
+                        val trace_ = new DynamicOptic.Node.Field(key) :: trace
+                        result = result.addErrors(collectFromSchema(propSchema, kv._2, options, trace_).errors)
                       }
                     }
                   case _ =>
@@ -1194,13 +1196,18 @@ object JsonSchema {
             case _ =>
           }
           additionalProperties match {
-            case Some(addlSchema) =>
-              val additionalKeys = fieldKeys -- localEvaluatedProps -- properties.map(_.keySet).getOrElse(Set.empty)
+            case Some(addSchema) =>
+              var additionalKeys = fieldKeys -- localEvaluatedProps
+              properties match {
+                case Some(props) => additionalKeys = additionalKeys -- props.keySet
+                case _           =>
+              }
               additionalKeys.foreach { key =>
                 localEvaluatedProps += key
                 fieldMap.get(key) match {
                   case Some(propValue) =>
-                    result = result.addErrors(collectFromSchema(addlSchema, propValue, options, trace).errors)
+                    val trace_ = new DynamicOptic.Node.Field(key) :: trace
+                    result = result.addErrors(collectFromSchema(addSchema, propValue, options, trace_).errors)
                   case _ =>
                 }
               }
@@ -1301,29 +1308,31 @@ object JsonSchema {
           unevaluatedItems match {
             case Some(unevalSchema) =>
               val allEvaluated = result.evaluatedItems
-              (0 until a.value.length).foreach { idx =>
+              val jsons        = a.value
+              val len          = jsons.length
+              var idx          = 0
+              while (idx < len) {
                 if (!allEvaluated.contains(idx)) {
-                  result = result.addErrors(collectFromSchema(unevalSchema, a.value(idx), options, trace).errors)
+                  val trace_ = new DynamicOptic.Node.AtIndex(idx) :: trace
+                  result = result.addErrors(collectFromSchema(unevalSchema, jsons(idx), options, trace_).errors)
                   result = result.withEvaluatedItem(idx)
                 }
+                idx += 1
               }
             case _ =>
           }
         case obj: Json.Object =>
           unevaluatedProperties match {
             case Some(unevalSchema) =>
-              val fieldMap     = obj.value.toMap
-              val fieldKeys    = fieldMap.keySet
-              val allEvaluated = result.evaluatedProperties
-              fieldKeys.foreach { key =>
-                if (!allEvaluated.contains(key)) {
-                  fieldMap.get(key) match {
-                    case Some(propValue) =>
-                      result = result.addErrors(collectFromSchema(unevalSchema, propValue, options, trace).errors)
-                      result = result.withEvaluatedProperty(key)
-                    case _ =>
+              obj.value.toMap.foreach {
+                val allEvaluated = result.evaluatedProperties
+                kv =>
+                  val key = kv._1
+                  if (!allEvaluated.contains(key)) {
+                    val trace_ = new DynamicOptic.Node.Field(key) :: trace
+                    result = result.addErrors(collectFromSchema(unevalSchema, kv._2, options, trace_).errors)
+                    result = result.withEvaluatedProperty(key)
                   }
-                }
               }
             case _ =>
           }
@@ -1479,7 +1488,7 @@ object JsonSchema {
 
   def ref(uri: UriReference): JsonSchema = new Object($ref = new Some(uri))
 
-  def refString(uri: String): JsonSchema = new Object($ref = new Some(new UriReference(uri)))
+  def refString(uri: String): JsonSchema = new Object($ref = new Some(UriReference(uri)))
 
   val nullSchema: JsonSchema = ofType(JsonSchemaType.Null)
   val boolean: JsonSchema    = ofType(JsonSchemaType.Boolean)
@@ -1491,63 +1500,117 @@ object JsonSchema {
   private def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
     val fieldMap = obj.value.toMap
 
-    def getString(key: String): Option[String] = fieldMap.get(key).collect { case s: Json.String => s.value }
+    def getString(key: String): Option[String] = fieldMap.get(key) match {
+      case Some(s: Json.String) => new Some(s.value)
+      case _                    => None
+    }
 
-    def getBoolean(key: String): Option[scala.Boolean] = fieldMap.get(key).collect { case b: Json.Boolean => b.value }
+    def getBoolean(key: String): Option[scala.Boolean] = fieldMap.get(key) match {
+      case Some(b: Json.Boolean) => new Some(b.value)
+      case _                     => None
+    }
 
-    def getNumber(key: String): Option[BigDecimal] = fieldMap.get(key).collect { case n: Json.Number => n.value }
+    def getNumber(key: String): Option[BigDecimal] = fieldMap.get(key) match {
+      case Some(n: Json.Number) => new Some(n.value)
+      case _                    => None
+    }
 
-    def getNonNegativeInt(key: String): Option[NonNegativeInt] = getNumber(key).flatMap(n => NonNegativeInt(n.toInt))
+    def getNonNegativeInt(key: String): Option[NonNegativeInt] = getNumber(key) match {
+      case Some(n) => NonNegativeInt(n.intValue)
+      case _       => None
+    }
 
-    def getPositiveNumber(key: String): Option[PositiveNumber] = getNumber(key).flatMap(PositiveNumber(_))
+    def getPositiveNumber(key: String): Option[PositiveNumber] = getNumber(key) match {
+      case Some(n) => PositiveNumber(n)
+      case _       => None
+    }
 
     def getSchema(key: String): Either[SchemaError, Option[JsonSchema]] = fieldMap.get(key) match {
-      case Some(json) => fromJson(json).map(new Some(_))
-      case _          => new Right(None)
+      case Some(json) =>
+        fromJson(json) match {
+          case Right(schema) => new Right(new Some(schema))
+          case l             => l.asInstanceOf[Either[SchemaError, Option[JsonSchema]]]
+        }
+      case _ => new Right(None)
+    }
+
+    def getAnchor(key: String): Option[Anchor] = fieldMap.get(key) match {
+      case Some(s: Json.String) => new Some(Anchor(s.value))
+      case _                    => None
+    }
+
+    def getUriReference(key: String): Option[UriReference] = fieldMap.get(key) match {
+      case Some(s: Json.String) => new Some(UriReference(s.value))
+      case _                    => None
     }
 
     def getSchemaList(key: String): Either[SchemaError, Option[::[JsonSchema]]] = fieldMap.get(key) match {
       case Some(arr: Json.Array) =>
-        val results = arr.value.map(fromJson)
-        val errs    = results.collect { case Left(e) => e }
-        if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
-        else {
-          val schemas = results.collect { case Right(s) => s }
-          schemas.toList match {
-            case head :: tail => Right(Some(new ::(head, tail)))
-            case Nil          => Right(None)
+        val schemas            = new mutable.ListBuffer[JsonSchema]
+        var error: SchemaError = null
+        arr.value.foreach { json =>
+          fromJson(json) match {
+            case Right(s) =>
+              if (error eq null) schemas.addOne(s)
+            case Left(e) =>
+              if (error eq null) error = e
+              else error = error ++ e
           }
         }
-      case Some(_) =>
-        Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
-      case _ => Right(None)
+        if (error ne null) new Left(error)
+        else {
+          new Right({
+            if (schemas.isEmpty) None
+            else new Some(schemas.toList.asInstanceOf[::[JsonSchema]])
+          })
+        }
+      case v =>
+        if (v eq None) new Right(None)
+        else new Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
     }
 
     def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] = fieldMap.get(key) match {
       case Some(o: Json.Object) =>
-        val results = o.value.map { case (k, v) => fromJson(v).map(s => k -> s) }
-        val errs    = results.collect { case Left(e) => e }
-        if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
-        else Right(Some(ChunkMap.fromChunk(results.collect { case Right(kv) => kv })))
-      case Some(_) =>
-        Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))
-      case None => Right(None)
-    }
-
-    def getStringSet(key: String): Option[Set[String]] = fieldMap.get(key).collect { case arr: Json.Array =>
-      arr.value.collect { case s: Json.String => s.value }.toSet
-    }
-
-    def getJsonList(key: String): Option[::[Json]] =
-      fieldMap
-        .get(key)
-        .collect { case arr: Json.Array =>
-          arr.value.toList match {
-            case head :: tail => Some(new ::(head, tail))
-            case Nil          => None
+        val schemaMap          = ChunkMap.newBuilder[String, JsonSchema]
+        var error: SchemaError = null
+        o.value.foreach { kv =>
+          fromJson(kv._2) match {
+            case Right(s) =>
+              if (error eq null) schemaMap.addOne((kv._1, s))
+            case Left(e) =>
+              if (error eq null) error = e
+              else error = error ++ e
           }
         }
-        .flatten
+        if (error ne null) new Left(error)
+        else new Right(new Some(schemaMap.result()))
+      case v =>
+        if (v eq None) new Right(None)
+        else new Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))
+    }
+
+    def getStringSet(key: String): Option[Set[String]] = fieldMap.get(key) match {
+      case Some(arr: Json.Array) =>
+        new Some(
+          arr.value
+            .foldLeft(Set.newBuilder[String])((acc, json) =>
+              json match {
+                case s: Json.String => acc.addOne(s.value)
+                case _              => acc
+              }
+            )
+            .result()
+        )
+      case _ => None
+    }
+
+    def getJsonList(key: String): Option[::[Json]] = fieldMap.get(key) match {
+      case Some(arr: Json.Array) =>
+        val json = arr.value
+        if (json.isEmpty) None
+        else new Some(json.toList.asInstanceOf[::[Json]])
+      case _ => None
+    }
 
     // Parse all fields
     for {
@@ -1572,35 +1635,64 @@ object JsonSchema {
     } yield {
       val patternPropsOpt = fieldMap.get("patternProperties") match {
         case Some(o: Json.Object) =>
-          val parsed = o.value.flatMap { case (pattern, json) =>
-            fromJson(json).toOption.map(schema => RegexPattern.unsafe(pattern) -> schema)
+          val schemas       = ChunkBuilder.make[JsonSchema]()
+          val regexPatterns = ChunkBuilder.make[RegexPattern]()
+          o.value.foreach { kv =>
+            fromJson(kv._2) match {
+              case Right(schema) =>
+                schemas.addOne(schema)
+                regexPatterns.addOne(new RegexPattern(kv._1))
+              case _ =>
+            }
           }
-          if (parsed.nonEmpty) Some(ChunkMap.fromChunk(parsed)) else None
+          if (regexPatterns.knownSize == 0) None
+          else new Some(ChunkMap.fromChunks(regexPatterns.result(), schemas.result()))
         case _ => None
       }
       val dependentRequiredOpt = fieldMap.get("dependentRequired") match {
         case Some(o: Json.Object) =>
-          val parsed = o.value.map { case (k, v) =>
-            v match {
-              case arr: Json.Array => k -> arr.value.collect { case s: Json.String => s.value }.toSet
-              case _               => k -> Set.empty[String]
+          val keys = o.value.map(_._1)
+          val sets = o.value.map { kv =>
+            kv._2 match {
+              case arr: Json.Array =>
+                arr.value
+                  .foldLeft(Set.newBuilder[String]) { (acc, json) =>
+                    json match {
+                      case s: Json.String => acc.addOne(s.value)
+                      case _              => acc
+                    }
+                  }
+                  .result()
+              case _ => Set.empty[String]
             }
           }
-          if (parsed.nonEmpty) Some(ChunkMap.fromChunk(parsed)) else None
+          if (keys.nonEmpty) new Some(ChunkMap.fromChunks(keys, sets))
+          else None
         case _ => None
       }
-      val typeOpt    = fieldMap.get("type").flatMap(j => SchemaType.fromJson(j).toOption)
+      val typeOpt = fieldMap.get("type") match {
+        case Some(j) =>
+          SchemaType.fromJson(j) match {
+            case Right(t) => new Some(t)
+            case _        => None
+          }
+        case _ => None
+      }
       val extensions = ChunkMap.from(obj.value).filterNot(kv => knownKeys.contains(kv._1))
       new Object(
-        $id = getString("$id").map(UriReference(_)),
-        $schema = getString("$schema").flatMap(s =>
-          try Some(new URI(s))
-          catch { case _: Exception => None }
-        ),
-        $anchor = getString("$anchor").map(Anchor(_)),
-        $dynamicAnchor = getString("$dynamicAnchor").map(Anchor(_)),
-        $ref = getString("$ref").map(UriReference(_)),
-        $dynamicRef = getString("$dynamicRef").map(UriReference(_)),
+        $id = getUriReference("$id"),
+        $schema = getString("$schema") match {
+          case Some(s) =>
+            try new Some(new URI(s))
+            catch {
+              case err if NonFatal(err) => None
+            }
+          case _ => None
+        },
+        $anchor = getAnchor("$anchor"),
+        $dynamicAnchor = getAnchor("$dynamicAnchor"),
+        $ref = getUriReference("$ref"),
+        $dynamicRef = getUriReference("$dynamicRef"),
         $vocabulary = None, // Complex parsing, skip for now
         $defs = defsSchemas,
         $comment = getString("$comment"),
