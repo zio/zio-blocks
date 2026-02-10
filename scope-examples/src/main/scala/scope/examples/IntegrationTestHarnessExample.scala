@@ -110,7 +110,7 @@ object IntegrationTestHarnessExample {
 
       // Run test scenarios - access the tuple components via scope.$
       println("Running test scenarios:")
-      scope.$(harness) { case (fixture, app) =>
+      (scope $ harness) { case (fixture, app) =>
         println(s"  GET user:1 -> ${app.handleRequest("user:1")}")
         println(s"  GET user:2 -> ${app.handleRequest("user:2")}")
         println(s"  GET user:3 -> ${app.handleRequest("user:3")}")

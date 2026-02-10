@@ -11,7 +11,7 @@ package zio.blocks
  *
  * Scope.global.scoped { scope =>
  *   val db = scope.allocate(Resource[Database])
- *   val result = scope.$(db)(_.query("SELECT 1"))
+ *   val result = (scope $ db)(_.query("SELECT 1"))
  *   println(result)
  * }
  * }}}
@@ -21,7 +21,7 @@ package zio.blocks
  *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
  *     escape
  *   - '''`scope.allocate(resource)`''': Allocate a value in a scope
- *   - '''`scope.$(value)(f)`''': Apply a function to a scoped value
+ *   - '''`(scope $ value)(f)`''': Apply a function to a scoped value
  *   - '''`scope.scoped { s => ... }`''': Create a child scope with existential
  *     tag
  *   - '''`scope.defer { ... }`''': Register cleanup to run when scope closes

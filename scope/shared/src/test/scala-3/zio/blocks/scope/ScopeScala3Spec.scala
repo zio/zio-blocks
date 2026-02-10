@@ -73,7 +73,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
           // $ executes immediately, so side effect happens now
-          scope.$(db) { d =>
+          (scope $ db) { d =>
             val result = d.query("SELECT 1")
             captured = result
             result
@@ -87,7 +87,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: Boolean | Null = null
         Scope.global.scoped { scope =>
           val config: Config @@ scope.Tag = scope.allocate(Resource(Config(true)))
-          scope.$(config) { c =>
+          (scope $ config) { c =>
             val debug = c.debug
             captured = debug
             debug
@@ -99,7 +99,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          scope.$(db) { d =>
+          (scope $ db) { d =>
             val result = d.query("test")
             captured = result
             result
@@ -115,7 +115,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
           val db: Database @@ parentScope.Tag = parentScope.allocate(Resource.from[Database])
 
           parentScope.scoped { childScope =>
-            childScope.$(db) { d =>
+            (childScope $ db) { d =>
               val result = d.query("child")
               captured = result
               result
@@ -314,7 +314,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
           }
           parent.scoped { child2 =>
             val db = leaked.asInstanceOf[Database @@ child2.Tag]
-            child2.$(db) { d =>
+            (child2 $ db) { d =>
               val result = d.query("test")
               captured = result
               result
@@ -358,7 +358,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         leaked.scope.scoped { newChild =>
           // newChild is created as already-closed (because parent is closed)
           // newChild.$ checks isClosed → true → stays lazy, doesn't execute
-          newChild.$(leaked.value) { r =>
+          (newChild $ leaked.value) { r =>
             result = r.read() // This never executes!
           }
           ()

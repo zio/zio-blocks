@@ -208,8 +208,8 @@ Scope.global.scoped { scope =>
   val db: Database @@ scope.Tag = scope.allocate(Resource(openDatabase()))
   
   // Methods are hidden - can't call db.query() directly
-  // Must use scope.$ to access:
-  val result = scope.$(db)(_.query("SELECT 1"))
+  // Must use (scope $ ...) to access:
+  val result = (scope $ db)(_.query("SELECT 1"))
   
   // Trying to return `db` would be a compile error!
   result  // Only pure data escapes
@@ -245,8 +245,8 @@ Scope.global.scoped { scope =>
   // Allocate returns Database @@ scope.Tag (scoped value)
   val db = scope.allocate(Resource(new Database))
   
-  // Access via scope.$ - result (String) escapes, db does not
-  val result = scope.$(db)(_.query("SELECT * FROM users"))
+  // Access via (scope $ ...) - result (String) escapes, db does not
+  val result = (scope $ db)(_.query("SELECT * FROM users"))
   println(result)
 }
 // Output: Result: SELECT * FROM users
@@ -271,7 +271,7 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
 
 Scope.global.scoped { scope =>
   val service = scope.allocate(serviceResource)
-  scope.$(service)(_.createUser("Alice"))
+  (scope $ service)(_.createUser("Alice"))
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
@@ -285,8 +285,8 @@ Scope.global.scoped { connScope =>
   // Transaction lives in child scope - cleaned up before connection
   val result = connScope.scoped { txScope =>
     val tx = txScope.allocate(conn.beginTransaction())  // Returns Resource!
-    txScope.$(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
-    txScope.$(tx)(_.commit())
+    (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
+    (txScope $ tx)(_.commit())
     "success"
   }
   // Transaction closed here, connection still open

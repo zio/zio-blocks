@@ -74,7 +74,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val resource = scope.allocate(new TestCloseable)
         // Capture result via side effect in the function passed to $
         var captured: String = null
-        scope.$(resource) { r =>
+        (scope $ resource) { r =>
           captured = r.value
           r.value
         }
@@ -110,7 +110,7 @@ object ScopeSpec extends ZIOSpecDefault {
             // Capture a thunk that uses the child scope's $ method
             capturedThunk = () => {
               // This calls child.$ on a CLOSED scope - should stay lazy
-              child.$(resource)(_.read())
+              (child $ resource)(_.read())
               ()
             }
 
@@ -183,9 +183,9 @@ object ScopeSpec extends ZIOSpecDefault {
 
             capturedThunk = () => {
               // All these should stay lazy on a closed scope
-              child.$(counter)(_.inc())
-              child.$(counter)(_.inc())
-              child.$(counter)(_.inc())
+              (child $ counter)(_.inc())
+              (child $ counter)(_.inc())
+              (child $ counter)(_.inc())
               ()
             }
 
@@ -209,7 +209,7 @@ object ScopeSpec extends ZIOSpecDefault {
         }
 
         val resource = scope.allocate(Resource(new TrackedResource))
-        scope.$(resource)(_.doWork())
+        (scope $ resource)(_.doWork())
         close()
         assertTrue(executed)
       },

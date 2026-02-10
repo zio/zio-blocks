@@ -94,7 +94,7 @@ class SecretStore extends AutoCloseable {
   Scope.global.scoped { scope =>
     val reader = scope.allocate(Resource(new ConfigReader))
 
-    scope.$(reader) { r =>
+    (scope $ reader) { r =>
       escapedConfig = r.readConfig("/etc/app/config.json")
     }
   }
@@ -108,7 +108,7 @@ class SecretStore extends AutoCloseable {
   Scope.global.scoped { scope =>
     val secrets = scope.allocate(Resource(new SecretStore))
 
-    scope.$(secrets) { s =>
+    (scope $ secrets) { s =>
       val dbPassword = s.getSecret("database.password")
       println(s"  Retrieved secret: $dbPassword")
     }
