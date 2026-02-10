@@ -1,175 +1,20 @@
 package zio.blocks.scope
 
 /**
- * Opaque type for scoping values with scope identity.
- *
- * A value of type `A @@ S` is a value of type `A` that is "locked" to a scope
- * with tag `S`. The opaque type hides all methods on `A`, so the only way to
- * use the value is through the scope's `$` method or by building a `Scoped`
- * computation via `map`/`flatMap`.
- *
- * This prevents scoped resources from escaping their scope at compile time.
- * Zero overhead at runtime: `@@` is an opaque type alias, so `A @@ S` is
- * represented as just `A` at runtime.
- *
- * ==Operations==
- *
- * The `@@` companion object provides extension methods:
- *   - `map`: Transform the value, returning a `Scoped` computation
- *   - `flatMap`: Combine scoped values, returning a `Scoped` computation
- *   - `_1`, `_2`: Extract tuple elements (stay scoped)
- *
- * @example
- *   {{{
- *   Scope.global.scoped { scope =>
- *     val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
- *
- *     // Build a Scoped computation
- *     val query: Scoped[scope.Tag, String] = db.map(_.query("SELECT 1"))
- *
- *     // Execute via scope.execute
- *     val result: String = scope.execute(query)
- *   }
- *   }}}
- *
- * @see
- *   [[Scoped]] for deferred scoped computations
- * @see
- *   [[Scope.$]] for direct method access on scoped values
- */
-opaque infix type @@[+A, S] = A
-
-/**
- * Companion object for the `@@` opaque type, providing factory methods and
- * extension operations.
- */
-object @@ {
-
-  /**
-   * Scopes a value with a scope identity.
-   *
-   * This wraps a raw value `A` into a scoped value `A @@ S`. The scope tag `S`
-   * is typically the path-dependent `Tag` type of a [[Scope]] instance.
-   *
-   * Zero overhead: since `@@` is an opaque type alias, this is an identity
-   * operation at runtime.
-   *
-   * '''Note:''' This only tags the value - it does not manage lifecycle. For
-   * resources that need cleanup, prefer `scope.allocate` with a [[Resource]]
-   * which automatically registers finalizers.
-   *
-   * @param a
-   *   the value to scope
-   * @tparam A
-   *   the value type
-   * @tparam S
-   *   the scope tag type
-   * @return
-   *   the scoped value
-   */
-  inline def scoped[A, S](a: A): A @@ S = a
-
-  /**
-   * Retrieves the underlying value without unscoping (internal use only).
-   *
-   * This is package-private to prevent bypassing the scope safety checks.
-   * External code should use scope methods with proper scope proof.
-   */
-  private[scope] inline def unscoped[A, S](scoped: A @@ S): A = scoped
-
-  extension [A, S](scoped: A @@ S) {
-
-    /**
-     * Maps over a scoped value, returning a Scoped computation.
-     *
-     * The function `f` is applied to the underlying value when the Scoped
-     * computation is executed by a matching scope. This builds a description of
-     * work, not immediate execution.
-     *
-     * @example
-     *   {{{
-     *   val db: Database @@ S = ...
-     *   val query: Scoped[S, ResultSet] = db.map(_.query("SELECT 1"))
-     *   // Execute later: scope.execute(query)
-     *   }}}
-     *
-     * @param f
-     *   the function to apply to the underlying value
-     * @tparam B
-     *   the result type of the function
-     * @return
-     *   a Scoped computation that will apply f when executed
-     */
-    inline def map[B](inline f: A => B): Scoped[S, B] =
-      Scoped(f(@@.unscoped(scoped)))
-
-    /**
-     * FlatMaps over a scoped value, combining scope tags via intersection.
-     *
-     * Enables for-comprehension syntax with scoped values. The resulting Scoped
-     * computation is tagged with the intersection of both scope tags, ensuring
-     * it can only be executed where both scopes are available.
-     *
-     * @example
-     *   {{{
-     *   val program: Scoped[S & T, Result] = for {
-     *     a <- scopedA  // A @@ S
-     *     b <- scopedB  // B @@ T
-     *   } yield combine(a, b)
-     *   }}}
-     *
-     * @param f
-     *   function returning a scoped result
-     * @tparam B
-     *   the underlying result type
-     * @tparam T
-     *   the scope tag of the returned value
-     * @return
-     *   a Scoped computation with combined scope tag `S & T`
-     */
-    inline def flatMap[B, T](inline f: A => B @@ T): Scoped[S & T, B] =
-      Scoped(@@.unscoped(f(@@.unscoped(scoped))))
-
-    /**
-     * Extracts the first element of a scoped tuple.
-     *
-     * @example
-     *   {{{
-     *   val pair: (Int, String) @@ S = ...
-     *   val first: Int @@ S = pair._1
-     *   }}}
-     *
-     * @return
-     *   the first element, still scoped with tag `S`
-     */
-    inline def _1[X, Y](using ev: A =:= (X, Y)): X @@ S =
-      ev(scoped)._1
-
-    /**
-     * Extracts the second element of a scoped tuple.
-     *
-     * @example
-     *   {{{
-     *   val pair: (Int, String) @@ S = ...
-     *   val second: String @@ S = pair._2
-     *   }}}
-     *
-     * @return
-     *   the second element, still scoped with tag `S`
-     */
-    inline def _2[X, Y](using ev: A =:= (X, Y)): Y @@ S =
-      ev(scoped)._2
-  }
-}
-
-/**
  * A deferred scoped computation that can only be executed by an appropriate
  * Scope.
  *
- * `Scoped[-Tag, +A]` is a description of a computation that produces an `A` and
- * requires a scope with tag `<: Tag` to execute. Unlike eager `@@` operations,
+ * `Scoped[-S, +A]` is a description of a computation that produces an `A` and
+ * requires a scope with tag `<: S` to execute. Unlike eager value wrappers,
  * `Scoped` builds a simple thunk that is only interpreted when given to a scope
  * via `scope.execute(scoped)`.
+ *
+ * ==Unified Design==
+ *
+ * `Scoped` is the single representation for scoped values:
+ *   - `scope.allocate` returns `Scoped[Tag, A]` (also written `A @@ Tag`)
+ *   - `map` and `flatMap` compose `Scoped` computations
+ *   - `scope.execute` runs the computation
  *
  * ==Contravariance in Tag==
  *
@@ -186,28 +31,27 @@ object @@ {
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
- *
  *     val program: Scoped[scope.Tag, Result] = for {
- *       conn <- db.map(_.connect())
- *       data <- db.map(_.query("SELECT *"))
- *     } yield process(conn, data)
+ *       db   <- scope.allocate(Resource[Database])
+ *       conn <- scope.allocate(db.connect())
+ *       data <- conn.map(_.query("SELECT *"))
+ *     } yield process(data)
  *
- *     scope.execute(program)  // Execute the Scoped computation
+ *     scope.execute(program)
  *   }
  *   }}}
  *
- * @tparam Tag
+ * @tparam S
  *   the scope tag required to execute this computation (contravariant)
  * @tparam A
  *   the result type of the computation (covariant)
  *
  * @see
- *   [[@@]] for scoped values
+ *   [[@@]] type alias for `Scoped` with swapped parameters
  * @see
  *   [[Scope.execute]] for executing Scoped computations
  */
-final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
+final class Scoped[-S, +A] private[scope] (private[scope] val executeFn: () => A) {
 
   /**
    * Maps over the result of this Scoped computation.
@@ -219,27 +63,26 @@ final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
    * @return
    *   a new Scoped computation with the mapped result
    */
-  def map[B](f: A => B): Scoped[Tag, B] =
+  def map[B](f: A => B): Scoped[S, B] =
     new Scoped(() => f(executeFn()))
 
   /**
-   * FlatMaps this Scoped computation with a function returning another scoped
-   * value.
+   * FlatMaps this Scoped computation with a function returning another Scoped.
    *
-   * The resulting computation requires both this computation's Tag and the
-   * result's Tag, combined via intersection.
+   * The resulting computation requires both this computation's tag and the
+   * result's tag, combined via intersection.
    *
    * @param f
-   *   function from result to scoped value
-   * @tparam B
-   *   the result type
+   *   function from result to another Scoped computation
    * @tparam T
    *   the additional tag requirement
+   * @tparam B
+   *   the result type
    * @return
-   *   a Scoped computation with combined tag `Tag & T`
+   *   a Scoped computation with combined tag `S & T`
    */
-  def flatMap[B, T](f: A => B @@ T): Scoped[Tag & T, B] =
-    new Scoped(() => @@.unscoped(f(executeFn())))
+  def flatMap[T, B](f: A => Scoped[T, B]): Scoped[S & T, B] =
+    new Scoped(() => f(executeFn()).executeFn())
 
   /**
    * Executes the scoped computation and returns the result.
@@ -278,4 +121,94 @@ object Scoped {
    */
   def apply[A](a: => A): Scoped[Any, A] =
     new Scoped(() => a)
+
+  /**
+   * Creates a Scoped computation tagged with a specific scope.
+   *
+   * This is the primary way to create scoped values. The computation is
+   * deferred until executed by a matching scope.
+   *
+   * @param a
+   *   the value to wrap (by-name, evaluated lazily)
+   * @tparam A
+   *   the value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   a Scoped computation tagged with S
+   */
+  private[scope] def scoped[A, S](a: => A): Scoped[S, A] =
+    new Scoped(() => a)
+
+  /**
+   * Unwraps a Scoped computation, returning the thunk result.
+   *
+   * This is package-private to prevent bypassing the scope safety checks.
+   * External code should use scope.execute with proper scope proof.
+   */
+  private[scope] def unscoped[S, A](scoped: Scoped[S, A]): A =
+    scoped.executeFn()
+}
+
+/**
+ * Type alias for Scoped with swapped type parameters.
+ *
+ * `A @@ S` is equivalent to `Scoped[S, A]`. This syntax places the value type
+ * first, which reads more naturally when declaring scoped values:
+ *
+ * {{{
+ * val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
+ * }}}
+ *
+ * Both `@@` and `Scoped` refer to the same underlying type. Use whichever reads
+ * better in context:
+ *   - `A @@ S` for value declarations
+ *   - `Scoped[S, A]` for computation types (emphasizes the monadic nature)
+ *
+ * @tparam A
+ *   the value type (covariant)
+ * @tparam S
+ *   the scope tag type (contravariant in the underlying Scoped)
+ */
+infix type @@[+A, S] = Scoped[S, A]
+
+/**
+ * Companion object for the `@@` type alias, providing factory methods.
+ *
+ * These methods delegate to [[Scoped]] but maintain the `@@` parameter order
+ * for consistency.
+ */
+object @@ {
+
+  /**
+   * Creates a scoped value tagged with scope S.
+   *
+   * This wraps a by-name value into a scoped computation `A @@ S`. The scope
+   * tag `S` is typically the path-dependent `Tag` type of a [[Scope]] instance.
+   *
+   * The value is evaluated lazily when the Scoped computation is executed.
+   *
+   * '''Note:''' This only tags the value - it does not manage lifecycle. For
+   * resources that need cleanup, prefer `scope.allocate` with a [[Resource]]
+   * which automatically registers finalizers.
+   *
+   * @param a
+   *   the value to scope (by-name, evaluated lazily)
+   * @tparam A
+   *   the value type
+   * @tparam S
+   *   the scope tag type
+   * @return
+   *   the scoped computation
+   */
+  def scoped[A, S](a: => A): A @@ S = Scoped.scoped[A, S](a)
+
+  /**
+   * Unwraps a scoped value, returning the underlying value.
+   *
+   * This is package-private to prevent bypassing the scope safety checks.
+   * External code should use scope.execute with proper scope proof.
+   */
+  private[scope] def unscoped[A, S](scoped: A @@ S): A =
+    Scoped.unscoped(scoped)
 }

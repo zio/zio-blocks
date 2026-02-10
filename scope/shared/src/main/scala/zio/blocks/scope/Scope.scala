@@ -58,19 +58,21 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   /**
    * Allocates a value in this scope using the given resource.
    *
-   * The result is tagged with this scope's `Tag`, preventing escape. If the
-   * resource creates an `AutoCloseable`, its `close()` method is automatically
-   * registered as a finalizer.
+   * The resource is acquired immediately and its finalizers are registered with
+   * this scope. The result is wrapped in a scoped computation tagged with this
+   * scope's `Tag`, preventing escape.
    *
    * @param resource
    *   the resource to create the value
    * @tparam A
    *   the value type
    * @return
-   *   the created value tagged with this scope's Tag
+   *   a scoped computation that produces the allocated value
    */
-  def allocate[A](resource: Resource[A]): A @@ Tag =
-    @@.scoped(resource.make(this))
+  def allocate[A](resource: Resource[A]): A @@ Tag = {
+    val value = resource.make(this)
+    @@.scoped(value)
+  }
 
   /**
    * Allocates an AutoCloseable value directly in this scope.

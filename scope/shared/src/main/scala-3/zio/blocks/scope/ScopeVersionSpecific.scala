@@ -15,16 +15,19 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * `S`. Since child tags are subtypes of parent tags, a child scope can access
    * all ancestor-tagged values.
    *
+   * This method executes the scoped computation, applies the function, and
+   * determines whether the result escapes based on `ScopeEscape`.
+   *
    * @param scoped
-   *   the scoped value to access
+   *   the scoped computation to execute
    * @param f
-   *   the function to apply to the underlying value
+   *   the function to apply to the computed value
    * @param ev
    *   evidence that this scope's Tag is a subtype of S
    * @param escape
    *   typeclass determining whether the result escapes
    * @tparam A
-   *   the underlying value type
+   *   the scoped computation's result type
    * @tparam B
    *   the function result type
    * @tparam S
@@ -36,7 +39,7 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
     ev: self.Tag <:< S,
     escape: ScopeEscape[B, S]
   ): escape.Out =
-    escape(f(@@.unscoped(scoped)))
+    escape(f(scoped.run()))
 
   /**
    * Executes a Scoped computation.

@@ -139,6 +139,57 @@ object ScopeScala3Spec extends ZIOSpecDefault {
           val result = scope.execute(computation)
           assertTrue(result == "RESULT: A")
         }
+      },
+      test("flatMap chains scoped computations") {
+        Scope.global.scoped { scope =>
+          val db = scope.allocate(Resource.from[Database])
+
+          // Chain via flatMap - both scoped values in same for-comprehension
+          val computation = for {
+            d <- db
+            r <- Scoped(d.query("chained"))
+          } yield r.toUpperCase
+
+          val result = scope.execute(computation)
+          assertTrue(result == "RESULT: CHAINED")
+        }
+      },
+      test("for-comprehension with multiple allocates") {
+        class Pool {
+          var closed              = false
+          def lease(): Connection = new Connection(this)
+          def close(): Unit       = closed = true
+        }
+        class Connection(val pool: Pool) extends AutoCloseable {
+          var closed          = false
+          def query(): String = "connected"
+          def close(): Unit   = closed = true
+        }
+
+        var poolClosed = false
+        var connClosed = false
+
+        val result = Scope.global.scoped { scope =>
+          // The key test: chaining allocate calls in a for-comprehension
+          val program = for {
+            pool <- scope.allocate(Resource.acquireRelease(new Pool) { p =>
+                      poolClosed = true
+                      p.close()
+                    })
+            conn <- scope.allocate(Resource.acquireRelease(pool.lease()) { c =>
+                      connClosed = true
+                      c.close()
+                    })
+          } yield conn.query()
+
+          scope.execute(program)
+        }
+
+        assertTrue(
+          result == "connected",
+          connClosed,
+          poolClosed
+        )
       }
     ),
     suite("defer")(
