@@ -73,7 +73,7 @@ object RegexPattern {
       Pattern.compile(value)
       new Right(new RegexPattern(value))
     } catch {
-      case e: PatternSyntaxException => Left(e.getMessage)
+      case e: PatternSyntaxException => new Left(e.getMessage)
     }
 
   /** Creates a RegexPattern without validation (for trusted input). */
@@ -136,42 +136,32 @@ private[json] object FormatValidator {
    * Validates a string against a format specification. Returns None if valid,
    * Some(error) if invalid.
    */
-  def validate(format: String, value: String): Option[String] =
-    format match {
-      case "date-time"     => validateDateTime(value)
-      case "date"          => validateDate(value)
-      case "time"          => validateTime(value)
-      case "email"         => validateEmail(value)
-      case "uuid"          => validateUuid(value)
-      case "uri"           => validateUri(value)
-      case "uri-reference" => validateUriReference(value)
-      case "ipv4"          => validateIpv4(value)
-      case "ipv6"          => validateIpv6(value)
-      case "hostname"      => validateHostname(value)
-      case "regex"         => validateRegex(value)
-      case "duration"      => validateDuration(value)
-      case "json-pointer"  => validateJsonPointer(value)
-      case _               => None // Unknown formats pass validation (annotation-only)
-    }
+  def validate(format: String, value: String): Option[String] = format match {
+    case "date-time"     => validateDateTime(value)
+    case "date"          => validateDate(value)
+    case "time"          => validateTime(value)
+    case "email"         => validateEmail(value)
+    case "uuid"          => validateUuid(value)
+    case "uri"           => validateUri(value)
+    case "uri-reference" => validateUriReference(value)
+    case "ipv4"          => validateIpv4(value)
+    case "ipv6"          => validateIpv6(value)
+    case "hostname"      => validateHostname(value)
+    case "regex"         => validateRegex(value)
+    case "duration"      => validateDuration(value)
+    case "json-pointer"  => validateJsonPointer(value)
+    case _               => None // Unknown formats pass validation (annotation-only)
+  }
 
   private[this] val dateTimePattern: Pattern =
     Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$")
-
-  private[this] val datePattern: Pattern =
-    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
-
-  private[this] val timePattern: Pattern =
-    Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})?$")
-
-  private[this] val emailPattern: Pattern =
-    Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
-
-  private[this] val uuidPattern: Pattern =
+  private[this] val datePattern: Pattern  = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
+  private[this] val timePattern: Pattern  = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})?$")
+  private[this] val emailPattern: Pattern = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+  private[this] val uuidPattern: Pattern  =
     Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
   private[this] val ipv4Pattern: Pattern =
     Pattern.compile("^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$")
-
   private[this] val ipv6Pattern: Pattern =
     Pattern.compile(
       "^(" +
@@ -189,70 +179,57 @@ private[json] object FormatValidator {
         "([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?\\d)?\\d)\\.){3}(25[0-5]|(2[0-4]|1?\\d)?\\d)" +
         ")$"
     )
-
   private[this] val hostnamePattern: Pattern =
     Pattern.compile("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
-
   private[this] val durationPattern: Pattern =
     Pattern.compile("^P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$")
-
-  private[this] val jsonPointerPattern: Pattern =
-    Pattern.compile("^(/([^~/]|~0|~1)*)*$")
+  private[this] val jsonPointerPattern: Pattern = Pattern.compile("^(/([^~/]|~0|~1)*)*$")
 
   private[this] def validateDateTime(value: String): Option[String] =
     if (dateTimePattern.matcher(value).matches()) validateDateTimeSemantics(value)
     else new Some(s"String '$value' is not a valid date-time (RFC 3339)")
 
   private[this] def validateDateTimeSemantics(value: String): Option[String] =
-    validateDateSemantics(value.substring(0, 10))
+    validateDateSemantics(value).orElse(validateTimeSemantics(value.substring(11)))
 
   private[this] def validateDate(value: String): Option[String] =
     if (datePattern.matcher(value).matches()) validateDateSemantics(value)
     else new Some(s"String '$value' is not a valid date (RFC 3339)")
 
-  private[this] def validateDateSemantics(value: String): Option[String] =
-    try {
-      val year  = value.substring(0, 4).toInt
-      val month = value.substring(5, 7).toInt
-      val day   = value.substring(8, 10).toInt
-      if (month < 1 || month > 12) new Some(s"Invalid month $month in date '$value'")
-      else {
-        val maxDays = month match {
-          case 2                           => if (isLeapYear(year)) 29 else 28
-          case 4 | 6 | 9 | 11              => 30
-          case 1 | 3 | 5 | 7 | 8 | 10 | 12 => 31
-          case _                           => 0
-        }
-        if (day < 1 || day > maxDays) new Some(s"Invalid day $day for month $month in date '$value'")
-        else None
+  private[this] def validateDateSemantics(value: String): Option[String] = {
+    val year  = toInt(value, 0, 4)
+    val month = toInt(value, 5, 7)
+    val day   = toInt(value, 8, 10)
+    if (month < 1 || month > 12) new Some(s"Invalid month $month in date '$value'")
+    else if (
+      day < 1 || day > {
+        if (month != 2) month >> 3 ^ (month | 0x1e)
+        else if (isLeapYear(year)) 29
+        else 28
       }
-    } catch {
-      case _: NumberFormatException => new Some(s"String '$value' is not a valid date")
-    }
+    ) new Some(s"Invalid day $day for month $month in date '$value'")
+    else None
+  }
 
-  private[this] def isLeapYear(year: Int): scala.Boolean =
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+  private[this] def isLeapYear(year: Int): scala.Boolean = // year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+    (year & 0x3) == 0 && (year * -1030792151 - 2061584303 > -1975684958 || (year & 0xf) == 0)
 
   private[this] def validateTime(value: String): Option[String] =
     if (timePattern.matcher(value).matches()) validateTimeSemantics(value)
     else new Some(s"String '$value' is not a valid time (RFC 3339)")
 
-  private[this] def validateTimeSemantics(value: String): Option[String] =
-    try {
-      val hour   = value.substring(0, 2).toInt
-      val minute = value.substring(3, 5).toInt
-      val second = value.substring(6, 8).toInt
-      if (hour < 0 || hour > 23) new Some(s"Invalid hour $hour in time '$value'")
-      else if (minute < 0 || minute > 59) new Some(s"Invalid minute $minute in time '$value'")
-      else if (second < 0 || second > 60) { // 60 allowed for leap seconds
-        new Some(s"Invalid second $second in time '$value'")
-      } else None
-    } catch {
-      case _: NumberFormatException => new Some(s"String '$value' is not a valid time")
-    }
+  private[this] def validateTimeSemantics(value: String): Option[String] = {
+    val hour   = toInt(value, 0, 2)
+    val minute = toInt(value, 3, 5)
+    val second = toInt(value, 6, 8)
+    if (hour < 0 || hour > 23) new Some(s"Invalid hour $hour in time '$value'")
+    else if (minute < 0 || minute > 59) new Some(s"Invalid minute $minute in time '$value'")
+    else if (second < 0 || second > 60) new Some(s"Invalid second $second in time '$value'")
+    else None
+  }
 
   private[this] def validateEmail(value: String): Option[String] =
-    if (emailPattern.matcher(value).matches() && value.length <= 254) None
+    if (value.length <= 254 && emailPattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid email address")
 
   private[this] def validateUuid(value: String): Option[String] =
@@ -261,8 +238,7 @@ private[json] object FormatValidator {
 
   private[this] def validateUri(value: String): Option[String] =
     try {
-      val uri = new URI(value)
-      if (uri.getScheme == null) new Some(s"String '$value' is not a valid URI (missing scheme)")
+      if (new URI(value).getScheme eq null) new Some(s"String '$value' is not a valid URI (missing scheme)")
       else None
     } catch {
       case e if NonFatal(e) => Some(s"String '$value' is not a valid URI: ${e.getMessage}")
@@ -303,6 +279,16 @@ private[json] object FormatValidator {
   private[this] def validateJsonPointer(value: String): Option[String] =
     if (value.isEmpty || jsonPointerPattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid JSON Pointer (RFC 6901)")
+
+  private[this] def toInt(value: String, from: Int, to: Int): Int = {
+    var n   = 0
+    var idx = from
+    while (idx < to) {
+      n = n * 10 + (value.charAt(idx) - '0')
+      idx += 1
+    }
+    n
+  }
 }
 
 /**
@@ -363,18 +349,14 @@ final case class EvaluationResult(
 
   def toSchemaError: Option[SchemaError] =
     if (errors.isEmpty) None
-    else new Some(new SchemaError(new ::(errors.head, errors.tail)))
+    else new Some(new SchemaError(errors.asInstanceOf[::[SchemaError.Single]]))
 }
 
 object EvaluationResult {
   val empty: EvaluationResult = new EvaluationResult(Nil, Set.empty, Set.empty)
 
   def fromError(trace: List[DynamicOptic.Node], message: String): EvaluationResult =
-    new EvaluationResult(
-      List(SchemaError.expectationMismatch(trace, message).errors.head),
-      Set.empty,
-      Set.empty
-    )
+    new EvaluationResult(List(SchemaError.expectationMismatch(trace, message).errors.head), Set.empty, Set.empty)
 }
 
 // =============================================================================
@@ -673,7 +655,6 @@ object JsonSchema {
 
     override def toJson: Json = {
       val fields = ChunkBuilder.make[(String, Json)]()
-
       // Core vocabulary
       $id match {
         case Some(v) => fields.addOne(("$id", new Json.String(v.value)))
@@ -700,9 +681,8 @@ object JsonSchema {
         case _       =>
       }
       $vocabulary match {
-        case Some(v) =>
-          fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply)))
-        case _ =>
+        case Some(v) => fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply)))
+        case _       =>
       }
       $defs match {
         case Some(d) => fields.addOne(("$defs", toJsonObject[String, JsonSchema](d, identity, _.toJson)))
@@ -712,7 +692,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("$comment", new Json.String(v)))
         case _       =>
       }
-
       // Applicator vocabulary (Composition)
       allOf match {
         case Some(v) => fields.addOne(("allOf", new Json.Array(Chunk.from(v).map(_.toJson))))
@@ -730,7 +709,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("not", v.toJson))
         case _       =>
       }
-
       // Applicator vocabulary (Conditional)
       `if` match {
         case Some(v) => fields.addOne(("if", v.toJson))
@@ -744,7 +722,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("else", v.toJson))
         case _       =>
       }
-
       // Applicator vocabulary (Object)
       properties match {
         case Some(p) => fields.addOne(("properties", toJsonObject[String, JsonSchema](p, identity, _.toJson)))
@@ -764,11 +741,9 @@ object JsonSchema {
         case _       =>
       }
       dependentSchemas match {
-        case Some(d) =>
-          fields.addOne(("dependentSchemas", toJsonObject[String, JsonSchema](d, identity, _.toJson)))
-        case _ =>
+        case Some(d) => fields.addOne(("dependentSchemas", toJsonObject[String, JsonSchema](d, identity, _.toJson)))
+        case _       =>
       }
-
       // Applicator vocabulary (Array)
       prefixItems match {
         case Some(v) => fields.addOne(("prefixItems", new Json.Array(Chunk.from(v).map(_.toJson))))
@@ -782,7 +757,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("contains", v.toJson))
         case _       =>
       }
-
       // Unevaluated vocabulary
       unevaluatedProperties match {
         case Some(v) => fields.addOne(("unevaluatedProperties", v.toJson))
@@ -792,7 +766,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("unevaluatedItems", v.toJson))
         case _       =>
       }
-
       // Validation vocabulary (Type)
       `type` match {
         case Some(v) => fields.addOne(("type", v.toJson))
@@ -806,7 +779,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("const", v))
         case _       =>
       }
-
       // Validation vocabulary (Numeric)
       multipleOf match {
         case Some(v) => fields.addOne(("multipleOf", new Json.Number(v.value)))
@@ -828,7 +800,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("exclusiveMinimum", new Json.Number(v)))
         case _       =>
       }
-
       // Validation vocabulary (String)
       minLength match {
         case Some(v) => fields.addOne(("minLength", new Json.Number(v.value)))
@@ -842,7 +813,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("pattern", new Json.String(v.value)))
         case _       =>
       }
-
       // Validation vocabulary (Array)
       minItems match {
         case Some(v) => fields.addOne(("minItems", new Json.Number(v.value)))
@@ -864,7 +834,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("maxContains", new Json.Number(v.value)))
         case _       =>
       }
-
       // Validation vocabulary (Object)
       minProperties match {
         case Some(v) => fields.addOne(("minProperties", new Json.Number(v.value)))
@@ -892,13 +861,11 @@ object JsonSchema {
           )
         case _ =>
       }
-
       // Format vocabulary
       format match {
         case Some(v) => fields.addOne(("format", new Json.String(v)))
         case _       =>
       }
-
       // Content vocabulary
       contentEncoding match {
         case Some(v) => fields.addOne(("contentEncoding", new Json.String(v)))
@@ -912,7 +879,6 @@ object JsonSchema {
         case Some(v) => fields.addOne(("contentSchema", v.toJson))
         case _       =>
       }
-
       // Meta-Data vocabulary
       title match {
         case Some(v) => fields.addOne(("title", new Json.String(v)))
@@ -942,10 +908,8 @@ object JsonSchema {
         case Some(v) => fields.addOne(("examples", new Json.Array(Chunk.from(v))))
         case _       =>
       }
-
       // Extensions
       fields.addAll(extensions)
-
       new Json.Object(fields.result())
     }
 
@@ -954,7 +918,7 @@ object JsonSchema {
     override def check(json: Json, options: ValidationOptions): Option[SchemaError] =
       checkWithEvaluation(json, options, Nil).toSchemaError
 
-    private[this] def toJsonObject[K1, V1](m: ChunkMap[K1, V1], f: K1 => String, g: V1 => Json): Json.Object =
+    private[this] def toJsonObject[K, V](m: ChunkMap[K, V], f: K => String, g: V => Json): Json.Object =
       new Json.Object(Chunk.from(m).map(kv => (f(kv._1), g(kv._2))))
 
     /**
@@ -967,349 +931,424 @@ object JsonSchema {
       trace: List[DynamicOptic.Node]
     ): EvaluationResult = {
       var result = EvaluationResult.empty
-
-      def addError(message: String): Unit = result = result.addError(trace, message)
-
-      def collectFromSchema(schema: JsonSchema, j: Json): EvaluationResult = schema match {
-        case s: Object => s.checkWithEvaluation(j, options, trace)
-        case _         =>
-          schema.check(j, options) match {
-            case Some(e) => new EvaluationResult(e.errors, Set.empty, Set.empty)
-            case _       => EvaluationResult.empty
+      $ref match {
+        case Some(refUri) =>
+          val refUriVal = refUri.value
+          if (refUriVal.startsWith("#/$defs/")) {
+            $defs.flatMap(_.get(refUriVal.substring(8))) match {
+              case Some(refSchema) => result = result ++ collectFromSchema(refSchema, json, options, trace)
+              case _               => result = result.addError(trace, s"Cannot resolve $$ref: $refUriVal")
+            }
+          } else result = result.addError(trace, s"Unsupported $$ref format: $refUriVal")
+        case _ =>
+      }
+      `type` match {
+        case Some(schemaType) =>
+          val typeMatches = json match {
+            case _: Json.String  => schemaType.contains(JsonSchemaType.String)
+            case _: Json.Boolean => schemaType.contains(JsonSchemaType.Boolean)
+            case n: Json.Number  =>
+              schemaType.contains(JsonSchemaType.Number) ||
+              (n.value.isWhole && schemaType.contains(JsonSchemaType.Integer))
+            case _: Json.Array  => schemaType.contains(JsonSchemaType.Array)
+            case _: Json.Object => schemaType.contains(JsonSchemaType.Object)
+            case _              => schemaType.contains(JsonSchemaType.Null)
           }
-      }
-
-      // Handle $ref first
-      $ref.foreach { refUri =>
-        val refUriVal = refUri.value
-        if (refUriVal.startsWith("#/$defs/")) {
-          $defs.flatMap(_.get(refUriVal.substring(8))) match {
-            case Some(refSchema) => result = result ++ collectFromSchema(refSchema, json)
-            case _               => addError(s"Cannot resolve $$ref: $refUriVal")
+          if (!typeMatches) {
+            val sb      = new java.lang.StringBuilder("Expected type ")
+            val initLen = sb.length
+            schemaType match {
+              case s: SchemaType.Single => sb.append(s.value.toJsonString)
+              case u: SchemaType.Union  =>
+                u.values.foreach { t =>
+                  if (sb.length > initLen) sb.append(" or ")
+                  sb.append(t.toJsonString)
+                }
+            }
+            result = result.addError(trace, sb.toString)
           }
-        } else addError(s"Unsupported $$ref format: $refUriVal")
+        case _ =>
       }
-
-      // Type validation
-      `type`.foreach { schemaType =>
-        val typeMatches = json match {
-          case _: Json.String  => schemaType.contains(JsonSchemaType.String)
-          case _: Json.Boolean => schemaType.contains(JsonSchemaType.Boolean)
-          case n: Json.Number  =>
-            val isInt = n.value.isWhole
-            schemaType.contains(JsonSchemaType.Number) || (isInt && schemaType.contains(JsonSchemaType.Integer))
-          case _: Json.Array  => schemaType.contains(JsonSchemaType.Array)
-          case _: Json.Object => schemaType.contains(JsonSchemaType.Object)
-          case _              => schemaType.contains(JsonSchemaType.Null)
-        }
-        if (!typeMatches) {
-          val sb      = new java.lang.StringBuilder("Expected type ")
-          val initLen = sb.length
-          schemaType match {
-            case s: SchemaType.Single => sb.append(s.value.toJsonString)
-            case u: SchemaType.Union  =>
-              u.values.foreach { t =>
-                if (sb.length > initLen) sb.append(" or ")
-                sb.append(t.toJsonString)
-              }
+      `enum` match {
+        case Some(values) =>
+          if (!values.contains(json)) {
+            val sb      = new java.lang.StringBuilder("Value not in enum: ")
+            val initLen = sb.length
+            values.foreach { v =>
+              if (sb.length > initLen) sb.append(", ")
+              sb.append(v.print)
+            }
+            result = result.addError(trace, sb.toString)
           }
-          addError(sb.toString)
-        }
+        case _ =>
       }
-
-      // Enum validation
-      `enum`.foreach { values =>
-        if (!values.contains(json)) {
-          val sb      = new java.lang.StringBuilder("Value not in enum: ")
-          val initLen = sb.length
-          values.foreach { v =>
-            if (sb.length > initLen) sb.append(", ")
-            sb.append(v.print)
-          }
-          addError(sb.toString)
-        }
+      const match {
+        case Some(constValue) if constValue != json =>
+          result = result.addError(trace, s"Expected const value: ${constValue.print}")
+        case _ =>
       }
-
-      // Const validation
-      const.foreach { constValue =>
-        if (constValue != json) addError(s"Expected const value: ${constValue.print}")
-      }
-
       json match {
         case s: Json.String => // String validations
           val len = s.value.length
-          minLength.foreach { min =>
-            if (len < min.value) addError(s"String length $len is less than minLength ${min.value}")
+          minLength match {
+            case Some(min) if len < min.value =>
+              result = result.addError(trace, s"String length $len is less than minLength ${min.value}")
+            case _ =>
           }
-          maxLength.foreach { max =>
-            if (len > max.value) addError(s"String length $len is greater than maxLength ${max.value}")
+          maxLength match {
+            case Some(max) if len > max.value =>
+              result = result.addError(trace, s"String length $len is greater than maxLength ${max.value}")
+            case _ =>
           }
-          pattern.foreach { p =>
-            p.compiled match {
-              case Right(regex) =>
-                if (!regex.matcher(s.value).find()) addError(s"String does not match pattern: ${p.value}")
-              case _ => // Invalid pattern - skip validation
-            }
+          pattern match {
+            case Some(p) =>
+              p.compiled match {
+                case Right(regex) =>
+                  if (!regex.matcher(s.value).find()) {
+                    result = result.addError(trace, s"String does not match pattern: ${p.value}")
+                  }
+                case _ => // Invalid pattern - skip validation
+              }
+            case _ =>
           }
-          format.foreach { fmt =>
-            if (options.validateFormats) FormatValidator.validate(fmt, s.value).foreach(addError)
+          format match {
+            case Some(fmt) =>
+              if (options.validateFormats) {
+                FormatValidator.validate(fmt, s.value) match {
+                  case Some(message) => result = result.addError(trace, message)
+                  case _             =>
+                }
+              }
+            case _ =>
           }
         case n: Json.Number => // Numeric validations
           val value = n.value
-          minimum.foreach { min =>
-            if (value < min) addError(s"Value $value is less than minimum $min")
+          minimum match {
+            case Some(min) if value < min =>
+              result = result.addError(trace, s"Value $value is less than minimum $min")
+            case _ =>
           }
-          maximum.foreach { max =>
-            if (value > max) addError(s"Value $value is greater than maximum $max")
+          maximum match {
+            case Some(max) if value > max =>
+              result = result.addError(trace, s"Value $value is greater than maximum $max")
+            case _ =>
           }
-          exclusiveMinimum.foreach { min =>
-            if (value <= min) addError(s"Value $value is not greater than exclusiveMinimum $min")
+          exclusiveMinimum match {
+            case Some(min) if value <= min =>
+              result = result.addError(trace, s"Value $value is not greater than exclusiveMinimum $min")
+            case _ =>
           }
-          exclusiveMaximum.foreach { max =>
-            if (value >= max) addError(s"Value $value is not less than exclusiveMaximum $max")
+          exclusiveMaximum match {
+            case Some(max) if value >= max =>
+              result = result.addError(trace, s"Value $value is not less than exclusiveMaximum $max")
+            case _ =>
           }
-          multipleOf.foreach { m =>
-            try {
-              if (value % m.value != 0) addError(s"Value $value is not a multiple of ${m.value}")
-            } catch {
-              case _: ArithmeticException =>
-                addError(s"Value $value cannot be checked against multipleOf ${m.value}")
-            }
+          multipleOf match {
+            case Some(m) =>
+              try {
+                if (value % m.value != 0)
+                  result = result.addError(trace, s"Value $value is not a multiple of ${m.value}")
+              } catch {
+                case _: ArithmeticException =>
+                  result = result.addError(trace, s"Value $value cannot be checked against multipleOf ${m.value}")
+              }
+            case _ =>
           }
         case a: Json.Array => // Array validations
           val len = a.value.length
-          minItems.foreach { min =>
-            if (len < min.value) addError(s"Array length $len is less than minItems ${min.value}")
+          minItems match {
+            case Some(min) if len < min.value =>
+              result = result.addError(trace, s"Array length $len is less than minItems ${min.value}")
+            case _ =>
           }
-          maxItems.foreach { max =>
-            if (len > max.value) addError(s"Array length $len is greater than maxItems ${max.value}")
+          maxItems match {
+            case Some(max) if len > max.value =>
+              result = result.addError(trace, s"Array length $len is greater than maxItems ${max.value}")
+            case _ =>
           }
-          uniqueItems.foreach { unique =>
-            if (unique && a.value.distinct.length != len) {
-              addError("Array items are not unique")
-            }
+          uniqueItems match {
+            case Some(true) if !uniqueCheck(a.value) =>
+              result = result.addError(trace, "Array items are not unique")
+            case _ =>
           }
           var evaluatedIndices = Set.empty[Int] // Track evaluated indices
           // prefixItems evaluates specific indices
-          prefixItems.foreach { schemas =>
-            schemas.zipWithIndex.foreach { case (schema, idx) =>
-              if (idx < a.value.length) {
-                evaluatedIndices += idx
-                val itemResult = collectFromSchema(schema, a.value(idx))
-                result = result.addErrors(itemResult.errors)
+          prefixItems match {
+            case Some(schemas) =>
+              schemas.foreach {
+                var idx = 0
+                schema =>
+                  if (idx < a.value.length) {
+                    evaluatedIndices += idx
+                    val itemResult = collectFromSchema(schema, a.value(idx), options, trace)
+                    result = result.addErrors(itemResult.errors)
+                  }
+                  idx += 1
               }
-            }
+            case _ =>
           }
           // items evaluates all remaining indices
-          items.foreach { itemSchema =>
-            val startIdx = prefixItems.map(_.length).getOrElse(0)
-            a.value.zipWithIndex.drop(startIdx).foreach { case (item, idx) =>
-              evaluatedIndices += idx
-              val itemResult = collectFromSchema(itemSchema, item)
-              result = result.addErrors(itemResult.errors)
-            }
+          items match {
+            case Some(itemSchema) =>
+              var idx = prefixItems match {
+                case Some(pis) => pis.length
+                case _         => 0
+              }
+              val items = a.value
+              val len   = items.length
+              while (idx < len) {
+                val item = items(idx)
+                evaluatedIndices += idx
+                result = result.addErrors(collectFromSchema(itemSchema, item, options, trace).errors)
+                idx += 1
+              }
+            case _ =>
           }
           // Validate contains (does not mark items as evaluated per spec)
-          contains.foreach { containsSchema =>
-            val matchCount = a.value.count(item => containsSchema.check(item, options).isEmpty)
-            val minC       = minContains.map(_.value).getOrElse(1)
-            val maxC       = maxContains.map(_.value)
-
-            if (matchCount < minC) {
-              addError(s"Array must contain at least $minC matching items, found $matchCount")
-            }
-            maxC.foreach { max =>
-              if (matchCount > max) {
-                addError(s"Array must contain at most $max matching items, found $matchCount")
+          contains match {
+            case Some(containsSchema) =>
+              val matchCount = a.value.count(item => containsSchema.check(item, options).isEmpty)
+              val minC       = minContains match {
+                case Some(mc) => mc.value
+                case _        => 1
               }
-            }
+              if (matchCount < minC) {
+                result = result.addError(trace, s"Array must contain at least $minC matching items, found $matchCount")
+              }
+              maxContains.map(_.value) match {
+                case Some(maxC) if matchCount > maxC =>
+                  result = result.addError(trace, s"Array must contain at most $maxC matching items, found $matchCount")
+                case _ =>
+              }
+            case _ =>
           }
           result = result.withEvaluatedItems(evaluatedIndices)
         case obj: Json.Object => // Object validations
           val fieldMap  = obj.value.toMap
           val fieldKeys = fieldMap.keySet
           // Required validation
-          required.foreach { reqs =>
-            reqs.foreach { req =>
-              if (!fieldKeys.contains(req)) {
-                addError(s"Missing required property: $req")
+          required match {
+            case Some(reqs) =>
+              reqs.foreach { req =>
+                if (!fieldKeys.contains(req)) {
+                  result = result.addError(trace, s"Missing required property: $req")
+                }
               }
-            }
+            case _ =>
           }
           // Min/max properties
-          minProperties.foreach { min =>
-            if (fieldKeys.size < min.value) {
-              addError(s"Object has ${fieldKeys.size} properties, minimum is ${min.value}")
-            }
+          minProperties match {
+            case Some(min) if fieldKeys.size < min.value =>
+              result = result.addError(trace, s"Object has ${fieldKeys.size} properties, minimum is ${min.value}")
+            case _ =>
           }
-          maxProperties.foreach { max =>
-            if (fieldKeys.size > max.value) {
-              addError(s"Object has ${fieldKeys.size} properties, maximum is ${max.value}")
-            }
+          maxProperties match {
+            case Some(max) if fieldKeys.size > max.value =>
+              result = result.addError(trace, s"Object has ${fieldKeys.size} properties, maximum is ${max.value}")
+            case _ =>
           }
           // Property names validation
-          propertyNames.foreach { nameSchema =>
-            fieldKeys.foreach { key =>
-              nameSchema.check(Json.String(key), options).foreach { e =>
-                addError(s"Property name '$key' does not match propertyNames schema: ${e.message}")
+          propertyNames match {
+            case Some(nameSchema) =>
+              fieldKeys.foreach { key =>
+                nameSchema.check(new Json.String(key), options) match {
+                  case Some(e) =>
+                    result =
+                      result.addError(trace, s"Property name '$key' does not match propertyNames schema: ${e.message}")
+                  case _ =>
+                }
               }
-            }
+            case _ =>
           }
           var localEvaluatedProps = Set.empty[String] // Track which properties are evaluated locally
-          properties.foreach { props =>
-            props.foreach { case (propName, propSchema) =>
-              fieldMap.get(propName).foreach { propValue =>
-                localEvaluatedProps += propName
-                val propResult = collectFromSchema(propSchema, propValue)
-                result = result.addErrors(propResult.errors)
+          properties match {
+            case Some(props) =>
+              props.foreach { case (propName, propSchema) =>
+                fieldMap.get(propName) match {
+                  case Some(propValue) =>
+                    localEvaluatedProps += propName
+                    result = result.addErrors(collectFromSchema(propSchema, propValue, options, trace).errors)
+                  case _ =>
+                }
               }
-            }
+            case _ =>
           }
-          patternProperties.foreach { patterns =>
-            patterns.foreach { case (pattern, propSchema) =>
-              pattern.compiled.foreach { regex =>
-                fieldKeys.foreach { key =>
-                  if (regex.matcher(key).find()) {
-                    localEvaluatedProps += key
-                    fieldMap.get(key).foreach { propValue =>
-                      val propResult = collectFromSchema(propSchema, propValue)
-                      result = result.addErrors(propResult.errors)
+          patternProperties match {
+            case Some(patterns) =>
+              patterns.foreach { case (pattern, propSchema) =>
+                pattern.compiled match {
+                  case Right(regex) =>
+                    fieldKeys.foreach { key =>
+                      if (regex.matcher(key).find()) {
+                        localEvaluatedProps += key
+                        fieldMap.get(key) match {
+                          case Some(propValue) =>
+                            result = result.addErrors(collectFromSchema(propSchema, propValue, options, trace).errors)
+                          case _ =>
+                        }
+                      }
+                    }
+                  case _ =>
+                }
+              }
+            case _ =>
+          }
+          additionalProperties match {
+            case Some(addlSchema) =>
+              val additionalKeys = fieldKeys -- localEvaluatedProps -- properties.map(_.keySet).getOrElse(Set.empty)
+              additionalKeys.foreach { key =>
+                localEvaluatedProps += key
+                fieldMap.get(key) match {
+                  case Some(propValue) =>
+                    result = result.addErrors(collectFromSchema(addlSchema, propValue, options, trace).errors)
+                  case _ =>
+                }
+              }
+            case _ =>
+          }
+          result = result.withEvaluatedProperties(localEvaluatedProps)
+          // Dependent required validation
+          dependentRequired match {
+            case Some(deps) =>
+              deps.foreach { case (propName, requiredProps) =>
+                if (fieldKeys.contains(propName)) {
+                  requiredProps.foreach { req =>
+                    if (!fieldKeys.contains(req)) {
+                      result = result.addError(trace, s"Property '$propName' requires '$req' to be present")
                     }
                   }
                 }
               }
-            }
-          }
-          additionalProperties.foreach { addlSchema =>
-            val additionalKeys = fieldKeys -- localEvaluatedProps --
-              properties.map(_.keySet).getOrElse(Set.empty)
-            additionalKeys.foreach { key =>
-              localEvaluatedProps += key
-              fieldMap.get(key).foreach { propValue =>
-                val propResult = collectFromSchema(addlSchema, propValue)
-                result = result.addErrors(propResult.errors)
-              }
-            }
-          }
-          result = result.withEvaluatedProperties(localEvaluatedProps)
-          // Dependent required validation
-          dependentRequired.foreach { deps =>
-            deps.foreach { case (propName, requiredProps) =>
-              if (fieldKeys.contains(propName)) {
-                requiredProps.foreach { req =>
-                  if (!fieldKeys.contains(req)) {
-                    addError(s"Property '$propName' requires '$req' to be present")
-                  }
-                }
-              }
-            }
+            case _ =>
           }
           // Dependent schemas validation (contributes to evaluation)
-          dependentSchemas.foreach { deps =>
-            deps.foreach { case (propName, depSchema) =>
-              if (fieldKeys.contains(propName)) {
-                val depResult = collectFromSchema(depSchema, obj)
-                result = result ++ depResult
+          dependentSchemas match {
+            case Some(deps) =>
+              deps.foreach { case (propName, depSchema) =>
+                if (fieldKeys.contains(propName)) {
+                  result = result ++ collectFromSchema(depSchema, obj, options, trace)
+                }
               }
+            case _ =>
+          }
+        case _ =>
+      }
+      // Composition validations - collect evaluated properties/items from subschemas
+      allOf match {
+        case Some(schemas) =>
+          schemas.foreach(schema => result = result ++ collectFromSchema(schema, json, options, trace))
+        case _ =>
+      }
+      anyOf match {
+        case Some(schemas) =>
+          val results = schemas.map(s => collectFromSchema(s, json, options, trace))
+          val valid   = results.filter(_.errors.isEmpty)
+          if (valid.isEmpty) result = result.addError(trace, "Value does not match any schema in anyOf")
+          else {
+            // Collect evaluated props/items from all valid schemas
+            valid.foreach { r =>
+              result = result.withEvaluatedProperties(r.evaluatedProperties)
+              result = result.withEvaluatedItems(r.evaluatedItems)
             }
           }
         case _ =>
       }
-
-      // Composition validations - collect evaluated properties/items from subschemas
-      allOf.foreach { schemas =>
-        schemas.foreach { schema =>
-          val subResult = collectFromSchema(schema, json)
-          result = result ++ subResult
-        }
-      }
-
-      anyOf.foreach { schemas =>
-        val results = schemas.map(s => collectFromSchema(s, json))
-        val valid   = results.filter(_.errors.isEmpty)
-        if (valid.isEmpty) {
-          addError("Value does not match any schema in anyOf")
-        } else {
-          // Collect evaluated props/items from all valid schemas
-          valid.foreach { r =>
-            result = result.withEvaluatedProperties(r.evaluatedProperties)
-            result = result.withEvaluatedItems(r.evaluatedItems)
+      oneOf match {
+        case Some(schemas) =>
+          val results    = schemas.map(s => collectFromSchema(s, json, options, trace))
+          val valid      = results.filter(_.errors.isEmpty)
+          val validCount = valid.length
+          if (validCount == 0) result = result.addError(trace, "Value does not match any schema in oneOf")
+          else if (validCount > 1) {
+            result = result.addError(trace, s"Value matches $validCount schemas in oneOf, expected exactly 1")
+          } else {
+            // Collect evaluated props/items from the single valid schema
+            result = result.withEvaluatedProperties(valid.head.evaluatedProperties)
+            result = result.withEvaluatedItems(valid.head.evaluatedItems)
           }
-        }
+        case _ =>
       }
-
-      oneOf.foreach { schemas =>
-        val results    = schemas.map(s => collectFromSchema(s, json))
-        val valid      = results.filter(_.errors.isEmpty)
-        val validCount = valid.length
-        if (validCount == 0) {
-          addError("Value does not match any schema in oneOf")
-        } else if (validCount > 1) {
-          addError(s"Value matches $validCount schemas in oneOf, expected exactly 1")
-        } else {
-          // Collect evaluated props/items from the single valid schema
-          result = result.withEvaluatedProperties(valid.head.evaluatedProperties)
-          result = result.withEvaluatedItems(valid.head.evaluatedItems)
-        }
-      }
-
-      not.foreach { notSchema =>
-        if (notSchema.check(json, options).isEmpty) {
-          addError("Value should not match the 'not' schema")
-        }
+      not match {
+        case Some(notSchema) if notSchema.check(json, options).isEmpty =>
+          result = result.addError(trace, "Value should not match the 'not' schema")
         // 'not' does not contribute to evaluation per spec
+        case _ =>
       }
-
       // Conditional validation (if/then/else) - contributes to evaluation
       // Per spec, 'if' always contributes to evaluation regardless of whether it passes
-      `if`.foreach { ifSchema =>
-        val ifResult = collectFromSchema(ifSchema, json)
-        val ifValid  = ifResult.errors.isEmpty
-        result = result.withEvaluatedProperties(ifResult.evaluatedProperties)
-        result = result.withEvaluatedItems(ifResult.evaluatedItems)
-        if (ifValid) {
-          `then`.foreach { thenSchema =>
-            val thenResult = collectFromSchema(thenSchema, json)
-            result = result ++ thenResult
+      `if` match {
+        case Some(ifSchema) =>
+          val ifResult = collectFromSchema(ifSchema, json, options, trace)
+          val ifValid  = ifResult.errors.isEmpty
+          result = result.withEvaluatedProperties(ifResult.evaluatedProperties)
+          result = result.withEvaluatedItems(ifResult.evaluatedItems)
+          if (ifValid) {
+            `then` match {
+              case Some(thenSchema) => result = result ++ collectFromSchema(thenSchema, json, options, trace)
+              case _                =>
+            }
+          } else {
+            `else` match {
+              case Some(elseSchema) => result = result ++ collectFromSchema(elseSchema, json, options, trace)
+              case _                =>
+            }
           }
-        } else {
-          `else`.foreach { elseSchema =>
-            val elseResult = collectFromSchema(elseSchema, json)
-            result = result ++ elseResult
-          }
-        }
+        case _ =>
       }
-
       // unevaluatedItems validation - must run after all applicators
       json match {
         case a: Json.Array =>
-          unevaluatedItems.foreach { unevalSchema =>
-            val allEvaluated = result.evaluatedItems
-            (0 until a.value.length).foreach { idx =>
-              if (!allEvaluated.contains(idx)) {
-                val itemResult = collectFromSchema(unevalSchema, a.value(idx))
-                result = result.addErrors(itemResult.errors).withEvaluatedItem(idx)
-              }
-            }
-          }
-        case obj: Json.Object =>
-          unevaluatedProperties.foreach { unevalSchema =>
-            val fieldMap     = obj.value.toMap
-            val fieldKeys    = fieldMap.keySet
-            val allEvaluated = result.evaluatedProperties
-            fieldKeys.foreach { key =>
-              if (!allEvaluated.contains(key)) {
-                fieldMap.get(key).foreach { propValue =>
-                  val propResult = collectFromSchema(unevalSchema, propValue)
-                  result = result.addErrors(propResult.errors).withEvaluatedProperty(key)
+          unevaluatedItems match {
+            case Some(unevalSchema) =>
+              val allEvaluated = result.evaluatedItems
+              (0 until a.value.length).foreach { idx =>
+                if (!allEvaluated.contains(idx)) {
+                  result = result.addErrors(collectFromSchema(unevalSchema, a.value(idx), options, trace).errors)
+                  result = result.withEvaluatedItem(idx)
                 }
               }
-            }
+            case _ =>
+          }
+        case obj: Json.Object =>
+          unevaluatedProperties match {
+            case Some(unevalSchema) =>
+              val fieldMap     = obj.value.toMap
+              val fieldKeys    = fieldMap.keySet
+              val allEvaluated = result.evaluatedProperties
+              fieldKeys.foreach { key =>
+                if (!allEvaluated.contains(key)) {
+                  fieldMap.get(key) match {
+                    case Some(propValue) =>
+                      result = result.addErrors(collectFromSchema(unevalSchema, propValue, options, trace).errors)
+                      result = result.withEvaluatedProperty(key)
+                    case _ =>
+                  }
+                }
+              }
+            case _ =>
           }
         case _ => ()
       }
-
       result
+    }
+
+    private[this] def collectFromSchema(
+      schema: JsonSchema,
+      json: Json,
+      options: ValidationOptions,
+      trace: List[DynamicOptic.Node]
+    ): EvaluationResult = schema match {
+      case s: Object => s.checkWithEvaluation(json, options, trace)
+      case _         =>
+        schema.check(json, options) match {
+          case Some(e) => new EvaluationResult(e.errors, Set.empty, Set.empty)
+          case _       => EvaluationResult.empty
+        }
+    }
+
+    private[this] def uniqueCheck(values: Chunk[Json]): Boolean = values.forall {
+      val seen = new java.util.HashSet[Json](values.length) // Java's HashSet is not affected by hash collision vulns
+      v => seen.add(v)
     }
   }
 
@@ -1452,62 +1491,52 @@ object JsonSchema {
   private def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
     val fieldMap = obj.value.toMap
 
-    def getString(key: String): Option[String] =
-      fieldMap.get(key).collect { case s: Json.String => s.value }
+    def getString(key: String): Option[String] = fieldMap.get(key).collect { case s: Json.String => s.value }
 
-    def getBoolean(key: String): Option[scala.Boolean] =
-      fieldMap.get(key).collect { case b: Json.Boolean => b.value }
+    def getBoolean(key: String): Option[scala.Boolean] = fieldMap.get(key).collect { case b: Json.Boolean => b.value }
 
-    def getNumber(key: String): Option[BigDecimal] =
-      fieldMap.get(key).collect { case n: Json.Number => n.value }
+    def getNumber(key: String): Option[BigDecimal] = fieldMap.get(key).collect { case n: Json.Number => n.value }
 
-    def getNonNegativeInt(key: String): Option[NonNegativeInt] =
-      getNumber(key).flatMap(n => NonNegativeInt(n.toInt))
+    def getNonNegativeInt(key: String): Option[NonNegativeInt] = getNumber(key).flatMap(n => NonNegativeInt(n.toInt))
 
-    def getPositiveNumber(key: String): Option[PositiveNumber] =
-      getNumber(key).flatMap(PositiveNumber(_))
+    def getPositiveNumber(key: String): Option[PositiveNumber] = getNumber(key).flatMap(PositiveNumber(_))
 
-    def getSchema(key: String): Either[SchemaError, Option[JsonSchema]] =
-      fieldMap.get(key) match {
-        case Some(json) => fromJson(json).map(Some(_))
-        case _          => new Right(None)
-      }
+    def getSchema(key: String): Either[SchemaError, Option[JsonSchema]] = fieldMap.get(key) match {
+      case Some(json) => fromJson(json).map(new Some(_))
+      case _          => new Right(None)
+    }
 
-    def getSchemaList(key: String): Either[SchemaError, Option[::[JsonSchema]]] =
-      fieldMap.get(key) match {
-        case Some(arr: Json.Array) =>
-
-          val results = arr.value.map(fromJson)
-          val errs    = results.collect { case Left(e) => e }
-          if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
-          else {
-            val schemas = results.collect { case Right(s) => s }
-            schemas.toList match {
-              case head :: tail => Right(Some(new ::(head, tail)))
-              case Nil          => Right(None)
-            }
+    def getSchemaList(key: String): Either[SchemaError, Option[::[JsonSchema]]] = fieldMap.get(key) match {
+      case Some(arr: Json.Array) =>
+        val results = arr.value.map(fromJson)
+        val errs    = results.collect { case Left(e) => e }
+        if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
+        else {
+          val schemas = results.collect { case Right(s) => s }
+          schemas.toList match {
+            case head :: tail => Right(Some(new ::(head, tail)))
+            case Nil          => Right(None)
           }
-        case Some(_) =>
-          Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
-        case _ => Right(None)
-      }
+        }
+      case Some(_) =>
+        Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
+      case _ => Right(None)
+    }
 
-    def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] =
-      fieldMap.get(key) match {
-        case Some(o: Json.Object) =>
-          val results = o.value.map { case (k, v) => fromJson(v).map(s => k -> s) }
-          val errs    = results.collect { case Left(e) => e }
-          if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
-          else Right(Some(ChunkMap.fromChunk(results.collect { case Right(kv) => kv })))
-        case Some(_) =>
-          Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))
-        case None => Right(None)
-      }
+    def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] = fieldMap.get(key) match {
+      case Some(o: Json.Object) =>
+        val results = o.value.map { case (k, v) => fromJson(v).map(s => k -> s) }
+        val errs    = results.collect { case Left(e) => e }
+        if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
+        else Right(Some(ChunkMap.fromChunk(results.collect { case Right(kv) => kv })))
+      case Some(_) =>
+        Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))
+      case None => Right(None)
+    }
 
-    def getStringSet(key: String): Option[Set[String]] =
-      fieldMap.get(key).collect { case arr: Json.Array =>
-        arr.value.collect { case s: Json.String => s.value }.toSet
-      }
+    def getStringSet(key: String): Option[Set[String]] = fieldMap.get(key).collect { case arr: Json.Array =>
+      arr.value.collect { case s: Json.String => s.value }.toSet
+    }
 
     def getJsonList(key: String): Option[::[Json]] =
       fieldMap
@@ -1541,8 +1570,7 @@ object JsonSchema {
       defsSchemas            <- getSchemaMap("$defs")
       contentSchemaVal       <- getSchema("contentSchema")
     } yield {
-      // Parse pattern properties specially
-      val patternPropsOpt: Option[ChunkMap[RegexPattern, JsonSchema]] = fieldMap.get("patternProperties") match {
+      val patternPropsOpt = fieldMap.get("patternProperties") match {
         case Some(o: Json.Object) =>
           val parsed = o.value.flatMap { case (pattern, json) =>
             fromJson(json).toOption.map(schema => RegexPattern.unsafe(pattern) -> schema)
@@ -1550,9 +1578,7 @@ object JsonSchema {
           if (parsed.nonEmpty) Some(ChunkMap.fromChunk(parsed)) else None
         case _ => None
       }
-
-      // Parse dependent required
-      val dependentRequiredOpt: Option[ChunkMap[String, Set[String]]] = fieldMap.get("dependentRequired") match {
+      val dependentRequiredOpt = fieldMap.get("dependentRequired") match {
         case Some(o: Json.Object) =>
           val parsed = o.value.map { case (k, v) =>
             v match {
@@ -1563,13 +1589,8 @@ object JsonSchema {
           if (parsed.nonEmpty) Some(ChunkMap.fromChunk(parsed)) else None
         case _ => None
       }
-
-      // Parse type
-      val typeOpt = fieldMap.get("type").flatMap(j => SchemaType.fromJson(j).toOption)
-
-      // Collect unknown extensions
+      val typeOpt    = fieldMap.get("type").flatMap(j => SchemaType.fromJson(j).toOption)
       val extensions = ChunkMap.from(obj.value).filterNot(kv => knownKeys.contains(kv._1))
-
       new Object(
         $id = getString("$id").map(UriReference(_)),
         $schema = getString("$schema").flatMap(s =>
