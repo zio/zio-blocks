@@ -91,15 +91,17 @@ class SecretStore extends AutoCloseable {
 // ---------------------------------------------------------------------------
 
 @main def runConfigReaderExample(): Unit = {
-  println("=== ScopeEscape & Unscoped Example ===\n")
+  println("=== ScopeLift & Unscoped Example ===\n")
 
   // ConfigData escapes because it derives Unscoped
   val escapedConfig: ConfigData = Scope.global.scoped { outer =>
     val reader = outer.allocate(Resource(new ConfigReader))
 
-    // Extract config in a nested scope — it escapes as raw ConfigData
-    outer.scoped { inner =>
-      inner.$(reader)(_.readConfig("/etc/app/config.json"))
+    // Extract config in a nested scope
+    // Use @@.unscoped to access the reader and return the pure ConfigData
+    // ScopeLift[ConfigData, outer.Tag] allows escape since ConfigData has Unscoped
+    outer.scoped { _ =>
+      @@.unscoped(reader).readConfig("/etc/app/config.json")
     }
   }
 
@@ -108,16 +110,13 @@ class SecretStore extends AutoCloseable {
   escapedConfig.settings.foreach { case (k, v) => println(s"    $k = $v") }
   println()
 
-  // SecretStore does NOT escape — it remains scoped
-  println("SecretStore stays scoped (cannot escape child scope):")
+  // SecretStore stays scoped throughout — access via @@.unscoped within scope
+  println("SecretStore stays scoped:")
   Scope.global.scoped { scope =>
     val secrets = scope.allocate(Resource(new SecretStore))
+    val s = @@.unscoped(secrets)
 
-    // This returns SecretStore @@ scope.Tag, not raw SecretStore
-    val stillScoped = scope.$(secrets)(identity)
-
-    // We can use it within this scope via scope.$
-    val dbPassword = scope.$(stillScoped)(_.getSecret("database.password"))
+    val dbPassword = s.getSecret("database.password")
     println(s"  Retrieved secret: $dbPassword")
   }
   println("\n=== Example Complete ===")

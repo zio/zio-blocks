@@ -103,15 +103,17 @@ final class Database(config: DbConfig) extends AutoCloseable {
     })
 
     // Use scope.$ to access the scoped value and execute queries.
-    // The result (QueryResult) is Unscoped so it escapes the scope safely.
-    val users = scope.$(db)(_.query("SELECT * FROM users"))
-    println(s"[Result] Found ${users.size} users: ${users.rows.map(_("name")).mkString(", ")}\n")
+    // $ executes immediately, so we can capture results via side effects or use directly.
+    scope.$(db) { database =>
+      val users = database.query("SELECT * FROM users")
+      println(s"[Result] Found ${users.size} users: ${users.rows.map(_("name")).mkString(", ")}\n")
 
-    val orders = scope.$(db)(_.query("SELECT * FROM orders WHERE status = 'pending'"))
-    println(s"[Result] Found ${orders.size} orders\n")
+      val orders = database.query("SELECT * FROM orders WHERE status = 'pending'")
+      println(s"[Result] Found ${orders.size} orders\n")
 
-    val health = scope.$(db)(_.query("SELECT 1 AS health_check"))
-    println(s"[Result] Health check: ${health.rows.head("result")}\n")
+      val health = database.query("SELECT 1 AS health_check")
+      println(s"[Result] Health check: ${health.rows.head("result")}\n")
+    }
 
     println("[Scope] Exiting scoped region - finalizers will run in LIFO order")
   }

@@ -101,14 +101,15 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
     println("Pipeline definitions built. Now executing each step...\n")
 
     // Step 3: Execute each computation - this is when operations actually run
+    // Use @@.unscoped to get raw ParsedData from the scoped result
     println("--- Executing: fetchUsers ---")
-    val users = scope.execute(fetchUsers)
+    val users = @@.unscoped(scope.execute(fetchUsers))
 
     println("\n--- Executing: fetchOrders ---")
-    val orders = scope.execute(fetchOrders)
+    val orders = @@.unscoped(scope.execute(fetchOrders))
 
     println("\n--- Executing: postAnalytics ---")
-    val analytics = scope.execute(postAnalytics)
+    val analytics = @@.unscoped(scope.execute(postAnalytics))
 
     println(s"\n=== Results ===")
     println(s"Users data: ${users.values}")

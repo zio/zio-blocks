@@ -72,9 +72,14 @@ object ScopeSpec extends ZIOSpecDefault {
         }
 
         val resource = scope.allocate(new TestCloseable)
-        val result   = scope.$(resource)(_.value)
+        // Capture result via side effect in the function passed to $
+        var captured: String = null
+        scope.$(resource) { r =>
+          captured = r.value
+          r.value
+        }
 
-        assertTrue(result == "test", !closed)
+        assertTrue(captured == "test", !closed)
         close()
         assertTrue(closed)
       }

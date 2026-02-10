@@ -116,15 +116,12 @@ object CachingSharedLoggerExample {
       println("\n─── Verification ───")
       println(s"  Logger instances created: ${loggerInstances.get()} (expected: 1)")
       println(s"  Cache instances created:  ${cacheInstances.get()} (expected: 2)")
-      println(s"  ProductService.logger eq OrderService.logger: ${scope.$(app)(a =>
-          a.productService.logger eq a.orderService.logger
-        )}")
-      println(s"  ProductService.cache  eq OrderService.cache:  ${scope.$(app)(a =>
-          a.productService.cache eq a.orderService.cache
-        )}")
+      val a = @@.unscoped(app)
+      println(s"  ProductService.logger eq OrderService.logger: ${a.productService.logger eq a.orderService.logger}")
+      println(s"  ProductService.cache  eq OrderService.cache:  ${a.productService.cache eq a.orderService.cache}")
 
       println("\n─── Running Application ───")
-      scope.$(app)(_.run())
+      a.run()
 
       println("\n─── Scope Closing (LIFO cleanup) ───")
     }
