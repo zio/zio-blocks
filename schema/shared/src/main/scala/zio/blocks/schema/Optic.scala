@@ -2802,43 +2802,19 @@ object Traversal {
       }
 
     /**
-     * Recursive modification of all values matching the focus type.
+     * Iterative modification of all values matching the focus type. Uses
+     * stack-based traversal (via DynamicValue.iterativeTransform) to avoid
+     * stack overflow on deeply nested structures.
      */
-    private def searchModify(dv: DynamicValue, f: A => A): DynamicValue = {
-      // Try single decode — if it succeeds, apply f and re-encode
-      val afterSelf = tryDecodeFocus(dv) match {
-        case Some(a) =>
-          val modified = f(a)
-          focusReflect.toDynamicValue(modified)
-        case None => dv
+    private def searchModify(dv: DynamicValue, f: A => A): DynamicValue =
+      DynamicValue.iterativeTransform(dv) { value =>
+        tryDecodeFocus(value) match {
+          case Some(a) =>
+            val modified = f(a)
+            focusReflect.toDynamicValue(modified)
+          case None => value
+        }
       }
-
-      // Then recurse into children
-      afterSelf match {
-        case r: DynamicValue.Record =>
-          val newFields = r.fields.map { case (name, v) =>
-            (name, searchModify(v, f))
-          }
-          if (newFields == r.fields) afterSelf else DynamicValue.Record(newFields)
-
-        case v: DynamicValue.Variant =>
-          val modifiedPayload = searchModify(v.value, f)
-          if (modifiedPayload eq v.value) afterSelf else DynamicValue.Variant(v.caseNameValue, modifiedPayload)
-
-        case s: DynamicValue.Sequence =>
-          val newElems = s.elements.map(searchModify(_, f))
-          if (newElems == s.elements) afterSelf else DynamicValue.Sequence(newElems)
-
-        case m: DynamicValue.Map =>
-          val newEntries = m.entries.map { case (k, v) =>
-            (searchModify(k, f), searchModify(v, f))
-          }
-          if (newEntries == m.entries) afterSelf else DynamicValue.Map(newEntries)
-
-        case _ =>
-          afterSelf
-      }
-    }
   }
 
   /**
