@@ -30,7 +30,7 @@ import zio.blocks.scope.internal.Finalizers
  *   {{{
  *   Scope.global.scoped { scope =>
  *     val db = scope.allocate(Resource[Database])
- *     val result = scope.$(db)(_.query("SELECT 1"))
+ *     val result = (scope $ db)(_.query("SELECT 1"))
  *     println(result)
  *   }
  *   }}}
@@ -145,7 +145,7 @@ object Scope {
    *   {{{
    *   Scope.global.scoped { scope =>
    *     val app = scope.allocate(Resource[App])
-   *     scope.$(app)(_.run())
+   *     (scope $ app)(_.run())
    *   }
    *   }}}
    */

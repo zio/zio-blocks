@@ -54,7 +54,7 @@ Scope.global.scoped { scope =>
 
   // $ executes immediately and returns String @@ scope.Tag
   // Use the function to work with the value
-  scope.$(db) { database =>
+  (scope $ db) { database =>
     val result = database.query("SELECT 1")
     println(result)
   }
@@ -65,7 +65,7 @@ Key things to notice:
 
 - `scope.allocate(...)` returns a **scoped** value: `Database @@ scope.Tag`
 - You **cannot** call `db.query(...)` directly (methods are intentionally hidden)
-- You must use `scope.$(db) { ... }` to access the value - the function executes immediately
+- You must use `(scope $ db) { ... }` to access the value - the function executes immediately
 - `$` and `execute` always return scoped values (`B @@ scope.Tag`), never raw values
 - When the `scoped { ... }` block exits, finalizers run **LIFO** and errors are handled safely
 
@@ -120,7 +120,7 @@ object Scope {
 - **Key effect:** methods on `A` are hidden; you can't call `a.method` directly
 - **Acquisition timing:** `scope.allocate(resource)` acquires the resource **immediately** (eagerly) and returns a scoped handle for accessing the already-acquired value. The thunk defers *access*, not *acquisition*.
 - **Access paths:**
-  - `scope.$(a)(f)` to execute and apply a function immediately
+  - `(scope $ a)(f)` to execute and apply a function immediately
   - `a.map / a.flatMap` to build composite scoped computations
   - `scope.execute(scoped)` to run a composed computation
 
@@ -386,7 +386,7 @@ Scope.global.scoped { scope =>
   val h = scope.allocate(Resource(new FileHandle("data.txt")))
 
   // $ executes immediately - work with the value inside the function
-  scope.$(h) { handle =>
+  (scope $ h) { handle =>
     val contents = handle.readAll()
     println(contents)
   }
@@ -565,7 +565,7 @@ Scope.global.scoped { scope =>
     scope.allocate(w.toResource(deps))
 
   val debug: Boolean =
-    scope.$(cfg)(_.debug) // Boolean typically escapes
+    (scope $ cfg)(_.debug) // Boolean typically escapes
 
   println(debug)
 }
@@ -613,7 +613,7 @@ val serviceResource: Resource[Service] =
 
 Scope.global.scoped { scope =>
   val svc = scope.allocate(serviceResource)
-  scope.$(svc)(_.run())
+  (scope $ svc)(_.run())
 }
 // Output: running with [jdbc:postgresql://localhost/db] SELECT 1
 // Then: service closed, database closed (LIFO order)
@@ -656,7 +656,7 @@ val appResource: Resource[App] =
 
 Scope.global.scoped { scope =>
   val app = scope.allocate(appResource)
-  scope.$(app)(_.run())
+  (scope $ app)(_.run())
 }
 ```
 
@@ -934,7 +934,7 @@ object Wire {
 - Use `Scope.global.scoped { scope => ... }` to create a safe region.
 - For simple resources: `scope.allocate(Resource(value))` or `scope.allocate(Resource.acquireRelease(...)(...))`
 - For dependency injection: `scope.allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- Use scoped values via `scope.$(value) { v => ... }` — the function executes immediately.
+- Use scoped values via `(scope $ value) { v => ... }` — the function executes immediately.
 - `$` and `execute` always return scoped values (`B @@ scope.Tag`), never raw values.
 - Escape only happens at `.scoped` boundaries via `ScopeLift`.
 - Nest with `scope.scoped { child => ... }` to create a tighter lifetime boundary.

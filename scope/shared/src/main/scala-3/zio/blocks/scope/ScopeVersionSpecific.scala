@@ -28,8 +28,19 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *   the function result type
    * @return
    *   B @@ Tag (result is always scoped)
+   *
+   * @example
+   *   {{{
+   *   // Infix syntax (preferred)
+   *   (scope $ database)(_.query("SELECT 1"))
+   *
+   *   // Multi-line with braces
+   *   (scope $ database) { db =>
+   *     db.query("SELECT 1")
+   *   }
+   *   }}}
    */
-  def $[A, B](scoped: A @@ self.Tag)(f: A => B): B @@ self.Tag =
+  infix def $[A, B](scoped: A @@ self.Tag)(f: A => B): B @@ self.Tag =
     // NOTE: This isClosed check is racy - a proper synchronization mechanism
     // is needed to fully prevent use-after-close in concurrent scenarios.
     if (self.isClosed) {
