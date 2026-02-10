@@ -177,8 +177,9 @@ scope.execute(scopedComputation)
 How to build them:
 
 - From scoped values:
-  - `val s: Scoped[S, B] = (a: A @@ S).map(f)`
-  - `flatMap` composes scoped values while tracking combined requirements
+  - `(a: A @@ S).map(f: A => B)` returns `Scoped[S, B]`
+  - `(a: A @@ S).flatMap(f: A => B @@ T)` returns `Scoped[S & T, B]`
+  - Use for-comprehensions: each `<-` on a `@@` value chains via `flatMap`
 - From ordinary values:
   - `Scoped(value)` lifts a value into a `Scoped[Any, A]` (which can be used anywhere due to contravariance)
 
@@ -340,21 +341,53 @@ Scope.global.scoped { parent =>
 
 ### Building a `Scoped` program (map/flatMap)
 
+The idiomatic pattern is to work directly with `@@` values in for-comprehensions. Each `<-` uses `@@#flatMap`, which takes `A => B @@ T` and accumulates into a `Scoped`:
+
 ```scala
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
-  val db = scope.allocate(Resource(new Database))
+  val db: Database @@ scope.Tag = scope.allocate(Resource(new Database))
 
   val program: Scoped[scope.Tag, String] =
     for {
-      a <- db.map(_.query("SELECT 1"))
-      b <- db.map(_.query("SELECT 2"))
-    } yield s"$a | $b"
+      d <- db                         // db: Database @@ Tag, d: Database
+    } yield d.query("SELECT 1")
 
   val result: String = scope.execute(program)
   println(result)
 }
+```
+
+This pattern shines when chaining resource acquisition:
+
+```scala
+import zio.blocks.scope._
+
+// A pool that leases connections
+class Pool(implicit finalizer: Finalizer) extends AutoCloseable {
+  def lease: Resource[Connection] = Resource(new Connection)
+  def close(): Unit = println("pool closed")
+}
+
+class Connection extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("connection closed")
+}
+
+Scope.global.scoped { scope =>
+  val pool: Pool @@ scope.Tag = scope.allocate(Resource.from[Pool])
+
+  val program: Scoped[scope.Tag, String] =
+    for {
+      p          <- pool                      // extract Pool from scoped
+      connection <- scope.allocate(p.lease)   // allocate returns Connection @@ Tag
+    } yield scope.$(connection)(_.query("SELECT 1"))
+
+  val result: String = scope.execute(program)
+  println(result)
+}
+// Output: connection closed, then pool closed (LIFO)
 ```
 
 ---
