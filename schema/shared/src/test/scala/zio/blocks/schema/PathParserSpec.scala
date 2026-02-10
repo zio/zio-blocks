@@ -549,28 +549,28 @@ object PathParserSpec extends SchemaBaseSpec {
     ),
     suite("search nodes")(
       test("simple nominal type") {
-        assertTrue(parse("#Person") == Right(Vector(Node.SchemaSearch(SchemaRepr.Nominal("Person")))))
+        assertTrue(parse("#Person") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Nominal("Person")))))
       },
       test("primitive type string") {
-        assertTrue(parse("#string") == Right(Vector(Node.SchemaSearch(SchemaRepr.Primitive("string")))))
+        assertTrue(parse("#string") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Primitive("string")))))
       },
       test("primitive type int") {
-        assertTrue(parse("#int") == Right(Vector(Node.SchemaSearch(SchemaRepr.Primitive("int")))))
+        assertTrue(parse("#int") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Primitive("int")))))
       },
       test("wildcard") {
-        assertTrue(parse("#_") == Right(Vector(Node.SchemaSearch(SchemaRepr.Wildcard))))
+        assertTrue(parse("#_") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Wildcard))))
       },
       test("record with single field") {
         assertTrue(
           parse("#record { name: string }") == Right(
-            Vector(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
           )
         )
       },
       test("record with multiple fields") {
         assertTrue(
           parse("#record { name: string, age: int }") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
                   Vector(
@@ -586,7 +586,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("variant type") {
         assertTrue(
           parse("#variant { Left: int, Right: string }") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Variant(
                   Vector(
@@ -602,14 +602,14 @@ object PathParserSpec extends SchemaBaseSpec {
       test("list type") {
         assertTrue(
           parse("#list(string)") == Right(
-            Vector(Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Primitive("string"))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Primitive("string"))))
           )
         )
       },
       test("map type") {
         assertTrue(
           parse("#map(string, int)") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int")))
             )
           )
@@ -618,14 +618,14 @@ object PathParserSpec extends SchemaBaseSpec {
       test("option type") {
         assertTrue(
           parse("#option(Person)") == Right(
-            Vector(Node.SchemaSearch(SchemaRepr.Optional(SchemaRepr.Nominal("Person"))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Optional(SchemaRepr.Nominal("Person"))))
           )
         )
       },
       test("nested schema") {
         assertTrue(
           parse("#record { items: list(Person) }") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
                   Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
@@ -638,7 +638,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("search followed by field") {
         assertTrue(
           parse("#Person.name") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Nominal("Person")),
               Node.Field("name")
             )
@@ -648,7 +648,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("field followed by search") {
         assertTrue(
           parse(".users#Person") == Right(
-            Vector(
+            Chunk(
               Node.Field("users"),
               Node.SchemaSearch(SchemaRepr.Nominal("Person"))
             )
@@ -658,7 +658,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("search in complex path") {
         assertTrue(
           parse(".items[*]#Person.name") == Right(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.Elements,
               Node.SchemaSearch(SchemaRepr.Nominal("Person")),
@@ -670,7 +670,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("chained searches") {
         assertTrue(
           parse("#list(Person)#Person") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))),
               Node.SchemaSearch(SchemaRepr.Nominal("Person"))
             )
@@ -680,7 +680,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("search followed by index") {
         assertTrue(
           parse("#Person[0]") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Nominal("Person")),
               Node.AtIndex(0)
             )
@@ -690,7 +690,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("search followed by variant") {
         assertTrue(
           parse("#Either<Right>") == Right(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Nominal("Either")),
               Node.Case("Right")
             )
