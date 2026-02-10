@@ -399,7 +399,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       List(aType, bType, handledType, newProvidedTpe)
     )
 
-    q"""$builder.addField($optic, $default).asInstanceOf[$resultType]"""
+    q"""$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.AddField($optic, $default)).asInstanceOf[$resultType]"""
   }
 
   def dropFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -428,7 +428,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       List(aType, bType, newHandledTpe, providedType)
     )
 
-    q"""$builder.dropField($optic, $defaultForReverse).asInstanceOf[$resultType]"""
+    q"""$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.DropField($optic, $defaultForReverse)).asInstanceOf[$resultType]"""
   }
 
   def renameFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -462,7 +462,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       List(aType, bType, newHandledTpe, newProvidedTpe)
     )
 
-    q"""$builder.renameField($fromOptic, $toNameExpr).asInstanceOf[$resultType]"""
+    q"""$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.Rename($fromOptic, $toNameExpr)).asInstanceOf[$resultType]"""
   }
 
   // Shared helper for field ops that add to both Handled and Provided
@@ -513,7 +513,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.transformField($optic, $transform)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.TransformValue($optic, $transform))"
     }
   }
 
@@ -525,7 +525,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.mandateField($optic, $default)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.Mandate($optic, $default))"
     }
   }
 
@@ -537,7 +537,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.optionalizeField($optic, $defaultForReverse)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.Optionalize($optic, $defaultForReverse))"
     }
   }
 
@@ -549,7 +549,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     dualTrackingFieldOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.changeFieldType($optic, $converter)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.ChangeType($optic, $converter))"
     }
   }
 
@@ -605,7 +605,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       List(aType, bType, newHandledTpe, newProvidedTpe)
     )
 
-    q"""$builder.joinFields($targetOptic, $sourceOptics, $combiner).asInstanceOf[$resultType]"""
+    q"""$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.Join($targetOptic, $sourceOptics, $combiner)).asInstanceOf[$resultType]"""
   }
 
   def splitFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -660,7 +660,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       List(aType, bType, newHandledTpe, newProvidedTpe)
     )
 
-    q"""$builder.splitField($sourceOptic, $targetOptics, $splitter).asInstanceOf[$resultType]"""
+    q"""$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.Split($sourceOptic, $targetOptics, $splitter)).asInstanceOf[$resultType]"""
   }
 
   // Shared helper for passthrough ops that don't affect Handled/Provided
@@ -698,7 +698,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.transformElements($optic, $transform)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.TransformElements($optic, $transform))"
     }
   }
 
@@ -710,7 +710,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.transformKeys($optic, $transform)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.TransformKeys($optic, $transform))"
     }
   }
 
@@ -722,7 +722,7 @@ private[migration] object MigrationBuilderMacrosImpl {
   ): c.Tree = {
     import c.universe._
     passthroughOpImpl[A, B, Handled, Provided](c)(at) { (builder, optic) =>
-      q"$builder.transformValues($optic, $transform)"
+      q"$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.TransformValues($optic, $transform))"
     }
   }
 
@@ -767,7 +767,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       List(aType, bType, newHandledTpe, newProvidedTpe)
     )
 
-    q"""$builder.renameCase($fromOptic, $fromCaseName, $to).asInstanceOf[$resultType]"""
+    q"""$builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.RenameCase($fromOptic, $fromCaseName, $to)).asInstanceOf[$resultType]"""
   }
 
   def transformCaseImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, Handled: c.WeakTypeTag, Provided: c.WeakTypeTag](
@@ -810,7 +810,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       val emptyBuilder: _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $aType, _root_.zio.blocks.schema.migration.TypeLevel.TNil, _root_.zio.blocks.schema.migration.TypeLevel.TNil] =
         _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $aType, _root_.zio.blocks.schema.migration.TypeLevel.TNil, _root_.zio.blocks.schema.migration.TypeLevel.TNil](sourceSchema, sourceSchema, _root_.scala.Vector.empty)
       val transformedBuilder = $nestedActions.apply(emptyBuilder)
-      $builder.transformCase($atOptic, $caseName, transformedBuilder.actions).asInstanceOf[$resultType]
+      $builder.withAction(_root_.zio.blocks.schema.migration.MigrationAction.TransformCase($atOptic, $caseName, transformedBuilder.actions)).asInstanceOf[$resultType]
     }"""
   }
 }

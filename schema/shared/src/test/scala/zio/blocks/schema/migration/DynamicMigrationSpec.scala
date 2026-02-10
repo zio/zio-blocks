@@ -18,7 +18,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("age"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              default = 0
             )
           )
         )
@@ -49,7 +49,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             ),
             MigrationAction.AddField(
               at = DynamicOptic.root.field("age"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              default = 0
             )
           )
         )
@@ -76,11 +76,11 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               at = DynamicOptic.root.field("age"), // Field doesn't exist
-              defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              defaultForReverse = 0
             ),
             MigrationAction.AddField(
               at = DynamicOptic.root.field("country"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("US")))
+              default = "US"
             )
           )
         )
@@ -107,7 +107,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               at = DynamicOptic.root.field("items"),
               transform = DynamicSchemaExpr.Arithmetic(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+                10,
                 DynamicSchemaExpr.ArithmeticOperator.Add,
                 DynamicSchemaExpr.NumericType.IntType
               )
@@ -149,7 +149,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               combiner = DynamicSchemaExpr.StringConcat(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
                 DynamicSchemaExpr.StringConcat(
-                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+                  " ",
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
                 )
               )
@@ -235,7 +235,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("age"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              default = 0
             )
           )
         )
@@ -263,7 +263,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("b"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("y")))
+              default = "y"
             )
           )
         )
@@ -271,7 +271,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("c"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("z")))
+              default = "z"
             )
           )
         )
@@ -299,7 +299,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("age"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              default = 0
             ),
             MigrationAction.Rename(
               at = DynamicOptic.root.field("firstName"),
@@ -319,7 +319,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               at = DynamicOptic.root.field("age"),
-              default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              default = 0
             ),
             MigrationAction.Rename(
               at = DynamicOptic.root.field("firstName"),

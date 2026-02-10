@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, PrimitiveValue, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, Schema}
 import zio.test._
 
 object MigrationSpec extends ZIOSpecDefault {
@@ -37,14 +37,14 @@ object MigrationSpec extends ZIOSpecDefault {
                 combiner = DynamicSchemaExpr.StringConcat(
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
                   DynamicSchemaExpr.StringConcat(
-                    DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+                    " ",
                     DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
                   )
                 )
               ),
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+                default = 0
               )
             )
           ),
@@ -65,7 +65,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.DropField(
                 at = DynamicOptic.root.field("nonExistent"),
-                defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+                defaultForReverse = ""
               )
             )
           ),
@@ -86,7 +86,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.DropField(
                 at = DynamicOptic.root.field("firstName"),
-                defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+                defaultForReverse = ""
               )
             )
           ),
@@ -128,14 +128,14 @@ object MigrationSpec extends ZIOSpecDefault {
                 combiner = DynamicSchemaExpr.StringConcat(
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
                   DynamicSchemaExpr.StringConcat(
-                    DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+                    " ",
                     DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
                   )
                 )
               ),
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(30)))
+                default = 30
               )
             )
           ),
@@ -149,7 +149,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("country"),
-                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("US")))
+                default = "US"
               )
             )
           ),
@@ -171,7 +171,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+                default = 0
               )
             )
           ),
@@ -197,7 +197,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+                default = 0
               ),
               MigrationAction.Rename(
                 at = DynamicOptic.root.field("firstName"),
@@ -223,7 +223,7 @@ object MigrationSpec extends ZIOSpecDefault {
             Vector(
               MigrationAction.AddField(
                 at = DynamicOptic.root.field("age"),
-                default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+                default = 0
               )
             )
           ),

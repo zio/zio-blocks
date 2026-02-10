@@ -285,7 +285,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[DropSource, DropTarget]
         .dropField(
           (_: DropSource).extra,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .build
 
@@ -297,14 +297,14 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("complete drop migration - multiple fields inline") {
       val migration = MigrationBuilder
         .newBuilder[MultiDropSource, MultiDropTarget]
-        .dropField((_: MultiDropSource).drop1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .dropField((_: MultiDropSource).drop1, 0)
         .dropField(
           (_: MultiDropSource).drop2,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .dropField(
           (_: MultiDropSource).drop3,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
         .build
 
@@ -318,17 +318,17 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val builder2 =
         builder1.dropField(
           (_: MultiDropSource).drop1,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          0
         )
       val builder3 =
         builder2.dropField(
           (_: MultiDropSource).drop2,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
       val builder4 =
         builder3.dropField(
           (_: MultiDropSource).drop3,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
       val migration = builder4.build
 
@@ -345,7 +345,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("complete add migration - single field") {
       val migration = MigrationBuilder
         .newBuilder[AddSource, AddTarget]
-        .addField((_: AddTarget).extra, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+        .addField((_: AddTarget).extra, true)
         .build
 
       val source = AddSource("John", 30)
@@ -356,14 +356,14 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("complete add migration - multiple fields inline") {
       val migration = MigrationBuilder
         .newBuilder[MultiAddSource, MultiAddTarget]
-        .addField((_: MultiAddTarget).add1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        .addField((_: MultiAddTarget).add1, 42)
         .addField(
           (_: MultiAddTarget).add2,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+          true
         )
         .addField(
           (_: MultiAddTarget).add3,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14)))
+          3.14
         )
         .build
 
@@ -376,17 +376,17 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val builder1 = MigrationBuilder.newBuilder[MultiAddSource, MultiAddTarget]
       val builder2 = builder1.addField(
         (_: MultiAddTarget).add1,
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        42
       )
       val builder3 =
         builder2.addField(
           (_: MultiAddTarget).add2,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+          true
         )
       val builder4 =
         builder3.addField(
           (_: MultiAddTarget).add3,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14)))
+          3.14
         )
       val migration = builder4.build
 
@@ -400,7 +400,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[EmptySource, NonEmptyForEmpty]
         .addField(
           (_: NonEmptyForEmpty).field,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          "default"
         )
         .build
 
@@ -446,8 +446,8 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[ComplexSource, ComplexTarget]
         .renameField((_: ComplexSource).a, (_: ComplexTarget).x)
         .renameField((_: ComplexSource).c, (_: ComplexTarget).y)
-        .dropField((_: ComplexSource).d, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0))))
-        .addField((_: ComplexTarget).e, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L))))
+        .dropField((_: ComplexSource).d, 0.0)
+        .addField((_: ComplexTarget).e, 0L)
         .build
 
       val source = ComplexSource("hello", 42, true, 3.14)
@@ -462,11 +462,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val builder4 =
         builder3.dropField(
           (_: ComplexSource).d,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
       val builder5 = builder4.addField(
         (_: ComplexTarget).e,
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+        0L
       )
       val migration = builder5.build
 
@@ -480,11 +480,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[ManySharedSource, ManySharedTarget]
         .dropField(
           (_: ManySharedSource).removed,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
         .addField(
           (_: ManySharedTarget).added,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
+          0L
         )
         .build
 
@@ -498,16 +498,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[AllChangedSource, AllChangedTarget]
         .dropField(
           (_: AllChangedSource).a,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          ""
         )
-        .dropField((_: AllChangedSource).b, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .dropField((_: AllChangedSource).b, 0)
         .addField(
           (_: AllChangedTarget).x,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .addField(
           (_: AllChangedTarget).y,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
         .build
 
@@ -526,7 +526,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[DropSource, DropTarget]
         .dropField(
           (_: DropSource).extra,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .build
 
@@ -540,7 +540,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val step2 =
         step1.dropField(
           (_: DropSource).extra,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
       val migration = step2.build
 
@@ -558,11 +558,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val builder2 =
         builder.dropField(
           (_: ComplexSource).d,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
 
       val migration = builder2
-        .addField((_: ComplexTarget).e, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L))))
+        .addField((_: ComplexTarget).e, 0L)
         .build
 
       val source = ComplexSource("hello", 42, true, 3.14)
@@ -577,10 +577,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
       val step2 = step1.renameField((_: ComplexSource).c, (_: ComplexTarget).y)
       val step3 = step2.dropField(
         (_: ComplexSource).d,
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+        0.0
       )
       val step4 =
-        step3.addField((_: ComplexTarget).e, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L))))
+        step3.addField((_: ComplexTarget).e, 0L)
       val migration = step4.build
 
       val source = ComplexSource("hello", 42, true, 3.14)
@@ -595,16 +595,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("chained drops with val assignments") {
       val step1 = MigrationBuilder
         .newBuilder[MultiDropSource, MultiDropTarget]
-        .dropField((_: MultiDropSource).drop1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .dropField((_: MultiDropSource).drop1, 0)
       val step2 =
         step1.dropField(
           (_: MultiDropSource).drop2,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
       val step3 =
         step2.dropField(
           (_: MultiDropSource).drop3,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
       val migration = step3.build
 
@@ -619,16 +619,16 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("chained adds with val assignments") {
       val step1 = MigrationBuilder
         .newBuilder[MultiAddSource, MultiAddTarget]
-        .addField((_: MultiAddTarget).add1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        .addField((_: MultiAddTarget).add1, 42)
       val step2 =
         step1.addField(
           (_: MultiAddTarget).add2,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+          true
         )
       val step3 =
         step2.addField(
           (_: MultiAddTarget).add3,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.14)))
+          3.14
         )
       val migration = step3.build
 
@@ -642,12 +642,14 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[NestedPersonV1, NestedPersonV2]
         .dropField(
           (_: NestedPersonV1).address.city,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          DynamicSchemaExpr.Literal(
+            DynamicValue.Primitive(PrimitiveValue.String(""))
+          ) // Intentionally kept in old notation
         )
       val step2 = step1
         .addField(
           (_: NestedPersonV2).address.zip,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
+          "00000"
         )
       val migration = step2.build
 
@@ -666,7 +668,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[NonEmptyForEmpty, EmptyTarget]
         .dropField(
           (_: NonEmptyForEmpty).field,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          ""
         )
         .build
 
@@ -680,11 +682,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[DropSource, DropTarget]
         .dropField(
           (_: DropSource).extra,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .transformField(
           (_: DropSource).name,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+          "transformed"
         )
         .build
 
@@ -698,11 +700,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[AddSource, AddTarget]
         .addField(
           (_: AddTarget).extra,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .transformField(
           (_: AddSource).name,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("transformed")))
+          "transformed"
         )
         .build
 
@@ -729,7 +731,10 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("buildPartial works for incomplete drop migration") {
       val builder = MigrationBuilder.newBuilder[MultiDropSource, MultiDropTarget]
       val partial = builder
-        .dropField((_: MultiDropSource).drop1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .dropField(
+          (_: MultiDropSource).drop1,
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        ) // Intentionally kept in old notation
       val migration = partial.buildPartial
 
       assertTrue(migration != null)
@@ -737,7 +742,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("buildPartial works for incomplete add migration") {
       val builder = MigrationBuilder.newBuilder[MultiAddSource, MultiAddTarget]
       val partial = builder
-        .addField((_: MultiAddTarget).add1, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .addField((_: MultiAddTarget).add1, 0)
       val migration = partial.buildPartial
 
       assertTrue(migration != null)
@@ -919,11 +924,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[TypeWithNestedSrc, TypeWithNestedTgt]
         .dropField(
           (_: TypeWithNestedSrc).remove,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+          false
         )
         .addField(
           (_: TypeWithNestedTgt).add,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)))
+          0.0
         )
         .build
 
@@ -937,11 +942,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[NestedPersonV1, NestedPersonV2]
         .dropField(
           (_: NestedPersonV1).address.city,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          ""
         )
         .addField(
           (_: NestedPersonV2).address.zip,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
+          "00000"
         )
         .build
 
@@ -964,7 +969,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
     test("deeply nested path tracking (3 levels)") {
       val migration = MigrationBuilder
         .newBuilder[Level1Src, Level1Tgt]
-        .dropField((_: Level1Src).extra, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .dropField((_: Level1Src).extra, 0)
         .build
 
       val source = Level1Src(Level2(Level3("deep")), 42)
@@ -1292,7 +1297,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .joinFields(
             (_: Target).result,
             Seq((_: Source).meta.id, (_: Source).data.value),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("combined")))
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("combined"))) // Intentionally kept in old notation
           )
       """)
 
@@ -1320,7 +1325,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
           .splitField(
             (_: Source).data,
             Seq((_: Target).meta.part1, (_: Target).info.part2),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("split")))
+            "split"
           )
       """)
 
@@ -1344,7 +1349,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .joinFields(
           (_: PersonTgt).name.full,
           Seq((_: PersonSrc).name.first, (_: PersonSrc).name.last),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("combined")))
+          "combined"
         )
         .build
 
@@ -1371,7 +1376,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .splitField(
           (_: PersonSrc).name.full,
           Seq((_: PersonTgt).name.first, (_: PersonTgt).name.last),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("split")))
+          "split"
         )
         .build
 
@@ -1386,11 +1391,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .joinFields(
           (_: FullNameTarget).fullName,
           Seq((_: FullNameSource).firstName),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+          "value"
         )
         .dropField(
           (_: FullNameSource).lastName,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          ""
         )
         .build
 
@@ -1405,11 +1410,11 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .splitField(
           (_: FullNameTarget).fullName,
           Seq((_: FullNameSource).firstName),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("value")))
+          "value"
         )
         .addField(
           (_: FullNameSource).lastName,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          ""
         )
         .build
 
@@ -1429,7 +1434,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .joinFields(
           (t: FullNameTarget) => t.fullName,
           Seq((s: FullNameSource) => s.firstName, (s: FullNameSource) => s.lastName),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("combined")))
+          "combined"
         )
         .build
 
@@ -1444,7 +1449,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .splitField(
           (s: FullNameTarget) => s.fullName,
           Seq((t: FullNameSource) => t.firstName, (t: FullNameSource) => t.lastName),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("split")))
+          "split"
         )
         .build
 
@@ -1466,7 +1471,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         object Target { implicit val schema: Schema[Target] = Schema.derived }
 
         MigrationBuilder.newBuilder[Source, Target]
-          .addField((_: Target).combined, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default"))))
+          .addField((_: Target).combined, "default")
           .build
       """)
 
@@ -1485,7 +1490,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         object Target { implicit val schema: Schema[Target] = Schema.derived }
 
         MigrationBuilder.newBuilder[Source, Target]
-          .dropField((_: Source).combined, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default"))))
+          .dropField((_: Source).combined, "default")
           .build
       """)
 
@@ -1505,7 +1510,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = MigrationBuilder
         .newBuilder[WithOptionSrc, WithOptionTgt]
-        .addField((_: WithOptionTgt).extra, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .addField((_: WithOptionTgt).extra, 0)
         .build
 
       val result = migration(WithOptionSrc("test", Some("value")))
@@ -1520,7 +1525,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = MigrationBuilder
         .newBuilder[WithListSrc, WithListTgt]
-        .addField((_: WithListTgt).count, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .addField((_: WithListTgt).count, 0)
         .build
 
       val result = migration(WithListSrc("test", List("a", "b")))
@@ -1537,7 +1542,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[WithSetSrc, WithSetTgt]
         .addField(
           (_: WithSetTgt).active,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+          true
         )
         .build
 
@@ -1553,7 +1558,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = MigrationBuilder
         .newBuilder[WithMapSrc, WithMapTgt]
-        .addField((_: WithMapTgt).version, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(1L))))
+        .addField((_: WithMapTgt).version, 1L)
         .build
 
       val result = migration(WithMapSrc("test", Map("a" -> 1)))
@@ -1568,7 +1573,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = MigrationBuilder
         .newBuilder[WithVectorSrc, WithVectorTgt]
-        .addField((_: WithVectorTgt).sum, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0))))
+        .addField((_: WithVectorTgt).sum, 0.0)
         .build
 
       val result = migration(WithVectorSrc("test", Vector(1.0, 2.0)))
@@ -1586,7 +1591,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = MigrationBuilder
         .newBuilder[OuterSrc, OuterTgt]
-        .addField((_: OuterTgt).extra, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false))))
+        .addField((_: OuterTgt).extra, false)
         .build
 
       val result = migration(OuterSrc("test", Some(Inner(1, "hello"))))
@@ -1604,7 +1609,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
 
       val migration = MigrationBuilder
         .newBuilder[ContainerSrc, ContainerTgt]
-        .addField((_: ContainerTgt).count, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        .addField((_: ContainerTgt).count, 0)
         .build
 
       val result = migration(ContainerSrc(List(Item(1, "a"), Item(2, "b"))))
@@ -1621,7 +1626,7 @@ object CompileTimeValidationSpec extends ZIOSpecDefault {
         .newBuilder[DeepContainerSrc, DeepContainerTgt]
         .addField(
           (_: DeepContainerTgt).meta,
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          ""
         )
         .build
 

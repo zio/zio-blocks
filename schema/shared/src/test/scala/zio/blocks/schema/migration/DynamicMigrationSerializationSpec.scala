@@ -27,6 +27,57 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
   private val dynField  = DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x"))
 
   def spec = suite("DynamicMigrationSerializationSpec")(
+    // ---- Bare literal implicit conversions ----
+    suite("bare literal syntax")(
+      test("Int literal converts to Literal") {
+        val expr: DynamicSchemaExpr = 42
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.int(42)))
+      },
+      test("Long literal converts to Literal") {
+        val expr: DynamicSchemaExpr = 99L
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.long(99L)))
+      },
+      test("Double literal converts to Literal") {
+        val expr: DynamicSchemaExpr = 3.14
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.double(3.14)))
+      },
+      test("Float literal converts to Literal") {
+        val expr: DynamicSchemaExpr = 1.5f
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.float(1.5f)))
+      },
+      test("Short literal converts to Literal") {
+        val expr: DynamicSchemaExpr = (7: Short)
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.short(7)))
+      },
+      test("Byte literal converts to Literal") {
+        val expr: DynamicSchemaExpr = (3: Byte)
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.byte(3)))
+      },
+      test("String literal converts to Literal") {
+        val expr: DynamicSchemaExpr = "hello"
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.string("hello")))
+      },
+      test("Boolean literal converts to Literal") {
+        val expr: DynamicSchemaExpr = true
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.boolean(true)))
+      },
+      test("Char literal converts to Literal") {
+        val expr: DynamicSchemaExpr = 'x'
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.char('x')))
+      },
+      test("BigInt converts to Literal") {
+        val expr: DynamicSchemaExpr = BigInt(123)
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.bigInt(BigInt(123))))
+      },
+      test("BigDecimal converts to Literal") {
+        val expr: DynamicSchemaExpr = BigDecimal("9.99")
+        assertTrue(expr == DynamicSchemaExpr.Literal(DynamicValue.bigDecimal(BigDecimal("9.99"))))
+      },
+      test("bare literal round-trips through serialization") {
+        val expr: DynamicSchemaExpr = 42
+        roundTrip(expr)
+      }
+    ),
     // ---- Operator enums ----
     suite("ArithmeticOperator round-trip")(
       test("Add")(roundTrip(DynamicSchemaExpr.ArithmeticOperator.Add: DynamicSchemaExpr.ArithmeticOperator)),
@@ -108,7 +159,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
         val expr: DynamicSchemaExpr = DynamicSchemaExpr.StringConcat(
           DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("first")),
           DynamicSchemaExpr.StringConcat(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+            " ",
             DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("last"))
           )
         )
@@ -135,7 +186,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
       },
       test("StringRegexMatch") {
         val expr: DynamicSchemaExpr = DynamicSchemaExpr.StringRegexMatch(
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("^\\d+$"))),
+          "^\\d+$",
           dynField
         )
         roundTrip(expr)
@@ -188,13 +239,13 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
         val expr: DynamicSchemaExpr = DynamicSchemaExpr.Arithmetic(
           DynamicSchemaExpr.Arithmetic(
             DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("a")),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            1,
             DynamicSchemaExpr.ArithmeticOperator.Add,
             DynamicSchemaExpr.NumericType.IntType
           ),
           DynamicSchemaExpr.Arithmetic(
             DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("b")),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+            2,
             DynamicSchemaExpr.ArithmeticOperator.Multiply,
             DynamicSchemaExpr.NumericType.IntType
           ),
@@ -206,7 +257,8 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
     ),
     // ---- MigrationAction variants ----
     suite("MigrationAction round-trip")(
-      test("AddField") {
+      test("AddField (old verbose notation)") {
+        // Intentionally kept in old notation to verify it still works
         val action: MigrationAction = MigrationAction.AddField(
           at = DynamicOptic.root.field("age"),
           default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
@@ -216,7 +268,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
       test("DropField") {
         val action: MigrationAction = MigrationAction.DropField(
           at = DynamicOptic.root.field("oldField"),
-          defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          defaultForReverse = ""
         )
         roundTrip(action)
       },
@@ -232,7 +284,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
           at = DynamicOptic.root.field("age"),
           transform = DynamicSchemaExpr.Arithmetic(
             DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            1,
             DynamicSchemaExpr.ArithmeticOperator.Add,
             DynamicSchemaExpr.NumericType.IntType
           )
@@ -249,14 +301,14 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
       test("Mandate") {
         val action: MigrationAction = MigrationAction.Mandate(
           at = DynamicOptic.root.field("name"),
-          default = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("Unknown")))
+          default = "Unknown"
         )
         roundTrip(action)
       },
       test("Optionalize") {
         val action: MigrationAction = MigrationAction.Optionalize(
           at = DynamicOptic.root.field("name"),
-          defaultForReverse = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          defaultForReverse = ""
         )
         roundTrip(action)
       },
@@ -270,7 +322,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
           combiner = DynamicSchemaExpr.StringConcat(
             DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
             DynamicSchemaExpr.StringConcat(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+              " ",
               DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
             )
           )
@@ -296,7 +348,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
           at = DynamicOptic.root.field("items"),
           transform = DynamicSchemaExpr.Arithmetic(
             DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+            10,
             DynamicSchemaExpr.ArithmeticOperator.Add,
             DynamicSchemaExpr.NumericType.IntType
           )
@@ -315,7 +367,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
           at = DynamicOptic.root.field("data"),
           transform = DynamicSchemaExpr.Arithmetic(
             DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(100))),
+            100,
             DynamicSchemaExpr.ArithmeticOperator.Add,
             DynamicSchemaExpr.NumericType.IntType
           )
@@ -373,21 +425,21 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("country"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+              "USA"
             ),
             MigrationAction.Rename(DynamicOptic.root.field("firstName"), "givenName"),
             MigrationAction.TransformValue(
               DynamicOptic.root.field("age"),
               DynamicSchemaExpr.Arithmetic(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+                1,
                 DynamicSchemaExpr.ArithmeticOperator.Add,
                 DynamicSchemaExpr.NumericType.IntType
               )
             ),
             MigrationAction.DropField(
               DynamicOptic.root.field("lastName"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+              ""
             )
           )
         )
@@ -405,7 +457,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
               combiner = DynamicSchemaExpr.StringConcat(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
                 DynamicSchemaExpr.StringConcat(
-                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
+                  " ",
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
                 )
               )
@@ -429,7 +481,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
                 MigrationAction.Rename(DynamicOptic.root.field("number"), "cardNumber"),
                 MigrationAction.AddField(
                   DynamicOptic.root.field("cvv"),
-                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+                  ""
                 )
               )
             )
@@ -444,7 +496,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("scores"),
               DynamicSchemaExpr.Arithmetic(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
+                10,
                 DynamicSchemaExpr.ArithmeticOperator.Multiply,
                 DynamicSchemaExpr.NumericType.IntType
               )
@@ -466,7 +518,7 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("age"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              0
             ),
             MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName")
           )

@@ -70,9 +70,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val person    = PersonV1("Alice", 30, Address("123 Main St", "NYC", "10001"))
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
-          .addField(
-            DynamicOptic.root.field("address").field("country"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("address").field("country"),
+              "USA"
+            )
           )
           .build
 
@@ -85,9 +87,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val employee  = EmployeeV1("Bob", Company("Acme Inc", Address("456 Oak Ave", "LA", "90001")))
         val migration = MigrationBuilder
           .newBuilder[EmployeeV1, EmployeeV2]
-          .addField(
-            DynamicOptic.root.field("company").field("address").field("country"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("company").field("address").field("country"),
+              "USA"
+            )
           )
           .build
 
@@ -100,9 +104,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val person    = PersonV1("Alice", 30, Address("123 Main St", "NYC", "10001"))
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
-          .addField(
-            DynamicOptic.root.field("nonexistent").field("street"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("nonexistent").field("street"),
+              "default"
+            )
           )
           .build
 
@@ -115,9 +121,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val person    = PersonV1("Alice", 30, Address("123 Main St", "NYC", "10001"))
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
-          .addField(
-            DynamicOptic.root.field("name").field("street"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("name").field("street"),
+              "default"
+            )
           )
           .build
 
@@ -137,7 +145,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("address").field("zip"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
+              "00000"
             )
           )
         )
@@ -155,7 +163,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("company").field("address").field("zip"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("00000")))
+              "00000"
             )
           )
         )
@@ -169,9 +177,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val person    = PersonV1("Alice", 30, Address("123 Main St", "NYC", "10001"))
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
-          .dropField(
-            DynamicOptic.root.field("address").field("nonexistent"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          .withAction(
+            MigrationAction.DropField(
+              DynamicOptic.root.field("address").field("nonexistent"),
+              "default"
+            )
           )
           .build
 
@@ -245,10 +255,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val person    = PersonV1("Alice", 30, Address("123 Main St", "nyc", "10001"))
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
-          .transformField(
-            DynamicOptic.root.field("address").field("city"),
-            DynamicSchemaExpr.StringUppercase(
-              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+          .withAction(
+            MigrationAction.TransformValue(
+              DynamicOptic.root.field("address").field("city"),
+              DynamicSchemaExpr.StringUppercase(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+              )
             )
           )
           .build
@@ -265,10 +277,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
         val employee  = EmployeeV1("Bob", Company("Acme Inc", Address("456 Oak Ave", "la", "90001")))
         val migration = MigrationBuilder
           .newBuilder[EmployeeV1, EmployeeV2]
-          .transformField(
-            DynamicOptic.root.field("company").field("address").field("city"),
-            DynamicSchemaExpr.StringUppercase(
-              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+          .withAction(
+            MigrationAction.TransformValue(
+              DynamicOptic.root.field("company").field("address").field("city"),
+              DynamicSchemaExpr.StringUppercase(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+              )
             )
           )
           .build
@@ -392,7 +406,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root.field("address").field("apartment"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("N/A")))
+              "N/A"
             )
           )
         )
@@ -425,7 +439,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root.field("address").field("apartment"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("N/A")))
+              "N/A"
             )
           )
         )
@@ -459,7 +473,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Optionalize(
               DynamicOptic.root.field("address").field("zip"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+              ""
             )
           )
         )
@@ -492,7 +506,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Optionalize(
               DynamicOptic.root.field("company").field("address").field("zip"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+              ""
             )
           )
         )
@@ -541,7 +555,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               DynamicSchemaExpr.StringConcat(
                 DynamicSchemaExpr.StringConcat(
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
-                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(", ")))
+                  ", "
                 ),
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
               )
@@ -582,7 +596,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               DynamicSchemaExpr.StringConcat(
                 DynamicSchemaExpr.StringConcat(
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
-                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(", ")))
+                  ", "
                 ),
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
               )
@@ -715,13 +729,15 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[CompanyWithDept, CompanyWithDept]
-          .transformElements(
-            DynamicOptic.root.field("department").field("employeeIds"),
-            DynamicSchemaExpr.Arithmetic(
-              DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
-              DynamicSchemaExpr.ArithmeticOperator.Multiply,
-              DynamicSchemaExpr.NumericType.IntType
+          .withAction(
+            MigrationAction.TransformElements(
+              DynamicOptic.root.field("department").field("employeeIds"),
+              DynamicSchemaExpr.Arithmetic(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+                10,
+                DynamicSchemaExpr.ArithmeticOperator.Multiply,
+                DynamicSchemaExpr.NumericType.IntType
+              )
             )
           )
           .build
@@ -744,10 +760,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[PersonWithMetadata, PersonWithMetadata]
-          .transformKeys(
-            DynamicOptic.root.field("address").field("metadata"),
-            DynamicSchemaExpr.StringUppercase(
-              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+          .withAction(
+            MigrationAction.TransformKeys(
+              DynamicOptic.root.field("address").field("metadata"),
+              DynamicSchemaExpr.StringUppercase(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+              )
             )
           )
           .build
@@ -773,10 +791,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[PersonWithMetadata, PersonWithMetadata]
-          .transformValues(
-            DynamicOptic.root.field("address").field("metadata"),
-            DynamicSchemaExpr.StringUppercase(
-              DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+          .withAction(
+            MigrationAction.TransformValues(
+              DynamicOptic.root.field("address").field("metadata"),
+              DynamicSchemaExpr.StringUppercase(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root)
+              )
             )
           )
           .build
@@ -833,10 +853,12 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[PersonWithAddressType, PersonWithAddressType]
-          .transformCase(
-            DynamicOptic.root.field("address").field("addressType"),
-            "Work",
-            Vector.empty // No nested transformations for simple case objects
+          .withAction(
+            MigrationAction.TransformCase(
+              DynamicOptic.root.field("address").field("addressType"),
+              "Work",
+              Vector.empty // No nested transformations for simple case objects
+            )
           )
           .build
 
@@ -858,7 +880,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("address").field("country"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+              "USA"
             ),
             MigrationAction.Rename(
               DynamicOptic.root.field("address").field("street"),
@@ -927,9 +949,11 @@ object NestedFieldSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
-          .addField(
-            DynamicOptic.root.field("address").field("city").field("street"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("address").field("city").field("street"),
+              "default"
+            )
           )
           .build
 
@@ -951,7 +975,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("address").field("country"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+              "USA"
             )
           )
         )

@@ -4,6 +4,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
+import scala.language.implicitConversions
 
 /**
  * A type-parameter-free expression ADT that operates on `DynamicValue`.
@@ -27,6 +28,19 @@ sealed trait DynamicSchemaExpr {
 }
 
 object DynamicSchemaExpr {
+
+  // Bare literal syntax — allows writing `0` instead of `Literal(DynamicValue.int(0))`
+  implicit def fromInt(value: Int): DynamicSchemaExpr               = Literal(DynamicValue.int(value))
+  implicit def fromLong(value: Long): DynamicSchemaExpr             = Literal(DynamicValue.long(value))
+  implicit def fromDouble(value: Double): DynamicSchemaExpr         = Literal(DynamicValue.double(value))
+  implicit def fromFloat(value: Float): DynamicSchemaExpr           = Literal(DynamicValue.float(value))
+  implicit def fromShort(value: Short): DynamicSchemaExpr           = Literal(DynamicValue.short(value))
+  implicit def fromByte(value: Byte): DynamicSchemaExpr             = Literal(DynamicValue.byte(value))
+  implicit def fromString(value: String): DynamicSchemaExpr         = Literal(DynamicValue.string(value))
+  implicit def fromBoolean(value: Boolean): DynamicSchemaExpr       = Literal(DynamicValue.boolean(value))
+  implicit def fromChar(value: Char): DynamicSchemaExpr             = Literal(DynamicValue.char(value))
+  implicit def fromBigInt(value: BigInt): DynamicSchemaExpr         = Literal(DynamicValue.bigInt(value))
+  implicit def fromBigDecimal(value: BigDecimal): DynamicSchemaExpr = Literal(DynamicValue.bigDecimal(value))
 
   /**
    * Represents the schema-defined default value for a field. The value is

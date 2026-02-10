@@ -27,7 +27,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
         // Transform: add 1 to each element
         val addOne = DynamicSchemaExpr.Arithmetic(
           DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          1,
           DynamicSchemaExpr.ArithmeticOperator.Add,
           DynamicSchemaExpr.NumericType.IntType
         )
@@ -84,7 +84,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformElements(
           at = DynamicOptic.root,
-          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          transform = 0
         )
 
         val result = action.execute(emptySequence)
@@ -106,7 +106,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val multiplyByTwo = DynamicSchemaExpr.Arithmetic(
           DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+          2,
           DynamicSchemaExpr.ArithmeticOperator.Multiply,
           DynamicSchemaExpr.NumericType.IntType
         )
@@ -159,7 +159,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformElements(
           at = DynamicOptic.root,
-          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          transform = 0
         )
 
         val result = action.execute(notASequence)
@@ -214,7 +214,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformKeys(
           at = DynamicOptic.root,
-          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          transform = "key"
         )
 
         val result = action.execute(emptyMap)
@@ -266,7 +266,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformKeys(
           at = DynamicOptic.root,
-          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+          transform = "key"
         )
 
         val result = action.execute(notAMap)
@@ -292,7 +292,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val addOne = DynamicSchemaExpr.Arithmetic(
           DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          1,
           DynamicSchemaExpr.ArithmeticOperator.Add,
           DynamicSchemaExpr.NumericType.IntType
         )
@@ -364,7 +364,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformValues(
           at = DynamicOptic.root,
-          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          transform = 0
         )
 
         val result = action.execute(emptyMap)
@@ -391,7 +391,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val addBonus = DynamicSchemaExpr.Arithmetic(
           DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
+          5,
           DynamicSchemaExpr.ArithmeticOperator.Add,
           DynamicSchemaExpr.NumericType.IntType
         )
@@ -427,7 +427,7 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
 
         val action = MigrationAction.TransformValues(
           at = DynamicOptic.root,
-          transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          transform = 0
         )
 
         val result = action.execute(notAMap)
@@ -437,19 +437,19 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
     ),
     suite("Reverse operations")(
       test("TransformElements.reverse of irreversible transform returns Irreversible") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        val transform = 0
         val action    = MigrationAction.TransformElements(DynamicOptic.root, transform)
 
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
       test("TransformKeys.reverse of irreversible transform returns Irreversible") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("key")))
+        val transform = "key"
         val action    = MigrationAction.TransformKeys(DynamicOptic.root, transform)
 
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
       test("TransformValues.reverse of irreversible transform returns Irreversible") {
-        val transform = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        val transform = 0
         val action    = MigrationAction.TransformValues(DynamicOptic.root, transform)
 
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])

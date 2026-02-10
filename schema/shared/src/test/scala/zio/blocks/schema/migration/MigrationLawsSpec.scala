@@ -96,23 +96,27 @@ object MigrationLawsSpec extends ZIOSpecDefault {
 
     MigrationBuilder
       .newBuilder[PersonV1, PersonV2]
-      .joinFields(
-        DynamicOptic.root.field("fullName"),
-        Vector(
-          DynamicOptic.root.field("firstName"),
-          DynamicOptic.root.field("lastName")
-        ),
-        DynamicSchemaExpr.StringConcat(
-          DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+      .withAction(
+        MigrationAction.Join(
+          DynamicOptic.root.field("fullName"),
+          Vector(
+            DynamicOptic.root.field("firstName"),
+            DynamicOptic.root.field("lastName")
+          ),
           DynamicSchemaExpr.StringConcat(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" "))),
-            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+            DynamicSchemaExpr.StringConcat(
+              " ",
+              DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
+            )
           )
         )
       )
-      .addField(
-        DynamicOptic.root.field("country"),
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+      .withAction(
+        MigrationAction.AddField(
+          DynamicOptic.root.field("country"),
+          "USA"
+        )
       )
       .buildPartial
 
@@ -121,13 +125,15 @@ object MigrationLawsSpec extends ZIOSpecDefault {
 
     MigrationBuilder
       .newBuilder[CompanyV1, CompanyV2]
-      .renameField(DynamicOptic.root.field("name"), "companyName")
-      .renameField(DynamicOptic.root.field("address"), "location")
-      .renameField(DynamicOptic.root.field("employees"), "staff")
-      .renameField(DynamicOptic.root.field("revenue"), "annualRevenue")
-      .addField(
-        DynamicOptic.root.field("country"),
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+      .withAction(MigrationAction.Rename(DynamicOptic.root.field("name"), "companyName"))
+      .withAction(MigrationAction.Rename(DynamicOptic.root.field("address"), "location"))
+      .withAction(MigrationAction.Rename(DynamicOptic.root.field("employees"), "staff"))
+      .withAction(MigrationAction.Rename(DynamicOptic.root.field("revenue"), "annualRevenue"))
+      .withAction(
+        MigrationAction.AddField(
+          DynamicOptic.root.field("country"),
+          "USA"
+        )
       )
       .buildPartial
 
@@ -138,9 +144,11 @@ object MigrationLawsSpec extends ZIOSpecDefault {
   ): Migration[A, B] =
     MigrationBuilder
       .newBuilder[A, B]
-      .addField(
-        DynamicOptic.root.field("newField"),
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+      .withAction(
+        MigrationAction.AddField(
+          DynamicOptic.root.field("newField"),
+          0
+        )
       )
       .buildPartial
 
@@ -151,9 +159,11 @@ object MigrationLawsSpec extends ZIOSpecDefault {
   ): Migration[A, B] =
     MigrationBuilder
       .newBuilder[A, B]
-      .dropField(
-        DynamicOptic.root.field("oldField"),
-        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+      .withAction(
+        MigrationAction.DropField(
+          DynamicOptic.root.field("oldField"),
+          0
+        )
       )
       .buildPartial
 
@@ -201,25 +211,31 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         // Create three simple migrations
         val m1 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("temp1"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("temp1"),
+              1
+            )
           )
           .build
 
         val m2 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("temp2"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("temp2"),
+              2
+            )
           )
           .build
 
         val m3 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("temp3"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("temp3"),
+              3
+            )
           )
           .build
 
@@ -235,39 +251,45 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         check(genPersonV1) { person =>
           val m1 = MigrationBuilder
             .newBuilder[PersonV1, PersonV1]
-            .transformField(
-              DynamicOptic.root.field("age"),
-              DynamicSchemaExpr.Arithmetic(
-                DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
-                DynamicSchemaExpr.ArithmeticOperator.Add,
-                DynamicSchemaExpr.NumericType.IntType
+            .withAction(
+              MigrationAction.TransformValue(
+                DynamicOptic.root.field("age"),
+                DynamicSchemaExpr.Arithmetic(
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+                  1,
+                  DynamicSchemaExpr.ArithmeticOperator.Add,
+                  DynamicSchemaExpr.NumericType.IntType
+                )
               )
             )
             .build
 
           val m2 = MigrationBuilder
             .newBuilder[PersonV1, PersonV1]
-            .transformField(
-              DynamicOptic.root.field("age"),
-              DynamicSchemaExpr.Arithmetic(
-                DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
-                DynamicSchemaExpr.ArithmeticOperator.Multiply,
-                DynamicSchemaExpr.NumericType.IntType
+            .withAction(
+              MigrationAction.TransformValue(
+                DynamicOptic.root.field("age"),
+                DynamicSchemaExpr.Arithmetic(
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+                  2,
+                  DynamicSchemaExpr.ArithmeticOperator.Multiply,
+                  DynamicSchemaExpr.NumericType.IntType
+                )
               )
             )
             .build
 
           val m3 = MigrationBuilder
             .newBuilder[PersonV1, PersonV1]
-            .transformField(
-              DynamicOptic.root.field("age"),
-              DynamicSchemaExpr.Arithmetic(
-                DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5))),
-                DynamicSchemaExpr.ArithmeticOperator.Subtract,
-                DynamicSchemaExpr.NumericType.IntType
+            .withAction(
+              MigrationAction.TransformValue(
+                DynamicOptic.root.field("age"),
+                DynamicSchemaExpr.Arithmetic(
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root),
+                  5,
+                  DynamicSchemaExpr.ArithmeticOperator.Subtract,
+                  DynamicSchemaExpr.NumericType.IntType
+                )
               )
             )
             .build
@@ -287,9 +309,11 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("m.reverse.reverse == m - simple addField") {
         val m = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("newField"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("newField"),
+              42
+            )
           )
           .build
 
@@ -302,9 +326,11 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("m.reverse.reverse == m - simple dropField") {
         val m = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .dropField(
-            DynamicOptic.root.field("oldField"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          .withAction(
+            MigrationAction.DropField(
+              DynamicOptic.root.field("oldField"),
+              0
+            )
           )
           .build
 
@@ -317,9 +343,11 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("m.reverse.reverse == m - rename field") {
         val m = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .renameField(
-            DynamicOptic.root.field("oldName"),
-            "newName"
+          .withAction(
+            MigrationAction.Rename(
+              DynamicOptic.root.field("oldName"),
+              "newName"
+            )
           )
           .build
 
@@ -332,17 +360,23 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("m.reverse.reverse == m - complex migration") {
         val m = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("field1"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("field1"),
+              1
+            )
           )
-          .renameField(
-            DynamicOptic.root.field("firstName"),
-            "givenName"
+          .withAction(
+            MigrationAction.Rename(
+              DynamicOptic.root.field("firstName"),
+              "givenName"
+            )
           )
-          .dropField(
-            DynamicOptic.root.field("field2"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          .withAction(
+            MigrationAction.DropField(
+              DynamicOptic.root.field("field2"),
+              2
+            )
           )
           .build
 
@@ -355,17 +389,23 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("m.reverse flips action order") {
         val m = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("field1"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("field1"),
+              1
+            )
           )
-          .addField(
-            DynamicOptic.root.field("field2"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("field2"),
+              2
+            )
           )
-          .addField(
-            DynamicOptic.root.field("field3"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("field3"),
+              3
+            )
           )
           .build
 
@@ -384,10 +424,10 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         val m: Migration[CompanyV1, CompanyV1Renamed] =
           MigrationBuilder
             .newBuilder[CompanyV1, CompanyV1Renamed]
-            .renameField(DynamicOptic.root.field("name"), "companyName")
-            .renameField(DynamicOptic.root.field("address"), "location")
-            .renameField(DynamicOptic.root.field("employees"), "staff")
-            .renameField(DynamicOptic.root.field("revenue"), "annualRevenue")
+            .withAction(MigrationAction.Rename(DynamicOptic.root.field("name"), "companyName"))
+            .withAction(MigrationAction.Rename(DynamicOptic.root.field("address"), "location"))
+            .withAction(MigrationAction.Rename(DynamicOptic.root.field("employees"), "staff"))
+            .withAction(MigrationAction.Rename(DynamicOptic.root.field("revenue"), "annualRevenue"))
             .buildPartial
 
         check(genCompanyV1) { company =>
@@ -443,7 +483,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.AddField(
               DynamicOptic.root.field("country"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("USA")))
+              "USA"
             )
           )
         )
@@ -476,7 +516,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root,
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+              0
             )
           )
         )
@@ -515,7 +555,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("lastName"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+              ""
             )
           )
         )
@@ -546,7 +586,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("address").field("zipCode"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+              ""
             )
           )
         )
@@ -578,7 +618,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("age"),
               DynamicSchemaExpr.Arithmetic(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root),
-                DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+                1,
                 DynamicSchemaExpr.ArithmeticOperator.Add,
                 DynamicSchemaExpr.NumericType.IntType
               )
@@ -693,7 +733,9 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.DropField(
               DynamicOptic.root.field("middleName"),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(""))) // Default for reverse
+              DynamicSchemaExpr.Literal(
+                DynamicValue.Primitive(PrimitiveValue.String(""))
+              ) // Intentionally kept in old notation
             )
           )
         )
@@ -775,7 +817,9 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           Vector(
             MigrationAction.Mandate(
               DynamicOptic.root,
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(99))) // Default for None
+              DynamicSchemaExpr.Literal(
+                DynamicValue.Primitive(PrimitiveValue.Int(99))
+              ) // Intentionally kept in old notation
             )
           )
         )
@@ -880,7 +924,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
               DynamicSchemaExpr.StringConcat(
                 DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
                 DynamicSchemaExpr.StringConcat(
-                  DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("  "))), // Double space!
+                  "  ", // Double space!
                   DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
                 )
               )
@@ -977,17 +1021,21 @@ object MigrationLawsSpec extends ZIOSpecDefault {
       test("reverse distributes over composition: (m1 ++ m2).reverse == m2.reverse ++ m1.reverse") {
         val m1 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("field1"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("field1"),
+              1
+            )
           )
           .build
 
         val m2 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .addField(
-            DynamicOptic.root.field("field2"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("field2"),
+              2
+            )
           )
           .build
 

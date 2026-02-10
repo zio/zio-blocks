@@ -571,7 +571,7 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     '{
       $builder
-        .addField($optic, $default)
+        .withAction(MigrationAction.AddField($optic, $default))
         .asInstanceOf[MigrationBuilder[A, B, Handled, Tuple.Append[Provided, FieldPath]]]
     }
   }
@@ -598,7 +598,7 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     '{
       $builder
-        .dropField($optic, $defaultForReverse)
+        .withAction(MigrationAction.DropField($optic, $defaultForReverse))
         .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Provided]]
     }
   }
@@ -632,7 +632,7 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     '{
       $builder
-        .renameField($fromOptic, $toFieldName)
+        .withAction(MigrationAction.Rename($fromOptic, $toFieldName))
         .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]]]
     }
   }
@@ -653,7 +653,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
     dualTrackingFieldOpImpl[A, B, Handled, Provided, FieldPath](builder, at) { (b, o) =>
-      '{ $b.transformField($o, $transform) }
+      '{ $b.withAction(MigrationAction.TransformValue($o, $transform)) }
     }
 
   def mandateFieldImpl[
@@ -670,7 +670,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
     dualTrackingFieldOpImpl[A, B, Handled, Provided, FieldPath](builder, at) { (b, o) =>
-      '{ $b.mandateField($o, $default) }
+      '{ $b.withAction(MigrationAction.Mandate($o, $default)) }
     }
 
   def optionalizeFieldImpl[
@@ -687,7 +687,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
     dualTrackingFieldOpImpl[A, B, Handled, Provided, FieldPath](builder, at) { (b, o) =>
-      '{ $b.optionalizeField($o, $defaultForReverse) }
+      '{ $b.withAction(MigrationAction.Optionalize($o, $defaultForReverse)) }
     }
 
   def changeFieldTypeImpl[
@@ -704,7 +704,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     q: Quotes
   ): Expr[MigrationBuilder[A, B, Tuple.Append[Handled, FieldPath], Tuple.Append[Provided, FieldPath]]] =
     dualTrackingFieldOpImpl[A, B, Handled, Provided, FieldPath](builder, at) { (b, o) =>
-      '{ $b.changeFieldType($o, $converter) }
+      '{ $b.withAction(MigrationAction.ChangeType($o, $converter)) }
     }
 
   // Multi-field operations (joinFields, splitField)
@@ -765,7 +765,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       case '[MigrationBuilder[A, B, h, p]] =>
         '{
           $builder
-            .joinFields($targetOptic, $sourceOptics, $combiner)
+            .withAction(MigrationAction.Join($targetOptic, $sourceOptics, $combiner))
             .asInstanceOf[MigrationBuilder[A, B, h & Tuple, p & Tuple]]
         }
     }
@@ -827,7 +827,7 @@ private[migration] object MigrationBuilderMacrosImpl {
       case '[MigrationBuilder[A, B, h, p]] =>
         '{
           $builder
-            .splitField($sourceOptic, $targetOptics, $splitter)
+            .withAction(MigrationAction.Split($sourceOptic, $targetOptics, $splitter))
             .asInstanceOf[MigrationBuilder[A, B, h & Tuple, p & Tuple]]
         }
     }
@@ -840,21 +840,21 @@ private[migration] object MigrationBuilderMacrosImpl {
     at: Expr[A => Any],
     transform: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
-    passthroughOpImpl(builder, at)((b, o) => '{ $b.transformElements($o, $transform) })
+    passthroughOpImpl(builder, at)((b, o) => '{ $b.withAction(MigrationAction.TransformElements($o, $transform)) })
 
   def transformKeysImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     transform: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
-    passthroughOpImpl(builder, at)((b, o) => '{ $b.transformKeys($o, $transform) })
+    passthroughOpImpl(builder, at)((b, o) => '{ $b.withAction(MigrationAction.TransformKeys($o, $transform)) })
 
   def transformValuesImpl[A: Type, B: Type, Handled <: Tuple: Type, Provided <: Tuple: Type](
     builder: Expr[MigrationBuilder[A, B, Handled, Provided]],
     at: Expr[A => Any],
     transform: Expr[DynamicSchemaExpr]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, Handled, Provided]] =
-    passthroughOpImpl(builder, at)((b, o) => '{ $b.transformValues($o, $transform) })
+    passthroughOpImpl(builder, at)((b, o) => '{ $b.withAction(MigrationAction.TransformValues($o, $transform)) })
 
   // Case operations (renameCase, transformCase)
 
@@ -896,7 +896,7 @@ private[migration] object MigrationBuilderMacrosImpl {
 
     '{
       $builder
-        .renameCase($fromOptic, $fromCaseName, $to)
+        .withAction(MigrationAction.RenameCase($fromOptic, $fromCaseName, $to))
         .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, FromPath], Tuple.Append[Provided, ToPath]]]
     }
   }
@@ -931,7 +931,7 @@ private[migration] object MigrationBuilderMacrosImpl {
         MigrationBuilder(sourceSchema, sourceSchema, Vector.empty)
       val transformedBuilder = $nestedActions.apply(emptyBuilder)
       $builder
-        .transformCase($atOptic, $caseName, transformedBuilder.actions)
+        .withAction(MigrationAction.TransformCase($atOptic, $caseName, transformedBuilder.actions))
         .asInstanceOf[MigrationBuilder[A, B, Tuple.Append[Handled, CasePath], Tuple.Append[Provided, CasePath]]]
     }
   }

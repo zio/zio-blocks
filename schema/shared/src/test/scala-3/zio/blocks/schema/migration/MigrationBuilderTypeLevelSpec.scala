@@ -82,9 +82,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("dropField - adds field name to Handled")(
       test("dropField with DynamicOptic preserves type parameters") {
         val builder   = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterDrop = builder.dropField(
-          DynamicOptic.root.field("city"),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+        val afterDrop = builder.withAction(
+          MigrationAction.DropField(
+            DynamicOptic.root.field("city"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
         )
 
         assertTrue(afterDrop.actions.size == 1)
@@ -112,9 +114,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("addField - adds field name to Provided")(
       test("addField with DynamicOptic") {
         val builder  = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterAdd = builder.addField(
-          DynamicOptic.root.field("location"),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("unknown")))
+        val afterAdd = builder.withAction(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("location"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("unknown")))
+          )
         )
 
         assertTrue(afterAdd.actions.size == 1)
@@ -174,9 +178,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("transformField - adds field name to both Handled and Provided")(
       test("transformField with DynamicOptic") {
         val builder        = MigrationBuilder.newBuilder[PersonV1, PersonV1]
-        val afterTransform = builder.transformField(
-          DynamicOptic.root.field("age"),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        val afterTransform = builder.withAction(
+          MigrationAction.TransformValue(
+            DynamicOptic.root.field("age"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          )
         )
 
         assertTrue(afterTransform.actions.size == 1)
@@ -195,9 +201,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("mandateField - unwrap Option, adds to both Handled and Provided")(
       test("mandateField with DynamicOptic") {
         val builder      = MigrationBuilder.newBuilder[WithOption, WithoutOption]
-        val afterMandate = builder.mandateField(
-          DynamicOptic.root.field("name"),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+        val afterMandate = builder.withAction(
+          MigrationAction.Mandate(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
         )
 
         assertTrue(afterMandate.actions.size == 1)
@@ -245,9 +253,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("optionalizeField - wrap in Option, adds to both Handled and Provided")(
       test("optionalizeField with DynamicOptic") {
         val builder          = MigrationBuilder.newBuilder[WithoutOption, WithOption]
-        val afterOptionalize = builder.optionalizeField(
-          DynamicOptic.root.field("name"),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+        val afterOptionalize = builder.withAction(
+          MigrationAction.Optionalize(
+            DynamicOptic.root.field("name"),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+          )
         )
 
         assertTrue(afterOptionalize.actions.size == 1)
@@ -281,9 +291,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("changeFieldType - adds field name to both Handled and Provided")(
       test("changeFieldType with DynamicOptic") {
         val builder     = MigrationBuilder.newBuilder[WithString, WithInt]
-        val afterChange = builder.changeFieldType(
-          DynamicOptic.root.field("value"),
-          PrimitiveConverter.StringToInt
+        val afterChange = builder.withAction(
+          MigrationAction.ChangeType(
+            DynamicOptic.root.field("value"),
+            PrimitiveConverter.StringToInt
+          )
         )
 
         assertTrue(afterChange.actions.size == 1)
@@ -303,10 +315,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("joinFields - adds target to Provided")(
       test("joinFields with DynamicOptic") {
         val builder   = MigrationBuilder.newBuilder[FullName, CombinedName]
-        val afterJoin = builder.joinFields(
-          DynamicOptic.root.field("fullName"),
-          Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+        val afterJoin = builder.withAction(
+          MigrationAction.Join(
+            DynamicOptic.root.field("fullName"),
+            Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          )
         )
 
         assertTrue(afterJoin.actions.size == 1)
@@ -326,10 +340,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     suite("splitField - adds source to Handled")(
       test("splitField with DynamicOptic") {
         val builder    = MigrationBuilder.newBuilder[CombinedName, FullName]
-        val afterSplit = builder.splitField(
-          DynamicOptic.root.field("fullName"),
-          Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
-          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+        val afterSplit = builder.withAction(
+          MigrationAction.Split(
+            DynamicOptic.root.field("fullName"),
+            Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          )
         )
 
         assertTrue(afterSplit.actions.size == 1)
@@ -352,9 +368,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           MigrationBuilder.newBuilder[WithList, WithList]
 
         val afterTransform: MigrationBuilder[WithList, WithList, EmptyTuple, EmptyTuple] =
-          builder.transformElements(
-            DynamicOptic.root.field("items"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          builder.withAction(
+            MigrationAction.TransformElements(
+              DynamicOptic.root.field("items"),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            )
           )
 
         assertTrue(afterTransform.actions.size == 1)
@@ -375,9 +393,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           MigrationBuilder.newBuilder[WithMap, WithMap]
 
         val afterTransform: MigrationBuilder[WithMap, WithMap, EmptyTuple, EmptyTuple] =
-          builder.transformKeys(
-            DynamicOptic.root.field("data"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+          builder.withAction(
+            MigrationAction.TransformKeys(
+              DynamicOptic.root.field("data"),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("")))
+            )
           )
 
         assertTrue(afterTransform.actions.size == 1)
@@ -398,9 +418,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           MigrationBuilder.newBuilder[WithMap, WithMap]
 
         val afterTransform: MigrationBuilder[WithMap, WithMap, EmptyTuple, EmptyTuple] =
-          builder.transformValues(
-            DynamicOptic.root.field("data"),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+          builder.withAction(
+            MigrationAction.TransformValues(
+              DynamicOptic.root.field("data"),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            )
           )
 
         assertTrue(afterTransform.actions.size == 1)
@@ -421,10 +443,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           MigrationBuilder.newBuilder[WithStatus, WithStatus]
 
         val afterRename: MigrationBuilder[WithStatus, WithStatus, EmptyTuple, EmptyTuple] =
-          builder.renameCase(
-            DynamicOptic.root.field("status"),
-            "Active",
-            "Enabled"
+          builder.withAction(
+            MigrationAction.RenameCase(
+              DynamicOptic.root.field("status"),
+              "Active",
+              "Enabled"
+            )
           )
 
         assertTrue(afterRename.actions.size == 1)
@@ -436,10 +460,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           MigrationBuilder.newBuilder[WithStatus, WithStatus]
 
         val afterTransform: MigrationBuilder[WithStatus, WithStatus, EmptyTuple, EmptyTuple] =
-          builder.transformCase(
-            DynamicOptic.root.field("status"),
-            "Custom",
-            Vector.empty
+          builder.withAction(
+            MigrationAction.TransformCase(
+              DynamicOptic.root.field("status"),
+              "Custom",
+              Vector.empty
+            )
           )
 
         assertTrue(afterTransform.actions.size == 1)
@@ -505,7 +531,7 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
           .renameField(_.name, _.fullName)
           .renameField(_.city, _.location)
           .transformField(
-            DynamicOptic.root.field("age"),
+            _.age,
             DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
           )
 
