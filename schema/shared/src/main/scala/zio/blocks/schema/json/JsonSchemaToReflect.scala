@@ -68,7 +68,7 @@ private[schema] object JsonSchemaToReflect {
         val strings = values.collect { case Json.String(s) => s }
         if (strings.length == values.length) new Some(new Shape.Enum(strings))
         else None
-      case None => None
+      case _ => None
     }
 
   private[this] def analyzeOption(obj: JsonSchema.Object): Option[Shape] =

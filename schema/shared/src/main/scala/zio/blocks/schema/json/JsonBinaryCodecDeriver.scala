@@ -513,20 +513,13 @@ class JsonBinaryCodecDeriver private[json] (
                 infos
               }
 
-              def collectEnumNames(infos: Array[EnumInfo]): List[String] =
-                infos.toList.flatMap {
-                  case leaf: EnumLeafInfo    => List(leaf.enumName)
-                  case node: EnumNodeInfo[?] => collectEnumNames(node.enumInfos)
-                }
-
               val enumInfos = getInfos(variant)
 
-              val enumTypeName = variantTypeName
               new JsonBinaryCodec[A]() {
                 private[this] val root           = new EnumNodeInfo(discr, enumInfos)
                 private[this] val constructorMap = map
-                private[this] val enumNames      = collectEnumNames(enumInfos)
-                private[this] val typeName       = enumTypeName
+                private[this] val typeName       = variantTypeName
+                private[this] val enumNames      = collectEnumNames(enumInfos, new mutable.ListBuffer).result()
 
                 def decodeValue(in: JsonReader, default: A): A = {
                   val valueLen    = in.readStringAsCharBuf()
@@ -537,13 +530,28 @@ class JsonBinaryCodecDeriver private[json] (
 
                 def encodeValue(x: A, out: JsonWriter): Unit = root.discriminate(x).writeVal(out)
 
-                override def toJsonSchema: JsonSchema = enumNames match {
-                  case head :: tail =>
+                override def toJsonSchema: JsonSchema =
+                  if (enumNames ne Nil) {
                     new JsonSchema.Object(
-                      `enum` = new Some(new ::(new Json.String(head), tail.map(new Json.String(_)))),
+                      `enum` = new Some(enumNames.map(new Json.String(_)).asInstanceOf[::[Json]]),
                       title = new Some(typeName)
                     )
-                  case Nil => JsonSchema.string()
+                  } else JsonSchema.string()
+
+                private[this] def collectEnumNames(
+                  infos: Array[EnumInfo],
+                  acc: mutable.ListBuffer[String]
+                ): mutable.ListBuffer[String] = {
+                  val len = infos.length
+                  var idx = 0
+                  while (idx < len) {
+                    infos(idx) match {
+                      case leaf: EnumLeafInfo    => acc.addOne(leaf.enumName)
+                      case node: EnumNodeInfo[?] => collectEnumNames(node.enumInfos, acc)
+                    }
+                    idx += 1
+                  }
+                  acc
                 }
               }
             } else {
@@ -1812,8 +1820,13 @@ class JsonBinaryCodecDeriver private[json] (
             }
 
             override def toJsonSchema: JsonSchema = {
-              val schemas = fieldCodecs.map(_.toJsonSchema).toList
-              if (schemas.isEmpty) JsonSchema.array()
+              var schemas: List[JsonSchema] = Nil
+              var idx                       = fields.length
+              while ({
+                idx -= 1
+                idx >= 0
+              }) schemas = new ::(fieldCodecs(idx).toJsonSchema, schemas)
+              if (schemas eq Nil) JsonSchema.array()
               else {
                 JsonSchema.array(
                   prefixItems = new Some(schemas.asInstanceOf[::[JsonSchema]]),
@@ -1988,20 +2001,20 @@ class JsonBinaryCodecDeriver private[json] (
               } else in.skip()
 
             override def toJsonSchema: JsonSchema = {
+              val reqs    = Set.newBuilder[String]
               val len     = fieldInfos.length
               val names   = ChunkBuilder.make[String](len)
               val schemas = ChunkBuilder.make[JsonSchema](len)
-              val reqs    = Set.newBuilder[String]
               var idx     = 0
               while (idx < len) {
-                val fi = fieldInfos(idx)
+                val fieldInfo = fieldInfos(idx)
                 if (
-                  fi.nonTransient && {
-                    names.addOne(fi.getName)
-                    schemas.addOne(fi.getCodec.toJsonSchema)
-                    !fi.isOptional && !fi.isCollection && !fi.hasDefault
+                  fieldInfo.nonTransient && {
+                    names.addOne(fieldInfo.getName)
+                    schemas.addOne(fieldInfo.getCodec.toJsonSchema)
+                    !(fieldInfo.hasDefault || fieldInfo.isOptional || fieldInfo.isCollection)
                   }
-                ) reqs.addOne(fi.getName)
+                ) reqs.addOne(fieldInfo.getName)
                 idx += 1
               }
               val required = reqs.result()

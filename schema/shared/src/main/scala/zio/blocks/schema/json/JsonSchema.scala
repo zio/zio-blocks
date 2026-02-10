@@ -154,25 +154,25 @@ private[json] object FormatValidator {
       case _               => None // Unknown formats pass validation (annotation-only)
     }
 
-  private val dateTimePattern: Pattern =
+  private[this] val dateTimePattern: Pattern =
     Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$")
 
-  private val datePattern: Pattern =
+  private[this] val datePattern: Pattern =
     Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
 
-  private val timePattern: Pattern =
+  private[this] val timePattern: Pattern =
     Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})?$")
 
-  private val emailPattern: Pattern =
+  private[this] val emailPattern: Pattern =
     Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
 
-  private val uuidPattern: Pattern =
+  private[this] val uuidPattern: Pattern =
     Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
-  private val ipv4Pattern: Pattern =
+  private[this] val ipv4Pattern: Pattern =
     Pattern.compile("^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$")
 
-  private val ipv6Pattern: Pattern =
+  private[this] val ipv6Pattern: Pattern =
     Pattern.compile(
       "^(" +
         "([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +
@@ -190,27 +190,27 @@ private[json] object FormatValidator {
         ")$"
     )
 
-  private val hostnamePattern: Pattern =
+  private[this] val hostnamePattern: Pattern =
     Pattern.compile("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
-  private val durationPattern: Pattern =
+  private[this] val durationPattern: Pattern =
     Pattern.compile("^P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$")
 
-  private val jsonPointerPattern: Pattern =
+  private[this] val jsonPointerPattern: Pattern =
     Pattern.compile("^(/([^~/]|~0|~1)*)*$")
 
-  private def validateDateTime(value: String): Option[String] =
+  private[this] def validateDateTime(value: String): Option[String] =
     if (dateTimePattern.matcher(value).matches()) validateDateTimeSemantics(value)
     else new Some(s"String '$value' is not a valid date-time (RFC 3339)")
 
-  private def validateDateTimeSemantics(value: String): Option[String] =
+  private[this] def validateDateTimeSemantics(value: String): Option[String] =
     validateDateSemantics(value.substring(0, 10))
 
-  private def validateDate(value: String): Option[String] =
+  private[this] def validateDate(value: String): Option[String] =
     if (datePattern.matcher(value).matches()) validateDateSemantics(value)
     else new Some(s"String '$value' is not a valid date (RFC 3339)")
 
-  private def validateDateSemantics(value: String): Option[String] =
+  private[this] def validateDateSemantics(value: String): Option[String] =
     try {
       val year  = value.substring(0, 4).toInt
       val month = value.substring(5, 7).toInt
@@ -230,14 +230,14 @@ private[json] object FormatValidator {
       case _: NumberFormatException => new Some(s"String '$value' is not a valid date")
     }
 
-  private def isLeapYear(year: Int): scala.Boolean =
+  private[this] def isLeapYear(year: Int): scala.Boolean =
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 
-  private def validateTime(value: String): Option[String] =
+  private[this] def validateTime(value: String): Option[String] =
     if (timePattern.matcher(value).matches()) validateTimeSemantics(value)
     else new Some(s"String '$value' is not a valid time (RFC 3339)")
 
-  private def validateTimeSemantics(value: String): Option[String] =
+  private[this] def validateTimeSemantics(value: String): Option[String] =
     try {
       val hour   = value.substring(0, 2).toInt
       val minute = value.substring(3, 5).toInt
@@ -251,15 +251,15 @@ private[json] object FormatValidator {
       case _: NumberFormatException => new Some(s"String '$value' is not a valid time")
     }
 
-  private def validateEmail(value: String): Option[String] =
+  private[this] def validateEmail(value: String): Option[String] =
     if (emailPattern.matcher(value).matches() && value.length <= 254) None
     else new Some(s"String '$value' is not a valid email address")
 
-  private def validateUuid(value: String): Option[String] =
+  private[this] def validateUuid(value: String): Option[String] =
     if (uuidPattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid UUID (RFC 4122)")
 
-  private def validateUri(value: String): Option[String] =
+  private[this] def validateUri(value: String): Option[String] =
     try {
       val uri = new URI(value)
       if (uri.getScheme == null) new Some(s"String '$value' is not a valid URI (missing scheme)")
@@ -268,7 +268,7 @@ private[json] object FormatValidator {
       case e if NonFatal(e) => Some(s"String '$value' is not a valid URI: ${e.getMessage}")
     }
 
-  private def validateUriReference(value: String): Option[String] =
+  private[this] def validateUriReference(value: String): Option[String] =
     try {
       new URI(value)
       None
@@ -276,19 +276,19 @@ private[json] object FormatValidator {
       case e if NonFatal(e) => new Some(s"String '$value' is not a valid URI-reference: ${e.getMessage}")
     }
 
-  private def validateIpv4(value: String): Option[String] =
+  private[this] def validateIpv4(value: String): Option[String] =
     if (ipv4Pattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid IPv4 address")
 
-  private def validateIpv6(value: String): Option[String] =
+  private[this] def validateIpv6(value: String): Option[String] =
     if (ipv6Pattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid IPv6 address")
 
-  private def validateHostname(value: String): Option[String] =
+  private[this] def validateHostname(value: String): Option[String] =
     if (hostnamePattern.matcher(value).matches() && value.length <= 253) None
     else new Some(s"String '$value' is not a valid hostname (RFC 1123)")
 
-  private def validateRegex(value: String): Option[String] =
+  private[this] def validateRegex(value: String): Option[String] =
     try {
       Pattern.compile(value)
       None
@@ -296,11 +296,11 @@ private[json] object FormatValidator {
       case e: PatternSyntaxException => new Some(s"String '$value' is not a valid regex: ${e.getMessage}")
     }
 
-  private def validateDuration(value: String): Option[String] =
+  private[this] def validateDuration(value: String): Option[String] =
     if (durationPattern.matcher(value).matches() && value != "P" && value != "PT") None
     else new Some(s"String '$value' is not a valid ISO 8601 duration")
 
-  private def validateJsonPointer(value: String): Option[String] =
+  private[this] def validateJsonPointer(value: String): Option[String] =
     if (value.isEmpty || jsonPointerPattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid JSON Pointer (RFC 6901)")
 }
@@ -350,20 +350,16 @@ final case class EvaluationResult(
   def addError(trace: List[DynamicOptic.Node], message: String): EvaluationResult =
     copy(errors = SchemaError.expectationMismatch(trace, message).errors.head :: errors)
 
-  def addErrors(newErrors: List[SchemaError.Single]): EvaluationResult =
-    copy(errors = newErrors ++ errors)
+  def addErrors(newErrors: List[SchemaError.Single]): EvaluationResult = copy(errors = newErrors ++ errors)
 
-  def withEvaluatedProperty(prop: String): EvaluationResult =
-    copy(evaluatedProperties = evaluatedProperties + prop)
+  def withEvaluatedProperty(prop: String): EvaluationResult = copy(evaluatedProperties = evaluatedProperties + prop)
 
   def withEvaluatedProperties(props: Set[String]): EvaluationResult =
     copy(evaluatedProperties = evaluatedProperties ++ props)
 
-  def withEvaluatedItem(idx: Int): EvaluationResult =
-    copy(evaluatedItems = evaluatedItems + idx)
+  def withEvaluatedItem(idx: Int): EvaluationResult = copy(evaluatedItems = evaluatedItems + idx)
 
-  def withEvaluatedItems(indices: Set[Int]): EvaluationResult =
-    copy(evaluatedItems = evaluatedItems ++ indices)
+  def withEvaluatedItems(indices: Set[Int]): EvaluationResult = copy(evaluatedItems = evaluatedItems ++ indices)
 
   def toSchemaError: Option[SchemaError] =
     if (errors.isEmpty) None
@@ -401,7 +397,7 @@ object EvaluationResult {
  */
 sealed trait JsonSchema extends Product with Serializable {
 
-  override def toString: String = toJson.print(WriterConfig.withIndentionStep(2))
+  override def toString: String = toJson.print(WriterConfig.withIndentionStep2)
 
   /** Serialize this schema to its canonical JSON representation. */
   def toJson: Json
@@ -470,27 +466,29 @@ sealed trait JsonSchema extends Product with Serializable {
 
   /** Negate this schema. */
   def unary_! : JsonSchema = this match {
-    case JsonSchema.True  => JsonSchema.False
-    case JsonSchema.False => JsonSchema.True
-    case s                => JsonSchema.Object(not = Some(s))
+    case _: JsonSchema.True.type  => JsonSchema.False
+    case _: JsonSchema.False.type => JsonSchema.True
+    case s                        => new JsonSchema.Object(not = new Some(s))
   }
 
   /** Make this schema nullable (accepts null in addition to current types). */
   def withNullable: JsonSchema = this match {
-    case JsonSchema.True      => JsonSchema.True
-    case JsonSchema.False     => JsonSchema.ofType(JsonSchemaType.Null)
-    case s: JsonSchema.Object =>
+    case _: JsonSchema.True.type  => JsonSchema.True
+    case _: JsonSchema.False.type => JsonSchema.ofType(JsonSchemaType.Null)
+    case s: JsonSchema.Object     =>
       s.`type` match {
-        case Some(SchemaType.Single(t)) if t == JsonSchemaType.Null =>
-          s
-        case Some(SchemaType.Single(t)) =>
-          s.copy(`type` = Some(SchemaType.Union(new ::(JsonSchemaType.Null, t :: Nil))))
-        case Some(SchemaType.Union(ts)) if ts.contains(JsonSchemaType.Null) =>
-          s
-        case Some(SchemaType.Union(ts)) =>
-          s.copy(`type` = Some(SchemaType.Union(new ::(JsonSchemaType.Null, ts.toList))))
-        case None =>
-          JsonSchema.Object(anyOf = Some(new ::(JsonSchema.ofType(JsonSchemaType.Null), s :: Nil)))
+        case Some(st) =>
+          st match {
+            case st: SchemaType.Single =>
+              val t = st.value
+              if (t eq JsonSchemaType.Null) s
+              else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, t :: Nil))))
+            case ut: SchemaType.Union =>
+              val ts = ut.values
+              if (ts.contains(JsonSchemaType.Null)) s
+              else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, ts))))
+          }
+        case _ => new JsonSchema.Object(anyOf = new Some(new ::(JsonSchema.ofType(JsonSchemaType.Null), s :: Nil)))
       }
   }
 }
@@ -522,24 +520,22 @@ object JsonSchema {
 
   /** Parse a JsonSchema from its JSON representation. */
   def fromJson(json: Json): Either[SchemaError, JsonSchema] = json match {
-    case Json.Boolean(true)  => Right(True)
-    case Json.Boolean(false) => Right(False)
-    case obj: Json.Object    => parseObject(obj)
-    case other               =>
-      Left(
-        SchemaError.expectationMismatch(
-          Nil,
-          s"Expected boolean or object for JSON Schema, got ${other.getClass.getSimpleName}"
-        )
-      )
+    case bool: Json.Boolean =>
+      new Right({
+        if (bool.value) True
+        else False
+      })
+    case obj: Json.Object => parseObject(obj)
+    case other            =>
+      val msg = s"Expected JSON object or boolean, got ${other.getClass.getSimpleName}"
+      new Left(SchemaError.expectationMismatch(Nil, msg))
   }
 
   /** Parse a JsonSchema from a JSON string. */
-  def parse(jsonString: String): Either[SchemaError, JsonSchema] =
-    Json.parse(jsonString) match {
-      case Left(err)   => Left(SchemaError.expectationMismatch(Nil, err.message))
-      case Right(json) => fromJson(json)
-    }
+  def parse(jsonString: String): Either[SchemaError, JsonSchema] = Json.parse(jsonString) match {
+    case Right(json) => fromJson(json)
+    case l           => l.asInstanceOf[Either[SchemaError, JsonSchema]]
+  }
 
   // ===========================================================================
   // Boolean Schemas
@@ -547,15 +543,17 @@ object JsonSchema {
 
   /** Schema that accepts all instances. Equivalent to `{}`. */
   case object True extends JsonSchema {
-    override def toJson: Json                           = Json.Boolean(true)
+    override def toJson: Json = Json.True
+
     override def check(json: Json): Option[SchemaError] = None
   }
 
   /** Schema that rejects all instances. Equivalent to `{"not": {}}`. */
   case object False extends JsonSchema {
-    override def toJson: Json                           = Json.Boolean(false)
+    override def toJson: Json = Json.False
+
     override def check(json: Json): Option[SchemaError] =
-      Some(SchemaError.expectationMismatch(Nil, "Schema rejects all values"))
+      new Some(SchemaError.expectationMismatch(Nil, "Schema rejects all values"))
   }
 
   // ===========================================================================
@@ -677,98 +675,273 @@ object JsonSchema {
       val fields = ChunkBuilder.make[(String, Json)]()
 
       // Core vocabulary
-      $id.foreach(v => fields += ("$id" -> Json.String(v.value)))
-      $schema.foreach(v => fields += ("$schema" -> Json.String(v.toString)))
-      $anchor.foreach(v => fields += ("$anchor" -> Json.String(v.value)))
-      $dynamicAnchor.foreach(v => fields += ("$dynamicAnchor" -> Json.String(v.value)))
-      $ref.foreach(v => fields += ("$ref" -> Json.String(v.value)))
-      $dynamicRef.foreach(v => fields += ("$dynamicRef" -> Json.String(v.value)))
-      $vocabulary.foreach(v =>
-        fields += ("$vocabulary" -> toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply))
-      )
-      $defs.foreach(d => fields += ("$defs" -> toJsonObject[String, JsonSchema](d, identity, _.toJson)))
-      $comment.foreach(v => fields += ("$comment" -> Json.String(v)))
+      $id match {
+        case Some(v) => fields.addOne(("$id", new Json.String(v.value)))
+        case _       =>
+      }
+      $schema match {
+        case Some(v) => fields.addOne(("$schema", new Json.String(v.toString)))
+        case _       =>
+      }
+      $anchor match {
+        case Some(v) => fields.addOne(("$anchor", new Json.String(v.value)))
+        case _       =>
+      }
+      $dynamicAnchor match {
+        case Some(v) => fields.addOne(("$dynamicAnchor", new Json.String(v.value)))
+        case _       =>
+      }
+      $ref match {
+        case Some(v) => fields.addOne(("$ref", new Json.String(v.value)))
+        case _       =>
+      }
+      $dynamicRef match {
+        case Some(v) => fields.addOne(("$dynamicRef", new Json.String(v.value)))
+        case _       =>
+      }
+      $vocabulary match {
+        case Some(v) =>
+          fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply)))
+        case _ =>
+      }
+      $defs match {
+        case Some(d) => fields.addOne(("$defs", toJsonObject[String, JsonSchema](d, identity, _.toJson)))
+        case _       =>
+      }
+      $comment match {
+        case Some(v) => fields.addOne(("$comment", new Json.String(v)))
+        case _       =>
+      }
 
       // Applicator vocabulary (Composition)
-      allOf.foreach(v => fields += ("allOf" -> Json.Array(v.map(_.toJson): _*)))
-      anyOf.foreach(v => fields += ("anyOf" -> Json.Array(v.map(_.toJson): _*)))
-      oneOf.foreach(v => fields += ("oneOf" -> Json.Array(v.map(_.toJson): _*)))
-      not.foreach(v => fields += ("not" -> v.toJson))
+      allOf match {
+        case Some(v) => fields.addOne(("allOf", new Json.Array(Chunk.from(v).map(_.toJson))))
+        case _       =>
+      }
+      anyOf match {
+        case Some(v) => fields.addOne(("anyOf", new Json.Array(Chunk.from(v).map(_.toJson))))
+        case _       =>
+      }
+      oneOf match {
+        case Some(v) => fields.addOne(("oneOf", new Json.Array(Chunk.from(v).map(_.toJson))))
+        case _       =>
+      }
+      not match {
+        case Some(v) => fields.addOne(("not", v.toJson))
+        case _       =>
+      }
 
       // Applicator vocabulary (Conditional)
-      `if`.foreach(v => fields += ("if" -> v.toJson))
-      `then`.foreach(v => fields += ("then" -> v.toJson))
-      `else`.foreach(v => fields += ("else" -> v.toJson))
+      `if` match {
+        case Some(v) => fields.addOne(("if", v.toJson))
+        case _       =>
+      }
+      `then` match {
+        case Some(v) => fields.addOne(("then", v.toJson))
+        case _       =>
+      }
+      `else` match {
+        case Some(v) => fields.addOne(("else", v.toJson))
+        case _       =>
+      }
 
       // Applicator vocabulary (Object)
-      properties.foreach(p => fields += ("properties" -> toJsonObject[String, JsonSchema](p, identity, _.toJson)))
-      patternProperties.foreach(p =>
-        fields += ("patternProperties" -> toJsonObject[RegexPattern, JsonSchema](p, _.value, _.toJson))
-      )
-      additionalProperties.foreach(v => fields += ("additionalProperties" -> v.toJson))
-      propertyNames.foreach(v => fields += ("propertyNames" -> v.toJson))
-      dependentSchemas.foreach(d =>
-        fields += ("dependentSchemas" -> toJsonObject[String, JsonSchema](d, identity, _.toJson))
-      )
+      properties match {
+        case Some(p) => fields.addOne(("properties", toJsonObject[String, JsonSchema](p, identity, _.toJson)))
+        case _       =>
+      }
+      patternProperties match {
+        case Some(p) =>
+          fields.addOne(("patternProperties", toJsonObject[RegexPattern, JsonSchema](p, _.value, _.toJson)))
+        case _ =>
+      }
+      additionalProperties match {
+        case Some(v) => fields.addOne(("additionalProperties", v.toJson))
+        case _       =>
+      }
+      propertyNames match {
+        case Some(v) => fields.addOne(("propertyNames", v.toJson))
+        case _       =>
+      }
+      dependentSchemas match {
+        case Some(d) =>
+          fields.addOne(("dependentSchemas", toJsonObject[String, JsonSchema](d, identity, _.toJson)))
+        case _ =>
+      }
 
       // Applicator vocabulary (Array)
-      prefixItems.foreach(v => fields += ("prefixItems" -> Json.Array(Chunk.from(v).map(_.toJson))))
-      items.foreach(v => fields += ("items" -> v.toJson))
-      contains.foreach(v => fields += ("contains" -> v.toJson))
+      prefixItems match {
+        case Some(v) => fields.addOne(("prefixItems", new Json.Array(Chunk.from(v).map(_.toJson))))
+        case _       =>
+      }
+      items match {
+        case Some(v) => fields.addOne(("items", v.toJson))
+        case _       =>
+      }
+      contains match {
+        case Some(v) => fields.addOne(("contains", v.toJson))
+        case _       =>
+      }
 
       // Unevaluated vocabulary
-      unevaluatedProperties.foreach(v => fields += ("unevaluatedProperties" -> v.toJson))
-      unevaluatedItems.foreach(v => fields += ("unevaluatedItems" -> v.toJson))
+      unevaluatedProperties match {
+        case Some(v) => fields.addOne(("unevaluatedProperties", v.toJson))
+        case _       =>
+      }
+      unevaluatedItems match {
+        case Some(v) => fields.addOne(("unevaluatedItems", v.toJson))
+        case _       =>
+      }
 
       // Validation vocabulary (Type)
-      `type`.foreach(v => fields += ("type" -> v.toJson))
-      `enum`.foreach(v => fields += ("enum" -> Json.Array(Chunk.from(v))))
-      const.foreach(v => fields += ("const" -> v))
+      `type` match {
+        case Some(v) => fields.addOne(("type", v.toJson))
+        case _       =>
+      }
+      `enum` match {
+        case Some(v) => fields.addOne(("enum", new Json.Array(Chunk.from(v))))
+        case _       =>
+      }
+      const match {
+        case Some(v) => fields.addOne(("const", v))
+        case _       =>
+      }
 
       // Validation vocabulary (Numeric)
-      multipleOf.foreach(v => fields += ("multipleOf" -> Json.Number(v.value)))
-      maximum.foreach(v => fields += ("maximum" -> Json.Number(v)))
-      exclusiveMaximum.foreach(v => fields += ("exclusiveMaximum" -> Json.Number(v)))
-      minimum.foreach(v => fields += ("minimum" -> Json.Number(v)))
-      exclusiveMinimum.foreach(v => fields += ("exclusiveMinimum" -> Json.Number(v)))
+      multipleOf match {
+        case Some(v) => fields.addOne(("multipleOf", new Json.Number(v.value)))
+        case _       =>
+      }
+      maximum match {
+        case Some(v) => fields.addOne(("maximum", new Json.Number(v)))
+        case _       =>
+      }
+      exclusiveMaximum match {
+        case Some(v) => fields.addOne(("exclusiveMaximum", new Json.Number(v)))
+        case _       =>
+      }
+      minimum match {
+        case Some(v) => fields.addOne(("minimum", new Json.Number(v)))
+        case _       =>
+      }
+      exclusiveMinimum match {
+        case Some(v) => fields.addOne(("exclusiveMinimum", new Json.Number(v)))
+        case _       =>
+      }
 
       // Validation vocabulary (String)
-      minLength.foreach(v => fields += ("minLength" -> Json.Number(v.value)))
-      maxLength.foreach(v => fields += ("maxLength" -> Json.Number(v.value)))
-      pattern.foreach(v => fields += ("pattern" -> Json.String(v.value)))
+      minLength match {
+        case Some(v) => fields.addOne(("minLength", new Json.Number(v.value)))
+        case _       =>
+      }
+      maxLength match {
+        case Some(v) => fields.addOne(("maxLength", new Json.Number(v.value)))
+        case _       =>
+      }
+      pattern match {
+        case Some(v) => fields.addOne(("pattern", new Json.String(v.value)))
+        case _       =>
+      }
 
       // Validation vocabulary (Array)
-      minItems.foreach(v => fields += ("minItems" -> Json.Number(v.value)))
-      maxItems.foreach(v => fields += ("maxItems" -> Json.Number(v.value)))
-      uniqueItems.foreach(v => fields += ("uniqueItems" -> Json.Boolean(v)))
-      minContains.foreach(v => fields += ("minContains" -> Json.Number(v.value)))
-      maxContains.foreach(v => fields += ("maxContains" -> Json.Number(v.value)))
+      minItems match {
+        case Some(v) => fields.addOne(("minItems", new Json.Number(v.value)))
+        case _       =>
+      }
+      maxItems match {
+        case Some(v) => fields.addOne(("maxItems", new Json.Number(v.value)))
+        case _       =>
+      }
+      uniqueItems match {
+        case Some(v) => fields.addOne(("uniqueItems", new Json.Boolean(v)))
+        case _       =>
+      }
+      minContains match {
+        case Some(v) => fields.addOne(("minContains", new Json.Number(v.value)))
+        case _       =>
+      }
+      maxContains match {
+        case Some(v) => fields.addOne(("maxContains", new Json.Number(v.value)))
+        case _       =>
+      }
 
       // Validation vocabulary (Object)
-      minProperties.foreach(v => fields += ("minProperties" -> Json.Number(v.value)))
-      maxProperties.foreach(v => fields += ("maxProperties" -> Json.Number(v.value)))
-      required.foreach(v => fields += ("required" -> Json.Array(Chunk.from(v).map(Json.String(_)))))
-      dependentRequired.foreach { d =>
-        fields += ("dependentRequired" ->
-          toJsonObject[String, Set[String]](d, identity, reqs => Json.Array(Chunk.from(reqs).map(Json.String(_)))))
+      minProperties match {
+        case Some(v) => fields.addOne(("minProperties", new Json.Number(v.value)))
+        case _       =>
+      }
+      maxProperties match {
+        case Some(v) => fields.addOne(("maxProperties", new Json.Number(v.value)))
+        case _       =>
+      }
+      required match {
+        case Some(v) => fields.addOne(("required", new Json.Array(Chunk.from(v).map(new Json.String(_)))))
+        case _       =>
+      }
+      dependentRequired match {
+        case Some(d) =>
+          fields.addOne(
+            (
+              "dependentRequired",
+              toJsonObject[String, Set[String]](
+                d,
+                identity,
+                vs => new Json.Array(Chunk.from(vs).map(new Json.String(_)))
+              )
+            )
+          )
+        case _ =>
       }
 
       // Format vocabulary
-      format.foreach(v => fields += ("format" -> Json.String(v)))
+      format match {
+        case Some(v) => fields.addOne(("format", new Json.String(v)))
+        case _       =>
+      }
 
       // Content vocabulary
-      contentEncoding.foreach(v => fields += ("contentEncoding" -> Json.String(v)))
-      contentMediaType.foreach(v => fields += ("contentMediaType" -> Json.String(v)))
-      contentSchema.foreach(v => fields += ("contentSchema" -> v.toJson))
+      contentEncoding match {
+        case Some(v) => fields.addOne(("contentEncoding", new Json.String(v)))
+        case _       =>
+      }
+      contentMediaType match {
+        case Some(v) => fields.addOne(("contentMediaType", new Json.String(v)))
+        case _       =>
+      }
+      contentSchema match {
+        case Some(v) => fields.addOne(("contentSchema", v.toJson))
+        case _       =>
+      }
 
       // Meta-Data vocabulary
-      title.foreach(v => fields += ("title" -> Json.String(v)))
-      description.foreach(v => fields += ("description" -> Json.String(v)))
-      default.foreach(v => fields += ("default" -> v))
-      deprecated.foreach(v => fields += ("deprecated" -> Json.Boolean(v)))
-      readOnly.foreach(v => fields += ("readOnly" -> Json.Boolean(v)))
-      writeOnly.foreach(v => fields += ("writeOnly" -> Json.Boolean(v)))
-      examples.foreach(v => fields += ("examples" -> Json.Array(Chunk.from(v))))
+      title match {
+        case Some(v) => fields.addOne(("title", new Json.String(v)))
+        case _       =>
+      }
+      description match {
+        case Some(v) => fields.addOne(("description", new Json.String(v)))
+        case _       =>
+      }
+      default match {
+        case Some(v) => fields.addOne(("default", v))
+        case _       =>
+      }
+      deprecated match {
+        case Some(v) => fields.addOne(("deprecated", new Json.Boolean(v)))
+        case _       =>
+      }
+      readOnly match {
+        case Some(v) => fields.addOne(("readOnly", new Json.Boolean(v)))
+        case _       =>
+      }
+      writeOnly match {
+        case Some(v) => fields.addOne(("writeOnly", new Json.Boolean(v)))
+        case _       =>
+      }
+      examples match {
+        case Some(v) => fields.addOne(("examples", new Json.Array(Chunk.from(v))))
+        case _       =>
+      }
 
       // Extensions
       fields.addAll(extensions)
@@ -802,7 +975,7 @@ object JsonSchema {
         case _         =>
           schema.check(j, options) match {
             case Some(e) => new EvaluationResult(e.errors, Set.empty, Set.empty)
-            case None    => EvaluationResult.empty
+            case _       => EvaluationResult.empty
           }
       }
 
@@ -812,7 +985,7 @@ object JsonSchema {
         if (refUriVal.startsWith("#/$defs/")) {
           $defs.flatMap(_.get(refUriVal.substring(8))) match {
             case Some(refSchema) => result = result ++ collectFromSchema(refSchema, json)
-            case None            => addError(s"Cannot resolve $$ref: $refUriVal")
+            case _               => addError(s"Cannot resolve $$ref: $refUriVal")
           }
         } else addError(s"Unsupported $$ref format: $refUriVal")
       }
@@ -820,41 +993,68 @@ object JsonSchema {
       // Type validation
       `type`.foreach { schemaType =>
         val typeMatches = json match {
-          case Json.Null       => schemaType.contains(JsonSchemaType.Null)
-          case _: Json.Boolean => schemaType.contains(JsonSchemaType.Boolean)
           case _: Json.String  => schemaType.contains(JsonSchemaType.String)
+          case _: Json.Boolean => schemaType.contains(JsonSchemaType.Boolean)
           case n: Json.Number  =>
             val isInt = n.value.isWhole
             schemaType.contains(JsonSchemaType.Number) || (isInt && schemaType.contains(JsonSchemaType.Integer))
           case _: Json.Array  => schemaType.contains(JsonSchemaType.Array)
           case _: Json.Object => schemaType.contains(JsonSchemaType.Object)
+          case _              => schemaType.contains(JsonSchemaType.Null)
         }
         if (!typeMatches) {
-          val expected = schemaType match {
-            case SchemaType.Single(t) => t.toJsonString
-            case SchemaType.Union(ts) => ts.map(_.toJsonString).mkString(" or ")
+          val sb      = new java.lang.StringBuilder("Expected type ")
+          val initLen = sb.length
+          schemaType match {
+            case s: SchemaType.Single => sb.append(s.value.toJsonString)
+            case u: SchemaType.Union  =>
+              u.values.foreach { t =>
+                if (sb.length > initLen) sb.append(" or ")
+                sb.append(t.toJsonString)
+              }
           }
-          addError(s"Expected type $expected")
+          addError(sb.toString)
         }
       }
 
       // Enum validation
       `enum`.foreach { values =>
-        if (!values.exists(_ == json)) {
-          addError(s"Value not in enum: ${values.map(_.print).mkString(", ")}")
+        if (!values.contains(json)) {
+          val sb      = new java.lang.StringBuilder("Value not in enum: ")
+          val initLen = sb.length
+          values.foreach { v =>
+            if (sb.length > initLen) sb.append(", ")
+            sb.append(v.print)
+          }
+          addError(sb.toString)
         }
       }
 
       // Const validation
       const.foreach { constValue =>
-        if (constValue != json) {
-          addError(s"Expected const value: ${constValue.print}")
-        }
+        if (constValue != json) addError(s"Expected const value: ${constValue.print}")
       }
 
-      // Numeric validations
       json match {
-        case n: Json.Number =>
+        case s: Json.String => // String validations
+          val len = s.value.length
+          minLength.foreach { min =>
+            if (len < min.value) addError(s"String length $len is less than minLength ${min.value}")
+          }
+          maxLength.foreach { max =>
+            if (len > max.value) addError(s"String length $len is greater than maxLength ${max.value}")
+          }
+          pattern.foreach { p =>
+            p.compiled match {
+              case Right(regex) =>
+                if (!regex.matcher(s.value).find()) addError(s"String does not match pattern: ${p.value}")
+              case _ => // Invalid pattern - skip validation
+            }
+          }
+          format.foreach { fmt =>
+            if (options.validateFormats) FormatValidator.validate(fmt, s.value).foreach(addError)
+          }
+        case n: Json.Number => // Numeric validations
           val value = n.value
           minimum.foreach { min =>
             if (value < min) addError(s"Value $value is less than minimum $min")
@@ -876,41 +1076,7 @@ object JsonSchema {
                 addError(s"Value $value cannot be checked against multipleOf ${m.value}")
             }
           }
-        case _ => ()
-      }
-
-      // String validations
-      json match {
-        case s: Json.String =>
-          val len = s.value.length
-          minLength.foreach { min =>
-            if (len < min.value) addError(s"String length $len is less than minLength ${min.value}")
-          }
-          maxLength.foreach { max =>
-            if (len > max.value) addError(s"String length $len is greater than maxLength ${max.value}")
-          }
-          pattern.foreach { p =>
-            p.compiled match {
-              case Right(regex) =>
-                if (!regex.matcher(s.value).find()) {
-                  addError(s"String does not match pattern: ${p.value}")
-                }
-              case Left(_) => () // Invalid pattern - skip validation
-            }
-          }
-          format.foreach { fmt =>
-            if (options.validateFormats) {
-              FormatValidator.validate(fmt, s.value).foreach { err =>
-                addError(err)
-              }
-            }
-          }
-        case _ => ()
-      }
-
-      // Array validations
-      json match {
-        case a: Json.Array =>
+        case a: Json.Array => // Array validations
           val len = a.value.length
           minItems.foreach { min =>
             if (len < min.value) addError(s"Array length $len is less than minItems ${min.value}")
@@ -923,10 +1089,7 @@ object JsonSchema {
               addError("Array items are not unique")
             }
           }
-
-          // Track evaluated indices
-          var evaluatedIndices = Set.empty[Int]
-
+          var evaluatedIndices = Set.empty[Int] // Track evaluated indices
           // prefixItems evaluates specific indices
           prefixItems.foreach { schemas =>
             schemas.zipWithIndex.foreach { case (schema, idx) =>
@@ -937,7 +1100,6 @@ object JsonSchema {
               }
             }
           }
-
           // items evaluates all remaining indices
           items.foreach { itemSchema =>
             val startIdx = prefixItems.map(_.length).getOrElse(0)
@@ -947,7 +1109,6 @@ object JsonSchema {
               result = result.addErrors(itemResult.errors)
             }
           }
-
           // Validate contains (does not mark items as evaluated per spec)
           contains.foreach { containsSchema =>
             val matchCount = a.value.count(item => containsSchema.check(item, options).isEmpty)
@@ -963,18 +1124,10 @@ object JsonSchema {
               }
             }
           }
-
           result = result.withEvaluatedItems(evaluatedIndices)
-
-        case _ => ()
-      }
-
-      // Object validations
-      json match {
-        case obj: Json.Object =>
+        case obj: Json.Object => // Object validations
           val fieldMap  = obj.value.toMap
           val fieldKeys = fieldMap.keySet
-
           // Required validation
           required.foreach { reqs =>
             reqs.foreach { req =>
@@ -983,7 +1136,6 @@ object JsonSchema {
               }
             }
           }
-
           // Min/max properties
           minProperties.foreach { min =>
             if (fieldKeys.size < min.value) {
@@ -995,7 +1147,6 @@ object JsonSchema {
               addError(s"Object has ${fieldKeys.size} properties, maximum is ${max.value}")
             }
           }
-
           // Property names validation
           propertyNames.foreach { nameSchema =>
             fieldKeys.foreach { key =>
@@ -1004,10 +1155,7 @@ object JsonSchema {
               }
             }
           }
-
-          // Track which properties are evaluated locally
-          var localEvaluatedProps = Set.empty[String]
-
+          var localEvaluatedProps = Set.empty[String] // Track which properties are evaluated locally
           properties.foreach { props =>
             props.foreach { case (propName, propSchema) =>
               fieldMap.get(propName).foreach { propValue =>
@@ -1017,7 +1165,6 @@ object JsonSchema {
               }
             }
           }
-
           patternProperties.foreach { patterns =>
             patterns.foreach { case (pattern, propSchema) =>
               pattern.compiled.foreach { regex =>
@@ -1033,7 +1180,6 @@ object JsonSchema {
               }
             }
           }
-
           additionalProperties.foreach { addlSchema =>
             val additionalKeys = fieldKeys -- localEvaluatedProps --
               properties.map(_.keySet).getOrElse(Set.empty)
@@ -1045,9 +1191,7 @@ object JsonSchema {
               }
             }
           }
-
           result = result.withEvaluatedProperties(localEvaluatedProps)
-
           // Dependent required validation
           dependentRequired.foreach { deps =>
             deps.foreach { case (propName, requiredProps) =>
@@ -1060,7 +1204,6 @@ object JsonSchema {
               }
             }
           }
-
           // Dependent schemas validation (contributes to evaluation)
           dependentSchemas.foreach { deps =>
             deps.foreach { case (propName, depSchema) =>
@@ -1070,8 +1213,7 @@ object JsonSchema {
               }
             }
           }
-
-        case _ => ()
+        case _ =>
       }
 
       // Composition validations - collect evaluated properties/items from subschemas
@@ -1150,11 +1292,6 @@ object JsonSchema {
               }
             }
           }
-        case _ => ()
-      }
-
-      // unevaluatedProperties validation - must run after all applicators
-      json match {
         case obj: Json.Object =>
           unevaluatedProperties.foreach { unevalSchema =>
             val fieldMap     = obj.value.toMap
@@ -1184,16 +1321,15 @@ object JsonSchema {
   // Smart Constructors
   // ===========================================================================
 
-  def ofType(t: JsonSchemaType): JsonSchema =
-    Object(`type` = Some(SchemaType.Single(t)))
+  def ofType(t: JsonSchemaType): JsonSchema = new Object(`type` = new Some(new SchemaType.Single(t)))
 
   def string(
     minLength: Option[NonNegativeInt] = None,
     maxLength: Option[NonNegativeInt] = None,
     pattern: Option[RegexPattern] = None,
     format: Option[String] = None
-  ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonSchemaType.String)),
+  ): JsonSchema = new Object(
+    `type` = new Some(new SchemaType.Single(JsonSchemaType.String)),
     minLength = minLength,
     maxLength = maxLength,
     pattern = pattern,
@@ -1205,11 +1341,10 @@ object JsonSchema {
    * constraints.
    */
   def string(minLength: NonNegativeInt, maxLength: NonNegativeInt): JsonSchema =
-    string(minLength = Some(minLength), maxLength = Some(maxLength))
+    string(minLength = new Some(minLength), maxLength = new Some(maxLength))
 
   /** Convenience constructor for string schema with pattern. */
-  def string(pattern: RegexPattern): JsonSchema =
-    string(pattern = Some(pattern))
+  def string(pattern: RegexPattern): JsonSchema = string(pattern = new Some(pattern))
 
   def number(
     minimum: Option[BigDecimal] = None,
@@ -1218,7 +1353,7 @@ object JsonSchema {
     exclusiveMaximum: Option[BigDecimal] = None,
     multipleOf: Option[PositiveNumber] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonSchemaType.Number)),
+    `type` = new Some(new SchemaType.Single(JsonSchemaType.Number)),
     minimum = minimum,
     maximum = maximum,
     exclusiveMinimum = exclusiveMinimum,
@@ -1233,7 +1368,7 @@ object JsonSchema {
     exclusiveMaximum: Option[BigDecimal] = None,
     multipleOf: Option[PositiveNumber] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonSchemaType.Integer)),
+    `type` = new Some(new SchemaType.Single(JsonSchemaType.Integer)),
     minimum = minimum,
     maximum = maximum,
     exclusiveMinimum = exclusiveMinimum,
@@ -1252,7 +1387,7 @@ object JsonSchema {
     maxContains: Option[NonNegativeInt] = None,
     unevaluatedItems: Option[JsonSchema] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonSchemaType.Array)),
+    `type` = new Some(new SchemaType.Single(JsonSchemaType.Array)),
     items = items,
     prefixItems = prefixItems,
     minItems = minItems,
@@ -1268,11 +1403,10 @@ object JsonSchema {
    * Convenience constructor for array schema with items and length constraints.
    */
   def array(items: JsonSchema, minItems: NonNegativeInt, maxItems: NonNegativeInt): JsonSchema =
-    array(items = Some(items), minItems = Some(minItems), maxItems = Some(maxItems))
+    array(items = new Some(items), minItems = new Some(minItems), maxItems = new Some(maxItems))
 
   /** Convenience constructor for array schema with just items. */
-  def array(items: JsonSchema): JsonSchema =
-    array(items = Some(items))
+  def array(items: JsonSchema): JsonSchema = array(items = new Some(items))
 
   def obj(
     properties: Option[ChunkMap[String, JsonSchema]] = None,
@@ -1285,7 +1419,7 @@ object JsonSchema {
     unevaluatedProperties: Option[JsonSchema] = None,
     title: Option[String] = None
   ): JsonSchema = Object(
-    `type` = Some(SchemaType.Single(JsonSchemaType.Object)),
+    `type` = new Some(new SchemaType.Single(JsonSchemaType.Object)),
     properties = properties,
     required = required,
     additionalProperties = additionalProperties,
@@ -1297,20 +1431,16 @@ object JsonSchema {
     title = title
   )
 
-  def enumOf(values: ::[Json]): JsonSchema =
-    Object(`enum` = Some(values))
+  def enumOf(values: ::[Json]): JsonSchema = new Object(`enum` = new Some(values))
 
   def enumOfStrings(values: ::[String]): JsonSchema =
-    Object(`enum` = Some(new ::(Json.String(values.head), values.tail.map(Json.String(_)))))
+    new Object(`enum` = new Some(values.map(new Json.String(_)).asInstanceOf[::[Json]]))
 
-  def constOf(value: Json): JsonSchema =
-    Object(const = Some(value))
+  def constOf(value: Json): JsonSchema = new Object(const = new Some(value))
 
-  def ref(uri: UriReference): JsonSchema =
-    Object($ref = Some(uri))
+  def ref(uri: UriReference): JsonSchema = new Object($ref = new Some(uri))
 
-  def refString(uri: String): JsonSchema =
-    Object($ref = Some(UriReference(uri)))
+  def refString(uri: String): JsonSchema = new Object($ref = new Some(new UriReference(uri)))
 
   val nullSchema: JsonSchema = ofType(JsonSchemaType.Null)
   val boolean: JsonSchema    = ofType(JsonSchemaType.Boolean)
@@ -1340,12 +1470,13 @@ object JsonSchema {
     def getSchema(key: String): Either[SchemaError, Option[JsonSchema]] =
       fieldMap.get(key) match {
         case Some(json) => fromJson(json).map(Some(_))
-        case None       => Right(None)
+        case _          => new Right(None)
       }
 
     def getSchemaList(key: String): Either[SchemaError, Option[::[JsonSchema]]] =
       fieldMap.get(key) match {
         case Some(arr: Json.Array) =>
+
           val results = arr.value.map(fromJson)
           val errs    = results.collect { case Left(e) => e }
           if (errs.nonEmpty) Left(errs.reduce(_ ++ _))
@@ -1358,7 +1489,7 @@ object JsonSchema {
           }
         case Some(_) =>
           Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
-        case None => Right(None)
+        case _ => Right(None)
       }
 
     def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] =
@@ -1437,68 +1568,9 @@ object JsonSchema {
       val typeOpt = fieldMap.get("type").flatMap(j => SchemaType.fromJson(j).toOption)
 
       // Collect unknown extensions
-      val knownKeys = Set(
-        "$id",
-        "$schema",
-        "$anchor",
-        "$dynamicAnchor",
-        "$ref",
-        "$dynamicRef",
-        "$vocabulary",
-        "$defs",
-        "$comment",
-        "allOf",
-        "anyOf",
-        "oneOf",
-        "not",
-        "if",
-        "then",
-        "else",
-        "properties",
-        "patternProperties",
-        "additionalProperties",
-        "propertyNames",
-        "dependentSchemas",
-        "prefixItems",
-        "items",
-        "contains",
-        "unevaluatedProperties",
-        "unevaluatedItems",
-        "type",
-        "enum",
-        "const",
-        "multipleOf",
-        "maximum",
-        "exclusiveMaximum",
-        "minimum",
-        "exclusiveMinimum",
-        "minLength",
-        "maxLength",
-        "pattern",
-        "minItems",
-        "maxItems",
-        "uniqueItems",
-        "minContains",
-        "maxContains",
-        "minProperties",
-        "maxProperties",
-        "required",
-        "dependentRequired",
-        "format",
-        "contentEncoding",
-        "contentMediaType",
-        "contentSchema",
-        "title",
-        "description",
-        "default",
-        "deprecated",
-        "readOnly",
-        "writeOnly",
-        "examples"
-      )
-      val extensions = ChunkMap.from(fieldMap).filterNot(kv => knownKeys.contains(kv._1))
+      val extensions = ChunkMap.from(obj.value).filterNot(kv => knownKeys.contains(kv._1))
 
-      Object(
+      new Object(
         $id = getString("$id").map(UriReference(_)),
         $schema = getString("$schema").flatMap(s =>
           try Some(new URI(s))
@@ -1563,4 +1635,64 @@ object JsonSchema {
       )
     }
   }
+
+  private[this] val knownKeys = Set(
+    "$id",
+    "$schema",
+    "$anchor",
+    "$dynamicAnchor",
+    "$ref",
+    "$dynamicRef",
+    "$vocabulary",
+    "$defs",
+    "$comment",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "if",
+    "then",
+    "else",
+    "properties",
+    "patternProperties",
+    "additionalProperties",
+    "propertyNames",
+    "dependentSchemas",
+    "prefixItems",
+    "items",
+    "contains",
+    "unevaluatedProperties",
+    "unevaluatedItems",
+    "type",
+    "enum",
+    "const",
+    "multipleOf",
+    "maximum",
+    "exclusiveMaximum",
+    "minimum",
+    "exclusiveMinimum",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+    "minContains",
+    "maxContains",
+    "minProperties",
+    "maxProperties",
+    "required",
+    "dependentRequired",
+    "format",
+    "contentEncoding",
+    "contentMediaType",
+    "contentSchema",
+    "title",
+    "description",
+    "default",
+    "deprecated",
+    "readOnly",
+    "writeOnly",
+    "examples"
+  )
 }
