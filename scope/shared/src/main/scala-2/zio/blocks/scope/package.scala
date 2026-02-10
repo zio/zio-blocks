@@ -43,21 +43,21 @@ import scala.language.experimental.macros
 package object scope {
 
   /**
-   * Type alias for Scoped with swapped type parameters.
+   * Type alias for Scoped.
    *
-   * `A @@ S` is equivalent to `Scoped[S, A]`. This syntax places the value type
-   * first, which reads more naturally when declaring scoped values:
+   * `A @@ S` is equivalent to `Scoped[A, S]`. This infix syntax reads naturally
+   * when declaring scoped values:
    *
    * {{{
    * val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
    * }}}
    *
-   * Both `@@` and `Scoped` refer to the same underlying type. Use whichever
-   * reads better in context:
-   *   - `A @@ S` for value declarations
-   *   - `Scoped[S, A]` for computation types (emphasizes the monadic nature)
+   * @tparam A
+   *   the value type (covariant)
+   * @tparam S
+   *   the scope tag type (contravariant)
    */
-  type @@[+A, -S] = Scoped[S, A]
+  type @@[+A, -S] = Scoped[A, S]
 
   /**
    * Registers a finalizer to run when the finalizer closes.

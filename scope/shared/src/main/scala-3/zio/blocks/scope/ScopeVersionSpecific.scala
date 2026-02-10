@@ -12,9 +12,8 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * Applies a function to a scoped value, escaping if the result is Unscoped.
    *
    * Accepts any scoped value whose tag is a supertype of this scope's Tag. Due
-   * to contravariance in `Scoped[-S, +A]`, a `Scoped[ParentTag, A]` is a
-   * subtype of `Scoped[ChildTag, A]`, so parent-scoped values can be passed to
-   * child scopes.
+   * to contravariance in `S`, an `A @@ ParentTag` is a subtype of
+   * `A @@ ChildTag`, so parent-scoped values can be passed to child scopes.
    *
    * @param scoped
    *   the scoped computation to execute
@@ -35,14 +34,14 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
     escape(f(scoped.run()))
 
   /**
-   * Executes a Scoped computation.
+   * Executes a scoped computation.
    *
    * Accepts any scoped computation whose tag is a supertype of this scope's
    * Tag. The escape typeclass determines whether the result stays scoped or
    * escapes as a raw value.
    *
    * @param scoped
-   *   the Scoped computation to execute
+   *   the scoped computation to execute
    * @param escape
    *   typeclass determining whether the result escapes
    * @tparam A
@@ -50,7 +49,7 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * @return
    *   either raw A or A @@ Tag depending on ScopeEscape
    */
-  def execute[A](scoped: Scoped[self.Tag, A])(using
+  def execute[A](scoped: A @@ self.Tag)(using
     escape: ScopeEscape[A, self.Tag]
   ): escape.Out =
     escape(scoped.run())

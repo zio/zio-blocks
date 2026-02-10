@@ -7,7 +7,7 @@
 If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
 
 - **Compile-time prevention of scope leaks**
-- **Unified scoped type** (`A @@ S` is a type alias for `Scoped[S, A]`)
+- **Unified scoped type** (`A @@ S` is a type alias for `Scoped[A, S]`)
 - **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
 
 ---
@@ -19,7 +19,7 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [1) `Scope[ParentTag, Tag]`](#1-scopeparenttag-tag)
   - [2) Scoped values: `A @@ S`](#2-scoped-values-a--s)
   - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
-  - [4) `Scoped[-S, +A]` and `A @@ S`: unified scoped type](#4-scoped-s-a-and-a--s-unified-scoped-type)
+  - [4) `A @@ S`: unified scoped type](#4-a--s-unified-scoped-type)
   - [5) `ScopeEscape` and `Unscoped`: what may escape](#5-scopeescape-and-unscoped-what-may-escape)
   - [6) `Wire[-In, +Out]`: dependency recipes](#6-wire-in-out-dependency-recipes)
 - [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
@@ -110,7 +110,7 @@ object Scope {
 
 ### 2) Scoped values: `A @@ S`
 
-`A @@ S` is a type alias for `Scoped[S, A]` — a deferred computation that produces `A` and is locked to scope tag `S`.
+`A @@ S` is a type alias for `Scoped[A, S]` — a deferred computation that produces `A` and is locked to scope tag `S`.
 
 - **Runtime representation:** a boxed thunk (lightweight wrapper)
 - **Key effect:** methods on `A` are hidden until executed; the thunk defers access
@@ -172,9 +172,9 @@ Common constructors:
 
 ---
 
-### 4) `Scoped[-S, +A]` and `A @@ S`: unified scoped type
+### 4) `A @@ S`: unified scoped type
 
-`Scoped[-S, +A]` is the core type representing a deferred computation that produces `A` and requires scope tag `S` to execute. The type alias `A @@ S = Scoped[S, A]` provides convenient syntax with swapped parameters.
+`A @@ S` (type alias for `Scoped[A, S]`) is the core type representing a deferred computation that produces `A` and requires scope tag `S` to execute.
 
 Execution happens via:
 
@@ -185,21 +185,21 @@ scope.execute(scopedComputation)
 How to build them:
 
 - From `scope.allocate`:
-  - `scope.allocate(resource)` returns `A @@ scope.Tag` (= `Scoped[scope.Tag, A]`)
+  - `scope.allocate(resource)` returns `A @@ scope.Tag`
 - Using combinators:
-  - `(a: A @@ S).map(f: A => B)` returns `Scoped[S, B]`
-  - `(a: A @@ S).flatMap(f: A => Scoped[T, B])` returns `Scoped[S & T, B]` (Scala 3) / `Scoped[S with T, B]` (Scala 2)
+  - `(a: A @@ S).map(f: A => B)` returns `B @@ S`
+  - `(a: A @@ S).flatMap(f: A => B @@ T)` returns `B @@ (S & T)` (Scala 3) / `B @@ (S with T)` (Scala 2)
   - Use for-comprehensions to chain scoped computations
 - From ordinary values:
-  - `Scoped(value)` lifts a value into a `Scoped[Any, A]` (which can be used anywhere due to contravariance)
+  - `Scoped(value)` lifts a value into an `A @@ Any` (which can be used anywhere due to contravariance)
 
-**Contravariance:** `Scoped[-S, +A]` is contravariant in `S`. This means a `Scoped[ParentTag, A]` is a subtype of `Scoped[ChildTag, A]` when `ChildTag <: ParentTag`. Child scopes can execute parent-scoped computations automatically.
+**Contravariance:** `A @@ S` is contravariant in `S`. This means `A @@ ParentTag` is a subtype of `A @@ ChildTag` when `ChildTag <: ParentTag`. Child scopes can execute parent-scoped computations automatically.
 
 **For-comprehension example:**
 
 ```scala
 Scope.global.scoped { scope =>
-  val program: Scoped[scope.Tag, Result] = for {
+  val program: Result @@ scope.Tag = for {
     pool <- scope.allocate(Resource[Pool])
     conn <- scope.allocate(Resource(pool.lease()))
     data <- conn.map(_.query("SELECT *"))
@@ -373,7 +373,7 @@ import zio.blocks.scope._
 Scope.global.scoped { scope =>
   val db: Database @@ scope.Tag = scope.allocate(Resource(new Database))
 
-  val program: Scoped[scope.Tag, String] =
+  val program: String @@ scope.Tag =
     for {
       d <- db                         // db: Database @@ Tag, d: Database
     } yield d.query("SELECT 1")
@@ -402,7 +402,7 @@ class Connection extends AutoCloseable {
 Scope.global.scoped { scope =>
   val pool: Pool @@ scope.Tag = scope.allocate(Resource.from[Pool])
 
-  val program: Scoped[scope.Tag, String] =
+  val program: String @@ scope.Tag =
     for {
       p          <- pool                      // extract Pool from scoped
       connection <- scope.allocate(p.lease)   // allocate returns Connection @@ Tag
@@ -808,7 +808,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] {
   ): escape.Out
 
   // Execute scoped computation, escape based on ScopeEscape
-  def execute[A](scoped: Scoped[this.Tag, A])(
+  def execute[A](scoped: A @@ this.Tag)(
     using escape: ScopeEscape[A, this.Tag]
   ): escape.Out
 
