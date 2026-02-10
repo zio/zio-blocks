@@ -58,7 +58,7 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * @return
    *   either raw A or A @@ S depending on ScopeEscape
    */
-  def apply[A, S](scoped: Scoped[S, A])(using
+  def execute[A, S](scoped: Scoped[S, A])(using
     ev: self.Tag <:< S,
     escape: ScopeEscape[A, S]
   ): escape.Out =

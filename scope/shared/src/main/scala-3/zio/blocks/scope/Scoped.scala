@@ -27,8 +27,8 @@ package zio.blocks.scope
  *     // Build a Scoped computation
  *     val query: Scoped[scope.Tag, String] = db.map(_.query("SELECT 1"))
  *
- *     // Execute via scope.apply
- *     val result: String = scope(query)
+ *     // Execute via scope.execute
+ *     val result: String = scope.execute(query)
  *   }
  *   }}}
  *
@@ -90,7 +90,7 @@ object @@ {
      *   {{{
      *   val db: Database @@ S = ...
      *   val query: Scoped[S, ResultSet] = db.map(_.query("SELECT 1"))
-     *   // Execute later: scope(query)
+     *   // Execute later: scope.execute(query)
      *   }}}
      *
      * @param f
@@ -169,7 +169,7 @@ object @@ {
  * `Scoped[-Tag, +A]` is a description of a computation that produces an `A` and
  * requires a scope with tag `<: Tag` to execute. Unlike eager `@@` operations,
  * `Scoped` builds a simple thunk that is only interpreted when given to a scope
- * via `scope.apply` or `scope { scoped }`.
+ * via `scope.execute(scoped)`.
  *
  * ==Contravariance in Tag==
  *
@@ -193,7 +193,7 @@ object @@ {
  *       data <- db.map(_.query("SELECT *"))
  *     } yield process(conn, data)
  *
- *     scope(program)  // Execute the Scoped computation
+ *     scope.execute(program)  // Execute the Scoped computation
  *   }
  *   }}}
  *
@@ -205,7 +205,7 @@ object @@ {
  * @see
  *   [[@@]] for scoped values
  * @see
- *   [[Scope.apply]] for executing Scoped computations
+ *   [[Scope.execute]] for executing Scoped computations
  */
 final class Scoped[-Tag, +A] private (private val executeFn: () => A) {
 

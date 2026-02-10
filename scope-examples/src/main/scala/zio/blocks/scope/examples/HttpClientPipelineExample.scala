@@ -6,7 +6,7 @@ import zio.blocks.scope._
  * HTTP Client Pipeline Example
  *
  * Demonstrates building computations using `Scoped` that defer execution until
- * explicitly run via `scope(scopedComputation)`. This shows how to compose
+ * explicitly run via `scope.execute(scopedComputation)`. This shows how to compose
  * operations over scoped resources lazily.
  */
 
@@ -62,7 +62,7 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
  * Key concepts:
  *   - `(scopedValue).map(f)` builds a `Scoped` computation lazily
  *   - `(scopedValue).flatMap(f)` chains scoped computations
- *   - `scope(scopedComputation)` executes the deferred computation
+ *   - `scope.execute(scopedComputation)` executes the deferred computation
  *   - The computation only runs when explicitly executed
  */
 @main def httpClientPipelineExample(): Unit = {
@@ -102,13 +102,13 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     // Step 3: Execute each computation - this is when operations actually run
     println("--- Executing: fetchUsers ---")
-    val users = scope(fetchUsers)
+    val users = scope.execute(fetchUsers)
 
     println("\n--- Executing: fetchOrders ---")
-    val orders = scope(fetchOrders)
+    val orders = scope.execute(fetchOrders)
 
     println("\n--- Executing: postAnalytics ---")
-    val analytics = scope(postAnalytics)
+    val analytics = scope.execute(postAnalytics)
 
     println(s"\n=== Results ===")
     println(s"Users data: ${users.values}")

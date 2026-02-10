@@ -116,7 +116,7 @@ object Scope {
 - **Key effect:** methods on `A` are hidden, so you can't call `a.method` without proving scope access
 - **Access paths:**
   - `scope.$(a)(f)` to use a scoped value immediately
-  - `a.map / a.flatMap` to build a `Scoped` computation, then run it via `scope(scoped)`
+  - `a.map / a.flatMap` to build a `Scoped` computation, then run it via `scope.execute(scoped)`
 
 #### Scala 3 vs Scala 2 note
 
@@ -171,7 +171,7 @@ Common constructors:
 Execution happens via:
 
 ```scala
-scope(scopedComputation)
+scope.execute(scopedComputation)
 ```
 
 How to build them:
@@ -191,7 +191,7 @@ How to build them:
 Whenever you access a scoped value via:
 
 - `scope.$(value)(f)`, or
-- `scope(scopedComputation)`,
+- `scope.execute(scopedComputation)`,
 
 …the return type is controlled by `ScopeEscape[A, S]`, which decides whether a result:
 
@@ -278,7 +278,7 @@ Compile-time safety is verified in tests, e.g.:
 
 ### B) Tag invariance + "opaque-like" `@@` blocks subtyping escape
 
-Even if you try to "widen" a child-tagged value to a parent-tagged value, invariance and hidden members prevent it from typechecking. The only sanctioned access route is through `scope.$` / `scope.apply`, which require tag evidence.
+Even if you try to "widen" a child-tagged value to a parent-tagged value, invariance and hidden members prevent it from typechecking. The only sanctioned access route is through `scope.$` / `scope.execute`, which require tag evidence.
 
 ---
 
@@ -352,7 +352,7 @@ Scope.global.scoped { scope =>
       b <- db.map(_.query("SELECT 2"))
     } yield s"$a | $b"
 
-  val result: String = scope(program)
+  val result: String = scope.execute(program)
   println(result)
 }
 ```
@@ -750,7 +750,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] {
           escape: ScopeEscape[B, S]
   ): escape.Out
 
-  def apply[A, S](scoped: Scoped[S, A])(
+  def execute[A, S](scoped: Scoped[S, A])(
     using ev: this.Tag <:< S,
           escape: ScopeEscape[A, S]
   ): escape.Out
@@ -809,7 +809,7 @@ object Wire {
 - Use `Scope.global.scoped { scope => ... }` to create a safe region.
 - For simple resources: `scope.allocate(Resource(value))` or `scope.allocate(Resource.acquireRelease(...)(...))`
 - For dependency injection: `scope.allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- Use scoped values only via `scope.$(value)(...)` or via `Scoped` computations executed by `scope(scoped)`.
+- Use scoped values only via `scope.$(value)(...)` or via `Scoped` computations executed by `scope.execute(scoped)`.
 - Nest with `scope.scoped { child => ... }` to create a tighter lifetime boundary.
 - If it doesn't typecheck, it would have been unsafe at runtime.
 

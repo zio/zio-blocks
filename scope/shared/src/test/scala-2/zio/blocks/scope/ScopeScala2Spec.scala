@@ -124,8 +124,8 @@ object ScopeScala2Spec extends ZIOSpecDefault {
 
           val computation = db.map(_.query("mapped"))
 
-          // Execute via scope.apply
-          val result = scope(computation)
+          // Execute via scope.execute
+          val result = scope.execute(computation)
           assertTrue(result == "result: mapped")
         }
       },
@@ -136,7 +136,7 @@ object ScopeScala2Spec extends ZIOSpecDefault {
           // Chain using Scoped.map
           val computation = db.map(_.query("a")).map(s => s.toUpperCase)
 
-          val result = scope(computation)
+          val result = scope.execute(computation)
           assertTrue(result == "RESULT: A")
         }
       }

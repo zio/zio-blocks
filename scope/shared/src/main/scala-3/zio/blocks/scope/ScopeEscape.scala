@@ -2,7 +2,7 @@ package zio.blocks.scope
 
 /**
  * Typeclass that controls whether `A @@ S` escapes the scope as raw `A` or
- * remains scoped as `A @@ S` when extracted via `scope.$` or `scope.apply`.
+ * remains scoped as `A @@ S` when extracted via `scope.$` or `scope.execute`.
  *
  * ==Priority (highest to lowest)==
  *
