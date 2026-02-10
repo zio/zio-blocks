@@ -219,7 +219,7 @@ Scope.global.scoped { scope =>
 ### Key Features
 
 - **Compile-Time Leak Prevention**: Values tagged with `A @@ S` can only be used with proof of scope access. Returning a scoped value from its scope is a type error.
-- **Zero Runtime Overhead**: The `@@` tag is erased at runtime—`A @@ S` is represented as just `A`.
+- **Zero Runtime Overhead**: On the eager path the `@@` tag is erased—`A @@ S` is represented as just `A` when evaluated—while deferred/composed computations use a small wrapper/thunk.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.

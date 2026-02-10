@@ -552,7 +552,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Scope](docs/./scope.md) - Compile-time safe resource management and DI
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
-- [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
+- [Docs (Markdown)](docs/./reference/docs.md) - Markdown parsing and rendering
 
 ## Documentation
 

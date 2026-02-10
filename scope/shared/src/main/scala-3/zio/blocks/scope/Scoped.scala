@@ -85,9 +85,6 @@ object Scoped {
       case a                => a.asInstanceOf[A]
     }
 
-  private[scope] def isLazy(x: Any): Boolean =
-    x.isInstanceOf[LazyScoped[_]]
-
   extension [A, S](self: Scoped[A, S]) {
 
     /**
