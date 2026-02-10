@@ -71,7 +71,10 @@ object Scoped {
     deferred[A, Any](a)
 
   private[scope] def eager[A, S](a: A): Scoped[A, S] =
-    a.asInstanceOf[Scoped[A, S]]
+    if (a.isInstanceOf[LazyScoped[?]])
+      (new LazyScoped(() => a)).asInstanceOf[Scoped[A, S]]
+    else
+      a.asInstanceOf[Scoped[A, S]]
 
   private[scope] def deferred[A, S](a: => A): Scoped[A, S] =
     (new LazyScoped(() => a)).asInstanceOf[Scoped[A, S]]

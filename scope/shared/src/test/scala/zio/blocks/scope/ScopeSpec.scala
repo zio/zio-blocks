@@ -227,6 +227,27 @@ object ScopeSpec extends ZIOSpecDefault {
         scope.execute(computation)
         close()
         assertTrue(executed)
+      },
+      test("eager does not accidentally unwrap nested lazy scoped values") {
+        val (scope, close) = Scope.createTestableScope()
+        var evaluated      = false
+
+        val base: Int @@ scope.Tag  = scope.allocate(Resource(1))
+        val inner: Int @@ scope.Tag = base.map { x =>
+          evaluated = true
+          x + 1
+        }
+
+        val nested: (Int @@ scope.Tag) @@ scope.Tag =
+          scope.$(base)(_ => inner)
+
+        val inner2: Int @@ scope.Tag = @@.unscoped(nested)
+
+        val notEvaluatedYet = !evaluated
+
+        val value: Int = @@.unscoped(inner2)
+        close()
+        assertTrue(notEvaluatedYet, evaluated, value == 2)
       }
     )
   )
