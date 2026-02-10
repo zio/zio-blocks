@@ -29,10 +29,17 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * @return
    *   B @@ Tag (result is always scoped)
    */
-  def $[A, B](scoped: A @@ self.Tag)(f: A => B): B @@ self.Tag = {
-    val result = f(scoped.run()) // Execute immediately
-    Scoped.scoped[B, self.Tag](result) // Wrap already-computed result
-  }
+  def $[A, B](scoped: A @@ self.Tag)(f: A => B): B @@ self.Tag =
+    // NOTE: This isClosed check is racy - a proper synchronization mechanism
+    // is needed to fully prevent use-after-close in concurrent scenarios.
+    if (self.isClosed) {
+      // Scope is closed - stay lazy to prevent use-after-close
+      Scoped.scoped[B, self.Tag](f(scoped.run()))
+    } else {
+      // Scope is open - execute eagerly
+      val result = f(scoped.run())
+      Scoped.scoped[B, self.Tag](result)
+    }
 
   /**
    * Executes a scoped computation.
@@ -48,10 +55,17 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * @return
    *   A @@ Tag (result is always scoped)
    */
-  def execute[A](scoped: A @@ self.Tag): A @@ self.Tag = {
-    val result = scoped.run() // Execute immediately
-    Scoped.scoped[A, self.Tag](result) // Wrap already-computed result
-  }
+  def execute[A](scoped: A @@ self.Tag): A @@ self.Tag =
+    // NOTE: This isClosed check is racy - a proper synchronization mechanism
+    // is needed to fully prevent use-after-close in concurrent scenarios.
+    if (self.isClosed) {
+      // Scope is closed - stay lazy to prevent use-after-close
+      Scoped.scoped[A, self.Tag](scoped.run())
+    } else {
+      // Scope is open - execute eagerly
+      val result = scoped.run()
+      Scoped.scoped[A, self.Tag](result)
+    }
 
   /**
    * Creates a child scope with an existential tag.
@@ -84,7 +98,11 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    *   the lifted result (type depends on `lift.Out`)
    */
   def scoped[A](f: Scope[self.Tag, _ <: self.Tag] => A)(implicit lift: ScopeLift[A, self.Tag]): lift.Out = {
-    val childScope         = new Scope[self.Tag, self.Tag](new Finalizers)
+    // If parent scope is closed, create child as already-closed.
+    // This makes all child operations ($ , execute, defer, allocate) no-ops,
+    // preventing use-after-close when a leaked scope is misused.
+    val childFinalizers    = if (self.isClosed) Finalizers.closed else new Finalizers
+    val childScope         = new Scope[self.Tag, self.Tag](childFinalizers)
     var primary: Throwable = null.asInstanceOf[Throwable]
     var result: A          = null.asInstanceOf[A]
     try result = f(childScope)
