@@ -263,9 +263,11 @@ object SchemaExpr {
         val n = isNumeric.numeric
         operator match {
           case _: ArithmeticOperator.Add.type      => for { x <- xValues; y <- yValues } yield toDynamicValue(n.plus(x, y))
-          case _: ArithmeticOperator.Subtract.type => for { x <- xValues; y <- yValues } yield toDynamicValue(n.minus(x, y))
-          case _: ArithmeticOperator.Multiply.type => for { x <- xValues; y <- yValues } yield toDynamicValue(n.times(x, y))
-          case _: ArithmeticOperator.Divide.type   =>
+          case _: ArithmeticOperator.Subtract.type =>
+            for { x <- xValues; y <- yValues } yield toDynamicValue(n.minus(x, y))
+          case _: ArithmeticOperator.Multiply.type =>
+            for { x <- xValues; y <- yValues } yield toDynamicValue(n.times(x, y))
+          case _: ArithmeticOperator.Divide.type =>
             for { x <- xValues; y <- yValues } yield {
               val result = n match {
                 case frac: Fractional[A] => frac.div(x, y)
