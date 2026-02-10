@@ -108,7 +108,7 @@ object Scope {
 
 - The global scope is intended to live for the lifetime of the process.
 - Its finalizers run on JVM shutdown.
-- Values allocated in `Scope.global` typically **escape** as raw values via `ScopeEscape` (see below).
+- Values allocated in `Scope.global` can escape as raw values via `ScopeLift.globalScope` (see below).
 
 ---
 
@@ -848,8 +848,8 @@ When using `leak(value)` to escape the scoped type system:
   This may result in undefined behavior.
 
   Hint:
-     If you know this data type is not resourceful, then add a given ScopeEscape
-     for it so you do not need to leak it.
+     If you know this data type is not resourceful, then add an Unscoped
+     instance for it so ScopeLift can lift it automatically.
 
 ────────────────────────────────────────────────────────────────────────────
 ```
