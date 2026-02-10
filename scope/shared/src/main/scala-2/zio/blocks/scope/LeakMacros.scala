@@ -22,8 +22,8 @@ private[scope] object LeakMacros {
     // Emit compiler warning using shared renderer
     MC.warnLeak(c)(scoped.tree.pos, sourceCode, scopeName)
 
-    // Return the unwrapped value (run the thunk)
-    c.Expr[A](q"$scoped.run()")
+    // Return the unwrapped value via the public unsafe API
+    c.Expr[A](q"$scoped.unsafeRun()")
   }
 
   private def extractScopeName(scopeTag: String): String =

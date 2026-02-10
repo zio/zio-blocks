@@ -110,14 +110,15 @@ object Scope {
 
 ### 2) Scoped values: `A @@ S`
 
-`A @@ S` is a type alias for `Scoped[A, S]` — a deferred computation that produces `A` and is locked to scope tag `S`.
+`A @@ S` is a type alias for `Scoped[A, S]` — a handle to a value of type `A` that is locked to scope tag `S`.
 
 - **Runtime representation:** a boxed thunk (lightweight wrapper)
-- **Key effect:** methods on `A` are hidden until executed; the thunk defers access
+- **Key effect:** methods on `A` are hidden; you can't call `a.method` directly
+- **Acquisition timing:** `scope.allocate(resource)` acquires the resource **immediately** (eagerly) and returns a scoped handle for accessing the already-acquired value. The thunk defers *access*, not *acquisition*.
 - **Access paths:**
   - `scope.$(a)(f)` to execute and apply a function immediately
-  - `a.map / a.flatMap` to build composite `Scoped` computations
-  - `scope.execute(scoped)` to run a computation
+  - `a.map / a.flatMap` to build composite scoped computations
+  - `scope.execute(scoped)` to run a composed computation
 
 #### Scala 2 note
 
@@ -301,9 +302,11 @@ The child scope has an existential tag (fresh per invocation). You can allocate 
 Compile-time safety is verified in tests, e.g.:
 `ScopeCompileTimeSafetyScala3Spec`.
 
-### B) Tag invariance + "opaque-like" `@@` blocks subtyping escape
+### B) Contravariance prevents child-to-parent widening
 
-Even if you try to "widen" a child-tagged value to a parent-tagged value, invariance and hidden members prevent it from typechecking. The only sanctioned access route is through `scope.$` / `scope.execute`, which require tag evidence.
+`A @@ S` is contravariant in `S`. This means `Db @@ child.Tag` is **not** a subtype of `Db @@ parent.Tag` — the subtyping goes the *other* direction. A child scope can use parent-tagged values (because `child.Tag <: parent.Tag` makes `A @@ parent.Tag <: A @@ child.Tag`), but you cannot widen a child-tagged value to a parent tag.
+
+Additionally, the thunk-based representation hides `A`'s methods — you can't call `db.query(...)` directly on a `Database @@ scope.Tag`. The only sanctioned access routes are `scope.$` and `scope.execute`, which require a scope with a compatible tag.
 
 ---
 

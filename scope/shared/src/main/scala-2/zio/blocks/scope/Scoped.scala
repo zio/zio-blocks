@@ -90,6 +90,14 @@ final class Scoped[+A, -S] private[scope] (private[scope] val executeFn: () => A
    * This is package-private because execution should go through the Scope.
    */
   private[scope] def run(): A = executeFn()
+
+  /**
+   * Unsafely unwraps the scoped value, bypassing scope safety.
+   *
+   * '''Warning''': This method is intended only for use by the `leak` macro.
+   * Direct use bypasses compile-time scope safety guarantees.
+   */
+  def unsafeRun(): A = executeFn()
 }
 
 object Scoped {
