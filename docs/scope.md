@@ -21,7 +21,8 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
   - [4) `A @@ S`: unified scoped type](#4-a--s-unified-scoped-type)
   - [5) `ScopeEscape` and `Unscoped`: what may escape](#5-scopeescape-and-unscoped-what-may-escape)
-  - [6) `Wire[-In, +Out]`: dependency recipes](#6-wire-in-out-dependency-recipes)
+  - [6) `SafeToReturn[A, S]`: what may return from child scopes](#6-safetoreturna-s-what-may-return-from-child-scopes)
+  - [7) `Wire[-In, +Out]`: dependency recipes](#7-wire-in-out-dependency-recipes)
 - [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
 - [Usage examples](#usage-examples)
   - [Allocating and using a resource](#allocating-and-using-a-resource)
@@ -230,7 +231,47 @@ Rule of thumb:
 
 ---
 
-### 6) `Wire[-In, +Out]`: dependency recipes
+### 6) `SafeToReturn[A, S]`: what may return from child scopes
+
+When you call `scope.scoped { child => ... }`, the return type `A` must satisfy `SafeToReturn[A, S]` where `S` is the parent scope's tag. This prevents scope leaks where closures capture the child scope.
+
+**Allowed return types:**
+
+- **`Unscoped` types**: Pure data (primitives, strings, collections) can always be returned.
+- **Parent-scoped values**: `B @@ T` where `T` is the parent's tag or above (the value outlives the child).
+- **`Nothing`**: Blocks that throw or diverge.
+- **Anything from global scope**: The global scope never closes.
+
+**Rejected return types:**
+
+- **Closures**: `() => A` or `A => B` could capture the child scope.
+- **Child-tagged values**: `B @@ child.Tag` would be use-after-close.
+- **The scope itself**: Returning `child` would allow operations after close.
+
+```scala
+Scope.global.scoped { parent =>
+  // ✅ OK: String is Unscoped
+  val result: String = parent.scoped { child =>
+    child.$(db)(_.query("SELECT 1"))
+  }
+
+  // ✅ OK: parent-tagged value outlives child
+  val parentDb: Database @@ parent.Tag = parent.allocate(Resource[Database])
+  val same: Database @@ parent.Tag = parent.scoped { child =>
+    parentDb
+  }
+
+  // ❌ COMPILE ERROR: closure could capture child scope
+  // val leak: () => String = parent.scoped { child =>
+  //   val db = child.allocate(Resource[Database])
+  //   () => child.$(db)(_.query("boom"))
+  // }
+}
+```
+
+---
+
+### 7) `Wire[-In, +Out]`: dependency recipes
 
 `Wire` is a recipe for constructing services. It describes **how** to build a service given its dependencies, but does not resolve those dependencies itself.
 
