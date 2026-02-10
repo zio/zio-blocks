@@ -431,7 +431,13 @@ object MigrationReverseSpec extends ZIOSpecDefault {
         }
       ),
       suite("Split - String Delimiter")(
-        test("Split.reverse returns a Join (but cannot execute correctly)") {
+        test("Split with delimiter → Join → recovers original") {
+          val original = DynamicValue.Record(
+            Chunk(
+              "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
+            )
+          )
+
           val splitAction = MigrationAction.Split(
             at = DynamicOptic.root.field("fullName"),
             targetPaths = Vector(
@@ -445,11 +451,50 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           )
           val joinAction = splitAction.reverse
 
-          assertTrue(joinAction.isInstanceOf[MigrationAction.Join])
+          val forward  = splitAction.execute(original)
+          val backward = forward.flatMap(joinAction.execute)
+
+          assertTrue(joinAction.isInstanceOf[MigrationAction.Join]) &&
+          assertTrue(
+            forward.toOption.get == DynamicValue.Record(
+              Chunk(
+                "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+                "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe"))
+              )
+            )
+          ) &&
+          assertTrue(backward.toOption.get == original)
+        },
+        test("Split with 3 target paths → Join → recovers original") {
+          val original = DynamicValue.Record(
+            Chunk(
+              "date" -> DynamicValue.Primitive(PrimitiveValue.String("2024-01-15"))
+            )
+          )
+
+          val splitAction = MigrationAction.Split(
+            at = DynamicOptic.root.field("date"),
+            targetPaths = Vector(
+              DynamicOptic.root.field("year"),
+              DynamicOptic.root.field("month"),
+              DynamicOptic.root.field("day")
+            ),
+            splitter = SchemaExpr.StringSplit(
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
+              "-"
+            )
+          )
+          val joinAction = splitAction.reverse
+
+          val forward  = splitAction.execute(original)
+          val backward = forward.flatMap(joinAction.execute)
+
+          assertTrue(joinAction.isInstanceOf[MigrationAction.Join]) &&
+          assertTrue(backward.toOption.get == original)
         }
       )
     ),
-    suite("Impossible - Cannot Reverse (Returns Identity)")(
+    suite("Impossible - Cannot Reverse (Returns Irreversible)")(
       suite("TransformValue - Irreversible Operations")(
         test("StringLength cannot reverse (info lost)") {
           val lengthAction = MigrationAction.TransformValue(
@@ -460,8 +505,8 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           )
           val reverseAction = lengthAction.reverse
 
-          // Reverse should return identity
-          assertTrue(reverseAction == lengthAction)
+          // Reverse should return Irreversible
+          assertTrue(reverseAction.isInstanceOf[MigrationAction.Irreversible])
         },
         test("Relational operations cannot reverse (boolean result)") {
           val relationalAction = MigrationAction.TransformValue(
@@ -474,8 +519,62 @@ object MigrationReverseSpec extends ZIOSpecDefault {
           )
           val reverseAction = relationalAction.reverse
 
-          // Reverse should return identity
-          assertTrue(reverseAction == relationalAction)
+          // Reverse should return Irreversible
+          assertTrue(reverseAction.isInstanceOf[MigrationAction.Irreversible])
+        }
+      ),
+      suite("Join/Split - Unsupported Expression Types")(
+        test("Join with non-StringConcat combiner returns Irreversible") {
+          val original = DynamicValue.Record(
+            Chunk(
+              "x" -> DynamicValue.Primitive(PrimitiveValue.Int(10)),
+              "y" -> DynamicValue.Primitive(PrimitiveValue.Int(20))
+            )
+          )
+
+          val joinAction = MigrationAction.Join(
+            at = DynamicOptic.root.field("sum"),
+            sourcePaths = Vector(
+              DynamicOptic.root.field("x"),
+              DynamicOptic.root.field("y")
+            ),
+            combiner = SchemaExpr.Arithmetic(
+              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field0")),
+              SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field1")),
+              SchemaExpr.ArithmeticOperator.Add,
+              IsNumeric.IsInt
+            )
+          )
+          val reverseAction = joinAction.reverse
+
+          assertTrue(reverseAction.isInstanceOf[MigrationAction.Irreversible]) &&
+          assertTrue(reverseAction.execute(original).isLeft) &&
+          assertTrue(
+            reverseAction.execute(original).left.toOption.get.isInstanceOf[MigrationError.IrreversibleOperation]
+          )
+        },
+        test("Split with non-StringSplit splitter returns Irreversible") {
+          val original = DynamicValue.Record(
+            Chunk(
+              "data" -> DynamicValue.Primitive(PrimitiveValue.String("hello"))
+            )
+          )
+
+          val splitAction = MigrationAction.Split(
+            at = DynamicOptic.root.field("data"),
+            targetPaths = Vector(
+              DynamicOptic.root.field("part1"),
+              DynamicOptic.root.field("part2")
+            ),
+            splitter = SchemaExpr.Dynamic[DynamicValue, DynamicValue](DynamicOptic.root)
+          )
+          val reverseAction = splitAction.reverse
+
+          assertTrue(reverseAction.isInstanceOf[MigrationAction.Irreversible]) &&
+          assertTrue(reverseAction.execute(original).isLeft) &&
+          assertTrue(
+            reverseAction.execute(original).left.toOption.get.isInstanceOf[MigrationError.IrreversibleOperation]
+          )
         }
       )
     ),

@@ -348,23 +348,51 @@ object SchemaExpr {
    */
   final case class Dynamic[A, B](optic: DynamicOptic) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] =
-      evalDynamic(input).map { dynamicValues =>
-        dynamicValues.map {
-          case DynamicValue.Primitive(p) =>
-            (p match {
-              case PrimitiveValue.String(v)  => v
-              case PrimitiveValue.Int(v)     => v
-              case PrimitiveValue.Boolean(v) => v
-              case PrimitiveValue.Short(v)   => v
-              case PrimitiveValue.Long(v)    => v
-              case PrimitiveValue.Float(v)   => v
-              case PrimitiveValue.Double(v)  => v
-              case PrimitiveValue.Char(v)    => v
-              case PrimitiveValue.Byte(v)    => v
-              case _                         => throw new RuntimeException(s"Cannot cast primitive $p to target type")
-            }).asInstanceOf[B]
-          case _ => throw new RuntimeException("Expected primitive value")
+      evalDynamic(input).flatMap { dynamicValues =>
+        val builder           = Seq.newBuilder[B]
+        var error: OpticCheck = null
+        val iter              = dynamicValues.iterator
+        while (iter.hasNext && (error eq null)) {
+          iter.next() match {
+            case DynamicValue.Primitive(p) =>
+              val extracted = p match {
+                case PrimitiveValue.String(v)  => v
+                case PrimitiveValue.Int(v)     => v
+                case PrimitiveValue.Boolean(v) => v
+                case PrimitiveValue.Short(v)   => v
+                case PrimitiveValue.Long(v)    => v
+                case PrimitiveValue.Float(v)   => v
+                case PrimitiveValue.Double(v)  => v
+                case PrimitiveValue.Char(v)    => v
+                case PrimitiveValue.Byte(v)    => v
+                case _                         =>
+                  error = new OpticCheck(
+                    new ::(
+                      new OpticCheck.WrappingError(
+                        optic,
+                        optic,
+                        SchemaError.validationFailed(s"Cannot cast primitive $p to target type")
+                      ),
+                      Nil
+                    )
+                  )
+                  null
+              }
+              if (error eq null) builder += extracted.asInstanceOf[B]
+            case other =>
+              error = new OpticCheck(
+                new ::(
+                  new OpticCheck.WrappingError(
+                    optic,
+                    optic,
+                    SchemaError.validationFailed(s"Expected primitive value, got: $other")
+                  ),
+                  Nil
+                )
+              )
+          }
         }
+        if (error ne null) Left(error) else Right(builder.result())
       }
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = {
@@ -491,15 +519,17 @@ object SchemaExpr {
    * Example: "John Doe".split(" ") => ["John", "Doe"]
    */
   final case class StringSplit[A](string: SchemaExpr[A, String], delimiter: String) extends SchemaExpr[A, String] {
+    private val quotedDelimiter: String = java.util.regex.Pattern.quote(delimiter)
+
     def eval(input: A): Either[OpticCheck, Seq[String]] =
       for {
         xs <- string.eval(input)
-      } yield xs.flatMap(_.split(delimiter, -1)) // -1 means keep trailing empty strings
+      } yield xs.flatMap(_.split(quotedDelimiter, -1)) // -1 means keep trailing empty strings
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
         xs <- string.eval(input)
-      } yield xs.flatMap(_.split(delimiter, -1)).map(toDynamicValue)
+      } yield xs.flatMap(_.split(quotedDelimiter, -1)).map(toDynamicValue)
 
     private[this] def toDynamicValue(value: String): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.String(value))

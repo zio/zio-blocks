@@ -436,23 +436,23 @@ object CollectionOperationsSpec extends ZIOSpecDefault {
       }
     ),
     suite("Reverse operations")(
-      test("TransformElements.reverse is itself") {
+      test("TransformElements.reverse of irreversible transform returns Irreversible") {
         val transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
         val action    = MigrationAction.TransformElements(DynamicOptic.root, transform)
 
-        assertTrue(action.reverse == action)
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
-      test("TransformKeys.reverse is itself") {
+      test("TransformKeys.reverse of irreversible transform returns Irreversible") {
         val transform = SchemaExpr.Literal[DynamicValue, String]("key", Schema.string)
         val action    = MigrationAction.TransformKeys(DynamicOptic.root, transform)
 
-        assertTrue(action.reverse == action)
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
-      test("TransformValues.reverse is itself") {
+      test("TransformValues.reverse of irreversible transform returns Irreversible") {
         val transform = SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
         val action    = MigrationAction.TransformValues(DynamicOptic.root, transform)
 
-        assertTrue(action.reverse == action)
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       }
     )
   )

@@ -175,7 +175,10 @@ private[migration] object MigrationBuilderMacros {
             case Ident(name)     => name == "when"
             case _               => false
           } =>
-        val caseName  = typeTree.tpe.dealias.typeSymbol.name
+        val dealiased = typeTree.tpe.dealias
+        val caseName  =
+          if (dealiased.termSymbol.flags.is(Flags.Enum)) dealiased.termSymbol.name
+          else dealiased.typeSymbol.name
         val fieldPath = extractFieldPath(parent)
         (fieldPath, caseName)
 

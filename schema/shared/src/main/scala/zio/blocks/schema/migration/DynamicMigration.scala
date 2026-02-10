@@ -7,7 +7,7 @@ import zio.blocks.schema.DynamicValue
  * DynamicValues.
  */
 final case class DynamicMigration(
-  actions: Vector[MigrationAction]
+  private[migration] actions: Vector[MigrationAction]
 ) {
 
   /**

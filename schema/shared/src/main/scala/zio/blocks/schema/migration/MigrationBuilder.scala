@@ -16,7 +16,7 @@ import zio.blocks.schema._
 final case class MigrationBuilder[A, B, Handled, Provided](
   sourceSchema: Schema[A],
   targetSchema: Schema[B],
-  actions: Vector[MigrationAction]
+  private[migration] actions: Vector[MigrationAction]
 ) {
 
   /**

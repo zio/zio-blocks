@@ -301,12 +301,12 @@ private[migration] object MigrationBuilderMacrosImpl {
     sb.append("\n")
     if (unhandledFields.nonEmpty) {
       val example      = unhandledFields.head
-      val selectorPath = example.split("\\.").mkString("_.")
+      val selectorPath = example.split("\\.").mkString(".")
       sb.append(s"Hint: Use .dropField(_.$selectorPath, default) to handle removed fields\n")
     }
     if (unprovidedFields.nonEmpty) {
       val example      = unprovidedFields.head
-      val selectorPath = example.split("\\.").mkString("_.")
+      val selectorPath = example.split("\\.").mkString(".")
       sb.append(s"Hint: Use .addField(_.$selectorPath, default) to provide new fields\n")
     }
     if (unhandledFields.nonEmpty && unprovidedFields.nonEmpty) {
@@ -936,3 +936,7 @@ private[migration] object MigrationBuilderMacrosImpl {
     }
   }
 }
+
+// Empty companion object for Scala 2 import compatibility in shared tests.
+// Allows `import MigrationBuilderSyntax._` to compile in both Scala 2 and 3.
+object MigrationBuilderSyntax

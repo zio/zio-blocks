@@ -97,29 +97,34 @@ object MigrationErrorSpec extends ZIOSpecDefault {
       },
       test("CrossPathJoinNotSupported should capture target and source paths") {
         val targetPath  = DynamicOptic.root.field("address").field("fullAddress")
-        val sourcePath1 = DynamicOptic.root.field("address").field("street")
         val sourcePath2 = DynamicOptic.root.field("contact").field("city") // different parent
-        val sourcePaths = Vector(sourcePath1, sourcePath2)
-        val error       = MigrationError.CrossPathJoinNotSupported(targetPath, targetPath, sourcePaths)
+        val error       = MigrationError.CrossPathJoinNotSupported(targetPath, Vector(sourcePath2))
 
         assertTrue(error.path == targetPath) &&
-        assertTrue(error.targetPath == targetPath) &&
-        assertTrue(error.sourcePaths == sourcePaths) &&
+        assertTrue(error.invalidPaths == Vector(sourcePath2)) &&
         assertTrue(error.message.contains("Join operation")) &&
         assertTrue(error.message.contains("same parent"))
       },
       test("CrossPathSplitNotSupported should capture source and target paths") {
         val sourcePath  = DynamicOptic.root.field("address").field("fullAddress")
-        val targetPath1 = DynamicOptic.root.field("address").field("street")
         val targetPath2 = DynamicOptic.root.field("contact").field("city") // different parent
-        val targetPaths = Vector(targetPath1, targetPath2)
-        val error       = MigrationError.CrossPathSplitNotSupported(sourcePath, sourcePath, targetPaths)
+        val error       = MigrationError.CrossPathSplitNotSupported(sourcePath, Vector(targetPath2))
 
         assertTrue(error.path == sourcePath) &&
-        assertTrue(error.sourcePath == sourcePath) &&
-        assertTrue(error.targetPaths == targetPaths) &&
+        assertTrue(error.invalidPaths == Vector(targetPath2)) &&
         assertTrue(error.message.contains("Split operation")) &&
         assertTrue(error.message.contains("same parent"))
+      },
+      test("IrreversibleOperation should capture path and reason") {
+        val optic  = DynamicOptic.root.field("fullName")
+        val reason = "Cannot reverse Join: unsupported combiner expression type."
+        val error  = MigrationError.IrreversibleOperation(optic, reason)
+
+        assertTrue(error.path == optic) &&
+        assertTrue(error.reason == reason) &&
+        assertTrue(error.message.contains("Cannot reverse operation")) &&
+        assertTrue(error.message.contains("fullName")) &&
+        assertTrue(error.message.contains("unsupported combiner"))
       }
     )
   )

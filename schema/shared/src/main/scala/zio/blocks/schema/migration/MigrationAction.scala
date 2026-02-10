@@ -7,7 +7,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaExpr}
  * Represents an atomic migration operation. All actions operate at a specific
  * path and are reversible.
  */
-sealed trait MigrationAction {
+private[migration] sealed trait MigrationAction {
 
   /**
    * The path where this action operates.
@@ -28,37 +28,36 @@ sealed trait MigrationAction {
 object MigrationAction {
 
   // Helper to compute the inverse of a SchemaExpr for reversible transformations.
-  // Returns the original expression for irreversible operations.
-  private def inverseTransform(transform: SchemaExpr[DynamicValue, ?]): SchemaExpr[DynamicValue, ?] =
+  // Returns None for irreversible operations (StringLength, Relational, Logical, etc.)
+  private def inverseTransform(transform: SchemaExpr[DynamicValue, ?]): Option[SchemaExpr[DynamicValue, ?]] =
     transform match {
       // Lossless: Arithmetic Add/Subtract
       case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num) =>
-        SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num)
+        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num))
 
       case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Subtract, num) =>
-        SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num)
+        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Add, num))
 
       // Lossless: Arithmetic Multiply/Divide
       case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num) =>
-        SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num)
+        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num))
 
       case SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Divide, num) =>
-        SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num)
+        Some(SchemaExpr.Arithmetic(left, right, SchemaExpr.ArithmeticOperator.Multiply, num))
 
       // Lossless: Boolean Not (self-inverse)
       case SchemaExpr.Not(expr) =>
-        SchemaExpr.Not(expr)
+        Some(SchemaExpr.Not(expr))
 
       // Lossy: String case conversions (loses original casing)
       case SchemaExpr.StringUppercase(expr) =>
-        SchemaExpr.StringLowercase(expr)
+        Some(SchemaExpr.StringLowercase(expr))
 
       case SchemaExpr.StringLowercase(expr) =>
-        SchemaExpr.StringUppercase(expr)
+        Some(SchemaExpr.StringUppercase(expr))
 
-      // Irreversible: Default to identity for operations that cannot be reversed
-      // (StringLength, Relational, Logical, StringRegexMatch, etc.)
-      case _ => transform
+      // Irreversible: StringLength, Relational, Logical, StringRegexMatch, etc.
+      case _ => None
     }
 
   // Private helpers for navigating and updating nested DynamicValue structures.
@@ -383,7 +382,10 @@ object MigrationAction {
       )
     }
 
-    def reverse: MigrationAction = TransformValue(at, inverseTransform(transform))
+    def reverse: MigrationAction = inverseTransform(transform) match {
+      case Some(inv) => TransformValue(at, inv)
+      case None      => Irreversible(at, s"Cannot reverse transform: ${transform.getClass.getSimpleName}")
+    }
   }
 
   /**
@@ -502,7 +504,7 @@ object MigrationAction {
           sourcePath.nodes.length == at.nodes.length && sourcePath.nodes.dropRight(1) == targetParent
         }
         if (invalidPaths.nonEmpty) {
-          return Left(MigrationError.CrossPathJoinNotSupported(at, at, sourcePaths))
+          return Left(MigrationError.CrossPathJoinNotSupported(at, invalidPaths))
         }
       }
 
@@ -558,13 +560,15 @@ object MigrationAction {
       )
     }
 
-    def reverse: MigrationAction = {
-      val splitter = combiner match {
-        case SchemaExpr.StringConcat(_, SchemaExpr.StringConcat(SchemaExpr.Literal(delimiter: String, _), _)) =>
-          SchemaExpr.StringSplit(SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root), delimiter)
-        case _ => combiner
-      }
-      Split(at, sourcePaths, splitter)
+    def reverse: MigrationAction = combiner match {
+      case SchemaExpr.StringConcat(_, SchemaExpr.StringConcat(SchemaExpr.Literal(delimiter: String, _), _)) =>
+        val splitter = SchemaExpr.StringSplit(SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root), delimiter)
+        Split(at, sourcePaths, splitter)
+      case _ =>
+        Irreversible(
+          at,
+          "Cannot reverse Join: unsupported combiner expression type. Only StringConcat with a delimiter is supported."
+        )
     }
   }
 
@@ -596,7 +600,7 @@ object MigrationAction {
           targetPath.nodes.length == at.nodes.length && targetPath.nodes.dropRight(1) == sourceParent
         }
         if (invalidPaths.nonEmpty) {
-          return Left(MigrationError.CrossPathSplitNotSupported(at, at, targetPaths))
+          return Left(MigrationError.CrossPathSplitNotSupported(at, invalidPaths))
         }
       }
 
@@ -657,19 +661,24 @@ object MigrationAction {
       )
     }
 
-    def reverse: MigrationAction = {
-      val combiner: SchemaExpr[DynamicValue, ?] = splitter match {
-        case SchemaExpr.StringSplit(_, delimiter) if targetPaths.length == 2 =>
+    def reverse: MigrationAction = splitter match {
+      case SchemaExpr.StringSplit(_, delimiter) if targetPaths.nonEmpty =>
+        // Build StringConcat chain: field0 + delimiter + field1 + delimiter + field2 + ...
+        val lastIdx                                    = targetPaths.length - 1
+        val lastExpr: SchemaExpr[DynamicValue, String] =
+          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field(s"field$lastIdx"))
+        val combiner = (lastIdx - 1 to 0 by -1).foldLeft(lastExpr) { (acc, idx) =>
           SchemaExpr.StringConcat(
-            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field(s"field$idx")),
             SchemaExpr.StringConcat(
               SchemaExpr.Literal(delimiter, zio.blocks.schema.Schema.string),
-              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+              acc
             )
           )
-        case _ => SchemaExpr.Dynamic[DynamicValue, DynamicValue](DynamicOptic.root.field("field0"))
-      }
-      Join(at, targetPaths, combiner)
+        }
+        Join(at, targetPaths, combiner)
+      case _ =>
+        Irreversible(at, "Cannot reverse Split: unsupported splitter expression type. Only StringSplit is supported.")
     }
   }
 
@@ -707,7 +716,10 @@ object MigrationAction {
       )
     }
 
-    def reverse: MigrationAction = TransformElements(at, inverseTransform(transform))
+    def reverse: MigrationAction = inverseTransform(transform) match {
+      case Some(inv) => TransformElements(at, inv)
+      case None      => Irreversible(at, s"Cannot reverse element transform: ${transform.getClass.getSimpleName}")
+    }
   }
 
   /**
@@ -743,7 +755,10 @@ object MigrationAction {
       )
     }
 
-    def reverse: MigrationAction = TransformKeys(at, inverseTransform(transform))
+    def reverse: MigrationAction = inverseTransform(transform) match {
+      case Some(inv) => TransformKeys(at, inv)
+      case None      => Irreversible(at, s"Cannot reverse key transform: ${transform.getClass.getSimpleName}")
+    }
   }
 
   /**
@@ -779,7 +794,10 @@ object MigrationAction {
       )
     }
 
-    def reverse: MigrationAction = TransformValues(at, inverseTransform(transform))
+    def reverse: MigrationAction = inverseTransform(transform) match {
+      case Some(inv) => TransformValues(at, inv)
+      case None      => Irreversible(at, s"Cannot reverse value transform: ${transform.getClass.getSimpleName}")
+    }
   }
 
   /**
@@ -835,5 +853,19 @@ object MigrationAction {
       )
 
     def reverse: MigrationAction = TransformCase(at, caseName, actions.reverse.map(_.reverse))
+  }
+
+  /**
+   * A marker action representing an operation that cannot be reversed. Always
+   * fails at execution time with a clear error message.
+   */
+  private[migration] final case class Irreversible(
+    at: DynamicOptic,
+    reason: String
+  ) extends MigrationAction {
+    def execute(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      Left(MigrationError.IrreversibleOperation(at, reason))
+
+    def reverse: MigrationAction = this
   }
 }

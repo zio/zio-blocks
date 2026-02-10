@@ -41,6 +41,10 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
   case class FullName(first: String, last: String)
   case class CombinedName(fullName: String)
 
+  // Type alias for field path segments used in type-level tracking.
+  // FP["city"] represents the path type (("field", "city"),) for a field named "city".
+  type FP[Name <: String] = ("field", Name) *: EmptyTuple
+
   // Schemas
   implicit val personV1Schema: Schema[PersonV1]           = Schema.derived
   implicit val personV2Schema: Schema[PersonV2]           = Schema.derived
@@ -86,19 +90,21 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         assertTrue(afterDrop.actions.size == 1)
       },
       test("dropField with selector syntax") {
-        val builder   = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterDrop = builder.dropField(
-          _.city,
-          SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
-        )
+        val builder                                                                               = MigrationBuilder.newBuilder[PersonV1, PersonV2]
+        val afterDrop: MigrationBuilder[PersonV1, PersonV2, FP["city"] *: EmptyTuple, EmptyTuple] =
+          builder.dropField(
+            _.city,
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
 
         assertTrue(afterDrop.actions.size == 1)
       },
       test("multiple dropField operations accumulate") {
-        val builder    = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterDrops = builder
-          .dropField(_.city, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
-          .dropField(_.name, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+        val builder                                                                                              = MigrationBuilder.newBuilder[PersonV1, PersonV2]
+        val afterDrops: MigrationBuilder[PersonV1, PersonV2, FP["city"] *: FP["name"] *: EmptyTuple, EmptyTuple] =
+          builder
+            .dropField(_.city, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+            .dropField(_.name, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
 
         assertTrue(afterDrops.actions.size == 2)
       }
@@ -114,33 +120,42 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         assertTrue(afterAdd.actions.size == 1)
       },
       test("addField with selector syntax") {
-        val builder  = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterAdd = builder.addField(
-          _.location,
-          SchemaExpr.Literal[DynamicValue, String]("unknown", Schema.string)
-        )
+        val builder                                                                                  = MigrationBuilder.newBuilder[PersonV1, PersonV2]
+        val afterAdd: MigrationBuilder[PersonV1, PersonV2, EmptyTuple, FP["location"] *: EmptyTuple] =
+          builder.addField(
+            _.location,
+            SchemaExpr.Literal[DynamicValue, String]("unknown", Schema.string)
+          )
 
         assertTrue(afterAdd.actions.size == 1)
       },
       test("multiple addField operations accumulate") {
-        val builder   = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterAdds = builder
-          .addField(_.location, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
-          .addField(_.fullName, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+        val builder = MigrationBuilder.newBuilder[PersonV1, PersonV2]
+        val afterAdds
+          : MigrationBuilder[PersonV1, PersonV2, EmptyTuple, FP["location"] *: FP["fullName"] *: EmptyTuple] =
+          builder
+            .addField(_.location, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
+            .addField(_.fullName, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
 
         assertTrue(afterAdds.actions.size == 2)
       }
     ),
     suite("renameField - adds source to Handled and target to Provided")(
       test("renameField with selector syntax") {
-        val builder     = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterRename = builder.renameField(_.name, _.fullName)
+        val builder                                                                                                   = MigrationBuilder.newBuilder[PersonV1, PersonV2]
+        val afterRename: MigrationBuilder[PersonV1, PersonV2, FP["name"] *: EmptyTuple, FP["fullName"] *: EmptyTuple] =
+          builder.renameField(_.name, _.fullName)
 
         assertTrue(afterRename.actions.size == 1)
       },
       test("multiple renameField operations") {
-        val builder      = MigrationBuilder.newBuilder[PersonV1, PersonV2]
-        val afterRenames = builder
+        val builder = MigrationBuilder.newBuilder[PersonV1, PersonV2]
+        val afterRenames: MigrationBuilder[
+          PersonV1,
+          PersonV2,
+          FP["name"] *: FP["city"] *: EmptyTuple,
+          FP["fullName"] *: FP["location"] *: EmptyTuple
+        ] = builder
           .renameField(_.name, _.fullName)
           .renameField(_.city, _.location)
 
@@ -167,11 +182,12 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         assertTrue(afterTransform.actions.size == 1)
       },
       test("transformField with selector syntax") {
-        val builder        = MigrationBuilder.newBuilder[PersonV1, PersonV1]
-        val afterTransform = builder.transformField(
-          _.age,
-          SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
-        )
+        val builder                                                                                                = MigrationBuilder.newBuilder[PersonV1, PersonV1]
+        val afterTransform: MigrationBuilder[PersonV1, PersonV1, FP["age"] *: EmptyTuple, FP["age"] *: EmptyTuple] =
+          builder.transformField(
+            _.age,
+            SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
+          )
 
         assertTrue(afterTransform.actions.size == 1)
       }
@@ -187,13 +203,43 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         assertTrue(afterMandate.actions.size == 1)
       },
       test("mandateField with selector syntax") {
-        val builder      = MigrationBuilder.newBuilder[WithOption, WithoutOption]
-        val afterMandate = builder.mandateField(
-          _.name,
-          SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
-        )
+        val builder = MigrationBuilder.newBuilder[WithOption, WithoutOption]
+        val afterMandate
+          : MigrationBuilder[WithOption, WithoutOption, FP["name"] *: EmptyTuple, FP["name"] *: EmptyTuple] =
+          builder.mandateField(
+            _.name,
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
 
         assertTrue(afterMandate.actions.size == 1)
+      },
+      test("mandateField enables .build for complete migration") {
+        val migration = MigrationBuilder
+          .newBuilder[WithOption, WithoutOption]
+          .mandateField(
+            _.name,
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
+          .build
+
+        val result = migration(WithOption(Some("Alice"), 25))
+        assertTrue(
+          result == Right(WithoutOption("Alice", 25))
+        )
+      },
+      test("mandateField .build uses default for None") {
+        val migration = MigrationBuilder
+          .newBuilder[WithOption, WithoutOption]
+          .mandateField(
+            _.name,
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
+          .build
+
+        val result = migration(WithOption(None, 30))
+        assertTrue(
+          result == Right(WithoutOption("default", 30))
+        )
       }
     ),
     suite("optionalizeField - wrap in Option, adds to both Handled and Provided")(
@@ -207,13 +253,29 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         assertTrue(afterOptionalize.actions.size == 1)
       },
       test("optionalizeField with selector syntax") {
-        val builder          = MigrationBuilder.newBuilder[WithoutOption, WithOption]
-        val afterOptionalize = builder.optionalizeField(
-          _.name,
-          SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
-        )
+        val builder = MigrationBuilder.newBuilder[WithoutOption, WithOption]
+        val afterOptionalize
+          : MigrationBuilder[WithoutOption, WithOption, FP["name"] *: EmptyTuple, FP["name"] *: EmptyTuple] =
+          builder.optionalizeField(
+            _.name,
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
 
         assertTrue(afterOptionalize.actions.size == 1)
+      },
+      test("optionalizeField enables .build for complete migration") {
+        val migration = MigrationBuilder
+          .newBuilder[WithoutOption, WithOption]
+          .optionalizeField(
+            _.name,
+            SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
+          )
+          .build
+
+        val result = migration(WithoutOption("Alice", 25))
+        assertTrue(
+          result == Right(WithOption(Some("Alice"), 25))
+        )
       }
     ),
     suite("changeFieldType - adds field name to both Handled and Provided")(
@@ -229,10 +291,11 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       test("changeFieldType with selector syntax") {
         val builder = MigrationBuilder.newBuilder[WithString, WithInt]
         // Note: Using explicit function type due to type inference limitations
-        val afterChange = builder.changeFieldType(
-          (s: WithString) => s.value,
-          PrimitiveConverter.StringToInt
-        )
+        val afterChange: MigrationBuilder[WithString, WithInt, FP["value"] *: EmptyTuple, FP["value"] *: EmptyTuple] =
+          builder.changeFieldType(
+            (s: WithString) => s.value,
+            PrimitiveConverter.StringToInt
+          )
 
         assertTrue(afterChange.actions.size == 1)
       }
@@ -384,25 +447,35 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
     ),
     suite("Chaining operations")(
       test("mixed operations accumulate correctly") {
-        val builder = MigrationBuilder
+        val builder: MigrationBuilder[
+          PersonV1,
+          PersonV2,
+          FP["name"] *: FP["city"] *: FP["age"] *: EmptyTuple,
+          FP["fullName"] *: FP["location"] *: FP["age"] *: EmptyTuple
+        ] = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
           .renameField(_.name, _.fullName)
           .renameField(_.city, _.location)
           .transformField(
-            DynamicOptic.root.field("age"),
+            _.age,
             SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
           )
 
         assertTrue(builder.actions.size == 3)
       },
       test("long chain of operations") {
-        val builder = MigrationBuilder
+        val builder: MigrationBuilder[
+          PersonV1,
+          PersonV2,
+          FP["name"] *: FP["city"] *: FP["age"] *: EmptyTuple,
+          FP["fullName"] *: FP["location"] *: FP["age"] *: EmptyTuple
+        ] = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
           .renameField(_.name, _.fullName)
           .dropField(_.city, SchemaExpr.Literal[DynamicValue, String]("", Schema.string))
           .addField(_.location, SchemaExpr.Literal[DynamicValue, String]("unknown", Schema.string))
           .transformField(
-            DynamicOptic.root.field("age"),
+            _.age,
             SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
           )
 

@@ -3,8 +3,10 @@ package zio.blocks.schema.migration
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
+import MigrationTestCompat._
 
 object MigrationLawsSpec extends ZIOSpecDefault {
+  locally(ensureLoaded)
 
   // Simple case class for basic tests
   final case class PersonV1(firstName: String, lastName: String, age: Int)
@@ -47,6 +49,17 @@ object MigrationLawsSpec extends ZIOSpecDefault {
   )
   object CompanyV2 {
     implicit val schema: Schema[CompanyV2] = Schema.derived
+  }
+
+  // CompanyV1 with only renamed fields (no added/removed fields) for lossless reverse test
+  final case class CompanyV1Renamed(
+    companyName: String,
+    location: Address,
+    staff: Vector[Employee],
+    annualRevenue: Int
+  )
+  object CompanyV1Renamed {
+    implicit val schema: Schema[CompanyV1Renamed] = Schema.derived
   }
 
   val genPersonV1: Gen[Any, PersonV1] =
@@ -183,17 +196,17 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         val m1 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(DynamicOptic.root.field("temp1"), SchemaExpr.Literal(1, Schema.int))
-          .buildPartial
+          .build
 
         val m2 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(DynamicOptic.root.field("temp2"), SchemaExpr.Literal(2, Schema.int))
-          .buildPartial
+          .build
 
         val m3 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(DynamicOptic.root.field("temp3"), SchemaExpr.Literal(3, Schema.int))
-          .buildPartial
+          .build
 
         val leftAssoc  = (m1 ++ m2) ++ m3
         val rightAssoc = m1 ++ (m2 ++ m3)
@@ -216,7 +229,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val m2 = MigrationBuilder
             .newBuilder[PersonV1, PersonV1]
@@ -229,7 +242,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val m3 = MigrationBuilder
             .newBuilder[PersonV1, PersonV1]
@@ -242,7 +255,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val leftAssoc  = (m1 ++ m2) ++ m3
           val rightAssoc = m1 ++ (m2 ++ m3)
@@ -260,7 +273,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         val m = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(DynamicOptic.root.field("newField"), SchemaExpr.Literal(42, Schema.int))
-          .buildPartial
+          .build
 
         val doubleReversed = m.reverse.reverse
 
@@ -275,7 +288,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("oldField"),
             SchemaExpr.Literal(0, Schema.int)
           )
-          .buildPartial
+          .build
 
         val doubleReversed = m.reverse.reverse
 
@@ -290,7 +303,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("oldName"),
             "newName"
           )
-          .buildPartial
+          .build
 
         val doubleReversed = m.reverse.reverse
 
@@ -310,7 +323,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("field2"),
             SchemaExpr.Literal(2, Schema.int)
           )
-          .buildPartial
+          .build
 
         val doubleReversed = m.reverse.reverse
 
@@ -324,7 +337,7 @@ object MigrationLawsSpec extends ZIOSpecDefault {
           .addField(DynamicOptic.root.field("field1"), SchemaExpr.Literal(1, Schema.int))
           .addField(DynamicOptic.root.field("field2"), SchemaExpr.Literal(2, Schema.int))
           .addField(DynamicOptic.root.field("field3"), SchemaExpr.Literal(3, Schema.int))
-          .buildPartial
+          .build
 
         val reversed = m.reverse
 
@@ -337,16 +350,25 @@ object MigrationLawsSpec extends ZIOSpecDefault {
     ),
     suite("Semantic Inverse Law")(
       test("lossless migration: m(a) = b => m.reverse(b) = a - rename only") {
-        check(genCompanyV1) { company =>
-          val m = companyV1ToV2Migration
+        // Use a truly lossless migration (renames only, no addField/dropField)
+        val m: Migration[CompanyV1, CompanyV1Renamed] =
+          MigrationBuilder
+            .newBuilder[CompanyV1, CompanyV1Renamed]
+            .renameField(DynamicOptic.root.field("name"), "companyName")
+            .renameField(DynamicOptic.root.field("address"), "location")
+            .renameField(DynamicOptic.root.field("employees"), "staff")
+            .renameField(DynamicOptic.root.field("revenue"), "annualRevenue")
+            .buildPartial
 
-          m(company) match {
-            case Right(companyV2) =>
-              val reversed = m.reverse(companyV2)
+        check(genCompanyV1) { company =>
+          val forward = m(company)
+
+          forward match {
+            case Right(renamed) =>
+              val reversed = m.reverse(renamed)
 
               reversed match {
                 case Right(recovered) =>
-                  // Should recover original structure
                   assertTrue(
                     recovered.name == company.name &&
                       recovered.address == company.address &&
@@ -354,14 +376,11 @@ object MigrationLawsSpec extends ZIOSpecDefault {
                       recovered.revenue == company.revenue
                   )
                 case Left(_) =>
-                  // Note: This is not the best test, as it assertTrue anyways
-                  // not sure how else to test this
-                  // Reverse may fail due to added field (lossy)
-                  assertTrue(true) // Expected for lossy migrations
+                  assertTrue(false) // Reverse of lossless rename-only migration should not fail
               }
 
             case Left(_) =>
-              assertTrue(false) // Migration failed
+              assertTrue(false) // Forward migration failed
           }
         }
       },
@@ -842,17 +861,29 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         joinMigration(original) match {
           case Right(joined) =>
             // fullName = "John  Doe" (double space)
-            val reversed = joinMigration.reverse(joined)
-
-            reversed match {
-              case Right(_) =>
-                // Split by "  " should recover correctly only if reverse uses same separator
-                // But the reverse Split uses space delimiter from forward Join expr
-                // This demonstrates that the split is lossy if separators don't match exactly
-                assertTrue(true) // The behavior depends on implementation
-              case Left(_) =>
-                // May fail if split doesn't handle double spaces
-                assertTrue(true)
+            val fullNameField = joined
+              .asInstanceOf[DynamicValue.Record]
+              .fields
+              .find(_._1 == "fullName")
+              .map(_._2)
+            assertTrue(
+              fullNameField == Some(DynamicValue.Primitive(PrimitiveValue.String("John  Doe")))
+            ) && {
+              // Reverse split recovers the original fields despite double space,
+              // demonstrating the join combiner's separator doesn't affect split fidelity
+              val reversed = joinMigration.reverse(joined)
+              reversed match {
+                case Right(recovered) =>
+                  val fields    = recovered.asInstanceOf[DynamicValue.Record].fields
+                  val firstName = fields.find(_._1 == "firstName").map(_._2)
+                  val lastName  = fields.find(_._1 == "lastName").map(_._2)
+                  assertTrue(
+                    firstName == Some(DynamicValue.Primitive(PrimitiveValue.String("John"))) &&
+                      lastName == Some(DynamicValue.Primitive(PrimitiveValue.String("Doe")))
+                  )
+                case Left(_) =>
+                  assertTrue(false) // Reverse failed
+              }
             }
           case Left(_) =>
             assertTrue(false)
@@ -917,12 +948,12 @@ object MigrationLawsSpec extends ZIOSpecDefault {
         val m1 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(DynamicOptic.root.field("field1"), SchemaExpr.Literal(1, Schema.int))
-          .buildPartial
+          .build
 
         val m2 = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
           .addField(DynamicOptic.root.field("field2"), SchemaExpr.Literal(2, Schema.int))
-          .buildPartial
+          .build
 
         val composedReversed = (m1 ++ m2).reverse
         val reversedComposed = m2.reverse ++ m1.reverse

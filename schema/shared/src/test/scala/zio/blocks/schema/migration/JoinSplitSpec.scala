@@ -25,8 +25,14 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val firstNameOptic = DynamicOptic.root.field("firstName")
         val lastNameOptic  = DynamicOptic.root.field("lastName")
 
-        // Combiner: For now, just return the expected result as a literal
-        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Literal[DynamicValue, String]("John Doe", Schema.string)
+        // Combiner: field0 + " " + field1 (reads actual source values)
+        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.StringConcat(
+          SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+          SchemaExpr.StringConcat(
+            SchemaExpr.Literal(" ", Schema.string),
+            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+          )
+        )
 
         val joinAction = MigrationAction.Join(
           at = DynamicOptic.root.field("fullName"),
@@ -56,8 +62,13 @@ object JoinSplitSpec extends ZIOSpecDefault {
         val quantityOptic = DynamicOptic.root.field("quantity")
         val bonusOptic    = DynamicOptic.root.field("bonus")
 
-        // Combiner: field0 + field1
-        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Literal[DynamicValue, Int](15, Schema.int)
+        // Combiner: field0 + field1 (reads actual source values)
+        val combiner: SchemaExpr[DynamicValue, ?] = SchemaExpr.Arithmetic[DynamicValue, Int](
+          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field0")),
+          SchemaExpr.Dynamic[DynamicValue, Int](DynamicOptic.root.field("field1")),
+          SchemaExpr.ArithmeticOperator.Add,
+          IsNumeric.IsInt
+        )
 
         val joinAction = MigrationAction.Join(
           at = DynamicOptic.root.field("totalQuantity"),
@@ -96,7 +107,27 @@ object JoinSplitSpec extends ZIOSpecDefault {
 
         assertTrue(result.isLeft)
       },
-      test("reverse should create Split action") {
+      test("reverse with StringConcat combiner should create Split action") {
+        val joinAction = MigrationAction.Join(
+          at = DynamicOptic.root.field("fullName"),
+          sourcePaths = Vector(
+            DynamicOptic.root.field("firstName"),
+            DynamicOptic.root.field("lastName")
+          ),
+          combiner = SchemaExpr.StringConcat(
+            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+            SchemaExpr.StringConcat(
+              SchemaExpr.Literal(" ", Schema.string),
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+            )
+          )
+        )
+
+        val reversed = joinAction.reverse
+
+        assertTrue(reversed.isInstanceOf[MigrationAction.Split])
+      },
+      test("reverse with unsupported combiner should return Irreversible") {
         val joinAction = MigrationAction.Join(
           at = DynamicOptic.root.field("fullName"),
           sourcePaths = Vector(
@@ -108,7 +139,7 @@ object JoinSplitSpec extends ZIOSpecDefault {
 
         val reversed = joinAction.reverse
 
-        assertTrue(reversed.isInstanceOf[MigrationAction.Split])
+        assertTrue(reversed.isInstanceOf[MigrationAction.Irreversible])
       },
       test("should fail with CrossPathJoinNotSupported when paths don't share same parent") {
         // Create a nested record with different branches:
@@ -156,7 +187,13 @@ object JoinSplitSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("address").field("street"),
             DynamicOptic.root.field("address").field("city")
           ),
-          combiner = SchemaExpr.Literal[DynamicValue, String]("Main St, NYC", Schema.string)
+          combiner = SchemaExpr.StringConcat(
+            SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field0")),
+            SchemaExpr.StringConcat(
+              SchemaExpr.Literal(", ", Schema.string),
+              SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
+            )
+          )
         )
 
         val result = joinAction.execute(record)

@@ -228,6 +228,28 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
         action.at.nodes.last == DynamicOptic.Node.Field("maybeAge"),
         action.default.isInstanceOf[SchemaExpr.Literal[_, _]]
       )
+    },
+    test("mandateField enables .build for complete migration") {
+      val migration = syntax(
+        syntax(MigrationBuilder.newBuilder[WithOption, WithoutOption])
+          .mandateField(_.maybeAge, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+      ).build
+
+      val result = migration(WithOption("Alice", Some(25)))
+      assertTrue(
+        result == Right(WithoutOption("Alice", 25))
+      )
+    },
+    test("mandateField .build uses default for None") {
+      val migration = syntax(
+        syntax(MigrationBuilder.newBuilder[WithOption, WithoutOption])
+          .mandateField(_.maybeAge, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+      ).build
+
+      val result = migration(WithOption("Alice", None))
+      assertTrue(
+        result == Right(WithoutOption("Alice", 0))
+      )
     }
   )
 
@@ -247,6 +269,17 @@ object MigrationBuilderTypeLevelSpec extends ZIOSpecDefault {
       assertTrue(
         action.at.nodes.last == DynamicOptic.Node.Field("maybeAge"),
         action.defaultForReverse.isInstanceOf[SchemaExpr.Literal[_, _]]
+      )
+    },
+    test("optionalizeField enables .build for complete migration") {
+      val migration = syntax(
+        syntax(MigrationBuilder.newBuilder[WithoutOption, WithOption])
+          .optionalizeField(_.maybeAge, SchemaExpr.Literal[DynamicValue, Int](0, Schema.int))
+      ).build
+
+      val result = migration(WithoutOption("Alice", 25))
+      assertTrue(
+        result == Right(WithOption("Alice", Some(25)))
       )
     }
   )

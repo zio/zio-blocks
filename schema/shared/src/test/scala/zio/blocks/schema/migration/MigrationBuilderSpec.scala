@@ -51,7 +51,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         // Use same schema for source and target - no actions needed
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV1]
-          .buildPartial
+          .build
 
         assertTrue(
           migration.sourceSchema != null,
@@ -78,12 +78,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("extra"),
             SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
           )
-          .buildPartial
+          .build
 
         val v1     = PersonV1("John", "Doe", 30)
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(PersonV1("John", "Doe", 30)))
       },
       test("dropField - remove field") {
         val migration = MigrationBuilder
@@ -92,14 +92,19 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("age"),
             SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
           )
-          .buildPartial
+          .build
 
         val v1 = PersonV1("John", "Doe", 30)
         // Test at DynamicValue level since structure changed
         val dynamicValue = personV1Schema.toDynamicValue(v1)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.get("age").isEmpty),
+          result.exists(_.get("firstName").one == Right(DynamicValue.string("John"))),
+          result.exists(_.get("lastName").one == Right(DynamicValue.string("Doe")))
+        )
       },
       test("renameField - rename single field") {
         val migration = MigrationBuilder
@@ -108,14 +113,18 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("firstName"),
             "givenName"
           )
-          .buildPartial
+          .build
 
         val v1 = PersonV1("John", "Doe", 30)
         // Test at DynamicValue level since structure changed
         val dynamicValue = personV1Schema.toDynamicValue(v1)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.get("givenName").one == Right(DynamicValue.string("John"))),
+          result.exists(_.get("firstName").isEmpty)
+        )
       },
       test("transformField - increment age") {
         val migration = MigrationBuilder
@@ -129,49 +138,49 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               IsNumeric.IsInt
             )
           )
-          .buildPartial
+          .build
 
         val v1     = PersonV1("John", "Doe", 30)
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(PersonV1("John", "Doe", 31)))
       },
       test("mandateField - unwrap Option with default") {
         val migration = MigrationBuilder
           .newBuilder[WithOption, WithoutOption]
           .mandateField(
-            DynamicOptic.root.field("name"),
+            (_: WithOption).name,
             SchemaExpr.Literal[DynamicValue, String]("Unknown", Schema.string)
           )
-          .buildPartial
+          .build
 
         val v1     = WithOption(Some("John"), 30)
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(WithoutOption("John", 30)))
       },
       test("optionalizeField - wrap field in Option") {
         val migration = MigrationBuilder
           .newBuilder[WithoutOption, WithOption]
           .optionalizeField(
-            DynamicOptic.root.field("name"),
+            (_: WithoutOption).name,
             SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
           )
-          .buildPartial
+          .build
 
         val v1     = WithoutOption("John", 30)
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(WithOption(Some("John"), 30)))
       },
       test("optionalizeField reverse - unwrap Some successfully") {
         val migration = MigrationBuilder
           .newBuilder[WithoutOption, WithOption]
           .optionalizeField(
-            DynamicOptic.root.field("name"),
+            (_: WithoutOption).name,
             SchemaExpr.Literal[DynamicValue, String]("DefaultName", Schema.string)
           )
-          .buildPartial
+          .build
 
         val reverseMigration = migration.reverse
         val v2               = WithOption(Some("Alice"), 25)
@@ -188,10 +197,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[WithoutOption, WithOption]
           .optionalizeField(
-            DynamicOptic.root.field("name"),
+            (_: WithoutOption).name,
             SchemaExpr.Literal[DynamicValue, String]("DefaultName", Schema.string)
           )
-          .buildPartial
+          .build
 
         val reverseMigration = migration.reverse
         val v2               = WithOption(None, 30)
@@ -208,10 +217,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[WithoutOption, WithOption]
           .optionalizeField(
-            DynamicOptic.root.field("name"),
+            (_: WithoutOption).name,
             SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
           )
-          .buildPartial
+          .build
 
         val original = WithoutOption("Bob", 35)
         val forward  = migration(original)
@@ -226,15 +235,15 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[WithString, WithInt]
           .changeFieldType(
-            DynamicOptic.root.field("age"),
+            (_: WithString).age,
             PrimitiveConverter.StringToInt
           )
-          .buildPartial
+          .build
 
         val v1     = WithString("30")
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(WithInt(30)))
       }
     ),
     suite("Multi-Field Operations")(
@@ -255,14 +264,17 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root.field("field1"))
             )
           )
-          .buildPartial
+          .build
 
         val v1 = PersonV1("John", "Doe", 30)
         // Test at DynamicValue level since structure changed
         val dynamicValue = personV1Schema.toDynamicValue(v1)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.get("fullName").one == Right(DynamicValue.string("John Doe")))
+        )
       },
       test("splitField - split fullName into firstName and lastName") {
         val migration = MigrationBuilder
@@ -278,14 +290,18 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               " "
             )
           )
-          .buildPartial
+          .build
 
         val v2 = PersonV2("John Doe", 30, "USA")
         // Test at DynamicValue level since structure changed
         val dynamicValue = personV2Schema.toDynamicValue(v2)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.get("firstName").one == Right(DynamicValue.string("John"))),
+          result.exists(_.get("lastName").one == Right(DynamicValue.string("Doe")))
+        )
       }
     ),
     suite("Collection Operations")(
@@ -301,12 +317,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               IsNumeric.IsInt
             )
           )
-          .buildPartial
+          .build
 
         val v1     = WithList(Vector(1, 2, 3))
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(WithList(Vector(11, 12, 13))))
       },
       test("transformKeys - uppercase all keys") {
         val migration = MigrationBuilder
@@ -317,12 +333,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
             )
           )
-          .buildPartial
+          .build
 
         val v1     = WithMap(Map("foo" -> 1, "bar" -> 2))
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(WithMap(Map("FOO" -> 1, "BAR" -> 2))))
       },
       test("transformValues - add 100 to each value") {
         val migration = MigrationBuilder
@@ -336,12 +352,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               IsNumeric.IsInt
             )
           )
-          .buildPartial
+          .build
 
         val v1     = WithMap(Map("foo" -> 1, "bar" -> 2))
         val result = migration(v1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(WithMap(Map("foo" -> 101, "bar" -> 102))))
       }
     ),
     suite("Enum Operations")(
@@ -353,14 +369,18 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             "PayPal",
             "PaypalPayment"
           )
-          .buildPartial
+          .build
 
         val payment = PayPal("test@example.com")
         // Test at DynamicValue level since case name changed
         val dynamicValue = paymentSchema.toDynamicValue(payment)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.caseName == Some("PaypalPayment")),
+          result.exists(_.caseValue.flatMap(_.get("email").one.toOption).isDefined)
+        )
       },
       test("transformCase - rename field in CreditCard case") {
         val migration = MigrationBuilder
@@ -375,14 +395,19 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               )
             )
           )
-          .buildPartial
+          .build
 
         val payment = CreditCard("1234-5678-9012-3456", "123")
         // Test at DynamicValue level since field name changed
         val dynamicValue = paymentSchema.toDynamicValue(payment)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.caseName == Some("CreditCard")),
+          result.exists(_.caseValue.flatMap(_.get("cardNumber").one.toOption).isDefined),
+          result.exists(_.caseValue.flatMap(_.get("number").one.toOption).isEmpty)
+        )
       }
     ),
     suite("Enum Selector Operations")(
@@ -390,14 +415,18 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[PaymentMethod, PaymentMethod]
           .renameCase((p: PaymentMethod) => p.when[PayPal], "PaypalPayment")
-          .buildPartial
+          .build
 
         val payment = PayPal("test@example.com")
         // Test at DynamicValue level since case name changed
         val dynamicValue = paymentSchema.toDynamicValue(payment)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.caseName == Some("PaypalPayment")),
+          result.exists(_.caseValue.flatMap(_.get("email").one.toOption).isDefined)
+        )
       },
       test("transformCase with selector - rename field in CreditCard case using .when[CreditCard]") {
         val migration = MigrationBuilder
@@ -405,14 +434,19 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           .transformCase((p: PaymentMethod) => p.when[CreditCard])(
             _.renameField(DynamicOptic.root.field("number"), "cardNumber")
           )
-          .buildPartial
+          .build
 
         val payment = CreditCard("1234-5678-9012-3456", "123")
         // Test at DynamicValue level since field name changed
         val dynamicValue = paymentSchema.toDynamicValue(payment)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.caseName == Some("CreditCard")),
+          result.exists(_.caseValue.flatMap(_.get("cardNumber").one.toOption).isDefined),
+          result.exists(_.caseValue.flatMap(_.get("number").one.toOption).isEmpty)
+        )
       },
       test("transformCase with selector - verify correct action generated") {
         val builder = MigrationBuilder
@@ -468,14 +502,19 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("lastName"),
             SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
           )
-          .buildPartial
+          .build
 
         val v1 = PersonV1("John", "Doe", 30)
         // Test at DynamicValue level since structure changed
         val dynamicValue = personV1Schema.toDynamicValue(v1)
         val result       = migration.dynamicMigration.apply(dynamicValue)
 
-        assertTrue(result.isRight)
+        assertTrue(
+          result.isRight,
+          result.exists(_.get("country").one == Right(DynamicValue.string("USA"))),
+          result.exists(_.get("givenName").one == Right(DynamicValue.string("John"))),
+          result.exists(_.get("lastName").isEmpty)
+        )
       },
       test("verify immutability - builder returns new instance") {
         val builder1 = MigrationBuilder.newBuilder[PersonV1, PersonV2]
@@ -549,10 +588,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
           .joinFields(
-            DynamicOptic.root.field("fullName"),
-            Vector(
-              DynamicOptic.root.field("firstName"),
-              DynamicOptic.root.field("lastName")
+            (_: PersonV2).fullName,
+            Seq(
+              (_: PersonV1).firstName,
+              (_: PersonV1).lastName
             ),
             SchemaExpr.StringConcat[DynamicValue](
               SchemaExpr.StringConcat[DynamicValue](
@@ -563,10 +602,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             )
           )
           .addField(
-            DynamicOptic.root.field("country"),
+            (_: PersonV2).country,
             SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
           )
-          .buildPartial
+          .build
 
         val v1     = PersonV1("John", "Doe", 30)
         val result = migration(v1)
@@ -589,13 +628,21 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("firstName"),
             "givenName"
           )
-          .buildPartial
+          .build
 
         val reverseMigration = forwardMigration.reverse
 
         // Reverse should have same number of actions in reverse order
+        assertTrue(reverseMigration.dynamicMigration.actions.length == 2)
+
+        // Verify reverse actually works: apply forward then reverse
+        val v1           = PersonV1("John", "Doe", 30)
+        val dynamicV1    = personV1Schema.toDynamicValue(v1)
+        val forwarded    = forwardMigration.dynamicMigration.apply(dynamicV1)
+        val roundTripped = forwarded.flatMap(reverseMigration.dynamicMigration.apply)
         assertTrue(
-          reverseMigration.dynamicMigration.actions.length == 2
+          roundTripped.isRight,
+          roundTripped.exists(_.get("firstName").one == Right(DynamicValue.string("John")))
         )
       }
     ),
@@ -610,12 +657,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("country"), // Adding a new field that doesn't exist
               SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
             )
-            .buildPartial
+            .build
 
           val v1     = PersonV1("John", "Doe", 30)
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(PersonV1("John", "Doe", 30)))
         },
         test("dropField with selector") {
           val migration = MigrationBuilder
@@ -624,13 +671,18 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               (_: PersonV1).age, // macro extracts field name
               SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
             )
-            .buildPartial
+            .build
 
           val v1           = PersonV1("John", "Doe", 30)
           val dynamicValue = personV1Schema.toDynamicValue(v1)
           val result       = migration.dynamicMigration.apply(dynamicValue)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("age").isEmpty),
+            result.exists(_.get("firstName").one == Right(DynamicValue.string("John"))),
+            result.exists(_.get("lastName").one == Right(DynamicValue.string("Doe")))
+          )
         },
         test("renameField with selectors (from and to)") {
           val migration = MigrationBuilder
@@ -645,7 +697,11 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           val dynamicValue = personV1Schema.toDynamicValue(v1)
           val result       = migration.dynamicMigration.apply(dynamicValue)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("fullName").one == Right(DynamicValue.string("John"))),
+            result.exists(_.get("firstName").isEmpty)
+          )
         },
         test("transformField with selector") {
           val migration = MigrationBuilder
@@ -659,12 +715,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val v1     = PersonV1("John", "Doe", 30)
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(PersonV1("John", "Doe", 31)))
         },
         test("mandateField with selector") {
           val migration = MigrationBuilder
@@ -673,12 +729,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               (_: WithOption).name, // macro extracts field name
               SchemaExpr.Literal[DynamicValue, String]("Unknown", Schema.string)
             )
-            .buildPartial
+            .build
 
           val v1     = WithOption(Some("John"), 30)
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(WithoutOption("John", 30)))
         },
         test("optionalizeField with selector") {
           val migration = MigrationBuilder
@@ -687,12 +743,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               (_: WithoutOption).name, // macro extracts field name
               SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
             )
-            .buildPartial
+            .build
 
           val v1     = WithoutOption("John", 30)
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(WithOption(Some("John"), 30)))
         },
         test("optionalizeField with selector - reverse with Some") {
           val migration = MigrationBuilder
@@ -701,7 +757,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               (_: WithoutOption).name,
               SchemaExpr.Literal[DynamicValue, String]("FallbackName", Schema.string)
             )
-            .buildPartial
+            .build
 
           val reverseMigration = migration.reverse
           val v2               = WithOption(Some("TestName"), 42)
@@ -719,7 +775,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               (_: WithoutOption).name,
               SchemaExpr.Literal[DynamicValue, String]("FallbackName", Schema.string)
             )
-            .buildPartial
+            .build
 
           val reverseMigration = migration.reverse
           val v2               = WithOption(None, 99)
@@ -737,12 +793,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               (_: WithString).age, // macro extracts field name
               PrimitiveConverter.StringToInt
             )
-            .buildPartial
+            .build
 
           val v1     = WithString("30")
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(WithInt(30)))
         }
       ),
       suite("Multi-Field Operations with Selectors")(
@@ -769,7 +825,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           val dynamicValue = personV1Schema.toDynamicValue(v1)
           val result       = migration.dynamicMigration.apply(dynamicValue)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("fullName").one == Right(DynamicValue.string("John Doe")))
+          )
         },
         test("splitField with source selector and target selectors") {
           val migration = MigrationBuilder
@@ -791,7 +850,11 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
           val dynamicValue = personV2Schema.toDynamicValue(v2)
           val result       = migration.dynamicMigration.apply(dynamicValue)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("firstName").one == Right(DynamicValue.string("John"))),
+            result.exists(_.get("lastName").one == Right(DynamicValue.string("Doe")))
+          )
         }
       ),
       suite("Collection Operations with Selectors")(
@@ -807,12 +870,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val v1     = WithList(Vector(1, 2, 3))
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(WithList(Vector(11, 12, 13))))
         },
         test("transformKeys with selector") {
           val migration = MigrationBuilder
@@ -823,12 +886,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
               )
             )
-            .buildPartial
+            .build
 
           val v1     = WithMap(Map("foo" -> 1, "bar" -> 2))
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(WithMap(Map("FOO" -> 1, "BAR" -> 2))))
         },
         test("transformValues with selector") {
           val migration = MigrationBuilder
@@ -842,12 +905,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val v1     = WithMap(Map("foo" -> 1, "bar" -> 2))
           val result = migration(v1)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(WithMap(Map("foo" -> 101, "bar" -> 102))))
         }
       ),
       suite("Fluent API with Mixed Selectors and Manual DynamicOptics")(
@@ -871,13 +934,19 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 IsNumeric.IsInt
               )
             )
-            .buildPartial
+            .build
 
           val v1           = PersonV1("John", "Doe", 30)
           val dynamicValue = personV1Schema.toDynamicValue(v1)
           val result       = migration.dynamicMigration.apply(dynamicValue)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("extra").one == Right(DynamicValue.string("default"))),
+            result.exists(_.get("surname").one == Right(DynamicValue.string("Doe"))),
+            result.exists(_.get("lastName").isEmpty),
+            result.exists(_.get("age").one == Right(DynamicValue.int(31)))
+          )
         }
       ),
       suite("Nested Field Selectors")(
@@ -896,11 +965,19 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("address").field("country"),
               SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
             )
-            .buildPartial
+            .build
 
           val result = migration(person)
 
-          assertTrue(result.isRight)
+          // Typed result preserves all original fields
+          assertTrue(result == Right(person))
+          // Also verify the added field exists at dynamic level
+          val dynamicResult = migration.dynamicMigration.apply(personWithAddressSchema.toDynamicValue(person))
+          assertTrue(
+            dynamicResult.exists(
+              _.get("address").one.flatMap(_.get("country").one) == Right(DynamicValue.string("USA"))
+            )
+          )
         },
         test("2-level: dropField from nested record") {
           // Drop _.address.zip
@@ -924,7 +1001,14 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
 
           val result = migration(personDynamic)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("address").one.flatMap(_.get("zip").one).isLeft),
+            result.exists(
+              _.get("address").one.flatMap(_.get("street").one) == Right(DynamicValue.string("123 Main St"))
+            ),
+            result.exists(_.get("address").one.flatMap(_.get("city").one) == Right(DynamicValue.string("NYC")))
+          )
         },
         test("2-level: rename nested field") {
           // Rename _.address.street to _.address.streetName
@@ -948,7 +1032,13 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
 
           val result = migration(personDynamic)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(
+              _.get("address").one.flatMap(_.get("streetName").one) == Right(DynamicValue.string("123 Main St"))
+            ),
+            result.exists(_.get("address").one.flatMap(_.get("street").one).isLeft)
+          )
         },
         test("2-level: transformField on nested field") {
           // Transform _.address.city to uppercase
@@ -967,11 +1057,11 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
               )
             )
-            .buildPartial
+            .build
 
           val result = migration(person)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001"))))
         },
         test("3-level: addField to deeply nested record") {
           // Add _.company.address.country with default "USA"
@@ -990,11 +1080,20 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("company").field("address").field("country"),
               SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
             )
-            .buildPartial
+            .build
 
           val result = migration(employee)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(employee))
+          // Verify the added field at dynamic level
+          val dynamicResult = migration.dynamicMigration.apply(employeeSchema.toDynamicValue(employee))
+          assertTrue(
+            dynamicResult.exists(
+              _.get("company").one
+                .flatMap(_.get("address").one)
+                .flatMap(_.get("country").one) == Right(DynamicValue.string("USA"))
+            )
+          )
         },
         test("3-level: transformField on deeply nested field") {
           // Transform _.company.address.city to uppercase
@@ -1015,11 +1114,11 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
                 SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
               )
             )
-            .buildPartial
+            .build
 
           val result = migration(employee)
 
-          assertTrue(result.isRight)
+          assertTrue(result == Right(Employee("Bob", Company("Acme Inc", Address("456 Oak Ave", "LA", "90001")))))
         },
         test("2-level: join nested fields") {
           // Join _.address.street + _.address.city -> _.address.fullAddress
@@ -1053,7 +1152,12 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
 
           val result = migration(personDynamic)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(
+              _.get("address").one.flatMap(_.get("fullAddress").one) == Right(DynamicValue.string("123 Main St, NYC"))
+            )
+          )
         },
         test("2-level: optionalize nested field") {
           // Optionalize _.address.zip from String to Option[String]
@@ -1077,7 +1181,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
 
           val result = migration(personDynamic)
 
-          assertTrue(result.isRight)
+          assertTrue(
+            result.isRight,
+            result.exists(_.get("address").one.flatMap(_.get("zip").one.map(_.caseName)) == Right(Some("Some")))
+          )
         },
         test("error: intermediate field not found") {
           // Try to add _.nonexistent.street
@@ -1094,7 +1201,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("nonexistent").field("street"),
               SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
             )
-            .buildPartial
+            .build
 
           val result = migration(person)
 
@@ -1115,7 +1222,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               DynamicOptic.root.field("name").field("street"),
               SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
             )
-            .buildPartial
+            .build
 
           val result = migration(person)
 
@@ -1134,10 +1241,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[EmptySource, NonEmptyTarget]
           .addField(
-            DynamicOptic.root.field("field"),
+            (_: NonEmptyTarget).field,
             SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(EmptySource())
         assertTrue(
@@ -1155,10 +1262,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[NonEmptySource, EmptyTarget]
           .dropField(
-            DynamicOptic.root.field("field"),
+            (_: NonEmptySource).field,
             SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(NonEmptySource("test"))
         assertTrue(
@@ -1173,7 +1280,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[SingleField, SingleField]
-          .buildPartial
+          .build
 
         val result = migration(SingleField("test"))
         assertTrue(
@@ -1194,7 +1301,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
             )
           )
-          .buildPartial
+          .build
 
         val result = migration(SingleField("test"))
         assertTrue(
@@ -1211,9 +1318,9 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
 
         val migration = MigrationBuilder
           .newBuilder[AllRenamedSource, AllRenamedTarget]
-          .renameField(DynamicOptic.root.field("a"), "x")
-          .renameField(DynamicOptic.root.field("b"), "y")
-          .buildPartial
+          .renameField((_: AllRenamedSource).a, (_: AllRenamedTarget).x)
+          .renameField((_: AllRenamedSource).b, (_: AllRenamedTarget).y)
+          .build
 
         val result = migration(AllRenamedSource("hello", 42))
         assertTrue(
@@ -1233,7 +1340,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("second"),
             SchemaExpr.Literal[DynamicValue, Int](100, Schema.int)
           )
-          .buildPartial
+          .build
 
         val result = migration(Ordered("a", 1, true))
         assertTrue(
@@ -1272,7 +1379,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               IsNumeric.IsDouble
             )
           )
-          .buildPartial
+          .build
 
         val input  = ManyFields("test", 1, true, 2.0, 3L)
         val result = migration(input)
@@ -1293,10 +1400,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[WithOpt, WithoutOpt]
           .mandateField(
-            DynamicOptic.root.field("value"),
+            (_: WithOpt).value,
             SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
           )
-          .buildPartial
+          .build
 
         val resultSome = migration(WithOpt(Some(42)))
         val resultNone = migration(WithOpt(None))
@@ -1318,10 +1425,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[WithoutOpt, WithOpt]
           .optionalizeField(
-            DynamicOptic.root.field("value"),
+            (_: WithoutOpt).value,
             SchemaExpr.Literal[DynamicValue, Int](0, Schema.int)
           )
-          .buildPartial
+          .build
 
         val result = migration(WithoutOpt(42))
         assertTrue(
@@ -1334,10 +1441,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val migration = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
           .joinFields(
-            DynamicOptic.root.field("fullName"),
-            Vector(
-              DynamicOptic.root.field("firstName"),
-              DynamicOptic.root.field("lastName")
+            (_: PersonV2).fullName,
+            Seq(
+              (_: PersonV1).firstName,
+              (_: PersonV1).lastName
             ),
             SchemaExpr.StringConcat[DynamicValue](
               SchemaExpr.StringConcat[DynamicValue](
@@ -1348,10 +1455,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             )
           )
           .addField(
-            DynamicOptic.root.field("country"),
+            (_: PersonV2).country,
             SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
           )
-          .buildPartial
+          .build
 
         val v1     = PersonV1("John", "Doe", 30)
         val result = migration(v1)
@@ -1367,10 +1474,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val forward = MigrationBuilder
           .newBuilder[PersonV1, PersonV2]
           .joinFields(
-            DynamicOptic.root.field("fullName"),
-            Vector(
-              DynamicOptic.root.field("firstName"),
-              DynamicOptic.root.field("lastName")
+            (_: PersonV2).fullName,
+            Seq(
+              (_: PersonV1).firstName,
+              (_: PersonV1).lastName
             ),
             SchemaExpr.StringConcat[DynamicValue](
               SchemaExpr.StringConcat[DynamicValue](
@@ -1381,18 +1488,18 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             )
           )
           .addField(
-            DynamicOptic.root.field("country"),
+            (_: PersonV2).country,
             SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
           )
-          .buildPartial
+          .build
 
         val backward = MigrationBuilder
           .newBuilder[PersonV2, PersonV1]
           .splitField(
-            DynamicOptic.root.field("fullName"),
-            Vector(
-              DynamicOptic.root.field("firstName"),
-              DynamicOptic.root.field("lastName")
+            (_: PersonV2).fullName,
+            Seq(
+              (_: PersonV1).firstName,
+              (_: PersonV1).lastName
             ),
             SchemaExpr.StringSplit[DynamicValue](
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root),
@@ -1400,10 +1507,10 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
             )
           )
           .dropField(
-            DynamicOptic.root.field("country"),
+            (_: PersonV2).country,
             SchemaExpr.Literal[DynamicValue, String]("", Schema.string)
           )
-          .buildPartial
+          .build
 
         val original  = PersonV1("John", "Doe", 30)
         val migrated  = forward(original)
@@ -1431,7 +1538,7 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
               )
             )
           )
-          .buildPartial
+          .build
 
         // CreditCard case should be transformed
         val creditCard       = CreditCard("abc-123", "456")
@@ -1442,8 +1549,8 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         val payPalResult = migration(payPal)
 
         assertTrue(
-          creditCardResult.isRight,
-          payPalResult.isRight
+          creditCardResult == Right(CreditCard("ABC-123", "456")),
+          payPalResult == Right(PayPal("test@example.com"))
         )
       }
     )

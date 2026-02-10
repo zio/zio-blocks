@@ -99,21 +99,10 @@ object MigrationError {
    */
   final case class CrossPathJoinNotSupported(
     path: DynamicOptic,
-    targetPath: DynamicOptic,
-    sourcePaths: Vector[DynamicOptic]
+    invalidPaths: Vector[DynamicOptic]
   ) extends MigrationError {
-    def message: String = {
-      val invalidPaths = sourcePaths.filterNot { sourcePath =>
-        if (targetPath.nodes.isEmpty || sourcePath.nodes.isEmpty) {
-          false // Root-level paths are always invalid for cross-path
-        } else if (targetPath.nodes.length != sourcePath.nodes.length) {
-          false // Different depths
-        } else {
-          targetPath.nodes.dropRight(1) == sourcePath.nodes.dropRight(1)
-        }
-      }
-      s"Join operation requires all paths to share the same parent record. Target: $targetPath, Invalid sources: ${invalidPaths.mkString(", ")}"
-    }
+    def message: String =
+      s"Join operation requires all paths to share the same parent record. Target: $path, Invalid sources: ${invalidPaths.mkString(", ")}"
   }
 
   /**
@@ -123,20 +112,20 @@ object MigrationError {
    */
   final case class CrossPathSplitNotSupported(
     path: DynamicOptic,
-    sourcePath: DynamicOptic,
-    targetPaths: Vector[DynamicOptic]
+    invalidPaths: Vector[DynamicOptic]
   ) extends MigrationError {
-    def message: String = {
-      val invalidPaths = targetPaths.filterNot { targetPath =>
-        if (sourcePath.nodes.isEmpty || targetPath.nodes.isEmpty) {
-          false // Root-level paths are always invalid for cross-path
-        } else if (sourcePath.nodes.length != targetPath.nodes.length) {
-          false // Different depths
-        } else {
-          sourcePath.nodes.dropRight(1) == targetPath.nodes.dropRight(1)
-        }
-      }
-      s"Split operation requires all paths to share the same parent record. Source: $sourcePath, Invalid targets: ${invalidPaths.mkString(", ")}"
-    }
+    def message: String =
+      s"Split operation requires all paths to share the same parent record. Source: $path, Invalid targets: ${invalidPaths.mkString(", ")}"
+  }
+
+  /**
+   * Operation cannot be reversed. The reverse of a Join or Split may not be
+   * computable when the combiner/splitter expression type is not recognized.
+   */
+  final case class IrreversibleOperation(
+    path: DynamicOptic,
+    reason: String
+  ) extends MigrationError {
+    def message: String = s"Cannot reverse operation at $path: $reason"
   }
 }

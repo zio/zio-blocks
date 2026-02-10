@@ -3,8 +3,10 @@ package zio.blocks.schema.migration
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
+import MigrationTestCompat._
 
 object NestedFieldSpec extends ZIOSpecDefault {
+  locally(ensureLoaded)
 
   // 2-level nesting
   case class Address(street: String, city: String, zip: String)
@@ -72,7 +74,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("address").field("country"),
             SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -87,7 +89,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("company").field("address").field("country"),
             SchemaExpr.Literal[DynamicValue, String]("USA", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(employee)
 
@@ -102,7 +104,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("nonexistent").field("street"),
             SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -117,7 +119,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("name").field("street"),
             SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -171,7 +173,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("address").field("nonexistent"),
             SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -249,7 +251,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
             )
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -269,7 +271,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
             )
           )
-          .buildPartial
+          .build
 
         val result = migration(employee)
 
@@ -722,7 +724,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               IsNumeric.IsInt
             )
           )
-          .buildPartial
+          .build
 
         val result = migration(company)
 
@@ -748,7 +750,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
             )
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -777,7 +779,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
               SchemaExpr.Dynamic[DynamicValue, String](DynamicOptic.root)
             )
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -836,7 +838,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             "Work",
             Vector.empty // No nested transformations for simple case objects
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
@@ -929,7 +931,7 @@ object NestedFieldSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("address").field("city").field("street"),
             SchemaExpr.Literal[DynamicValue, String]("default", Schema.string)
           )
-          .buildPartial
+          .build
 
         val result = migration(person)
 
