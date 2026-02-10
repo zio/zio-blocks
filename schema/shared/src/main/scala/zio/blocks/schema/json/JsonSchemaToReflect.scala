@@ -43,8 +43,7 @@ private[schema] object JsonSchemaToReflect {
 
   def toReflect(jsonSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
     val shape = analyze(jsonSchema)
-    val base  = build(shape, jsonSchema)
-    wrapWithValidation(jsonSchema, shape, base)
+    wrapWithValidation(jsonSchema, shape, build(shape, jsonSchema))
   }
 
   private[json] def analyze(schema: JsonSchema): Shape = schema match {
@@ -74,8 +73,10 @@ private[schema] object JsonSchemaToReflect {
   private[this] def analyzeOption(obj: JsonSchema.Object): Option[Shape] =
     obj.`type` match {
       case Some(SchemaType.Union(types)) if types.length == 2 && types.contains(JsonSchemaType.Null) =>
-        types.filterNot(_ == JsonSchemaType.Null).headOption.flatMap { jt =>
-          new Some(new Shape.OptionOf(new JsonSchema.Object(`type` = new Some(new SchemaType.Single(jt)))))
+        types.collectFirst { case jt if jt ne JsonSchemaType.Null => jt } match {
+          case Some(jt) =>
+            new Some(new Shape.OptionOf(new JsonSchema.Object(`type` = new Some(new SchemaType.Single(jt)))))
+          case _ => None
         }
       case _ =>
         obj.anyOf match {
@@ -107,11 +108,10 @@ private[schema] object JsonSchemaToReflect {
       case caseObj: JsonSchema.Object =>
         caseObj.properties match {
           case Some(props) if props.size == 1 =>
-            val (caseName, bodySchema) = props.head
+            val kv = props.head
             caseObj.required match {
-              case Some(req) if req.size == 1 && req.contains(caseName) =>
-                new Some((caseName, bodySchema))
-              case _ => None
+              case Some(req) if req.size == 1 && req.contains(kv._1) => new Some(kv)
+              case _                                                 => None
             }
           case _ => None
         }
@@ -135,7 +135,6 @@ private[schema] object JsonSchemaToReflect {
       fields.result()
     }
     val commonConstFields = allConstFields.reduceOption(_ intersect _).getOrElse(Set.empty)
-
     commonConstFields.headOption.flatMap { discField =>
       val extracted = caseObjects.flatMap { obj =>
         val props = obj.properties.getOrElse(ChunkMap.empty)
@@ -187,48 +186,49 @@ private[schema] object JsonSchemaToReflect {
     case Some(st) =>
       st match {
         case SchemaType.Single(jst) =>
-          jst match {
-            case JsonSchemaType.String  => new Some(new Shape.Primitive(Shape.PrimKind.String, obj))
-            case JsonSchemaType.Integer => new Some(new Shape.Primitive(Shape.PrimKind.Integer, obj))
-            case JsonSchemaType.Number  => new Some(new Shape.Primitive(Shape.PrimKind.Number, obj))
-            case JsonSchemaType.Boolean => new Some(new Shape.Primitive(Shape.PrimKind.Boolean, obj))
-            case JsonSchemaType.Null    => new Some(new Shape.Primitive(Shape.PrimKind.Null, obj))
-            case _                      => None
-          }
+          new Some(
+            new Shape.Primitive(
+              jst match {
+                case JsonSchemaType.String  => Shape.PrimKind.String
+                case JsonSchemaType.Integer => Shape.PrimKind.Integer
+                case JsonSchemaType.Number  => Shape.PrimKind.Number
+                case JsonSchemaType.Boolean => Shape.PrimKind.Boolean
+                case JsonSchemaType.Null    => Shape.PrimKind.Null
+                case _                      => return None
+              },
+              obj
+            )
+          )
         case _ => None
       }
     case _ => None
   }
 
-  private[this] def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
-    val title = extractTitle(originalSchema)
-    shape match {
-      case Shape.Primitive(kind, schemaObj)       => buildPrimitive(kind, schemaObj)
-      case Shape.Record(fields, required, closed) => buildRecord(fields, required, closed, title)
-      case Shape.MapShape(values)                 => buildMap(values)
-      case Shape.Sequence(items)                  => buildSequence(items)
-      case Shape.Tuple(prefixItems)               => buildTuple(prefixItems)
-      case Shape.Enum(cases)                      => buildEnum(cases, title)
-      case Shape.KeyVariant(cases)                => buildKeyVariant(cases, title)
-      case Shape.FieldVariant(disc, cases)        => buildFieldVariant(disc, cases, title)
-      case Shape.OptionOf(inner)                  => toReflect(inner)
-      case Shape.Dynamic                          => Reflect.dynamic[Binding]
-    }
+  private[this] def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = shape match {
+    case Shape.Primitive(kind, schemaObj)       => buildPrimitive(kind, schemaObj)
+    case Shape.Record(fields, required, closed) => buildRecord(fields, required, closed, extractTitle(originalSchema))
+    case Shape.MapShape(values)                 => buildMap(values)
+    case Shape.Sequence(items)                  => buildSequence(items)
+    case Shape.Tuple(prefixItems)               => buildTuple(prefixItems)
+    case Shape.Enum(cases)                      => buildEnum(cases, extractTitle(originalSchema))
+    case Shape.KeyVariant(cases)                => buildKeyVariant(cases, extractTitle(originalSchema))
+    case Shape.FieldVariant(disc, cases)        => buildFieldVariant(disc, cases, extractTitle(originalSchema))
+    case Shape.OptionOf(inner)                  => toReflect(inner)
+    case Shape.Dynamic                          => Reflect.dynamic[Binding]
   }
 
   private[this] def buildPrimitive(kind: Shape.PrimKind, schemaObj: JsonSchema.Object): Reflect[Binding, DynamicValue] =
-    kind match {
-      case Shape.PrimKind.String  => wrapPrimitive(new PrimitiveType.String(buildStringValidation(schemaObj)))
-      case Shape.PrimKind.Integer => wrapPrimitive(new PrimitiveType.BigInt(buildBigIntValidation(schemaObj)))
-      case Shape.PrimKind.Number  => wrapPrimitive(new PrimitiveType.BigDecimal(buildBigDecimalValidation(schemaObj)))
-      case Shape.PrimKind.Boolean => wrapPrimitive(new PrimitiveType.Boolean(Validation.None))
-      case Shape.PrimKind.Null    => Reflect.dynamic[Binding]
-    }
+    wrapPrimitive((kind match {
+      case Shape.PrimKind.String  => new PrimitiveType.String(buildStringValidation(schemaObj))
+      case Shape.PrimKind.Integer => new PrimitiveType.BigInt(buildBigIntValidation(schemaObj))
+      case Shape.PrimKind.Number  => new PrimitiveType.BigDecimal(buildBigDecimalValidation(schemaObj))
+      case Shape.PrimKind.Boolean => new PrimitiveType.Boolean(Validation.None)
+      case Shape.PrimKind.Null    => return Reflect.dynamic[Binding]
+    }).asInstanceOf[PrimitiveType[?]])
 
   private[this] def buildStringValidation(obj: JsonSchema.Object): Validation[String] =
-    // Pattern takes precedence; length constraints cannot be combined in Validation ADT
-    obj.pattern.map(_.value) match {
-      case Some(regex) => Validation.String.Pattern(regex)
+    obj.pattern match { // Pattern takes precedence; length constraints cannot be combined in Validation ADT
+      case Some(regex) => Validation.String.Pattern(regex.value)
       case _           =>
         val minLen = obj.minLength.map(_.value)
         val maxLen = obj.maxLength.map(_.value)
@@ -269,13 +269,13 @@ private[schema] object JsonSchemaToReflect {
       unwrap = dv =>
         primitiveType.fromDynamicValue(dv) match {
           case Right(a) => a
-          case Left(_)  =>
+          case _        =>
             primitiveType match {
-              case _: PrimitiveType.String     => "".asInstanceOf[A]
-              case _: PrimitiveType.BigInt     => BigInt(0).asInstanceOf[A]
-              case _: PrimitiveType.BigDecimal => BigDecimal(0).asInstanceOf[A]
-              case _: PrimitiveType.Boolean    => false.asInstanceOf[A]
-              case PrimitiveType.Unit          => ().asInstanceOf[A]
+              case _: PrimitiveType.String     => ""
+              case _: PrimitiveType.BigInt     => BigInt(0)
+              case _: PrimitiveType.BigDecimal => BigDecimal(0)
+              case _: PrimitiveType.Boolean    => false
+              case PrimitiveType.Unit          => ()
               case _                           => null.asInstanceOf[A]
             }
         }
