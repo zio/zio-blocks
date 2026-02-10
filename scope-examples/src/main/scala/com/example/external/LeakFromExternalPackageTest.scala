@@ -7,8 +7,8 @@ import zio.blocks.scope._
  * Test that the `leak` macro works from a package completely outside
  * zio.blocks.scope hierarchy.
  *
- * This verifies whether `private[scope] run()` is accessible when the
- * leak macro expands at an external call site.
+ * This verifies whether `private[scope] run()` is accessible when the leak
+ * macro expands at an external call site.
  */
 @main def leakFromExternalPackageTest(): Unit = {
   println("=== Testing leak from external package ===\n")
