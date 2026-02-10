@@ -59,10 +59,12 @@ trait ScopeEscapeMidPriority extends ScopeEscapeLowPriority {
 
 trait ScopeEscapeLowPriority {
 
-  /** Non-Unscoped types stay scoped. Zero overhead: opaque type alias. */
+  /**
+   * Non-Unscoped types stay scoped. The result is wrapped in a Scoped thunk.
+   */
   implicit def resourceful[A, S]: ScopeEscape.Aux[A, S, A @@ S] =
     new ScopeEscape[A, S] {
       type Out = A @@ S
-      def apply(a: A): Out = @@.scoped(a)
+      def apply(a: A): Out = Scoped.scoped[A, S](a)
     }
 }

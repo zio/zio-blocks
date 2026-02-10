@@ -7,7 +7,7 @@
 If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
 
 - **Compile-time prevention of scope leaks**
-- **Zero runtime overhead for the scoped tag** (`A @@ S` is represented as `A`)
+- **Unified scoped type** (`A @@ S` is a type alias for `Scoped[A, S]`)
 - **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
 
 ---
@@ -19,7 +19,7 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [1) `Scope[ParentTag, Tag]`](#1-scopeparenttag-tag)
   - [2) Scoped values: `A @@ S`](#2-scoped-values-a--s)
   - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
-  - [4) `Scoped[Tag, A]`: deferred computations](#4-scopedtag-a-deferred-computations)
+  - [4) `A @@ S`: unified scoped type](#4-a--s-unified-scoped-type)
   - [5) `ScopeEscape` and `Unscoped`: what may escape](#5-scopeescape-and-unscoped-what-may-escape)
   - [6) `Wire[-In, +Out]`: dependency recipes](#6-wire-in-out-dependency-recipes)
 - [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
@@ -110,18 +110,26 @@ object Scope {
 
 ### 2) Scoped values: `A @@ S`
 
-`A @@ S` means: "a value of type `A` that is locked to scope tag `S`".
+`A @@ S` is a type alias for `Scoped[A, S]` — a deferred computation that produces `A` and is locked to scope tag `S`.
 
-- **Runtime representation:** just `A` (no wrapper allocation)
-- **Key effect:** methods on `A` are hidden, so you can't call `a.method` without proving scope access
+- **Runtime representation:** a boxed thunk (lightweight wrapper)
+- **Key effect:** methods on `A` are hidden until executed; the thunk defers access
 - **Access paths:**
-  - `scope.$(a)(f)` to use a scoped value immediately
-  - `a.map / a.flatMap` to build a `Scoped` computation, then run it via `scope(scoped)`
+  - `scope.$(a)(f)` to execute and apply a function immediately
+  - `a.map / a.flatMap` to build composite `Scoped` computations
+  - `scope.execute(scoped)` to run a computation
 
-#### Scala 3 vs Scala 2 note
+#### Scala 2 note
 
-- In **Scala 3**, `@@` is implemented as an `opaque` type.
-- In **Scala 2**, the library emulates the same "opaque-like" behavior using the *module pattern* (still zero-overhead at runtime).
+In Scala 2, explicit type annotations are required when assigning scoped values to avoid existential type inference issues:
+
+```scala
+// Scala 2 requires explicit type annotation
+val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
+
+// Scala 3 can infer the type
+val db = scope.allocate(Resource[Database])
+```
 
 ---
 
@@ -164,25 +172,42 @@ Common constructors:
 
 ---
 
-### 4) `Scoped[Tag, A]`: deferred computations
+### 4) `A @@ S`: unified scoped type
 
-`Scoped[-Tag, +A]` represents a computation that produces `A`, but can only be executed by a scope whose tag is compatible with `Tag`.
+`A @@ S` (type alias for `Scoped[A, S]`) is the core type representing a deferred computation that produces `A` and requires scope tag `S` to execute.
 
 Execution happens via:
 
 ```scala
-scope(scopedComputation)
+scope.execute(scopedComputation)
 ```
 
 How to build them:
 
-- From scoped values:
-  - `val s: Scoped[S, B] = (a: A @@ S).map(f)`
-  - `flatMap` composes scoped values while tracking combined requirements
+- From `scope.allocate`:
+  - `scope.allocate(resource)` returns `A @@ scope.Tag`
+- Using combinators:
+  - `(a: A @@ S).map(f: A => B)` returns `B @@ S`
+  - `(a: A @@ S).flatMap(f: A => B @@ T)` returns `B @@ (S & T)` (Scala 3) / `B @@ (S with T)` (Scala 2)
+  - Use for-comprehensions to chain scoped computations
 - From ordinary values:
-  - `Scoped(value)` lifts a value into a `Scoped[Any, A]` (which can be used anywhere due to contravariance)
+  - `Scoped(value)` lifts a value into an `A @@ Any` (which can be used anywhere due to contravariance)
 
-`Scoped` is contravariant in `Tag`, which is what allows a **child** scope (more specific tag) to run computations that only require a **parent** tag.
+**Contravariance:** `A @@ S` is contravariant in `S`. This means `A @@ ParentTag` is a subtype of `A @@ ChildTag` when `ChildTag <: ParentTag`. Child scopes can execute parent-scoped computations automatically.
+
+**For-comprehension example:**
+
+```scala
+Scope.global.scoped { scope =>
+  val program: Result @@ scope.Tag = for {
+    pool <- scope.allocate(Resource[Pool])
+    conn <- scope.allocate(Resource(pool.lease()))
+    data <- conn.map(_.query("SELECT *"))
+  } yield process(data)
+
+  scope.execute(program)
+}
+```
 
 ---
 
@@ -191,7 +216,7 @@ How to build them:
 Whenever you access a scoped value via:
 
 - `scope.$(value)(f)`, or
-- `scope(scopedComputation)`,
+- `scope.execute(scopedComputation)`,
 
 …the return type is controlled by `ScopeEscape[A, S]`, which decides whether a result:
 
@@ -278,7 +303,7 @@ Compile-time safety is verified in tests, e.g.:
 
 ### B) Tag invariance + "opaque-like" `@@` blocks subtyping escape
 
-Even if you try to "widen" a child-tagged value to a parent-tagged value, invariance and hidden members prevent it from typechecking. The only sanctioned access route is through `scope.$` / `scope.apply`, which require tag evidence.
+Even if you try to "widen" a child-tagged value to a parent-tagged value, invariance and hidden members prevent it from typechecking. The only sanctioned access route is through `scope.$` / `scope.execute`, which require tag evidence.
 
 ---
 
@@ -340,21 +365,53 @@ Scope.global.scoped { parent =>
 
 ### Building a `Scoped` program (map/flatMap)
 
+The idiomatic pattern is to work directly with `@@` values in for-comprehensions. Each `<-` uses `@@#flatMap`, which takes `A => B @@ T` and accumulates into a `Scoped`:
+
 ```scala
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
-  val db = scope.allocate(Resource(new Database))
+  val db: Database @@ scope.Tag = scope.allocate(Resource(new Database))
 
-  val program: Scoped[scope.Tag, String] =
+  val program: String @@ scope.Tag =
     for {
-      a <- db.map(_.query("SELECT 1"))
-      b <- db.map(_.query("SELECT 2"))
-    } yield s"$a | $b"
+      d <- db                         // db: Database @@ Tag, d: Database
+    } yield d.query("SELECT 1")
 
-  val result: String = scope(program)
+  val result: String = scope.execute(program)
   println(result)
 }
+```
+
+This pattern shines when chaining resource acquisition:
+
+```scala
+import zio.blocks.scope._
+
+// A pool that leases connections
+class Pool(implicit finalizer: Finalizer) extends AutoCloseable {
+  def lease: Resource[Connection] = Resource(new Connection)
+  def close(): Unit = println("pool closed")
+}
+
+class Connection extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("connection closed")
+}
+
+Scope.global.scoped { scope =>
+  val pool: Pool @@ scope.Tag = scope.allocate(Resource.from[Pool])
+
+  val program: String @@ scope.Tag =
+    for {
+      p          <- pool                      // extract Pool from scoped
+      connection <- scope.allocate(p.lease)   // allocate returns Connection @@ Tag
+    } yield scope.$(connection)(_.query("SELECT 1"))
+
+  val result: String = scope.execute(program)
+  println(result)
+}
+// Output: connection closed, then pool closed (LIFO)
 ```
 
 ---
@@ -745,14 +802,14 @@ final class Scope[ParentTag, Tag0 <: ParentTag] {
   def allocate[A](resource: Resource[A]): A @@ Tag
   def defer(f: => Unit): Unit
 
-  def $[A, B, S](scoped: A @@ S)(f: A => B)(
-    using ev: this.Tag <:< S,
-          escape: ScopeEscape[B, S]
+  // Execute scoped value with function, escape based on ScopeEscape
+  def $[A, B](scoped: A @@ this.Tag)(f: A => B)(
+    using escape: ScopeEscape[B, this.Tag]
   ): escape.Out
 
-  def apply[A, S](scoped: Scoped[S, A])(
-    using ev: this.Tag <:< S,
-          escape: ScopeEscape[A, S]
+  // Execute scoped computation, escape based on ScopeEscape
+  def execute[A](scoped: A @@ this.Tag)(
+    using escape: ScopeEscape[A, this.Tag]
   ): escape.Out
 
   // Creates a child scope with an existential tag (fresh per call)
@@ -809,7 +866,7 @@ object Wire {
 - Use `Scope.global.scoped { scope => ... }` to create a safe region.
 - For simple resources: `scope.allocate(Resource(value))` or `scope.allocate(Resource.acquireRelease(...)(...))`
 - For dependency injection: `scope.allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- Use scoped values only via `scope.$(value)(...)` or via `Scoped` computations executed by `scope(scoped)`.
+- Use scoped values only via `scope.$(value)(...)` or via `Scoped` computations executed by `scope.execute(scoped)`.
 - Nest with `scope.scoped { child => ... }` to create a tighter lifetime boundary.
 - If it doesn't typecheck, it would have been unsafe at runtime.
 

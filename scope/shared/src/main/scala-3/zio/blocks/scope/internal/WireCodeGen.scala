@@ -108,14 +108,14 @@ private[scope] object WireCodeGen {
         kind match {
           case WireKind.Shared =>
             '{
-              Wire.Shared[inTpe, T] { (finalizer, ctx) =>
+              Wire.Shared[inTpe, T] { (finalizer: Finalizer, ctx: Context[inTpe]) =>
                 ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
               }
             }
 
           case WireKind.Unique =>
             '{
-              Wire.Unique[inTpe, T] { (finalizer, ctx) =>
+              Wire.Unique[inTpe, T] { (finalizer: Finalizer, ctx: Context[inTpe]) =>
                 ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
               }
             }

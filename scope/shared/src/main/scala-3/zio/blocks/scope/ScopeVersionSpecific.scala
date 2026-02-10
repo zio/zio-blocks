@@ -11,56 +11,46 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
   /**
    * Applies a function to a scoped value, escaping if the result is Unscoped.
    *
-   * The `Tag <:< S` constraint ensures this scope can access values tagged with
-   * `S`. Since child tags are subtypes of parent tags, a child scope can access
-   * all ancestor-tagged values.
+   * Accepts any scoped value whose tag is a supertype of this scope's Tag. Due
+   * to contravariance in `S`, an `A @@ ParentTag` is a subtype of
+   * `A @@ ChildTag`, so parent-scoped values can be passed to child scopes.
    *
    * @param scoped
-   *   the scoped value to access
+   *   the scoped computation to execute
    * @param f
-   *   the function to apply to the underlying value
-   * @param ev
-   *   evidence that this scope's Tag is a subtype of S
+   *   the function to apply to the computed value
    * @param escape
    *   typeclass determining whether the result escapes
    * @tparam A
-   *   the underlying value type
+   *   the scoped computation's result type
    * @tparam B
    *   the function result type
-   * @tparam S
-   *   the scoped value's tag
    * @return
-   *   either raw B or B @@ S depending on ScopeEscape
+   *   either raw B or B @@ Tag depending on ScopeEscape
    */
-  def $[A, B, S](scoped: A @@ S)(f: A => B)(using
-    ev: self.Tag <:< S,
-    escape: ScopeEscape[B, S]
+  def $[A, B](scoped: A @@ self.Tag)(f: A => B)(using
+    escape: ScopeEscape[B, self.Tag]
   ): escape.Out =
-    escape(f(@@.unscoped(scoped)))
+    escape(f(scoped.run()))
 
   /**
-   * Executes a Scoped computation.
+   * Executes a scoped computation.
    *
-   * The `Tag <:< S` constraint ensures this scope can execute computations
-   * requiring tag `S`. The escape typeclass determines whether the result stays
-   * scoped or escapes as a raw value.
+   * Accepts any scoped computation whose tag is a supertype of this scope's
+   * Tag. The escape typeclass determines whether the result stays scoped or
+   * escapes as a raw value.
    *
    * @param scoped
-   *   the Scoped computation to execute
-   * @param ev
-   *   evidence that this scope's Tag is a subtype of S
+   *   the scoped computation to execute
    * @param escape
    *   typeclass determining whether the result escapes
    * @tparam A
    *   the computation result type
-   * @tparam S
-   *   the computation's required tag
    * @return
-   *   either raw A or A @@ S depending on ScopeEscape
+   *   either raw A or A @@ Tag depending on ScopeEscape
    */
-  def apply[A, S](scoped: Scoped[S, A])(using
-    ev: self.Tag <:< S,
-    escape: ScopeEscape[A, S]
+  def execute[A](scoped: A @@ self.Tag)(using
+    escape: ScopeEscape[A, self.Tag]
   ): escape.Out =
     escape(scoped.run())
 

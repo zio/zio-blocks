@@ -1,7 +1,6 @@
 package zio.blocks
 
 import scala.language.experimental.macros
-import scala.language.implicitConversions
 
 /**
  * Scope: A compile-time safe resource management library using existential
@@ -44,49 +43,21 @@ import scala.language.implicitConversions
 package object scope {
 
   /**
-   * Opaque-like type for scoping values with scope identity.
+   * Type alias for Scoped.
    *
-   * A value of type `A @@ S` is a value of type `A` that is "locked" to a scope
-   * with tag `S`. The abstract type hides all methods on `A`, so the only way
-   * to use the value is through the `$` operator, which requires the matching
-   * scope capability.
+   * `A @@ S` is equivalent to `Scoped[A, S]`. This infix syntax reads naturally
+   * when declaring scoped values:
    *
-   * This prevents scoped resources from escaping their scope at compile time.
-   *
-   * @example
-   *   {{{
-   *   // Scoped value cannot escape
-   *   val stream: InputStream @@ scope.Tag = getStream()
-   *   stream.read()  // Compile error: read() is not a member of InputStream @@ Tag
-   *
-   *   // Must use $ operator with scope in context
-   *   stream.$(_.read())(scope, implicitly)  // Works, returns Int (unscoped)
-   *   }}}
-   */
-  type @@[+A, S] = ScopedModule.instance.@@[A, S]
-
-  /**
-   * Implicit conversion that enables `$`, `map`, and `flatMap` extension
-   * methods on scoped values.
-   *
-   * This conversion allows scoped values to be used with fluent syntax:
    * {{{
-   * val stream: InputStream @@ S = ...
-   * stream.$(_.read())           // Apply function via $ operator
-   * stream.map(_.available())    // Map over the scoped value
-   * stream.flatMap(s => ...)     // FlatMap for chaining scoped operations
+   * val db: Database @@ scope.Tag = scope.allocate(Resource[Database])
    * }}}
    *
    * @tparam A
-   *   the underlying value type
+   *   the value type (covariant)
    * @tparam S
-   *   the scope tag type
-   * @param scoped
-   *   the scoped value to wrap
-   * @return
-   *   a [[ScopedOps]] wrapper providing extension methods
+   *   the scope tag type (contravariant)
    */
-  implicit def toScopedOps[A, S](scoped: A @@ S): ScopedOps[A, S] = new ScopedOps(scoped)
+  type @@[+A, -S] = Scoped[A, S]
 
   /**
    * Registers a finalizer to run when the finalizer closes.

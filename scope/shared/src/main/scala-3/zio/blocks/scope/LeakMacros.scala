@@ -20,8 +20,8 @@ private[scope] object LeakMacros {
     // Emit compiler warning using shared renderer
     MacroCore.warnLeak(pos, sourceCode, scopeName)
 
-    // Return the unwrapped value
-    '{ @@.unscoped($scopedExpr) }
+    // Return the unwrapped value (run the thunk)
+    '{ $scopedExpr.run() }
   }
 
   private def extractScopeName(scopeTag: String): String =

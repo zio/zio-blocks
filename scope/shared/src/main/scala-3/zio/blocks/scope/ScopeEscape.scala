@@ -2,7 +2,7 @@ package zio.blocks.scope
 
 /**
  * Typeclass that controls whether `A @@ S` escapes the scope as raw `A` or
- * remains scoped as `A @@ S` when extracted via `scope.$` or `scope.apply`.
+ * remains scoped as `A @@ S` when extracted via `scope.$` or `scope.execute`.
  *
  * ==Priority (highest to lowest)==
  *
@@ -110,10 +110,10 @@ trait ScopeEscapeLowPriority {
    * Non-[[Unscoped]] types stay scoped (lowest priority fallback).
    *
    * Resource types without an `Unscoped` instance remain tagged with the scope,
-   * preventing them from escaping. Zero overhead: `@@` is an opaque type alias.
+   * preventing them from escaping. The result is wrapped in a Scoped thunk.
    */
   given resourceful[A, S]: ScopeEscape[A, S] with {
     type Out = A @@ S
-    def apply(a: A): Out = @@.scoped(a)
+    def apply(a: A): Out = Scoped.scoped[A, S](a)
   }
 }
