@@ -22,10 +22,9 @@ final case class MigrationBuilder[A, B, Handled, Provided](
   /**
    * Appends a single migration action to this builder.
    *
-   * This is the sole entry point used by macro-generated code and tests to add
+   * This is theentry point used by macro-generated code and tests to add
    * actions. Named methods like addField/dropField live only on the
-   * selector-syntax extensions (MigrationBuilderSyntax) to avoid shadowing
-   * issues in Scala 2 implicit conversion resolution.
+   * selector-syntax extensions (MigrationBuilderSyntax)
    */
   private[migration] def withAction(action: MigrationAction): MigrationBuilder[A, B, Handled, Provided] =
     copy(actions = actions :+ action)

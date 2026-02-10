@@ -280,14 +280,15 @@ object DynamicSchemaExpr {
   final case class StringConcat(left: DynamicSchemaExpr, right: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield
-        for { x <- xs; y <- ys } yield {
-          val xStr = extractString(x)
-          val yStr = extractString(y)
-          DynamicValue.Primitive(PrimitiveValue.String(xStr + yStr))
-        }
+        xs     <- left.eval(input)
+        ys     <- right.eval(input)
+        result <- traverseSeq(for { x <- xs; y <- ys } yield (x, y)) { case (x, y) =>
+                    for {
+                      xStr <- extractString(x)
+                      yStr <- extractString(y)
+                    } yield DynamicValue.Primitive(PrimitiveValue.String(xStr + yStr))
+                  }
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = None
   }
@@ -300,10 +301,13 @@ object DynamicSchemaExpr {
 
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.flatMap { x =>
-        extractString(x).split(quotedDelimiter, -1).map(s => DynamicValue.Primitive(PrimitiveValue.String(s))).toSeq
-      }
+        xs     <- string.eval(input)
+        result <- traverseSeq(xs) { x =>
+                    extractString(x).map { s =>
+                      s.split(quotedDelimiter, -1).map(p => DynamicValue.Primitive(PrimitiveValue.String(p))).toSeq
+                    }
+                  }
+      } yield result.flatten
 
     def inverse: Option[DynamicSchemaExpr] = None
   }
@@ -314,8 +318,10 @@ object DynamicSchemaExpr {
   final case class StringUppercase(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map(x => DynamicValue.Primitive(PrimitiveValue.String(extractString(x).toUpperCase)))
+        xs     <- string.eval(input)
+        result <-
+          traverseSeq(xs)(x => extractString(x).map(s => DynamicValue.Primitive(PrimitiveValue.String(s.toUpperCase))))
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = Some(StringLowercase(string))
   }
@@ -326,8 +332,10 @@ object DynamicSchemaExpr {
   final case class StringLowercase(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map(x => DynamicValue.Primitive(PrimitiveValue.String(extractString(x).toLowerCase)))
+        xs     <- string.eval(input)
+        result <-
+          traverseSeq(xs)(x => extractString(x).map(s => DynamicValue.Primitive(PrimitiveValue.String(s.toLowerCase))))
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = Some(StringUppercase(string))
   }
@@ -338,8 +346,9 @@ object DynamicSchemaExpr {
   final case class StringLength(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map(x => DynamicValue.Primitive(PrimitiveValue.Int(extractString(x).length)))
+        xs     <- string.eval(input)
+        result <- traverseSeq(xs)(x => extractString(x).map(s => DynamicValue.Primitive(PrimitiveValue.Int(s.length))))
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = None
   }
@@ -350,12 +359,15 @@ object DynamicSchemaExpr {
   final case class StringRegexMatch(regex: DynamicSchemaExpr, string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- regex.eval(input)
-        ys <- string.eval(input)
-      } yield
-        for { x <- xs; y <- ys } yield DynamicValue.Primitive(
-          PrimitiveValue.Boolean(extractString(x).matches(extractString(y)))
-        )
+        xs     <- regex.eval(input)
+        ys     <- string.eval(input)
+        result <- traverseSeq(for { x <- xs; y <- ys } yield (x, y)) { case (x, y) =>
+                    for {
+                      xStr <- extractString(x)
+                      yStr <- extractString(y)
+                    } yield DynamicValue.Primitive(PrimitiveValue.Boolean(xStr.matches(yStr)))
+                  }
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = None
   }
@@ -366,12 +378,13 @@ object DynamicSchemaExpr {
   final case class Not(expr: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- expr.eval(input)
-      } yield xs.map {
-        case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) =>
-          DynamicValue.Primitive(PrimitiveValue.Boolean(!b))
-        case other => throw new IllegalArgumentException(s"Not: expected Boolean, got $other")
-      }
+        xs     <- expr.eval(input)
+        result <- traverseSeq(xs) {
+                    case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) =>
+                      Right(DynamicValue.Primitive(PrimitiveValue.Boolean(!b)))
+                    case other => Left(s"Not: expected Boolean, got $other")
+                  }
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = Some(Not(expr))
   }
@@ -412,26 +425,28 @@ object DynamicSchemaExpr {
     right: DynamicSchemaExpr,
     operator: LogicalOperator
   ) extends DynamicSchemaExpr {
+    private def extractBoolean(dv: DynamicValue): Either[String, Boolean] = dv match {
+      case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => Right(b)
+      case _                                                 => Left(s"Logical: expected Boolean, got $dv")
+    }
+
     def eval(input: DynamicValue): Either[String, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield
-        for { x <- xs; y <- ys } yield {
-          val xb = x match {
-            case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => b
-            case _                                                 => throw new IllegalArgumentException(s"Logical: expected Boolean, got $x")
-          }
-          val yb = y match {
-            case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => b
-            case _                                                 => throw new IllegalArgumentException(s"Logical: expected Boolean, got $y")
-          }
-          val result = operator match {
-            case LogicalOperator.And => xb && yb
-            case LogicalOperator.Or  => xb || yb
-          }
-          DynamicValue.Primitive(PrimitiveValue.Boolean(result))
-        }
+        xs     <- left.eval(input)
+        ys     <- right.eval(input)
+        result <- traverseSeq(for { x <- xs; y <- ys } yield (x, y)) { case (x, y) =>
+                    for {
+                      xb <- extractBoolean(x)
+                      yb <- extractBoolean(y)
+                    } yield {
+                      val result = operator match {
+                        case LogicalOperator.And => xb && yb
+                        case LogicalOperator.Or  => xb || yb
+                      }
+                      DynamicValue.Primitive(PrimitiveValue.Boolean(result))
+                    }
+                  }
+      } yield result
 
     def inverse: Option[DynamicSchemaExpr] = None
   }
@@ -726,18 +741,22 @@ object DynamicSchemaExpr {
         case (None, _)          => Left(s"Cannot extract numeric value from $x")
         case (_, None)          => Left(s"Cannot extract numeric value from $y")
         case (Some(a), Some(b)) =>
-          val result = op match {
-            case ArithmeticOperator.Add      => num.plus(a, b)
-            case ArithmeticOperator.Subtract => num.minus(a, b)
-            case ArithmeticOperator.Multiply => num.times(a, b)
+          op match {
+            case ArithmeticOperator.Add      => Right(wrap(num.plus(a, b)))
+            case ArithmeticOperator.Subtract => Right(wrap(num.minus(a, b)))
+            case ArithmeticOperator.Multiply => Right(wrap(num.times(a, b)))
             case ArithmeticOperator.Divide   =>
-              num match {
-                case frac: Fractional[A] => frac.div(a, b)
-                case int: Integral[A]    => int.quot(a, b)
-                case _                   => num.times(a, num.fromInt(0))
+              try {
+                val result = num match {
+                  case frac: Fractional[A] => frac.div(a, b)
+                  case int: Integral[A]    => int.quot(a, b)
+                  case _                   => num.times(a, num.fromInt(0))
+                }
+                Right(wrap(result))
+              } catch {
+                case _: ArithmeticException => Left(s"Division by zero")
               }
           }
-          Right(wrap(result))
       }
     }
 
@@ -830,12 +849,25 @@ object DynamicSchemaExpr {
 
   // --- Private helpers ---
 
-  private def extractString(dv: DynamicValue): String = dv match {
-    case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-    case other                                            => throw new IllegalArgumentException(s"Expected String, got $other")
+  private def extractString(dv: DynamicValue): Either[String, String] = dv match {
+    case DynamicValue.Primitive(PrimitiveValue.String(s)) => Right(s)
+    case other                                            => Left(s"Expected String, got $other")
   }
 
-  // --- Schema definitions ---
+  private def traverseSeq[A, B](xs: Seq[A])(f: A => Either[String, B]): Either[String, Seq[B]] = {
+    val buf         = Seq.newBuilder[B]
+    var err: String = null
+    val iter        = xs.iterator
+    while (iter.hasNext && (err eq null)) {
+      f(iter.next()) match {
+        case Right(v) => buf += v
+        case Left(e)  => err = e
+      }
+    }
+    if (err ne null) Left(err) else Right(buf.result())
+  }
+
+  // --- Manual Schema derivations for Scala 2 ---
 
   private def caseObjectSchema[A](instance: A, id: TypeId[A]): Schema[A] =
     new Schema(

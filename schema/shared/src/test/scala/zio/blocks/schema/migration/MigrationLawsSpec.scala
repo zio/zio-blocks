@@ -3,10 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
-import MigrationTestCompat._
-
 object MigrationLawsSpec extends ZIOSpecDefault {
-  locally(ensureLoaded)
 
   // Simple case class for basic tests
   final case class PersonV1(firstName: String, lastName: String, age: Int)

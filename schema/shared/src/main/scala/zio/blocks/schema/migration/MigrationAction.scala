@@ -858,7 +858,7 @@ object MigrationAction {
     def reverse: MigrationAction = this
   }
 
-  // --- Schema definitions ---
+  // --- Manual Schema derivations for Scala 2 ---
 
   private def obj2Schema[A](id: TypeId[A], f1: String, s1: => Schema[_], f2: String, s2: => Schema[_])(
     mk: (AnyRef, AnyRef) => A,

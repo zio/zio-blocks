@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import scala.language.implicitConversions
 import zio.blocks.schema._
 import TypeLevel._
 
@@ -22,6 +23,11 @@ private[migration] trait MigrationBuilderCompanionVersionSpecific {
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B, TNil, TNil] =
     MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+
+  implicit def toSyntax[A, B, Handled <: TList, Provided <: TList](
+    builder: MigrationBuilder[A, B, Handled, Provided]
+  ): MigrationBuilderSyntax[A, B, Handled, Provided] =
+    new MigrationBuilderSyntax[A, B, Handled, Provided](builder)
 
   /**
    * Type alias for a fresh builder with empty tracked fields.

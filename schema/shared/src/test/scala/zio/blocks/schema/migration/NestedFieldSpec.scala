@@ -3,10 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
-import MigrationTestCompat._
-
 object NestedFieldSpec extends ZIOSpecDefault {
-  locally(ensureLoaded)
 
   // 2-level nesting
   case class Address(street: String, city: String, zip: String)

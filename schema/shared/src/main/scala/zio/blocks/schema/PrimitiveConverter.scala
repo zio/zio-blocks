@@ -156,7 +156,7 @@ object PrimitiveConverter {
     def reverse: PrimitiveConverter = IntToDouble
   }
 
-  // --- Schema definitions ---
+  // --- Manual Schema derivations for Scala 2 ---
 
   private def caseObjectSchema[A <: PrimitiveConverter](instance: A, id: TypeId[A]): Schema[A] =
     new Schema(

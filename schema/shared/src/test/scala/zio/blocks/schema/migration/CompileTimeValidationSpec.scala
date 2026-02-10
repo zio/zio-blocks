@@ -4,11 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.CompanionOptics
 import zio.test._
 import zio.test.Assertion._
-import MigrationTestCompat._
-
 object CompileTimeValidationSpec extends ZIOSpecDefault {
-  // Ensure the import is used (brings implicit conversion in Scala 2, dummy in Scala 3)
-  locally(ensureLoaded)
 
   // ─── Test case classes ───────────────────────────────────────────────
 

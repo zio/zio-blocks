@@ -2,11 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema._
 import zio.test._
-import MigrationTestCompat._
-
 object MigrationBuilderSpec extends ZIOSpecDefault {
-  // Ensure the import is used (brings implicit conversion in Scala 2, dummy in Scala 3)
-  locally(ensureLoaded)
 
   // Test data structures
   case class PersonV1(firstName: String, lastName: String, age: Int)

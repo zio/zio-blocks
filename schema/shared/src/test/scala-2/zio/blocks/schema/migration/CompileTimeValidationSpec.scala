@@ -3,7 +3,6 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 import zio.test._
 import TypeLevel._
-import MigrationBuilderSyntax._
 
 /**
  * Scala 2-specific CompileTimeValidationSpec tests.
