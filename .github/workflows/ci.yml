@@ -11,7 +11,6 @@ on:
   release:
     types:
       - published
-
 concurrency:
   group: ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -166,6 +165,9 @@ jobs:
     needs:
       - release
     if: ${{ ((github.event_name == 'release') && (github.event.action == 'published')) || (github.event_name == 'workflow_dispatch') }}
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Git Checkout
         uses: actions/checkout@v6
