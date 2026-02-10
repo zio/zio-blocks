@@ -1,5 +1,8 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
+import scala.collection.mutable
+
 /**
  * Represents the "type" keyword values in JSON Schema.
  *
@@ -8,38 +11,44 @@ package zio.blocks.schema.json
  * while runtime JSON only has "number" for all numeric values.
  */
 sealed trait JsonSchemaType extends Product with Serializable {
-  def toJsonString: String = this match {
-    case JsonSchemaType.Null    => "null"
-    case JsonSchemaType.Boolean => "boolean"
-    case JsonSchemaType.String  => "string"
-    case JsonSchemaType.Number  => "number"
-    case JsonSchemaType.Integer => "integer"
-    case JsonSchemaType.Array   => "array"
-    case JsonSchemaType.Object  => "object"
-  }
+  def toJsonString: String
 }
 
 object JsonSchemaType {
-  case object Null    extends JsonSchemaType
-  case object Boolean extends JsonSchemaType
-  case object String  extends JsonSchemaType
-  case object Number  extends JsonSchemaType
-  case object Integer extends JsonSchemaType
-  case object Array   extends JsonSchemaType
-  case object Object  extends JsonSchemaType
-
-  def fromString(s: String): Option[JsonSchemaType] = s match {
-    case "null"    => Some(Null)
-    case "boolean" => Some(Boolean)
-    case "string"  => Some(String)
-    case "number"  => Some(Number)
-    case "integer" => Some(Integer)
-    case "array"   => Some(Array)
-    case "object"  => Some(Object)
-    case _         => None
+  case object Null extends JsonSchemaType {
+    def toJsonString: String = "null"
+  }
+  case object Boolean extends JsonSchemaType {
+    def toJsonString: String = "boolean"
+  }
+  case object String extends JsonSchemaType {
+    def toJsonString: String = "string"
+  }
+  case object Number extends JsonSchemaType {
+    def toJsonString: String = "number"
+  }
+  case object Integer extends JsonSchemaType {
+    def toJsonString: String = "integer"
+  }
+  case object Array extends JsonSchemaType {
+    def toJsonString: String = "array"
+  }
+  case object Object extends JsonSchemaType {
+    def toJsonString: String = "object"
   }
 
-  val all: Seq[JsonSchemaType] = Seq(Null, Boolean, String, Number, Integer, Array, Object)
+  def fromString(s: String): Option[JsonSchemaType] = new Some(s match {
+    case "null"    => Null
+    case "boolean" => Boolean
+    case "string"  => String
+    case "number"  => Number
+    case "integer" => Integer
+    case "array"   => Array
+    case "object"  => Object
+    case _         => return None
+  })
+
+  val all: Seq[JsonSchemaType] = Chunk(Null, Boolean, String, Number, Integer, Array, Object)
 }
 
 // =============================================================================
@@ -48,13 +57,13 @@ object JsonSchemaType {
 
 sealed trait SchemaType extends Product with Serializable {
   def toJson: Json = this match {
-    case SchemaType.Single(t) => Json.String(t.toJsonString)
-    case SchemaType.Union(ts) => Json.Array(ts.map(t => Json.String(t.toJsonString)): _*)
+    case s: SchemaType.Single => new Json.String(s.value.toJsonString)
+    case u: SchemaType.Union  => new Json.Array(Chunk.from(u.values).map(t => new Json.String(t.toJsonString)))
   }
 
   def contains(t: JsonSchemaType): scala.Boolean = this match {
-    case SchemaType.Single(st) => st == t
-    case SchemaType.Union(ts)  => ts.contains(t)
+    case s: SchemaType.Single => s.value eq t
+    case u: SchemaType.Union  => u.values.contains(t)
   }
 }
 
@@ -65,27 +74,31 @@ object SchemaType {
   def fromJson(json: Json): Either[String, SchemaType] = json match {
     case s: Json.String =>
       JsonSchemaType.fromString(s.value) match {
-        case Some(t) => Right(Single(t))
-        case None    => Left(s"Unknown type: ${s.value}")
+        case Some(t) => new Right(new Single(t))
+        case _       => new Left(s"Unknown type: ${s.value}")
       }
     case a: Json.Array =>
-      val types = a.value.map {
+      val types  = new mutable.ListBuffer[JsonSchemaType]
+      val errors = new java.lang.StringBuilder
+      a.value.foreach {
         case s: Json.String =>
           JsonSchemaType.fromString(s.value) match {
-            case Some(t) => Right(t)
-            case None    => Left(s"Unknown type: ${s.value}")
+            case Some(t) =>
+              if (errors.length == 0) types.addOne(t)
+            case _ =>
+              if (errors.length > 0) errors.append(", ")
+              errors.append(s"Unknown type: ${s.value}")
           }
-        case other => Left(s"Expected string in type array, got ${other.getClass.getSimpleName}")
+        case other =>
+          if (errors.length > 0) errors.append(", ")
+          errors.append(s"Expected string in type array, got ${other.getClass.getSimpleName}")
       }
-      val errors = types.collect { case Left(e) => e }
-      if (errors.nonEmpty) Left(errors.mkString(", "))
+      if (errors.length > 0) new Left(errors.toString)
       else {
-        val ts = types.collect { case Right(t) => t }
-        ts.toList match {
-          case head :: tail => Right(Union(new ::(head, tail)))
-          case Nil          => Left("Empty type array")
-        }
+        val ts = types.result()
+        if (ts eq Nil) new Left("Empty type array")
+        else new Right(new Union(ts.asInstanceOf[::[JsonSchemaType]]))
       }
-    case other => Left(s"Expected string or array for type, got ${other.getClass.getSimpleName}")
+    case other => new Left(s"Expected string or array for type, got ${other.getClass.getSimpleName}")
   }
 }
