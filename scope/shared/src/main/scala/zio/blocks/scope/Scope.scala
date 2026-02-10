@@ -103,6 +103,14 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   def defer(f: => Unit): Unit = finalizers.add(f)
 
   /**
+   * Returns true if this scope has been closed.
+   *
+   * A closed scope has already run its finalizers. Attempting to use resources
+   * from a closed scope is unsafe.
+   */
+  private[scope] def isClosed: Boolean = finalizers.isClosed
+
+  /**
    * Closes this scope, running all registered finalizers in LIFO order.
    *
    * @return
