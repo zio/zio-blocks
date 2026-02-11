@@ -545,6 +545,7 @@ lazy val docs = project
     `schema-messagepack`.jvm,
     `schema-thrift`,
     `schema-bson`,
+    `schema-xml`.jvm,
     mediatype.jvm
   )
   .enablePlugins(WebsitePlugin)
