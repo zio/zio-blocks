@@ -63,10 +63,7 @@ object UnscopedSpec extends ZIOSpecDefault {
       test("Set[Int]") {
         implicitly[Unscoped[Set[Int]]]; assertCompletes
       },
-      test("Option[Int] - Some") {
-        implicitly[Unscoped[Option[Int]]]; assertCompletes
-      },
-      test("Option[Int] - None") {
+      test("Option[Int]") {
         implicitly[Unscoped[Option[Int]]]; assertCompletes
       },
       test("Seq[Int]") {
@@ -86,10 +83,7 @@ object UnscopedSpec extends ZIOSpecDefault {
       }
     ),
     suite("Either")(
-      test("Either[String, Int] - Right") {
-        implicitly[Unscoped[Either[String, Int]]]; assertCompletes
-      },
-      test("Either[String, Int] - Left") {
+      test("Either[String, Int]") {
         implicitly[Unscoped[Either[String, Int]]]; assertCompletes
       }
     ),

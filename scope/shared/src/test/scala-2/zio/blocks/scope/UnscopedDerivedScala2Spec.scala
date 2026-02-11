@@ -90,16 +90,10 @@ object UnscopedDerivedScala2Spec extends ZIOSpecDefault {
       }
     ),
     suite("sealed traits")(
-      test("sealed trait with case objects") {
+      test("Status") {
         implicitly[Unscoped[Status]]; assertCompletes
       },
-      test("sealed trait with case classes") {
-        implicitly[Unscoped[Status]]; assertCompletes
-      },
-      test("sealed trait with mixed cases") {
-        implicitly[Unscoped[Status]]; assertCompletes
-      },
-      test("sealed trait with only case classes") {
+      test("Shape") {
         implicitly[Unscoped[Shape]]; assertCompletes
       }
     ),

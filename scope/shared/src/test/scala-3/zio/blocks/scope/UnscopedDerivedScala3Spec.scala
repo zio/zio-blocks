@@ -55,16 +55,10 @@ object UnscopedDerivedScala3Spec extends ZIOSpecDefault {
       }
     ),
     suite("sealed traits")(
-      test("sealed trait with case objects") {
+      test("Status") {
         summon[Unscoped[Status]]; assertCompletes
       },
-      test("sealed trait with case classes") {
-        summon[Unscoped[Status]]; assertCompletes
-      },
-      test("sealed trait with mixed cases") {
-        summon[Unscoped[Status]]; assertCompletes
-      },
-      test("sealed trait with only case classes") {
+      test("Shape") {
         summon[Unscoped[Shape]]; assertCompletes
       }
     ),
