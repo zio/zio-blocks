@@ -682,7 +682,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val codec = Schema.fromJsonSchema(Schema[java.util.UUID].toJsonSchema).derive(JsonFormat)
         check(Gen.uuid)(x => assertTrue(codec.decode(s""""$x"""").isRight)) &&
         assertTrue(codec.decode("\"0-0-0-0-0\"").isLeft)
-      },
+      }
     ),
     suite("JsonSchema validation constraints roundtrip")(
       test("string minLength constraint survives roundtrip") {
