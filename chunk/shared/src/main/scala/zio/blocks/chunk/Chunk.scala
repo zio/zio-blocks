@@ -890,8 +890,37 @@ sealed abstract class Chunk[+A]
   }
 
   override def equals(that: Any): Boolean = (self eq that.asInstanceOf[AnyRef]) || (that match {
-    case that: Seq[_] => corresponds(that)(_ == _)
-    case _            => false
+    case that: Chunk[_] =>
+      val len = this.length
+      if (that.length != len) return false
+      var idx = 0
+      while (idx < len) {
+        if (apply(idx) != that(idx)) return false
+        idx += 1
+      }
+      true
+    case that: Seq[_] =>
+      val len       = this.length
+      val knownSize = that.knownSize
+      if (knownSize >= 0) {
+        if (knownSize != len) return false
+        val it  = that.iterator
+        var idx = 0
+        while (idx < len) {
+          if (apply(idx) != it.next()) return false
+          idx += 1
+        }
+        true
+      } else {
+        val it  = that.iterator
+        var idx = 0
+        while (idx < len && it.hasNext) {
+          if (apply(idx) != it.next()) return false
+          idx += 1
+        }
+        idx == len && !it.hasNext
+      }
+    case _ => false
   })
 
   /**

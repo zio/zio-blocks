@@ -254,7 +254,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 88,
-    coverageMinimumBranchTotal := 85
+    coverageMinimumBranchTotal := 86
   )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
