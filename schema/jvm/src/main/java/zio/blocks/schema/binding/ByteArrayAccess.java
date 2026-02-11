@@ -4,7 +4,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
-class ByteArrayAccess {
+public class ByteArrayAccess {
     private static final VarHandle VH_LONG =
             MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
     private static final VarHandle VH_DOUBLE =
@@ -18,51 +18,51 @@ class ByteArrayAccess {
     private static final VarHandle VH_CHAR =
             MethodHandles.byteArrayViewVarHandle(char[].class, ByteOrder.LITTLE_ENDIAN);
 
-    static void setLong(byte[] buf, int pos, long value) {
+    public static void setLong(byte[] buf, int pos, long value) {
         VH_LONG.set(buf, pos, value);
     }
 
-    static long getLong(byte[] buf, int pos) {
+    public static long getLong(byte[] buf, int pos) {
         return (long) VH_LONG.get(buf, pos);
     }
 
-    static void setDouble(byte[] buf, int pos, double value) {
+    public static void setDouble(byte[] buf, int pos, double value) {
         VH_DOUBLE.set(buf, pos, value);
     }
 
-    static double getDouble(byte[] buf, int pos) {
+    public static double getDouble(byte[] buf, int pos) {
         return (double) VH_DOUBLE.get(buf, pos);
     }
 
-    static void setInt(byte[] buf, int pos, int value) {
+    public static void setInt(byte[] buf, int pos, int value) {
         VH_INT.set(buf, pos, value);
     }
 
-    static int getInt(byte[] buf, int pos) {
+    public static int getInt(byte[] buf, int pos) {
         return (int) VH_INT.get(buf, pos);
     }
 
-    static void setFloat(byte[] buf, int pos, float value) {
+    public static void setFloat(byte[] buf, int pos, float value) {
         VH_FLOAT.set(buf, pos, value);
     }
 
-    static float getFloat(byte[] buf, int pos) {
+    public static float getFloat(byte[] buf, int pos) {
         return (float) VH_FLOAT.get(buf, pos);
     }
 
-    static void setShort(byte[] buf, int pos, short value) {
+    public static void setShort(byte[] buf, int pos, short value) {
         VH_SHORT.set(buf, pos, value);
     }
 
-    static short getShort(byte[] buf, int pos) {
+    public static short getShort(byte[] buf, int pos) {
         return (short) VH_SHORT.get(buf, pos);
     }
 
-    static void setChar(byte[] buf, int pos, char value) {
+    public static void setChar(byte[] buf, int pos, char value) {
         VH_CHAR.set(buf, pos, value);
     }
 
-    static char getChar(byte[] buf, int pos) {
+    public static char getChar(byte[] buf, int pos) {
         return (char) VH_CHAR.get(buf, pos);
     }
 }

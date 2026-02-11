@@ -4,7 +4,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
-class ByteArrayAccess {
+public class ByteArrayAccess {
     private static final VarHandle VH_LONG =
             MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
     private static final VarHandle VH_INT =
@@ -16,27 +16,27 @@ class ByteArrayAccess {
     private static final VarHandle VH_INT_REVERSED =
             MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
-    static void setLong(byte[] buf, int pos, long value) {
+    public static void setLong(byte[] buf, int pos, long value) {
         VH_LONG.set(buf, pos, value);
     }
 
-    static long getLong(byte[] buf, int pos) {
+    public static long getLong(byte[] buf, int pos) {
         return (long) VH_LONG.get(buf, pos);
     }
 
-    static void setInt(byte[] buf, int pos, int value) {
+    public static void setInt(byte[] buf, int pos, int value) {
         VH_INT.set(buf, pos, value);
     }
 
-    static int getInt(byte[] buf, int pos) {
+    public static int getInt(byte[] buf, int pos) {
         return (int) VH_INT.get(buf, pos);
     }
 
-    static void setShort(byte[] buf, int pos, short value) {
+    public static void setShort(byte[] buf, int pos, short value) {
         VH_SHORT.set(buf, pos, value);
     }
 
-    static void setLongReversed(byte[] buf, int pos, long value) {
+    public static void setLongReversed(byte[] buf, int pos, long value) {
         VH_LONG_REVERSED.set(buf, pos, value);
     }
 }
