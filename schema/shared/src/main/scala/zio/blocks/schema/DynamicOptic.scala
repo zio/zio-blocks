@@ -35,6 +35,20 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
+  /**
+   * Appends a search node that matches all values of the specified nominal
+   * type.
+   */
+  def search[A](implicit typeId: TypeId[A]): DynamicOptic =
+    new DynamicOptic(nodes :+ Node.TypeSearch(typeId))
+
+  /**
+   * Appends a search node that matches all values matching the specified schema
+   * pattern.
+   */
+  def searchSchema(schemaRepr: SchemaRepr): DynamicOptic =
+    new DynamicOptic(nodes :+ Node.SchemaSearch(schemaRepr))
+
   override lazy val toString: String = {
     val sb  = new java.lang.StringBuilder
     val len = nodes.length
@@ -68,10 +82,12 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append('}')
-        case Node.Elements  => sb.append("[*]")
-        case Node.MapKeys   => sb.append("{*:}")
-        case Node.MapValues => sb.append("{*}")
-        case Node.Wrapped   => sb.append(".~")
+        case Node.Elements                 => sb.append("[*]")
+        case Node.MapKeys                  => sb.append("{*:}")
+        case Node.MapValues                => sb.append("{*}")
+        case Node.Wrapped                  => sb.append(".~")
+        case Node.TypeSearch(typeId)       => sb.append('#').append(typeId.name)
+        case Node.SchemaSearch(schemaRepr) => sb.append('#').append(schemaRepr.toString)
       }
       idx += 1
     }
@@ -118,10 +134,12 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append(')')
-        case Node.Elements  => sb.append(".each")
-        case Node.MapKeys   => sb.append(".eachKey")
-        case Node.MapValues => sb.append(".eachValue")
-        case Node.Wrapped   => sb.append(".wrapped")
+        case Node.Elements                 => sb.append(".each")
+        case Node.MapKeys                  => sb.append(".eachKey")
+        case Node.MapValues                => sb.append(".eachValue")
+        case Node.Wrapped                  => sb.append(".wrapped")
+        case Node.TypeSearch(typeId)       => sb.append(".search[").append(typeId.name).append(']')
+        case Node.SchemaSearch(schemaRepr) => sb.append(".searchSchema(").append(schemaRepr.toString).append(')')
       }
       idx += 1
     }
@@ -208,6 +226,16 @@ object DynamicOptic {
     case object MapValues extends Node
 
     case object Wrapped extends Node
+
+    /**
+     * Search for all values matching a nominal type by TypeId.
+     */
+    case class TypeSearch(typeId: TypeId[?]) extends Node
+
+    /**
+     * Search for all values matching a structural schema pattern.
+     */
+    case class SchemaSearch(schemaRepr: SchemaRepr) extends Node
   }
 
   // Schema Definitions, Manual derivation for Scala 2 compatability
@@ -383,6 +411,50 @@ object DynamicOptic {
     )
   )
 
+  implicit lazy val typeSearchSchema: Schema[Node.TypeSearch] = new Schema(
+    reflect = new Reflect.Record[Binding, Node.TypeSearch](
+      fields = Vector(
+        Schema[TypeId[?]].reflect.asTerm("typeId")
+      ),
+      typeId = TypeId.of[Node.TypeSearch],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Node.TypeSearch] {
+          def usedRegisters: RegisterOffset                                     = 1
+          def construct(in: Registers, offset: RegisterOffset): Node.TypeSearch =
+            Node.TypeSearch(in.getObject(offset + 0).asInstanceOf[TypeId[?]])
+        },
+        deconstructor = new Deconstructor[Node.TypeSearch] {
+          def usedRegisters: RegisterOffset                                                  = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Node.TypeSearch): Unit =
+            out.setObject(offset + 0, in.typeId)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
+  implicit lazy val schemaSearchSchema: Schema[Node.SchemaSearch] = new Schema(
+    reflect = new Reflect.Record[Binding, Node.SchemaSearch](
+      fields = Vector(
+        Schema[SchemaRepr].reflect.asTerm("schemaRepr")
+      ),
+      typeId = TypeId.of[Node.SchemaSearch],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[Node.SchemaSearch] {
+          def usedRegisters: RegisterOffset                                       = 1
+          def construct(in: Registers, offset: RegisterOffset): Node.SchemaSearch =
+            Node.SchemaSearch(in.getObject(offset + 0).asInstanceOf[SchemaRepr])
+        },
+        deconstructor = new Deconstructor[Node.SchemaSearch] {
+          def usedRegisters: RegisterOffset                                                    = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Node.SchemaSearch): Unit =
+            out.setObject(offset + 0, in.schemaRepr)
+        }
+      ),
+      modifiers = Vector.empty
+    )
+  )
+
   // Schema for Node sealed trait
   implicit lazy val nodeSchema: Schema[Node] = new Schema(
     reflect = new Reflect.Variant[Binding, Node](
@@ -396,7 +468,9 @@ object DynamicOptic {
         elementsSchema.reflect.asTerm("Elements"),
         mapKeysSchema.reflect.asTerm("MapKeys"),
         mapValuesSchema.reflect.asTerm("MapValues"),
-        wrappedSchema.reflect.asTerm("Wrapped")
+        wrappedSchema.reflect.asTerm("Wrapped"),
+        typeSearchSchema.reflect.asTerm("TypeSearch"),
+        schemaSearchSchema.reflect.asTerm("SchemaSearch")
       ),
       typeId = TypeId.of[Node],
       variantBinding = new Binding.Variant(
@@ -412,6 +486,8 @@ object DynamicOptic {
             case _: Node.MapKeys.type   => 7
             case _: Node.MapValues.type => 8
             case _: Node.Wrapped.type   => 9
+            case _: Node.TypeSearch     => 10
+            case _: Node.SchemaSearch   => 11
           }
         },
         matchers = Matchers(
@@ -473,6 +549,18 @@ object DynamicOptic {
             def downcastOrNull(a: Any): Node.Wrapped.type = a match {
               case x: Node.Wrapped.type => x
               case _                    => null.asInstanceOf[Node.Wrapped.type]
+            }
+          },
+          new Matcher[Node.TypeSearch] {
+            def downcastOrNull(a: Any): Node.TypeSearch = a match {
+              case x: Node.TypeSearch => x
+              case _                  => null.asInstanceOf[Node.TypeSearch]
+            }
+          },
+          new Matcher[Node.SchemaSearch] {
+            def downcastOrNull(a: Any): Node.SchemaSearch = a match {
+              case x: Node.SchemaSearch => x
+              case _                    => null.asInstanceOf[Node.SchemaSearch]
             }
           }
         )

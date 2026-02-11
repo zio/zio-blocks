@@ -245,6 +245,17 @@ object JsonPatch {
         new Left(SchemaError.expectationMismatch(trace, "MapKeys not supported in patches"))
       case DynamicOptic.Node.MapValues =>
         new Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
+      case _: DynamicOptic.Node.TypeSearch =>
+        new Left(
+          SchemaError.expectationMismatch(trace, "TypeSearch requires Schema context, not supported for JSON patches")
+        )
+      case DynamicOptic.Node.SchemaSearch(pattern) =>
+        val newTrace = node :: trace
+        if (isLast) {
+          schemaSearchApplyOperationJson(value, pattern, operation, mode, newTrace)
+        } else {
+          schemaSearchNavigateJson(value, pattern, path, pathIdx + 1, operation, mode, newTrace)
+        }
     }
   }
 
@@ -297,6 +308,96 @@ object JsonPatch {
       idx += 1
     }
     new Right(new Json.Array(Chunk.fromArray(results)))
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private def schemaSearchApplyOperationJson(
+    value: Json,
+    pattern: SchemaRepr,
+    operation: Op,
+    mode: PatchMode,
+    trace: List[DynamicOptic.Node]
+  ): Either[SchemaError, Json] = {
+    var found       = false
+    var globalError = Option.empty[SchemaError]
+
+    val result = Json.iterativeTransform(value) { json =>
+      if (globalError.isDefined && mode == PatchMode.Strict) json
+      else if (JsonMatch.matches(pattern, json)) {
+        applyOperation(json, operation, mode, trace) match {
+          case Right(modified) =>
+            found = true
+            modified
+          case Left(err) =>
+            mode match {
+              case PatchMode.Strict =>
+                if (globalError.isEmpty) globalError = Some(err)
+                json
+              case PatchMode.Lenient | PatchMode.Clobber =>
+                json
+            }
+        }
+      } else {
+        json
+      }
+    }
+
+    globalError match {
+      case Some(err) => Left(err)
+      case None      =>
+        if (!found && mode == PatchMode.Strict) {
+          Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
+        } else {
+          Right(result)
+        }
+    }
+  }
+
+  private def schemaSearchNavigateJson(
+    value: Json,
+    pattern: SchemaRepr,
+    path: IndexedSeq[DynamicOptic.Node],
+    pathIdx: Int,
+    operation: Op,
+    mode: PatchMode,
+    trace: List[DynamicOptic.Node]
+  ): Either[SchemaError, Json] = {
+    var found       = false
+    var globalError = Option.empty[SchemaError]
+
+    val result = Json.iterativeTransform(value) { json =>
+      if (globalError.isDefined && mode == PatchMode.Strict) json
+      else if (JsonMatch.matches(pattern, json)) {
+        navigateAndApply(json, path, pathIdx, operation, mode, trace) match {
+          case Right(modified) =>
+            found = true
+            modified
+          case Left(err) =>
+            mode match {
+              case PatchMode.Strict =>
+                if (globalError.isEmpty) globalError = Some(err)
+                json
+              case PatchMode.Lenient | PatchMode.Clobber =>
+                json
+            }
+        }
+      } else {
+        json
+      }
+    }
+
+    globalError match {
+      case Some(err) => Left(err)
+      case None      =>
+        if (!found && mode == PatchMode.Strict) {
+          Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
+        } else {
+          Right(result)
+        }
+    }
   }
 
   /**

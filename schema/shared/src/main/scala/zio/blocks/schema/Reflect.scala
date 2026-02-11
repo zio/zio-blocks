@@ -68,46 +68,62 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     def loop(current: Reflect[F, ?], idx: Int): Option[Reflect[F, ?]] =
       if (idx == dynamic.nodes.length) new Some(current)
       else {
-        loop(
-          dynamic.nodes(idx) match {
-            case f: DynamicOptic.Node.Field =>
-              val name = f.name
-              current.asRecord match {
-                case Some(record) =>
-                  val fieldIdx = record.fieldIndexByName(name)
-                  if (fieldIdx >= 0) record.fields(fieldIdx).value
-                  else return None
-                case _ => return None
-              }
-            case c: DynamicOptic.Node.Case =>
-              val name = c.name
-              current.asVariant match {
-                case Some(variant) =>
-                  val caseIdx = variant.caseIndexByName(name)
-                  if (caseIdx >= 0) variant.cases(caseIdx).value
-                  else return None
-                case _ => return None
-              }
-            case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.AtIndices | _: DynamicOptic.Node.Elements.type =>
-              current.asSequenceUnknown match {
-                case Some(unknown) => unknown.sequence.element
-                case _             => return None
-              }
-            case _: DynamicOptic.Node.Wrapped.type =>
-              current.asWrapperUnknown match {
-                case Some(unknown) => unknown.wrapper.wrapped
-                case _             => return None
-              }
-            case node =>
-              current.asMapUnknown match {
-                case Some(unknown) =>
-                  if (node == DynamicOptic.Node.MapKeys) unknown.map.key
-                  else unknown.map.value
-                case _ => return None
-              }
-          },
-          idx + 1
-        )
+        dynamic.nodes(idx) match {
+          case DynamicOptic.Node.TypeSearch(searchTypeId) =>
+            // TypeSearch: find first type matching the TypeId, then continue with remaining path
+            return Reflect.typeSearch(current, searchTypeId).flatMap { found =>
+              if (idx + 1 == dynamic.nodes.length) Some(found)
+              else found.get(new DynamicOptic(dynamic.nodes.drop(idx + 1)))
+            }
+          case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+            // SchemaSearch: find first type matching the SchemaRepr pattern, then continue
+            return Reflect.schemaSearch(current, schemaRepr).flatMap { found =>
+              if (idx + 1 == dynamic.nodes.length) Some(found)
+              else found.get(new DynamicOptic(dynamic.nodes.drop(idx + 1)))
+            }
+          case _ =>
+            loop(
+              dynamic.nodes(idx) match {
+                case f: DynamicOptic.Node.Field =>
+                  val name = f.name
+                  current.asRecord match {
+                    case Some(record) =>
+                      val fieldIdx = record.fieldIndexByName(name)
+                      if (fieldIdx >= 0) record.fields(fieldIdx).value
+                      else return None
+                    case _ => return None
+                  }
+                case c: DynamicOptic.Node.Case =>
+                  val name = c.name
+                  current.asVariant match {
+                    case Some(variant) =>
+                      val caseIdx = variant.caseIndexByName(name)
+                      if (caseIdx >= 0) variant.cases(caseIdx).value
+                      else return None
+                    case _ => return None
+                  }
+                case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.AtIndices |
+                    _: DynamicOptic.Node.Elements.type =>
+                  current.asSequenceUnknown match {
+                    case Some(unknown) => unknown.sequence.element
+                    case _             => return None
+                  }
+                case _: DynamicOptic.Node.Wrapped.type =>
+                  current.asWrapperUnknown match {
+                    case Some(unknown) => unknown.wrapper.wrapped
+                    case _             => return None
+                  }
+                case node =>
+                  current.asMapUnknown match {
+                    case Some(unknown) =>
+                      if (node == DynamicOptic.Node.MapKeys) unknown.map.key
+                      else unknown.map.value
+                    case _ => return None
+                  }
+              },
+              idx + 1
+            )
+        }
       }
 
     loop(this, 0)
@@ -1767,6 +1783,263 @@ object Reflect {
       }) idx = (idx + 1) & mask
       if (currKey eq null) -1
       else values(idx)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TypeSearch and SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Performs depth-first search through the type graph to find the first type
+   * matching the given TypeId. Uses iterative traversal with cycle detection
+   * for recursive types (Deferred nodes).
+   *
+   * @param root
+   *   The starting Reflect node to search from
+   * @param searchTypeId
+   *   The TypeId to search for
+   * @return
+   *   Some(Reflect) if a matching type is found, None otherwise
+   */
+  private[schema] def typeSearch[F[_, _]](root: Reflect[F, ?], searchTypeId: TypeId[?]): Option[Reflect[F, ?]] = {
+    // Thread-local visited set for cycle detection in recursive types
+    val visited = new java.util.IdentityHashMap[AnyRef, Unit]()
+
+    def search(current: Reflect[F, ?]): Option[Reflect[F, ?]] = {
+      // Check for cycle - if we've visited this Deferred node, skip it
+      current match {
+        case d: Deferred[F, ?] @unchecked =>
+          if (visited.containsKey(d)) return None
+          visited.put(d, ())
+        case _ => ()
+      }
+
+      try {
+        // Check if current type matches the search TypeId
+        if (current.typeId == searchTypeId) return Some(current)
+
+        // Recurse into children based on node type
+        current match {
+          case d: Deferred[F, ?] @unchecked =>
+            search(d.value)
+
+          case r: Record[F, ?] @unchecked =>
+            // Search through all field types
+            var i = 0
+            while (i < r.fields.length) {
+              val result = search(r.fields(i).value)
+              if (result.isDefined) return result
+              i += 1
+            }
+            None
+
+          case v: Variant[F, ?] @unchecked =>
+            // Search through all case payload types
+            var i = 0
+            while (i < v.cases.length) {
+              val result = search(v.cases(i).value)
+              if (result.isDefined) return result
+              i += 1
+            }
+            None
+
+          case s: Sequence[F, ?, ?] @unchecked =>
+            // Search element type
+            search(s.element)
+
+          case m: Map[F, ?, ?, ?] @unchecked =>
+            // Search key type first, then value type
+            val keyResult = search(m.key)
+            if (keyResult.isDefined) keyResult
+            else search(m.value)
+
+          case w: Wrapper[F, ?, ?] @unchecked =>
+            // Search wrapped type
+            search(w.wrapped)
+
+          case _: Primitive[F, ?] | _: Dynamic[F] =>
+            // Primitives and Dynamic don't have child types to search
+            None
+        }
+      } finally {
+        // Clean up visited set for Deferred nodes
+        current match {
+          case d: Deferred[F, ?] @unchecked => visited.remove(d)
+          case _                            => ()
+        }
+      }
+    }
+
+    search(root)
+  }
+
+  /**
+   * Performs depth-first search through the type graph to find the first type
+   * matching the given SchemaRepr pattern. Uses structural matching against the
+   * type structure.
+   *
+   * @param root
+   *   The starting Reflect node to search from
+   * @param pattern
+   *   The SchemaRepr pattern to match against
+   * @return
+   *   Some(Reflect) if a matching type is found, None otherwise
+   */
+  private[schema] def schemaSearch[F[_, _]](root: Reflect[F, ?], pattern: SchemaRepr): Option[Reflect[F, ?]] = {
+    // Thread-local visited set for cycle detection in recursive types
+    val visited = new java.util.IdentityHashMap[AnyRef, Unit]()
+
+    def matchesSchemaRepr(reflect: Reflect[F, ?], repr: SchemaRepr): Boolean = repr match {
+      case SchemaRepr.Wildcard => true
+
+      case SchemaRepr.Nominal(name) =>
+        reflect.typeId.name == name
+
+      case SchemaRepr.Primitive(name) =>
+        reflect.asPrimitive match {
+          case Some(p) => primitiveTypeNameMatches(name, p.primitiveType)
+          case None    => false
+        }
+
+      case SchemaRepr.Record(patternFields) =>
+        reflect.asRecord match {
+          case Some(r) =>
+            // Subset matching: all pattern fields must exist with matching types
+            patternFields.forall { case (patternFieldName, patternFieldType) =>
+              r.fieldByName(patternFieldName).exists(field => matchesSchemaRepr(field.value, patternFieldType))
+            }
+          case None => false
+        }
+
+      case SchemaRepr.Variant(patternCases) =>
+        reflect.asVariant match {
+          case Some(v) =>
+            // All pattern cases must exist with matching payload types
+            patternCases.forall { case (patternCaseName, patternCaseType) =>
+              v.caseByName(patternCaseName).exists(case_ => matchesSchemaRepr(case_.value, patternCaseType))
+            }
+          case None => false
+        }
+
+      case SchemaRepr.Sequence(elemPattern) =>
+        reflect.asSequenceUnknown match {
+          case Some(s) => matchesSchemaRepr(s.sequence.element, elemPattern)
+          case None    => false
+        }
+
+      case SchemaRepr.Map(keyPattern, valuePattern) =>
+        reflect.asMapUnknown match {
+          case Some(m) =>
+            matchesSchemaRepr(m.map.key, keyPattern) && matchesSchemaRepr(m.map.value, valuePattern)
+          case None => false
+        }
+
+      case SchemaRepr.Optional(innerPattern) =>
+        // Check if this is an Option type (variant with None/Some cases)
+        if (reflect.isOption) {
+          reflect.optionInnerType.exists(inner => matchesSchemaRepr(inner, innerPattern))
+        } else false
+    }
+
+    def search(current: Reflect[F, ?]): Option[Reflect[F, ?]] = {
+      // Check for cycle - if we've visited this Deferred node, skip it
+      current match {
+        case d: Deferred[F, ?] @unchecked =>
+          if (visited.containsKey(d)) return None
+          visited.put(d, ())
+        case _ => ()
+      }
+
+      try {
+        // Check if current type matches the pattern
+        if (matchesSchemaRepr(current, pattern)) return Some(current)
+
+        // Recurse into children based on node type
+        current match {
+          case d: Deferred[F, ?] @unchecked =>
+            search(d.value)
+
+          case r: Record[F, ?] @unchecked =>
+            var i = 0
+            while (i < r.fields.length) {
+              val result = search(r.fields(i).value)
+              if (result.isDefined) return result
+              i += 1
+            }
+            None
+
+          case v: Variant[F, ?] @unchecked =>
+            var i = 0
+            while (i < v.cases.length) {
+              val result = search(v.cases(i).value)
+              if (result.isDefined) return result
+              i += 1
+            }
+            None
+
+          case s: Sequence[F, ?, ?] @unchecked =>
+            search(s.element)
+
+          case m: Map[F, ?, ?, ?] @unchecked =>
+            val keyResult = search(m.key)
+            if (keyResult.isDefined) keyResult
+            else search(m.value)
+
+          case w: Wrapper[F, ?, ?] @unchecked =>
+            search(w.wrapped)
+
+          case _: Primitive[F, ?] | _: Dynamic[F] =>
+            None
+        }
+      } finally {
+        current match {
+          case d: Deferred[F, ?] @unchecked => visited.remove(d)
+          case _                            => ()
+        }
+      }
+    }
+
+    search(root)
+  }
+
+  /**
+   * Checks if a primitive type name matches a PrimitiveType. Case-insensitive
+   * comparison.
+   */
+  private def primitiveTypeNameMatches(name: String, pt: PrimitiveType[?]): Boolean = {
+    val lowerName = name.toLowerCase
+    pt match {
+      case _: PrimitiveType.Unit.type      => lowerName == "unit"
+      case _: PrimitiveType.Boolean        => lowerName == "boolean"
+      case _: PrimitiveType.Byte           => lowerName == "byte"
+      case _: PrimitiveType.Short          => lowerName == "short"
+      case _: PrimitiveType.Int            => lowerName == "int"
+      case _: PrimitiveType.Long           => lowerName == "long"
+      case _: PrimitiveType.Float          => lowerName == "float"
+      case _: PrimitiveType.Double         => lowerName == "double"
+      case _: PrimitiveType.Char           => lowerName == "char"
+      case _: PrimitiveType.String         => lowerName == "string"
+      case _: PrimitiveType.BigInt         => lowerName == "bigint"
+      case _: PrimitiveType.BigDecimal     => lowerName == "bigdecimal"
+      case _: PrimitiveType.DayOfWeek      => lowerName == "dayofweek"
+      case _: PrimitiveType.Duration       => lowerName == "duration"
+      case _: PrimitiveType.Instant        => lowerName == "instant"
+      case _: PrimitiveType.LocalDate      => lowerName == "localdate"
+      case _: PrimitiveType.LocalDateTime  => lowerName == "localdatetime"
+      case _: PrimitiveType.LocalTime      => lowerName == "localtime"
+      case _: PrimitiveType.Month          => lowerName == "month"
+      case _: PrimitiveType.MonthDay       => lowerName == "monthday"
+      case _: PrimitiveType.OffsetDateTime => lowerName == "offsetdatetime"
+      case _: PrimitiveType.OffsetTime     => lowerName == "offsettime"
+      case _: PrimitiveType.Period         => lowerName == "period"
+      case _: PrimitiveType.Year           => lowerName == "year"
+      case _: PrimitiveType.YearMonth      => lowerName == "yearmonth"
+      case _: PrimitiveType.ZoneId         => lowerName == "zoneid"
+      case _: PrimitiveType.ZoneOffset     => lowerName == "zoneoffset"
+      case _: PrimitiveType.ZonedDateTime  => lowerName == "zoneddatetime"
+      case _: PrimitiveType.Currency       => lowerName == "currency"
+      case _: PrimitiveType.UUID           => lowerName == "uuid"
     }
   }
 }

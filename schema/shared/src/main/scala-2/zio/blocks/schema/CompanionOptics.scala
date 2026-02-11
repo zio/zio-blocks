@@ -10,6 +10,9 @@ trait CompanionOptics[S] {
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def wrapped[B]: B = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def searchFor[B]: B = ???
   }
 
   implicit class SequenceExtension[C[_], A](c: C[A]) {
@@ -218,6 +221,24 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a map"))
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
         }
+      case q"$_[..$_]($parent).searchFor[$searchTree]" =>
+        val parentTpe = parent.tpe.widen.dealias
+        val searchTpe = searchTree.tpe.dealias
+        val optic     = toOptic(parent)
+        if (optic.isEmpty) {
+          q"""_root_.zio.blocks.schema.SearchTraversal(
+                $schema.reflect.asInstanceOf[_root_.zio.blocks.schema.Reflect.Bound[$parentTpe]],
+                _root_.scala.Predef.implicitly[_root_.zio.blocks.schema.Schema[$searchTpe]].reflect
+              ).asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $searchTpe]]"""
+        } else {
+          q"""val optic = $optic
+              optic.apply(
+                _root_.zio.blocks.schema.SearchTraversal(
+                  optic.focus.asInstanceOf[_root_.zio.blocks.schema.Reflect.Bound[$parentTpe]],
+                  _root_.scala.Predef.implicitly[_root_.zio.blocks.schema.Schema[$searchTpe]].reflect
+                ).asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $searchTpe]]
+              )"""
+        }
       case q"$parent.$child" =>
         val childTpe  = tree.tpe.widen.dealias
         val fieldName = NameTransformer.decode(child.toString)
@@ -234,7 +255,7 @@ private object CompanionOptics {
         q""
       case tree =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '$tree'."
+          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, .wrapped[<T>], or .searchFor[<T>], got '$tree'."
         )
     }
 

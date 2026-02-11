@@ -142,11 +142,23 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result   = patch(original)
         assertTrue(result == Right(longVal(1500L)))
       },
+      test("applies negative LongDelta (decrement)") {
+        val original = longVal(1000L)
+        val patch    = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-500L)))
+        val result   = patch(original)
+        assertTrue(result == Right(longVal(500L)))
+      },
       test("applies DoubleDelta to Double") {
         val original = doubleVal(3.0)
         val patch    = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(1.5)))
         val result   = patch(original)
         assertTrue(result == Right(doubleVal(4.5)))
+      },
+      test("applies negative DoubleDelta (decrement)") {
+        val original = doubleVal(5.0)
+        val patch    = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-2.5)))
+        val result   = patch(original)
+        assertTrue(result == Right(doubleVal(2.5)))
       },
       test("applies StringEdit Insert") {
         val original = stringVal("Hello World")
@@ -452,6 +464,63 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
         val patch    = DynamicPatch.root(
           DynamicPatch.Operation.SequenceEdit(Chunk(DynamicPatch.SeqOp.Delete(0, 10)))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails on SeqOp.Modify with out-of-bounds index") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(
+            Chunk(
+              DynamicPatch.SeqOp.Modify(10, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
+            )
+          )
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails on SeqOp.Modify with negative index") {
+        val original = DynamicValue.Sequence(Chunk(intVal(1), intVal(2)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.SequenceEdit(
+            Chunk(
+              DynamicPatch.SeqOp.Modify(-1, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
+            )
+          )
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails on MapOp.Modify when key not found") {
+        val original = DynamicValue.Map(Chunk(stringVal("a") -> intVal(1)))
+        val patch    = DynamicPatch.root(
+          DynamicPatch.Operation.MapEdit(
+            Chunk(
+              DynamicPatch.MapOp.Modify(
+                stringVal("nonexistent"),
+                DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
+              )
+            )
+          )
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails when applying Elements node to non-sequence (Record)") {
+        val original = personRecord("Alice", 30)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("fails when applying Elements node to non-sequence (Primitive)") {
+        val original = intVal(42)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
         )
         val result = patch(original, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -1555,9 +1624,18 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(100L)))
         assertTrue(patch.toString.contains("+=") && patch.toString.contains("100"))
       },
+      test("renders LongDelta negative") {
+        val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-100L)))
+        assertTrue(patch.toString.contains("-=") && patch.toString.contains("100"))
+      },
       test("renders DoubleDelta") {
         val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(3.14)))
         assertTrue(patch.toString.contains("+=") && patch.toString.contains("3.14"))
+      },
+      test("renders DoubleDelta negative") {
+        val patch =
+          DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(-3.14)))
+        assertTrue(patch.toString.contains("-=") && patch.toString.contains("3.14"))
       },
       test("renders FloatDelta") {
         val patch = DynamicPatch.root(DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f)))
@@ -1649,6 +1727,42 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         assertTrue(patch.toString.contains("~") && patch.toString.contains("new"))
+      },
+      test("renders StringEdit with escaped quotes") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(0, "say \"hello\"")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\\""))
+      },
+      test("renders StringEdit with escaped backslash") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Insert(0, "path\\to\\file")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\\\"))
+      },
+      test("renders StringEdit with escaped newline") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append("line1\nline2")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\n"))
+      },
+      test("renders StringEdit with escaped tab") {
+        val patch = DynamicPatch.root(
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append("col1\tcol2")))
+          )
+        )
+        val str = patch.toString
+        assertTrue(str.nonEmpty && str.contains("\\t"))
       },
       test("renders empty patch") {
         val patch = DynamicPatch.empty
@@ -1870,6 +1984,763 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         val result = patch(original)
 
         assertTrue(result.isRight)
+      }
+    ),
+    suite("SchemaSearch")(
+      test("applies Set to all matching primitive values in a record") {
+        // Record with multiple int fields
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(1),
+            "b" -> intVal(2),
+            "c" -> stringVal("hello")
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(99))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(99),
+            "b" -> intVal(99),
+            "c" -> stringVal("hello")
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("finds and patches nested matches") {
+        // Deeply nested structure
+        val original = DynamicValue.Record(
+          Chunk(
+            "outer" -> DynamicValue.Record(
+              Chunk(
+                "inner" -> DynamicValue.Record(
+                  Chunk(
+                    "value" -> intVal(42)
+                  )
+                )
+              )
+            ),
+            "top" -> intVal(1)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Record(
+          Chunk(
+            "outer" -> DynamicValue.Record(
+              Chunk(
+                "inner" -> DynamicValue.Record(
+                  Chunk(
+                    "value" -> intVal(0)
+                  )
+                )
+              )
+            ),
+            "top" -> intVal(0)
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("finds matches in sequence elements") {
+        val original = DynamicValue.Sequence(
+          Chunk(
+            intVal(1),
+            intVal(2),
+            stringVal("skip"),
+            intVal(3)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(100))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            intVal(101),
+            intVal(102),
+            stringVal("skip"),
+            intVal(103)
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("finds matches in map values") {
+        val original = DynamicValue.Map(
+          Chunk(
+            stringVal("a") -> intVal(10),
+            stringVal("b") -> stringVal("ignore"),
+            stringVal("c") -> intVal(20)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Map(
+          Chunk(
+            stringVal("a") -> intVal(0),
+            stringVal("b") -> stringVal("ignore"),
+            stringVal("c") -> intVal(0)
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("finds matches in variant payload") {
+        val original = DynamicValue.Variant(
+          "Some",
+          DynamicValue.Record(
+            Chunk(
+              "x" -> intVal(5),
+              "y" -> intVal(10)
+            )
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Variant(
+          "Some",
+          DynamicValue.Record(
+            Chunk(
+              "x" -> intVal(6),
+              "y" -> intVal(11)
+            )
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("matches record pattern (structural)") {
+        // Pattern: record with "name" field of type string
+        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("Alice"), "age" -> intVal(30))),
+            DynamicValue.Record(Chunk("name" -> stringVal("Bob"), "age" -> intVal(25))),
+            DynamicValue.Record(Chunk("title" -> stringVal("Book"))) // doesn't match
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern),
+          DynamicPatch.Operation.Patch(
+            DynamicPatch(
+              DynamicOptic.root.field("name"),
+              DynamicPatch.Operation.Set(stringVal("REDACTED"))
+            )
+          )
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("REDACTED"), "age" -> intVal(30))),
+            DynamicValue.Record(Chunk("name" -> stringVal("REDACTED"), "age" -> intVal(25))),
+            DynamicValue.Record(Chunk("title" -> stringVal("Book")))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("matches root if root matches pattern") {
+        val original = intVal(42)
+        val patch    = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(100))
+        )
+        val result = patch(original)
+
+        assertTrue(result == Right(intVal(100)))
+      },
+      test("returns unchanged value when zero matches (Lenient mode)") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> stringVal("hello"),
+            "b" -> stringVal("world")
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Lenient)
+
+        assertTrue(result == Right(original))
+      },
+      test("fails on zero matches in Strict mode") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> stringVal("hello")
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Strict)
+
+        assertTrue(result.isLeft)
+      },
+      test("SchemaSearch followed by field navigation") {
+        // Search for records with "value" field, then navigate to that field
+        val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int")))
+
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("value" -> intVal(10))),
+            DynamicValue.Record(Chunk("value" -> intVal(20))),
+            DynamicValue.Record(Chunk("other" -> stringVal("skip")))
+          )
+        )
+
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("value"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original, PatchMode.Lenient)
+
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("value" -> intVal(15))),
+            DynamicValue.Record(Chunk("value" -> intVal(25))),
+            DynamicValue.Record(Chunk("other" -> stringVal("skip")))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("field navigation followed by SchemaSearch") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "data" -> DynamicValue.Record(
+              Chunk(
+                "x" -> intVal(1),
+                "y" -> intVal(2),
+                "z" -> stringVal("hello")
+              )
+            )
+          )
+        )
+
+        val patch = DynamicPatch(
+          DynamicOptic.root.field("data").searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Record(
+          Chunk(
+            "data" -> DynamicValue.Record(
+              Chunk(
+                "x" -> intVal(0),
+                "y" -> intVal(0),
+                "z" -> stringVal("hello")
+              )
+            )
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("Wildcard pattern matches everything") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(1),
+            "b" -> stringVal("hello"),
+            "c" -> boolVal(true)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Wildcard),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original)
+
+        // Wildcard matches everything including root - so root gets replaced
+        assertTrue(result == Right(intVal(0)))
+      },
+      test("PatchMode.Clobber continues on match errors") {
+        // Create scenario where some matches will fail to apply the operation
+        val original = DynamicValue.Sequence(
+          Chunk(
+            intVal(10),
+            stringVal("not an int"), // Will match Wildcard but IntDelta will fail
+            intVal(20)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original, PatchMode.Clobber)
+
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            intVal(15),
+            stringVal("not an int"),
+            intVal(25)
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("multiple SchemaSearch patches compose correctly") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "ints"    -> DynamicValue.Sequence(Chunk(intVal(1), intVal(2))),
+            "strings" -> DynamicValue.Sequence(Chunk(stringVal("a"), stringVal("b")))
+          )
+        )
+
+        val patch1 = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
+        )
+        val patch2 = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string")),
+          DynamicPatch.Operation.PrimitiveDelta(
+            DynamicPatch.PrimitiveOp.StringEdit(Chunk(DynamicPatch.StringOp.Append("!")))
+          )
+        )
+
+        val combined = patch1 ++ patch2
+        val result   = combined(original)
+
+        val expected = DynamicValue.Record(
+          Chunk(
+            "ints"    -> DynamicValue.Sequence(Chunk(intVal(11), intVal(12))),
+            "strings" -> DynamicValue.Sequence(Chunk(stringVal("a!"), stringVal("b!")))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("TypeSearch returns error (requires Schema context)") {
+        import zio.blocks.typeid.TypeId
+        val original = intVal(42)
+        val patch    = DynamicPatch(
+          DynamicOptic(Vector(DynamicOptic.Node.TypeSearch(TypeId.of[Int]))),
+          DynamicPatch.Operation.Set(intVal(100))
+        )
+        val result = patch(original)
+
+        assertTrue(result.isLeft)
+      },
+      // ── 11a: schemaSearchApplyOperation error handling ──
+      test("match found but op fails in Strict mode propagates error") {
+        // Use Wildcard to match everything, then IntDelta will fail on strings
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(10),
+            "b" -> stringVal("hello") // Wildcard matches this, but IntDelta fails on it
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Wildcard),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original, PatchMode.Strict)
+        // Should propagate the error from the failed op on a matched value
+        assertTrue(result.isLeft)
+      },
+      test("match found but op fails in Lenient mode skips error") {
+        // Use Wildcard to match everything, IntDelta fails on strings but continues
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(10),
+            "b" -> stringVal("hello")
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Wildcard),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original, PatchMode.Lenient)
+        // Lenient mode: skip errors and continue. Root record matches Wildcard so IntDelta fails
+        // on it, but continues. Then int fields get modified.
+        assertTrue(result.isRight)
+      },
+      test("match found but op fails in Clobber mode skips error") {
+        // Use Wildcard to match everything, IntDelta fails on strings but continues
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(10),
+            "b" -> stringVal("hello")
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Wildcard),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original, PatchMode.Clobber)
+        assertTrue(result.isRight)
+      },
+      test("early termination on globalError in Strict mode for applyOperation") {
+        // Multiple matches where first match fails the operation in Strict mode
+        // After the first error, remaining matches should not be processed
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("x" -> intVal(1))), // matches Wildcard, IntDelta fails
+            DynamicValue.Record(Chunk("y" -> intVal(2))) // also matches but shouldn't be processed after error
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Wildcard),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      // ── 11b: schemaSearchNavigate gaps ──
+      test("navigate: isCaseMismatch skip in search results") {
+        // Record contains variant fields. Search matches all variants,
+        // then Case("Left") filters — "Right" variant produces case mismatch, skipped silently
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Variant("Left", intVal(10)),
+            "b" -> DynamicValue.Variant("Right", stringVal("hello")),
+            "c" -> DynamicValue.Variant("Left", intVal(20))
+          )
+        )
+        // Variant pattern matches both Left and Right cases
+        val variantPattern = SchemaRepr.Variant(
+          Vector(
+            "Left"  -> SchemaRepr.Primitive("int"),
+            "Right" -> SchemaRepr.Primitive("string")
+          )
+        )
+        // Path: SchemaSearch → Case("Left") — nextIsCase is true
+        // "Right" variant matches search but Case("Left") fails with case mismatch → silently skipped
+        val patch = DynamicPatch(
+          DynamicOptic.root
+            .searchSchema(variantPattern)
+            .caseOf("Left"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(100))
+        )
+        val result   = patch(original, PatchMode.Strict)
+        val expected = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Variant("Left", intVal(110)),
+            "b" -> DynamicValue.Variant("Right", stringVal("hello")),
+            "c" -> DynamicValue.Variant("Left", intVal(120))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("navigate: match + navigate fails in Strict mode") {
+        // Search finds matching records, then try to navigate to a non-existent field
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("Alice"))),
+            DynamicValue.Record(Chunk("name" -> stringVal("Bob")))
+          )
+        )
+        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("navigate: match + navigate fails in Lenient mode skips") {
+        // Search finds matching records, then try to navigate to a non-existent field
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("Alice"))),
+            DynamicValue.Record(Chunk("name" -> stringVal("Bob")))
+          )
+        )
+        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Lenient)
+        // Lenient mode: navigate failures are skipped, original returned
+        assertTrue(result == Right(original))
+      },
+      test("navigate: match + navigate fails in Clobber mode skips") {
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("Alice")))
+          )
+        )
+        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Clobber)
+        assertTrue(result == Right(original))
+      },
+      test("navigate: early termination on globalError in Strict mode") {
+        // Multiple matches where navigate fails on first match in Strict mode
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> DynamicValue.Record(Chunk("x" -> intVal(1))),
+            "b" -> DynamicValue.Record(Chunk("x" -> intVal(2)))
+          )
+        )
+        val pattern = SchemaRepr.Record(Vector("x" -> SchemaRepr.Primitive("int")))
+        // Navigate to "missing" field after search — first match will fail
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("missing"),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("navigate: recurses through Variant payload to find matches") {
+        // Matches are nested inside a variant's payload
+        val original = DynamicValue.Variant(
+          "Some",
+          DynamicValue.Record(
+            Chunk(
+              "data" -> DynamicValue.Record(Chunk("value" -> intVal(42)))
+            )
+          )
+        )
+        val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int")))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("value"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(8))
+        )
+        val result   = patch(original)
+        val expected = DynamicValue.Variant(
+          "Some",
+          DynamicValue.Record(
+            Chunk(
+              "data" -> DynamicValue.Record(Chunk("value" -> intVal(50)))
+            )
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("navigate: recurses through Map values to find matches") {
+        // Matches are nested inside map values
+        val original = DynamicValue.Map(
+          Chunk(
+            stringVal("key1") -> DynamicValue.Record(Chunk("value" -> intVal(10))),
+            stringVal("key2") -> DynamicValue.Record(Chunk("value" -> intVal(20)))
+          )
+        )
+        val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int")))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("value"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
+        )
+        val result   = patch(original)
+        val expected = DynamicValue.Map(
+          Chunk(
+            stringVal("key1") -> DynamicValue.Record(Chunk("value" -> intVal(15))),
+            stringVal("key2") -> DynamicValue.Record(Chunk("value" -> intVal(25)))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("navigate: no matches in Strict mode returns error") {
+        val original = DynamicValue.Record(
+          Chunk("a" -> stringVal("hello"))
+        )
+        val pattern = SchemaRepr.Primitive("int")
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("x"),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("navigate: no matches in Lenient mode returns unchanged") {
+        val original = DynamicValue.Record(
+          Chunk("a" -> stringVal("hello"))
+        )
+        val pattern = SchemaRepr.Primitive("int")
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern).field("x"),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Lenient)
+        assertTrue(result == Right(original))
+      },
+      // ── 11c: Untested SchemaRepr pattern types in patches ──
+      test("SchemaRepr.Optional pattern matches Null and inner values") {
+        val original = DynamicValue.Sequence(
+          Chunk(
+            intVal(10),
+            DynamicValue.Null,
+            intVal(20)
+          )
+        )
+        // Optional(Primitive("int")) should match int values and Null
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Optional(SchemaRepr.Primitive("int"))),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result   = patch(original)
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            intVal(0),
+            intVal(0), // Null matched Optional and was replaced
+            intVal(0)
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("SchemaRepr.Nominal pattern never matches (requires schema context)") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "name" -> stringVal("Alice"),
+            "age"  -> intVal(30)
+          )
+        )
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Nominal("Person")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        // Nominal never matches in DynamicValue context — returns error in Strict
+        val result = patch(original, PatchMode.Strict)
+        assertTrue(result.isLeft)
+      },
+      test("SchemaRepr.Nominal in Lenient mode returns unchanged") {
+        val original = intVal(42)
+        val patch    = DynamicPatch(
+          DynamicOptic.root.searchSchema(SchemaRepr.Nominal("Int")),
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original, PatchMode.Lenient)
+        assertTrue(result == Right(original))
+      },
+      test("SchemaRepr.Variant pattern matches variant values") {
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Variant("Left", intVal(10)),
+            DynamicValue.Variant("Right", stringVal("hello")),
+            DynamicValue.Variant("Left", intVal(20))
+          )
+        )
+        // Match only Left variants with int payload
+        val pattern = SchemaRepr.Variant(Vector("Left" -> SchemaRepr.Primitive("int")))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern),
+          DynamicPatch.Operation.Set(DynamicValue.Variant("Left", intVal(0)))
+        )
+        val result   = patch(original)
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Variant("Left", intVal(0)),
+            DynamicValue.Variant("Right", stringVal("hello")),
+            DynamicValue.Variant("Left", intVal(0))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("SchemaRepr.Sequence pattern matches sequence values") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "nums" -> DynamicValue.Sequence(Chunk(intVal(1), intVal(2))),
+            "name" -> stringVal("test"),
+            "tags" -> DynamicValue.Sequence(Chunk(stringVal("a"), stringVal("b")))
+          )
+        )
+        // Match sequences of ints
+        val pattern = SchemaRepr.Sequence(SchemaRepr.Primitive("int"))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern),
+          DynamicPatch.Operation.Set(DynamicValue.Sequence(Chunk(intVal(99))))
+        )
+        val result   = patch(original)
+        val expected = DynamicValue.Record(
+          Chunk(
+            "nums" -> DynamicValue.Sequence(Chunk(intVal(99))),
+            "name" -> stringVal("test"),
+            "tags" -> DynamicValue.Sequence(Chunk(stringVal("a"), stringVal("b")))
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("SchemaRepr.Map pattern matches map values") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "lookup" -> DynamicValue.Map(
+              Chunk(stringVal("a") -> intVal(1), stringVal("b") -> intVal(2))
+            ),
+            "name" -> stringVal("test")
+          )
+        )
+        // Match maps with string keys and int values
+        val pattern = SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int"))
+        val patch   = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern),
+          DynamicPatch.Operation.Set(DynamicValue.Map(Chunk.empty))
+        )
+        val result   = patch(original)
+        val expected = DynamicValue.Record(
+          Chunk(
+            "lookup" -> DynamicValue.Map(Chunk.empty),
+            "name"   -> stringVal("test")
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("path interpolator with SchemaSearch") {
+        val original = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(1),
+            "b" -> intVal(2)
+          )
+        )
+        val patch = DynamicPatch(
+          p"#int",
+          DynamicPatch.Operation.Set(intVal(0))
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Record(
+          Chunk(
+            "a" -> intVal(0),
+            "b" -> intVal(0)
+          )
+        )
+        assertTrue(result == Right(expected))
+      },
+      test("SchemaSearch with nested patch operation") {
+        val pattern = SchemaRepr.Record(Vector("count" -> SchemaRepr.Primitive("int")))
+
+        val original = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("A"), "count" -> intVal(5))),
+            DynamicValue.Record(Chunk("name" -> stringVal("B"), "count" -> intVal(10)))
+          )
+        )
+
+        val nestedPatch = DynamicPatch(
+          DynamicOptic.root.field("count"),
+          DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
+        )
+
+        val patch = DynamicPatch(
+          DynamicOptic.root.searchSchema(pattern),
+          DynamicPatch.Operation.Patch(nestedPatch)
+        )
+        val result = patch(original)
+
+        val expected = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Record(Chunk("name" -> stringVal("A"), "count" -> intVal(6))),
+            DynamicValue.Record(Chunk("name" -> stringVal("B"), "count" -> intVal(11)))
+          )
+        )
+        assertTrue(result == Right(expected))
       }
     )
   )

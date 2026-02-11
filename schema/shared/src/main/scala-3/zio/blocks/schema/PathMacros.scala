@@ -67,13 +67,59 @@ object PathMacros {
         '{ new Node.AtMapKey($keyExpr) }
       case Node.AtMapKeys(keys) =>
         val keysExpr = Expr.ofSeq(keys.map(buildDynamicValueExpr))
-        '{ new Node.AtMapKeys(Vector($keysExpr: _*)) }
-      case Node.Elements  => '{ Node.Elements }
-      case Node.MapKeys   => '{ Node.MapKeys }
-      case Node.MapValues => '{ Node.MapValues }
-      case Node.Wrapped   => '{ Node.Wrapped }
+        '{ Node.AtMapKeys(Seq($keysExpr: _*)) }
+      case Node.Elements      => '{ Node.Elements }
+      case Node.MapKeys       => '{ Node.MapKeys }
+      case Node.MapValues     => '{ Node.MapValues }
+      case Node.Wrapped       => '{ Node.Wrapped }
+      case Node.TypeSearch(_) =>
+        quotes.reflect.report.errorAndAbort(
+          "TypeSearch is not supported in path interpolators. Use SchemaSearch via #TypeName syntax instead."
+        )
+
+      case Node.SchemaSearch(schemaRepr) =>
+        val schemaReprExpr = buildSchemaReprExpr(schemaRepr)
+        '{ Node.SchemaSearch($schemaReprExpr) }
     }
   }
+
+  private def buildSchemaReprExpr(repr: SchemaRepr)(using Quotes): Expr[SchemaRepr] =
+    repr match {
+      case SchemaRepr.Nominal(name) =>
+        val nameExpr = Expr(name)
+        '{ SchemaRepr.Nominal($nameExpr) }
+      case SchemaRepr.Primitive(name) =>
+        val nameExpr = Expr(name)
+        '{ SchemaRepr.Primitive($nameExpr) }
+      case SchemaRepr.Record(fields) =>
+        val fieldExprs = fields.map { case (name, fieldRepr) =>
+          val nameExpr = Expr(name)
+          val reprExpr = buildSchemaReprExpr(fieldRepr)
+          '{ ($nameExpr, $reprExpr) }
+        }
+        val fieldsExpr = Expr.ofSeq(fieldExprs)
+        '{ SchemaRepr.Record(Vector($fieldsExpr: _*)) }
+      case SchemaRepr.Variant(cases) =>
+        val caseExprs = cases.map { case (name, caseRepr) =>
+          val nameExpr = Expr(name)
+          val reprExpr = buildSchemaReprExpr(caseRepr)
+          '{ ($nameExpr, $reprExpr) }
+        }
+        val casesExpr = Expr.ofSeq(caseExprs)
+        '{ SchemaRepr.Variant(Vector($casesExpr: _*)) }
+      case SchemaRepr.Sequence(element) =>
+        val elementExpr = buildSchemaReprExpr(element)
+        '{ SchemaRepr.Sequence($elementExpr) }
+      case SchemaRepr.Map(key, value) =>
+        val keyExpr   = buildSchemaReprExpr(key)
+        val valueExpr = buildSchemaReprExpr(value)
+        '{ SchemaRepr.Map($keyExpr, $valueExpr) }
+      case SchemaRepr.Optional(inner) =>
+        val innerExpr = buildSchemaReprExpr(inner)
+        '{ SchemaRepr.Optional($innerExpr) }
+      case SchemaRepr.Wildcard =>
+        '{ SchemaRepr.Wildcard }
+    }
 
   private def buildDynamicValueExpr(value: DynamicValue)(using Quotes): Expr[DynamicValue] = {
     import quotes.reflect.*

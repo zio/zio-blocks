@@ -331,6 +331,17 @@ object DynamicPatch {
         new Left(SchemaError.expectationMismatch(trace, "MapKeys not supported in patches"))
       case DynamicOptic.Node.MapValues =>
         new Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
+      case _: DynamicOptic.Node.TypeSearch =>
+        new Left(SchemaError.expectationMismatch(trace, "TypeSearch requires Schema context, not supported in patches"))
+      case DynamicOptic.Node.SchemaSearch(pattern) =>
+        val newTrace = node :: trace
+        if (isLast) {
+          // SchemaSearch is the last node - apply operation to all matching values
+          schemaSearchApplyOperation(value, pattern, operation, mode, newTrace)
+        } else {
+          // SchemaSearch is not the last node - navigate deeper through matching values
+          schemaSearchNavigate(value, pattern, path, pathIdx + 1, operation, mode, newTrace)
+        }
     }
   }
 
@@ -387,6 +398,117 @@ object DynamicPatch {
       idx += 1
     }
     new Right(new DynamicValue.Sequence(Chunk.fromArray(results)))
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Applies an operation to all values matching a SchemaRepr pattern. Uses
+   * recursive traversal to find matching values and apply the operation.
+   * Returns the modified structure with all matching values updated.
+   */
+  private def schemaSearchApplyOperation(
+    value: DynamicValue,
+    pattern: SchemaRepr,
+    operation: Operation,
+    mode: PatchMode,
+    trace: List[DynamicOptic.Node]
+  ): Either[SchemaError, DynamicValue] = {
+    var found       = false
+    var globalError = Option.empty[SchemaError]
+
+    val result = DynamicValue.iterativeTransform(value) { dv =>
+      // If we've already hit an error in Strict mode, skip further processing
+      if (globalError.isDefined && mode == PatchMode.Strict) dv
+      else if (SchemaMatch.matches(pattern, dv)) {
+        applyOperation(dv, operation, mode, trace) match {
+          case Right(modified) =>
+            found = true
+            modified
+          case Left(err) =>
+            mode match {
+              case PatchMode.Strict =>
+                if (globalError.isEmpty) globalError = Some(err)
+                dv
+              case PatchMode.Lenient | PatchMode.Clobber =>
+                dv
+            }
+        }
+      } else {
+        dv
+      }
+    }
+
+    globalError match {
+      case Some(err) => Left(err)
+      case None      =>
+        if (!found && mode == PatchMode.Strict) {
+          Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
+        } else {
+          Right(result)
+        }
+    }
+  }
+
+  /**
+   * Navigates through values matching a SchemaRepr pattern and continues with
+   * the remaining path. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
+   */
+  private def schemaSearchNavigate(
+    value: DynamicValue,
+    pattern: SchemaRepr,
+    path: IndexedSeq[DynamicOptic.Node],
+    pathIdx: Int,
+    operation: Operation,
+    mode: PatchMode,
+    trace: List[DynamicOptic.Node]
+  ): Either[SchemaError, DynamicValue] = {
+    var found       = false
+    var globalError = Option.empty[SchemaError]
+
+    // Check if the next path node is a Case - if so, we should skip non-matching elements
+    // rather than fail, even in Strict mode (this is Traversal semantics)
+    val nextIsCase = pathIdx < path.length && path(pathIdx).isInstanceOf[DynamicOptic.Node.Case]
+
+    val result = DynamicValue.iterativeTransform(value) { dv =>
+      // If we've already hit an error in Strict mode, skip further processing
+      if (globalError.isDefined && mode == PatchMode.Strict) dv
+      else if (SchemaMatch.matches(pattern, dv)) {
+        navigateAndApply(dv, path, pathIdx, operation, mode, trace) match {
+          case Right(modified) =>
+            found = true
+            modified
+          case Left(err) =>
+            val shouldSkip = nextIsCase && isCaseMismatch(err)
+            if (shouldSkip) {
+              dv
+            } else {
+              mode match {
+                case PatchMode.Strict =>
+                  if (globalError.isEmpty) globalError = Some(err)
+                  dv
+                case PatchMode.Lenient | PatchMode.Clobber =>
+                  dv
+              }
+            }
+        }
+      } else {
+        dv
+      }
+    }
+
+    globalError match {
+      case Some(err) => Left(err)
+      case None      =>
+        if (!found && mode == PatchMode.Strict) {
+          Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
+        } else {
+          Right(result)
+        }
+    }
   }
 
   // Check if an error is a Case mismatch (variant case doesn't match expected).

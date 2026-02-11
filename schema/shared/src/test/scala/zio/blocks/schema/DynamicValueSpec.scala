@@ -2856,6 +2856,598 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val result = value.toEjson(indent = 2)
         assertTrue(result.contains("\n") && result.contains("  "))
       }
+    ),
+    suite("SchemaSearch path operations")(
+      test("SchemaSearch finds matching field values in flat record") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "age" -> intVal, "active" -> boolVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.get(path)
+        assertTrue(result.toChunk == Chunk(stringVal))
+      },
+      test("SchemaSearch finds deeply nested matches") {
+        val inner  = DynamicValue.Record("name" -> stringVal)
+        val middle = DynamicValue.Record("person" -> inner)
+        val outer  = DynamicValue.Record("data" -> middle)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = outer.get(path)
+        assertTrue(result.toChunk == Chunk(stringVal))
+      },
+      test("SchemaSearch finds multiple matches") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.get(path)
+        assertTrue(result.toChunk.length == 2)
+      },
+      test("SchemaSearch returns empty for zero matches") {
+        val rec    = DynamicValue.Record("count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.get(path)
+        assertTrue(result.toChunk.isEmpty)
+      },
+      test("SchemaSearch descends into Variant payload") {
+        val variant = DynamicValue.Variant("Some", stringVal)
+        val path    = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result  = variant.get(path)
+        assertTrue(result.toChunk == Chunk(stringVal))
+      },
+      test("SchemaSearch checks each Sequence element") {
+        val seq    = DynamicValue.Sequence(stringVal, intVal, DynamicValue.string("world"))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = seq.get(path)
+        assertTrue(result.toChunk.length == 2)
+      },
+      test("SchemaSearch checks Map values") {
+        val k1     = DynamicValue.string("key1")
+        val k2     = DynamicValue.string("key2")
+        val map    = DynamicValue.Map(k1 -> intVal, k2 -> DynamicValue.int(100))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = map.get(path)
+        assertTrue(result.toChunk.length == 2)
+      },
+      test("SchemaSearch matches root if root matches pattern") {
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = stringVal.get(path)
+        assertTrue(result.toChunk == Chunk(stringVal))
+      },
+      test("SchemaSearch ordering is depth-first, left-to-right") {
+        // Structure: { a: { x: "first" }, b: "second" }
+        val inner   = DynamicValue.Record("x" -> DynamicValue.string("first"))
+        val rec     = DynamicValue.Record("a" -> inner, "b" -> DynamicValue.string("second"))
+        val path    = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result  = rec.get(path)
+        val strings = result.toChunk.map {
+          case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+          case _                                                => ""
+        }
+        assertTrue(strings == Chunk("first", "second"))
+      },
+      test("TypeSearch returns empty without Schema context") {
+        val path   = DynamicOptic.root.search[String]
+        val result = recordVal.get(path)
+        assertTrue(result.toChunk.isEmpty)
+      },
+      test("SchemaSearch with Wildcard matches everything") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Wildcard)
+        val result = rec.get(path)
+        // Should match: root record, stringVal, intVal
+        assertTrue(result.toChunk.length == 3)
+      },
+      test("SchemaSearch with Record pattern matches nested records") {
+        val person = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val outer  = DynamicValue.Record("person" -> person, "count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+        val result = outer.get(path)
+        assertTrue(result.toChunk.length == 1)
+      },
+      test("modify with SchemaSearch updates all matching values") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.modify(path)(_ => DynamicValue.string("REPLACED"))
+        assertTrue(
+          result.get("name").one == Right(DynamicValue.string("REPLACED")) &&
+            result.get("title").one == Right(DynamicValue.string("REPLACED"))
+        )
+      },
+      test("modify with SchemaSearch updates nested matches") {
+        val inner  = DynamicValue.Record("name" -> stringVal)
+        val outer  = DynamicValue.Record("person" -> inner, "title" -> DynamicValue.string("Mr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = outer.modify(path)(_ => DynamicValue.string("X"))
+        assertTrue(
+          result.get("title").one == Right(DynamicValue.string("X")) &&
+            result.get("person").one.flatMap(_.get("name").one) == Right(DynamicValue.string("X"))
+        )
+      },
+      test("modify with SchemaSearch followed by field access") {
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.modify(path)(_ => DynamicValue.int(0))
+        assertTrue(
+          result.get("p1").one.flatMap(_.get("age").one) == Right(DynamicValue.int(0)) &&
+            result.get("p2").one.flatMap(_.get("age").one) == Right(DynamicValue.int(0))
+        )
+      },
+      test("delete with SchemaSearch removes matching values from record") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "count" -> intVal, "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.delete(path)
+        assertTrue(
+          result.fields.length == 1 &&
+            result.fields.head._1 == "count"
+        )
+      },
+      test("delete with SchemaSearch removes matching elements from sequence") {
+        val seq    = DynamicValue.Sequence(stringVal, intVal, DynamicValue.string("world"))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = seq.delete(path)
+        assertTrue(result.elements == Chunk(intVal))
+      },
+      test("delete with SchemaSearch followed by field access") {
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.delete(path)
+        assertTrue(
+          result.get("p1").one.map(_.fields.length) == Right(1) &&
+            result.get("p2").one.map(_.fields.length) == Right(1)
+        )
+      },
+      test("large recursive structure does not stack overflow") {
+        // Create a deeply nested structure with 1000+ levels
+        def buildDeep(depth: Int): DynamicValue =
+          if (depth == 0) DynamicValue.string("leaf")
+          else DynamicValue.Record("child" -> buildDeep(depth - 1))
+
+        val deep   = buildDeep(1500)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = deep.get(path)
+        assertTrue(result.toChunk.length == 1)
+      },
+      test("SchemaSearch on empty record returns empty") {
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = DynamicValue.Record.empty.get(path)
+        assertTrue(result.toChunk.isEmpty)
+      },
+      test("SchemaSearch on empty sequence returns empty") {
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = DynamicValue.Sequence.empty.get(path)
+        assertTrue(result.toChunk.isEmpty)
+      },
+      test("SchemaSearch on Null returns empty unless Wildcard") {
+        val path1   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val path2   = DynamicOptic.root.searchSchema(SchemaRepr.Wildcard)
+        val result1 = DynamicValue.Null.get(path1)
+        val result2 = DynamicValue.Null.get(path2)
+        assertTrue(result1.toChunk.isEmpty && result2.toChunk.length == 1)
+      },
+      test("SchemaSearch with Optional pattern matches Null") {
+        val rec    = DynamicValue.Record("value" -> DynamicValue.Null)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Optional(SchemaRepr.Primitive("string")))
+        val result = rec.get(path)
+        assertTrue(result.toChunk == Chunk(DynamicValue.Null))
+      },
+      test("modify with SchemaSearch returns unchanged when no matches") {
+        val rec    = DynamicValue.Record("count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.modify(path)(_ => DynamicValue.string("X"))
+        assertTrue(result == rec)
+      },
+      test("delete with SchemaSearch returns unchanged when no matches") {
+        val rec    = DynamicValue.Record("count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.delete(path)
+        assertTrue(result == rec)
+      },
+      test("SchemaSearch in Map finds both keys and values") {
+        // Both keys and values are searched
+        val k1     = DynamicValue.string("key1")
+        val map    = DynamicValue.Map(k1 -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = map.get(path)
+        // Should find 1 string (the key)
+        assertTrue(result.toChunk.length == 1)
+      },
+      test("modify with SchemaSearch updates matching values inside Variant payload") {
+        val variant = DynamicValue.Variant("Some", DynamicValue.string("old"))
+        val path    = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result  = variant.modify(path)(_ => DynamicValue.string("new"))
+        result match {
+          case DynamicValue.Variant(caseName, payload) =>
+            assertTrue(
+              caseName == "Some" &&
+                payload == DynamicValue.string("new")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("modify with SchemaSearch updates matching values inside Sequence") {
+        val seq    = DynamicValue.Sequence(stringVal, intVal, DynamicValue.string("world"))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = seq.modify(path)(_ => DynamicValue.string("X"))
+        result match {
+          case DynamicValue.Sequence(elems) =>
+            assertTrue(
+              elems == Chunk(DynamicValue.string("X"), intVal, DynamicValue.string("X"))
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("modify with SchemaSearch updates matching values inside Map") {
+        val k1     = DynamicValue.string("key1")
+        val k2     = DynamicValue.string("key2")
+        val map    = DynamicValue.Map(k1 -> intVal, k2 -> DynamicValue.int(100))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = map.modify(path)(_ => DynamicValue.int(0))
+        result match {
+          case DynamicValue.Map(entries) =>
+            assertTrue(
+              entries == Chunk(k1 -> DynamicValue.int(0), k2 -> DynamicValue.int(0))
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("modify with SchemaSearch match found but remaining path fails") {
+        // Search finds a matching record, but the subsequent field("missing") doesn't exist
+        val person        = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val outer         = DynamicValue.Record("person" -> person)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("missing")
+        val result = outer.modify(path)(_ => DynamicValue.string("X"))
+        // Should return unchanged since remaining path fails
+        assertTrue(result == outer)
+      },
+      test("modify with SchemaSearch no-change short-circuit preserves structure") {
+        // When modification returns the same values, containers should be unchanged
+        val rec    = DynamicValue.Record("count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = rec.modify(path)(identity)
+        assertTrue(result == rec)
+      },
+      test("SchemaSearch finds multiple matches - verify actual values") {
+        val rec    = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "title" -> DynamicValue.string("Dr."))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = rec.get(path)
+        assertTrue(
+          result.toChunk == Chunk(DynamicValue.string("Alice"), DynamicValue.string("Dr."))
+        )
+      },
+      test("SchemaSearch checks each Sequence element - verify actual values") {
+        val seq    = DynamicValue.Sequence(DynamicValue.string("a"), intVal, DynamicValue.string("b"))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result = seq.get(path)
+        assertTrue(
+          result.toChunk == Chunk(DynamicValue.string("a"), DynamicValue.string("b"))
+        )
+      },
+      test("SchemaSearch checks Map values - verify actual values") {
+        val k1     = DynamicValue.string("key1")
+        val k2     = DynamicValue.string("key2")
+        val map    = DynamicValue.Map(k1 -> DynamicValue.int(10), k2 -> DynamicValue.int(20))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = map.get(path)
+        assertTrue(
+          result.toChunk == Chunk(DynamicValue.int(10), DynamicValue.int(20))
+        )
+      },
+      test("SchemaSearch with Wildcard - verify content and order") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Wildcard)
+        val result = rec.get(path)
+        // Depth-first: root record first, then its children left-to-right
+        assertTrue(result.toChunk == Chunk(rec, stringVal, intVal))
+      },
+      test("SchemaSearch with Record pattern - verify matched record") {
+        val person = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val outer  = DynamicValue.Record("person" -> person, "count" -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+        val result = outer.get(path)
+        assertTrue(result.toChunk == Chunk(person))
+      },
+      test("delete followed by field access - verify remaining field name") {
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.delete(path)
+        // Each person record should only have "name" field remaining
+        val p1Fields = result.get("p1").one.map(_.fields.map(_._1))
+        val p2Fields = result.get("p2").one.map(_.fields.map(_._1))
+        assertTrue(
+          p1Fields == Right(Chunk("name")) &&
+            p2Fields == Right(Chunk("name"))
+        )
+      },
+      // isLast=true path: Variant
+      test("delete with SchemaSearch removes matching Variant payload (replaces with empty record)") {
+        val variant = DynamicValue.Variant("Some", DynamicValue.string("hello"))
+        val path    = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        val result  = variant.delete(path)
+        result match {
+          case DynamicValue.Variant(caseName, payload) =>
+            assertTrue(
+              caseName == "Some" &&
+                payload == DynamicValue.Record.empty
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      // isLast=true path: Map
+      test("delete with SchemaSearch removes matching Map entries") {
+        val k1     = DynamicValue.string("key1")
+        val k2     = DynamicValue.string("key2")
+        val map    = DynamicValue.Map(k1 -> DynamicValue.int(10), k2 -> DynamicValue.string("keep"), k1 -> intVal)
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = map.delete(path)
+        result match {
+          case DynamicValue.Map(entries) =>
+            assertTrue(entries == Chunk(k2 -> DynamicValue.string("keep")))
+          case _ => assertTrue(false)
+        }
+      },
+      // isLast=true path: bare Primitive/Null (no children to delete from)
+      test("delete with SchemaSearch on bare Primitive returns unchanged") {
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val result = intVal.delete(path)
+        // Primitive has no children and root can't delete itself
+        assertTrue(result == intVal)
+      },
+      test("delete with SchemaSearch on Null returns unchanged") {
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Wildcard)
+        val result = DynamicValue.Null.delete(path)
+        assertTrue(result == DynamicValue.Null)
+      },
+      // isLast=false path: Variant container
+      test("delete with SchemaSearch (non-last) through Variant container") {
+        // Variant holds a matching record, delete a field from it
+        val innerRec      = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val variant       = DynamicValue.Variant("Data", innerRec)
+        val recordPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(recordPattern).field("age")
+        val result = variant.delete(path)
+        result match {
+          case DynamicValue.Variant(caseName, payload) =>
+            assertTrue(
+              caseName == "Data" &&
+                payload.fields.length == 1 &&
+                payload.fields.head._1 == "name"
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      // isLast=false path: Sequence container
+      test("delete with SchemaSearch (non-last) through Sequence container") {
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val seq           = DynamicValue.Sequence(person1, person2)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = seq.delete(path)
+        result match {
+          case DynamicValue.Sequence(elems) =>
+            assertTrue(
+              elems.length == 2 &&
+                elems(0).fields.map(_._1) == Chunk("name") &&
+                elems(1).fields.map(_._1) == Chunk("name")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      // isLast=false path: Map container
+      test("delete with SchemaSearch (non-last) through Map container") {
+        val person        = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val k1            = DynamicValue.string("person1")
+        val map           = DynamicValue.Map(k1 -> person)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = map.delete(path)
+        result match {
+          case DynamicValue.Map(entries) =>
+            assertTrue(
+              entries.length == 1 &&
+                entries.head._2.fields.map(_._1) == Chunk("name")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      // isLast=false path: Primitive/Null leaf
+      test("delete with SchemaSearch (non-last) on Primitive leaf") {
+        // Primitive matches but remaining path (field access) fails → no change
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int")).field("x")
+        val result = intVal.delete(path)
+        assertTrue(result == intVal)
+      },
+      // deleteMatchingRecurse: Variant branch
+      test("delete with SchemaSearch (non-last) recurses through Variant children") {
+        // Outer record holds a Variant whose payload is a record with a matching nested value
+        val innerPerson   = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val variant       = DynamicValue.Variant("Wrapper", innerPerson)
+        val outer         = DynamicValue.Record("data" -> variant)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path    = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result  = outer.delete(path)
+        val payload = result.get("data").one.map {
+          case DynamicValue.Variant(_, p) => p.fields.map(_._1)
+          case _                          => Chunk.empty
+        }
+        assertTrue(payload == Right(Chunk("name")))
+      },
+      // deleteMatchingRecurse: Sequence branch
+      test("delete with SchemaSearch (non-last) recurses through Sequence children") {
+        val person1       = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val seq           = DynamicValue.Sequence(person1)
+        val outer         = DynamicValue.Record("items" -> seq)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.delete(path)
+        val items  = result.get("items").one.map(_.elements)
+        items match {
+          case Right(elems) =>
+            assertTrue(
+              elems.length == 1 &&
+                elems.head.fields.map(_._1) == Chunk("name")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      // deleteMatchingRecurse: Map branch
+      test("delete with SchemaSearch (non-last) recurses through Map children") {
+        val person        = DynamicValue.Record("name" -> DynamicValue.string("Alice"), "age" -> DynamicValue.int(30))
+        val k1            = DynamicValue.string("p1")
+        val map           = DynamicValue.Map(k1 -> person)
+        val outer         = DynamicValue.Record("people" -> map)
+        val personPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path      = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result    = outer.delete(path)
+        val mapResult = result.get("people").one.map {
+          case DynamicValue.Map(entries) => entries.head._2.fields.map(_._1)
+          case _                         => Chunk.empty
+        }
+        assertTrue(mapResult == Right(Chunk("name")))
+      },
+      // Root-is-candidate: root matches, isLast=true
+      test("delete with SchemaSearch root matches and isLast - delegates to children") {
+        // Root record matches Wildcard; children are deleted based on specific pattern
+        val rec  = DynamicValue.Record("name" -> stringVal, "count" -> intVal)
+        val path = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
+        // Root doesn't match Primitive("string"), but the field "name" does
+        val result = rec.delete(path)
+        assertTrue(
+          result.fields.length == 1 &&
+            result.fields.head._1 == "count"
+        )
+      },
+      test("delete with SchemaSearch root matches Record pattern, isLast=true") {
+        // Root itself matches the record pattern - children matching same pattern get removed
+        val innerRec    = DynamicValue.Record("name" -> DynamicValue.string("nested"))
+        val rootRec     = DynamicValue.Record("name" -> DynamicValue.string("root"), "child" -> innerRec)
+        val namePattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val path        = DynamicOptic.root.searchSchema(namePattern)
+        val result      = rootRec.delete(path)
+        // Root matches and isLast, so delegates to children. Child "child" matches → removed
+        assertTrue(
+          result.fields.length == 1 &&
+            result.fields.head._1 == "name"
+        )
+      },
+      // Root-is-candidate: root matches, isLast=false, remaining path succeeds
+      test("delete with SchemaSearch root matches, non-last, remaining path succeeds") {
+        val rootRec       = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val recordPattern =
+          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+        val path   = DynamicOptic.root.searchSchema(recordPattern).field("age")
+        val result = rootRec.delete(path)
+        assertTrue(
+          result.fields.length == 1 &&
+            result.fields.head._1 == "name"
+        )
+      },
+      // ── Nested match propagation: selfResult must not discard childResult ──
+      test("delete with SchemaSearch (non-last) propagates to nested matches inside matching parent") {
+        // Parent record matches #Person and CONTAINS a child that also matches #Person.
+        // Both must have "age" deleted — not just the outer one.
+        val inner = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
+        val outer = DynamicValue.Record(
+          "name"    -> DynamicValue.string("Alice"),
+          "age"     -> DynamicValue.int(30),
+          "reports" -> DynamicValue.Sequence(inner)
+        )
+        val personPattern = SchemaRepr.Record(
+          Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+        )
+        val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
+        val result = outer.delete(path)
+        // Outer record: "age" deleted
+        assertTrue(
+          result.fields.map(_._1) == Chunk("name", "reports")
+        ) &&
+        // Inner record (inside Sequence): "age" also deleted
+        assertTrue(
+          result.get("reports").one.map(_.elements.head.fields.map(_._1)) == Right(Chunk("name"))
+        )
+      },
+      test("delete with SchemaSearch (non-last) propagates through Variant containing nested match") {
+        // Variant payload matches, and inside it there's another match
+        val inner = DynamicValue.Record("name" -> DynamicValue.string("nested"), "age" -> DynamicValue.int(5))
+        val outer = DynamicValue.Record(
+          "name"  -> DynamicValue.string("top"),
+          "age"   -> DynamicValue.int(10),
+          "child" -> DynamicValue.Variant("Wrapper", inner)
+        )
+        val pattern = SchemaRepr.Record(
+          Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+        )
+        val path   = DynamicOptic.root.searchSchema(pattern).field("age")
+        val result = outer.delete(path)
+        // Outer: age deleted
+        assertTrue(!result.fields.map(_._1).contains("age")) &&
+        // Inner (inside Variant): age also deleted
+        assertTrue(
+          result.get("child").one.map {
+            case DynamicValue.Variant(_, payload) => payload.fields.map(_._1)
+            case _                                => Chunk.empty
+          } == Right(Chunk("name"))
+        )
+      },
+      test("delete with SchemaSearch (non-last) root match propagates to children") {
+        // Root itself matches AND contains children that also match
+        val child   = DynamicValue.Record("name" -> DynamicValue.string("child"), "age" -> DynamicValue.int(5))
+        val rootRec = DynamicValue.Record(
+          "name"  -> DynamicValue.string("root"),
+          "age"   -> DynamicValue.int(99),
+          "child" -> child
+        )
+        val pattern = SchemaRepr.Record(
+          Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+        )
+        val path   = DynamicOptic.root.searchSchema(pattern).field("age")
+        val result = rootRec.delete(path)
+        // Root: age deleted
+        assertTrue(!result.fields.map(_._1).contains("age")) &&
+        // Child: age also deleted
+        assertTrue(
+          result.get("child").one.map(_.fields.map(_._1)) == Right(Chunk("name"))
+        )
+      },
+      // Root-is-candidate: root matches, isLast=false, remaining path fails → fallback to children
+      test("delete with SchemaSearch root matches, non-last, remaining path fails falls back to children") {
+        val child       = DynamicValue.Record("name" -> DynamicValue.string("child"), "age" -> DynamicValue.int(5))
+        val rootRec     = DynamicValue.Record("name" -> DynamicValue.string("root"), "child" -> child)
+        val namePattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        // Root matches namePattern, but field("missing") fails, so fallback to deleteMatching on children
+        val path   = DynamicOptic.root.searchSchema(namePattern).field("missing")
+        val result = rootRec.delete(path)
+        // Since remaining path fails for all matches, nothing changes
+        assertTrue(result == rootRec)
+      },
+      test("TypeSearch in modify returns unchanged") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val path   = DynamicOptic.root.search[String]
+        val result = rec.modify(path)(_ => DynamicValue.string("X"))
+        assertTrue(result == rec)
+      },
+      test("TypeSearch in delete returns unchanged") {
+        val rec    = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
+        val path   = DynamicOptic.root.search[String]
+        val result = rec.delete(path)
+        assertTrue(result == rec)
+      }
     )
   )
 }

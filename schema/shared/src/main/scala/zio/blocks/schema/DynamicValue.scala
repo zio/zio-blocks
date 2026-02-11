@@ -871,6 +871,14 @@ object DynamicValue {
 
         case DynamicOptic.Node.Wrapped =>
           current
+
+        case _: DynamicOptic.Node.TypeSearch =>
+          // TypeSearch requires Schema context - not supported in untyped DynamicValue operations
+          Chunk.empty
+
+        case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+          // SchemaSearch uses iterative stack-based depth-first traversal to find all matching values
+          current.flatMap(dv => schemaSearchCollect(dv, schemaRepr))
       }
       idx += 1
     }
@@ -1041,6 +1049,14 @@ object DynamicValue {
 
       case DynamicOptic.Node.Wrapped =>
         modifyAtPathImpl(dv, nodes, idx + 1, f)
+
+      case _: DynamicOptic.Node.TypeSearch =>
+        // TypeSearch requires Schema context - not supported in untyped operations
+        None
+
+      case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+        // SchemaSearch traversal: find all matches and apply modification to each
+        schemaSearchModify(dv, schemaRepr, nodes, idx, f)
     }
   }
 
@@ -1259,6 +1275,14 @@ object DynamicValue {
 
       case DynamicOptic.Node.Wrapped =>
         deleteAtPathImpl(dv, nodes, idx + 1)
+
+      case _: DynamicOptic.Node.TypeSearch =>
+        // TypeSearch requires Schema context - not supported in untyped operations
+        None
+
+      case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
+        // SchemaSearch traversal: find all matches and apply deletion to each
+        schemaSearchDelete(dv, schemaRepr, nodes, idx)
     }
   }
 
@@ -1267,6 +1291,245 @@ object DynamicValue {
     path: DynamicOptic
   ): Either[SchemaError, DynamicValue] =
     deleteAtPath(dv, path).toRight(SchemaError.message("Path not found", path))
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Iterative stack-based depth-first traversal to collect all values matching
+   * a SchemaRepr pattern. Order is depth-first, left-to-right (children are
+   * pushed in reverse order). The root value itself is included if it matches
+   * the pattern.
+   */
+  private def schemaSearchCollect(root: DynamicValue, pattern: SchemaRepr): Chunk[DynamicValue] = {
+    // Use a mutable list stack for iteration (avoids recursion stack overflow)
+    var stack: List[DynamicValue]                                   = List(root)
+    val results: scala.collection.mutable.ArrayBuffer[DynamicValue] = scala.collection.mutable.ArrayBuffer.empty
+
+    while (stack.nonEmpty) {
+      val current = stack.head
+      stack = stack.tail
+
+      // Check if current matches the pattern
+      if (SchemaMatch.matches(pattern, current)) {
+        results += current
+      }
+
+      // Push children onto stack - first child should be at top for left-to-right DFS
+      current match {
+        case r: Record =>
+          // First field's value goes to top of stack, processed first
+          stack = r.fields.iterator.map(_._2).toList ++ stack
+        case v: Variant =>
+          stack = v.value :: stack
+        case s: Sequence =>
+          // First element goes to top of stack, processed first
+          stack = s.elements.iterator.toList ++ stack
+        case m: Map =>
+          // Search both keys and values, first entry's key processed first
+          stack = m.entries.iterator.flatMap { case (k, v) => Iterator(k, v) }.toList ++ stack
+        case _: Primitive | Null =>
+          // Primitives and Null have no children
+          ()
+      }
+    }
+
+    Chunk.from(results)
+  }
+
+  /**
+   * Iterative pre-order tree transformation. Applies `visit` to each node, then
+   * reconstructs the tree bottom-up using an explicit stack to avoid stack
+   * overflow on deeply nested/recursive structures.
+   */
+  private[schema] def iterativeTransform(root: DynamicValue)(visit: DynamicValue => DynamicValue): DynamicValue = {
+    sealed trait Frame
+    final case class Visit(value: DynamicValue)                           extends Frame
+    final case class RebuildRecord(original: Record, childCount: Int)     extends Frame
+    final case class RebuildVariant(original: Variant)                    extends Frame
+    final case class RebuildSequence(original: Sequence, childCount: Int) extends Frame
+    final case class RebuildMap(original: Map, childCount: Int)           extends Frame
+
+    val work    = new java.util.ArrayDeque[Frame]()
+    val results = new java.util.ArrayDeque[DynamicValue]()
+    work.push(Visit(root))
+
+    while (!work.isEmpty) {
+      work.pop() match {
+        case Visit(value) =>
+          val visited = visit(value)
+          visited match {
+            case r: Record =>
+              val n = r.fields.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildRecord(r, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(r.fields(i)._2)); i -= 1 }
+              }
+            case v: Variant =>
+              work.push(RebuildVariant(v))
+              work.push(Visit(v.value))
+            case s: Sequence =>
+              val n = s.elements.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildSequence(s, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(s.elements(i))); i -= 1 }
+              }
+            case m: Map =>
+              val n = m.entries.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildMap(m, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(m.entries(i)._2)); i -= 1 }
+              }
+            case _ =>
+              results.push(visited)
+          }
+
+        case RebuildRecord(original, childCount) =>
+          var changed = false
+          val fields  = new scala.Array[(String, DynamicValue)](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.fields(i)._2)) changed = true
+            fields(i) = (original.fields(i)._1, child)
+            i -= 1
+          }
+          results.push(if (changed) Record(Chunk.fromArray(fields)) else original)
+
+        case RebuildVariant(original) =>
+          val payload = results.pop()
+          results.push(if (payload eq original.value) original else Variant(original.caseNameValue, payload))
+
+        case RebuildSequence(original, childCount) =>
+          var changed = false
+          val elems   = new scala.Array[DynamicValue](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.elements(i))) changed = true
+            elems(i) = child
+            i -= 1
+          }
+          results.push(if (changed) Sequence(Chunk.fromArray(elems)) else original)
+
+        case RebuildMap(original, childCount) =>
+          var changed = false
+          val entries = new scala.Array[(DynamicValue, DynamicValue)](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.entries(i)._2)) changed = true
+            entries(i) = (original.entries(i)._1, child)
+            i -= 1
+          }
+          results.push(if (changed) Map(Chunk.fromArray(entries)) else original)
+      }
+    }
+
+    results.pop()
+  }
+
+  /**
+   * Modifies all values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
+   */
+  private def schemaSearchModify(
+    dv: DynamicValue,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    idx: Int,
+    f: DynamicValue => DynamicValue
+  ): Option[DynamicValue] = {
+    var found  = false
+    val result = iterativeTransform(dv) { value =>
+      if (SchemaMatch.matches(pattern, value)) {
+        modifyAtPathImpl(value, nodes, idx + 1, f) match {
+          case Some(modified) =>
+            found = true
+            modified
+          case None => value
+        }
+      } else {
+        value
+      }
+    }
+    if (found) Some(result) else None
+  }
+
+  /**
+   * Deletes all values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
+   */
+  private def schemaSearchDelete(
+    dv: DynamicValue,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    idx: Int
+  ): Option[DynamicValue] = {
+    val isLast = idx == nodes.length - 1
+    var found  = false
+
+    if (isLast) {
+      // SchemaSearch is the last node - delete matching values from containers.
+      // The visit function filters out matching direct children at each container level;
+      // iterativeTransform handles recursion into remaining children.
+      val result = iterativeTransform(dv) { value =>
+        value match {
+          case r: Record =>
+            val newFields = r.fields.flatMap { case (name, v) =>
+              if (SchemaMatch.matches(pattern, v)) { found = true; Chunk.empty }
+              else Chunk((name, v))
+            }
+            if (newFields.length != r.fields.length) Record(newFields) else r
+          case v: Variant =>
+            if (SchemaMatch.matches(pattern, v.value)) {
+              found = true
+              Variant(v.caseNameValue, Record.empty)
+            } else v
+          case s: Sequence =>
+            val newElems = s.elements.flatMap { e =>
+              if (SchemaMatch.matches(pattern, e)) { found = true; Chunk.empty }
+              else Chunk(e)
+            }
+            if (newElems.length != s.elements.length) Sequence(newElems) else s
+          case m: Map =>
+            val newEntries = m.entries.flatMap { case (k, v) =>
+              if (SchemaMatch.matches(pattern, v)) { found = true; Chunk.empty }
+              else Chunk((k, v))
+            }
+            if (newEntries.length != m.entries.length) Map(newEntries) else m
+          case other => other
+        }
+      }
+      if (found) Some(result) else None
+    } else {
+      // SchemaSearch is not the last node - find matches and continue with remaining path.
+      // iterativeTransform visits every node; matching ones get the remaining path applied.
+      val result = iterativeTransform(dv) { value =>
+        if (SchemaMatch.matches(pattern, value)) {
+          deleteAtPathImpl(value, nodes, idx + 1) match {
+            case Some(modified) =>
+              found = true
+              modified
+            case None => value
+          }
+        } else value
+      }
+      if (found) Some(result) else None
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Insert Implementation
