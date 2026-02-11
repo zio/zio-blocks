@@ -14,6 +14,8 @@ const sidebars = {
          "reference/modifier",
          "reference/dynamic-value",
          "reference/optics",
+         "reference/dynamic-optic",
+         "path-interpolator",
          "reference/chunk",
          "reference/validation",
          "reference/schema-evolution",
