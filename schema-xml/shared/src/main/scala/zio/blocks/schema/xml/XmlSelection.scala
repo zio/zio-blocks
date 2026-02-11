@@ -302,10 +302,10 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
         case Right(v2) => new Right(v1 ++ v2)
         case l         => l
       }
-    case l @ Left(e1) =>
+    case l @ Left(_) =>
       other.either match {
-        case Left(e2) => new Left(e1.atSpan(DynamicOptic.Node.Field(e2.getMessage)))
-        case _        => l
+        case Left(_) => l // Return first error, don't corrupt path with second error's message
+        case _       => l
       }
   })
 

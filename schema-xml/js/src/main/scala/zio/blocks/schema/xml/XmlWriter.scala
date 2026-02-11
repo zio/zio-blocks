@@ -65,7 +65,12 @@ object XmlWriter {
     writeName(name, sb)
 
     name.namespace.foreach { ns =>
-      sb.append(" xmlns=\"")
+      sb.append(" xmlns")
+      name.prefix.foreach { p =>
+        sb.append(':')
+        sb.append(p)
+      }
+      sb.append("=\"")
       sb.append(escapeAttribute(ns))
       sb.append('"')
     }
