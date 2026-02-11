@@ -111,7 +111,7 @@ object OpenAPICodec {
   // ---------------------------------------------------------------------------
 
   implicit val docJsonEncoder: JsonEncoder[Doc] = JsonEncoder.instance[Doc] { doc =>
-    new Json.String(Renderer.render(doc))
+    Json.String(Renderer.render(doc))
   }
 
   implicit val docJsonDecoder: JsonDecoder[Doc] = JsonDecoder.instance[Doc] { json =>
@@ -392,10 +392,10 @@ object OpenAPICodec {
 
   implicit val parameterLocationJsonEncoder: JsonEncoder[ParameterLocation] =
     JsonEncoder.instance[ParameterLocation] {
-      case ParameterLocation.Query  => new Json.String("query")
-      case ParameterLocation.Header => new Json.String("header")
-      case ParameterLocation.Path   => new Json.String("path")
-      case ParameterLocation.Cookie => new Json.String("cookie")
+      case ParameterLocation.Query  => Json.String("query")
+      case ParameterLocation.Header => Json.String("header")
+      case ParameterLocation.Path   => Json.String("path")
+      case ParameterLocation.Cookie => Json.String("cookie")
     }
 
   implicit val parameterLocationJsonDecoder: JsonDecoder[ParameterLocation] =
@@ -419,9 +419,9 @@ object OpenAPICodec {
 
   implicit val apiKeyLocationJsonEncoder: JsonEncoder[APIKeyLocation] =
     JsonEncoder.instance[APIKeyLocation] {
-      case APIKeyLocation.Query  => new Json.String("query")
-      case APIKeyLocation.Header => new Json.String("header")
-      case APIKeyLocation.Cookie => new Json.String("cookie")
+      case APIKeyLocation.Query  => Json.String("query")
+      case APIKeyLocation.Header => Json.String("header")
+      case APIKeyLocation.Cookie => Json.String("cookie")
     }
 
   implicit val apiKeyLocationJsonDecoder: JsonDecoder[APIKeyLocation] =
