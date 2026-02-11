@@ -37,9 +37,6 @@ package zio.blocks.scope
  *
  * @tparam A
  *   the type that can escape scopes
- *
- * @see
- *   [[ScopeEscape]] which uses this typeclass to determine escape behavior
  */
 trait Unscoped[A]
 

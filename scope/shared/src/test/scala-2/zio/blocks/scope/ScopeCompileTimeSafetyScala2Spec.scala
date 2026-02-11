@@ -1,7 +1,7 @@
 package zio.blocks.scope
 
 import zio.test._
-import zio.test.Assertion.isLeft
+import zio.test.Assertion.{containsString, isLeft}
 
 object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
 
@@ -48,7 +48,7 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
             val db = scope.allocate(Resource.from[Database])
             db.query("test")
           }
-        """))(isLeft)
+        """))(isLeft(containsString("is not a member")))
       }
     ),
     suite("ScopeLift prevents scope leaks")(
@@ -76,7 +76,7 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
               leakedAction
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("is not a member")))
       },
       test("returning child scope itself is rejected") {
         assertZIO(typeCheck("""
@@ -87,7 +87,7 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
               child // attempt to return the scope itself
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       },
       test("returning unscoped values is allowed") {
         // Return raw Unscoped value from scoped block - ScopeLift extracts it

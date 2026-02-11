@@ -114,7 +114,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
               () => "captured" // Function0 has no ScopeLift instance
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       },
       test("child scope itself cannot escape") {
         assertZIO(typeCheck("""
@@ -125,7 +125,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
               child // Scope has no ScopeLift instance
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     ),
     suite("ScopeLift.Out type precision")(
@@ -161,7 +161,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
               s // String @@ child.Tag cannot escape - no ScopeLift instance
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     ),
     suite("$ and execute return scoped values")(
@@ -174,7 +174,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
             val result: String = (scope $ db)(identity) // Should fail - $ returns String @@ scope.Tag
             result
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Found:")))
       },
       test("execute returns A @@ scope.Tag, not raw A") {
         assertZIO(typeCheck("""
@@ -186,7 +186,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
             val result: String = scope.execute(computation) // Should fail - returns String @@ scope.Tag
             result
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Found:")))
       }
     ),
     suite("Working patterns for tests")(

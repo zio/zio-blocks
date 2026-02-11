@@ -102,8 +102,8 @@ object ErrorMessages {
        |  This may result in undefined behavior.
        |
        |  ${yellow("Hint:", color)}
-       |     If you know this data type is not resourceful, then add a ${cyan("given ScopeEscape", color)}
-       |     for it so you do not need to leak it.
+       |     If you know this data type is not resourceful, then add a ${cyan("given Unscoped", color)}
+       |     instance for it so you do not need to leak it.
        |
        |${footer(color)}""".stripMargin
   }

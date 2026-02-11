@@ -86,8 +86,8 @@ package object scope {
    * `@nowarn("msg=is being leaked")` or configure your build tool's lint
    * settings.
    *
-   * If the type is not actually resourceful, consider adding a `given
-   * ScopeEscape` instance to avoid needing `leak`.
+   * If the type is not actually resourceful, consider adding a `given Unscoped`
+   * instance to avoid needing `leak`.
    *
    * @param scoped
    *   the scoped value to leak

@@ -97,7 +97,7 @@ package object scope {
    * settings.
    *
    * If the type is not actually resourceful, consider adding an `implicit
-   * ScopeEscape` instance to avoid needing `leak`.
+   * Unscoped` instance to avoid needing `leak`.
    *
    * @param scoped
    *   the scoped value to leak

@@ -1,7 +1,7 @@
 package zio.blocks.scope
 
 import zio.test._
-import zio.test.Assertion.isLeft
+import zio.test.Assertion.{containsString, isLeft}
 
 object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
 
@@ -29,7 +29,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
             }
             parent.$(leakedFromChild)(_.query("test"))
           }
-        """))(isLeft)
+        """))(isLeft(containsString("is not a member")))
       },
       test("child-scoped value cannot be used by parent via Scoped.map") {
         assertZIO(typeCheck("""
@@ -48,7 +48,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
             val computation = leakedFromChild.map(_.query("test"))
             parent(computation)
           }
-        """))(isLeft)
+        """))(isLeft(containsString("does not take parameters")))
       }
     ),
     suite("scoped values hide methods")(
@@ -66,7 +66,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
             val db = scope.allocate(Resource.from[Database])
             db.query("test")
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Recursive value")))
       }
     ),
     suite("sibling scopes cannot share resources")(
@@ -90,7 +90,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
               }
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     ),
     // NOTE: @@.unscoped IS package-private (private[scope]) but ZIO Test's typeCheck
@@ -121,7 +121,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
             }
             x
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     ),
     suite("ScopeLift prevents scope leaks")(
@@ -149,7 +149,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
               leakedAction
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       },
       test("returning child scope itself is rejected") {
         assertZIO(typeCheck("""
@@ -160,7 +160,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
               child // attempt to return the scope itself
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       },
       test("returning unscoped values is allowed") {
         // Return raw Unscoped value from scoped block - ScopeLift extracts it
@@ -208,7 +208,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
               raw
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       },
       test("$ returns tagged value even for unscoped types") {
         assertZIO(typeCheck("""
@@ -223,7 +223,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
               raw
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Found:")))
       },
       test("child-scoped result cannot escape via ScopeLift") {
         assertZIO(typeCheck("""
@@ -236,7 +236,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
               child.$(str)(_.toUpperCase)
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     )
   )
