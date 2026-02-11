@@ -523,6 +523,15 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
           error.get.message == "Value not in enum: \"Red\", \"Green\", \"Blue\" at: ."
         )
       },
+      test("shrink too long enum value error messages") {
+        val schema  = Schema[java.time.Month].toJsonSchema
+        val invalid = Json.String("June")
+        val error   = schema.check(invalid)
+        assertTrue(
+          error.isDefined,
+          error.get.message == """Value not in enum: "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", ... at: ."""
+        )
+      },
       test("error message describes the type mismatch") {
         val schema  = Schema[Person].toJsonSchema
         val invalid = Json.Object("name" -> Json.Number(123))
