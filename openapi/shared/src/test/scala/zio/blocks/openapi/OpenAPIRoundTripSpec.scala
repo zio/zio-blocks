@@ -12,18 +12,19 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("OpenAPIRoundTripSpec")(
     suite("JSON round-trip tests")(
       test("minimal.json round-trips through JSON") {
-        val jsonString = scala.io.Source.fromResource("openapi/minimal.json").mkString
+        val jsonString = scala.util.Using.resource(scala.io.Source.fromResource("openapi/minimal.json"))(_.mkString)
         val parsed     = Json.parse(jsonString)
         assertTrue(parsed.isRight)
       },
       test("petstore.json round-trips through JSON") {
-        val jsonString = scala.io.Source.fromResource("openapi/petstore.json").mkString
+        val jsonString = scala.util.Using.resource(scala.io.Source.fromResource("openapi/petstore.json"))(_.mkString)
         val parsed     = Json.parse(jsonString)
         assertTrue(parsed.isRight)
       },
       test("with-security.json round-trips through JSON") {
-        val jsonString = scala.io.Source.fromResource("openapi/with-security.json").mkString
-        val parsed     = Json.parse(jsonString)
+        val jsonString =
+          scala.util.Using.resource(scala.io.Source.fromResource("openapi/with-security.json"))(_.mkString)
+        val parsed = Json.parse(jsonString)
         assertTrue(parsed.isRight)
       }
     ),
