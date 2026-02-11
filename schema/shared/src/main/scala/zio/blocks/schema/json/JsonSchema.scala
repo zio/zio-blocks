@@ -1559,10 +1559,8 @@ object JsonSchema {
               else error = error ++ e
           }
         }
-        if (error ne null) new Left(error)
-        else {
-          new Right(NonEmptyChunk.fromChunk(schemas.result()))
-        }
+        if (error eq null) new Right(NonEmptyChunk.fromChunk(schemas.result()))
+        else new Left(error)
       case v =>
         if (v eq None) new Right(None)
         else new Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
@@ -1570,7 +1568,7 @@ object JsonSchema {
 
     def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] = fieldMap.get(key) match {
       case Some(o: Json.Object) =>
-        val schemaMap          = ChunkMap.newBuilder[String, JsonSchema]
+        val schemaMap          = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
         var error: SchemaError = null
         o.value.foreach { kv =>
           fromJson(kv._2) match {
@@ -1581,8 +1579,8 @@ object JsonSchema {
               else error = error ++ e
           }
         }
-        if (error ne null) new Left(error)
-        else new Right(new Some(schemaMap.result()))
+        if (error eq null) new Right(new Some(schemaMap.result()))
+        else new Left(error)
       case v =>
         if (v eq None) new Right(None)
         else new Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))

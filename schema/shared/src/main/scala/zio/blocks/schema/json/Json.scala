@@ -8,7 +8,9 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
 import java.util
+import scala.collection.mutable
 import scala.util.control.NonFatal
+import scala.util.hashing.MurmurHash3
 
 /**
  * A sealed trait representing a JSON value.
@@ -506,14 +508,7 @@ object Json {
           else (kv._1, v2)
         idx += 1
       }
-      util.Arrays.sort(
-        arr,
-        0,
-        arr.length,
-        new Ordering[(java.lang.String, Json)] {
-          override def compare(x: (java.lang.String, Json), y: (java.lang.String, Json)): Int = x._1.compareTo(y._1)
-        }
-      )
+      util.Arrays.sort(arr, 0, arr.length, Object.ordering)
       new Object(Chunk.fromArray(arr))
     }
 
@@ -590,31 +585,24 @@ object Json {
         idx += 1
       }
       if (arr.length != size) arr = util.Arrays.copyOf(arr, size)
-      util.Arrays.sort(
-        arr,
-        0,
-        arr.length,
-        new Ordering[(java.lang.String, Json)] {
-          override def compare(x: (java.lang.String, Json), y: (java.lang.String, Json)): Int = x._1.compareTo(y._1)
-        }
-      )
+      util.Arrays.sort(arr, 0, arr.length, Object.ordering)
       new Object(Chunk.fromArray(arr))
     }
 
     override def compare(that: Json): Int = that match {
       case thatObj: Object =>
         // Compare as sorted key-value pairs for order-independent comparison
-        val thisFields = value.sortBy(_._1)(Ordering.String)
-        val thatFields = thatObj.value.sortBy(_._1)(Ordering.String)
+        val thisFields = value.sorted(Object.ordering)
+        val thatFields = thatObj.value.sorted(Object.ordering)
         val minLen     = Math.min(thisFields.length, thatFields.length)
         var idx        = 0
         while (idx < minLen) {
-          val (k1, v1) = thisFields(idx)
-          val (k2, v2) = thatFields(idx)
-          val keyCmp   = k1.compareTo(k2)
-          if (keyCmp != 0) return keyCmp
-          val valCmp = v1.compare(v2)
-          if (valCmp != 0) return valCmp
+          val kv1 = thisFields(idx)
+          val kv2 = thatFields(idx)
+          var cmp = kv1._1.compareTo(kv2._1)
+          if (cmp != 0) return cmp
+          cmp = kv1._2.compare(kv2._2)
+          if (cmp != 0) return cmp
           idx += 1
         }
         thisFields.length.compareTo(thatFields.length)
@@ -623,23 +611,22 @@ object Json {
 
     override def equals(obj: Any): scala.Boolean = obj match {
       case thatObj: Object =>
-        // Order-independent equality: compare sorted fields
         if (value.length != thatObj.value.length) return false
-        val thisFields = value.sortBy(_._1)(Ordering.String)
-        val thatFields = thatObj.value.sortBy(_._1)(Ordering.String)
-        thisFields == thatFields
+        value.sorted(Object.ordering) == thatObj.value.sorted(Object.ordering) // Order-independent equality
       case _ => false
     }
 
-    override def hashCode(): Int =
-      // Order-independent hash: sort before hashing
-      value.sortBy(_._1)(Ordering.String).hashCode()
+    override def hashCode(): Int = MurmurHash3.unorderedHash(value)
   }
 
   object Object {
     val empty: Object = Object(Chunk.empty)
 
     def apply(fields: (java.lang.String, Json)*): Object = new Object(Chunk.from(fields))
+
+    private val ordering: Ordering[(java.lang.String, Json)] = new Ordering[(java.lang.String, Json)] {
+      override def compare(x: (java.lang.String, Json), y: (java.lang.String, Json)): Int = x._1.compareTo(y._1)
+    }
   }
 
   /**
@@ -1033,11 +1020,14 @@ object Json {
     }
 
   private[this] def mergeByKey(path: DynamicOptic, left: Object, right: Object, s: MergeStrategy): Object = {
-    val leftMap  = left.value.toMap
-    val rightMap = right.value.toMap
-    val allKeys  = scala.Array.newBuilder[java.lang.String]
-    left.value.foreach(kv => allKeys.addOne(kv._1))
-    right.value.foreach { kv =>
+    val leftFields  = left.value
+    val rightFields = right.value
+    val leftMap     = leftFields.toMap
+    val rightMap    = rightFields.toMap
+    val allKeys     = mutable.ArrayBuilder.make[java.lang.String]
+    allKeys.sizeHint(leftFields.length + rightFields.length)
+    leftFields.foreach(kv => allKeys.addOne(kv._1))
+    rightFields.foreach { kv =>
       val key = kv._1
       if (!leftMap.contains(key)) allKeys.addOne(key)
     }
@@ -1199,8 +1189,9 @@ object Json {
   ): (Json, Json) =
     json match {
       case obj: Object =>
-        val matching    = ChunkBuilder.make[(java.lang.String, Json)]()
-        val nonMatching = ChunkBuilder.make[(java.lang.String, Json)]()
+        val initCapacity = obj.value.length >> 1
+        val matching     = ChunkBuilder.make[(java.lang.String, Json)](initCapacity)
+        val nonMatching  = ChunkBuilder.make[(java.lang.String, Json)](initCapacity)
         obj.value.foreach { case (k, v) =>
           val newPath = path.field(k)
           val result  = partitionImpl(v, newPath, p)
@@ -1209,8 +1200,9 @@ object Json {
         }
         (new Object(matching.result()), new Object(nonMatching.result()))
       case arr: Array =>
-        val matching    = ChunkBuilder.make[Json]()
-        val nonMatching = ChunkBuilder.make[Json]()
+        val initCapacity = arr.value.length >> 1
+        val matching     = ChunkBuilder.make[Json](initCapacity)
+        val nonMatching  = ChunkBuilder.make[Json](initCapacity)
         arr.value.foreach {
           var idx = -1
           elem =>

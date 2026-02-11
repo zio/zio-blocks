@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.ChunkBuilder
 import scala.collection.mutable
 
 /**
@@ -23,11 +24,12 @@ private[schema] object ContextDetector {
    *   A list of contexts, one for each interpolation (length == parts.length -
    *   1)
    */
-  def detectContexts(parts: Seq[String]): Either[String, List[InterpolationContext]] =
+  def detectContexts(parts: Seq[String]): Either[String, Seq[InterpolationContext]] =
     if (parts.isEmpty || parts.tail.isEmpty) new Right(Nil)
     else detectContextsImpl(parts)
 
   private sealed trait ParseState
+
   private object ParseState {
     // In object, expecting a key (after { or ,)
     case object ExpectingKey extends ParseState
@@ -44,23 +46,28 @@ private[schema] object ContextDetector {
   }
 
   private sealed trait Container
+
   private object Container {
     case object Object extends Container
-    case object Array  extends Container
+
+    case object Array extends Container
   }
 
-  private[this] def detectContextsImpl(parts: Seq[String]): Either[String, List[InterpolationContext]] = {
+  private[this] def detectContextsImpl(parts: Seq[String]): Either[String, Seq[InterpolationContext]] = {
     import ParseState._
     import Container._
 
     var state: ParseState = TopLevel
     val containerStack    = mutable.Stack[Container]()
-    val contexts          = mutable.ListBuffer[InterpolationContext]()
-    var remainingParts    = parts
-    // Process each part except the last one (which has no following interpolation)
-    while (remainingParts.tail ne Nil) {
-      val part = remainingParts.head
-      var idx  = 0
+    val contexts          = ChunkBuilder.make[InterpolationContext]()
+    val it                = parts.iterator
+    var part: String      = null
+    while ({
+      it.hasNext
+      part = it.next()
+      it.hasNext // Process each part except the last one (which has no following interpolation)
+    }) {
+      var idx = 0
       // Process characters in the current part
       while (idx < part.length) {
         val ch = part.charAt(idx)
@@ -139,9 +146,8 @@ private[schema] object ContextDetector {
           InterpolationContext.Value
       }
       contexts.addOne(context)
-      remainingParts = remainingParts.tail
     }
-    new Right(contexts.toList)
+    new Right(contexts.result())
   }
 
   private def isWhitespace(ch: Char): Boolean = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
