@@ -5,19 +5,19 @@ import zio.blocks.schema.patch.{Patch, PatchMode}
 
 trait SyntaxVersionSpecific {
   extension [A](self: A) {
+    def applyPatch(patch: Patch[A]): A = patch(self)
+
+    def applyPatchStrict(patch: Patch[A]): Either[SchemaError, A] = patch(self, PatchMode.Strict)
+
     def diff(that: A)(using schema: Schema[A]): Patch[A] = schema.diff(self, that)
 
     def show(using schema: Schema[A]): String = schema.toDynamicValue(self).toString
 
     def toJson(using jsonEncoder: JsonEncoder[A]): Json = jsonEncoder.encode(self)
 
-    def toJsonString(using schema: Schema[A]): String = toJson.print
+    def toJsonString(using schema: Schema[A]): String = schema.getInstance(JsonFormat).encodeToString(self)
 
     def toJsonBytes(using schema: Schema[A]): Array[Byte] = schema.getInstance(JsonFormat).encode(self)
-
-    def applyPatch(patch: Patch[A]): A = patch(self)
-
-    def applyPatchStrict(patch: Patch[A]): Either[SchemaError, A] = patch(self, PatchMode.Strict)
   }
 
   extension (self: String) {
