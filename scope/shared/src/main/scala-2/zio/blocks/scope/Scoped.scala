@@ -6,11 +6,12 @@ package zio.blocks.scope
  *
  * `A @@ S` (type alias for `Scoped[A, S]`) represents a value of type `A`
  * locked to scope tag `S`. At runtime, the value is stored as either:
- *   - An eager value (when scope was open at creation time, zero thunk overhead)
+ *   - An eager value (when scope was open at creation time, zero thunk
+ *     overhead)
  *   - A lazy thunk (when scope was closed, or for composed computations)
  *
- * This dual representation eliminates thunk allocation in the happy path
- * (scope is open) while preserving safety when scope is closed.
+ * This dual representation eliminates thunk allocation in the happy path (scope
+ * is open) while preserving safety when scope is closed.
  *
  * @tparam A
  *   the result type of the computation (covariant)
@@ -25,9 +26,9 @@ final class Scoped[+A, -S] private[scope] (
   /**
    * Maps over the result of this scoped computation.
    *
-   * The resulting computation is always lazy, regardless of whether the
-   * input is eager or lazy. This ensures safety: map/flatMap never
-   * eagerly evaluate user functions (only Scope.$/execute may do that).
+   * The resulting computation is always lazy, regardless of whether the input
+   * is eager or lazy. This ensures safety: map/flatMap never eagerly evaluate
+   * user functions (only Scope.$/execute may do that).
    *
    * @param f
    *   the function to apply to the result
@@ -94,7 +95,8 @@ object Scoped {
   /**
    * Creates a scoped computation tagged with a specific scope.
    *
-   * @deprecated Use deferred or eager instead.
+   * @deprecated
+   *   Use deferred or eager instead.
    */
   private[scope] def scoped[A, S](a: => A): Scoped[A, S] =
     deferred[A, S](a)
