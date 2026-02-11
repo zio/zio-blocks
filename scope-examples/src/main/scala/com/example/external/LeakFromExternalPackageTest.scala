@@ -19,7 +19,8 @@ import zio.blocks.scope._
   }
 
   Scope.global.scoped { scope =>
-    val db: Database @@ scope.Tag = scope.allocate(Resource(new Database))
+    import scope._
+    val db: Database @@ scope.ScopeTag = allocate(Resource(new Database))
 
     // This uses the leak macro from an external package
     // If private[scope] run() is not accessible, this will fail to compile

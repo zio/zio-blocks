@@ -87,16 +87,17 @@ class Application(a: ServiceAImpl, @annotation.unused b: ServiceBApi) {
   println("Demonstrating compile-time cycle detection and how to break cycles.\n")
 
   Scope.global.scoped { scope =>
+    import scope._
     println("Creating application with proper dependency structure...")
 
     // Wire.shared[ServiceBImpl] provides both ServiceBImpl and ServiceBApi (via subtyping)
-    val app = scope.allocate(
+    val app = allocate(
       Resource.from[Application](
         Wire.shared[ServiceBImpl]
       )
     )
 
-    println(s"Result: ${(scope $ app)(_.run())}")
+    println(s"Result: ${$(app)(_.run())}")
     println("\nThe dependency graph was validated at compile time.")
     println("No cycles detected - application wired successfully.")
   }

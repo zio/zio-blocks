@@ -45,7 +45,8 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
           }
 
           Scope.global.scoped { scope =>
-            val db = scope.allocate(Resource.from[Database])
+            import scope._
+            val db = allocate(Resource.from[Database])
             db.query("test")
           }
         """))(isLeft(containsString("is not a member")))
@@ -63,15 +64,17 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
           }
 
           Scope.global.scoped { parent =>
-            parent.scoped { child =>
-              val db: Database @@ child.Tag = child.allocate(Resource(new Database))
+            import parent._
+            scoped { child =>
+              import child._
+              val db: Database @@ child.ScopeTag = allocate(Resource(new Database))
 
               // Attempt to leak via closure - should fail to compile
-              // Now child.$(db)(_.query(...)) returns String @@ child.Tag, not String
+              // Now $(db)(_.query(...)) returns String @@ child.ScopeTag, not String
               // But () => ... is not liftable anyway
               val leakedAction: () => String = () => {
-                val scoped = child.$(db)(_.query("SELECT 1"))
-                child.execute(scoped).run() // trying to extract the string
+                val scoped = $(db)(_.query("SELECT 1"))
+                execute(scoped).run() // trying to extract the string
               }
               leakedAction
             }
@@ -83,7 +86,8 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
           import zio.blocks.scope._
 
           Scope.global.scoped { parent =>
-            parent.scoped { child =>
+            import parent._
+            scoped { child =>
               child // attempt to return the scope itself
             }
           }
@@ -93,10 +97,11 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
         // Return raw Unscoped value from scoped block - ScopeLift extracts it
         val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
-            val db: Database @@ child.Tag = child.allocate(Resource(new Database))
+            import child._
+            val db: Database @@ child.ScopeTag = allocate(Resource(new Database))
             // Capture result via side effect
             var captured: String = null
-            child.$(db) { d =>
+            $(db) { d =>
               val r = d.query("SELECT 1")
               captured = r
               r
@@ -109,11 +114,12 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
       test("returning parent-scoped values is allowed") {
         var captured: Boolean = false
         Scope.global.scoped { parent =>
-          val parentDb: Database @@ parent.Tag = parent.allocate(Resource(new Database))
-          val result: Database @@ parent.Tag   = parent.scoped { _ =>
+          import parent._
+          val parentDb: Database @@ parent.ScopeTag = allocate(Resource(new Database))
+          val result: Database @@ parent.ScopeTag   = parent.scoped { _ =>
             parentDb // parent-tagged value can be returned from child
           }
-          parent.$(result) { db =>
+          $(result) { db =>
             captured = !db.closed
             db.closed
           }

@@ -71,17 +71,18 @@ object ScopeLiftSpec extends ZIOSpecDefault {
     ),
     suite("Parent-scoped values can be returned from child")(
       test("parent-tagged value returns from child as-is") {
-        // parent.scoped { child => parentDb } returns Database @@ parent.Tag
-        // because ScopeLift.scoped matches (parent.Tag <:< parent.Tag)
+        // parent.scoped { child => parentDb } returns Database @@ parent.ScopeTag
+        // because ScopeLift.scoped matches (parent.ScopeTag <:< parent.ScopeTag)
         Scope.global.scoped { parent =>
-          val parentDb: Database @@ parent.Tag  = parent.allocate(Resource(new Database))
-          val escapedDb: Database @@ parent.Tag = parent.scoped { child =>
+          import parent._
+          val parentDb: Database @@ parent.ScopeTag  = allocate(Resource(new Database))
+          val escapedDb: Database @@ parent.ScopeTag = parent.scoped { child =>
             parentDb // Return parent-scoped value from child - lifts as-is
           }
-          // escapedDb has type Database @@ parent.Tag, can use with parent
+          // escapedDb has type Database @@ parent.ScopeTag, can use with parent
           // Use for-comprehension to check
           val check = escapedDb.map(!_.closed)
-          // check is Boolean @@ parent.Tag
+          // check is Boolean @@ parent.ScopeTag
           // Now we need to extract Boolean somehow for the assertion
           // For now, just verify the types compile
           assertTrue(true)
@@ -94,7 +95,8 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         try {
           Scope.global.scoped { parent =>
             parent.scoped { child =>
-              child.defer { finalizerRan = true }
+              import child._
+              defer { finalizerRan = true }
               throw new RuntimeException("expected")
             }
           }
@@ -150,40 +152,44 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         assertTrue(result + 1 == 43)
       },
       test("child-scoped values cannot escape to parent (compile-time rejection)") {
-        // Returning B @@ child.Tag from parent.scoped should fail
-        // because ScopeLift.scoped requires parent.Tag <:< child.Tag (false)
+        // Returning B @@ child.ScopeTag from parent.scoped should fail
+        // because ScopeLift.scoped requires parent.ScopeTag <:< child.ScopeTag (false)
         assertZIO(typeCheck("""
           import zio.blocks.scope._
 
           Scope.global.scoped { parent =>
-            parent.scoped { child =>
-              val s = child.allocate(Resource("hello"))
-              s // String @@ child.Tag cannot escape - no ScopeLift instance
+            import parent._
+            scoped { child =>
+              import child._
+              val s = allocate(Resource("hello"))
+              s // String @@ child.ScopeTag cannot escape - no ScopeLift instance
             }
           }
         """))(isLeft(containsString("ScopeLift")))
       }
     ),
     suite("$ and execute return scoped values")(
-      test("$ returns B @@ scope.Tag, not raw B") {
+      test("$ returns B @@ scope.ScopeTag, not raw B") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
 
           Scope.global.scoped { scope =>
-            val db = scope.allocate(Resource("test"))
-            val result: String = (scope $ db)(identity) // Should fail - $ returns String @@ scope.Tag
+            import scope._
+            val db = allocate(Resource("test"))
+            val result: String = $(db)(identity) // Should fail - $ returns String @@ scope.ScopeTag
             result
           }
         """))(isLeft(containsString("Found:")))
       },
-      test("execute returns A @@ scope.Tag, not raw A") {
+      test("execute returns A @@ scope.ScopeTag, not raw A") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
 
           Scope.global.scoped { scope =>
-            val db = scope.allocate(Resource("test"))
+            import scope._
+            val db = allocate(Resource("test"))
             val computation = db.map(_.toUpperCase)
-            val result: String = scope.execute(computation) // Should fail - returns String @@ scope.Tag
+            val result: String = execute(computation) // Should fail - returns String @@ scope.ScopeTag
             result
           }
         """))(isLeft(containsString("Found:")))
@@ -193,8 +199,9 @@ object ScopeLiftSpec extends ZIOSpecDefault {
       test("use for-comprehension and return Unscoped at boundary") {
         val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
+            import child._
             // Work with scoped values using for-comprehension
-            val db    = child.allocate(Resource("data"))
+            val db    = allocate(Resource("data"))
             val upper = db.map(_.toUpperCase)
             // Extract using Scoped's run (package-private, but we're in scope package)
             // NO - we should NOT use run
@@ -208,9 +215,11 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         var innerRan    = false
         var outerRan    = false
         val result: Int = Scope.global.scoped { outer =>
-          outer.defer { outerRan = true }
+          import outer._
+          defer { outerRan = true }
           outer.scoped { inner =>
-            inner.defer { innerRan = true }
+            import inner._
+            defer { innerRan = true }
             100 // Unscoped Int
           }
         }

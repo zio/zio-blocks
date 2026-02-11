@@ -71,8 +71,9 @@ object ScopeLiftSpec extends ZIOSpecDefault {
     suite("Parent-scoped values can be returned from child")(
       test("parent-tagged value returns from child as-is") {
         Scope.global.scoped { parent =>
-          val parentDb: Database @@ parent.Tag  = parent.allocate(Resource(new Database))
-          val escapedDb: Database @@ parent.Tag = parent.scoped { _ =>
+          import parent._
+          val parentDb: Database @@ parent.ScopeTag  = allocate(Resource(new Database))
+          val escapedDb: Database @@ parent.ScopeTag = parent.scoped { _ =>
             parentDb
           }
           escapedDb.map(!_.closed) // verify we can use it
@@ -86,7 +87,8 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         try {
           Scope.global.scoped { parent =>
             parent.scoped { child =>
-              child.defer { finalizerRan = true }
+              import child._
+              defer { finalizerRan = true }
               throw new RuntimeException("expected")
             }
           }
@@ -144,8 +146,10 @@ object ScopeLiftSpec extends ZIOSpecDefault {
           import zio.blocks.scope._
 
           Scope.global.scoped { parent =>
-            parent.scoped { child =>
-              val s: String @@ child.Tag = child.allocate(Resource("hello"))
+            import parent._
+            scoped { child =>
+              import child._
+              val s: String @@ child.ScopeTag = allocate(Resource("hello"))
               s
             }
           }
@@ -153,25 +157,27 @@ object ScopeLiftSpec extends ZIOSpecDefault {
       }
     ),
     suite("$ and execute return scoped values")(
-      test("$ returns B @@ scope.Tag, not raw B") {
+      test("$ returns B @@ scope.ScopeTag, not raw B") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
 
           Scope.global.scoped { scope =>
-            val db: String @@ scope.Tag = scope.allocate(Resource("test"))
-            val result: String = scope.$(db)(identity)
+            import scope._
+            val db: String @@ scope.ScopeTag = allocate(Resource("test"))
+            val result: String = $(db)(identity)
             result
           }
         """))(isLeft(containsString("type mismatch")))
       },
-      test("execute returns A @@ scope.Tag, not raw A") {
+      test("execute returns A @@ scope.ScopeTag, not raw A") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
 
           Scope.global.scoped { scope =>
-            val db: String @@ scope.Tag = scope.allocate(Resource("test"))
+            import scope._
+            val db: String @@ scope.ScopeTag = allocate(Resource("test"))
             val computation = db.map(_.toUpperCase)
-            val result: String = scope.execute(computation)
+            val result: String = execute(computation)
             result
           }
         """))(isLeft(containsString("type mismatch")))
@@ -181,7 +187,8 @@ object ScopeLiftSpec extends ZIOSpecDefault {
       test("use for-comprehension and return Unscoped at boundary") {
         val result: String = Scope.global.scoped { parent =>
           parent.scoped { child =>
-            val db: String @@ child.Tag = child.allocate(Resource("data"))
+            import child._
+            val db: String @@ child.ScopeTag = allocate(Resource("data"))
             db.map(_.toUpperCase) // use it to avoid unused warning
             "COMPUTED RESULT"
           }
@@ -192,9 +199,11 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         var innerRan    = false
         var outerRan    = false
         val result: Int = Scope.global.scoped { outer =>
-          outer.defer { outerRan = true }
+          import outer._
+          defer { outerRan = true }
           outer.scoped { inner =>
-            inner.defer { innerRan = true }
+            import inner._
+            defer { innerRan = true }
             100
           }
         }

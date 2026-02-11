@@ -53,8 +53,9 @@ object ResourceSpec extends ZIOSpecDefault {
     },
     test("Resource can register finalizers") {
       val resource = Resource.shared[Database] { scope =>
+        import scope._
         val db = new Database(Config("url"))
-        scope.defer(db.close())
+        defer(db.close())
         db
       }
       val (scope, close) = Scope.createTestableScope()

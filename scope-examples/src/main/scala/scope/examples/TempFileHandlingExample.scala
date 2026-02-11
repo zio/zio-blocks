@@ -56,10 +56,10 @@ object FileProcessor {
 /**
  * Creates a temporary file and registers its cleanup with the scope.
  *
- * The cleanup action is registered via `scope.defer(...)`, ensuring the file is
+ * The cleanup action is registered via `defer(...)`, ensuring the file is
  * deleted when the scope closes—regardless of whether processing succeeds.
  *
- * @param scope
+ * @param s
  *   the scope to register cleanup with
  * @param path
  *   the file path
@@ -68,13 +68,13 @@ object FileProcessor {
  * @return
  *   the created TempFile
  */
-private def createTempFile(scope: Scope[?, ?], path: String, content: String): TempFile = {
+private def createTempFile(s: Scope[?, ?], path: String, content: String): TempFile = {
   val file = TempFile(path)
   file.write(content)
   println(s"Created: $path (${content.length} bytes)")
 
   // Register cleanup - will run when scope exits, in LIFO order
-  scope.defer {
+  s.defer {
     file.delete()
   }
 

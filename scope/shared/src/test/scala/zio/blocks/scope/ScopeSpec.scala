@@ -17,14 +17,16 @@ object ScopeSpec extends ZIOSpecDefault {
       },
       test("testable global scope close runs finalizers") {
         val (scope, close) = Scope.createTestableScope()
-        var ran            = false
-        scope.defer { ran = true }
+        import scope._
+        var ran = false
+        defer { ran = true }
         close()
         assertTrue(ran)
       },
       test("testable global scope close propagates error") {
         val (scope, close) = Scope.createTestableScope()
-        scope.defer(throw new RuntimeException("test error"))
+        import scope._
+        defer(throw new RuntimeException("test error"))
         val result = try {
           close()
           false
@@ -35,15 +37,17 @@ object ScopeSpec extends ZIOSpecDefault {
       },
       test("testable scope runs multiple finalizers") {
         val (scope, close) = Scope.createTestableScope()
-        var counter        = 0
-        scope.defer(counter += 1)
-        scope.defer(counter += 10)
+        import scope._
+        var counter = 0
+        defer(counter += 1)
+        defer(counter += 10)
         close()
         assertTrue(counter == 11)
       },
       test("testable scope closeOrThrow throws first exception") {
         val (scope, close) = Scope.createTestableScope()
-        scope.defer(throw new RuntimeException("boom"))
+        import scope._
+        defer(throw new RuntimeException("boom"))
 
         val threw = try {
           close()
@@ -55,8 +59,9 @@ object ScopeSpec extends ZIOSpecDefault {
       },
       test("testable scope closeOrThrow does not throw on success and runs finalizers") {
         val (scope, close) = Scope.createTestableScope()
-        var cleaned        = false
-        scope.defer { cleaned = true }
+        import scope._
+        var cleaned = false
+        defer { cleaned = true }
         close()
         assertTrue(cleaned)
       }
@@ -64,17 +69,18 @@ object ScopeSpec extends ZIOSpecDefault {
     suite("allocate")(
       test("allocate AutoCloseable directly registers close() as finalizer") {
         val (scope, close) = Scope.createTestableScope()
-        var closed         = false
+        import scope._
+        var closed = false
 
         class TestCloseable extends AutoCloseable {
           def value: String          = "test"
           override def close(): Unit = closed = true
         }
 
-        val resource = scope.allocate(new TestCloseable)
+        val resource = allocate(new TestCloseable)
         // Capture result via side effect in the function passed to $
         var captured: String = null
-        (scope $ resource) { r =>
+        $(resource) { r =>
           captured = r.value
           r.value
         }
@@ -99,18 +105,20 @@ object ScopeSpec extends ZIOSpecDefault {
           def close(): Unit = closed = true
         }
 
-        // Capture a thunk that calls scope.$ after the scope is closed
-        val lazyThunk: () => Unit = Scope.global.scoped { parent =>
+        // Capture a thunk that calls $ after the scope is closed
+        val lazyThunk: () => Unit = Scope.global.scoped { scope =>
+          import scope._
           var capturedThunk: () => Unit = null
 
-          parent.scoped { child =>
-            val resource: TrackedResource @@ child.Tag =
-              child.allocate(Resource(new TrackedResource))
+          scoped { scope =>
+            import scope._
+            val resource: TrackedResource @@ scope.ScopeTag =
+              allocate(Resource(new TrackedResource))
 
             // Capture a thunk that uses the child scope's $ method
             capturedThunk = () => {
-              // This calls child.$ on a CLOSED scope - should stay lazy
-              (child $ resource)(_.read())
+              // This calls $ on a CLOSED scope - should stay lazy
+              $(resource)(_.read())
               ()
             }
 
@@ -139,19 +147,21 @@ object ScopeSpec extends ZIOSpecDefault {
           def close(): Unit = closed = true
         }
 
-        val lazyThunk: () => Unit = Scope.global.scoped { parent =>
+        val lazyThunk: () => Unit = Scope.global.scoped { scope =>
+          import scope._
           var capturedThunk: () => Unit = null
 
-          parent.scoped { child =>
-            val resource: TrackedResource @@ child.Tag =
-              child.allocate(Resource(new TrackedResource))
+          scoped { scope =>
+            import scope._
+            val resource: TrackedResource @@ scope.ScopeTag =
+              allocate(Resource(new TrackedResource))
 
             // Build a scoped computation
             val computation = resource.map(_.doWork())
 
             // Capture a thunk that uses the child scope's execute method
             capturedThunk = () => {
-              child.execute(computation)
+              execute(computation)
               ()
             }
 
@@ -174,18 +184,20 @@ object ScopeSpec extends ZIOSpecDefault {
           def close(): Unit = closed = true
         }
 
-        val lazyThunk: () => Unit = Scope.global.scoped { parent =>
+        val lazyThunk: () => Unit = Scope.global.scoped { scope =>
+          import scope._
           var capturedThunk: () => Unit = null
 
-          parent.scoped { child =>
-            val counter: Counter @@ child.Tag =
-              child.allocate(Resource(new Counter))
+          scoped { scope =>
+            import scope._
+            val counter: Counter @@ scope.ScopeTag =
+              allocate(Resource(new Counter))
 
             capturedThunk = () => {
               // All these should stay lazy on a closed scope
-              (child $ counter)(_.inc())
-              (child $ counter)(_.inc())
-              (child $ counter)(_.inc())
+              $(counter)(_.inc())
+              $(counter)(_.inc())
+              $(counter)(_.inc())
               ()
             }
 
@@ -201,47 +213,50 @@ object ScopeSpec extends ZIOSpecDefault {
       },
       test("$ executes eagerly when scope is open") {
         val (scope, close) = Scope.createTestableScope()
-        var executed       = false
+        import scope._
+        var executed = false
 
         class TrackedResource extends AutoCloseable {
           def doWork(): Unit = executed = true
           def close(): Unit  = ()
         }
 
-        val resource = scope.allocate(Resource(new TrackedResource))
-        (scope $ resource)(_.doWork())
+        val resource = allocate(Resource(new TrackedResource))
+        $(resource)(_.doWork())
         close()
         assertTrue(executed)
       },
       test("execute runs eagerly when scope is open") {
         val (scope, close) = Scope.createTestableScope()
-        var executed       = false
+        import scope._
+        var executed = false
 
         class TrackedResource extends AutoCloseable {
           def doWork(): Boolean = { executed = true; true }
           def close(): Unit     = ()
         }
 
-        val resource    = scope.allocate(Resource(new TrackedResource))
+        val resource    = allocate(Resource(new TrackedResource))
         val computation = resource.map(_.doWork())
-        scope.execute(computation)
+        execute(computation)
         close()
         assertTrue(executed)
       },
       test("eager does not accidentally unwrap nested lazy scoped values") {
         val (scope, close) = Scope.createTestableScope()
-        var evaluated      = false
+        import scope._
+        var evaluated = false
 
-        val base: Int @@ scope.Tag  = scope.allocate(Resource(1))
-        val inner: Int @@ scope.Tag = base.map { x =>
+        val base: Int @@ scope.ScopeTag  = allocate(Resource(1))
+        val inner: Int @@ scope.ScopeTag = base.map { x =>
           evaluated = true
           x + 1
         }
 
-        val nested: (Int @@ scope.Tag) @@ scope.Tag =
-          scope.$(base)(_ => inner)
+        val nested: (Int @@ scope.ScopeTag) @@ scope.ScopeTag =
+          $(base)(_ => inner)
 
-        val inner2: Int @@ scope.Tag = @@.unscoped(nested)
+        val inner2: Int @@ scope.ScopeTag = @@.unscoped(nested)
 
         val notEvaluatedYet = !evaluated
 

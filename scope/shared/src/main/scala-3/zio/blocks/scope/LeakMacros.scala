@@ -25,7 +25,7 @@ private[scope] object LeakMacros {
   }
 
   private def extractScopeName(scopeTag: String): String =
-    // The scope tag is often something like "scope.Tag" or a more complex type
+    // The scope tag is often something like "scope.ScopeTag" or a more complex type
     // Try to extract a meaningful name
     scopeTag
       .replace("zio.blocks.scope.", "")

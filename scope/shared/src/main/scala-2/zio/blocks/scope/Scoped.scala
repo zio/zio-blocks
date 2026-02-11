@@ -26,13 +26,14 @@ private[scope] final class LazyScoped[+A](private[scope] val thunk: () => A)
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val program: Result @@ scope.Tag = for {
- *       db   <- scope.allocate(Resource[Database])
- *       conn <- scope.allocate(db.connect())
+ *     import scope._
+ *     val program: Result @@ ScopeTag = for {
+ *       db   <- allocate(Resource[Database])
+ *       conn <- allocate(db.connect())
  *       data <- conn.map(_.query("SELECT *"))
  *     } yield process(data)
  *
- *     scope.execute(program)
+ *     execute(program)
  *   }
  *   }}}
  */
@@ -73,49 +74,6 @@ object Scoped {
       case l: LazyScoped[_] => l.thunk().asInstanceOf[A]
       case a                => a.asInstanceOf[A]
     }
-
-  /**
-   * Implicit value class providing `map` and `flatMap` on `Scoped` values,
-   * enabling for-comprehension syntax.
-   */
-  implicit final class ScopedOps[A, S](private val self: Scoped[A, S]) extends AnyVal {
-
-    /**
-     * Maps over the result of this scoped computation.
-     *
-     * The resulting computation is always lazy, regardless of whether the input
-     * is eager or lazy. This ensures safety: map/flatMap never eagerly evaluate
-     * user functions (only Scope.$/execute may do that).
-     *
-     * @param f
-     *   the function to apply to the result
-     * @tparam B
-     *   the new result type
-     * @return
-     *   a new scoped computation with the mapped result
-     */
-    def map[B](f: A => B): Scoped[B, S] =
-      deferred[B, S](f(run(self)))
-
-    /**
-     * FlatMaps this scoped computation with a function returning another
-     * Scoped.
-     *
-     * The resulting computation requires both this computation's tag and the
-     * result's tag, combined via intersection.
-     *
-     * @param f
-     *   function from result to another scoped computation
-     * @tparam T
-     *   the additional tag requirement
-     * @tparam B
-     *   the result type
-     * @return
-     *   a scoped computation with combined tag `S with T`
-     */
-    def flatMap[B, T](f: A => Scoped[B, T]): Scoped[B, S with T] =
-      deferred[B, S with T](run(f(run(self))))
-  }
 }
 
 /**
@@ -129,12 +87,12 @@ object @@ {
    * Creates a scoped value tagged with scope S.
    *
    * This wraps a by-name value into a scoped computation `A @@ S`. The scope
-   * tag `S` is typically the path-dependent `Tag` type of a [[Scope]] instance.
+   * tag `S` is typically the path-dependent `ScopeTag` type of a [[Scope]] instance.
    *
    * The value is evaluated lazily when the scoped computation is executed.
    *
    * '''Note:''' This only tags the value - it does not manage lifecycle. For
-   * resources that need cleanup, prefer `scope.allocate` with a [[Resource]]
+   * resources that need cleanup, prefer `allocate` with a [[Resource]]
    * which automatically registers finalizers.
    *
    * @param a
@@ -153,7 +111,7 @@ object @@ {
    * Unwraps a scoped value, returning the underlying value.
    *
    * This is package-private to prevent bypassing the scope safety checks.
-   * External code should use scope.execute with proper scope proof.
+   * External code should use execute with proper scope proof.
    */
   private[scope] def unscoped[A, S](scoped: A @@ S): A =
     Scoped.run(scoped)

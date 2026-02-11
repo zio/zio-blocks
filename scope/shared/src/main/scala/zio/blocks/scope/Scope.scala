@@ -12,11 +12,12 @@ import zio.blocks.scope.internal.Finalizers
  *
  * ==Two-Parameter Design==
  *
- * `Scope[ParentTag, Tag]` where `Tag <: ParentTag`:
+ * `Scope[ParentTag, ScopeTag]` where `ScopeTag <: ParentTag`:
  *   - `ParentTag`: The parent scope's tag, bounding this scope's capabilities
- *   - `Tag`: This scope's unique identity, enabling resource tracking
+ *   - `ScopeTag`: This scope's unique identity, enabling resource tracking
  *
- * The tag hierarchy follows: `child.Tag <: parent.Tag <: ... <: GlobalTag`
+ * The tag hierarchy follows:
+ * `child.ScopeTag <: parent.ScopeTag <: ... <: GlobalTag`
  *
  * ==Key Methods==
  *
@@ -29,15 +30,16 @@ import zio.blocks.scope.internal.Finalizers
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db = scope.allocate(Resource[Database])
- *     val result = (scope $ db)(_.query("SELECT 1"))
+ *     import scope._
+ *     val db = allocate(Resource[Database])
+ *     val result = $(db)(_.query("SELECT 1"))
  *     println(result)
  *   }
  *   }}}
  *
  * @tparam ParentTag
  *   the parent scope's tag type
- * @tparam Tag
+ * @tparam ScopeTag
  *   this scope's tag type (subtype of ParentTag)
  *
  * @see
@@ -53,7 +55,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
   /**
    * This scope's tag type, exposed as a type member for path-dependent typing.
    */
-  type Tag = Tag0
+  type ScopeTag = Tag0
 
   /**
    * Allocates a value in this scope using the given resource.
@@ -69,7 +71,7 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
    * @return
    *   a scoped computation that produces the allocated value
    */
-  def allocate[A](resource: Resource[A]): A @@ Tag = {
+  def allocate[A](resource: Resource[A]): A @@ ScopeTag = {
     val value = resource.make(this)
     Scoped.eager(value)
   }
@@ -85,9 +87,9 @@ final class Scope[ParentTag, Tag0 <: ParentTag] private[scope] (
    * @tparam A
    *   the value type (must be AutoCloseable)
    * @return
-   *   the created value tagged with this scope's Tag
+   *   the created value tagged with this scope's ScopeTag
    */
-  def allocate[A <: AutoCloseable](value: => A): A @@ Tag =
+  def allocate[A <: AutoCloseable](value: => A): A @@ ScopeTag =
     allocate(Resource(value))
 
   /**
@@ -144,8 +146,9 @@ object Scope {
    * @example
    *   {{{
    *   Scope.global.scoped { scope =>
-   *     val app = scope.allocate(Resource[App])
-   *     (scope $ app)(_.run())
+   *     import scope._
+   *     val app = allocate(Resource[App])
+   *     $(app)(_.run())
    *   }
    *   }}}
    */

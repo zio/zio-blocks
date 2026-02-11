@@ -92,9 +92,10 @@ class SecretStore extends AutoCloseable {
 
   var escapedConfig: ConfigData = null.asInstanceOf[ConfigData]
   Scope.global.scoped { scope =>
-    val reader = scope.allocate(Resource(new ConfigReader))
+    import scope._
+    val reader = allocate(Resource(new ConfigReader))
 
-    (scope $ reader) { r =>
+    $(reader) { r =>
       escapedConfig = r.readConfig("/etc/app/config.json")
     }
   }
@@ -106,9 +107,10 @@ class SecretStore extends AutoCloseable {
 
   println("SecretStore stays scoped:")
   Scope.global.scoped { scope =>
-    val secrets = scope.allocate(Resource(new SecretStore))
+    import scope._
+    val secrets = allocate(Resource(new SecretStore))
 
-    (scope $ secrets) { s =>
+    $(secrets) { s =>
       val dbPassword = s.getSecret("database.password")
       println(s"  Retrieved secret: $dbPassword")
     }

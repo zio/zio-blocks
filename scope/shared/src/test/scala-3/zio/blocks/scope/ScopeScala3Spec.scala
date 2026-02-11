@@ -33,8 +33,9 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var blockRan = false
         var cleaned  = false
         Scope.global.scoped { scope =>
+          import scope._
           blockRan = true
-          scope.defer { cleaned = true }
+          defer { cleaned = true }
         }
         assertTrue(blockRan, cleaned)
       },
@@ -42,7 +43,8 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var cleaned = false
         try {
           Scope.global.scoped { scope =>
-            scope.defer { cleaned = true }
+            import scope._
+            defer { cleaned = true }
             throw new RuntimeException("boom")
           }
         } catch {
@@ -67,13 +69,14 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         close()
         assertTrue(db.closed)
       },
-      test("scope.allocate returns tagged value and $ works") {
+      test("allocate returns tagged value and $ works") {
         // Capture result via side effect in the function passed to $
         var captured: String | Null = null
         Scope.global.scoped { scope =>
-          val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
+          import scope._
+          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
           // $ executes immediately, so side effect happens now
-          (scope $ db) { d =>
+          $(db) { d =>
             val result = d.query("SELECT 1")
             captured = result
             result
@@ -82,12 +85,13 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         assertTrue(captured == "result: SELECT 1")
       }
     ),
-    suite("scope.$ operator")(
+    suite("$ operator")(
       test("$ extracts value and applies function") {
         var captured: Boolean | Null = null
         Scope.global.scoped { scope =>
-          val config: Config @@ scope.Tag = scope.allocate(Resource(Config(true)))
-          (scope $ config) { c =>
+          import scope._
+          val config: Config @@ scope.ScopeTag = allocate(Resource(Config(true)))
+          $(config) { c =>
             val debug = c.debug
             captured = debug
             debug
@@ -98,8 +102,9 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("$ always returns tagged value") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
-          val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          (scope $ db) { d =>
+          import scope._
+          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
+          $(db) { d =>
             val result = d.query("test")
             captured = result
             result
@@ -112,10 +117,12 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("child scope can access parent resources via Tag subtyping") {
         var captured: String | Null = null
         Scope.global.scoped { parentScope =>
-          val db: Database @@ parentScope.Tag = parentScope.allocate(Resource.from[Database])
+          import parentScope._
+          val db: Database @@ parentScope.ScopeTag = allocate(Resource.from[Database])
 
           parentScope.scoped { childScope =>
-            (childScope $ db) { d =>
+            import childScope._
+            $(db) { d =>
               val result = d.query("child")
               captured = result
               result
@@ -129,10 +136,12 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         val order = scala.collection.mutable.ArrayBuffer.empty[String]
 
         Scope.global.scoped { parent =>
-          parent.defer(order += "parent")
+          import parent._
+          defer(order += "parent")
 
           parent.scoped { child =>
-            child.defer(order += "child")
+            import child._
+            defer(order += "child")
           }
         }
 
@@ -143,34 +152,37 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("map creates Scoped computation") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
-          val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation               = db.map { d =>
+          import scope._
+          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
+          val computation                    = db.map { d =>
             val result = d.query("mapped")
             captured = result
             result
           }
-          scope.execute(computation) // execute runs the computation
+          execute(computation) // execute runs the computation
         }
         assertTrue(captured == "result: mapped")
       },
       test("map and Scoped.map composition") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
-          val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation               = db.map(_.query("a")).map { s =>
+          import scope._
+          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
+          val computation                    = db.map(_.query("a")).map { s =>
             val result = s.toUpperCase
             captured = result
             result
           }
-          scope.execute(computation)
+          execute(computation)
         }
         assertTrue(captured == "RESULT: A")
       },
       test("flatMap chains scoped computations") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
-          val db: Database @@ scope.Tag = scope.allocate(Resource.from[Database])
-          val computation               = for {
+          import scope._
+          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
+          val computation                    = for {
             d <- db
             r <- Scoped(d.query("chained"))
           } yield {
@@ -178,7 +190,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
             captured = result
             result
           }
-          scope.execute(computation)
+          execute(computation)
         }
         assertTrue(captured == "RESULT: CHAINED")
       },
@@ -199,12 +211,13 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: String | Null = null
 
         Scope.global.scoped { scope =>
+          import scope._
           val program = for {
-            pool <- scope.allocate(Resource.acquireRelease(new Pool) { p =>
+            pool <- allocate(Resource.acquireRelease(new Pool) { p =>
                       poolClosed = true
                       p.close()
                     })
-            conn <- scope.allocate(Resource.acquireRelease(pool.lease()) { c =>
+            conn <- allocate(Resource.acquireRelease(pool.lease()) { c =>
                       connClosed = true
                       c.close()
                     })
@@ -213,7 +226,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
             captured = result
             result
           }
-          scope.execute(program)
+          execute(program)
         }
 
         assertTrue(
@@ -227,16 +240,18 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("finalizers run in LIFO order") {
         val order = scala.collection.mutable.ArrayBuffer.empty[Int]
         Scope.global.scoped { scope =>
-          scope.defer(order += 1)
-          scope.defer(order += 2)
-          scope.defer(order += 3)
+          import scope._
+          defer(order += 1)
+          defer(order += 2)
+          defer(order += 3)
         }
         assertTrue(order.toList == List(3, 2, 1))
       },
       test("package-level defer works with explicit Finalizer") {
         var cleaned = false
         Scope.global.scoped { scope =>
-          scope.defer { cleaned = true }
+          import scope._
+          defer { cleaned = true }
         }
         assertTrue(cleaned)
       },
@@ -244,9 +259,10 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         val order = scala.collection.mutable.ArrayBuffer.empty[Int]
         try {
           Scope.global.scoped { scope =>
-            scope.defer(order += 1)
-            scope.defer(throw new RuntimeException("finalizer boom"))
-            scope.defer(order += 3)
+            import scope._
+            defer(order += 1)
+            defer(throw new RuntimeException("finalizer boom"))
+            defer(order += 3)
           }
         } catch {
           case _: RuntimeException => ()
@@ -257,8 +273,9 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var caught: Throwable | Null = null
         try {
           Scope.global.scoped { scope =>
-            scope.defer(throw new RuntimeException("finalizer 1"))
-            scope.defer(throw new RuntimeException("finalizer 2"))
+            import scope._
+            defer(throw new RuntimeException("finalizer 1"))
+            defer(throw new RuntimeException("finalizer 2"))
             throw new RuntimeException("block boom")
           }
         } catch {
@@ -277,9 +294,10 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var caught: Throwable | Null = null
         try {
           Scope.global.scoped { scope =>
-            scope.defer(throw new RuntimeException("finalizer 1"))
-            scope.defer(throw new RuntimeException("finalizer 2"))
-            scope.defer(throw new RuntimeException("finalizer 3"))
+            import scope._
+            defer(throw new RuntimeException("finalizer 1"))
+            defer(throw new RuntimeException("finalizer 2"))
+            defer(throw new RuntimeException("finalizer 3"))
           }
         } catch {
           case t: RuntimeException => caught = t
@@ -296,7 +314,8 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("defer works with Finalizer capability") {
         var finalized = false
         Scope.global.scoped { scope =>
-          scope.defer { finalized = true }
+          import scope._
+          defer { finalized = true }
         }
         assertTrue(finalized)
       }
@@ -309,12 +328,14 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         Scope.global.scoped { parent =>
           var leaked: Any = null
           parent.scoped { child1 =>
-            leaked = child1.allocate(Resource.from[Database])
+            import child1._
+            leaked = allocate(Resource.from[Database])
             () // Return Unit
           }
           parent.scoped { child2 =>
-            val db = leaked.asInstanceOf[Database @@ child2.Tag]
-            (child2 $ db) { d =>
+            import child2._
+            val db = leaked.asInstanceOf[Database @@ child2.ScopeTag]
+            $(db) { d =>
               val result = d.query("test")
               captured = result
               result
@@ -325,6 +346,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         assertTrue(captured == "result: test")
       }
     ),
+
     suite("scope + scoped value leak prevention")(
       test("scoped on closed scope creates already-closed child preventing use-after-close") {
         var accessedAfterClose = false
@@ -344,7 +366,8 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         case class Leaked[T <: Scope.GlobalTag](scope: Scope[Scope.GlobalTag, T], value: TrackedResource @@ T)
 
         val leaked = Scope.global.scoped { child =>
-          val resource = child.allocate(Resource(new TrackedResource))
+          import child._
+          val resource = allocate(Resource(new TrackedResource))
           Leaked(child, resource)
         }
         // Child scope is now CLOSED, but we have both the scope and the scoped value
@@ -356,9 +379,10 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         // After fix: scoped() creates an already-closed child, so $ stays lazy
         var result: Int = 0
         leaked.scope.scoped { newChild =>
+          import newChild._
           // newChild is created as already-closed (because parent is closed)
-          // newChild.$ checks isClosed → true → stays lazy, doesn't execute
-          (newChild $ leaked.value) { r =>
+          // $ checks isClosed → true → stays lazy, doesn't execute
+          $(leaked.value) { r =>
             result = r.read() // This never executes!
           }
           ()

@@ -6,8 +6,8 @@ import zio.blocks.scope._
  * HTTP Client Pipeline Example
  *
  * Demonstrates building computations using `Scoped` that defer execution until
- * explicitly run via `scope.execute(scopedComputation)`. This shows how to
- * compose operations over scoped resources lazily.
+ * explicitly run via `execute(scopedComputation)`. This shows how to compose
+ * operations over scoped resources lazily.
  */
 
 /** API configuration containing base URL and authentication credentials. */
@@ -62,7 +62,7 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
  * Key concepts:
  *   - `(scopedValue).map(f)` builds a `Scoped` computation lazily
  *   - `(scopedValue).flatMap(f)` chains scoped computations
- *   - `(scope $ scopedValue) { v => ... }` executes and applies a function
+ *   - `$(scopedValue) { v => ... }` executes and applies a function
  *   - The computation only runs when explicitly executed
  */
 @main def httpClientPipelineExample(): Unit = {
@@ -70,29 +70,30 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
   val config = ApiConfig("https://api.example.com", "secret-key-123")
 
   Scope.global.scoped { scope =>
+    import scope._
     // Step 1: Allocate the HTTP client (automatically cleaned up when scope closes)
-    val client: HttpClient @@ scope.Tag = scope.allocate(Resource[HttpClient](new HttpClient(config)))
+    val client: HttpClient @@ scope.ScopeTag = allocate(Resource[HttpClient](new HttpClient(config)))
 
     // Step 2: Build lazy computations using map
     // These define WHAT to do, but don't execute yet
     println("Building pipeline (nothing executes yet)...")
 
     // First computation: fetch and parse users
-    val fetchUsers: ParsedData @@ scope.Tag =
+    val fetchUsers: ParsedData @@ scope.ScopeTag =
       client.map { c =>
         val response = c.get("/users")
         JsonParser.parse(response.body)
       }
 
     // Second computation: fetch and parse orders
-    val fetchOrders: ParsedData @@ scope.Tag =
+    val fetchOrders: ParsedData @@ scope.ScopeTag =
       client.map { c =>
         val response = c.get("/orders")
         JsonParser.parse(response.body)
       }
 
     // Third computation: post analytics event
-    val postAnalytics: ParsedData @@ scope.Tag =
+    val postAnalytics: ParsedData @@ scope.ScopeTag =
       client.map { c =>
         val response = c.post("/analytics", """{"event":"fetch_complete"}""")
         JsonParser.parse(response.body)
@@ -100,22 +101,22 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     println("Pipeline definitions built. Now executing each step...\n")
 
-    // Step 3: Execute each computation using (scope $ value)
-    // Use (scope $ value) to apply a function to the scoped value
+    // Step 3: Execute each computation using $(value)
+    // Use $(value) to apply a function to the scoped value
     println("--- Executing: fetchUsers ---")
-    (scope $ scope.execute(fetchUsers)) { users =>
+    $(execute(fetchUsers)) { users =>
       println(s"\n=== Users Result ===")
       println(s"Users data: ${users.values}")
     }
 
     println("\n--- Executing: fetchOrders ---")
-    (scope $ scope.execute(fetchOrders)) { orders =>
+    $(execute(fetchOrders)) { orders =>
       println(s"\n=== Orders Result ===")
       println(s"Orders data: ${orders.values}")
     }
 
     println("\n--- Executing: postAnalytics ---")
-    (scope $ scope.execute(postAnalytics)) { analytics =>
+    $(execute(postAnalytics)) { analytics =>
       println(s"\n=== Analytics Result ===")
       println(s"Analytics: ${analytics.values}")
     }

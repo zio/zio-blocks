@@ -10,28 +10,28 @@ package zio.blocks
  * import zio.blocks.scope._
  *
  * Scope.global.scoped { scope =>
- *   val db = scope.allocate(Resource[Database])
- *   val result = (scope $ db)(_.query("SELECT 1"))
+ *   import scope._
+ *   val db = allocate(Resource[Database])
+ *   val result = $(db)(_.query("SELECT 1"))
  *   println(result)
  * }
  * }}}
  *
  * ==Key Concepts==
  *
- *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
- *     escape
- *   - '''`scope.allocate(resource)`''': Allocate a value in a scope
- *   - '''`(scope $ value)(f)`''': Apply a function to a scoped value
- *   - '''`scope.scoped { s => ... }`''': Create a child scope with existential
- *     tag
- *   - '''`scope.defer { ... }`''': Register cleanup to run when scope closes
+ *   - '''Scoped values''' (`A @@ ScopeTag`): Values tagged with a scope,
+ *     preventing escape
+ *   - '''`import scope._`''': Bring scope operations into lexical scope
+ *   - '''`allocate(resource)`''': Allocate a value in the current scope
+ *   - '''`$(value)(f)`''': Apply a function to a scoped value
+ *   - '''`scoped { s => ... }`''': Create a child scope with existential tag
+ *   - '''`defer { ... }`''': Register cleanup to run when scope closes
  *
  * ==How It Works==
  *
- * The `.scoped` method creates a fresh existential `Tag` type for each
- * invocation using a local `type Fresh <: ParentTag` declaration. This tag
- * cannot be named outside the lambda, making it impossible to leak resources or
- * capabilities.
+ * The `.scoped` method creates a fresh existential `ScopeTag` type for each
+ * invocation. This tag cannot be named outside the lambda, making it impossible
+ * to leak resources or capabilities.
  *
  * @see
  *   [[scope.Scope]] for scope types and operations [[scope.@@]] for scoped
@@ -76,7 +76,8 @@ package object scope {
    * @example
    *   {{{
    *   Scope.global.scoped { scope =>
-   *     val stream = scope.allocate(Resource[InputStream])
+   *     import scope._
+   *     val stream = allocate(Resource[InputStream])
    *     val leaked = leak(stream)
    *     ThirdPartyProcessor.process(leaked)
    *   }

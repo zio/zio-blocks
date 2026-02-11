@@ -76,9 +76,10 @@ object LegacyProtocolHandler {
   println("Demonstrating leak() for passing scoped resources to third-party code.\n")
 
   Scope.global.scoped { scope =>
+    import scope._
     // Allocate the socket as a scoped resource.
     // The socket is tagged with the scope's type, preventing accidental escape.
-    val scopedSocket = scope.allocate(
+    val scopedSocket = allocate(
       Resource.fromAutoCloseable(new ManagedSocket(SocketConfig("api.example.com", 443)))
     )
     println("Allocated scoped socket.\n")
