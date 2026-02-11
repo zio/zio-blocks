@@ -1,9 +1,10 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.{Schema, SchemaError}
-
 import java.time._
 import java.util.{Currency, UUID}
+import scala.collection.immutable.VectorBuilder
+import scala.collection.mutable
 import scala.util.control.NonFatal
 
 /**
@@ -192,7 +193,7 @@ object JsonDecoder {
   implicit def vectorDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[Vector[A]] = new JsonDecoder[Vector[A]] {
     def decode(json: Json): Either[SchemaError, Vector[A]] = json match {
       case arr: Json.Array =>
-        val builder = Vector.newBuilder[A]
+        val builder = new VectorBuilder[A]
         val elems   = arr.value
         val len     = elems.length
         var idx     = 0
@@ -211,7 +212,7 @@ object JsonDecoder {
   implicit def listDecoder[A](implicit decoder: JsonDecoder[A]): JsonDecoder[List[A]] = new JsonDecoder[List[A]] {
     def decode(json: Json): Either[SchemaError, List[A]] = json match {
       case arr: Json.Array =>
-        val builder = List.newBuilder[A]
+        val builder = new mutable.ListBuffer[A]
         val elems   = arr.value
         val len     = elems.length
         var idx     = 0

@@ -12,6 +12,7 @@ import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.{Owner, TypeId}
 import scala.annotation.{switch, tailrec}
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -641,7 +642,7 @@ class JsonBinaryCodecDeriver private[json] (
                     }
                   }
                 case DiscriminatorKind.None =>
-                  val codecs = Array.newBuilder[JsonBinaryCodec[?]]
+                  val codecs = mutable.ArrayBuilder.make[JsonBinaryCodec[?]]
 
                   def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
                     val cases = variant.cases
