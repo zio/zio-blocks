@@ -7,8 +7,6 @@ import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 
-import DocSchema.docSchema
-
 /**
  * The root object of an OpenAPI 3.1 document.
  *
@@ -138,13 +136,8 @@ object License {
     identifier: Option[String] = None,
     url: Option[String] = None,
     extensions: Map[String, Json] = Map.empty
-  ): License = {
-    require(
-      identifier.isEmpty || url.isEmpty,
-      "License identifier and url fields are mutually exclusive - only one may be specified"
-    )
+  ): License =
     new License(name, identifier, url, extensions)
-  }
 }
 
 /**
@@ -505,7 +498,11 @@ final case class SchemaObject(
       }
       val extraFields = extra.result()
       if (extraFields.isEmpty) obj
-      else new Json.Object(obj.value ++ extraFields)
+      else {
+        val extraKeys    = extraFields.map(_._1).toSet
+        val baseFiltered = obj.value.filter { case (k, _) => !extraKeys.contains(k) }
+        new Json.Object(baseFiltered ++ extraFields)
+      }
     case other => other
   }
 
@@ -637,11 +634,7 @@ object Parameter {
     examples: Map[String, ReferenceOr[Example]] = Map.empty,
     content: Map[String, MediaType] = Map.empty,
     extensions: Map[String, Json] = Map.empty
-  ): Parameter = {
-    require(
-      in != ParameterLocation.Path || required,
-      "Parameter with location 'path' must have required=true"
-    )
+  ): Parameter =
     new Parameter(
       name,
       in,
@@ -658,7 +651,6 @@ object Parameter {
       content,
       extensions
     )
-  }
 }
 
 /**
@@ -967,13 +959,8 @@ object Example {
     value: Option[Json] = None,
     externalValue: Option[String] = None,
     extensions: Map[String, Json] = Map.empty
-  ): Example = {
-    require(
-      value.isEmpty || externalValue.isEmpty,
-      "Example value and externalValue fields are mutually exclusive - only one may be specified"
-    )
+  ): Example =
     new Example(summary, description, value, externalValue, extensions)
-  }
 }
 
 /**
@@ -1046,13 +1033,8 @@ object Link {
     description: Option[Doc] = None,
     server: Option[Server] = None,
     extensions: Map[String, Json] = Map.empty
-  ): Link = {
-    require(
-      operationRef.isEmpty || operationId.isEmpty,
-      "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
-    )
+  ): Link =
     new Link(operationRef, operationId, parameters, requestBody, description, server, extensions)
-  }
 }
 
 /**

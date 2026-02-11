@@ -134,31 +134,31 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val enumEncodingSuite = suite("Enum types encode as spec-compliant strings")(
     test("ParameterLocation.Query encodes as 'query'") {
       val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Query)
-      assertTrue(json == new Json.String("query"))
+      assertTrue(json == Json.String("query"))
     },
     test("ParameterLocation.Header encodes as 'header'") {
       val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Header)
-      assertTrue(json == new Json.String("header"))
+      assertTrue(json == Json.String("header"))
     },
     test("ParameterLocation.Path encodes as 'path'") {
       val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Path)
-      assertTrue(json == new Json.String("path"))
+      assertTrue(json == Json.String("path"))
     },
     test("ParameterLocation.Cookie encodes as 'cookie'") {
       val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Cookie)
-      assertTrue(json == new Json.String("cookie"))
+      assertTrue(json == Json.String("cookie"))
     },
     test("APIKeyLocation.Query encodes as 'query'") {
       val json = JsonEncoder[APIKeyLocation].encode(APIKeyLocation.Query)
-      assertTrue(json == new Json.String("query"))
+      assertTrue(json == Json.String("query"))
     },
     test("APIKeyLocation.Header encodes as 'header'") {
       val json = JsonEncoder[APIKeyLocation].encode(APIKeyLocation.Header)
-      assertTrue(json == new Json.String("header"))
+      assertTrue(json == Json.String("header"))
     },
     test("APIKeyLocation.Cookie encodes as 'cookie'") {
       val json = JsonEncoder[APIKeyLocation].encode(APIKeyLocation.Cookie)
-      assertTrue(json == new Json.String("cookie"))
+      assertTrue(json == Json.String("cookie"))
     }
   )
 
@@ -169,7 +169,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
       val json = JsonEncoder[ReferenceOr[SchemaObject]].encode(ref)
       assertTrue(
-        fieldValue(json, "$ref").contains(new Json.String("#/components/schemas/Pet")),
+        fieldValue(json, "$ref").contains(Json.String("#/components/schemas/Pet")),
         !hasField(json, "Ref"),
         !hasField(json, "reference")
       )
@@ -193,7 +193,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
       val json = JsonEncoder[ReferenceOr[SchemaObject]].encode(ref)
       assertTrue(
-        fieldValue(json, "$ref").contains(new Json.String("#/components/schemas/User")),
+        fieldValue(json, "$ref").contains(Json.String("#/components/schemas/User")),
         hasField(json, "summary"),
         hasField(json, "description"),
         !hasField(json, "Ref")
@@ -206,9 +206,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val ss: SecurityScheme = SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header)
       val json               = JsonEncoder[SecurityScheme].encode(ss)
       assertTrue(
-        fieldValue(json, "type").contains(new Json.String("apiKey")),
-        fieldValue(json, "name").contains(new Json.String("api_key")),
-        fieldValue(json, "in").contains(new Json.String("header")),
+        fieldValue(json, "type").contains(Json.String("apiKey")),
+        fieldValue(json, "name").contains(Json.String("api_key")),
+        fieldValue(json, "in").contains(Json.String("header")),
         !hasField(json, "APIKey")
       )
     },
@@ -216,9 +216,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val ss: SecurityScheme = SecurityScheme.HTTP(scheme = "bearer", bearerFormat = Some("JWT"))
       val json               = JsonEncoder[SecurityScheme].encode(ss)
       assertTrue(
-        fieldValue(json, "type").contains(new Json.String("http")),
-        fieldValue(json, "scheme").contains(new Json.String("bearer")),
-        fieldValue(json, "bearerFormat").contains(new Json.String("JWT")),
+        fieldValue(json, "type").contains(Json.String("http")),
+        fieldValue(json, "scheme").contains(Json.String("bearer")),
+        fieldValue(json, "bearerFormat").contains(Json.String("JWT")),
         !hasField(json, "HTTP")
       )
     },
@@ -235,7 +235,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
       val json = JsonEncoder[SecurityScheme].encode(ss)
       assertTrue(
-        fieldValue(json, "type").contains(new Json.String("oauth2")),
+        fieldValue(json, "type").contains(Json.String("oauth2")),
         hasField(json, "flows"),
         !hasField(json, "OAuth2")
       )
@@ -246,9 +246,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
       val json = JsonEncoder[SecurityScheme].encode(ss)
       assertTrue(
-        fieldValue(json, "type").contains(new Json.String("openIdConnect")),
+        fieldValue(json, "type").contains(Json.String("openIdConnect")),
         fieldValue(json, "openIdConnectUrl").contains(
-          new Json.String("https://example.com/.well-known/openid-configuration")
+          Json.String("https://example.com/.well-known/openid-configuration")
         ),
         !hasField(json, "OpenIdConnect")
       )
@@ -257,7 +257,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val ss: SecurityScheme = SecurityScheme.MutualTLS(description = Some(doc("Mutual TLS")))
       val json               = JsonEncoder[SecurityScheme].encode(ss)
       assertTrue(
-        fieldValue(json, "type").contains(new Json.String("mutualTLS")),
+        fieldValue(json, "type").contains(Json.String("mutualTLS")),
         !hasField(json, "MutualTLS")
       )
     }
@@ -739,7 +739,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
 
   private lazy val petstoreRoundTripSuite = suite("Petstore JSON round-trip")(
     test("petstore.json round-trips through decode/encode") {
-      val jsonString = scala.io.Source.fromResource("openapi/petstore.json").mkString
+      val jsonString = scala.util.Using.resource(scala.io.Source.fromResource("openapi/petstore.json"))(_.mkString)
       val parsed     = Json.parse(jsonString)
       assertTrue(parsed.isRight) &&
       (parsed match {
@@ -750,15 +750,15 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
             case Right(api) =>
               val reEncoded = JsonEncoder[OpenAPI].encode(api)
               assertTrue(
-                fieldValue(reEncoded, "openapi").contains(new Json.String("3.1.0")),
+                fieldValue(reEncoded, "openapi").contains(Json.String("3.1.0")),
                 hasField(reEncoded, "info"),
                 hasField(reEncoded, "paths"),
                 hasField(reEncoded, "components")
               ) && {
                 val infoJson = fieldValue(reEncoded, "info").get
                 assertTrue(
-                  fieldValue(infoJson, "title").contains(new Json.String("Swagger Petstore")),
-                  fieldValue(infoJson, "version").contains(new Json.String("1.0.0"))
+                  fieldValue(infoJson, "title").contains(Json.String("Swagger Petstore")),
+                  fieldValue(infoJson, "version").contains(Json.String("1.0.0"))
                 )
               } && {
                 val reDecoded = JsonDecoder[OpenAPI].decode(reEncoded)
@@ -772,7 +772,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       })
     },
     test("minimal.json round-trips through decode/encode") {
-      val jsonString = scala.io.Source.fromResource("openapi/minimal.json").mkString
+      val jsonString = scala.util.Using.resource(scala.io.Source.fromResource("openapi/minimal.json"))(_.mkString)
       val parsed     = Json.parse(jsonString)
       assertTrue(parsed.isRight) &&
       (parsed match {
@@ -792,7 +792,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       })
     },
     test("with-security.json round-trips through decode/encode") {
-      val jsonString = scala.io.Source.fromResource("openapi/with-security.json").mkString
+      val jsonString = scala.util.Using.resource(scala.io.Source.fromResource("openapi/with-security.json"))(_.mkString)
       val parsed     = Json.parse(jsonString)
       assertTrue(parsed.isRight) &&
       (parsed match {
@@ -1092,8 +1092,8 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val decoded = JsonDecoder[SecurityScheme].decode(json)
       assertTrue(
         decoded == Right(original),
-        fieldValue(json, "type").contains(new Json.String("apiKey")),
-        fieldValue(json, "in").contains(new Json.String("header"))
+        fieldValue(json, "type").contains(Json.String("apiKey")),
+        fieldValue(json, "in").contains(Json.String("header"))
       )
     },
     test("SecurityScheme.HTTP round-trips correctly") {
@@ -1103,8 +1103,8 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val decoded = JsonDecoder[SecurityScheme].decode(json)
       assertTrue(
         decoded == Right(original),
-        fieldValue(json, "type").contains(new Json.String("http")),
-        fieldValue(json, "scheme").contains(new Json.String("bearer"))
+        fieldValue(json, "type").contains(Json.String("http")),
+        fieldValue(json, "scheme").contains(Json.String("bearer"))
       )
     },
     test("SecurityScheme.OAuth2 round-trips correctly") {
@@ -1124,7 +1124,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val decoded = JsonDecoder[SecurityScheme].decode(json)
       assertTrue(
         decoded == Right(original),
-        fieldValue(json, "type").contains(new Json.String("oauth2"))
+        fieldValue(json, "type").contains(Json.String("oauth2"))
       )
     },
     test("SecurityScheme.OpenIdConnect round-trips correctly") {
@@ -1136,7 +1136,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val decoded = JsonDecoder[SecurityScheme].decode(json)
       assertTrue(
         decoded == Right(original),
-        fieldValue(json, "type").contains(new Json.String("openIdConnect"))
+        fieldValue(json, "type").contains(Json.String("openIdConnect"))
       )
     },
     test("SecurityScheme.MutualTLS round-trips correctly") {
@@ -1145,7 +1145,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val decoded                  = JsonDecoder[SecurityScheme].decode(json)
       assertTrue(
         decoded == Right(original),
-        fieldValue(json, "type").contains(new Json.String("mutualTLS"))
+        fieldValue(json, "type").contains(Json.String("mutualTLS"))
       )
     }
   )
