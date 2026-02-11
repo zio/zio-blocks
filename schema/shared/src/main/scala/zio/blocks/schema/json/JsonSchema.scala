@@ -155,9 +155,9 @@ private[json] object FormatValidator {
   }
 
   private[this] val dateTimePattern: Pattern =
-    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$")
+    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$")
   private[this] val datePattern: Pattern  = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
-  private[this] val timePattern: Pattern  = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})?$")
+  private[this] val timePattern: Pattern  = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?$")
   private[this] val emailPattern: Pattern = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
   private[this] val uuidPattern: Pattern  =
     Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -974,19 +974,23 @@ object JsonSchema {
       `enum` match {
         case Some(values) =>
           if (!values.contains(json)) {
-            val sb      = new java.lang.StringBuilder("Value not in enum: ")
-            val initLen = sb.length
-            values.foreach { v =>
-              if (sb.length > initLen) sb.append(", ")
-              sb.append(v.print)
+            val sb             = new java.lang.StringBuilder("Value not in enum: ")
+            var idx            = 0
+            var vs: List[Json] = values
+            while ((vs ne Nil) && idx < 10) { // Take up to 10 values to avoid too-long error messages
+              if (idx > 0) sb.append(", ")
+              sb.append(vs.head.print)
+              vs = vs.tail
+              idx += 1
             }
+            if (vs ne Nil) sb.append(", ...")
             result = result.addError(trace, sb.toString)
           }
         case _ =>
       }
       const match {
         case Some(constValue) if constValue != json =>
-          result = result.addError(trace, s"Expected const value: ${constValue.print}")
+          result = result.addError(trace, s"Expected const value ${constValue.print}")
         case _ =>
       }
       json match {
@@ -1007,7 +1011,7 @@ object JsonSchema {
               p.compiled match {
                 case Right(regex) =>
                   if (!regex.matcher(s.value).find()) {
-                    result = result.addError(trace, s"String does not match pattern: ${p.value}")
+                    result = result.addError(trace, s"String does not match pattern '${p.value}'")
                   }
                 case _ => // Invalid pattern - skip validation
               }
@@ -1133,7 +1137,7 @@ object JsonSchema {
             case Some(reqs) =>
               reqs.foreach { req =>
                 if (!fieldKeys.contains(req)) {
-                  result = result.addError(trace, s"Missing required property: $req")
+                  result = result.addError(trace, s"Missing required property '$req'")
                 }
               }
             case _ =>

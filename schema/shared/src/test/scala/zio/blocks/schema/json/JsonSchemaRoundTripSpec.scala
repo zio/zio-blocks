@@ -313,6 +313,14 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           $dynamicAnchor = Some(Anchor("dynamicAnchor")),
           $ref = Some(UriReference("#/$defs/base")),
           $dynamicRef = Some(UriReference("#dynamicAnchor")),
+          $vocabulary = Some(
+            ChunkMap(
+              new URI("https://json-schema.org/draft/2020-12/vocab/core")       -> true,
+              new URI("https://json-schema.org/draft/2020-12/vocab/applicator") -> true,
+              new URI("https://json-schema.org/draft/2020-12/vocab/validation") -> true,
+              new URI("https://json-schema.org/draft/2020-12/vocab/meta-data")  -> false
+            )
+          ),
           $defs = Some(ChunkMap("base" -> JsonSchema.string())),
           $comment = Some("This is a comment")
         )
@@ -326,6 +334,16 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           fieldMap.get("$dynamicAnchor").contains(Json.String("dynamicAnchor")),
           fieldMap.get("$ref").contains(Json.String("#/$defs/base")),
           fieldMap.get("$dynamicRef").contains(Json.String("#dynamicAnchor")),
+          fieldMap
+            .get("$vocabulary")
+            .contains(
+              Json.Object(
+                "https://json-schema.org/draft/2020-12/vocab/core"       -> Json.Boolean(true),
+                "https://json-schema.org/draft/2020-12/vocab/applicator" -> Json.Boolean(true),
+                "https://json-schema.org/draft/2020-12/vocab/validation" -> Json.Boolean(true),
+                "https://json-schema.org/draft/2020-12/vocab/meta-data"  -> Json.Boolean(false)
+              )
+            ),
           fieldMap.get("$defs").isDefined,
           fieldMap.get("$comment").contains(Json.String("This is a comment"))
         )

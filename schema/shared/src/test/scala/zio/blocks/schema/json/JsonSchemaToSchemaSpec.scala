@@ -48,52 +48,39 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonSchemaToSchemaSpec")(
     suite("Primitive JsonSchema to Schema")(
       test("string schema converts to Schema with String primitive") {
-        val jsonSchema  = JsonSchema.string()
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode(""""hello"""")
-        assertTrue(result.isRight)
+        val codec = Schema.fromJsonSchema(JsonSchema.string()).derive(JsonFormat)
+        assertTrue(codec.decode(""""hello"""").isRight)
       },
       test("integer schema converts to Schema with BigInt primitive") {
-        val jsonSchema  = JsonSchema.integer()
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("42")
-        assertTrue(result.isRight)
+        val codec = Schema.fromJsonSchema(JsonSchema.integer()).derive(JsonFormat)
+        assertTrue(codec.decode("42").isRight)
       },
       test("number schema converts to Schema with BigDecimal primitive") {
-        val jsonSchema  = JsonSchema.number()
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("3.14159")
-        assertTrue(result.isRight)
+        val codec = Schema.fromJsonSchema(JsonSchema.number()).derive(JsonFormat)
+        assertTrue(codec.decode("3.14159").isRight)
       },
       test("boolean schema converts to Schema with Boolean primitive") {
-        val jsonSchema  = JsonSchema.boolean
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec = Schema.fromJsonSchema(JsonSchema.boolean).derive(JsonFormat)
         assertTrue(
           codec.decode("true").isRight,
           codec.decode("false").isRight
         )
       },
       test("null schema converts to Dynamic Schema") {
-        val jsonSchema  = JsonSchema.nullSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("null")
-        assertTrue(result.isRight)
+        val codec = Schema.fromJsonSchema(JsonSchema.nullSchema).derive(JsonFormat)
+        assertTrue(codec.decode("null").isRight)
       }
     ),
     suite("Validation translation from JsonSchema")(
       test("string minLength/maxLength translates to String validation") {
-        val jsonSchema = JsonSchema.string(
-          minLength = Some(NonNegativeInt.unsafe(5)),
-          maxLength = Some(NonNegativeInt.unsafe(10))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.string(
+              minLength = Some(NonNegativeInt.unsafe(5)),
+              maxLength = Some(NonNegativeInt.unsafe(10))
+            )
+          )
+          .derive(JsonFormat)
         assertTrue(
           codec.decode(""""hello"""").isRight,
           codec.decode(""""hi"""").isLeft,
@@ -101,10 +88,9 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("string pattern translates to Pattern validation") {
-        val jsonSchema  = JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$")))
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$"))))
+          .derive(JsonFormat)
         assertTrue(
           codec.decode(""""hello"""").isRight,
           codec.decode(""""HELLO"""").isLeft,
@@ -112,13 +98,14 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("integer minimum/maximum translates to Range validation") {
-        val jsonSchema = JsonSchema.integer(
-          minimum = Some(BigDecimal(0)),
-          maximum = Some(BigDecimal(100))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.integer(
+              minimum = Some(BigDecimal(0)),
+              maximum = Some(BigDecimal(100))
+            )
+          )
+          .derive(JsonFormat)
         assertTrue(
           codec.decode("50").isRight,
           codec.decode("-1").isLeft,
@@ -126,13 +113,14 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("number minimum/maximum translates to Range validation") {
-        val jsonSchema = JsonSchema.number(
-          minimum = Some(BigDecimal(0.0)),
-          maximum = Some(BigDecimal(100.0))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.number(
+              minimum = Some(BigDecimal(0.0)),
+              maximum = Some(BigDecimal(100.0))
+            )
+          )
+          .derive(JsonFormat)
         assertTrue(
           codec.decode("50.5").isRight,
           codec.decode("-0.1").isLeft,
@@ -140,10 +128,9 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("string minLength=1 translates to NonEmpty validation") {
-        val jsonSchema  = JsonSchema.string(minLength = Some(NonNegativeInt.one))
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.string(minLength = Some(NonNegativeInt.one)))
+          .derive(JsonFormat)
         assertTrue(
           codec.decode(""""a"""").isRight,
           codec.decode("\"\"").isLeft
@@ -152,57 +139,70 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
     ),
     suite("Record/Object JsonSchema to Schema")(
       test("object with properties converts to Record") {
-        val jsonSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
-          required = Some(Set("name", "age"))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("""{"name": "Alice", "age": 30}""")
-        assertTrue(result.isRight)
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+              required = Some(Set("name", "age"))
+            )
+          )
+          .derive(JsonFormat)
+        assertTrue(codec.decode("""{"name": "Alice", "age": 30}""").isRight)
       },
       test("object schema rejects missing required fields") {
-        val jsonSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
-          required = Some(Set("name", "age"))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("""{"name": "Alice"}""")
-        assertTrue(result.isLeft)
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              properties = Some(ChunkMap("name" -> JsonSchema.string(), "age" -> JsonSchema.integer())),
+              required = Some(Set("name", "age"))
+            )
+          )
+          .derive(JsonFormat)
+        assertTrue(codec.decode("""{"name": "Alice"}""").isLeft)
       },
       test("nested object schema converts correctly") {
-        val addressSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
-          required = Some(Set("city", "zip"))
-        )
-        val jsonSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("name" -> JsonSchema.string(), "address" -> addressSchema)),
-          required = Some(Set("name", "address"))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("""{"name": "Bob", "address": {"city": "NYC", "zip": "10001"}}""")
-        assertTrue(result.isRight)
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              properties = Some(
+                ChunkMap(
+                  "name"    -> JsonSchema.string(),
+                  "address" -> JsonSchema.obj(
+                    properties = Some(ChunkMap("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
+                    required = Some(Set("city", "zip"))
+                  )
+                )
+              ),
+              required = Some(Set("name", "address"))
+            )
+          )
+          .derive(JsonFormat)
+        assertTrue(codec.decode("""{"name": "Bob", "address": {"city": "NYC", "zip": "10001"}}""").isRight)
       },
       test("closed object (additionalProperties: false) produces closed Record") {
-        val jsonSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("name" -> JsonSchema.string())),
-          required = Some(Set("name")),
-          additionalProperties = Some(JsonSchema.False)
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              properties = Some(ChunkMap("name" -> JsonSchema.string())),
+              required = Some(Set("name")),
+              additionalProperties = Some(JsonSchema.False)
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
         assertTrue(wrapped.exists(_.isRecord))
       },
       test("open object produces Record with open modifier") {
-        val jsonSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("name" -> JsonSchema.string()))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped         = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              properties = Some(ChunkMap("name" -> JsonSchema.string()))
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
         val modifiers       = wrapped.map(_.modifiers).getOrElse(Nil)
         val hasOpenModifier = modifiers.exists {
           case Modifier.config("json.closure", "open") => true
@@ -213,110 +213,115 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
     ),
     suite("Collection JsonSchema to Schema")(
       test("array with items converts to Sequence") {
-        val jsonSchema  = JsonSchema.array(items = Some(JsonSchema.string()))
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("""["a", "b", "c"]""")
-        assertTrue(result.isRight)
+        val codec = Schema.fromJsonSchema(JsonSchema.array(items = Some(JsonSchema.string()))).derive(JsonFormat)
+        assertTrue(codec.decode("""["a", "b", "c"]""").isRight)
       },
       test("array rejects wrong item types") {
-        val jsonSchema  = JsonSchema.array(items = Some(JsonSchema.integer()))
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val codec       = schemaForJs.derive(JsonFormat)
-        val result      = codec.decode("""[1, "two", 3]""")
-        assertTrue(result.isLeft)
+        val codec = Schema.fromJsonSchema(JsonSchema.array(items = Some(JsonSchema.integer()))).derive(JsonFormat)
+        assertTrue(codec.decode("""[1, "two", 3]""").isLeft)
       },
       test("object with only additionalProperties converts to Map") {
-        val jsonSchema = JsonSchema.obj(
-          additionalProperties = Some(JsonSchema.integer())
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped      = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              additionalProperties = Some(JsonSchema.integer())
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
         val innerWrapped = wrapped.flatMap(_.asWrapperUnknown).map(_.wrapper.wrapped)
         assertTrue(wrapped.exists(_.isWrapper) && innerWrapped.exists(_.isMap))
       },
       test("tuple schema (prefixItems + items:false) converts to Record with positional fields") {
-        val jsonSchema = JsonSchema.Object(
-          prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
-          items = Some(JsonSchema.False)
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped      = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.Object(
+              prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+              items = Some(JsonSchema.False)
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
         val innerWrapped = wrapped.flatMap(_.asWrapperUnknown).map(_.wrapper.wrapped)
         val record       = innerWrapped.flatMap(_.asRecord)
-        val fieldNames   = record.map(_.fields.map(_.name).toList).getOrElse(Nil)
-        assertTrue(fieldNames == List("_1", "_2"))
+        val fields       = record.map(_.fields.map(_.name).toList).getOrElse(Nil)
+        assertTrue(fields == List("_1", "_2"))
       }
     ),
     suite("Enum/Variant JsonSchema to Schema")(
       test("string enum converts to Variant") {
-        val jsonSchema = JsonSchema.Object(
-          `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.Object(
+              `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
         assertTrue(wrapped.exists(_.isVariant))
       },
       test("string enum has correct case names") {
-        val jsonSchema = JsonSchema.Object(
-          `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped   = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val variant   = wrapped.flatMap(_.asVariant)
-        val caseNames = variant.map(_.cases.map(_.name).toSet).getOrElse(Set.empty)
-        assertTrue(caseNames == Set("Red", "Green", "Blue"))
-      },
-      test("key-discriminated oneOf converts to Variant") {
-        val jsonSchema = JsonSchema.Object(
-          oneOf = Some(
-            new ::(
-              JsonSchema.obj(
-                properties = Some(
-                  ChunkMap("Circle" -> JsonSchema.obj(properties = Some(ChunkMap("radius" -> JsonSchema.number()))))
-                ),
-                required = Some(Set("Circle"))
-              ),
-              JsonSchema.obj(
-                properties = Some(
-                  ChunkMap(
-                    "Rectangle" -> JsonSchema.obj(properties =
-                      Some(ChunkMap("width" -> JsonSchema.number(), "height" -> JsonSchema.number()))
-                    )
-                  )
-                ),
-                required = Some(Set("Rectangle"))
-              ) :: Nil
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.Object(
+              `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
             )
           )
-        )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-
-        val wrapped   = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val variant   = wrapped.flatMap(_.asVariant)
-        val caseNames = variant.map(_.cases.map(_.name).toSet).getOrElse(Set.empty)
-        assertTrue(caseNames == Set("Circle", "Rectangle"))
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
+        val variant = wrapped.flatMap(_.asVariant)
+        val cases   = variant.map(_.cases.map(_.name).toSet).getOrElse(Set.empty)
+        assertTrue(cases == Set("Red", "Green", "Blue"))
+      },
+      test("key-discriminated oneOf converts to Variant") {
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.Object(
+              oneOf = Some(
+                new ::(
+                  JsonSchema.obj(
+                    properties = Some(
+                      ChunkMap("Circle" -> JsonSchema.obj(properties = Some(ChunkMap("radius" -> JsonSchema.number()))))
+                    ),
+                    required = Some(Set("Circle"))
+                  ),
+                  JsonSchema.obj(
+                    properties = Some(
+                      ChunkMap(
+                        "Rectangle" -> JsonSchema.obj(properties =
+                          Some(ChunkMap("width" -> JsonSchema.number(), "height" -> JsonSchema.number()))
+                        )
+                      )
+                    ),
+                    required = Some(Set("Rectangle"))
+                  ) :: Nil
+                )
+              )
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
+        val variant = wrapped.flatMap(_.asVariant)
+        val cases   = variant.map(_.cases.map(_.name).toSet).getOrElse(Set.empty)
+        assertTrue(cases == Set("Circle", "Rectangle"))
       }
     ),
     suite("Dynamic/True/False JsonSchema to Schema")(
       test("JsonSchema.True converts to Dynamic Schema") {
-        val schemaForJs = Schema.fromJsonSchema(JsonSchema.True)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema.fromJsonSchema(JsonSchema.True).reflect.asWrapperUnknown.map(_.wrapper.wrapped)
         assertTrue(wrapped.exists(_.isDynamic))
       },
       test("JsonSchema.False converts to Dynamic Schema") {
-        val schemaForJs = Schema.fromJsonSchema(JsonSchema.False)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        val wrapped = Schema.fromJsonSchema(JsonSchema.False).reflect.asWrapperUnknown.map(_.wrapper.wrapped)
         assertTrue(wrapped.exists(_.isDynamic))
       },
       test("Dynamic schema accepts any JSON") {
-        val schemaForJs = Schema.fromJsonSchema(JsonSchema.True)
-        val codec       = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(JsonSchema.True).derive(JsonFormat)
         assertTrue(
           codec.decode(""""hello"""").isRight,
           codec.decode("42").isRight,
@@ -329,157 +334,139 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
     ),
     suite("Schema -> JsonSchema -> Schema roundtrip (structure preservation)")(
       test("String primitive roundtrips to correct structure") {
-        val jsonSchema  = Schema[String].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val structure   = schemaForJs.reflect.toString
-
+        val structure = Schema.fromJsonSchema(Schema[String].toJsonSchema).reflect.toString
         assertTrue(structure == "wrapper Json(wrapper DynamicValue(String))")
       },
       test("Int primitive roundtrips to BigInt (JsonSchema integer)") {
-        val jsonSchema  = Schema[Int].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val structure   = schemaForJs.reflect.toString
-
-        assertTrue(structure == "wrapper Json(wrapper DynamicValue(BigInt))")
+        val structure = Schema.fromJsonSchema(Schema[Int].toJsonSchema).reflect.toString
+        assertTrue(structure == "wrapper Json(wrapper DynamicValue(BigInt @Range(min=-2147483648, max=2147483647)))")
       },
       test("Boolean primitive roundtrips to correct structure") {
-        val jsonSchema  = Schema[Boolean].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val structure   = schemaForJs.reflect.toString
-
+        val structure = Schema.fromJsonSchema(Schema[Boolean].toJsonSchema).reflect.toString
         assertTrue(structure == "wrapper Json(wrapper DynamicValue(Boolean))")
       },
       test("Double primitive roundtrips to BigDecimal (JsonSchema number)") {
-        val jsonSchema  = Schema[Double].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val structure   = schemaForJs.reflect.toString
-
+        val structure = Schema.fromJsonSchema(Schema[Double].toJsonSchema).reflect.toString
         assertTrue(structure == "wrapper Json(wrapper DynamicValue(BigDecimal))")
       },
       test("Person record roundtrips with correct field structure") {
-        val jsonSchema  = Schema[Person].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val structure   = wrapped.map(_.toString).getOrElse("")
-
-        val expected = """record Person {
-  name: wrapper DynamicValue(String)
-  age: wrapper DynamicValue(BigInt)
-}"""
-        assertTrue(structure == expected)
+        val wrapped = Schema
+          .fromJsonSchema(Schema[Person].toJsonSchema)
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
+        val structure = wrapped.map(_.toString).getOrElse("")
+        assertTrue(
+          structure ==
+            """record Person {
+              |  name: wrapper DynamicValue(String)
+              |  age: wrapper DynamicValue(BigInt @Range(min=-2147483648, max=2147483647))
+              |}""".stripMargin
+        )
       },
       test("List[Int] roundtrips to sequence of BigInt") {
-        val jsonSchema  = Schema[List[Int]].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val structure   = schemaForJs.reflect.toString
-
-        assertTrue(structure == "wrapper Json(wrapper DynamicValue(sequence Chunk[wrapper DynamicValue(BigInt)]))")
+        val structure = Schema.fromJsonSchema(Schema[List[Int]].toJsonSchema).reflect.toString
+        assertTrue(
+          structure == "wrapper Json(wrapper DynamicValue(sequence Chunk[wrapper DynamicValue(BigInt @Range(min=-2147483648, max=2147483647))]))"
+        )
       },
       test("Map[String, Int] roundtrips to map structure") {
-        val jsonSchema  = Schema[Map[String, Int]].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val structure   = schemaForJs.reflect.toString
-
+        val structure = Schema.fromJsonSchema(Schema[Map[String, Int]].toJsonSchema).reflect.toString
         assertTrue(
-          structure == "wrapper Json(wrapper DynamicValue(map Map[DynamicValue, wrapper DynamicValue(BigInt)]))"
+          structure == "wrapper Json(wrapper DynamicValue(map Map[DynamicValue, wrapper DynamicValue(BigInt @Range(min=-2147483648, max=2147483647))]))"
         )
       },
       test("Color enum roundtrips with correct case names") {
-        val jsonSchema  = Schema[Color].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val structure   = wrapped.map(_.toString).getOrElse("")
-
-        val expected = """variant Color {
-  | Red
-  | Green
-  | Blue
-}"""
-        assertTrue(structure == expected)
+        val wrapped = Schema
+          .fromJsonSchema(Schema[Color].toJsonSchema)
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
+        assertTrue(
+          wrapped.map(_.toString).getOrElse("") ==
+            """variant Color {
+              |  | Red
+              |  | Green
+              |  | Blue
+              |}""".stripMargin
+        )
       },
       test("Shape variant roundtrips with correct case structures") {
-        val jsonSchema  = Schema[Shape].toJsonSchema
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val structure   = wrapped.map(_.toString).getOrElse("")
-
-        val expected = """variant Shape {
-  | Circle(radius: wrapper DynamicValue(BigDecimal))
-  | Rectangle(
-      width: wrapper DynamicValue(BigDecimal),
-      height: wrapper DynamicValue(BigDecimal)
-    )
-}"""
-        assertTrue(structure == expected)
+        val wrapped = Schema.fromJsonSchema(Schema[Shape].toJsonSchema).reflect.asWrapperUnknown.map(_.wrapper.wrapped)
+        assertTrue(
+          wrapped.map(_.toString).getOrElse("") ==
+            """variant Shape {
+              |  | Circle(radius: wrapper DynamicValue(BigDecimal))
+              |  | Rectangle(
+              |      width: wrapper DynamicValue(BigDecimal),
+              |      height: wrapper DynamicValue(BigDecimal)
+              |    )
+              |}""".stripMargin
+        )
       },
       test("tuple schema roundtrips to record with positional fields") {
-        val jsonSchema = JsonSchema.Object(
-          prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
-          items = Some(JsonSchema.False)
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.Object(
+              prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+              items = Some(JsonSchema.False)
+            )
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
+        val inner = wrapped.flatMap(_.asWrapperUnknown).map(_.wrapper.wrapped)
+        assertTrue(
+          inner.map(_.toString).getOrElse("") ==
+            """record DynamicValue {
+              |  _1: wrapper DynamicValue(String)
+              |  _2: wrapper DynamicValue(BigInt)
+              |}""".stripMargin
         )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val inner       = wrapped.flatMap(_.asWrapperUnknown).map(_.wrapper.wrapped)
-        val structure   = inner.map(_.toString).getOrElse("")
-
-        val expected = """record DynamicValue {
-  _1: wrapper DynamicValue(String)
-  _2: wrapper DynamicValue(BigInt)
-}"""
-        assertTrue(structure == expected)
       },
       test("nested record roundtrips with correct nested structure") {
-        val jsonSchema = JsonSchema.obj(
-          properties = Some(
-            ChunkMap(
-              "name"    -> JsonSchema.string(),
-              "address" -> JsonSchema.obj(
-                properties = Some(ChunkMap("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
-                required = Some(Set("city", "zip"))
-              )
+        val wrapped = Schema
+          .fromJsonSchema(
+            JsonSchema.obj(
+              properties = Some(
+                ChunkMap(
+                  "name"    -> JsonSchema.string(),
+                  "address" -> JsonSchema.obj(
+                    properties = Some(ChunkMap("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),
+                    required = Some(Set("city", "zip"))
+                  )
+                )
+              ),
+              required = Some(Set("name", "address"))
             )
-          ),
-          required = Some(Set("name", "address"))
+          )
+          .reflect
+          .asWrapperUnknown
+          .map(_.wrapper.wrapped)
+        assertTrue(
+          wrapped.map(_.toString).getOrElse("") ==
+            """record DynamicValue {
+              |  name: wrapper DynamicValue(String)
+              |  address:   record DynamicValue {
+              |    city: wrapper DynamicValue(String)
+              |    zip: wrapper DynamicValue(String)
+              |  }
+              |}""".stripMargin
         )
-        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
-        val wrapped     = schemaForJs.reflect.asWrapperUnknown.map(_.wrapper.wrapped)
-        val structure   = wrapped.map(_.toString).getOrElse("")
-
-        val expected = """record DynamicValue {
-  name: wrapper DynamicValue(String)
-  address:   record DynamicValue {
-    city: wrapper DynamicValue(String)
-    zip: wrapper DynamicValue(String)
-  }
-}"""
-        assertTrue(structure == expected)
       }
     ),
     suite("Behavioral roundtrip (encode/decode)")(
       test("Person record encoded JSON conforms to generated JsonSchema") {
-        val original      = Schema[Person]
-        val jsonSchema    = original.toJsonSchema
-        val originalCodec = original.derive(JsonFormat)
-
-        val person  = Person("Alice", 30)
-        val encoded = originalCodec.encodeToString(person)
-        val parsed  = Json.parse(encoded)
-
-        parsed match {
-          case Right(json) => assertTrue(jsonSchema.conforms(json))
-          case Left(_)     => assertTrue(false)
+        val codec = Schema[Person].derive(JsonFormat)
+        Json.parse(codec.encodeToString(Person("Alice", 30))) match {
+          case Right(json) => assertTrue(Schema[Person].toJsonSchema.conforms(json))
+          case _           => assertTrue(false)
         }
       },
       test("Person record JSON can be decoded by Schema.fromJsonSchema") {
-        val jsonSchema     = Schema[Person].toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
-        val input   = """{"name": "Alice", "age": 30}"""
-        val decoded = roundtripCodec.decode(input)
-
-        decoded match {
-          case Right(json: Json) =>
+        val codec = Schema.fromJsonSchema(Schema[Person].toJsonSchema).derive(JsonFormat)
+        codec.decode("""{"name": "Alice", "age": 30}""") match {
+          case Right(json) =>
             assertTrue(
               json.get("name").one == Right(Json.String("Alice")),
               json.get("age").one == Right(Json.Number(30))
@@ -488,17 +475,10 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         }
       },
       test("Color enum encoded JSON conforms to generated JsonSchema") {
-        val original      = Schema[Color]
-        val jsonSchema    = original.toJsonSchema
-        val originalCodec = original.derive(JsonFormat)
-
-        val color   = Color.Red
-        val encoded = originalCodec.encodeToString(color)
-        val parsed  = Json.parse(encoded)
-
-        parsed match {
-          case Right(json) => assertTrue(jsonSchema.conforms(json))
-          case Left(_)     => assertTrue(false)
+        val codec = Schema[Color].derive(JsonFormat)
+        Json.parse(codec.encodeToString(Color.Red)) match {
+          case Right(json) => assertTrue(Schema[Color].toJsonSchema.conforms(json))
+          case _           => assertTrue(false)
         }
       },
       test("Color enum Json validates correctly against generated JsonSchema") {
@@ -511,56 +491,33 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("Shape variant encoded JSON conforms to generated JsonSchema") {
-        val original      = Schema[Shape]
-        val jsonSchema    = original.toJsonSchema
-        val originalCodec = original.derive(JsonFormat)
-
-        val circle  = Shape.Circle(5.0): Shape
-        val encoded = originalCodec.encodeToString(circle)
-        val parsed  = Json.parse(encoded)
-
-        parsed match {
-          case Right(json) => assertTrue(jsonSchema.conforms(json))
-          case Left(_)     => assertTrue(false)
+        val codec = Schema[Shape].derive(JsonFormat)
+        Json.parse(codec.encodeToString(Shape.Circle(5.0): Shape)) match {
+          case Right(json) => assertTrue(Schema[Shape].toJsonSchema.conforms(json))
+          case _           => assertTrue(false)
         }
       },
       test("Shape variant Json validates correctly against generated JsonSchema") {
-        val jsonSchema = Schema[Shape].toJsonSchema
-        val circleJson = Json.Object("Circle" -> Json.Object("radius" -> Json.Number(5.0)))
-        val rectJson   =
-          Json.Object("Rectangle" -> Json.Object("width" -> Json.Number(10.0), "height" -> Json.Number(20.0)))
-        val invalid = Json.Object("Triangle" -> Json.Object("base" -> Json.Number(5.0)))
-
+        val json1 = Json.Object("Circle" -> Json.Object("radius" -> Json.Number(5.0)))
+        val json2 = Json.Object("Rectangle" -> Json.Object("width" -> Json.Number(10.0), "height" -> Json.Number(20.0)))
+        val json3 = Json.Object("Triangle" -> Json.Object("base" -> Json.Number(5.0)))
         assertTrue(
-          jsonSchema.conforms(circleJson),
-          jsonSchema.conforms(rectJson),
-          !jsonSchema.conforms(invalid)
+          Schema[Shape].toJsonSchema.conforms(json1),
+          Schema[Shape].toJsonSchema.conforms(json2),
+          !Schema[Shape].toJsonSchema.conforms(json3)
         )
       },
       test("List[Int] encoded JSON conforms to generated JsonSchema") {
-        val original      = Schema[List[Int]]
-        val jsonSchema    = original.toJsonSchema
-        val originalCodec = original.derive(JsonFormat)
-
-        val list    = List(1, 2, 3)
-        val encoded = originalCodec.encodeToString(list)
-        val parsed  = Json.parse(encoded)
-
-        parsed match {
-          case Right(json) => assertTrue(jsonSchema.conforms(json))
-          case Left(_)     => assertTrue(false)
+        val codec = Schema[List[Int]].derive(JsonFormat)
+        Json.parse(codec.encodeToString(List(1, 2, 3))) match {
+          case Right(json) => assertTrue(Schema[List[Int]].toJsonSchema.conforms(json))
+          case _           => assertTrue(false)
         }
       },
       test("List[Int] JSON can be decoded by Schema.fromJsonSchema") {
-        val jsonSchema     = Schema[List[Int]].toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
-        val input   = """[1, 2, 3]"""
-        val decoded = roundtripCodec.decode(input)
-
-        decoded match {
-          case Right(json: Json) =>
+        val codec = Schema.fromJsonSchema(Schema[List[Int]].toJsonSchema).derive(JsonFormat)
+        codec.decode("""[1, 2, 3]""") match {
+          case Right(json) =>
             assertTrue(
               json.elements.length == 3,
               json.elements.head == Json.Number(1)
@@ -569,22 +526,15 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         }
       },
       test("nested Company encoded JSON conforms to generated JsonSchema") {
-        val original      = Schema[Company]
-        val jsonSchema    = original.toJsonSchema
-        val originalCodec = original.derive(JsonFormat)
-
-        val company = Company("Acme", Address("123 Main", "Springfield", Some("12345")), List(Person("Alice", 30)))
-        val encoded = originalCodec.encodeToString(company)
-        val parsed  = Json.parse(encoded)
-
-        parsed match {
-          case Right(json) => assertTrue(jsonSchema.conforms(json))
-          case Left(_)     => assertTrue(false)
+        val codec = Schema[Company].derive(JsonFormat)
+        val value = Company("Acme", Address("123 Main", "Springfield", Some("12345")), List(Person("Alice", 30)))
+        Json.parse(codec.encodeToString(value)) match {
+          case Right(json) => assertTrue(Schema[Company].toJsonSchema.conforms(json))
+          case _           => assertTrue(false)
         }
       },
       test("nested Company Json validates correctly against generated JsonSchema") {
-        val jsonSchema = Schema[Company].toJsonSchema
-        val validJson  = Json.Object(
+        val json1 = Json.Object(
           "name"    -> Json.String("Acme"),
           "address" -> Json.Object(
             "street"  -> Json.String("123 Main St"),
@@ -595,329 +545,292 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
             Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
           )
         )
-        val missingRequired = Json.Object(
+        val json2 = Json.Object(
           "name"      -> Json.String("Acme"),
           "employees" -> Json.Array()
         )
-
         assertTrue(
-          jsonSchema.conforms(validJson),
-          !jsonSchema.conforms(missingRequired)
+          Schema[Company].toJsonSchema.conforms(json1),
+          !Schema[Company].toJsonSchema.conforms(json2)
         )
       }
     ),
     suite("Validation roundtrip")(
       test("Byte constraints survive roundtrip") {
-        val original       = Schema[Byte]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[Byte].toJsonSchema).derive(JsonFormat)
+        check(Gen.byte)(x => assertTrue(codec.decode(x.toString).isRight)) &&
         assertTrue(
-          roundtripCodec.decode("127").isRight,
-          roundtripCodec.decode("-128").isRight,
-          roundtripCodec.decode("128").isLeft,
-          roundtripCodec.decode("-129").isLeft
+          codec.decode("127").isRight,
+          codec.decode("-128").isRight,
+          codec.decode("128").isLeft,
+          codec.decode("-129").isLeft
         )
       },
       test("Short constraints survive roundtrip") {
-        val original       = Schema[Short]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[Short].toJsonSchema).derive(JsonFormat)
+        check(Gen.short)(x => assertTrue(codec.decode(x.toString).isRight)) &&
         assertTrue(
-          roundtripCodec.decode("32767").isRight,
-          roundtripCodec.decode("-32768").isRight,
-          roundtripCodec.decode("32768").isLeft,
-          roundtripCodec.decode("-32769").isLeft
+          codec.decode("32767").isRight,
+          codec.decode("-32768").isRight,
+          codec.decode("32768").isLeft,
+          codec.decode("-32769").isLeft
         )
       },
       test("Char length constraints survive roundtrip") {
-        val original       = Schema[Char]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[Char].toJsonSchema).derive(JsonFormat)
+        check(Gen.char.filter(x => x >= ' ' && (x < 0xd800 || x > 0xdfff))) { // excluding control and surrogate chars
+          x => assertTrue(codec.decode(s""""$x"""").isRight)
+        } &&
         assertTrue(
-          roundtripCodec.decode(""""a"""").isRight,
-          roundtripCodec.decode("\"\"").isLeft,
-          roundtripCodec.decode(""""ab"""").isLeft
+          codec.decode(""""a"""").isRight,
+          codec.decode("\"\"").isLeft,
+          codec.decode(""""ab"""").isLeft
         )
       },
-      test("Int constraints survive roundtrip (no range limits)") {
-        val original       = Schema[Int]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+      test("Int constraints survive roundtrip") {
+        val codec = Schema.fromJsonSchema(Schema[Int].toJsonSchema).derive(JsonFormat)
+        check(Gen.int)(x => assertTrue(codec.decode(x.toString).isRight)) &&
         assertTrue(
-          roundtripCodec.decode("0").isRight,
-          roundtripCodec.decode("2147483647").isRight,
-          roundtripCodec.decode("-2147483648").isRight
+          codec.decode("2147483647").isRight,
+          codec.decode("-2147483648").isRight,
+          codec.decode("2147483648").isLeft,
+          codec.decode("-2147483649").isLeft
         )
       },
-      test("Long constraints survive roundtrip (no range limits)") {
-        val original       = Schema[Long]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+      test("Long constraints survive roundtrip") {
+        val codec = Schema.fromJsonSchema(Schema[Long].toJsonSchema).derive(JsonFormat)
+        check(Gen.long)(x => assertTrue(codec.decode(x.toString).isRight)) &&
         assertTrue(
-          roundtripCodec.decode("0").isRight,
-          roundtripCodec.decode("9223372036854775807").isRight,
-          roundtripCodec.decode("-9223372036854775808").isRight
+          codec.decode("9223372036854775807").isRight,
+          codec.decode("-9223372036854775808").isRight,
+          codec.decode("9223372036854775808").isLeft,
+          codec.decode("-9223372036854775809").isLeft
         )
       },
       test("BigInt constraints survive roundtrip") {
-        val original       = Schema[BigInt]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[BigInt].toJsonSchema).derive(JsonFormat)
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20))) { x =>
+          assertTrue(codec.decode(x.toString).isRight)
+        } &&
         assertTrue(
-          roundtripCodec.decode("0").isRight,
-          roundtripCodec.decode("999999999999999999999999999999").isRight,
-          roundtripCodec.decode("-999999999999999999999999999999").isRight
+          codec.decode("0").isRight,
+          codec.decode("999999999999999999999999999999").isRight,
+          codec.decode("-999999999999999999999999999999").isRight
         )
       },
       test("BigDecimal constraints survive roundtrip") {
-        val original       = Schema[BigDecimal]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[BigDecimal].toJsonSchema).derive(JsonFormat)
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20))) { x =>
+          assertTrue(codec.decode(x.toString).isRight)
+        } &&
         assertTrue(
-          roundtripCodec.decode("0.0").isRight,
-          roundtripCodec.decode("3.14159265358979323846").isRight,
-          roundtripCodec.decode("-999999999999.999999999999").isRight
+          codec.decode("0.0").isRight,
+          codec.decode("3.14159265358979323846").isRight,
+          codec.decode("-999999999999.999999999999").isRight
         )
       },
       test("Float constraints survive roundtrip") {
-        val original       = Schema[Float]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[Float].toJsonSchema).derive(JsonFormat)
+        check(Gen.float.filter(_.isFinite))(x => assertTrue(codec.decode(x.toString).isRight)) &&
         assertTrue(
-          roundtripCodec.decode("0.0").isRight,
-          roundtripCodec.decode("3.14").isRight,
-          roundtripCodec.decode("-123.456").isRight
+          codec.decode("0.0").isRight,
+          codec.decode("3.14").isRight,
+          codec.decode("-123.456").isRight
         )
       },
       test("Double constraints survive roundtrip") {
-        val original       = Schema[Double]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[Double].toJsonSchema).derive(JsonFormat)
+        check(Gen.double.filter(_.isFinite))(x => assertTrue(codec.decode(x.toString).isRight)) &&
         assertTrue(
-          roundtripCodec.decode("0.0").isRight,
-          roundtripCodec.decode("3.141592653589793").isRight,
-          roundtripCodec.decode("-1.7976931348623157E308").isRight
+          codec.decode("0.0").isRight,
+          codec.decode("3.141592653589793").isRight,
+          codec.decode("-1.7976931348623157E308").isRight
         )
       },
       test("Boolean constraints survive roundtrip") {
-        val original       = Schema[Boolean]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[Boolean].toJsonSchema).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("true").isRight,
-          roundtripCodec.decode("false").isRight,
-          roundtripCodec.decode("\"true\"").isLeft
+          codec.decode("true").isRight,
+          codec.decode("false").isRight,
+          codec.decode("\"true\"").isLeft
         )
       },
       test("String constraints survive roundtrip") {
-        val original       = Schema[String]
-        val jsonSchema     = original.toJsonSchema
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(Schema[String].toJsonSchema).derive(JsonFormat)
+        check(
+          Gen
+            .listOfBounded(0, 5)( // excluding control, surrogate and must be escaped chars
+              Gen.char.filter(x => x >= ' ' && x != '"' && x != '\\' && (x < 0xd800 || x > 0xdfff))
+            )
+            .map(_.mkString)
+        )(x => assertTrue(codec.decode(s""""$x"""").isRight)) &&
         assertTrue(
-          roundtripCodec.decode("\"\"").isRight,
-          roundtripCodec.decode(""""hello world"""").isRight,
-          roundtripCodec.decode(""""special chars: \n\t\r"""").isRight
+          codec.decode("\"\"").isRight,
+          codec.decode(""""hello world"""").isRight,
+          codec.decode(""""special chars: \n\t\r"""").isRight
         )
+      },
+      test("Currency constraints survive roundtrip") {
+        val codec = Schema.fromJsonSchema(Schema[java.util.Currency].toJsonSchema).derive(JsonFormat)
+        check(Gen.currency)(x => assertTrue(codec.decode(s""""$x"""").isRight)) &&
+        assertTrue(
+          codec.decode("\"USD\"").isRight,
+          codec.decode("\"USDC\"").isLeft
+        )
+      },
+      test("UUID constraints survive roundtrip") {
+        val codec = Schema.fromJsonSchema(Schema[java.util.UUID].toJsonSchema).derive(JsonFormat)
+        check(Gen.uuid)(x => assertTrue(codec.decode(s""""$x"""").isRight)) &&
+        assertTrue(codec.decode("\"0-0-0-0-0\"").isLeft)
       }
     ),
     suite("JsonSchema validation constraints roundtrip")(
       test("string minLength constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(3)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec =
+          Schema.fromJsonSchema(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(3)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode(""""abc"""").isRight,
-          roundtripCodec.decode(""""abcd"""").isRight,
-          roundtripCodec.decode(""""ab"""").isLeft,
-          roundtripCodec.decode(""""a"""").isLeft,
-          roundtripCodec.decode("\"\"").isLeft
+          codec.decode(""""abc"""").isRight,
+          codec.decode(""""abcd"""").isRight,
+          codec.decode(""""ab"""").isLeft,
+          codec.decode(""""a"""").isLeft,
+          codec.decode("\"\"").isLeft
         )
       },
       test("string maxLength constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(5)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec =
+          Schema.fromJsonSchema(JsonSchema.string(maxLength = Some(NonNegativeInt.unsafe(5)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("\"\"").isRight,
-          roundtripCodec.decode(""""abc"""").isRight,
-          roundtripCodec.decode(""""abcde"""").isRight,
-          roundtripCodec.decode(""""abcdef"""").isLeft,
-          roundtripCodec.decode(""""this is too long"""").isLeft
+          codec.decode("\"\"").isRight,
+          codec.decode(""""abc"""").isRight,
+          codec.decode(""""abcde"""").isRight,
+          codec.decode(""""abcdef"""").isLeft,
+          codec.decode(""""this is too long"""").isLeft
         )
       },
       test("string minLength and maxLength together survive roundtrip") {
-        val jsonSchema = JsonSchema.string(
-          minLength = Some(NonNegativeInt.unsafe(2)),
-          maxLength = Some(NonNegativeInt.unsafe(4))
-        )
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(
+            JsonSchema.string(
+              minLength = Some(NonNegativeInt.unsafe(2)),
+              maxLength = Some(NonNegativeInt.unsafe(4))
+            )
+          )
+          .derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode(""""ab"""").isRight,
-          roundtripCodec.decode(""""abc"""").isRight,
-          roundtripCodec.decode(""""abcd"""").isRight,
-          roundtripCodec.decode(""""a"""").isLeft,
-          roundtripCodec.decode(""""abcde"""").isLeft
+          codec.decode(""""ab"""").isRight,
+          codec.decode(""""abc"""").isRight,
+          codec.decode(""""abcd"""").isRight,
+          codec.decode(""""a"""").isLeft,
+          codec.decode(""""abcde"""").isLeft
         )
       },
       test("string pattern constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$")))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[a-z]+$"))))
+          .derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode(""""abc"""").isRight,
-          roundtripCodec.decode(""""hello"""").isRight,
-          roundtripCodec.decode(""""ABC"""").isLeft,
-          roundtripCodec.decode(""""Hello"""").isLeft,
-          roundtripCodec.decode(""""hello123"""").isLeft
+          codec.decode(""""abc"""").isRight,
+          codec.decode(""""hello"""").isRight,
+          codec.decode(""""ABC"""").isLeft,
+          codec.decode(""""Hello"""").isLeft,
+          codec.decode(""""hello123"""").isLeft
         )
       },
       test("string email-like pattern constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[^@]+@[^@]+\\.[^@]+$")))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.string(pattern = Some(RegexPattern.unsafe("^[^@]+@[^@]+\\.[^@]+$"))))
+          .derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode(""""test@example.com"""").isRight,
-          roundtripCodec.decode(""""user@domain.org"""").isRight,
-          roundtripCodec.decode(""""invalid"""").isLeft,
-          roundtripCodec.decode(""""@missing.com"""").isLeft
+          codec.decode(""""test@example.com"""").isRight,
+          codec.decode(""""user@domain.org"""").isRight,
+          codec.decode(""""invalid"""").isLeft,
+          codec.decode(""""@missing.com"""").isLeft
         )
       },
       test("integer minimum constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.integer(minimum = Some(BigDecimal(0)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(JsonSchema.integer(minimum = Some(BigDecimal(0)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("0").isRight,
-          roundtripCodec.decode("1").isRight,
-          roundtripCodec.decode("100").isRight,
-          roundtripCodec.decode("-1").isLeft,
-          roundtripCodec.decode("-100").isLeft
+          codec.decode("0").isRight,
+          codec.decode("1").isRight,
+          codec.decode("100").isRight,
+          codec.decode("-1").isLeft,
+          codec.decode("-100").isLeft
         )
       },
       test("integer maximum constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.integer(maximum = Some(BigDecimal(100)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(JsonSchema.integer(maximum = Some(BigDecimal(100)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("-1000").isRight,
-          roundtripCodec.decode("0").isRight,
-          roundtripCodec.decode("100").isRight,
-          roundtripCodec.decode("101").isLeft,
-          roundtripCodec.decode("1000").isLeft
+          codec.decode("-1000").isRight,
+          codec.decode("0").isRight,
+          codec.decode("100").isRight,
+          codec.decode("101").isLeft,
+          codec.decode("1000").isLeft
         )
       },
       test("integer minimum and maximum together survive roundtrip") {
-        val jsonSchema = JsonSchema.integer(
-          minimum = Some(BigDecimal(10)),
-          maximum = Some(BigDecimal(20))
-        )
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.integer(minimum = Some(BigDecimal(10)), maximum = Some(BigDecimal(20))))
+          .derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("10").isRight,
-          roundtripCodec.decode("15").isRight,
-          roundtripCodec.decode("20").isRight,
-          roundtripCodec.decode("9").isLeft,
-          roundtripCodec.decode("21").isLeft
+          codec.decode("10").isRight,
+          codec.decode("15").isRight,
+          codec.decode("20").isRight,
+          codec.decode("9").isLeft,
+          codec.decode("21").isLeft
         )
       },
       test("number minimum constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.number(minimum = Some(BigDecimal(0.0)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(JsonSchema.number(minimum = Some(BigDecimal(0.0)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("0.0").isRight,
-          roundtripCodec.decode("0.001").isRight,
-          roundtripCodec.decode("100.5").isRight,
-          roundtripCodec.decode("-0.001").isLeft,
-          roundtripCodec.decode("-100.0").isLeft
+          codec.decode("0.0").isRight,
+          codec.decode("0.001").isRight,
+          codec.decode("100.5").isRight,
+          codec.decode("-0.001").isLeft,
+          codec.decode("-100.0").isLeft
         )
       },
       test("number maximum constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.number(maximum = Some(BigDecimal(100.0)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(JsonSchema.number(maximum = Some(BigDecimal(100.0)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("-1000.0").isRight,
-          roundtripCodec.decode("0.0").isRight,
-          roundtripCodec.decode("100.0").isRight,
-          roundtripCodec.decode("100.001").isLeft,
-          roundtripCodec.decode("1000.0").isLeft
+          codec.decode("-1000.0").isRight,
+          codec.decode("0.0").isRight,
+          codec.decode("100.0").isRight,
+          codec.decode("100.001").isLeft,
+          codec.decode("1000.0").isLeft
         )
       },
       test("number minimum and maximum together survive roundtrip") {
-        val jsonSchema = JsonSchema.number(
-          minimum = Some(BigDecimal(-1.0)),
-          maximum = Some(BigDecimal(1.0))
-        )
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.number(minimum = Some(BigDecimal(-1.0)), maximum = Some(BigDecimal(1.0))))
+          .derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("-1.0").isRight,
-          roundtripCodec.decode("0.0").isRight,
-          roundtripCodec.decode("0.5").isRight,
-          roundtripCodec.decode("1.0").isRight,
-          roundtripCodec.decode("-1.001").isLeft,
-          roundtripCodec.decode("1.001").isLeft
+          codec.decode("-1.0").isRight,
+          codec.decode("0.0").isRight,
+          codec.decode("0.5").isRight,
+          codec.decode("1.0").isRight,
+          codec.decode("-1.001").isLeft,
+          codec.decode("1.001").isLeft
         )
       },
       test("exclusiveMinimum constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.integer(exclusiveMinimum = Some(BigDecimal(0)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema.fromJsonSchema(JsonSchema.integer(exclusiveMinimum = Some(BigDecimal(0)))).derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("1").isRight,
-          roundtripCodec.decode("100").isRight,
-          roundtripCodec.decode("0").isLeft,
-          roundtripCodec.decode("-1").isLeft
+          codec.decode("1").isRight,
+          codec.decode("100").isRight,
+          codec.decode("0").isLeft,
+          codec.decode("-1").isLeft
         )
       },
       test("exclusiveMaximum constraint survives roundtrip") {
-        val jsonSchema     = JsonSchema.integer(exclusiveMaximum = Some(BigDecimal(100)))
-        val schemaForJs    = Schema.fromJsonSchema(jsonSchema)
-        val roundtripCodec = schemaForJs.derive(JsonFormat)
-
+        val codec = Schema
+          .fromJsonSchema(JsonSchema.integer(exclusiveMaximum = Some(BigDecimal(100))))
+          .derive(JsonFormat)
         assertTrue(
-          roundtripCodec.decode("-100").isRight,
-          roundtripCodec.decode("0").isRight,
-          roundtripCodec.decode("99").isRight,
-          roundtripCodec.decode("100").isLeft,
-          roundtripCodec.decode("101").isLeft
+          codec.decode("-100").isRight,
+          codec.decode("0").isRight,
+          codec.decode("99").isRight,
+          codec.decode("100").isLeft,
+          codec.decode("101").isLeft
         )
       }
     )
