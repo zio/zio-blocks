@@ -510,6 +510,7 @@ When a `Schema` is in scope, use convenient extension methods:
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
+import zio.blocks.schema.xml.syntax._
 
 case class Person(name: String, age: Int)
 object Person {
