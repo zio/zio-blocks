@@ -53,7 +53,7 @@ The relationship between typed and dynamic optics:
 └──────────────────┘             └──────────────────┘
 ```
 
-The `Optic[S, A]` and `DynamicOptic` types serve complementary roles in ZIO Blocks' optics system. `Optic[S, A]` provides compile-time type safety through macros or manual construction, operating on typed Scala values, and can be converted to a `DynamicOptic` via the `optic.toDynamic` method. In contrast, `DynamicOptic` performs runtime type checking and is constructed through a builder API or [path interpolator](../path-interpolator.md), operating directly on [DynamicValue](./dynamic-value.md), [Schema](./schema.md), and [Reflect](./reflect.md) representations. 
+The `Optic[S, A]` and `DynamicOptic` types serve complementary roles in ZIO Blocks' optics system. `Optic[S, A]` provides compile-time type safety through macros or manual construction, operates on typed Scala values, and can be converted to a `DynamicOptic` via the `optic.toDynamic` method. In contrast, `DynamicOptic` performs runtime type checking and is constructed through a builder API or [path interpolator](../path-interpolator.md), operating directly on [DynamicValue](./dynamic-value.md), [Schema](./schema.md), and [Reflect](./reflect.md) representations. 
 
 ## Design & Structure
 
@@ -96,8 +96,7 @@ Key design decisions:
 - **Dual rendering** — `toString` produces a compact interpolator syntax (`.field[0]{key}`), while `toScalaString` produces Scala method-call syntax (`.field.at(0).atKey(key)`). The compact format is designed to be copy-pasteable into the `p"..."` string interpolator, while the Scala format is used in error messages.
 - **Every typed `Optic` has a `toDynamic` method** — This bridges the typed and untyped worlds, allowing any `Lens`, `Prism`, `Optional`, or `Traversal` to produce its `DynamicOptic` representation.
 
-
-## Constructing DynamicOptics
+## Construction
 
 ### Starting Points
 
@@ -210,7 +209,9 @@ val dynamicStreet: DynamicOptic = Person.street.toDynamic
 
 See [Optics](./optics.md) for more on typed optics.
 
-## Composition
+## Operations
+
+### Composition
 
 `DynamicOptic` values compose via the `apply` method, which concatenates their node sequences:
 
@@ -234,7 +235,7 @@ val emails = users(p"[*].email")
 // toString: .users[*].email
 ```
 
-## DynamicValue Operations
+### DynamicValue Operations
 
 `DynamicOptic` is the path argument for all `DynamicValue` operations: `get(path)` for retrieval (with `.one` or `.toChunk`), `modify(path)(f)` for transformation, `set(path, value)` for replacement, `delete(path)` for removal, and `insert(path, value)` for addition. All operations are lenient by default, returning the original value unchanged if the path doesn't resolve, but each has a strict `*OrFail` variant returning `Either[SchemaError, DynamicValue]` with error details on failure.
 
@@ -259,7 +260,7 @@ val allNames = data.get(p".users[*].name").toChunk
 // Chunk(DynamicValue.string("Alice"), DynamicValue.string("Bob"))
 ```
 
-## Schema and Reflect Navigation
+### Schema & Reflect Operations
 
 `DynamicOptic` can navigate schema structures, not just values. This is useful for schema introspection and
 metaprogramming.
@@ -321,10 +322,9 @@ val path = p".name"
 val result: Option[Reflect[?, ?]] = path(reflect)
 ```
 
-## Error Handling with OpticCheck
+## Failure Path in OpticCheck
 
-Typed optics use `DynamicOptic` internally for error reporting. When a typed optic operation fails (e.g., a `Prism`
-encounters the wrong case), the error includes the `DynamicOptic` path to pinpoint exactly where the failure occurred.
+Typed optics use `DynamicOptic` internally for error reporting. When a typed optic operation fails (e.g., a `Prism` encounters the wrong case), the error includes the `DynamicOptic` path to pinpoint exactly where the failure occurred.
 
 ```
 OpticCheck(errors: ::[Single])
@@ -352,7 +352,7 @@ encountered an unexpected case at .when[Email]:
 expected Email, but got Push
 ```
 
-## String Representations
+## Path String Syntax
 
 `DynamicOptic` provides two string formats for different contexts:
 
@@ -378,7 +378,7 @@ expected Email, but got Push
 
 ## Serialization
 
-`DynamicOptic` has an implicit `Schema[DynamicOptic]` defined in its companion object, which means it can be serialized and deserialized just like any other schema-equipped type. This enables storing optic paths in databases, sending them over the wire, or including them in configuration files.
+`DynamicOptic` has an implicit `Schema[DynamicOptic]` defined in its companion object, which means it can be serialized and deserialized just like any other schema-equipped type. This enables storing optic paths in databases, sending them over the wire, or including them in configuration files:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
