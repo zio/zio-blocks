@@ -1,7 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
-import scala.collection.mutable
+import zio.blocks.chunk.{Chunk, ChunkBuilder, NonEmptyChunk}
 
 /**
  * Represents the "type" keyword values in JSON Schema.
@@ -68,8 +67,8 @@ sealed trait SchemaType extends Product with Serializable {
 }
 
 object SchemaType {
-  final case class Single(value: JsonSchemaType)     extends SchemaType
-  final case class Union(values: ::[JsonSchemaType]) extends SchemaType
+  final case class Single(value: JsonSchemaType)                extends SchemaType
+  final case class Union(values: NonEmptyChunk[JsonSchemaType]) extends SchemaType
 
   def fromJson(json: Json): Either[String, SchemaType] = json match {
     case s: Json.String =>
@@ -78,7 +77,7 @@ object SchemaType {
         case _       => new Left(s"Unknown type: ${s.value}")
       }
     case a: Json.Array =>
-      val types  = new mutable.ListBuffer[JsonSchemaType]
+      val types  = ChunkBuilder.make[JsonSchemaType]()
       val errors = new java.lang.StringBuilder
       a.value.foreach {
         case s: Json.String =>
@@ -95,9 +94,10 @@ object SchemaType {
       }
       if (errors.length > 0) new Left(errors.toString)
       else {
-        val ts = types.result()
-        if (ts eq Nil) new Left("Empty type array")
-        else new Right(new Union(ts.asInstanceOf[::[JsonSchemaType]]))
+        NonEmptyChunk.fromChunk(types.result()) match {
+          case Some(ts) => new Right(new Union(ts))
+          case _        => new Left("Empty type array")
+        }
       }
     case other => new Left(s"Expected string or array for type, got ${other.getClass.getSimpleName}")
   }

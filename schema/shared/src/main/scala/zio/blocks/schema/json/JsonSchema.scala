@@ -1,10 +1,9 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import java.net.URI
 import java.util.regex.{Pattern, PatternSyntaxException}
-import scala.collection.mutable
 import scala.util.control.NonFatal
 
 // =============================================================================
@@ -425,10 +424,10 @@ sealed trait JsonSchema extends Product with Serializable {
     case (s, JsonSchema.True)                           => s
     case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
       JsonSchema.Object(allOf = new Some((s1.allOf, s2.allOf) match {
-        case (Some(a1), Some(a2)) => new ::(a1.head, a1.tail ++ a2)
-        case (Some(a1), _)        => new ::(s2, a1)
-        case (_, Some(a2))        => new ::(s1, a2)
-        case _                    => new ::(s1, s2 :: Nil)
+        case (Some(a1), Some(a2)) => a1 ++ a2
+        case (Some(a1), _)        => s2 +: a1
+        case (_, Some(a2))        => s1 +: a2
+        case _                    => NonEmptyChunk(s1, s2)
       }))
   }
 
@@ -439,11 +438,11 @@ sealed trait JsonSchema extends Product with Serializable {
     case (JsonSchema.False, s)                          => s
     case (s, JsonSchema.False)                          => s
     case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
-      JsonSchema.Object(anyOf = Some((s1.anyOf, s2.anyOf) match {
-        case (Some(a1), Some(a2)) => new ::(a1.head, a1.tail ++ a2)
-        case (Some(a1), None)     => new ::(s2, a1)
-        case (None, Some(a2))     => new ::(s1, a2)
-        case (None, None)         => new ::(s1, s2 :: Nil)
+      JsonSchema.Object(anyOf = new Some((s1.anyOf, s2.anyOf) match {
+        case (Some(a1), Some(a2)) => a1 ++ a2
+        case (Some(a1), None)     => s2 +: a1
+        case (None, Some(a2))     => s1 +: a2
+        case (None, None)         => NonEmptyChunk(s1, s2)
       }))
   }
 
@@ -465,14 +464,14 @@ sealed trait JsonSchema extends Product with Serializable {
             case st: SchemaType.Single =>
               val t = st.value
               if (t eq JsonSchemaType.Null) s
-              else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, new ::(t, Nil)))))
+              else s.copy(`type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Null, t))))
             case ut: SchemaType.Union =>
               val ts = ut.values
               if (ts.contains(JsonSchemaType.Null)) s
-              else s.copy(`type` = new Some(new SchemaType.Union(new ::(JsonSchemaType.Null, ts))))
+              else s.copy(`type` = new Some(new SchemaType.Union(JsonSchemaType.Null +: ts)))
           }
         case _ =>
-          new JsonSchema.Object(anyOf = new Some(new ::(JsonSchema.ofType(JsonSchemaType.Null), new ::(s, Nil))))
+          new JsonSchema.Object(anyOf = new Some(NonEmptyChunk(JsonSchema.ofType(JsonSchemaType.Null), s)))
       }
   }
 }
@@ -564,9 +563,9 @@ object JsonSchema {
     // =========================================================================
     // Applicator Vocabulary (Composition)
     // =========================================================================
-    allOf: Option[::[JsonSchema]] = None,
-    anyOf: Option[::[JsonSchema]] = None,
-    oneOf: Option[::[JsonSchema]] = None,
+    allOf: Option[NonEmptyChunk[JsonSchema]] = None,
+    anyOf: Option[NonEmptyChunk[JsonSchema]] = None,
+    oneOf: Option[NonEmptyChunk[JsonSchema]] = None,
     not: Option[JsonSchema] = None,
     // =========================================================================
     // Applicator Vocabulary (Conditional)
@@ -585,7 +584,7 @@ object JsonSchema {
     // =========================================================================
     // Applicator Vocabulary (Array)
     // =========================================================================
-    prefixItems: Option[::[JsonSchema]] = None,
+    prefixItems: Option[NonEmptyChunk[JsonSchema]] = None,
     items: Option[JsonSchema] = None,
     contains: Option[JsonSchema] = None,
     // =========================================================================
@@ -597,7 +596,7 @@ object JsonSchema {
     // Validation Vocabulary (Type)
     // =========================================================================
     `type`: Option[SchemaType] = None,
-    `enum`: Option[::[Json]] = None,
+    `enum`: Option[NonEmptyChunk[Json]] = None,
     const: Option[Json] = None,
     // =========================================================================
     // Validation Vocabulary (Numeric)
@@ -647,7 +646,7 @@ object JsonSchema {
     deprecated: Option[scala.Boolean] = None,
     readOnly: Option[scala.Boolean] = None,
     writeOnly: Option[scala.Boolean] = None,
-    examples: Option[::[Json]] = None,
+    examples: Option[NonEmptyChunk[Json]] = None,
     // =========================================================================
     // Extensions
     // =========================================================================
@@ -974,16 +973,15 @@ object JsonSchema {
       `enum` match {
         case Some(values) =>
           if (!values.contains(json)) {
-            val sb             = new java.lang.StringBuilder("Value not in enum: ")
-            var idx            = 0
-            var vs: List[Json] = values
-            while ((vs ne Nil) && idx < 10) { // Take up to 10 values to avoid too-long error messages
+            val sb  = new java.lang.StringBuilder("Value not in enum: ")
+            val len = Math.min(values.length, 10)
+            var idx = 0
+            while (idx < len) { // Take up to 10 values to avoid too-long error messages
               if (idx > 0) sb.append(", ")
-              sb.append(vs.head.print)
-              vs = vs.tail
+              sb.append(values(idx).print)
               idx += 1
             }
-            if (vs ne Nil) sb.append(", ...")
+            if (idx != values.length) sb.append(", ...")
             result = result.addError(trace, sb.toString)
           }
         case _ =>
@@ -1430,7 +1428,7 @@ object JsonSchema {
 
   def array(
     items: Option[JsonSchema] = None,
-    prefixItems: Option[::[JsonSchema]] = None,
+    prefixItems: Option[NonEmptyChunk[JsonSchema]] = None,
     minItems: Option[NonNegativeInt] = None,
     maxItems: Option[NonNegativeInt] = None,
     uniqueItems: Option[scala.Boolean] = None,
@@ -1483,10 +1481,10 @@ object JsonSchema {
     title = title
   )
 
-  def enumOf(values: ::[Json]): JsonSchema = new Object(`enum` = new Some(values))
+  def enumOf(values: NonEmptyChunk[Json]): JsonSchema = new Object(`enum` = new Some(values))
 
-  def enumOfStrings(values: ::[String]): JsonSchema =
-    new Object(`enum` = new Some(values.map(new Json.String(_)).asInstanceOf[::[Json]]))
+  def enumOfStrings(values: NonEmptyChunk[String]): JsonSchema =
+    new Object(`enum` = new Some(values.map(new Json.String(_))))
 
   def constOf(value: Json): JsonSchema = new Object(const = new Some(value))
 
@@ -1548,9 +1546,9 @@ object JsonSchema {
       case _                    => None
     }
 
-    def getSchemaList(key: String): Either[SchemaError, Option[::[JsonSchema]]] = fieldMap.get(key) match {
+    def getSchemaList(key: String): Either[SchemaError, Option[NonEmptyChunk[JsonSchema]]] = fieldMap.get(key) match {
       case Some(arr: Json.Array) =>
-        val schemas            = new mutable.ListBuffer[JsonSchema]
+        val schemas            = ChunkBuilder.make[JsonSchema]()
         var error: SchemaError = null
         arr.value.foreach { json =>
           fromJson(json) match {
@@ -1563,10 +1561,7 @@ object JsonSchema {
         }
         if (error ne null) new Left(error)
         else {
-          new Right({
-            if (schemas.isEmpty) None
-            else new Some(schemas.toList.asInstanceOf[::[JsonSchema]])
-          })
+          new Right(NonEmptyChunk.fromChunk(schemas.result()))
         }
       case v =>
         if (v eq None) new Right(None)
@@ -1608,12 +1603,9 @@ object JsonSchema {
       case _ => None
     }
 
-    def getJsonList(key: String): Option[::[Json]] = fieldMap.get(key) match {
-      case Some(arr: Json.Array) =>
-        val json = arr.value
-        if (json.isEmpty) None
-        else new Some(json.toList.asInstanceOf[::[Json]])
-      case _ => None
+    def getJsonList(key: String): Option[NonEmptyChunk[Json]] = fieldMap.get(key) match {
+      case Some(arr: Json.Array) => NonEmptyChunk.fromChunk(arr.value)
+      case _                     => None
     }
 
     // Parse all fields

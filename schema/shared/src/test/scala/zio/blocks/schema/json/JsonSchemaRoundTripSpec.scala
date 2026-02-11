@@ -1,9 +1,8 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.test._
-
 import java.net.URI
 
 object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
@@ -114,7 +113,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       test("array with all constraints round-trips") {
         val schema = JsonSchema.array(
           items = Some(JsonSchema.string()),
-          prefixItems = Some(::(JsonSchema.integer(), List(JsonSchema.boolean))),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.integer(), JsonSchema.boolean)),
           minItems = Some(NonNegativeInt.unsafe(1)),
           maxItems = Some(NonNegativeInt.unsafe(10)),
           uniqueItems = Some(true),
@@ -143,7 +142,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("enum schema round-trips") {
-        val schema    = JsonSchema.enumOf(::(Json.String("a"), List(Json.String("b"), Json.Number(1))))
+        val schema    = JsonSchema.enumOf(NonEmptyChunk(Json.String("a"), Json.String("b"), Json.Number(1)))
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
         assertTrue(roundtrip == Right(schema))
@@ -156,7 +155,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("allOf schema round-trips") {
         val schema = JsonSchema.Object(
-          allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))))))
+          allOf =
+            Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1)))))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -164,7 +164,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("anyOf schema round-trips") {
         val schema = JsonSchema.Object(
-          anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer())))
+          anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer()))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -172,7 +172,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("oneOf schema round-trips") {
         val schema = JsonSchema.Object(
-          oneOf = Some(::(JsonSchema.string(), List(JsonSchema.integer())))
+          oneOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer()))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -355,7 +355,9 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("type keyword serializes union as array") {
         val schema =
-          JsonSchema.Object(`type` = Some(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))))
+          JsonSchema.Object(`type` =
+            Some(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Number)))
+          )
         val json = schema.toJson
         assertTrue(
           json
@@ -413,7 +415,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           uniqueItems = Some(true),
           minContains = Some(NonNegativeInt.unsafe(2)),
           maxContains = Some(NonNegativeInt.unsafe(5)),
-          prefixItems = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
           items = Some(JsonSchema.boolean),
           contains = Some(JsonSchema.number()),
           unevaluatedItems = Some(JsonSchema.False)
@@ -464,9 +466,10 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("composition keywords serialize correctly") {
         val schema = JsonSchema.Object(
-          allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1)))))),
-          anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
-          oneOf = Some(::(JsonSchema.boolean, List(JsonSchema.nullSchema))),
+          allOf =
+            Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))))),
+          anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
+          oneOf = Some(NonEmptyChunk(JsonSchema.boolean, JsonSchema.nullSchema)),
           not = Some(JsonSchema.array())
         )
         val json     = schema.toJson
@@ -517,7 +520,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           deprecated = Some(true),
           readOnly = Some(true),
           writeOnly = Some(false),
-          examples = Some(::(Json.String("example1"), List(Json.String("example2"))))
+          examples = Some(NonEmptyChunk(Json.String("example1"), Json.String("example2")))
         )
         val json     = schema.toJson
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
@@ -553,7 +556,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           result.isRight,
           result.exists {
             case s: JsonSchema.Object =>
-              s.`type`.contains(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Null))))
+              s.`type`.contains(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Null)))
             case _ => false
           }
         )

@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{ChunkBuilder, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
@@ -12,7 +12,6 @@ import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.{Owner, TypeId}
 import scala.annotation.{switch, tailrec}
-import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -528,26 +527,22 @@ class JsonBinaryCodecDeriver private[json] (
 
                 def encodeValue(x: A, out: JsonWriter): Unit = root.discriminate(x).writeVal(out)
 
-                override lazy val toJsonSchema: JsonSchema = {
-                  val enumNames = collectEnumNames(enumInfos, new mutable.ListBuffer).result()
-                  if (enumNames eq Nil) JsonSchema.False
-                  else {
-                    new JsonSchema.Object(
-                      `enum` = new Some(enumNames.map(new Json.String(_)).asInstanceOf[::[Json]]),
-                      title = new Some(variantTypeName)
-                    )
+                override lazy val toJsonSchema: JsonSchema =
+                  NonEmptyChunk.fromChunk(collectEnumNames(enumInfos, ChunkBuilder.make()).result()) match {
+                    case Some(enumNames) =>
+                      new JsonSchema.Object(`enum` = new Some(enumNames), title = new Some(variantTypeName))
+                    case _ => JsonSchema.False
                   }
-                }
 
                 private[this] def collectEnumNames(
                   infos: Array[EnumInfo],
-                  acc: mutable.ListBuffer[String]
-                ): mutable.ListBuffer[String] = {
+                  acc: ChunkBuilder[Json.String]
+                ): ChunkBuilder[Json.String] = {
                   val len = infos.length
                   var idx = 0
                   while (idx < len) {
                     infos(idx) match {
-                      case leaf: EnumLeafInfo    => acc.addOne(leaf.enumName)
+                      case leaf: EnumLeafInfo    => acc.addOne(new Json.String(leaf.enumName))
                       case node: EnumNodeInfo[?] => collectEnumNames(node.enumInfos, acc)
                     }
                     idx += 1
@@ -621,22 +616,18 @@ class JsonBinaryCodecDeriver private[json] (
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
 
                     override lazy val toJsonSchema: JsonSchema = {
-                      val builder = new mutable.ListBuffer[JsonSchema]
-                      collectCaseSchemas(root.caseInfos, builder)
-                      val caseSchemas = builder.result()
-                      if (caseSchemas eq Nil) JsonSchema.False
-                      else {
-                        new JsonSchema.Object(
-                          oneOf = new Some(caseSchemas.asInstanceOf[::[JsonSchema]]),
-                          title = new Some(variantTypeName)
-                        )
+                      val chunk = collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
+                      NonEmptyChunk.fromChunk(chunk) match {
+                        case Some(caseSchemas) =>
+                          new JsonSchema.Object(oneOf = new Some(caseSchemas), title = new Some(variantTypeName))
+                        case _ => JsonSchema.False
                       }
                     }
 
                     private[this] def collectCaseSchemas(
                       infos: Array[CaseInfo],
-                      acc: mutable.ListBuffer[JsonSchema]
-                    ): Unit = {
+                      acc: ChunkBuilder[JsonSchema]
+                    ): ChunkBuilder[JsonSchema] = {
                       val len = infos.length
                       var idx = 0
                       while (idx < len) {
@@ -646,6 +637,7 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                         idx += 1
                       }
+                      acc
                     }
                   }
                 case DiscriminatorKind.None =>
@@ -695,21 +687,12 @@ class JsonBinaryCodecDeriver private[json] (
                     def encodeValue(x: A, out: JsonWriter): Unit =
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
 
-                    override lazy val toJsonSchema: JsonSchema = {
-                      var caseSchemas: List[JsonSchema] = Nil
-                      var idx                           = caseLeafCodecs.length
-                      while ({
-                        idx -= 1
-                        idx >= 0
-                      }) caseSchemas = new ::(caseLeafCodecs(idx).toJsonSchema, caseSchemas)
-                      if (caseSchemas eq Nil) JsonSchema.False
-                      else {
-                        new JsonSchema.Object(
-                          oneOf = new Some(caseSchemas.asInstanceOf[::[JsonSchema]]),
-                          title = new Some(variantTypeName)
-                        )
+                    override lazy val toJsonSchema: JsonSchema =
+                      NonEmptyChunk.fromChunk(Chunk.fromArray(caseLeafCodecs.map(_.toJsonSchema))) match {
+                        case Some(caseSchemas) =>
+                          new JsonSchema.Object(oneOf = new Some(caseSchemas), title = new Some(variantTypeName))
+                        case _ => JsonSchema.False
                       }
-                    }
                   }
                 case _ =>
                   val map = new StringMap[CaseLeafInfo](variant.cases.length)
@@ -779,22 +762,18 @@ class JsonBinaryCodecDeriver private[json] (
                     }
 
                     override lazy val toJsonSchema: JsonSchema = {
-                      val builder = new mutable.ListBuffer[JsonSchema]
-                      collectCaseSchemas(root.caseInfos, builder)
-                      val caseSchemas = builder.result()
-                      if (caseSchemas eq Nil) JsonSchema.False
-                      else {
-                        new JsonSchema.Object(
-                          oneOf = new Some(caseSchemas.asInstanceOf[::[JsonSchema]]),
-                          title = new Some(variantTypeName)
-                        )
+                      val chunk = collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
+                      NonEmptyChunk.fromChunk(chunk) match {
+                        case Some(caseSchemas) =>
+                          new JsonSchema.Object(oneOf = new Some(caseSchemas), title = new Some(variantTypeName))
+                        case _ => JsonSchema.False
                       }
                     }
 
                     private[this] def collectCaseSchemas(
                       infos: Array[CaseInfo],
-                      acc: mutable.ListBuffer[JsonSchema]
-                    ): Unit = {
+                      acc: ChunkBuilder[JsonSchema]
+                    ): ChunkBuilder[JsonSchema] = {
                       val len = infos.length
                       var idx = 0
                       while (idx < len) {
@@ -814,6 +793,7 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                         idx += 1
                       }
+                      acc
                     }
                   }
               }
@@ -1818,21 +1798,15 @@ class JsonBinaryCodecDeriver private[json] (
               out.writeArrayEnd()
             }
 
-            override lazy val toJsonSchema: JsonSchema = {
-              var schemas: List[JsonSchema] = Nil
-              var idx                       = fields.length
-              while ({
-                idx -= 1
-                idx >= 0
-              }) schemas = new ::(fieldCodecs(idx).toJsonSchema, schemas)
-              if (schemas eq Nil) JsonSchema.array()
-              else {
-                JsonSchema.array(
-                  prefixItems = new Some(schemas.asInstanceOf[::[JsonSchema]]),
-                  items = new Some(JsonSchema.False)
-                )
+            override lazy val toJsonSchema: JsonSchema =
+              NonEmptyChunk.fromChunk(Chunk.from(fieldCodecs.map(_.toJsonSchema))) match {
+                case Some(schemas) =>
+                  JsonSchema.array(
+                    prefixItems = new Some(schemas),
+                    items = new Some(JsonSchema.False)
+                  )
+                case None => JsonSchema.False
               }
-            }
           }
         } else {
           val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
