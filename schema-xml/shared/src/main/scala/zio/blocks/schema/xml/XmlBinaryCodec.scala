@@ -50,6 +50,7 @@ abstract class XmlBinaryCodec[A](val valueType: Int = XmlBinaryCodec.objectType)
 
   def decode(input: Array[Byte], config: ReaderConfig): Either[SchemaError, A] =
     try {
+      // Force preserveWhitespace=true for codec decoding to ensure text content is preserved correctly
       val readerConfig = config.copy(preserveWhitespace = true)
       XmlReader.readFromBytes(input, readerConfig) match {
         case Left(xmlError) => Left(toSchemaError(xmlError))

@@ -14,6 +14,12 @@ object XmlReader {
     }
   }
 
+  /**
+   * Reads XML from a byte array.
+   *
+   * Note: This method always decodes bytes as UTF-8. For other encodings,
+   * decode the bytes to a String first and use the `read` method.
+   */
   def readFromBytes(input: Array[Byte], config: ReaderConfig = ReaderConfig.default): Either[XmlError, Xml] = {
     val str = new String(input, "UTF-8")
     read(str, config)

@@ -150,10 +150,10 @@ simple.prefix        // ""
 // With namespace URI
 val ns = XmlName("person", "http://example.com/ns")
 
-// With namespace and prefix
-val prefixed = XmlName("atom:feed")
-prefixed.localName   // "feed"
-prefixed.prefix      // "atom"
+// With prefix (for prefixed elements like atom:feed)
+val prefixed = XmlName("feed", Some("atom"), None)
+prefixed.localName              // "feed"
+prefixed.prefix.contains("atom") // true
 ```
 
 ## XmlBuilder

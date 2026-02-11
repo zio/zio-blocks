@@ -519,7 +519,12 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
                   (codec.valueType: @switch) match {
                     case 0 =>
                       val value = regs.getObject(fieldOffset)
-                      if (!(isOptional && value == None)) {
+                      if (isOptional && value == None) {
+                        // Skip None values
+                      } else if (isOptional && value.isInstanceOf[Some[?]]) {
+                        val inner = value.asInstanceOf[Some[Any]].get
+                        attributes += ((XmlName(attrName), inner.toString))
+                      } else {
                         attributes += ((XmlName(attrName), value.toString))
                       }
                     case 1 => attributes += ((XmlName(attrName), regs.getInt(fieldOffset).toString))
@@ -597,8 +602,8 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
             }
             val (elementName, finalAttrs) = nsInfo match {
               case Some((uri, prefix)) if prefix.nonEmpty =>
-                val prefixedName = XmlName(s"$prefix:$recordName")
-                val nsAttr       = (XmlName(s"xmlns:$prefix"), uri)
+                val prefixedName = XmlName(recordName, Some(prefix), None)
+                val nsAttr       = (XmlName(prefix, Some("xmlns"), None), uri)
                 (prefixedName, Chunk.single(nsAttr) ++ attributes.result())
               case Some((uri, _)) =>
                 val nsAttr = (XmlName("xmlns"), uri)
