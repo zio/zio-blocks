@@ -99,49 +99,49 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     val pool = allocate(poolResource)
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
-    $(pool) { p =>
-      scoped { workScope =>
-        import workScope._
-        val conn = allocate(p.acquire)
-        $(conn) { c =>
-          val result = c.execute("SELECT * FROM service_a_table")
-          println(s"  [ServiceA] Got: $result")
-        }
-        () // Return Unit (Unscoped) to escape child scope
+    scoped { workScope =>
+      import workScope._
+      val program = for {
+        p <- pool
+        c <- allocate(p.acquire)
+      } yield {
+        val result = c.execute("SELECT * FROM service_a_table")
+        println(s"  [ServiceA] Got: $result")
       }
+      execute(program)
+      ()
     }
     println()
 
     println("--- ServiceB doing work ---")
-    $(pool) { p =>
-      scoped { workScope =>
-        import workScope._
-        val conn = allocate(p.acquire)
-        $(conn) { c =>
-          val result = c.execute("SELECT * FROM service_b_table")
-          println(s"  [ServiceB] Got: $result")
-        }
-        () // Return Unit (Unscoped) to escape child scope
+    scoped { workScope =>
+      import workScope._
+      val program = for {
+        p <- pool
+        c <- allocate(p.acquire)
+      } yield {
+        val result = c.execute("SELECT * FROM service_b_table")
+        println(s"  [ServiceB] Got: $result")
       }
+      execute(program)
+      ()
     }
     println()
 
     println("--- Multiple connections in same scope ---")
-    $(pool) { p =>
-      scoped { workScope =>
-        import workScope._
-        val connA = allocate(p.acquire)
-        val connB = allocate(p.acquire)
-
-        $(connA) { a =>
-          $(connB) { b =>
-            println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
-            a.execute("UPDATE table_a SET x = 1")
-            b.execute("UPDATE table_b SET y = 2")
-          }
-        }
-        () // Return Unit (Unscoped) to escape child scope
+    scoped { workScope =>
+      import workScope._
+      val program = for {
+        p <- pool
+        a <- allocate(p.acquire)
+        b <- allocate(p.acquire)
+      } yield {
+        println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
+        a.execute("UPDATE table_a SET x = 1")
+        b.execute("UPDATE table_b SET y = 2")
       }
+      execute(program)
+      ()
     }
     println()
 
