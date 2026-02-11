@@ -46,7 +46,7 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
         var captured: String = null
         Scope.global.scoped { scope =>
           val str: String @@ scope.Tag = scope.allocate(zio.blocks.scope.Resource("test"))
-          scope.$(str) { s =>
+          (scope $ str) { s =>
             captured = s
             s
           }
@@ -77,7 +77,7 @@ object ScopeEscapeSpec extends ZIOSpecDefault {
           parent.scoped { child =>
             var captured: String         = null
             val str: String @@ child.Tag = child.allocate(zio.blocks.scope.Resource("hello"))
-            child.$(str) { s =>
+            (child $ str) { s =>
               captured = s.toUpperCase
               s.toUpperCase
             }

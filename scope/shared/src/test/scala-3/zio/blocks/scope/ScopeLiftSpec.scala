@@ -171,7 +171,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
 
           Scope.global.scoped { scope =>
             val db = scope.allocate(Resource("test"))
-            val result: String = scope.$(db)(identity) // Should fail - $ returns String @@ scope.Tag
+            val result: String = (scope $ db)(identity) // Should fail - $ returns String @@ scope.Tag
             result
           }
         """))(isLeft)

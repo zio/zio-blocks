@@ -99,9 +99,9 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>
-      appScope.$(pool) { p =>
+      (appScope $ pool) { p =>
         val conn = workScope.allocate(p.acquire)
-        workScope.$(conn) { c =>
+        (workScope $ conn) { c =>
           val result = c.execute("SELECT * FROM service_a_table")
           println(s"  [ServiceA] Got: $result")
         }
@@ -111,9 +111,9 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
 
     println("--- ServiceB doing work ---")
     appScope.scoped { workScope =>
-      appScope.$(pool) { p =>
+      (appScope $ pool) { p =>
         val conn = workScope.allocate(p.acquire)
-        workScope.$(conn) { c =>
+        (workScope $ conn) { c =>
           val result = c.execute("SELECT * FROM service_b_table")
           println(s"  [ServiceB] Got: $result")
         }
@@ -123,12 +123,12 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
 
     println("--- Multiple connections in same scope ---")
     appScope.scoped { workScope =>
-      appScope.$(pool) { p =>
+      (appScope $ pool) { p =>
         val connA = workScope.allocate(p.acquire)
         val connB = workScope.allocate(p.acquire)
 
-        workScope.$(connA) { a =>
-          workScope.$(connB) { b =>
+        (workScope $ connA) { a =>
+          (workScope $ connB) { b =>
             println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
             a.execute("UPDATE table_a SET x = 1")
             b.execute("UPDATE table_b SET y = 2")

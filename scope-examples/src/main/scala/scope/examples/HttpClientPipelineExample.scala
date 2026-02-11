@@ -62,7 +62,7 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
  * Key concepts:
  *   - `(scopedValue).map(f)` builds a `Scoped` computation lazily
  *   - `(scopedValue).flatMap(f)` chains scoped computations
- *   - `scope.$(scopedValue) { v => ... }` executes and applies a function
+ *   - `(scope $ scopedValue) { v => ... }` executes and applies a function
  *   - The computation only runs when explicitly executed
  */
 @main def httpClientPipelineExample(): Unit = {
@@ -100,22 +100,22 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     println("Pipeline definitions built. Now executing each step...\n")
 
-    // Step 3: Execute each computation using scope.$
-    // Use scope.$ to apply a function to the scoped value
+    // Step 3: Execute each computation using (scope $ value)
+    // Use (scope $ value) to apply a function to the scoped value
     println("--- Executing: fetchUsers ---")
-    scope.$(scope.execute(fetchUsers)) { users =>
+    (scope $ scope.execute(fetchUsers)) { users =>
       println(s"\n=== Users Result ===")
       println(s"Users data: ${users.values}")
     }
 
     println("\n--- Executing: fetchOrders ---")
-    scope.$(scope.execute(fetchOrders)) { orders =>
+    (scope $ scope.execute(fetchOrders)) { orders =>
       println(s"\n=== Orders Result ===")
       println(s"Orders data: ${orders.values}")
     }
 
     println("\n--- Executing: postAnalytics ---")
-    scope.$(scope.execute(postAnalytics)) { analytics =>
+    (scope $ scope.execute(postAnalytics)) { analytics =>
       println(s"\n=== Analytics Result ===")
       println(s"Analytics: ${analytics.values}")
     }
