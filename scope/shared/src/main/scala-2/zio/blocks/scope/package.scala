@@ -57,7 +57,7 @@ package object scope {
    * @tparam S
    *   the scope tag type (contravariant)
    */
-  type @@[+A, -S] = Scoped[A, S]
+  type @@[+A, -S] = Scoped.Scoped[A, S]
 
   /**
    * Registers a finalizer to run when the finalizer closes.
@@ -109,4 +109,5 @@ package object scope {
    *   the raw unwrapped value
    */
   def leak[A, S](scoped: A @@ S): A = macro LeakMacros.leakImpl[A, S]
+
 }

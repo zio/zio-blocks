@@ -65,6 +65,6 @@ trait ScopeEscapeLowPriority {
   implicit def resourceful[A, S]: ScopeEscape.Aux[A, S, A @@ S] =
     new ScopeEscape[A, S] {
       type Out = A @@ S
-      def apply(a: A): Out = Scoped.scoped[A, S](a)
+      def apply(a: A): Out = Scoped.eager[A, S](a)
     }
 }
