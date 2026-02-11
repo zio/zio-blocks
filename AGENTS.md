@@ -80,20 +80,7 @@ Run once after verify passes.
 
 ## Cross-Version Code Structure
 
-For Scala version-specific code (macros, syntax), use ONE shared package object extending a version-specific trait:
-
-```
-module/shared/src/main/scala/zio/blocks/module/package.scala      ← extends VersionSpecificTrait
-module/shared/src/main/scala-2/zio/blocks/module/VersionSpecificTrait.scala  ← Scala 2 impl
-module/shared/src/main/scala-3/zio/blocks/module/VersionSpecificTrait.scala  ← Scala 3 impl
-```
-
-**Example** (see `markdown/` module):
-- `scala/package.scala`: `package object docs extends MdInterpolator`
-- `scala-2/MdInterpolator.scala`: trait with Scala 2 macro
-- `scala-3/MdInterpolator.scala`: trait with Scala 3 macro
-
-**Never** create separate package objects per Scala version.
+For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
 
 ## Testing
 
