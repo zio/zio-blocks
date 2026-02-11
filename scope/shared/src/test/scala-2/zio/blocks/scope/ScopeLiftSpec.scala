@@ -106,7 +106,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
               () => "captured"
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       },
       test("child scope itself cannot escape") {
         assertZIO(typeCheck("""
@@ -117,7 +117,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
               child
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     ),
     suite("ScopeLift.Out type precision")(
@@ -149,7 +149,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
               s
             }
           }
-        """))(isLeft)
+        """))(isLeft(containsString("ScopeLift")))
       }
     ),
     suite("$ and execute return scoped values")(
@@ -162,7 +162,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
             val result: String = scope.$(db)(identity)
             result
           }
-        """))(isLeft)
+        """))(isLeft(containsString("type mismatch")))
       },
       test("execute returns A @@ scope.Tag, not raw A") {
         assertZIO(typeCheck("""
@@ -174,7 +174,7 @@ object ScopeLiftSpec extends ZIOSpecDefault {
             val result: String = scope.execute(computation)
             result
           }
-        """))(isLeft)
+        """))(isLeft(containsString("type mismatch")))
       }
     ),
     suite("Working patterns for tests")(

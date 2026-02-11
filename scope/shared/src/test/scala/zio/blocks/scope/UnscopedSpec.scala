@@ -7,169 +7,154 @@ import java.util.UUID
 import scala.concurrent.duration.{Duration => ScalaDuration, FiniteDuration}
 
 /**
- * Tests that all expected Unscoped instances exist and work correctly. Each
- * instance is tested by verifying it can be summoned and used with ScopeEscape.
+ * Tests that all expected Unscoped instances exist and work correctly.
  */
 object UnscopedSpec extends ZIOSpecDefault {
-
-  // Helper to verify an Unscoped instance exists and ScopeEscape returns raw type
-  def verifyUnscoped[A](value: A)(implicit ev: Unscoped[A]): Boolean = {
-    val escape = implicitly[ScopeEscape[A, String]]
-    escape(value) == value
-  }
 
   def spec = suite("Unscoped")(
     suite("Primitives")(
       test("Int") {
-        assertTrue(verifyUnscoped(42))
+        implicitly[Unscoped[Int]]; assertCompletes
       },
       test("Long") {
-        assertTrue(verifyUnscoped(42L))
+        implicitly[Unscoped[Long]]; assertCompletes
       },
       test("Short") {
-        assertTrue(verifyUnscoped(42.toShort))
+        implicitly[Unscoped[Short]]; assertCompletes
       },
       test("Byte") {
-        assertTrue(verifyUnscoped(42.toByte))
+        implicitly[Unscoped[Byte]]; assertCompletes
       },
       test("Char") {
-        assertTrue(verifyUnscoped('a'))
+        implicitly[Unscoped[Char]]; assertCompletes
       },
       test("Boolean") {
-        assertTrue(verifyUnscoped(true))
+        implicitly[Unscoped[Boolean]]; assertCompletes
       },
       test("Float") {
-        assertTrue(verifyUnscoped(3.14f))
+        implicitly[Unscoped[Float]]; assertCompletes
       },
       test("Double") {
-        assertTrue(verifyUnscoped(3.14))
+        implicitly[Unscoped[Double]]; assertCompletes
       },
       test("Unit") {
-        assertTrue(verifyUnscoped(()))
+        implicitly[Unscoped[Unit]]; assertCompletes
       },
       test("String") {
-        assertTrue(verifyUnscoped("hello"))
+        implicitly[Unscoped[String]]; assertCompletes
       },
       test("BigInt") {
-        assertTrue(verifyUnscoped(BigInt(42)))
+        implicitly[Unscoped[BigInt]]; assertCompletes
       },
       test("BigDecimal") {
-        assertTrue(verifyUnscoped(BigDecimal(3.14)))
+        implicitly[Unscoped[BigDecimal]]; assertCompletes
       }
     ),
     suite("Collections")(
       test("Array[Int]") {
-        assertTrue(verifyUnscoped(Array(1, 2, 3)))
+        implicitly[Unscoped[Array[Int]]]; assertCompletes
       },
       test("List[String]") {
-        assertTrue(verifyUnscoped(List("a", "b")))
+        implicitly[Unscoped[List[String]]]; assertCompletes
       },
       test("Vector[Int]") {
-        assertTrue(verifyUnscoped(Vector(1, 2)))
+        implicitly[Unscoped[Vector[Int]]]; assertCompletes
       },
       test("Set[Int]") {
-        assertTrue(verifyUnscoped(Set(1, 2)))
+        implicitly[Unscoped[Set[Int]]]; assertCompletes
       },
-      test("Option[Int] - Some") {
-        assertTrue(verifyUnscoped(Some(42): Option[Int]))
-      },
-      test("Option[Int] - None") {
-        assertTrue(verifyUnscoped(None: Option[Int]))
+      test("Option[Int]") {
+        implicitly[Unscoped[Option[Int]]]; assertCompletes
       },
       test("Seq[Int]") {
-        assertTrue(verifyUnscoped(Seq(1, 2)))
+        implicitly[Unscoped[Seq[Int]]]; assertCompletes
       },
       test("IndexedSeq[Int]") {
-        assertTrue(verifyUnscoped(IndexedSeq(1, 2)))
+        implicitly[Unscoped[IndexedSeq[Int]]]; assertCompletes
       },
       test("Iterable[Int]") {
-        assertTrue(verifyUnscoped(Iterable(1, 2)))
+        implicitly[Unscoped[Iterable[Int]]]; assertCompletes
       },
       test("Map[String, Int]") {
-        assertTrue(verifyUnscoped(Map("a" -> 1)))
+        implicitly[Unscoped[Map[String, Int]]]; assertCompletes
       },
       test("Chunk[Int]") {
-        assertTrue(verifyUnscoped(Chunk(1, 2, 3)))
+        implicitly[Unscoped[Chunk[Int]]]; assertCompletes
       }
     ),
     suite("Either")(
-      test("Either[String, Int] - Right") {
-        assertTrue(verifyUnscoped(Right(42): Either[String, Int]))
-      },
-      test("Either[String, Int] - Left") {
-        assertTrue(verifyUnscoped(Left("error"): Either[String, Int]))
+      test("Either[String, Int]") {
+        implicitly[Unscoped[Either[String, Int]]]; assertCompletes
       }
     ),
     suite("Tuples")(
       test("Tuple2") {
-        assertTrue(verifyUnscoped((1, "a")))
+        implicitly[Unscoped[(Int, String)]]; assertCompletes
       },
       test("Tuple3") {
-        assertTrue(verifyUnscoped((1, "a", true)))
+        implicitly[Unscoped[(Int, String, Boolean)]]; assertCompletes
       },
       test("Tuple4") {
-        assertTrue(verifyUnscoped((1, "a", true, 3.14)))
+        implicitly[Unscoped[(Int, String, Boolean, Double)]]; assertCompletes
       }
     ),
     suite("Java time types")(
       test("Instant") {
-        assertTrue(verifyUnscoped(Instant.now()))
+        implicitly[Unscoped[Instant]]; assertCompletes
       },
       test("LocalDate") {
-        assertTrue(verifyUnscoped(LocalDate.now()))
+        implicitly[Unscoped[LocalDate]]; assertCompletes
       },
       test("LocalTime") {
-        assertTrue(verifyUnscoped(LocalTime.now()))
+        implicitly[Unscoped[LocalTime]]; assertCompletes
       },
       test("LocalDateTime") {
-        assertTrue(verifyUnscoped(LocalDateTime.now()))
+        implicitly[Unscoped[LocalDateTime]]; assertCompletes
       },
       test("ZonedDateTime") {
-        assertTrue(verifyUnscoped(ZonedDateTime.now()))
+        implicitly[Unscoped[ZonedDateTime]]; assertCompletes
       },
       test("OffsetDateTime") {
-        assertTrue(verifyUnscoped(OffsetDateTime.now()))
+        implicitly[Unscoped[OffsetDateTime]]; assertCompletes
       },
       test("java.time.Duration") {
-        assertTrue(verifyUnscoped(Duration.ofSeconds(10)))
+        implicitly[Unscoped[Duration]]; assertCompletes
       },
       test("Period") {
-        assertTrue(verifyUnscoped(Period.ofDays(5)))
+        implicitly[Unscoped[Period]]; assertCompletes
       },
       test("ZoneId") {
-        assertTrue(verifyUnscoped(ZoneId.systemDefault()))
+        implicitly[Unscoped[ZoneId]]; assertCompletes
       },
       test("ZoneOffset") {
-        assertTrue(verifyUnscoped(ZoneOffset.UTC))
+        implicitly[Unscoped[ZoneOffset]]; assertCompletes
       }
     ),
     suite("Common Java types")(
       test("UUID") {
-        // Use fixed UUID instead of randomUUID() for Scala.js compatibility (no SecureRandom)
-        val uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        assertTrue(verifyUnscoped(uuid))
+        implicitly[Unscoped[UUID]]; assertCompletes
       }
     ),
     suite("Scala duration")(
       test("scala.concurrent.duration.Duration") {
-        assertTrue(verifyUnscoped(ScalaDuration.fromNanos(1000)))
+        implicitly[Unscoped[ScalaDuration]]; assertCompletes
       },
       test("FiniteDuration") {
-        assertTrue(verifyUnscoped(FiniteDuration(5, "seconds")))
+        implicitly[Unscoped[FiniteDuration]]; assertCompletes
       }
     ),
     suite("Nested collections")(
       test("List[Option[Int]]") {
-        assertTrue(verifyUnscoped(List(Some(1), None, Some(2))))
+        implicitly[Unscoped[List[Option[Int]]]]; assertCompletes
       },
       test("Map[String, List[Int]]") {
-        assertTrue(verifyUnscoped(Map("a" -> List(1, 2))))
+        implicitly[Unscoped[Map[String, List[Int]]]]; assertCompletes
       },
       test("Either[String, List[Int]]") {
-        assertTrue(verifyUnscoped(Right(List(1, 2)): Either[String, List[Int]]))
+        implicitly[Unscoped[Either[String, List[Int]]]]; assertCompletes
       },
       test("Chunk[Option[String]]") {
-        assertTrue(verifyUnscoped(Chunk(Some("a"), None)))
+        implicitly[Unscoped[Chunk[Option[String]]]]; assertCompletes
       }
     )
   )

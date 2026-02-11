@@ -34,67 +34,49 @@ object UnscopedDerivedScala3Spec extends ZIOSpecDefault {
 
   case class ConfigWithChunk(data: zio.blocks.chunk.Chunk[String]) derives Unscoped
 
-  def verifyUnscoped[A](value: A)(using ev: Unscoped[A]): Boolean = {
-    val escape = summon[ScopeEscape[A, String]]
-    escape(value) == value
-  }
-
   def spec = suite("Unscoped.derived (Scala 3)")(
     suite("case classes")(
       test("simple case class with primitives") {
-        assertTrue(verifyUnscoped(Config("localhost", 8080)))
+        summon[Unscoped[Config]]; assertCompletes
       },
       test("case class with multiple String fields") {
-        assertTrue(verifyUnscoped(DatabaseConfig("jdbc://localhost", "user", "pass")))
+        summon[Unscoped[DatabaseConfig]]; assertCompletes
       },
       test("nested case classes") {
-        val nested = NestedConfig(Config("localhost", 8080), DatabaseConfig("jdbc://localhost", "user", "pass"))
-        assertTrue(verifyUnscoped(nested))
+        summon[Unscoped[NestedConfig]]; assertCompletes
       },
       test("case class with Double fields") {
-        assertTrue(verifyUnscoped(Point(1.0, 2.0)))
+        summon[Unscoped[Point]]; assertCompletes
       }
     ),
     suite("case objects")(
       test("simple case object") {
-        assertTrue(verifyUnscoped(Singleton))
+        summon[Unscoped[Singleton.type]]; assertCompletes
       }
     ),
     suite("sealed traits")(
-      test("sealed trait with case objects") {
-        assertTrue(verifyUnscoped(Active: Status) && verifyUnscoped(Inactive: Status))
+      test("Status") {
+        summon[Unscoped[Status]]; assertCompletes
       },
-      test("sealed trait with case classes") {
-        assertTrue(verifyUnscoped(Pending("waiting"): Status))
-      },
-      test("sealed trait with mixed cases") {
-        assertTrue(verifyUnscoped(Failed(500, "error"): Status))
-      },
-      test("sealed trait with only case classes") {
-        assertTrue(verifyUnscoped(Circle(5.0): Shape) && verifyUnscoped(Rectangle(10.0, 20.0): Shape))
+      test("Shape") {
+        summon[Unscoped[Shape]]; assertCompletes
       }
     ),
     suite("case classes with collections")(
       test("case class with Option") {
-        assertTrue(
-          verifyUnscoped(ConfigWithOption("test", Some(true))) &&
-            verifyUnscoped(ConfigWithOption("test", None))
-        )
+        summon[Unscoped[ConfigWithOption]]; assertCompletes
       },
       test("case class with List and Vector") {
-        assertTrue(verifyUnscoped(ConfigWithList(List("a", "b"), Vector(80, 443))))
+        summon[Unscoped[ConfigWithList]]; assertCompletes
       },
       test("case class with Map") {
-        assertTrue(verifyUnscoped(ConfigWithMap(Map("port" -> 8080, "timeout" -> 30))))
+        summon[Unscoped[ConfigWithMap]]; assertCompletes
       },
       test("case class with Either") {
-        assertTrue(
-          verifyUnscoped(ConfigWithEither(Right(42))) &&
-            verifyUnscoped(ConfigWithEither(Left("error")))
-        )
+        summon[Unscoped[ConfigWithEither]]; assertCompletes
       },
       test("case class with Chunk") {
-        assertTrue(verifyUnscoped(ConfigWithChunk(zio.blocks.chunk.Chunk("a", "b", "c"))))
+        summon[Unscoped[ConfigWithChunk]]; assertCompletes
       }
     )
   )

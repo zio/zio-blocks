@@ -39,9 +39,9 @@ object ErrorMessagesSpec extends ZIOSpecDefault {
           msg.contains("Scope Warning")
         )
       },
-      test("includes hint about ScopeEscape") {
+      test("includes hint about Unscoped") {
         val msg = ErrorMessages.renderLeakWarning("data", "S", color = false)
-        assertTrue(msg.contains("ScopeEscape"))
+        assertTrue(msg.contains("Unscoped"))
       },
       test("shows caret pointing at leaked value") {
         val msg = ErrorMessages.renderLeakWarning("x", "S", color = false)
