@@ -329,7 +329,7 @@ object JsonEncoder {
    * value to bytes, then parses it back to Json.
    */
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] = new JsonEncoder[A] {
-    private[this] val codec = schema.derive(JsonBinaryCodecDeriver)
+    private[this] val codec = schema.getInstance(JsonFormat)
 
     def encode(a: A): Json = Json.jsonCodec.decode(codec.encode(a)) match {
       case Right(json) => json
