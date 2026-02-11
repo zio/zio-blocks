@@ -11,6 +11,7 @@ const sidebars = {
          "reference/binding",
          "reference/registers",
          "reference/typeid",
+         "reference/modifier",
          "reference/dynamic-value",
          "reference/optics",
          "reference/chunk",
