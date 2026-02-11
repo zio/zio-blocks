@@ -35,26 +35,26 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
       test("rename + addField migrates structural type to case class") {
         val sourceSchema = Schema.derived[PersonV1Structural]
 
-        val migration = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.Rename(
-                at = DynamicOptic.root.field("firstName"),
-                to = "fullName"
-              ),
-              MigrationAction.DropField(
-                at = DynamicOptic.root.field("lastName"),
-                defaultForReverse = ""
-              ),
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("age"),
-                default = 0
-              )
+        val migration = MigrationBuilder(sourceSchema, PersonV2.schema, Vector.empty)
+          .withAction(
+            MigrationAction.Rename(
+              at = DynamicOptic.root.field("firstName"),
+              to = "fullName"
             )
-          ),
-          sourceSchema = sourceSchema,
-          targetSchema = PersonV2.schema
-        )
+          )
+          .withAction(
+            MigrationAction.DropField(
+              at = DynamicOptic.root.field("lastName"),
+              defaultForReverse = ""
+            )
+          )
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("age"),
+              default = 0
+            )
+          )
+          .buildPartial
 
         val oldPerson: PersonV1Structural = new {
           def firstName: String = "Alice"
@@ -70,32 +70,30 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
       test("join fields migrates structural type to case class") {
         val sourceSchema = Schema.derived[PersonV1Structural]
 
-        val migration = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.Join(
-                at = DynamicOptic.root.field("fullName"),
-                sourcePaths = Vector(
-                  DynamicOptic.root.field("firstName"),
-                  DynamicOptic.root.field("lastName")
-                ),
-                combiner = DynamicSchemaExpr.StringConcat(
-                  DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
-                  DynamicSchemaExpr.StringConcat(
-                    " ",
-                    DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
-                  )
-                )
+        val migration = MigrationBuilder(sourceSchema, PersonV2.schema, Vector.empty)
+          .withAction(
+            MigrationAction.Join(
+              at = DynamicOptic.root.field("fullName"),
+              sourcePaths = Vector(
+                DynamicOptic.root.field("firstName"),
+                DynamicOptic.root.field("lastName")
               ),
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("age"),
-                default = 25
+              combiner = DynamicSchemaExpr.StringConcat(
+                DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field0")),
+                DynamicSchemaExpr.StringConcat(
+                  " ",
+                  DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("field1"))
+                )
               )
             )
-          ),
-          sourceSchema = sourceSchema,
-          targetSchema = PersonV2.schema
-        )
+          )
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("age"),
+              default = 25
+            )
+          )
+          .buildPartial
 
         val oldPerson: PersonV1Structural = new {
           def firstName: String = "John"
@@ -176,40 +174,36 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
         val sourceSchema = Schema.derived[PersonV1Structural]
 
         // V1 (structural) -> V2 (case class)
-        val migration1 = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.Rename(
-                at = DynamicOptic.root.field("firstName"),
-                to = "fullName"
-              ),
-              MigrationAction.DropField(
-                at = DynamicOptic.root.field("lastName"),
-                defaultForReverse = ""
-              ),
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("age"),
-                default = 30
-              )
+        val migration1 = MigrationBuilder(sourceSchema, PersonV2.schema, Vector.empty)
+          .withAction(
+            MigrationAction.Rename(
+              at = DynamicOptic.root.field("firstName"),
+              to = "fullName"
             )
-          ),
-          sourceSchema = sourceSchema,
-          targetSchema = PersonV2.schema
-        )
+          )
+          .withAction(
+            MigrationAction.DropField(
+              at = DynamicOptic.root.field("lastName"),
+              defaultForReverse = ""
+            )
+          )
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("age"),
+              default = 30
+            )
+          )
+          .buildPartial
 
         // V2 -> V3: Add country
-        val migration2 = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("country"),
-                default = "US"
-              )
+        val migration2 = MigrationBuilder(PersonV2.schema, PersonV3.schema, Vector.empty)
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("country"),
+              default = "US"
             )
-          ),
-          sourceSchema = PersonV2.schema,
-          targetSchema = PersonV3.schema
-        )
+          )
+          .buildPartial
 
         val composed = migration1 ++ migration2
 
@@ -237,32 +231,24 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
         val v2Schema = Schema.derived[AddressV2]
 
         // V1 -> V2: Add zip
-        val migration1 = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("zip"),
-                default = "00000"
-              )
+        val migration1 = MigrationBuilder(v1Schema, v2Schema, Vector.empty)
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("zip"),
+              default = "00000"
             )
-          ),
-          sourceSchema = v1Schema,
-          targetSchema = v2Schema
-        )
+          )
+          .buildPartial
 
         // V2 -> Address: Add country
-        val migration2 = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("country"),
-                default = "US"
-              )
+        val migration2 = MigrationBuilder(v2Schema, Address.schema, Vector.empty)
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("country"),
+              default = "US"
             )
-          ),
-          sourceSchema = v2Schema,
-          targetSchema = Address.schema
-        )
+          )
+          .buildPartial
 
         val composed = migration1 ++ migration2
 
@@ -308,26 +294,26 @@ object StructuralMigrationSpec extends SchemaBaseSpec {
       test("reverse.reverse equals original structurally") {
         val sourceSchema = Schema.derived[PersonV1Structural]
 
-        val migration = Migration(
-          dynamicMigration = DynamicMigration(
-            Vector(
-              MigrationAction.Rename(
-                at = DynamicOptic.root.field("firstName"),
-                to = "fullName"
-              ),
-              MigrationAction.DropField(
-                at = DynamicOptic.root.field("lastName"),
-                defaultForReverse = ""
-              ),
-              MigrationAction.AddField(
-                at = DynamicOptic.root.field("age"),
-                default = 0
-              )
+        val migration = MigrationBuilder(sourceSchema, PersonV2.schema, Vector.empty)
+          .withAction(
+            MigrationAction.Rename(
+              at = DynamicOptic.root.field("firstName"),
+              to = "fullName"
             )
-          ),
-          sourceSchema = sourceSchema,
-          targetSchema = PersonV2.schema
-        )
+          )
+          .withAction(
+            MigrationAction.DropField(
+              at = DynamicOptic.root.field("lastName"),
+              defaultForReverse = ""
+            )
+          )
+          .withAction(
+            MigrationAction.AddField(
+              at = DynamicOptic.root.field("age"),
+              default = 0
+            )
+          )
+          .buildPartial
 
         val doubleReversed = migration.reverse.reverse
 

@@ -526,6 +526,196 @@ object DynamicMigrationSerializationSpec extends ZIOSpecDefault {
         val reversed = migration.reverse
         roundTrip(reversed)
       }
+    ),
+    // ---- Variant matcher coverage (exercises downcastOrNull positive + negative branches) ----
+    suite("MigrationAction variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                              = MigrationAction.schema.reflect.asVariant.get
+        val matchers                             = variant.matchers
+        val samples: IndexedSeq[MigrationAction] = IndexedSeq(
+          MigrationAction.AddField(DynamicOptic.root.field("x"), 0),
+          MigrationAction.DropField(DynamicOptic.root.field("x"), 0),
+          MigrationAction.Rename(DynamicOptic.root.field("x"), "y"),
+          MigrationAction.TransformValue(DynamicOptic.root.field("x"), 0),
+          MigrationAction.ChangeType(DynamicOptic.root.field("x"), PrimitiveConverter.IntToString),
+          MigrationAction.Mandate(DynamicOptic.root.field("x"), 0),
+          MigrationAction.Optionalize(DynamicOptic.root.field("x"), 0),
+          MigrationAction.Join(DynamicOptic.root.field("x"), Vector.empty, 0),
+          MigrationAction.Split(
+            DynamicOptic.root.field("x"),
+            Vector.empty,
+            DynamicSchemaExpr.StringSplit(DynamicSchemaExpr.Dynamic(DynamicOptic.root), " ")
+          ),
+          MigrationAction.TransformElements(DynamicOptic.root.field("x"), 0),
+          MigrationAction.TransformKeys(DynamicOptic.root.field("x"), 0),
+          MigrationAction.TransformValues(DynamicOptic.root.field("x"), 0),
+          MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+          MigrationAction.TransformCase(DynamicOptic.root, "A", Vector.empty),
+          MigrationAction.Irreversible(DynamicOptic.root, "test")
+        )
+        // For each matcher, test with every sample value.
+        // Exactly one sample should match (non-null) per matcher.
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
+    ),
+    suite("DynamicSchemaExpr variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                                = DynamicSchemaExpr.schema.reflect.asVariant.get
+        val matchers                               = variant.matchers
+        val samples: IndexedSeq[DynamicSchemaExpr] = IndexedSeq(
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+          DynamicSchemaExpr.DefaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0))),
+          DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+          DynamicSchemaExpr.Arithmetic(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+            DynamicSchemaExpr.ArithmeticOperator.Add,
+            DynamicSchemaExpr.NumericType.IntType
+          ),
+          DynamicSchemaExpr.StringConcat(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("a"))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("b")))
+          ),
+          DynamicSchemaExpr.StringSplit(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("a b"))),
+            " "
+          ),
+          DynamicSchemaExpr.StringUppercase(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("a")))
+          ),
+          DynamicSchemaExpr.StringLowercase(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("A")))
+          ),
+          DynamicSchemaExpr.StringLength(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("a")))
+          ),
+          DynamicSchemaExpr.StringRegexMatch(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("a"))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(".*")))
+          ),
+          DynamicSchemaExpr.Not(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+          ),
+          DynamicSchemaExpr.Relational(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+            DynamicSchemaExpr.RelationalOperator.Equal
+          ),
+          DynamicSchemaExpr.Logical(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false))),
+            DynamicSchemaExpr.LogicalOperator.And
+          ),
+          DynamicSchemaExpr.Convert(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("42"))),
+            PrimitiveConverter.StringToInt
+          )
+        )
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
+    ),
+    suite("PrimitiveConverter variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                                 = PrimitiveConverter.schema.reflect.asVariant.get
+        val matchers                                = variant.matchers
+        val samples: IndexedSeq[PrimitiveConverter] = IndexedSeq(
+          PrimitiveConverter.StringToInt,
+          PrimitiveConverter.IntToString,
+          PrimitiveConverter.StringToLong,
+          PrimitiveConverter.LongToString,
+          PrimitiveConverter.StringToDouble,
+          PrimitiveConverter.DoubleToString,
+          PrimitiveConverter.IntToLong,
+          PrimitiveConverter.LongToInt,
+          PrimitiveConverter.IntToDouble,
+          PrimitiveConverter.DoubleToInt
+        )
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
+    ),
+    suite("ArithmeticOperator variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                                                   = DynamicSchemaExpr.ArithmeticOperator.schema.reflect.asVariant.get
+        val matchers                                                  = variant.matchers
+        val samples: IndexedSeq[DynamicSchemaExpr.ArithmeticOperator] = IndexedSeq(
+          DynamicSchemaExpr.ArithmeticOperator.Add,
+          DynamicSchemaExpr.ArithmeticOperator.Subtract,
+          DynamicSchemaExpr.ArithmeticOperator.Multiply,
+          DynamicSchemaExpr.ArithmeticOperator.Divide
+        )
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
+    ),
+    suite("RelationalOperator variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                                                   = DynamicSchemaExpr.RelationalOperator.schema.reflect.asVariant.get
+        val matchers                                                  = variant.matchers
+        val samples: IndexedSeq[DynamicSchemaExpr.RelationalOperator] = IndexedSeq(
+          DynamicSchemaExpr.RelationalOperator.LessThan,
+          DynamicSchemaExpr.RelationalOperator.GreaterThan,
+          DynamicSchemaExpr.RelationalOperator.Equal,
+          DynamicSchemaExpr.RelationalOperator.NotEqual,
+          DynamicSchemaExpr.RelationalOperator.LessThanOrEqual,
+          DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual
+        )
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
+    ),
+    suite("LogicalOperator variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                                                = DynamicSchemaExpr.LogicalOperator.schema.reflect.asVariant.get
+        val matchers                                               = variant.matchers
+        val samples: IndexedSeq[DynamicSchemaExpr.LogicalOperator] = IndexedSeq(
+          DynamicSchemaExpr.LogicalOperator.And,
+          DynamicSchemaExpr.LogicalOperator.Or
+        )
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
+    ),
+    suite("NumericType variant matchers")(
+      test("each matcher matches its own type and rejects others") {
+        val variant                                            = DynamicSchemaExpr.NumericType.schema.reflect.asVariant.get
+        val matchers                                           = variant.matchers
+        val samples: IndexedSeq[DynamicSchemaExpr.NumericType] = IndexedSeq(
+          DynamicSchemaExpr.NumericType.ByteType,
+          DynamicSchemaExpr.NumericType.ShortType,
+          DynamicSchemaExpr.NumericType.IntType,
+          DynamicSchemaExpr.NumericType.LongType,
+          DynamicSchemaExpr.NumericType.FloatType,
+          DynamicSchemaExpr.NumericType.DoubleType,
+          DynamicSchemaExpr.NumericType.BigIntType,
+          DynamicSchemaExpr.NumericType.BigDecimalType
+        )
+        val matchCounts = (0 until samples.length).map { idx =>
+          val matcher = matchers(idx)
+          samples.count(s => matcher.downcastOrNull(s) != null)
+        }
+        assertTrue(matchCounts.forall(_ == 1))
+      }
     )
   )
 }

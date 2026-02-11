@@ -1348,6 +1348,140 @@ object DynamicSchemaExprSpec extends ZIOSpecDefault {
         assertTrue(str.contains("x") && str.contains("y"))
       }
     ),
+    suite("SchemaExpr.findOptic coverage")(
+      test("findOptic traverses Logical branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.Logical(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+            DynamicSchemaExpr.LogicalOperator.And
+          ),
+          Schema.int,
+          Schema.boolean
+        )
+        // Eval triggers toOpticCheck -> findOptic which traverses Logical branch
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses Arithmetic branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.Arithmetic(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            DynamicSchemaExpr.ArithmeticOperator.Add,
+            DynamicSchemaExpr.NumericType.IntType
+          ),
+          Schema.int,
+          Schema.int
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses StringConcat branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringConcat(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("b")))
+          ),
+          Schema.int,
+          Schema.string
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses StringLength branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringLength(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x"))
+          ),
+          Schema.int,
+          Schema.int
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses StringRegexMatch branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringRegexMatch(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(".*"))),
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x"))
+          ),
+          Schema.int,
+          Schema.boolean
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses Not branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.Not(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x"))
+          ),
+          Schema.int,
+          Schema.boolean
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses Convert branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.Convert(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+            PrimitiveConverter.StringToInt
+          ),
+          Schema.int,
+          Schema.int
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses StringUppercase branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringUppercase(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x"))
+          ),
+          Schema.int,
+          Schema.string
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses StringLowercase branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringLowercase(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x"))
+          ),
+          Schema.int,
+          Schema.string
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses StringSplit branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringSplit(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+            " "
+          ),
+          Schema.int,
+          Schema.string
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic traverses Relational branch") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.Relational(
+            DynamicSchemaExpr.Dynamic(DynamicOptic.root.field("x")),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            DynamicSchemaExpr.RelationalOperator.Equal
+          ),
+          Schema.int,
+          Schema.boolean
+        )
+        assertTrue(expr.eval(42).isLeft)
+      },
+      test("findOptic returns None for Literal (fallthrough)") {
+        // Literal has no optic -> findOptic returns None -> uses DynamicOptic.root
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello"))),
+          Schema.int,
+          Schema.int
+        )
+        // This will fail during fromDynamicValue (String->Int mismatch)
+        assertTrue(expr.eval(42).isLeft)
+      }
+    ),
     suite("NumericType.fromIsNumeric")(
       test("IsByte") {
         assertTrue(
