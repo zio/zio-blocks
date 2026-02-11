@@ -49,7 +49,7 @@ private[scope] final class LazyScoped[+A](private[scope] val thunk: () => A)
  */
 object Scoped {
 
-  opaque type Scoped[+A, -S] = Any
+  opaque type Scoped[+A, -S] = A | LazyScoped[A]
 
   /**
    * Lifts a value into a scoped computation.
@@ -72,15 +72,15 @@ object Scoped {
 
   private[scope] def eager[A, S](a: A): Scoped[A, S] =
     if (a.isInstanceOf[LazyScoped[?]])
-      (new LazyScoped(() => a)).asInstanceOf[Scoped[A, S]]
+      new LazyScoped(() => a)
     else
-      a.asInstanceOf[Scoped[A, S]]
+      a
 
   private[scope] def deferred[A, S](a: => A): Scoped[A, S] =
-    (new LazyScoped(() => a)).asInstanceOf[Scoped[A, S]]
+    new LazyScoped(() => a)
 
   private[scope] def run[A, S](x: Scoped[A, S]): A =
-    x match {
+    (x: @unchecked) match {
       case l: LazyScoped[_] => l.thunk().asInstanceOf[A]
       case a                => a.asInstanceOf[A]
     }

@@ -1,67 +1,44 @@
 package zio.blocks.scope
 
 /**
- * A deferred or eager scoped computation that can only be executed by an
- * appropriate Scope.
+ * Internal lazy wrapper for scoped computations.
+ *
+ * When a scope is closed (or for deferred computations like map/flatMap),
+ * values are wrapped in LazyScoped to defer evaluation. When a scope is open,
+ * values are stored as raw `A` without any wrapper.
+ *
+ * This class is private to the scope package and unforgeable by user code.
+ */
+private[scope] final class LazyScoped[+A](private[scope] val thunk: () => A)
+
+/**
+ * A scoped value that can only be accessed through an appropriate Scope.
  *
  * `A @@ S` (type alias for `Scoped[A, S]`) represents a value of type `A`
- * locked to scope tag `S`. At runtime, the value is stored as either:
- *   - An eager value (when scope was open at creation time, zero thunk
- *     overhead)
- *   - A lazy thunk (when scope was closed, or for composed computations)
+ * locked to scope tag `S`. At runtime, it is represented as either:
+ *   - The raw value `A` (eager form, zero overhead — used when scope is open)
+ *   - A `LazyScoped` thunk (lazy form — used when scope is closed or for
+ *     composed computations via `map`/`flatMap`)
  *
  * This dual representation eliminates thunk allocation in the happy path (scope
  * is open) while preserving safety when scope is closed.
  *
- * @tparam A
- *   the result type of the computation (covariant)
- * @tparam S
- *   the scope tag required to execute this computation (contravariant)
+ * @example
+ *   {{{
+ *   Scope.global.scoped { scope =>
+ *     val program: Result @@ scope.Tag = for {
+ *       db   <- scope.allocate(Resource[Database])
+ *       conn <- scope.allocate(db.connect())
+ *       data <- conn.map(_.query("SELECT *"))
+ *     } yield process(data)
+ *
+ *     scope.execute(program)
+ *   }
+ *   }}}
  */
-final class Scoped[+A, -S] private[scope] (
-  private[scope] val eagerValue: Any,
-  private[scope] val lazyThunk: () => Any
-) {
-
-  /**
-   * Maps over the result of this scoped computation.
-   *
-   * The resulting computation is always lazy, regardless of whether the input
-   * is eager or lazy. This ensures safety: map/flatMap never eagerly evaluate
-   * user functions (only Scope.$/execute may do that).
-   *
-   * @param f
-   *   the function to apply to the result
-   * @tparam B
-   *   the new result type
-   * @return
-   *   a new scoped computation with the mapped result
-   */
-  def map[B](f: A => B): Scoped[B, S] =
-    Scoped.deferred[B, S](f(Scoped.run(this)))
-
-  /**
-   * FlatMaps this scoped computation with a function returning another Scoped.
-   *
-   * The resulting computation requires both this computation's tag and the
-   * result's tag, combined via intersection.
-   *
-   * @param f
-   *   function from result to another scoped computation
-   * @tparam T
-   *   the additional tag requirement
-   * @tparam B
-   *   the result type
-   * @return
-   *   a scoped computation with combined tag `S with T`
-   */
-  def flatMap[B, T](f: A => Scoped[B, T]): Scoped[B, S with T] =
-    Scoped.deferred[B, S with T](Scoped.run(f(Scoped.run(this))))
-}
-
 object Scoped {
-
-  private[scope] val EagerSentinel: () => Any = null
+  type Tag[+A, -S]
+  type Scoped[+A, -S] = Tag[A, S]
 
   /**
    * Lifts a value into a scoped computation.
@@ -83,31 +60,62 @@ object Scoped {
     deferred[A, Any](a)
 
   private[scope] def eager[A, S](a: A): Scoped[A, S] =
-    new Scoped[A, S](a.asInstanceOf[Any], EagerSentinel)
+    if (a.isInstanceOf[LazyScoped[_]])
+      new LazyScoped(() => a).asInstanceOf[Scoped[A, S]]
+    else
+      a.asInstanceOf[Scoped[A, S]]
 
   private[scope] def deferred[A, S](a: => A): Scoped[A, S] =
-    new Scoped[A, S](null, () => a)
+    new LazyScoped(() => a).asInstanceOf[Scoped[A, S]]
 
   private[scope] def run[A, S](x: Scoped[A, S]): A =
-    if (x.lazyThunk eq EagerSentinel) x.eagerValue.asInstanceOf[A]
-    else x.lazyThunk().asInstanceOf[A]
+    (x: Any) match {
+      case l: LazyScoped[_] => l.thunk().asInstanceOf[A]
+      case a                => a.asInstanceOf[A]
+    }
 
   /**
-   * Creates a scoped computation tagged with a specific scope.
-   *
-   * @deprecated
-   *   Use deferred or eager instead.
+   * Implicit value class providing `map` and `flatMap` on `Scoped` values,
+   * enabling for-comprehension syntax.
    */
-  private[scope] def scoped[A, S](a: => A): Scoped[A, S] =
-    deferred[A, S](a)
+  implicit final class ScopedOps[A, S](private val self: Scoped[A, S]) extends AnyVal {
 
-  /**
-   * Unwraps a scoped computation, returning the thunk result.
-   *
-   * This is package-private to prevent bypassing the scope safety checks.
-   */
-  private[scope] def unscoped[A, S](scoped: Scoped[A, S]): A =
-    run(scoped)
+    /**
+     * Maps over the result of this scoped computation.
+     *
+     * The resulting computation is always lazy, regardless of whether the input
+     * is eager or lazy. This ensures safety: map/flatMap never eagerly evaluate
+     * user functions (only Scope.$/execute may do that).
+     *
+     * @param f
+     *   the function to apply to the result
+     * @tparam B
+     *   the new result type
+     * @return
+     *   a new scoped computation with the mapped result
+     */
+    def map[B](f: A => B): Scoped[B, S] =
+      deferred[B, S](f(run(self)))
+
+    /**
+     * FlatMaps this scoped computation with a function returning another
+     * Scoped.
+     *
+     * The resulting computation requires both this computation's tag and the
+     * result's tag, combined via intersection.
+     *
+     * @param f
+     *   function from result to another scoped computation
+     * @tparam T
+     *   the additional tag requirement
+     * @tparam B
+     *   the result type
+     * @return
+     *   a scoped computation with combined tag `S with T`
+     */
+    def flatMap[B, T](f: A => Scoped[B, T]): Scoped[B, S with T] =
+      deferred[B, S with T](run(f(run(self))))
+  }
 }
 
 /**
@@ -124,6 +132,10 @@ object @@ {
    * tag `S` is typically the path-dependent `Tag` type of a [[Scope]] instance.
    *
    * The value is evaluated lazily when the scoped computation is executed.
+   *
+   * '''Note:''' This only tags the value - it does not manage lifecycle. For
+   * resources that need cleanup, prefer `scope.allocate` with a [[Resource]]
+   * which automatically registers finalizers.
    *
    * @param a
    *   the value to scope (by-name, evaluated lazily)
