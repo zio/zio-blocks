@@ -1,5 +1,6 @@
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
@@ -10,7 +11,6 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
 import scala.annotation.switch
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
@@ -596,7 +596,7 @@ object JsonBinaryCodec {
     override def encodeKey(x: DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
 
     override val toJsonSchema: JsonSchema =
-      JsonSchema.enumOfStrings(DayOfWeek.values().map(_.toString).toList.asInstanceOf[::[String]])
+      JsonSchema.enumOfStrings(NonEmptyChunk.fromIterableOption(DayOfWeek.values().map(_.toString)).get)
   }
   val durationCodec: JsonBinaryCodec[Duration] = new JsonBinaryCodec[Duration]() {
     def decodeValue(in: JsonReader, default: Duration): Duration = in.readDuration(default)
@@ -675,7 +675,7 @@ object JsonBinaryCodec {
     override def encodeKey(x: Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
 
     override val toJsonSchema: JsonSchema =
-      JsonSchema.enumOfStrings(Month.values().map(_.toString).toList.asInstanceOf[::[String]])
+      JsonSchema.enumOfStrings(NonEmptyChunk.fromIterableOption(Month.values().map(_.toString)).get)
   }
   val monthDayCodec: JsonBinaryCodec[MonthDay] = new JsonBinaryCodec[MonthDay]() {
     def decodeValue(in: JsonReader, default: MonthDay): MonthDay = in.readMonthDay(default)

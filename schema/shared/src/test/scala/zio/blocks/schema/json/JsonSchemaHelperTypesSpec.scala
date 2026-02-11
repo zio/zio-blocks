@@ -1,9 +1,8 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.test._
-
 import java.net.URI
 
 /**
@@ -228,7 +227,7 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
         )
       },
       test("Union contains checks type membership") {
-        val st = SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))
+        val st = SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Number))
         assertTrue(
           st.contains(JsonSchemaType.String),
           st.contains(JsonSchemaType.Number),
@@ -240,7 +239,7 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
         assertTrue(st.toJson == Json.String("string"))
       },
       test("Union toJson produces array") {
-        val st = SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))
+        val st = SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Number))
         assertTrue(st.toJson == Json.Array(Json.String("string"), Json.String("number")))
       },
       test("fromJson parses single type") {
@@ -249,7 +248,7 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
       },
       test("fromJson parses type array") {
         val result = SchemaType.fromJson(Json.Array(Json.String("string"), Json.String("number")))
-        assertTrue(result == Right(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))))
+        assertTrue(result == Right(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Number))))
       },
       test("fromJson returns error for unknown type") {
         val result = SchemaType.fromJson(Json.String("unknown"))
@@ -331,7 +330,7 @@ object JsonSchemaHelperTypesSpec extends SchemaBaseSpec {
     ),
     suite("JsonSchema factory methods")(
       test("enumOfStrings creates enum of string values") {
-        val schema = JsonSchema.enumOfStrings(::("red", List("green", "blue")))
+        val schema = JsonSchema.enumOfStrings(NonEmptyChunk("red", "green", "blue"))
         assertTrue(
           schema.conforms(Json.String("red")),
           schema.conforms(Json.String("green")),

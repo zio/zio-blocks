@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.test._
 
@@ -237,7 +237,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped = Schema
           .fromJsonSchema(
             JsonSchema.Object(
-              prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+              prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
               items = Some(JsonSchema.False)
             )
           )
@@ -255,7 +255,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped = Schema
           .fromJsonSchema(
             JsonSchema.Object(
-              `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
+              `enum` = Some(NonEmptyChunk(Json.String("Red"), Json.String("Green"), Json.String("Blue")))
             )
           )
           .reflect
@@ -267,7 +267,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped = Schema
           .fromJsonSchema(
             JsonSchema.Object(
-              `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
+              `enum` = Some(NonEmptyChunk(Json.String("Red"), Json.String("Green"), Json.String("Blue")))
             )
           )
           .reflect
@@ -282,7 +282,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
           .fromJsonSchema(
             JsonSchema.Object(
               oneOf = Some(
-                new ::(
+                NonEmptyChunk(
                   JsonSchema.obj(
                     properties = Some(
                       ChunkMap("Circle" -> JsonSchema.obj(properties = Some(ChunkMap("radius" -> JsonSchema.number()))))
@@ -298,7 +298,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
                       )
                     ),
                     required = Some(Set("Rectangle"))
-                  ) :: Nil
+                  )
                 )
               )
             )
@@ -408,7 +408,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         val wrapped = Schema
           .fromJsonSchema(
             JsonSchema.Object(
-              prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+              prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
               items = Some(JsonSchema.False)
             )
           )
