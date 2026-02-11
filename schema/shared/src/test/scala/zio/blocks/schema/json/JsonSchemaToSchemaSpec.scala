@@ -578,7 +578,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
       },
       test("Char length constraints survive roundtrip") {
         val codec = Schema.fromJsonSchema(Schema[Char].toJsonSchema).derive(JsonFormat)
-        check(Gen.char.filter(x => x >= ' ' && x <= 0xd800 || x >= 0xdfff)) { // excluding control and surrogate chars
+        check(Gen.char.filter(x => x >= ' ' && (x < 0xd800 || x > 0xdfff))) { // excluding control and surrogate chars
           x => assertTrue(codec.decode(s""""$x"""").isRight)
         } &&
         assertTrue(
@@ -660,7 +660,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         check(
           Gen
             .listOfBounded(0, 5)( // excluding control, surrogate and must be escaped chars
-              Gen.char.filter(x => x >= ' ' && x <= 0xd800 && x != '"' && x != '\\' && x != 0xff || x >= 0xdfff)
+              Gen.char.filter(x => x >= ' ' && x != '"' && x != '\\' && (x < 0xd800 || x > 0xdfff))
             )
             .map(_.mkString)
         )(x => assertTrue(codec.decode(s""""$x"""").isRight)) &&

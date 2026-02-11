@@ -25,7 +25,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated String keys and values") {
       check(
-        Gen.string(Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff)) // excluding surrogate chars
+        Gen.string(Gen.char.filter(x => (x < 0xd800 || x > 0xdfff))) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[String] == Right(x),
@@ -103,7 +103,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Char keys and values") {
       check(
-        Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff) // excluding surrogate chars
+        Gen.char.filter(x => x < 0xd800 || x > 0xdfff) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
@@ -292,7 +292,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Map values with String keys") {
       check(
-        Gen.string(Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff)) // excluding surrogate chars
+        Gen.string(Gen.char.filter(x => x < 0xd800 || x > 0xdfff)) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(x -> Json.Null))
@@ -352,7 +352,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Map values with Char keys") {
       check(
-        Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff) // excluding surrogate chars
+        Gen.char.filter(x => x < 0xd800 || x > 0xdfff) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(x.toString -> Json.Null))
