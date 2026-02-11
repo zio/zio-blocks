@@ -50,6 +50,11 @@ sealed trait Xml {
    * Renders this XML to a string with custom configuration.
    */
   def print(config: WriterConfig): String = XmlWriter.write(this, config)
+
+  /**
+   * Creates an XmlSelection from this XML node for fluent navigation.
+   */
+  def select: XmlSelection = XmlSelection.succeed(this)
 }
 
 object Xml {
