@@ -6,6 +6,33 @@ package zio.blocks.schema
 trait SchemaVersionSpecific[A] { self: Schema[A] =>
 
   /**
+   * Derives a format instance for this schema using the given format.
+   *
+   * This method provides a convenient way to derive format-specific codecs:
+   *
+   * {{{
+   * implicit val jsonCodec: JsonBinaryCodec[Person] = schema.deriveFormat(JsonFormat)
+   * implicit val avroCodec: AvroBinaryCodec[Person] = schema.deriveFormat(AvroFormat)
+   * }}}
+   *
+   * The method name `deriveFormat` avoids overload ambiguity with
+   * `derive[TC[_]](deriver)`, ensuring explicit type annotations work correctly
+   * in both Scala 2 and Scala 3.
+   *
+   * In Scala 3, this method uses `transparent inline` to resolve the
+   * path-dependent type `format.TypeClass[A]` at compile time for optimal type
+   * inference.
+   *
+   * @param format
+   *   The format to derive a codec for (e.g., JsonFormat, AvroFormat)
+   * @return
+   *   A codec instance for encoding/decoding values of type A in the given
+   *   format
+   */
+  transparent inline def deriveFormat[F <: codec.Format](format: F): format.TypeClass[A] =
+    self.deriving(format.deriver).derive
+
+  /**
    * Convert this schema to a structural type schema.
    *
    * The structural type represents the "shape" of A without its nominal

@@ -27,7 +27,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError[Boolean](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Byte") {
-        val intCodec = Schema[Int].derive(AvroFormat)
+        val intCodec = Schema[Int].deriveFormat(AvroFormat)
         avroSchema[Byte]("\"int\"") &&
         roundTrip(1: Byte, 1) &&
         roundTrip(Byte.MinValue, 2) &&
@@ -37,7 +37,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError[Byte](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Short") {
-        val intCodec = Schema[Int].derive(AvroFormat)
+        val intCodec = Schema[Int].deriveFormat(AvroFormat)
         avroSchema[Short]("\"int\"") &&
         roundTrip(1: Short, 1) &&
         roundTrip(Short.MinValue, 3) &&
@@ -47,7 +47,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError[Short](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Int") {
-        val intCodec = Schema[Int].derive(AvroFormat)
+        val intCodec = Schema[Int].deriveFormat(AvroFormat)
         val bytes    = intCodec.encode(Int.MaxValue)
         bytes(4) = 0xff.toByte
         avroSchema[Int]("\"int\"") &&
@@ -58,7 +58,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError(Array.empty[Byte], intCodec, "Unexpected end of input at: .")
       },
       test("Long") {
-        val longCodec = Schema[Long].derive(AvroFormat)
+        val longCodec = Schema[Long].deriveFormat(AvroFormat)
         val bytes     = longCodec.encode(Long.MaxValue)
         bytes(9) = 0xff.toByte
         avroSchema[Long]("\"long\"") &&
@@ -83,7 +83,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         decodeError[Double](new Array[Byte](7), "Unexpected end of input at: .")
       },
       test("Char") {
-        val intCodec = Schema[Int].derive(AvroFormat)
+        val intCodec = Schema[Int].deriveFormat(AvroFormat)
         avroSchema[Char]("\"int\"") &&
         roundTrip('7', 1) &&
         roundTrip(Char.MinValue, 1) &&
@@ -327,7 +327,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
       },
       test("record with a custom codec for nested record injected by optic") {
         val codec1 = new AvroBinaryCodec[Record1]() {
-          private val codec = Record1.schema.derive(AvroFormat)
+          private val codec = Record1.schema.deriveFormat(AvroFormat)
 
           val avroSchema: AvroSchema =
             AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
@@ -407,7 +407,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .instance(
             Record1.schema.reflect.typeId,
             new AvroBinaryCodec[Record1]() {
-              private val codec = Record1.schema.derive(AvroFormat)
+              private val codec = Record1.schema.deriveFormat(AvroFormat)
 
               val avroSchema: AvroSchema =
                 AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
@@ -738,7 +738,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
     ),
     suite("wrapper")(
       test("top-level") {
-        val emailCodec = Schema[Email].derive(AvroFormat)
+        val emailCodec = Schema[Email].deriveFormat(AvroFormat)
         val bytes      = emailCodec.encode(Email("test@gmail.com"))
         bytes(5) = 42
         val testUuid = new UUID(123456789L, 987654321L)
@@ -917,7 +917,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           )
         )
         val codec1 = new AvroBinaryCodec[DynamicValue]() {
-          private val codec = Schema[DynamicValue].derive(AvroFormat)
+          private val codec = Schema[DynamicValue].deriveFormat(AvroFormat)
 
           val avroSchema: AvroSchema =
             AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)

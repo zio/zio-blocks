@@ -804,13 +804,13 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
     suite("Codec integration via Schema.fromJsonSchema")(
       test("string schema decodes successfully") {
         val schemaForJs = Schema.fromJsonSchema(JsonSchema.string())
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec       = schemaForJs.deriveFormat(JsonFormat)
         val result      = codec.decode(""""hello"""")
         assertTrue(result.isRight)
       },
       test("integer schema decodes successfully") {
         val schemaForJs = Schema.fromJsonSchema(JsonSchema.integer())
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec       = schemaForJs.deriveFormat(JsonFormat)
         val result      = codec.decode("42")
         assertTrue(result.isRight)
       },
@@ -820,7 +820,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(schema)
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec       = schemaForJs.deriveFormat(JsonFormat)
         val result      = codec.decode("""{"name": "Alice", "age": 30}""")
         assertTrue(result.isRight)
       },
@@ -830,19 +830,19 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           required = Some(Set("name", "age"))
         )
         val schemaForJs = Schema.fromJsonSchema(schema)
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec       = schemaForJs.deriveFormat(JsonFormat)
         val result      = codec.decode("""{"name": "Alice"}""")
         assertTrue(result.isLeft)
       },
       test("array schema decodes successfully") {
         val schemaForJs = Schema.fromJsonSchema(JsonSchema.array(items = Some(JsonSchema.string())))
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec       = schemaForJs.deriveFormat(JsonFormat)
         val result      = codec.decode("""["a", "b", "c"]""")
         assertTrue(result.isRight)
       },
       test("array schema rejects wrong item types") {
         val schemaForJs = Schema.fromJsonSchema(JsonSchema.array(items = Some(JsonSchema.integer())))
-        val codec       = schemaForJs.derive(JsonFormat)
+        val codec       = schemaForJs.deriveFormat(JsonFormat)
         val result      = codec.decode("""[1, "two", 3]""")
         assertTrue(result.isLeft)
       }

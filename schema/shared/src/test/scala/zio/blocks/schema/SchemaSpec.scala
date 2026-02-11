@@ -57,7 +57,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(encodeToString(out => Schema[Byte].encode(ToStringFormat)(out)(1: Byte)))(equalTo("1"))
       },
       test("derives codec from format directly") {
-        val codec = Schema[Int].derive(ToStringFormat)
+        val codec = Schema[Int].deriveFormat(ToStringFormat)
         assert(encodeToString(out => codec.encode(42, out)))(equalTo("42"))
       }
     ),
