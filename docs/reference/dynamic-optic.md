@@ -237,7 +237,7 @@ val emails = users(p"[*].email")
 
 ### DynamicValue Operations
 
-`DynamicOptic` is the path argument for all `DynamicValue` operations: `get(path)` for retrieval (with `.one` or `.toChunk`), `modify(path)(f)` for transformation, `set(path, value)` for replacement, `delete(path)` for removal, and `insert(path, value)` for addition. All operations are lenient by default, returning the original value unchanged if the path doesn't resolve, but each has a strict `*OrFail` variant returning `Either[SchemaError, DynamicValue]` with error details on failure.
+`DynamicOptic` is the path argument for all `DynamicValue` operations: `get(path)` for retrieval (with `.one` or `.toChunk`), `modify(path)(f)` for transformation, `set(path, value)` for replacement, `delete(path)` for removal, and `insert(path, value)` for addition. By default, the mutating operations (`modify`, `set`, `delete`, `insert`) are lenient and return the original value unchanged if the path doesn't resolve, whereas `get(path)` yields a failing `DynamicValueSelection` on a missing path (though calling `.toChunk` on it will produce an empty chunk). Each operation also has a strict `*OrFail` variant returning `Either[SchemaError, DynamicValue]` with error details on failure.
 
 For example, the `DynamicValue#get` method uses `DynamicOptic` to navigate and extract values:
 
