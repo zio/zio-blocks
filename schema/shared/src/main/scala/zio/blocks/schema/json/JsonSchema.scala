@@ -155,9 +155,9 @@ private[json] object FormatValidator {
   }
 
   private[this] val dateTimePattern: Pattern =
-    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})$")
+    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$")
   private[this] val datePattern: Pattern  = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
-  private[this] val timePattern: Pattern  = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([Zz]|[+-]\\d{2}:\\d{2})?$")
+  private[this] val timePattern: Pattern  = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?$")
   private[this] val emailPattern: Pattern = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
   private[this] val uuidPattern: Pattern  =
     Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
