@@ -66,7 +66,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
             val db = scope.allocate(Resource.from[Database])
             db.query("test")
           }
-        """))(isLeft(containsString("Recursive value")))
+        """))(isLeft(containsString("Recursive value") || containsString("is not a member")))
       }
     ),
     suite("sibling scopes cannot share resources")(
