@@ -208,8 +208,8 @@ Scope.global.scoped { scope =>
   val db: Database @@ scope.Tag = scope.allocate(Resource(openDatabase()))
 
   // Methods are hidden - can't call db.query() directly
-  // Must use scope.$ to access:
-  val result = scope.$(db)(_.query("SELECT 1"))
+  // Must use scope $ to access:
+  val result = (scope $ db)(_.query("SELECT 1"))
 
   // Trying to return `db` would be a compile error!
   result  // Only pure data escapes
@@ -220,7 +220,7 @@ Scope.global.scoped { scope =>
 ### Key Features
 
 - **Compile-Time Leak Prevention**: Values tagged with `A @@ S` can only be used with proof of scope access. Returning a scoped value from its scope is a type error.
-- **Zero Runtime Overhead**: The `@@` tag is erased at runtime—`A @@ S` is represented as just `A`.
+- **Zero Runtime Overhead**: On the eager path the `@@` tag is erased—`A @@ S` is represented as just `A` when evaluated—while deferred/composed computations use a small wrapper/thunk.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
@@ -245,8 +245,8 @@ Scope.global.scoped { scope =>
   // Allocate returns Database @@ scope.Tag (scoped value)
   val db = scope.allocate(Resource(new Database))
 
-  // Access via scope.$ - result (String) escapes, db does not
-  val result = scope.$(db)(_.query("SELECT * FROM users"))
+  // Access via scope $ - result (String) escapes, db does not
+  val result = (scope $ db)(_.query("SELECT * FROM users"))
   println(result)
 }
 // Output: Result: SELECT * FROM users
@@ -271,7 +271,7 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
 
 Scope.global.scoped { scope =>
   val service = scope.allocate(serviceResource)
-  scope.$(service)(_.createUser("Alice"))
+  (scope $ service)(_.createUser("Alice"))
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
@@ -285,8 +285,8 @@ Scope.global.scoped { connScope =>
   // Transaction lives in child scope - cleaned up before connection
   val result = connScope.scoped { txScope =>
     val tx = txScope.allocate(conn.beginTransaction())  // Returns Resource!
-    txScope.$(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
-    txScope.$(tx)(_.commit())
+    (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
+    (txScope $ tx)(_.commit())
     "success"
   }
   // Transaction closed here, connection still open
@@ -552,7 +552,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Scope](docs/./scope.md) - Compile-time safe resource management and DI
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
-- [Docs (Markdown)](docs/./reference/docs.md) - Markdown parsing and rendering
+- [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 
 ## Documentation
 
