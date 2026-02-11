@@ -251,6 +251,22 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
 
   implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
+  /**
+   * Schema for zio.blocks.docs.Doc (Markdown). Serializes as a plain markdown
+   * string: renders to markdown on encode, parses from markdown on decode.
+   */
+  implicit val markdownDoc: Schema[zio.blocks.docs.Doc] = {
+    import zio.blocks.docs.{Doc => MDoc, Paragraph, Parser, Renderer, Text}
+    Schema[String].transform[MDoc](
+      string =>
+        Parser.parse(string) match {
+          case Right(doc) => doc
+          case Left(_)    => MDoc(Chunk(Paragraph(Chunk(Text(string)))))
+        },
+      doc => Renderer.render(doc)
+    )
+  }
+
   implicit def option[A <: AnyRef](implicit element: Schema[A]): Schema[Option[A]] =
     new Schema(Reflect.option(element.reflect))
 
