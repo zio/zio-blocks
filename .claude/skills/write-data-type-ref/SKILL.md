@@ -193,6 +193,7 @@ This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala
 - **Link to related docs**: Use relative paths `[TypeName](./type-name.md)`.
 - **Use "ZIO Blocks"** (not "zio-blocks") for the project name.
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
+- **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 
 ## Step 3: Integrate
 
