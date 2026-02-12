@@ -1,0 +1,782 @@
+package zio.blocks.schema.migration
+
+import zio.test._
+import zio.blocks.schema.migration.ShapeExtraction._
+
+object ShapeExtractionSpec extends ZIOSpecDefault {
+
+  // Test types
+  case class Simple(name: String, age: Int)
+  case class Address(street: String, city: String)
+  case class Person(name: String, address: Address)
+  case class Country(name: String, code: String)
+  case class FullAddress(street: String, country: Country)
+  case class Contact(address: FullAddress)
+
+  sealed trait Result
+  case class Success(value: Int)    extends Result
+  case class Failure(error: String) extends Result
+
+  sealed trait Status
+  case class Active(since: String) extends Status
+  case object Inactive             extends Status
+
+  case class Empty()
+  case class SingleField(x: Int)
+  case class WithOption(value: Option[String])
+  case class WithList(items: List[String])
+  case class WithMap(data: Map[String, Int])
+  case class WithVector(elements: Vector[Double])
+
+  case class Inner(x: Int, y: Int)
+  case class Outer(inner: Inner, z: Int)
+
+  sealed trait Payment
+  case class Card(number: String, expiry: String) extends Payment
+  case class Cash(amount: Int)                    extends Payment
+  case class BankTransfer(bank: BankInfo)         extends Payment
+  case class BankInfo(name: String, swift: String)
+
+  case class HolderWithListOfSealed(results: List[Result])
+  case class HolderWithOptionSealed(maybe: Option[Status])
+  case class ResponseWithSealed(status: Status, result: Result)
+
+  sealed abstract class BaseClass
+  case class ConcreteA(x: Int)    extends BaseClass
+  case class ConcreteB(y: String) extends BaseClass
+
+  sealed trait SingleCase
+  case class OnlyCase(value: Int) extends SingleCase
+
+  case class WrapperWithSealed(inner: Result)
+
+  // Value class test types
+  case class UserId(value: String)     extends AnyVal
+  case class Amount(value: BigDecimal) extends AnyVal
+  case class PersonWithUserId(name: String, id: UserId)
+  case class WrappedUserId(inner: UserId)
+  case class OrderWithIds(wrappedId: WrappedUserId, amount: Amount)
+  case class WithListOfUserIds(ids: List[UserId])
+  case class WithOptionAmount(amount: Option[Amount])
+  case class WithMapUserIdAmount(data: Map[UserId, Amount])
+  case class PersonRecord(name: String, age: Int)
+  case class BoxedPerson(person: PersonRecord) extends AnyVal
+
+  def spec = suite("ShapeExtractionSpec")(
+    suite("extractShapeTree")(
+      test("flat case class returns RecordNode") {
+        val tree = extractShapeTree[Simple]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "name" -> ShapeNode.PrimitiveNode,
+              "age"  -> ShapeNode.PrimitiveNode
+            )
+          )
+        )
+      },
+      test("nested case class returns nested RecordNode") {
+        val tree = extractShapeTree[Person]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "name"    -> ShapeNode.PrimitiveNode,
+              "address" -> ShapeNode.RecordNode(
+                Map(
+                  "street" -> ShapeNode.PrimitiveNode,
+                  "city"   -> ShapeNode.PrimitiveNode
+                )
+              )
+            )
+          )
+        )
+      },
+      test("deeply nested case class (3 levels)") {
+        val tree = extractShapeTree[Contact]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "address" -> ShapeNode.RecordNode(
+                Map(
+                  "street"  -> ShapeNode.PrimitiveNode,
+                  "country" -> ShapeNode.RecordNode(
+                    Map(
+                      "name" -> ShapeNode.PrimitiveNode,
+                      "code" -> ShapeNode.PrimitiveNode
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("empty case class returns empty RecordNode") {
+        val tree = extractShapeTree[Empty]
+        assertTrue(tree == ShapeNode.RecordNode(Map.empty))
+      },
+      test("primitive type returns PrimitiveNode") {
+        val tree = extractShapeTree[String]
+        assertTrue(tree == ShapeNode.PrimitiveNode)
+      },
+      test("Option field returns OptionNode with element shape") {
+        val tree = extractShapeTree[WithOption]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "value" -> ShapeNode.OptionNode(ShapeNode.PrimitiveNode)
+            )
+          )
+        )
+      },
+      test("List field returns SeqNode with element shape") {
+        val tree = extractShapeTree[WithList]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "items" -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode)
+            )
+          )
+        )
+      },
+      test("Map field returns MapNode with key and value shapes") {
+        val tree = extractShapeTree[WithMap]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "data" -> ShapeNode.MapNode(ShapeNode.PrimitiveNode, ShapeNode.PrimitiveNode)
+            )
+          )
+        )
+      },
+      test("Vector field returns SeqNode") {
+        val tree = extractShapeTree[WithVector]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "elements" -> ShapeNode.SeqNode(ShapeNode.PrimitiveNode)
+            )
+          )
+        )
+      },
+      test("sealed trait returns SealedNode with case shapes") {
+        val tree = extractShapeTree[Result]
+        assertTrue(
+          tree == ShapeNode.SealedNode(
+            Map(
+              "Success" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode)),
+              "Failure" -> ShapeNode.RecordNode(Map("error" -> ShapeNode.PrimitiveNode))
+            )
+          )
+        )
+      },
+      test("sealed trait with case object returns SealedNode with empty RecordNode") {
+        val tree = extractShapeTree[Status]
+        assertTrue(
+          tree == ShapeNode.SealedNode(
+            Map(
+              "Active"   -> ShapeNode.RecordNode(Map("since" -> ShapeNode.PrimitiveNode)),
+              "Inactive" -> ShapeNode.RecordNode(Map.empty)
+            )
+          )
+        )
+      },
+      test("Either returns SealedNode with Left and Right") {
+        val tree = extractShapeTree[Either[String, Int]]
+        assertTrue(
+          tree == ShapeNode.SealedNode(
+            Map(
+              "Left"  -> ShapeNode.PrimitiveNode,
+              "Right" -> ShapeNode.PrimitiveNode
+            )
+          )
+        )
+      },
+      test("Either with complex types") {
+        val tree = extractShapeTree[Either[Simple, Address]]
+        assertTrue(
+          tree == ShapeNode.SealedNode(
+            Map(
+              "Left" -> ShapeNode.RecordNode(
+                Map(
+                  "name" -> ShapeNode.PrimitiveNode,
+                  "age"  -> ShapeNode.PrimitiveNode
+                )
+              ),
+              "Right" -> ShapeNode.RecordNode(
+                Map(
+                  "street" -> ShapeNode.PrimitiveNode,
+                  "city"   -> ShapeNode.PrimitiveNode
+                )
+              )
+            )
+          )
+        )
+      },
+      test("List of case class returns SeqNode with RecordNode") {
+        val tree = extractShapeTree[List[Simple]]
+        assertTrue(
+          tree == ShapeNode.SeqNode(
+            ShapeNode.RecordNode(
+              Map(
+                "name" -> ShapeNode.PrimitiveNode,
+                "age"  -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      },
+      test("Option of case class returns OptionNode with RecordNode") {
+        val tree = extractShapeTree[Option[Address]]
+        assertTrue(
+          tree == ShapeNode.OptionNode(
+            ShapeNode.RecordNode(
+              Map(
+                "street" -> ShapeNode.PrimitiveNode,
+                "city"   -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      },
+      test("Map with case class value returns MapNode with RecordNode value") {
+        val tree = extractShapeTree[Map[String, Simple]]
+        assertTrue(
+          tree == ShapeNode.MapNode(
+            ShapeNode.PrimitiveNode,
+            ShapeNode.RecordNode(
+              Map(
+                "name" -> ShapeNode.PrimitiveNode,
+                "age"  -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      },
+      test("sealed trait inside List returns SeqNode with SealedNode") {
+        val tree = extractShapeTree[HolderWithListOfSealed]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "results" -> ShapeNode.SeqNode(
+                ShapeNode.SealedNode(
+                  Map(
+                    "Success" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode)),
+                    "Failure" -> ShapeNode.RecordNode(Map("error" -> ShapeNode.PrimitiveNode))
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("sealed trait inside Option returns OptionNode with SealedNode") {
+        val tree = extractShapeTree[HolderWithOptionSealed]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "maybe" -> ShapeNode.OptionNode(
+                ShapeNode.SealedNode(
+                  Map(
+                    "Active"   -> ShapeNode.RecordNode(Map("since" -> ShapeNode.PrimitiveNode)),
+                    "Inactive" -> ShapeNode.RecordNode(Map.empty)
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("case class with multiple sealed fields") {
+        val tree = extractShapeTree[ResponseWithSealed]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "status" -> ShapeNode.SealedNode(
+                Map(
+                  "Active"   -> ShapeNode.RecordNode(Map("since" -> ShapeNode.PrimitiveNode)),
+                  "Inactive" -> ShapeNode.RecordNode(Map.empty)
+                )
+              ),
+              "result" -> ShapeNode.SealedNode(
+                Map(
+                  "Success" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode)),
+                  "Failure" -> ShapeNode.RecordNode(Map("error" -> ShapeNode.PrimitiveNode))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("sealed abstract class returns SealedNode") {
+        val tree = extractShapeTree[BaseClass]
+        assertTrue(
+          tree == ShapeNode.SealedNode(
+            Map(
+              "ConcreteA" -> ShapeNode.RecordNode(Map("x" -> ShapeNode.PrimitiveNode)),
+              "ConcreteB" -> ShapeNode.RecordNode(Map("y" -> ShapeNode.PrimitiveNode))
+            )
+          )
+        )
+      },
+      test("single-case sealed trait returns SealedNode with one case") {
+        val tree = extractShapeTree[SingleCase]
+        assertTrue(
+          tree == ShapeNode.SealedNode(
+            Map(
+              "OnlyCase" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode))
+            )
+          )
+        )
+      },
+      test("case class with sealed trait field returns RecordNode with SealedNode") {
+        val tree = extractShapeTree[WrapperWithSealed]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "inner" -> ShapeNode.SealedNode(
+                Map(
+                  "Success" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode)),
+                  "Failure" -> ShapeNode.RecordNode(Map("error" -> ShapeNode.PrimitiveNode))
+                )
+              )
+            )
+          )
+        )
+      }
+    ),
+    suite("extractShapeTree recursion detection")(
+      test("direct recursion produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class DirectRecursion(self: DirectRecursion)
+          extractShapeTree[DirectRecursion]
+        """))(Assertion.isLeft)
+      },
+      test("mutual recursion produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class MutualA(b: MutualB)
+          case class MutualB(a: MutualA)
+          extractShapeTree[MutualA]
+        """))(Assertion.isLeft)
+      },
+      test("recursion through List produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class ListRecursionTree(children: List[ListRecursionTree])
+          extractShapeTree[ListRecursionTree]
+        """))(Assertion.isLeft)
+      },
+      test("recursion through Option produces compile error") {
+        assertZIO(typeCheck("""
+          import zio.blocks.schema.migration.ShapeExtraction._
+          case class OptionRecursionTree(next: Option[OptionRecursionTree])
+          extractShapeTree[OptionRecursionTree]
+        """))(Assertion.isLeft)
+      }
+    ),
+    suite("ShapeTree typeclass")(
+      test("derives for flat case class") {
+        val st = implicitly[ShapeTree[Simple]]
+        assertTrue(
+          st.tree == ShapeNode.RecordNode(
+            Map(
+              "name" -> ShapeNode.PrimitiveNode,
+              "age"  -> ShapeNode.PrimitiveNode
+            )
+          )
+        )
+      },
+      test("derives for nested case class") {
+        val st = implicitly[ShapeTree[Person]]
+        assertTrue(
+          st.tree == ShapeNode.RecordNode(
+            Map(
+              "name"    -> ShapeNode.PrimitiveNode,
+              "address" -> ShapeNode.RecordNode(
+                Map(
+                  "street" -> ShapeNode.PrimitiveNode,
+                  "city"   -> ShapeNode.PrimitiveNode
+                )
+              )
+            )
+          )
+        )
+      },
+      test("derives for sealed trait") {
+        val st = implicitly[ShapeTree[Result]]
+        assertTrue(
+          st.tree == ShapeNode.SealedNode(
+            Map(
+              "Success" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode)),
+              "Failure" -> ShapeNode.RecordNode(Map("error" -> ShapeNode.PrimitiveNode))
+            )
+          )
+        )
+      },
+      test("derives for primitive") {
+        val st = implicitly[ShapeTree[String]]
+        assertTrue(st.tree == ShapeNode.PrimitiveNode)
+      },
+      test("derives for Option") {
+        val st = implicitly[ShapeTree[Option[Simple]]]
+        assertTrue(
+          st.tree == ShapeNode.OptionNode(
+            ShapeNode.RecordNode(
+              Map(
+                "name" -> ShapeNode.PrimitiveNode,
+                "age"  -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      },
+      test("derives for List") {
+        val st = implicitly[ShapeTree[List[Address]]]
+        assertTrue(
+          st.tree == ShapeNode.SeqNode(
+            ShapeNode.RecordNode(
+              Map(
+                "street" -> ShapeNode.PrimitiveNode,
+                "city"   -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      },
+      test("derives for Map") {
+        val st = implicitly[ShapeTree[Map[String, Int]]]
+        assertTrue(
+          st.tree == ShapeNode.MapNode(ShapeNode.PrimitiveNode, ShapeNode.PrimitiveNode)
+        )
+      },
+      test("derives for Either") {
+        val st = implicitly[ShapeTree[Either[String, Int]]]
+        assertTrue(
+          st.tree == ShapeNode.SealedNode(
+            Map(
+              "Left"  -> ShapeNode.PrimitiveNode,
+              "Right" -> ShapeNode.PrimitiveNode
+            )
+          )
+        )
+      }
+    ),
+    suite("MigrationPaths typeclass")(
+      test("derives for identical types - empty removed and added") {
+        val mp = implicitly[MigrationPaths[Simple, Simple]]
+        // Verify at runtime using TreeDiff
+        val sourceTree       = extractShapeTree[Simple]
+        val targetTree       = extractShapeTree[Simple]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.isEmpty,
+          added.isEmpty
+        )
+      },
+      test("derives for types with added field") {
+        val mp = implicitly[MigrationPaths[SingleField, Simple]]
+        // SingleField has only 'x', Simple has 'name' and 'age' - so 'x' is removed, 'name' and 'age' are added
+        val sourceTree       = extractShapeTree[SingleField]
+        val targetTree       = extractShapeTree[Simple]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed == List(List(Segment.Field("x"))),
+          added.map(Path.render).toSet == Set("name", "age")
+        )
+      },
+      test("derives for types with removed field") {
+        val mp = implicitly[MigrationPaths[Simple, SingleField]]
+        // Simple has 'name' and 'age', SingleField has only 'x' - so 'name' and 'age' are removed, 'x' is added
+        val sourceTree       = extractShapeTree[Simple]
+        val targetTree       = extractShapeTree[SingleField]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.map(Path.render).toSet == Set("name", "age"),
+          added == List(List(Segment.Field("x")))
+        )
+      },
+      test("derives for nested case classes") {
+        val mp = implicitly[MigrationPaths[Person, Contact]]
+        // Person has 'name' and 'address', Contact has 'address.street' and 'address.country'
+        val sourceTree       = extractShapeTree[Person]
+        val targetTree       = extractShapeTree[Contact]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.nonEmpty || added.nonEmpty // At least some structural difference
+        )
+      },
+      test("derives for sealed traits") {
+        val mp = implicitly[MigrationPaths[Result, Status]]
+        // Result has Success and Failure cases, Status has Active and Inactive cases
+        val sourceTree       = extractShapeTree[Result]
+        val targetTree       = extractShapeTree[Status]
+        val (removed, added) = TreeDiff.diff(sourceTree, targetTree)
+        assertTrue(
+          mp != null,
+          removed.exists(_.headOption.exists(_.isInstanceOf[Segment.Case])), // Has removed cases
+          added.exists(_.headOption.exists(_.isInstanceOf[Segment.Case]))    // Has added cases
+        )
+      },
+      test("Path.render converts field paths") {
+        val path = List(Segment.Field("address"), Segment.Field("city"))
+        assertTrue(Path.render(path) == "address.city")
+      },
+      test("Path.render converts case paths") {
+        val path = List(Segment.Case("Success"))
+        assertTrue(Path.render(path) == "case:Success")
+      },
+      test("Path.render converts container paths") {
+        val path = List(Segment.Field("items"), Segment.Element, Segment.Field("name"))
+        assertTrue(Path.render(path) == "items.element.name")
+      },
+      test("Path.render handles empty path") {
+        assertTrue(Path.render(Nil) == "<root>")
+      }
+    ),
+    suite("TreeDiff")(
+      test("identical trees have empty diff") {
+        val tree = ShapeNode.RecordNode(
+          Map(
+            "name" -> ShapeNode.PrimitiveNode,
+            "age"  -> ShapeNode.PrimitiveNode
+          )
+        )
+        val (removed, added) = TreeDiff.diff(tree, tree)
+        assertTrue(removed.isEmpty, added.isEmpty)
+      },
+      test("added field appears in added list") {
+        val source = ShapeNode.RecordNode(Map("name" -> ShapeNode.PrimitiveNode))
+        val target = ShapeNode.RecordNode(
+          Map(
+            "name" -> ShapeNode.PrimitiveNode,
+            "age"  -> ShapeNode.PrimitiveNode
+          )
+        )
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed.isEmpty,
+          added == List(List(Segment.Field("age")))
+        )
+      },
+      test("removed field appears in removed list") {
+        val source = ShapeNode.RecordNode(
+          Map(
+            "name" -> ShapeNode.PrimitiveNode,
+            "age"  -> ShapeNode.PrimitiveNode
+          )
+        )
+        val target           = ShapeNode.RecordNode(Map("name" -> ShapeNode.PrimitiveNode))
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed == List(List(Segment.Field("age"))),
+          added.isEmpty
+        )
+      },
+      test("type change appears in both lists") {
+        val source = ShapeNode.RecordNode(Map("data" -> ShapeNode.PrimitiveNode))
+        val target = ShapeNode.RecordNode(
+          Map(
+            "data" -> ShapeNode.RecordNode(Map("value" -> ShapeNode.PrimitiveNode))
+          )
+        )
+        val (removed, added) = TreeDiff.diff(source, target)
+        val expectedPath     = List(Segment.Field("data"))
+        assertTrue(
+          removed == List(expectedPath),
+          added == List(expectedPath)
+        )
+      },
+      test("nested field changes have correct paths") {
+        val source = ShapeNode.RecordNode(
+          Map(
+            "address" -> ShapeNode.RecordNode(
+              Map(
+                "city"   -> ShapeNode.PrimitiveNode,
+                "street" -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+        val target = ShapeNode.RecordNode(
+          Map(
+            "address" -> ShapeNode.RecordNode(
+              Map(
+                "city" -> ShapeNode.PrimitiveNode,
+                "zip"  -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed == List(List(Segment.Field("address"), Segment.Field("street"))),
+          added == List(List(Segment.Field("address"), Segment.Field("zip")))
+        )
+      },
+      test("sealed trait case changes") {
+        val source = ShapeNode.SealedNode(
+          Map(
+            "A" -> ShapeNode.RecordNode(Map.empty),
+            "B" -> ShapeNode.RecordNode(Map.empty)
+          )
+        )
+        val target = ShapeNode.SealedNode(
+          Map(
+            "A" -> ShapeNode.RecordNode(Map.empty),
+            "C" -> ShapeNode.RecordNode(Map.empty)
+          )
+        )
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed == List(List(Segment.Case("B"))),
+          added == List(List(Segment.Case("C")))
+        )
+      },
+      test("container element changes") {
+        val source           = ShapeNode.SeqNode(ShapeNode.PrimitiveNode)
+        val target           = ShapeNode.SeqNode(ShapeNode.RecordNode(Map("x" -> ShapeNode.PrimitiveNode)))
+        val (removed, added) = TreeDiff.diff(source, target)
+        val expectedPath     = List(Segment.Element)
+        assertTrue(
+          removed == List(expectedPath),
+          added == List(expectedPath)
+        )
+      },
+      test("map key and value changes") {
+        val source = ShapeNode.MapNode(ShapeNode.PrimitiveNode, ShapeNode.PrimitiveNode)
+        val target = ShapeNode.MapNode(
+          ShapeNode.RecordNode(Map("id" -> ShapeNode.PrimitiveNode)),
+          ShapeNode.PrimitiveNode
+        )
+        val (removed, added) = TreeDiff.diff(source, target)
+        val keyPath          = List(Segment.Key)
+        assertTrue(
+          removed == List(keyPath),
+          added == List(keyPath)
+        )
+      },
+      test("Path.render formats paths correctly") {
+        val path1 = List(Segment.Field("address"), Segment.Field("city"))
+        val path2 = List(Segment.Case("Success"))
+        val path3 = List(Segment.Field("items"), Segment.Element, Segment.Field("name"))
+        assertTrue(
+          Path.render(path1) == "address.city",
+          Path.render(path2) == "case:Success",
+          Path.render(path3) == "items.element.name",
+          Path.render(Nil) == "<root>"
+        )
+      }
+    ),
+    suite("extractShapeTree with wrapped types")(
+      test("value class returns WrappedNode with PrimitiveNode inner") {
+        val tree = extractShapeTree[UserId]
+        assertTrue(tree == ShapeNode.WrappedNode(ShapeNode.PrimitiveNode))
+      },
+      test("value class with BigDecimal returns WrappedNode with PrimitiveNode inner") {
+        val tree = extractShapeTree[Amount]
+        assertTrue(tree == ShapeNode.WrappedNode(ShapeNode.PrimitiveNode))
+      },
+      test("case class with value class field has WrappedNode") {
+        val tree = extractShapeTree[PersonWithUserId]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "name" -> ShapeNode.PrimitiveNode,
+              "id"   -> ShapeNode.WrappedNode(ShapeNode.PrimitiveNode)
+            )
+          )
+        )
+      },
+      test("List of value classes has SeqNode with WrappedNode element") {
+        val tree = extractShapeTree[WithListOfUserIds]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "ids" -> ShapeNode.SeqNode(ShapeNode.WrappedNode(ShapeNode.PrimitiveNode))
+            )
+          )
+        )
+      },
+      test("Option of value class has OptionNode with WrappedNode element") {
+        val tree = extractShapeTree[WithOptionAmount]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "amount" -> ShapeNode.OptionNode(ShapeNode.WrappedNode(ShapeNode.PrimitiveNode))
+            )
+          )
+        )
+      },
+      test("Map with value class key and value has MapNode with WrappedNode") {
+        val tree = extractShapeTree[WithMapUserIdAmount]
+        assertTrue(
+          tree == ShapeNode.RecordNode(
+            Map(
+              "data" -> ShapeNode.MapNode(
+                ShapeNode.WrappedNode(ShapeNode.PrimitiveNode),
+                ShapeNode.WrappedNode(ShapeNode.PrimitiveNode)
+              )
+            )
+          )
+        )
+      },
+      test("value class containing record has WrappedNode with RecordNode inner") {
+        val tree = extractShapeTree[BoxedPerson]
+        assertTrue(
+          tree == ShapeNode.WrappedNode(
+            ShapeNode.RecordNode(
+              Map(
+                "name" -> ShapeNode.PrimitiveNode,
+                "age"  -> ShapeNode.PrimitiveNode
+              )
+            )
+          )
+        )
+      }
+    ),
+    suite("TreeDiff with wrapped types")(
+      test("identical wrapped types have empty diff") {
+        val tree             = ShapeNode.WrappedNode(ShapeNode.PrimitiveNode)
+        val (removed, added) = TreeDiff.diff(tree, tree)
+        assertTrue(removed.isEmpty, added.isEmpty)
+      },
+      test("wrapped inner type change appears in both lists") {
+        val source           = ShapeNode.WrappedNode(ShapeNode.PrimitiveNode)
+        val target           = ShapeNode.WrappedNode(ShapeNode.RecordNode(Map("x" -> ShapeNode.PrimitiveNode)))
+        val (removed, added) = TreeDiff.diff(source, target)
+        val expectedPath     = List(Segment.Wrapped)
+        assertTrue(
+          removed == List(expectedPath),
+          added == List(expectedPath)
+        )
+      },
+      test("field change inside wrapped type has correct path") {
+        val source = ShapeNode.RecordNode(
+          Map("id" -> ShapeNode.WrappedNode(ShapeNode.RecordNode(Map("x" -> ShapeNode.PrimitiveNode))))
+        )
+        val target = ShapeNode.RecordNode(
+          Map("id" -> ShapeNode.WrappedNode(ShapeNode.RecordNode(Map("y" -> ShapeNode.PrimitiveNode))))
+        )
+        val (removed, added) = TreeDiff.diff(source, target)
+        assertTrue(
+          removed == List(List(Segment.Field("id"), Segment.Wrapped, Segment.Field("x"))),
+          added == List(List(Segment.Field("id"), Segment.Wrapped, Segment.Field("y")))
+        )
+      }
+    ),
+    suite("Path rendering with wrapped segment")(
+      test("wrapped segment renders correctly") {
+        assertTrue(Path.render(List(Segment.Wrapped)) == "wrapped")
+      },
+      test("field then wrapped renders correctly") {
+        assertTrue(Path.render(List(Segment.Field("id"), Segment.Wrapped)) == "id.wrapped")
+      }
+    )
+  )
+}

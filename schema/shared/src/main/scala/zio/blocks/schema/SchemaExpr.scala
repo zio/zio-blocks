@@ -1,303 +1,180 @@
 package zio.blocks.schema
 
 /**
- * A {{SchemaExpr}} is an expression on the value of a type fully described by a
- * {{Schema}}.
+ * A typed wrapper around `DynamicSchemaExpr` that provides compile-time type
+ * safety. Mirrors the `Migration[A, B]` / `DynamicMigration` pattern.
  *
- * {{SchemaExpr}} are used for persistence DSLs, implemented in third-party
+ * `SchemaExpr` are used for persistence DSLs, implemented in third-party
  * libraries, as well as for validation, implemented in this library. In
- * addition, {{SchemaExpr}} could be used for data migration.
+ * addition, `SchemaExpr` could be used for data migration.
+ *
+ * @tparam A
+ *   The input type
+ * @tparam B
+ *   The output type
+ * @param dynamic
+ *   The underlying serializable expression
+ * @param inputSchema
+ *   Schema for converting A to DynamicValue
+ * @param outputSchema
+ *   Schema for converting DynamicValue back to B
  */
-sealed trait SchemaExpr[A, +B] { self =>
+final case class SchemaExpr[A, B](
+  dynamic: DynamicSchemaExpr,
+  inputSchema: Schema[A],
+  outputSchema: Schema[B]
+) {
 
   /**
    * Evaluate the expression on the input value.
-   *
-   * @param input
-   *   the input value
-   *
-   * @return
-   *   the result of the expression
    */
-  def eval(input: A): Either[OpticCheck, Seq[B]]
+  def eval(input: A): Either[OpticCheck, Seq[B]] = {
+    val dv = inputSchema.toDynamicValue(input)
+    dynamic.eval(dv) match {
+      case Left(err)  => Left(SchemaExpr.toOpticCheck(err, dynamic, input))
+      case Right(dvs) =>
+        val results = dvs.map(outputSchema.fromDynamicValue)
+        results.collectFirst { case Left(err) => err } match {
+          case Some(err) => Left(SchemaExpr.schemaErrorToOpticCheck(err))
+          case None      => Right(results.collect { case Right(v) => v })
+        }
+    }
+  }
 
   /**
-   * Evaluate the expression on the input value.
-   *
-   * @param input
-   *   the input value
-   *
-   * @return
-   *   the result of the expression, converted to {{DynamicValue}} values.
+   * Evaluate the expression on the input value, returning DynamicValue results.
    */
-  def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
+  def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = {
+    val dv = inputSchema.toDynamicValue(input)
+    dynamic.eval(dv).left.map(SchemaExpr.toOpticCheck(_, dynamic, input))
+  }
 
-  final def &&[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    new SchemaExpr.Logical(self.asEquivalent[Boolean], that.asEquivalent[Boolean], SchemaExpr.LogicalOperator.And)
+  final def &&(that: SchemaExpr[A, Boolean])(implicit ev: B =:= Boolean): SchemaExpr[A, Boolean] = {
+    val _ = ev
+    SchemaExpr(
+      DynamicSchemaExpr.Logical(this.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
+      inputSchema,
+      that.outputSchema
+    )
+  }
 
-  final def ||[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    new SchemaExpr.Logical(self.asEquivalent[Boolean], that.asEquivalent[Boolean], SchemaExpr.LogicalOperator.Or)
-
-  private final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] = {
-    val _ = ev // suppress unused warning
-    self.asInstanceOf[SchemaExpr[A, B2]]
+  final def ||(that: SchemaExpr[A, Boolean])(implicit ev: B =:= Boolean): SchemaExpr[A, Boolean] = {
+    val _ = ev
+    SchemaExpr(
+      DynamicSchemaExpr.Logical(this.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
+      inputSchema,
+      that.outputSchema
+    )
   }
 }
 
 object SchemaExpr {
-  final case class Literal[S, A](value: A, schema: Schema[A]) extends SchemaExpr[S, A] {
-    def eval(input: S): Either[OpticCheck, Seq[A]] = result
 
-    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
+  // --- Operator type aliases (delegate to DynamicSchemaExpr) ---
 
-    private[this] val result        = new Right(value :: Nil)
-    private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
-  }
+  type RelationalOperator = DynamicSchemaExpr.RelationalOperator
+  val RelationalOperator: DynamicSchemaExpr.RelationalOperator.type = DynamicSchemaExpr.RelationalOperator
 
-  final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
-    def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
-      case l: Lens[?, ?] =>
-        new Right(l.get(input) :: Nil)
-      case p: Prism[?, ?] =>
-        p.getOrFail(input) match {
-          case Right(x: B @scala.unchecked) => new Right(x :: Nil)
-          case left                         => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
-        }
-      case o: Optional[?, ?] =>
-        o.getOrFail(input) match {
-          case Right(x) => new Right(x :: Nil)
-          case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
-        }
-      case t: Traversal[?, ?] =>
-        val sb = Seq.newBuilder[B]
-        t.fold[Unit](input)((), (_, a) => sb.addOne(a))
-        val r = sb.result()
-        if (r.isEmpty) new Left(t.check(input).get)
-        else new Right(r)
-    }
+  type LogicalOperator = DynamicSchemaExpr.LogicalOperator
+  val LogicalOperator: DynamicSchemaExpr.LogicalOperator.type = DynamicSchemaExpr.LogicalOperator
 
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = optic match {
-      case l: Lens[?, ?] =>
-        new Right(toDynamicValue(l.get(input)) :: Nil)
-      case p: Prism[?, ?] =>
-        p.getOrFail(input) match {
-          case Right(x: B @scala.unchecked) => new Right(toDynamicValue(x) :: Nil)
-          case left                         => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
-        }
-      case o: Optional[?, ?] =>
-        o.getOrFail(input) match {
-          case Right(x) => new Right(toDynamicValue(x) :: Nil)
-          case left     => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
-        }
-      case t: Traversal[?, ?] =>
-        val sb = Seq.newBuilder[DynamicValue]
-        t.fold[Unit](input)((), (_, a) => sb.addOne(toDynamicValue(a)))
-        val r = sb.result()
-        if (r.isEmpty) new Left(t.check(input).get)
-        else new Right(r)
-    }
+  type ArithmeticOperator = DynamicSchemaExpr.ArithmeticOperator
+  val ArithmeticOperator: DynamicSchemaExpr.ArithmeticOperator.type = DynamicSchemaExpr.ArithmeticOperator
 
-    private[this] val toDynamicValue: B => DynamicValue = optic.focus.toDynamicValue
-  }
+  // --- Factory methods used by Optic DSL ---
 
-  sealed trait UnaryOp[A, +B] extends SchemaExpr[A, B] {
-    def expr: SchemaExpr[A, B]
-  }
+  private[schema] def literal[S, A](value: A, schema: Schema[A], sourceSchema: Schema[S]): SchemaExpr[S, A] =
+    SchemaExpr(DynamicSchemaExpr.Literal(schema.toDynamicValue(value)), sourceSchema, schema)
 
-  sealed trait BinaryOp[A, +B, +C] extends SchemaExpr[A, C] {
-    def left: SchemaExpr[A, B]
+  private[schema] def optic[S, A](optic: zio.blocks.schema.Optic[S, A]): SchemaExpr[S, A] =
+    SchemaExpr(DynamicSchemaExpr.Dynamic(optic.toDynamic), new Schema(optic.source), new Schema(optic.focus))
 
-    def right: SchemaExpr[A, B]
-  }
-
-  final case class Relational[A, B](left: SchemaExpr[A, B], right: SchemaExpr[A, B], operator: RelationalOperator)
-      extends BinaryOp[A, B, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
-      if ((operator eq RelationalOperator.Equal) || (operator eq RelationalOperator.NotEqual)) {
-        for {
-          xs <- left.eval(input)
-          ys <- right.eval(input)
-        } yield {
-          if (operator eq RelationalOperator.Equal) for { x <- xs; y <- ys } yield x == y
-          else for { x <- xs; y <- ys } yield x != y
-        }
-      } else { // FIXME: Use Ordering to avoid converisons to dynamic values
-        for {
-          xs <- left.evalDynamic(input)
-          ys <- right.evalDynamic(input)
-        } yield {
-          if (operator eq RelationalOperator.LessThan) for { x <- xs; y <- ys } yield x < y
-          else if (operator eq RelationalOperator.LessThanOrEqual) for { x <- xs; y <- ys } yield x <= y
-          else if (operator eq RelationalOperator.GreaterThan) for { x <- xs; y <- ys } yield x > y
-          else for { x <- xs; y <- ys } yield x >= y
-        }
-      }
-
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- left.evalDynamic(input)
-        ys <- right.evalDynamic(input)
-      } yield operator match {
-        case _: RelationalOperator.LessThan.type           => for { x <- xs; y <- ys } yield toDynamicValue(x < y)
-        case _: RelationalOperator.LessThanOrEqual.type    => for { x <- xs; y <- ys } yield toDynamicValue(x <= y)
-        case _: RelationalOperator.GreaterThan.type        => for { x <- xs; y <- ys } yield toDynamicValue(x > y)
-        case _: RelationalOperator.GreaterThanOrEqual.type => for { x <- xs; y <- ys } yield toDynamicValue(x >= y)
-        case _: RelationalOperator.Equal.type              => for { x <- xs; y <- ys } yield toDynamicValue(x == y)
-        case _: RelationalOperator.NotEqual.type           => for { x <- xs; y <- ys } yield toDynamicValue(x != y)
-      }
-
-    private[this] def toDynamicValue(value: Boolean): DynamicValue =
-      new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
-  }
-
-  sealed trait RelationalOperator
-
-  object RelationalOperator {
-    case object LessThan           extends RelationalOperator
-    case object GreaterThan        extends RelationalOperator
-    case object LessThanOrEqual    extends RelationalOperator
-    case object GreaterThanOrEqual extends RelationalOperator
-    case object Equal              extends RelationalOperator
-    case object NotEqual           extends RelationalOperator
-  }
-
-  final case class Logical[A](left: SchemaExpr[A, Boolean], right: SchemaExpr[A, Boolean], operator: LogicalOperator)
-      extends BinaryOp[A, Boolean, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
-      for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield operator match {
-        case _: LogicalOperator.And.type => for { x <- xs; y <- ys } yield x && y
-        case _: LogicalOperator.Or.type  => for { x <- xs; y <- ys } yield x || y
-      }
-
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield operator match {
-        case _: LogicalOperator.And.type => for { x <- xs; y <- ys } yield toDynamicValue(x && y)
-        case _: LogicalOperator.Or.type  => for { x <- xs; y <- ys } yield toDynamicValue(x || y)
-      }
-
-    private[this] def toDynamicValue(value: Boolean): DynamicValue =
-      new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
-  }
-
-  sealed trait LogicalOperator
-
-  object LogicalOperator {
-    case object And extends LogicalOperator
-    case object Or  extends LogicalOperator
-  }
-
-  final case class Not[A](expr: SchemaExpr[A, Boolean]) extends UnaryOp[A, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
-      for {
-        xs <- expr.eval(input)
-      } yield xs.map(!_)
-
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- expr.eval(input)
-      } yield xs.map(x => toDynamicValue(!x))
-
-    private[this] def toDynamicValue(value: Boolean): DynamicValue =
-      new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
-  }
-
-  final case class Arithmetic[S, A](
+  private[schema] def relational[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
-    operator: ArithmeticOperator,
+    op: DynamicSchemaExpr.RelationalOperator
+  ): SchemaExpr[S, Boolean] =
+    SchemaExpr(DynamicSchemaExpr.Relational(left.dynamic, right.dynamic, op), left.inputSchema, Schema.boolean)
+
+  private[schema] def logical[S](
+    left: SchemaExpr[S, Boolean],
+    right: SchemaExpr[S, Boolean],
+    op: DynamicSchemaExpr.LogicalOperator
+  ): SchemaExpr[S, Boolean] =
+    SchemaExpr(DynamicSchemaExpr.Logical(left.dynamic, right.dynamic, op), left.inputSchema, Schema.boolean)
+
+  private[schema] def not[S](expr: SchemaExpr[S, Boolean]): SchemaExpr[S, Boolean] =
+    SchemaExpr(DynamicSchemaExpr.Not(expr.dynamic), expr.inputSchema, Schema.boolean)
+
+  private[schema] def arithmetic[S, A](
+    left: SchemaExpr[S, A],
+    right: SchemaExpr[S, A],
+    op: DynamicSchemaExpr.ArithmeticOperator,
     isNumeric: IsNumeric[A]
-  ) extends BinaryOp[S, A, A] {
-    def eval(input: S): Either[OpticCheck, Seq[A]] =
-      for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield {
-        val n = isNumeric.numeric
-        operator match {
-          case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield n.plus(x, y)
-          case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield n.minus(x, y)
-          case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield n.times(x, y)
-        }
-      }
+  ): SchemaExpr[S, A] =
+    SchemaExpr(
+      DynamicSchemaExpr.Arithmetic(
+        left.dynamic,
+        right.dynamic,
+        op,
+        DynamicSchemaExpr.NumericType.fromIsNumeric(isNumeric)
+      ),
+      left.inputSchema,
+      left.outputSchema
+    )
 
-    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield {
-        val n = isNumeric.numeric
-        operator match {
-          case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield toDynamicValue(n.plus(x, y))
-          case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield toDynamicValue(n.minus(x, y))
-          case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield toDynamicValue(n.times(x, y))
-        }
-      }
+  private[schema] def stringConcat[S](
+    left: SchemaExpr[S, String],
+    right: SchemaExpr[S, String]
+  ): SchemaExpr[S, String] =
+    SchemaExpr(DynamicSchemaExpr.StringConcat(left.dynamic, right.dynamic), left.inputSchema, Schema.string)
 
-    private[this] val toDynamicValue: A => DynamicValue = isNumeric.primitiveType.toDynamicValue
+  private[schema] def stringRegexMatch[S](
+    regex: SchemaExpr[S, String],
+    string: SchemaExpr[S, String]
+  ): SchemaExpr[S, Boolean] =
+    SchemaExpr(DynamicSchemaExpr.StringRegexMatch(regex.dynamic, string.dynamic), regex.inputSchema, Schema.boolean)
+
+  private[schema] def stringLength[S](string: SchemaExpr[S, String]): SchemaExpr[S, Int] =
+    SchemaExpr(DynamicSchemaExpr.StringLength(string.dynamic), string.inputSchema, Schema.int)
+
+  // --- Error conversion helpers ---
+
+  private val UnexpectedCasePattern = "UNEXPECTED_CASE:(.+):(.+):(\\d+)".r
+  private val EmptySequencePattern  = "EMPTY_SEQUENCE:(\\d+)".r
+
+  private def toOpticCheck(error: String, expr: DynamicSchemaExpr, input: Any): OpticCheck = {
+    val optic = findOptic(expr).getOrElse(DynamicOptic.root)
+    error match {
+      case UnexpectedCasePattern(expected, actual, nodeIdxStr) =>
+        val nodeIdx = nodeIdxStr.toInt
+        val prefix  = new DynamicOptic(optic.nodes.take(nodeIdx + 1))
+        new OpticCheck(new ::(OpticCheck.UnexpectedCase(expected, actual, optic, prefix, input), Nil))
+      case EmptySequencePattern(nodeIdxStr) =>
+        val nodeIdx = nodeIdxStr.toInt
+        val prefix  = new DynamicOptic(optic.nodes.take(nodeIdx + 1))
+        new OpticCheck(new ::(OpticCheck.EmptySequence(optic, prefix), Nil))
+      case _ =>
+        new OpticCheck(new ::(OpticCheck.WrappingError(optic, optic, SchemaError(error)), Nil))
+    }
   }
 
-  sealed trait ArithmeticOperator
-
-  object ArithmeticOperator {
-    case object Add      extends ArithmeticOperator
-    case object Subtract extends ArithmeticOperator
-    case object Multiply extends ArithmeticOperator
+  private def findOptic(expr: DynamicSchemaExpr): Option[DynamicOptic] = expr match {
+    case DynamicSchemaExpr.Dynamic(optic)              => Some(optic)
+    case DynamicSchemaExpr.Relational(left, _, _)      => findOptic(left)
+    case DynamicSchemaExpr.Logical(left, _, _)         => findOptic(left)
+    case DynamicSchemaExpr.Arithmetic(left, _, _, _)   => findOptic(left)
+    case DynamicSchemaExpr.StringConcat(left, _)       => findOptic(left)
+    case DynamicSchemaExpr.StringLength(string)        => findOptic(string)
+    case DynamicSchemaExpr.StringRegexMatch(_, string) => findOptic(string)
+    case DynamicSchemaExpr.Not(inner)                  => findOptic(inner)
+    case DynamicSchemaExpr.Convert(inner, _)           => findOptic(inner)
+    case DynamicSchemaExpr.StringUppercase(inner)      => findOptic(inner)
+    case DynamicSchemaExpr.StringLowercase(inner)      => findOptic(inner)
+    case DynamicSchemaExpr.StringSplit(inner, _)       => findOptic(inner)
+    case _                                             => None
   }
 
-  final case class StringConcat[A](left: SchemaExpr[A, String], right: SchemaExpr[A, String])
-      extends BinaryOp[A, String, String] {
-    def eval(input: A): Either[OpticCheck, Seq[String]] =
-      for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield for { x <- xs; y <- ys } yield x + y
-
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield for { x <- xs; y <- ys } yield toDynamicValue(x + y)
-
-    private[this] def toDynamicValue(value: String): DynamicValue =
-      new DynamicValue.Primitive(new PrimitiveValue.String(value))
-  }
-
-  final case class StringRegexMatch[A](regex: SchemaExpr[A, String], string: SchemaExpr[A, String])
-      extends SchemaExpr[A, Boolean] {
-    def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
-      for {
-        xs <- regex.eval(input)
-        ys <- string.eval(input)
-      } yield for { x <- xs; y <- ys } yield x.matches(y)
-
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- regex.eval(input)
-        ys <- string.eval(input)
-      } yield for { x <- xs; y <- ys } yield toDynamicValue(x.matches(y))
-
-    private[this] def toDynamicValue(value: Boolean): DynamicValue =
-      new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
-  }
-
-  final case class StringLength[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, Int] {
-    def eval(input: A): Either[OpticCheck, Seq[Int]] =
-      for {
-        xs <- string.eval(input)
-      } yield xs.map(_.length)
-
-    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
-      for {
-        xs <- string.eval(input)
-      } yield xs.map(x => toDynamicValue(x.length))
-
-    private[this] def toDynamicValue(value: Int): DynamicValue =
-      new DynamicValue.Primitive(new PrimitiveValue.Int(value))
-  }
+  private def schemaErrorToOpticCheck(error: SchemaError): OpticCheck =
+    new OpticCheck(new ::(OpticCheck.WrappingError(DynamicOptic.root, DynamicOptic.root, error), Nil))
 }
