@@ -32,5 +32,4 @@ object MapDeconstructor {
 
     def getKeyValue[K, V](kv: (K, V)): (K, V) = kv
   }
-
 }

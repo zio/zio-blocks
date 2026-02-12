@@ -440,9 +440,9 @@ sealed trait JsonSchema extends Product with Serializable {
     case (s1: JsonSchema.Object, s2: JsonSchema.Object) =>
       JsonSchema.Object(anyOf = new Some((s1.anyOf, s2.anyOf) match {
         case (Some(a1), Some(a2)) => a1 ++ a2
-        case (Some(a1), None)     => s2 +: a1
-        case (None, Some(a2))     => s1 +: a2
-        case (None, None)         => NonEmptyChunk(s1, s2)
+        case (Some(a1), _)        => s2 +: a1
+        case (_, Some(a2))        => s1 +: a2
+        case _                    => NonEmptyChunk(s1, s2)
       }))
   }
 

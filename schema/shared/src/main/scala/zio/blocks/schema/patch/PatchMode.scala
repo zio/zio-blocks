@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
@@ -22,43 +23,43 @@ object PatchMode {
 
   implicit lazy val strictSchema: Schema[PatchMode.Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Strict.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[PatchMode.Strict.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[PatchMode.Strict.type](PatchMode.Strict),
         deconstructor = new ConstantDeconstructor[PatchMode.Strict.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val lenientSchema: Schema[PatchMode.Lenient.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Lenient.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[PatchMode.Lenient.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[PatchMode.Lenient.type](PatchMode.Lenient),
         deconstructor = new ConstantDeconstructor[PatchMode.Lenient.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val clobberSchema: Schema[PatchMode.Clobber.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Clobber.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[PatchMode.Clobber.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[PatchMode.Clobber.type](PatchMode.Clobber),
         deconstructor = new ConstantDeconstructor[PatchMode.Clobber.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val schema: Schema[PatchMode] = new Schema(
     reflect = new Reflect.Variant[Binding, PatchMode](
-      cases = Vector(
+      cases = Chunk(
         strictSchema.reflect.asTerm("Strict"),
         lenientSchema.reflect.asTerm("Lenient"),
         clobberSchema.reflect.asTerm("Clobber")
@@ -93,7 +94,7 @@ object PatchMode {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 }

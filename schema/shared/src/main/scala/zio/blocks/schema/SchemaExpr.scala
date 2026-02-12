@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+
 /**
  * A {{SchemaExpr}} is an expression on the value of a type fully described by a
  * {{Schema}}.
@@ -50,22 +52,22 @@ object SchemaExpr {
 
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
 
-    private[this] val result        = new Right(value :: Nil)
-    private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
+    private[this] val result        = new Right(Chunk.single(value))
+    private[this] val dynamicResult = new Right(Chunk.single(schema.toDynamicValue(value)))
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
       case l: Lens[?, ?] =>
-        new Right(l.get(input) :: Nil)
+        new Right(Chunk.single(l.get(input)))
       case p: Prism[?, ?] =>
         p.getOrFail(input) match {
-          case Right(x: B @scala.unchecked) => new Right(x :: Nil)
+          case Right(x: B @scala.unchecked) => new Right(Chunk.single(x))
           case left                         => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
       case o: Optional[?, ?] =>
         o.getOrFail(input) match {
-          case Right(x) => new Right(x :: Nil)
+          case Right(x) => new Right(Chunk.single(x))
           case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
       case t: Traversal[?, ?] =>
@@ -78,15 +80,15 @@ object SchemaExpr {
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = optic match {
       case l: Lens[?, ?] =>
-        new Right(toDynamicValue(l.get(input)) :: Nil)
+        new Right(Chunk.single(toDynamicValue(l.get(input))))
       case p: Prism[?, ?] =>
         p.getOrFail(input) match {
-          case Right(x: B @scala.unchecked) => new Right(toDynamicValue(x) :: Nil)
+          case Right(x: B @scala.unchecked) => new Right(Chunk.single(toDynamicValue(x)))
           case left                         => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
       case o: Optional[?, ?] =>
         o.getOrFail(input) match {
-          case Right(x) => new Right(toDynamicValue(x) :: Nil)
+          case Right(x) => new Right(Chunk.single(toDynamicValue(x)))
           case left     => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
       case t: Traversal[?, ?] =>

@@ -97,15 +97,14 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *   A schema that validates incoming dynamic values against this schema's
    *   structure
    */
-  def toSchema: Schema[DynamicValue] =
-    Schema[DynamicValue].transform(
-      to = dv =>
-        check(dv) match {
-          case Some(error) => throw error
-          case _           => dv
-        },
-      from = identity
-    )
+  def toSchema: Schema[DynamicValue] = Schema[DynamicValue].transform(
+    to = dv =>
+      check(dv) match {
+        case Some(error) => throw error
+        case _           => dv
+      },
+    from = identity
+  )
 
   /** Returns the documentation associated with this schema. */
   def doc: Doc = reflect.doc
@@ -401,10 +400,7 @@ object DynamicSchema extends TypeIdSchemas {
     validation: Validation[_],
     pv: PrimitiveValue,
     trace: List[DynamicOptic.Node]
-  ): Option[SchemaError] = {
-    def fail(msg: Predef.String): Option[SchemaError] =
-      new Some(SchemaError.conversionFailed(trace, s"Validation failed: $msg"))
-
+  ): Option[SchemaError] =
     validation match {
       case _: Validation.None.type             => scala.None
       case _: Validation.Numeric.Positive.type =>
@@ -419,7 +415,7 @@ object DynamicSchema extends TypeIdSchemas {
           case v: PrimitiveValue.BigDecimal => if (v.value > 0) return scala.None
           case _                            =>
         }
-        fail("value must be positive")
+        fail(trace, "value must be positive")
       case _: Validation.Numeric.Negative.type =>
         pv match {
           case v: PrimitiveValue.Byte       => if (v.value < 0) return scala.None
@@ -432,7 +428,7 @@ object DynamicSchema extends TypeIdSchemas {
           case v: PrimitiveValue.BigDecimal => if (v.value < 0) return scala.None
           case _                            =>
         }
-        fail("value must be negative")
+        fail(trace, "value must be negative")
       case _: Validation.Numeric.NonPositive.type =>
         pv match {
           case v: PrimitiveValue.Byte       => if (v.value <= 0) return scala.None
@@ -445,7 +441,7 @@ object DynamicSchema extends TypeIdSchemas {
           case v: PrimitiveValue.BigDecimal => if (v.value <= 0) return scala.None
           case _                            =>
         }
-        fail("value must be non-positive")
+        fail(trace, "value must be non-positive")
       case _: Validation.Numeric.NonNegative.type =>
         pv match {
           case v: PrimitiveValue.Byte       => if (v.value >= 0) return scala.None
@@ -458,28 +454,28 @@ object DynamicSchema extends TypeIdSchemas {
           case v: PrimitiveValue.BigDecimal => if (v.value >= 0) return scala.None
           case _                            =>
         }
-        fail("value must be non-negative")
+        fail(trace, "value must be non-negative")
       case r: Validation.Numeric.Range[_]     => checkNumericRange(r, pv, trace)
       case s: Validation.Numeric.Set[_]       => checkNumericSet(s, pv, trace)
       case _: Validation.String.NonEmpty.type =>
         pv match {
           case v: PrimitiveValue.String if v.value.nonEmpty => scala.None
-          case _                                            => fail("string must be non-empty")
+          case _                                            => fail(trace, "string must be non-empty")
         }
       case _: Validation.String.Empty.type =>
         pv match {
           case v: PrimitiveValue.String if v.value.isEmpty => scala.None
-          case _                                           => fail("string must be empty")
+          case _                                           => fail(trace, "string must be empty")
         }
       case _: Validation.String.Blank.type =>
         pv match {
           case v: PrimitiveValue.String if v.value.trim.isEmpty => scala.None
-          case _                                                => fail("string must be blank")
+          case _                                                => fail(trace, "string must be blank")
         }
       case _: Validation.String.NonBlank.type =>
         pv match {
           case v: PrimitiveValue.String if v.value.trim.nonEmpty => scala.None
-          case _                                                 => fail("string must be non-blank")
+          case _                                                 => fail(trace, "string must be non-blank")
         }
       case l: Validation.String.Length =>
         val min = l.min
@@ -491,109 +487,101 @@ object DynamicSchema extends TypeIdSchemas {
             val minOk = min.forall(len >= _)
             val maxOk = max.forall(len <= _)
             if (minOk && maxOk) scala.None
-            else fail(s"string length $len not in range [${min.getOrElse("-∞")}, ${max.getOrElse("∞")}]")
-          case _ => fail("expected string for Length validation")
+            else fail(trace, s"string length $len not in range [${min.getOrElse("-∞")}, ${max.getOrElse("∞")}]")
+          case _ => fail(trace, "expected string for Length validation")
         }
       case p: Validation.String.Pattern =>
         val regex = p.regex
         pv match {
           case v: PrimitiveValue.String =>
             if (v.value.matches(regex)) scala.None
-            else fail(s"string does not match pattern '$regex'")
-          case _ => fail("expected string for Pattern validation")
+            else fail(trace, s"string does not match pattern '$regex'")
+          case _ => fail(trace, "expected string for Pattern validation")
         }
     }
-  }
 
   private[this] def checkNumericRange(
     range: Validation.Numeric.Range[_],
     pv: PrimitiveValue,
     trace: List[DynamicOptic.Node]
-  ): Option[SchemaError] = {
-    def fail(msg: Predef.String): Option[SchemaError] =
-      new Some(SchemaError.conversionFailed(trace, s"Validation failed: $msg"))
+  ): Option[SchemaError] = pv match {
+    case v: PrimitiveValue.Byte =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Byte]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.Short =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Short]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.Int =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Int]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.Long =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Long]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.Float =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Float]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.Double =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Double]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.BigInt =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.BigInt]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case v: PrimitiveValue.BigDecimal =>
+      val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.BigDecimal]]
+      if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
+      else fail(trace, s"value ${v.value} not in range")
+    case _ =>
+      fail(trace, "Range validation only applies to numeric types")
+  }
 
-    def checkRange[A](v: A, min: Option[A], max: Option[A])(implicit ord: Ordering[A]): Boolean = {
-      val minOk = min.forall(ord.gteq(v, _))
-      val maxOk = max.forall(ord.lteq(v, _))
-      minOk && maxOk
-    }
-
-    pv match {
-      case v: PrimitiveValue.Byte =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Byte]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.Short =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Short]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.Int =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Int]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.Long =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Long]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.Float =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Float]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.Double =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.Double]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.BigInt =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.BigInt]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case v: PrimitiveValue.BigDecimal =>
-        val typedRange = range.asInstanceOf[Validation.Numeric.Range[scala.BigDecimal]]
-        if (checkRange(v.value, typedRange.min, typedRange.max)) scala.None
-        else fail(s"value ${v.value} not in range")
-      case _ =>
-        fail("Range validation only applies to numeric types")
-    }
+  private[this] def checkRange[A](v: A, min: Option[A], max: Option[A])(implicit ord: Ordering[A]): Boolean = {
+    val minOk = min.forall(ord.gteq(v, _))
+    val maxOk = max.forall(ord.lteq(v, _))
+    minOk && maxOk
   }
 
   private[this] def checkNumericSet(
     set: Validation.Numeric.Set[_],
     pv: PrimitiveValue,
     trace: List[DynamicOptic.Node]
-  ): Option[SchemaError] = {
-    def fail(msg: Predef.String): Option[SchemaError] =
-      new Some(SchemaError.conversionFailed(trace, s"Validation failed: $msg"))
-
-    pv match {
-      case v: PrimitiveValue.Byte =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Byte]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.Short =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Short]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.Int =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Int]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.Long =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Long]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.Float =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Float]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.Double =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Double]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.BigInt =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.BigInt]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case v: PrimitiveValue.BigDecimal =>
-        val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.BigDecimal]]
-        if (typedSet.values.contains(v.value)) scala.None else fail(s"value ${v.value} not in allowed set")
-      case _ =>
-        fail("Set validation only applies to numeric types")
-    }
+  ): Option[SchemaError] = pv match {
+    case v: PrimitiveValue.Byte =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Byte]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.Short =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Short]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.Int =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Int]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.Long =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Long]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.Float =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Float]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.Double =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.Double]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.BigInt =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.BigInt]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case v: PrimitiveValue.BigDecimal =>
+      val typedSet = set.asInstanceOf[Validation.Numeric.Set[scala.BigDecimal]]
+      if (typedSet.values.contains(v.value)) scala.None else fail(trace, s"value ${v.value} not in allowed set")
+    case _ =>
+      fail(trace, "Set validation only applies to numeric types")
   }
+
+  private[this] def fail(trace: List[DynamicOptic.Node], msg: Predef.String): Option[SchemaError] =
+    new Some(SchemaError.conversionFailed(trace, s"Validation failed: $msg"))
 
   /** Schema for [[Doc.Empty]]. */
   private[this] lazy val docEmptySchema: Schema[Doc.Empty.type] = new Schema(

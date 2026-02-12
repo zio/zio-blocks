@@ -7,6 +7,7 @@ import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
@@ -1050,10 +1051,10 @@ object Reflect {
     ): Either[SchemaError, A] =
       wrapped.fromDynamicValue(value, trace) match {
         case Right(unwrapped) =>
-          try Right(binding.wrap(unwrapped))
+          try new Right(binding.wrap(unwrapped))
           catch {
-            case error: SchemaError => Left(error)
-            case other: Throwable   => Left(SchemaError.validationFailed(other.getMessage))
+            case error: SchemaError       => new Left(error)
+            case other if NonFatal(other) => new Left(SchemaError.validationFailed(other.getMessage))
           }
         case left => left.asInstanceOf[Either[SchemaError, A]]
       }

@@ -10,128 +10,134 @@ private[schema] object Differ {
   // transforms oldValue into newValue.
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     if (oldValue == newValue) DynamicPatch.empty
-    else {
-      (oldValue, newValue) match {
-        case (DynamicValue.Primitive(oldPrim), DynamicValue.Primitive(newPrim)) =>
-          diffPrimitive(oldPrim, newPrim)
-        case (DynamicValue.Record(oldFields), DynamicValue.Record(newFields)) =>
-          diffRecord(oldFields, newFields)
-        case (DynamicValue.Variant(oldCase, oldVal), DynamicValue.Variant(newCase, newVal)) =>
-          diffVariant(oldCase, oldVal, newCase, newVal)
-        case (DynamicValue.Sequence(oldElems), DynamicValue.Sequence(newElems)) =>
-          diffSequence(oldElems, newElems)
-        case (DynamicValue.Map(oldEntries), DynamicValue.Map(newEntries)) =>
-          diffMap(oldEntries, newEntries)
-        case _ =>
-          // Type mismatch - use Set to replace entirely
-          DynamicPatch.root(Patch.Operation.Set(newValue))
+    else if (oldValue.typeIndex == newValue.typeIndex) {
+      oldValue match {
+        case o: DynamicValue.Primitive => diffPrimitive(o.value, newValue.asInstanceOf[DynamicValue.Primitive].value)
+        case o: DynamicValue.Record    => diffRecord(o.fields, newValue.asInstanceOf[DynamicValue.Record].fields)
+        case o: DynamicValue.Variant   =>
+          val n = newValue.asInstanceOf[DynamicValue.Variant]
+          diffVariant(o.caseNameValue, o.value, n.caseNameValue, n.value)
+        case o: DynamicValue.Sequence => diffSequence(o.elements, newValue.asInstanceOf[DynamicValue.Sequence].elements)
+        case o: DynamicValue.Map      => diffMap(o.entries, newValue.asInstanceOf[DynamicValue.Map].entries)
+        case _                        => DynamicPatch.empty
       }
-    }
+    } else DynamicPatch.root(new Patch.Operation.Set(newValue)) // Type mismatch - use Set to replace entirely
 
   // Diff two primitive values. Uses delta operations for numerics, temporal
   // types, and strings. Falls back to Set for other types.
   private def diffPrimitive(oldPrim: PrimitiveValue, newPrim: PrimitiveValue): DynamicPatch =
-    (oldPrim, newPrim) match {
-      // Numeric types - use delta operations
-      case (PrimitiveValue.Int(oldVal), PrimitiveValue.Int(newVal)) =>
-        val delta = newVal - oldVal
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.IntDelta(delta)))
-      case (PrimitiveValue.Long(oldVal), PrimitiveValue.Long(newVal)) =>
-        val delta = newVal - oldVal
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LongDelta(delta)))
-      case (PrimitiveValue.Double(oldVal), PrimitiveValue.Double(newVal)) =>
-        val oldIsNaN = java.lang.Double.isNaN(oldVal)
-        val newIsNaN = java.lang.Double.isNaN(newVal)
-        if (oldIsNaN && newIsNaN) {
-          DynamicPatch.empty
-        } else if (oldIsNaN || newIsNaN) {
-          DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Double(newVal))))
-        } else {
-          val delta = newVal - oldVal
-          DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DoubleDelta(delta)))
-        }
-      case (PrimitiveValue.Float(oldVal), PrimitiveValue.Float(newVal)) =>
-        val oldIsNaN = java.lang.Float.isNaN(oldVal)
-        val newIsNaN = java.lang.Float.isNaN(newVal)
-        if (oldIsNaN && newIsNaN) {
-          DynamicPatch.empty
-        } else if (oldIsNaN || newIsNaN) {
-          DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Float(newVal))))
-        } else {
-          val delta = newVal - oldVal
-          DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.FloatDelta(delta)))
-        }
-      case (PrimitiveValue.Short(oldVal), PrimitiveValue.Short(newVal)) =>
-        val delta = (newVal - oldVal).toShort
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ShortDelta(delta)))
-      case (PrimitiveValue.Byte(oldVal), PrimitiveValue.Byte(newVal)) =>
-        val delta = (newVal - oldVal).toByte
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.ByteDelta(delta)))
-      case (PrimitiveValue.BigInt(oldVal), PrimitiveValue.BigInt(newVal)) =>
-        val delta = newVal - oldVal
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigIntDelta(delta)))
-      case (PrimitiveValue.BigDecimal(oldVal), PrimitiveValue.BigDecimal(newVal)) =>
-        val delta = newVal - oldVal
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.BigDecimalDelta(delta)))
-      // String - use LCS to determine if edit is more efficient
-      case (PrimitiveValue.String(oldStr), PrimitiveValue.String(newStr)) =>
-        diffString(oldStr, newStr)
-      // Temporal types - use period/duration deltas
-      case (PrimitiveValue.Instant(oldVal), PrimitiveValue.Instant(newVal)) =>
-        val duration = java.time.Duration.between(oldVal, newVal)
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.InstantDelta(duration)))
-      case (PrimitiveValue.Duration(oldVal), PrimitiveValue.Duration(newVal)) =>
-        val delta = newVal.minus(oldVal)
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.DurationDelta(delta)))
-      case (PrimitiveValue.LocalDate(oldVal), PrimitiveValue.LocalDate(newVal)) =>
-        val period = java.time.Period.between(oldVal, newVal)
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateDelta(period)))
-      case (PrimitiveValue.LocalDateTime(oldVal), PrimitiveValue.LocalDateTime(newVal)) =>
-        val period      = java.time.Period.between(oldVal.toLocalDate, newVal.toLocalDate)
-        val afterPeriod = oldVal.plus(period)
-        val duration    = java.time.Duration.between(afterPeriod, newVal)
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.LocalDateTimeDelta(period, duration)))
-      case (PrimitiveValue.Period(oldVal), PrimitiveValue.Period(newVal)) =>
-        // Period doesn't have minus, so we compute the delta manually
-        val delta = java.time.Period.of(
-          newVal.getYears - oldVal.getYears,
-          newVal.getMonths - oldVal.getMonths,
-          newVal.getDays - oldVal.getDays
-        )
-        DynamicPatch.root(Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.PeriodDelta(delta)))
-      // All other types - use Set
-      case _ =>
-        DynamicPatch.root(Patch.Operation.Set(DynamicValue.Primitive(newPrim)))
-    }
+    if (oldPrim.typeIndex == newPrim.typeIndex) {
+      oldPrim match {
+        // Numeric types - use delta operations
+        case o: PrimitiveValue.Int =>
+          val delta = newPrim.asInstanceOf[PrimitiveValue.Int].value - o.value
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.IntDelta(delta)))
+        case o: PrimitiveValue.Long =>
+          val delta = newPrim.asInstanceOf[PrimitiveValue.Long].value - o.value
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.LongDelta(delta)))
+        case o: PrimitiveValue.Double =>
+          val oldVal   = o.value
+          val newVal   = newPrim.asInstanceOf[PrimitiveValue.Double].value
+          val oldIsNaN = java.lang.Double.isNaN(oldVal)
+          val newIsNaN = java.lang.Double.isNaN(newVal)
+          if (oldIsNaN && newIsNaN) DynamicPatch.empty
+          else if (oldIsNaN || newIsNaN) {
+            DynamicPatch.root(new Patch.Operation.Set(new DynamicValue.Primitive(new PrimitiveValue.Double(newVal))))
+          } else {
+            val delta = newVal - oldVal
+            DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.DoubleDelta(delta)))
+          }
+        case o: PrimitiveValue.Float =>
+          val oldVal   = o.value
+          val newVal   = newPrim.asInstanceOf[PrimitiveValue.Float].value
+          val oldIsNaN = java.lang.Float.isNaN(oldVal)
+          val newIsNaN = java.lang.Float.isNaN(newVal)
+          if (oldIsNaN && newIsNaN) DynamicPatch.empty
+          else if (oldIsNaN || newIsNaN) {
+            DynamicPatch.root(new Patch.Operation.Set(new DynamicValue.Primitive(new PrimitiveValue.Float(newVal))))
+          } else {
+            val delta = newVal - oldVal
+            DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.FloatDelta(delta)))
+          }
+        case o: PrimitiveValue.Short =>
+          val delta = (newPrim.asInstanceOf[PrimitiveValue.Short].value - o.value).toShort
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.ShortDelta(delta)))
+        case o: PrimitiveValue.Byte =>
+          val delta = (newPrim.asInstanceOf[PrimitiveValue.Byte].value - o.value).toByte
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.ByteDelta(delta)))
+        case o: PrimitiveValue.BigInt =>
+          val delta = newPrim.asInstanceOf[PrimitiveValue.BigInt].value - o.value
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.BigIntDelta(delta)))
+        case o: PrimitiveValue.BigDecimal =>
+          val delta = newPrim.asInstanceOf[PrimitiveValue.BigDecimal].value - o.value
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.BigDecimalDelta(delta)))
+        // String - use LCS to determine if edit is more efficient
+        case o: PrimitiveValue.String =>
+          diffString(o.value, newPrim.asInstanceOf[PrimitiveValue.String].value)
+        // Temporal types - use period/duration deltas
+        case o: PrimitiveValue.Instant =>
+          val duration = java.time.Duration.between(o.value, newPrim.asInstanceOf[PrimitiveValue.Instant].value)
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.InstantDelta(duration)))
+        case o: PrimitiveValue.Duration =>
+          val delta = newPrim.asInstanceOf[PrimitiveValue.Duration].value.minus(o.value)
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.DurationDelta(delta)))
+        case o: PrimitiveValue.LocalDate =>
+          val period = java.time.Period.between(o.value, newPrim.asInstanceOf[PrimitiveValue.LocalDate].value)
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.LocalDateDelta(period)))
+        case o: PrimitiveValue.LocalDateTime =>
+          val oldVal      = o.value
+          val newVal      = newPrim.asInstanceOf[PrimitiveValue.LocalDateTime].value
+          val period      = java.time.Period.between(oldVal.toLocalDate, newVal.toLocalDate)
+          val afterPeriod = oldVal.plus(period)
+          val duration    = java.time.Duration.between(afterPeriod, newVal)
+          DynamicPatch.root(
+            new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.LocalDateTimeDelta(period, duration))
+          )
+        case o: PrimitiveValue.Period =>
+          val oldVal = o.value
+          val newVal = newPrim.asInstanceOf[PrimitiveValue.Period].value
+          // Period doesn't have minus, so we compute the delta manually
+          val delta = java.time.Period.of(
+            newVal.getYears - oldVal.getYears,
+            newVal.getMonths - oldVal.getMonths,
+            newVal.getDays - oldVal.getDays
+          )
+          DynamicPatch.root(new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.PeriodDelta(delta)))
+        // All other types - use Set
+        case _ => DynamicPatch.root(new Patch.Operation.Set(new DynamicValue.Primitive(newPrim)))
+      }
+    } else DynamicPatch.root(new Patch.Operation.Set(new DynamicValue.Primitive(newPrim)))
 
   // Diff two strings using LCS algorithm. Uses StringEdit if the edit
   // operations are more compact than replacing the entire string.
-  private def diffString(oldStr: String, newStr: String): DynamicPatch =
+  private[this] def diffString(oldStr: String, newStr: String): DynamicPatch =
     if (oldStr == newStr) DynamicPatch.empty
     else {
       val edits = computeStringEdits(oldStr, newStr)
       // Calculate the "size" of the edit operations vs just setting the new string.
       // Deletes only store metadata, so they count as a single unit regardless of length.
-      val editSize = edits.foldLeft(0) {
-        case (acc, Patch.StringOp.Insert(_, text))    => acc + text.length
-        case (acc, Patch.StringOp.Delete(_, _))       => acc + 1
-        case (acc, Patch.StringOp.Append(text))       => acc + text.length
-        case (acc, Patch.StringOp.Modify(_, _, text)) => acc + text.length
+      val editSize = edits.foldLeft(0) { (acc, e) =>
+        acc + (e match {
+          case i: Patch.StringOp.Insert => i.text.length
+          case a: Patch.StringOp.Append => a.text.length
+          case m: Patch.StringOp.Modify => m.text.length
+          case _                        => 1
+        })
       }
       DynamicPatch.root(if (edits.nonEmpty && editSize < newStr.length) {
-        Patch.Operation.PrimitiveDelta(Patch.PrimitiveOp.StringEdit(edits))
+        new Patch.Operation.PrimitiveDelta(new Patch.PrimitiveOp.StringEdit(edits))
       } else {
-        Patch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String(newStr)))
+        new Patch.Operation.Set(new DynamicValue.Primitive(new PrimitiveValue.String(newStr)))
       })
     }
 
   // String edit operations using LCS algorithm. Returns a sequence of
   // Insert/Delete operations with indices adjusted for previously applied
   // edits.
-  private def computeStringEdits(oldStr: String, newStr: String): Chunk[Patch.StringOp] = {
+  private[this] def computeStringEdits(oldStr: String, newStr: String): Chunk[Patch.StringOp] = {
     if (oldStr == newStr) return Chunk.empty
-    if (oldStr.isEmpty) return Chunk.single(Patch.StringOp.Insert(0, newStr))
-    if (newStr.isEmpty) return Chunk.single(Patch.StringOp.Delete(0, oldStr.length))
+    if (oldStr.isEmpty) return Chunk.single(new Patch.StringOp.Insert(0, newStr))
+    if (newStr.isEmpty) return Chunk.single(new Patch.StringOp.Delete(0, oldStr.length))
     val lcs    = LCS.stringLCS(oldStr, newStr)
     val edits  = ChunkBuilder.make[Patch.StringOp]()
     var oldIdx = 0
@@ -146,7 +152,7 @@ private[schema] object Differ {
         oldIdx += 1
       }
       val deleteLen = oldIdx - deleteStart
-      if (deleteLen > 0) edits.addOne(Patch.StringOp.Delete(cursor, deleteLen))
+      if (deleteLen > 0) edits.addOne(new Patch.StringOp.Delete(cursor, deleteLen))
       // Insert characters from the new string that appear before the next LCS character.
       val insertStart = newIdx
       while (newIdx < newStr.length && newStr.charAt(newIdx) != targetChar) {
@@ -154,7 +160,7 @@ private[schema] object Differ {
       }
       if (newIdx > insertStart) {
         val text = newStr.substring(insertStart, newIdx)
-        edits.addOne(Patch.StringOp.Insert(cursor, text))
+        edits.addOne(new Patch.StringOp.Insert(cursor, text))
         cursor += text.length
       }
       // Consume the matching LCS character.
@@ -166,19 +172,19 @@ private[schema] object Differ {
     // Delete any trailing characters left in the old string.
     if (oldIdx < oldStr.length) {
       val deleteLen = oldStr.length - oldIdx
-      edits.addOne(Patch.StringOp.Delete(cursor, deleteLen))
+      edits.addOne(new Patch.StringOp.Delete(cursor, deleteLen))
     }
     // Insert any trailing characters from the new string.
     if (newIdx < newStr.length) {
       val text = newStr.substring(newIdx)
-      if (text.nonEmpty) edits.addOne(Patch.StringOp.Insert(cursor, text))
+      if (text.nonEmpty) edits.addOne(new Patch.StringOp.Insert(cursor, text))
     }
     edits.result()
   }
 
   // Diff two records by comparing fields. Only includes patches for fields that
   // have changed.
-  private def diffRecord(
+  private[this] def diffRecord(
     oldFields: Chunk[(String, DynamicValue)],
     newFields: Chunk[(String, DynamicValue)]
   ): DynamicPatch = {
@@ -187,30 +193,30 @@ private[schema] object Differ {
     // Check each field in the new record
     for ((fieldName, newValue) <- newFields) {
       oldMap.get(fieldName) match {
-        case Some(oldValue) if oldValue != newValue =>
-          // Field exists in both but has different value - recursively diff
-          val fieldPatch = diff(oldValue, newValue)
-          if (!fieldPatch.isEmpty) {
-            // Prepend the field path to each operation
-            for (op <- fieldPatch.ops) {
-              ops.addOne(
-                new Patch.DynamicPatchOp(
-                  new DynamicOptic(DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
-                  op.operation
+        case Some(oldValue) =>
+          if (oldValue != newValue) {
+            // Field exists in both but has different value - recursively diff
+            val fieldPatch = diff(oldValue, newValue)
+            if (!fieldPatch.isEmpty) {
+              // Prepend the field path to each operation
+              for (op <- fieldPatch.ops) {
+                ops.addOne(
+                  new Patch.DynamicPatchOp(
+                    new DynamicOptic(new DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
+                    op.operation
+                  )
                 )
-              )
+              }
             }
           }
-        case None =>
+        case _ =>
           // Field only exists in new record - set it
           ops.addOne(
             new Patch.DynamicPatchOp(
-              new DynamicOptic(Vector(DynamicOptic.Node.Field(fieldName))),
+              new DynamicOptic(Chunk.single(new DynamicOptic.Node.Field(fieldName))),
               new Patch.Operation.Set(newValue)
             )
           )
-        case _ =>
-        // Field unchanged - skip
       }
     }
     // Fields that exist in old but not in new are ignored
@@ -220,7 +226,7 @@ private[schema] object Differ {
 
   // Diff two variants. Case changes always replace the whole variant, but
   // identical cases reuse inner diffs.
-  private def diffVariant(
+  private[this] def diffVariant(
     oldCase: String,
     oldValue: DynamicValue,
     newCase: String,
@@ -241,10 +247,9 @@ private[schema] object Differ {
   // Diff two sequences using an LCS-based alignment. Produces
   // Patch.SeqOp.Insert/Delete/Append operations that describe how to transform the
   // old elements into the new ones without replacing the entire collection.
-  private def diffSequence(oldElems: Chunk[DynamicValue], newElems: Chunk[DynamicValue]): DynamicPatch =
-    if (oldElems == newElems) {
-      DynamicPatch.empty
-    } else if (oldElems.isEmpty) {
+  private[this] def diffSequence(oldElems: Chunk[DynamicValue], newElems: Chunk[DynamicValue]): DynamicPatch =
+    if (oldElems == newElems) DynamicPatch.empty
+    else if (oldElems.isEmpty) {
       DynamicPatch.root(new Patch.Operation.SequenceEdit(Chunk.single(new Patch.SeqOp.Append(newElems))))
     } else if (newElems.isEmpty) {
       DynamicPatch.root(new Patch.Operation.SequenceEdit(Chunk.single(new Patch.SeqOp.Delete(0, oldElems.length))))
@@ -256,7 +261,10 @@ private[schema] object Differ {
 
   // Convert the difference between two sequences into SeqOps using LCS
   // alignment.
-  private def computeSequenceOps(oldElems: Chunk[DynamicValue], newElems: Chunk[DynamicValue]): Chunk[Patch.SeqOp] = {
+  private[this] def computeSequenceOps(
+    oldElems: Chunk[DynamicValue],
+    newElems: Chunk[DynamicValue]
+  ): Chunk[Patch.SeqOp] = {
     val ops       = ChunkBuilder.make[Patch.SeqOp]()
     val matches   = LCS.indicesLCS(oldElems, newElems)(_ == _)
     var oldIdx    = 0
@@ -293,7 +301,7 @@ private[schema] object Differ {
 
   // Diff two maps by comparing keys and values. Produces Add, Remove, and
   // Modify operations.
-  private def diffMap(
+  private[this] def diffMap(
     oldEntries: Chunk[(DynamicValue, DynamicValue)],
     newEntries: Chunk[(DynamicValue, DynamicValue)]
   ): DynamicPatch = {
@@ -308,16 +316,16 @@ private[schema] object Differ {
             // Key exists in both but value changed - recursively diff
             val valuePatch = diff(oldValue, newValue)
             if (!valuePatch.isEmpty) {
-              ops.addOne(Patch.MapOp.Modify(key, valuePatch))
+              ops.addOne(new Patch.MapOp.Modify(key, valuePatch))
             }
           }
-        case _ => ops.addOne(Patch.MapOp.Add(key, newValue))
+        case _ => ops.addOne(new Patch.MapOp.Add(key, newValue))
       }
     }
     // Find removed keys
     for ((key, _) <- oldEntries) {
-      if (!newMap.contains(key)) ops.addOne(Patch.MapOp.Remove(key))
+      if (!newMap.contains(key)) ops.addOne(new Patch.MapOp.Remove(key))
     }
-    DynamicPatch.root(Patch.Operation.MapEdit(ops.result()))
+    DynamicPatch.root(new Patch.Operation.MapEdit(ops.result()))
   }
 }
