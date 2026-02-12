@@ -24,22 +24,7 @@ object GenerateMediaTypes {
       case _                                                            => !compressible
     }
 
-    def scalaName: String = {
-      val base = subType
-        .replace("+", "Plus")
-        .replace(".", "Dot")
-        .split("[\\-_]")
-        .zipWithIndex
-        .map { case (part, idx) =>
-          if (idx == 0) part.toLowerCase
-          else part.toLowerCase.capitalize
-        }
-        .mkString
-
-      if (base.headOption.exists(_.isDigit)) s"_$base"
-      else if (reservedWords.contains(base)) s"${base}_"
-      else base
-    }
+    def scalaName: String = s"`$subType`"
 
     def render: String = {
       val extList =
