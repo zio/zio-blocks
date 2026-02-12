@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.docs.{Doc, Paragraph, Inline}
+import zio.blocks.docs._
 import zio.test.Assertion._
 import zio.test._
 

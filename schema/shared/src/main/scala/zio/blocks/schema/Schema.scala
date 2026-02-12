@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.docs.{Doc, Paragraph, Inline}
+import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.typeid.TypeId
@@ -174,7 +174,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   }
 }
 
-object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
+object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with DocsSchemas {
+
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
@@ -278,38 +279,6 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
 
   implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
     new Schema(Reflect.either(l.reflect, r.reflect))
-
-  // ===========================================================================
-  // Markdown AST types (from zio.blocks.docs)
-  // ===========================================================================
-
-  implicit lazy val docsDoc: Schema[zio.blocks.docs.Doc]                                  = Schema.derived
-  implicit lazy val docsBlock: Schema[zio.blocks.docs.Block]                              = Schema.derived
-  implicit lazy val docsParagraph: Schema[zio.blocks.docs.Paragraph]                      = Schema.derived
-  implicit lazy val docsHeading: Schema[zio.blocks.docs.Heading]                          = Schema.derived
-  implicit lazy val docsCodeBlock: Schema[zio.blocks.docs.CodeBlock]                      = Schema.derived
-  implicit lazy val docsThematicBreak: Schema[zio.blocks.docs.ThematicBreak.type]         = Schema.derived
-  implicit lazy val docsBlockQuote: Schema[zio.blocks.docs.BlockQuote]                    = Schema.derived
-  implicit lazy val docsBulletList: Schema[zio.blocks.docs.BulletList]                    = Schema.derived
-  implicit lazy val docsOrderedList: Schema[zio.blocks.docs.OrderedList]                  = Schema.derived
-  implicit lazy val docsListItem: Schema[zio.blocks.docs.ListItem]                        = Schema.derived
-  implicit lazy val docsHtmlBlock: Schema[zio.blocks.docs.HtmlBlock]                      = Schema.derived
-  implicit lazy val docsTable: Schema[zio.blocks.docs.Table]                              = Schema.derived
-  implicit lazy val docsInline: Schema[zio.blocks.docs.Inline]                            = Schema.derived
-  implicit lazy val docsInlineText: Schema[zio.blocks.docs.Inline.Text]                   = Schema.derived
-  implicit lazy val docsInlineCode: Schema[zio.blocks.docs.Inline.Code]                   = Schema.derived
-  implicit lazy val docsInlineEmphasis: Schema[zio.blocks.docs.Inline.Emphasis]           = Schema.derived
-  implicit lazy val docsInlineStrong: Schema[zio.blocks.docs.Inline.Strong]               = Schema.derived
-  implicit lazy val docsInlineStrikethrough: Schema[zio.blocks.docs.Inline.Strikethrough] = Schema.derived
-  implicit lazy val docsInlineLink: Schema[zio.blocks.docs.Inline.Link]                   = Schema.derived
-  implicit lazy val docsInlineImage: Schema[zio.blocks.docs.Inline.Image]                 = Schema.derived
-  implicit lazy val docsInlineHtmlInline: Schema[zio.blocks.docs.Inline.HtmlInline]       = Schema.derived
-  implicit lazy val docsInlineSoftBreak: Schema[zio.blocks.docs.Inline.SoftBreak.type]    = Schema.derived
-  implicit lazy val docsInlineHardBreak: Schema[zio.blocks.docs.Inline.HardBreak.type]    = Schema.derived
-  implicit lazy val docsInlineAutolink: Schema[zio.blocks.docs.Inline.Autolink]           = Schema.derived
-  implicit lazy val docsHeadingLevel: Schema[zio.blocks.docs.HeadingLevel]                = Schema.derived
-  implicit lazy val docsAlignment: Schema[zio.blocks.docs.Alignment]                      = Schema.derived
-  implicit lazy val docsTableRow: Schema[zio.blocks.docs.TableRow]                        = Schema.derived
 
   /**
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
