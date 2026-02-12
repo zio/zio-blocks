@@ -17,7 +17,7 @@ const sidebars = {
          "reference/dynamic-optic",
          "reference/type-class-derivation",
          "reference/codec",
-         "reference/format",
+         "reference/formats",
          "path-interpolator",
          "reference/chunk",
          "reference/validation",
