@@ -121,23 +121,9 @@ object Scope {
 - **Access paths:**
   - `scope.$(a)(f)` to apply a function and get `$[B]`
 
-#### Scala 2 notes
+#### Scala 2 note
 
-**Type annotations:** In Scala 2, explicit type annotations are required when assigning scoped values:
-
-```scala
-Scope.global.scoped { scope =>
-  import scope._
-
-  // Scala 2 requires explicit type annotation
-  val db: $[Database] = allocate(Resource[Database])
-
-  // Scala 3 can infer the type
-  val db = allocate(Resource[Database])
-}
-```
-
-**Lambda syntax:** In Scala 2, the `scoped` method must be called with a lambda literal. Passing a variable or method reference is not supported due to macro limitations:
+In Scala 2, the `scoped` method must be called with a lambda literal. Passing a variable or method reference is not supported due to macro limitations:
 
 ```scala
 // ✅ OK: lambda literal

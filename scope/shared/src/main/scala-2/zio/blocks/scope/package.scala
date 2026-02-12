@@ -43,14 +43,6 @@ package zio.blocks
  */
 package object scope {
 
-  import scala.language.experimental.macros
-
-  /**
-   * Debug macro to inspect the type tree of a value.
-   * Prints type information at compile time, returns the value unchanged.
-   */
-  def debugType[A](value: A): A = macro ScopeMacros.debugTypeImpl[A]
-
   /**
    * Registers a finalizer to run when the current scope closes.
    *

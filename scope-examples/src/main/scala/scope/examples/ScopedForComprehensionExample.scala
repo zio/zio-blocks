@@ -76,7 +76,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
     val result: $[String] = for {
       pool   <- allocate(Resource.from[Pool])
       conn   <- allocate(Resource(pool.lease()))
-      prefix <- scoped("PREFIX: ")
+      prefix <- wrap("PREFIX: ")
     } yield prefix + conn.query("SELECT name FROM employees").value
 
     println(s"\n  Result: ${scope.$(result)(identity)}")
