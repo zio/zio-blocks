@@ -90,14 +90,14 @@ class SecretStore extends AutoCloseable {
 @main def runConfigReaderExample(): Unit = {
   println("=== ScopeLift & Unscoped Example ===\n")
 
-  var escapedConfig: ConfigData = null.asInstanceOf[ConfigData]
-  Scope.global.scoped { scope =>
+  // ConfigData is Unscoped, so it escapes the scope as raw ConfigData
+  val escapedConfig: ConfigData = Scope.global.scoped { scope =>
     import scope._
     val reader = allocate(Resource(new ConfigReader))
 
-    $(reader) { r =>
-      escapedConfig = r.readConfig("/etc/app/config.json")
-    }
+    // $(reader)(f) returns ConfigData @@ ScopeTag, which is unwrapped
+    // to raw ConfigData by the scopedUnscoped ScopeLift instance
+    $(reader)(_.readConfig("/etc/app/config.json"))
   }
 
   println("Escaped config (used outside scope):")

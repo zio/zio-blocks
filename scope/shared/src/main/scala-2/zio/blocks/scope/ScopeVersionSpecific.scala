@@ -11,12 +11,13 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
   /**
    * Applies a function to a scoped value.
    *
-   * Accepts any scoped value whose tag is a supertype of this scope's ScopeTag. Due
-   * to contravariance in `S`, an `A @@ ParentTag` is a subtype of
+   * Accepts any scoped value whose tag is a supertype of this scope's ScopeTag.
+   * Due to contravariance in `S`, an `A @@ ParentTag` is a subtype of
    * `A @@ ChildTag`, so parent-scoped values can be passed to child scopes.
    *
-   * The result is always tagged with the scope's ScopeTag, preventing closures from
-   * escaping with an unscoped result that could be executed after scope close.
+   * The result is always tagged with the scope's ScopeTag, preventing closures
+   * from escaping with an unscoped result that could be executed after scope
+   * close.
    *
    * @param scoped
    *   the scoped computation to execute
@@ -45,8 +46,8 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * Executes a scoped computation.
    *
    * Accepts any scoped computation whose tag is a supertype of this scope's
-   * ScopeTag. The result is always tagged with the scope's ScopeTag, preventing closures
-   * from escaping with an unscoped result.
+   * ScopeTag. The result is always tagged with the scope's ScopeTag, preventing
+   * closures from escaping with an unscoped result.
    *
    * @param scoped
    *   the scoped computation to execute
@@ -109,16 +110,23 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
    * @return
    *   the lifted result (type depends on `lift.Out`)
    */
-  def scoped[A](f: Scope[self.ScopeTag, _ <: self.ScopeTag] => A)(implicit lift: ScopeLift[A, self.ScopeTag]): lift.Out = {
+  def scoped[A](
+    f: Scope[self.ScopeTag, _ <: self.ScopeTag] => A
+  )(implicit lift: ScopeLift[A, self.ScopeTag]): lift.Out = {
     // If parent scope is closed, create child as already-closed.
     // This makes all child operations ($ , execute, defer, allocate) no-ops,
     // preventing use-after-close when a leaked scope is misused.
     val childFinalizers    = if (self.isClosed) Finalizers.closed else new Finalizers
     val childScope         = new Scope[self.ScopeTag, self.ScopeTag](childFinalizers)
     var primary: Throwable = null.asInstanceOf[Throwable]
-    var result: A          = null.asInstanceOf[A]
-    try result = f(childScope)
-    catch {
+    var out: lift.Out      = null.asInstanceOf[lift.Out]
+    try {
+      val result = f(childScope)
+      // CRITICAL: Apply lift BEFORE closing the scope.
+      // scopedUnscoped calls @@.unscoped which forces Scoped.run on deferred
+      // computations. These must execute while the scope is still open.
+      out = lift(result)
+    } catch {
       case t: Throwable =>
         primary = t
         throw t
@@ -132,6 +140,6 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
         throw first
       }
     }
-    lift(result)
+    out
   }
 }

@@ -141,16 +141,37 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         val _: Int = result
         assertTrue(result + 1 == 43)
       },
-      test("child-scoped values cannot escape to parent (compile-time rejection)") {
+      test("child-scoped Unscoped values CAN escape to parent (unwrapped to raw)") {
+        // String @@ child.ScopeTag CAN escape because String is Unscoped
+        // The scopedUnscoped instance unwraps it to raw String
+        val result: String = Scope.global.scoped { parent =>
+          import parent._
+          scoped { child =>
+            import child._
+            val s: String @@ child.ScopeTag = allocate(Resource("hello"))
+            s // String @@ child.ScopeTag escapes as raw String via scopedUnscoped
+          }
+        }
+        assertTrue(result == "hello")
+      },
+      test("child-scoped NON-Unscoped values cannot escape (no ScopeLift instance)") {
+        // Database @@ child.ScopeTag cannot escape because:
+        // - scoped doesn't apply (child.ScopeTag is not <:< parent.ScopeTag)
+        // - scopedUnscoped doesn't apply (Database is not Unscoped)
+        // - No catch-all exists for arbitrary scoped values
         assertZIO(typeCheck("""
           import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            def close(): Unit = ()
+          }
 
           Scope.global.scoped { parent =>
             import parent._
             scoped { child =>
               import child._
-              val s: String @@ child.ScopeTag = allocate(Resource("hello"))
-              s
+              val db: Database @@ child.ScopeTag = allocate(Resource(new Database))
+              db // Database @@ child.ScopeTag - no ScopeLift instance
             }
           }
         """))(isLeft(containsString("ScopeLift")))

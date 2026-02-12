@@ -21,8 +21,8 @@ import scala.language.experimental.macros
  *
  * ==Key Concepts==
  *
- *   - '''Scoped values''' (`A @@ ScopeTag`): Values tagged with a scope, preventing
- *     escape
+ *   - '''Scoped values''' (`A @@ ScopeTag`): Values tagged with a scope,
+ *     preventing escape
  *   - '''`import scope._`''': Bring scope operations into lexical scope
  *   - '''`allocate(resource)`''': Allocate a value in the current scope
  *   - '''`$(value)(f)`''': Apply a function to a scoped value

@@ -123,9 +123,14 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
     val childFinalizers           = if (self.isClosed) Finalizers.closed else new Finalizers
     val childScope                = new Scope[self.ScopeTag, self.ScopeTag](childFinalizers)
     var primary: Throwable | Null = null
-    var result: A                 = null.asInstanceOf[A]
-    try result = f(childScope)
-    catch {
+    var out: lift.Out             = null.asInstanceOf[lift.Out]
+    try {
+      val result = f(childScope)
+      // CRITICAL: Apply lift BEFORE closing the scope.
+      // scopedUnscoped calls @@.unscoped which forces Scoped.run on deferred
+      // computations. These must execute while the scope is still open.
+      out = lift(result)
+    } catch {
       case t: Throwable =>
         primary = t
         throw t
@@ -139,6 +144,6 @@ private[scope] trait ScopeVersionSpecific[ParentTag, Tag0 <: ParentTag] {
         throw first
       }
     }
-    lift(result)
+    out
   }
 }

@@ -87,13 +87,14 @@ object @@ {
    * Creates a scoped value tagged with scope S.
    *
    * This wraps a by-name value into a scoped computation `A @@ S`. The scope
-   * tag `S` is typically the path-dependent `ScopeTag` type of a [[Scope]] instance.
+   * tag `S` is typically the path-dependent `ScopeTag` type of a [[Scope]]
+   * instance.
    *
    * The value is evaluated lazily when the scoped computation is executed.
    *
    * '''Note:''' This only tags the value - it does not manage lifecycle. For
-   * resources that need cleanup, prefer `allocate` with a [[Resource]]
-   * which automatically registers finalizers.
+   * resources that need cleanup, prefer `allocate` with a [[Resource]] which
+   * automatically registers finalizers.
    *
    * @param a
    *   the value to scope (by-name, evaluated lazily)

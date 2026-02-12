@@ -115,7 +115,7 @@ trait ScopeLiftMidPriority extends ScopeLiftLowPriority {
 /**
  * Low-priority instances for [[ScopeLift]].
  */
-trait ScopeLiftLowPriority {
+trait ScopeLiftLowPriority extends ScopeLiftLowestPriority {
 
   /**
    * Parent-scoped values lift as-is.
@@ -128,5 +128,25 @@ trait ScopeLiftLowPriority {
     new ScopeLift[B @@ T, S] {
       type Out = B @@ T
       def apply(a: B @@ T): Out = a
+    }
+}
+
+/**
+ * Lowest-priority instances for [[ScopeLift]].
+ */
+trait ScopeLiftLowestPriority {
+
+  /**
+   * Scoped values with Unscoped inner type can be unwrapped.
+   *
+   * When the inner type `A` is `Unscoped` (pure data), it's safe to extract the
+   * raw value from `A @@ T` regardless of the scope tag `T`. The value is
+   * evaluated while the scope is still open, and the result is pure data that
+   * doesn't hold resources.
+   */
+  given scopedUnscoped[A, T, S](using Unscoped[A]): ScopeLift.Aux[A @@ T, S, A] =
+    new ScopeLift[A @@ T, S] {
+      type Out = A
+      def apply(a: A @@ T): Out = @@.unscoped(a)
     }
 }

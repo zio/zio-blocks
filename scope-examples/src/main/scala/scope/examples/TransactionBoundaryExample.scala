@@ -88,57 +88,55 @@ object TransactionBoundaryExample {
 
       // Transaction 1: Successful insert
       println("--- Transaction 1: Insert user ---")
-      var result1: TxResult = null
-      scoped { txScope =>
-        import txScope._
-        val program = for {
-          c  <- conn
-          tx <- allocate(c.beginTransaction("tx-001"))
-        } yield {
-          val rows = tx.execute("INSERT INTO users VALUES (1, 'Alice')")
-          tx.commit()
-          result1 = TxResult(success = true, affectedRows = rows)
+      val result1: TxResult =
+        scoped { txScope =>
+          import txScope._
+          val program = for {
+            c  <- conn
+            tx <- allocate(c.beginTransaction("tx-001"))
+          } yield {
+            val rows = tx.execute("INSERT INTO users VALUES (1, 'Alice')")
+            tx.commit()
+            TxResult(success = true, affectedRows = rows)
+          }
+          execute(program)
         }
-        execute(program)
-        ()
-      }
       println(s"  Result: $result1\n")
 
       // Transaction 2: Transfer funds (multiple operations)
       println("--- Transaction 2: Transfer funds ---")
-      var result2: TxResult = null
-      scoped { txScope =>
-        import txScope._
-        val program = for {
-          c  <- conn
-          tx <- allocate(c.beginTransaction("tx-002"))
-        } yield {
-          val rows1 = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
-          val rows2 = tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
-          tx.commit()
-          result2 = TxResult(success = true, affectedRows = rows1 + rows2)
+      val result2: TxResult =
+        scoped { txScope =>
+          import txScope._
+          val program = for {
+            c  <- conn
+            tx <- allocate(c.beginTransaction("tx-002"))
+          } yield {
+            val rows1 = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
+            val rows2 = tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
+            tx.commit()
+            TxResult(success = true, affectedRows = rows1 + rows2)
+          }
+          execute(program)
         }
-        execute(program)
-        ()
-      }
       println(s"  Result: $result2\n")
 
       // Transaction 3: Demonstrates auto-rollback on scope exit without commit
       println("--- Transaction 3: Auto-rollback (no explicit commit) ---")
-      var result3: TxResult = null
-      scoped { txScope =>
-        import txScope._
-        val program = for {
-          c  <- conn
-          tx <- allocate(c.beginTransaction("tx-003"))
-        } yield {
-          tx.execute("DELETE FROM audit_log")
-          println("    [App] Not committing - scope exit will trigger auto-rollback...")
-          result3 = TxResult(success = false, affectedRows = 0)
+      val result3: TxResult =
+        scoped { txScope =>
+          import txScope._
+
+          val program = for {
+            c  <- conn
+            tx <- allocate(c.beginTransaction("tx-003"))
+          } yield {
+            tx.execute("DELETE FROM audit_log")
+            println("    [App] Not committing - scope exit will trigger auto-rollback...")
+            TxResult(success = false, affectedRows = 0)
+          }
+          execute(program)
         }
-        execute(program)
-        ()
-      }
       println(s"  Result: $result3\n")
 
       println("--- All transactions complete, connection still open ---")

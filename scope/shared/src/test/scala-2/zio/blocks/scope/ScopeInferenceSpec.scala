@@ -3,8 +3,8 @@ package zio.blocks.scope
 import zio.test._
 
 /**
- * Scala 2 version of scope type inference tests.
- * Uses import scope._ pattern to bring operations into scope.
+ * Scala 2 version of scope type inference tests. Uses import scope._ pattern to
+ * bring operations into scope.
  */
 object ScopeInferenceSpec extends ZIOSpecDefault {
 
@@ -12,7 +12,7 @@ object ScopeInferenceSpec extends ZIOSpecDefault {
   final case class @@[+A, -S](private[scope] val value: A) extends AnyVal
 
   object @@ {
-    def wrap[A, S](a: A): A @@ S = new @@(a)
+    def wrap[A, S](a: A): A @@ S   = new @@(a)
     def unwrap[A, S](s: A @@ S): A = s.value
   }
 
@@ -70,7 +70,7 @@ object ScopeInferenceSpec extends ZIOSpecDefault {
         import scope._
 
         val resource = allocate("hello")
-        val len = resource.map(_.length)
+        val len      = resource.map(_.length)
 
         $(len) { l =>
           captured = l
@@ -114,7 +114,7 @@ object ScopeInferenceSpec extends ZIOSpecDefault {
     },
     test("nested scoped works") {
       var parentCaptured: String = null
-      var childCaptured: Int = 0
+      var childCaptured: Int     = 0
 
       MockScope.global.scoped { parent =>
         import parent._
