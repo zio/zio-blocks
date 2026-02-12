@@ -34,7 +34,7 @@ abstract class BinaryFormat[...](...) extends Format { ... }
 abstract class TextFormat[...](...) extends Format { ... }
 ```
 
-For example, the `JsonFormat` is a `BinaryFormat` that represents a JSON binary format, where the input for decoding is `Array[Byte]` and the output for encoding is also `Array[Byte]`, the MIME type is `application/json`, and the deriver for generating codecs from schemas is `JsonBinaryCodecDeriver`:
+For example, the `JsonFormat` is a `BinaryFormat` that represents a JSON binary format, where the input for decoding is `ByteBuffer` and the output for encoding is also `ByteBuffer`, the MIME type is `application/json`, and the deriver for generating codecs from schemas is `JsonBinaryCodecDeriver`:
 
 ```scala
 object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDeriver)
