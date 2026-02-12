@@ -1806,7 +1806,7 @@ class JsonBinaryCodecDeriver private[json] (
                     prefixItems = new Some(schemas),
                     items = new Some(JsonSchema.False)
                   )
-                case None => JsonSchema.False
+                case _ => JsonSchema.False
               }
           }
         } else {
