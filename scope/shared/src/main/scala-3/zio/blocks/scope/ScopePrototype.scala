@@ -1,16 +1,19 @@
 package zio.blocks.scope
 
+import scala.language.implicitConversions
+
 /**
  * Prototype for sound scope-local opaque types.
  *
- * Key insight: Each scope defines its own `$[A]` opaque type, making sibling-scoped
- * values structurally incompatible. This eliminates the unsoundness of tag-based approaches.
+ * Key insight: Each scope defines its own `$[A]` opaque type, making
+ * sibling-scoped values structurally incompatible. This eliminates the
+ * unsoundness of tag-based approaches.
  *
  * JANKY BITS (to fix in real implementation):
- * - allocate uses asInstanceOf to bridge to real Resource/Scope types
- * - defer is a no-op (needs Finalizers integration)
- * - scoped doesn't handle exceptions or run finalizers
- * - lower uses asInstanceOf (sound but unchecked)
+ *   - allocate uses asInstanceOf to bridge to real Resource/Scope types
+ *   - defer is a no-op (needs Finalizers integration)
+ *   - scoped doesn't handle exceptions or run finalizers
+ *   - lower uses asInstanceOf (sound but unchecked)
  */
 object ScopePrototype {
 
@@ -22,11 +25,19 @@ object ScopePrototype {
    * A scope that manages resource lifecycle with compile-time verified safety.
    *
    * Each scope has its own `$[A]` opaque type, making sibling-scoped values
-   * structurally incompatible. Parent-scoped values can be `lower`ed into child scopes.
+   * structurally incompatible. Parent-scoped values can be `lower`ed into child
+   * scopes.
+   *
+   * ZERO-COST: With `Unscoped[A]` constraint on `scoped`, nothing can escape
+   * that would be evaluated after close. Therefore `$[A] = A` (no thunks
+   * needed) and all operations are eager.
    */
   sealed abstract class Scope { self =>
 
-    /** The scoped value type - unique to each scope instance. */
+    /**
+     * The scoped value type - unique to each scope instance. Zero-cost: $[A] =
+     * A.
+     */
     type $[+A]
 
     /** Parent scope type. */
@@ -35,93 +46,68 @@ object ScopePrototype {
     /** Reference to parent scope. */
     val parent: Parent
 
-    /** Returns true if this scope has been closed. */
-    def isClosed: Boolean
-
     // ========================================================================
-    // Abstract $ operations - implemented differently by Global vs Child
+    // Abstract $ operations - zero-cost identity for all scopes
     // ========================================================================
 
-    /** Wrap a value eagerly (scope is open, execute now). */
-    protected def $eager[A](a: A): $[A]
+    /** Wrap a value (identity - zero cost). */
+    protected def $wrap[A](a: A): $[A]
 
-    /** Wrap a value lazily (scope closed or deferred computation). */
-    protected def $deferred[A](a: => A): $[A]
-
-    /** Unwrap a value from this scope's $ type. */
-    protected def $run[A](sa: $[A]): A
+    /** Unwrap a value (identity - zero cost). */
+    protected def $unwrap[A](sa: $[A]): A
 
     // ========================================================================
-    // $ companion object
+    // Scoped value factory
     // ========================================================================
 
     /** Operations on scoped values. */
-    object $ {
-      /** Create a deferred scoped value. */
-      def apply[A](a: => A): $[A] = $deferred(a)
+    object scoped {
 
-      /** Force evaluation of a scoped value. */
-      def run[A](sa: $[A]): A = $run(sa)
-    }
+      /** Create a scoped value (zero-cost wrap). */
+      def apply[A](a: A): $[A] = $wrap(a)
 
-    // ========================================================================
-    // ScopeLift - defined inside Scope so it knows about self.$
-    // ========================================================================
-
-    /**
-     * Typeclass controlling what types can exit this scope.
-     *
-     * Simple rules:
-     * - `self.$[A]` where A: Unscoped → unwrap to A (child scope elimination)
-     * - Everything else → pass through unchanged
-     *
-     * Since parent.$[A] is a DIFFERENT TYPE from self.$[A], it just passes
-     * through. If someone tries to return child.$[A] where A is NOT Unscoped,
-     * it passes through but becomes unusable in the parent (sound by design).
-     */
-    trait ScopeLift[A] {
-      type Out
-      def apply(a: A): Out
-    }
-
-    object ScopeLift extends ScopeLiftLowPriority {
-      type Aux[A, O] = ScopeLift[A] { type Out = O }
-
-      /** This scope's $[A] with Unscoped A: unwrap to A. */
-      given selfScopedLift[A](using Unscoped[A]): Aux[$[A], A] =
-        new ScopeLift[$[A]] {
-          type Out = A
-          def apply(a: $[A]): A = $run(a)
-        }
-    }
-
-    trait ScopeLiftLowPriority {
-      /** Fallback: pass through unchanged. Handles Unscoped and everything else. */
-      given passThrough[A]: ScopeLift.Aux[A, A] =
-        new ScopeLift[A] {
-          type Out = A
-          def apply(a: A): A = a
-        }
+      /**
+       * Force evaluation of a scoped value. Package-private - UNSOUND if
+       * exposed.
+       */
+      private[scope] def run[A](sa: $[A]): A = $unwrap(sa)
     }
 
     // ========================================================================
     // Core scope methods
     // ========================================================================
 
-    /** Lower a parent-scoped value into this scope. Safe because parent outlives child. */
+    /**
+     * Lower a parent-scoped value into this scope. Safe because parent outlives
+     * child.
+     */
     final def lower[A](value: parent.$[A]): $[A] =
       // JANKY: asInstanceOf is sound because parent's $ representation is compatible
       value.asInstanceOf[$[A]]
 
-    /** Create a child scope. */
-    final def scoped[A](f: Scope.Child[self.type] => A)(using lift: ScopeLift[A]): lift.Out = {
+    /**
+     * Create a child scope.
+     *
+     * The block MUST return a child-scoped value `child.$[A]`. This value is
+     * unwrapped to `A` at the boundary, BEFORE the scope closes.
+     *
+     * Raw values must be wrapped: return `scoped(rawValue)` not `rawValue`. An
+     * implicit conversion is provided for Unscoped types.
+     *
+     * Uses ScopeUser SAM type for Scala 2 compatibility.
+     *
+     * @tparam A
+     *   must have Unscoped evidence - prevents leaking resources, scopes, or
+     *   closures
+     */
+    final def scoped[A](f: ScopeUser[self.type, A])(using Unscoped[A]): A = {
       val child = new Scope.Child[self.type](self)
       // TODO: proper exception handling and finalizer running
-      val result = f(child)
-      // Lift BEFORE closing (critical for soundness)
-      val lifted = lift(result)
+      val result: child.$[A] = f.use(child)
+      // Unwrap at boundary BEFORE closing (critical for soundness)
+      val unwrapped: A = child.scoped.run(result)
       // TODO: child.close()
-      lifted
+      unwrapped
     }
 
     // ========================================================================
@@ -134,7 +120,7 @@ object ScopePrototype {
       // Scope0 refers to the actual zio.blocks.scope.Scope class
       val realScope = this.asInstanceOf[zio.blocks.scope.Scope[?, ?]]
       val value     = resource.make(realScope.asInstanceOf[Finalizer])
-      $eager(value)
+      $wrap(value)
     }
 
     /** Allocate an AutoCloseable directly. */
@@ -142,79 +128,75 @@ object ScopePrototype {
       allocate(Resource(value))
 
     /** Register a finalizer to run when scope closes. */
-    def defer(f: => Unit): Unit = ()  // JANKY: no-op, needs Finalizers
+    def defer(f: => Unit): Unit = () // JANKY: no-op, needs Finalizers
 
     // ========================================================================
     // Scoped value operations (brought in via import scope._)
+    // All operations are EAGER - no laziness needed since nothing can escape
     // ========================================================================
 
-    /** Apply a function to a scoped value. Returns eager if open, deferred if closed. */
+    /** Apply a function to a scoped value. Always eager (zero-cost). */
     infix def $[A, B](scoped: $[A])(f: A => B): $[B] =
-      if (isClosed) $deferred(f($run(scoped)))
-      else {
-        val result = f($run(scoped))
-        $eager(result)
-      }
+      $wrap(f($unwrap(scoped)))
 
-    /** Execute a scoped computation. Returns eager if open, deferred if closed. */
-    def execute[A](scoped: $[A]): $[A] =
-      if (isClosed) $deferred($run(scoped))
-      else $eager($run(scoped))
-
-    /** Implicit ops for map/flatMap on scoped values. Always deferred (lazy). */
+    /** Implicit ops for map/flatMap on scoped values. All eager (zero-cost). */
     implicit class ScopedOps[A](private val scoped: $[A]) {
       def map[B](f: A => B): $[B] =
-        $deferred(f($run(scoped)))
+        $wrap(f($unwrap(scoped)))
 
       def flatMap[B](f: A => $[B]): $[B] =
-        $deferred($run(f($run(scoped))))
+        f($unwrap(scoped))
     }
+
+    /**
+     * Implicit conversion: wrap Unscoped values so they can be returned from
+     * scoped blocks.
+     */
+    implicit def wrapUnscoped[A](a: A)(using Unscoped[A]): $[A] = scoped(a)
+  }
+
+  /**
+   * SAM type for scoped blocks - enables Scala 2 compatibility. Scala 2 doesn't
+   * support dependent function types, but does support SAM. Use trait (not
+   * abstract class) for reliable SAM conversion in Scala 2.
+   */
+  @FunctionalInterface
+  trait ScopeUser[P <: Scope, +A] {
+    def use(child: Scope.Child[P]): child.$[A]
   }
 
   object Scope {
 
     /**
-     * Global scope - self-referential, never closes.
-     * $[A] = A (no thunk needed, zero overhead).
+     * Global scope - self-referential, never closes. $[A] = A (zero-cost opaque
+     * type).
      */
     object global extends Scope { self =>
       type $[+A]  = A
       type Parent = global.type
       val parent: Parent = this
 
-      def isClosed: Boolean = false  // Global never closes
-
-      protected def $eager[A](a: A): $[A]       = a
-      protected def $deferred[A](a: => A): $[A] = a  // No laziness needed
-      protected def $run[A](sa: $[A]): A        = sa
+      protected def $wrap[A](a: A): $[A]    = a
+      protected def $unwrap[A](sa: $[A]): A = sa
     }
 
     /**
-     * Child scope - created by scoped { ... }.
-     * $[A] = A | (() => A) (lazy thunks since scope may close).
+     * Child scope - created by scoped { ... }. $[A] = A (zero-cost opaque
+     * type).
+     *
+     * Since `Unscoped[A]` is required on `scoped`, nothing can escape that
+     * would be evaluated after close. Therefore no laziness is needed.
      */
     final class Child[P <: Scope](val parent: P) extends Scope { self =>
       type Parent = P
 
-      private var _closed: Boolean = false
-      def isClosed: Boolean        = _closed
-
       // TODO: integrate with Finalizers
-      def close(): Unit = _closed = true
+      def close(): Unit = ()
 
-      opaque type $[+A] = A | (() => A)
+      opaque type $[+A] = A
 
-      protected def $eager[A](a: A): $[A] =
-        // Avoid double-wrapping if a is already a thunk
-        if (a.isInstanceOf[Function0[?]]) (() => a).asInstanceOf[$[A]]
-        else a.asInstanceOf[$[A]]
-
-      protected def $deferred[A](a: => A): $[A] = () => a
-
-      protected def $run[A](sa: $[A]): A = (sa: @unchecked) match {
-        case f: (() => A) @unchecked => f()
-        case a                       => a.asInstanceOf[A]
-      }
+      protected def $wrap[A](a: A): $[A]    = a
+      protected def $unwrap[A](sa: $[A]): A = sa
     }
 
     // Aux pattern for external reference if needed
@@ -222,53 +204,141 @@ object ScopePrototype {
   }
 
   // ==========================================================================
-  // Test
+  // Test - demonstrates `import scope._` pattern
+  //
+  // KEY POINT: scoped blocks MUST return child.$[A], which is unwrapped to A
+  // at the boundary. Raw Unscoped values are implicitly wrapped.
   // ==========================================================================
 
   def test(): Unit = {
     import Scope.global
 
-    // Global scope: $ is just identity
-    val globalValue: global.$[Int] = global.$(42)
-    assert(global.$.run(globalValue) == 42)
+    // Global scope: $[A] = A (identity), so no wrapping overhead
+    val globalValue: global.$[Int] = global.scoped(42)
 
-    global.scoped { parent =>
-      val x: parent.$[Int] = parent.$(100)
+    // ========================================================================
+    // PATTERN: `import scope._` brings in scoped, $, ScopedOps, lower, etc.
+    // Block must return child.$[A], unwrapped to A at boundary.
+    // ========================================================================
 
-      // Lower global value into child
-      val globalInParent: parent.$[Int] = parent.lower(globalValue)
+    val result: Int = global.scoped { outer =>
+      import outer._ // <-- THE PATTERN
 
-      // Use $ method (eager since scope open)
-      val doubled: parent.$[Int] = (parent $ x)(_ * 2)
+      val x: $[Int]             = scoped(100)
+      val globalInOuter: $[Int] = lower(globalValue)
 
-      // Use map/flatMap (always deferred)
-      val mapped: parent.$[String] = x.map(_.toString)
-      val flatMapped: parent.$[Int] = x.flatMap(n => parent.$(n + 1))
+      // $ method for eager execution
+      val doubled: $[Int] = (outer $ x)(_ * 2)
 
-      parent.scoped { child =>
-        val y: child.$[Int] = child.$(200)
+      // map/flatMap via ScopedOps
+      val mapped: $[String]  = x.map(_.toString)
+      val flatMapped: $[Int] = x.flatMap(n => scoped(n + 1))
 
-        // Lower from parent
-        val xInChild: child.$[Int] = child.lower(x)
+      // Nested scope
+      val innerResult: Int = outer.scoped { inner =>
+        import inner._
 
-        // Chain lower from grandparent
-        val globalInChild: child.$[Int] = child.lower(parent.lower(globalValue))
+        val y: $[Int]             = scoped(200)
+        val xInInner: $[Int]      = lower(x)
+        val globalInInner: $[Int] = lower(outer.lower(globalValue))
 
-        assert(child.$.run(y) == 200)
-        assert(child.$.run(xInChild) == 100)
-        assert(child.$.run(globalInChild) == 42)
+        // Combine values - return $[Int], unwrapped to Int at boundary
+        for {
+          yVal <- y
+          xVal <- xInInner
+          gVal <- globalInInner
+        } yield yVal + xVal + gVal
       }
 
-      assert(parent.$.run(doubled) == 200)
-      assert(parent.$.run(mapped) == "100")
-      assert(parent.$.run(flatMapped) == 101)
-      assert(parent.$.run(globalInParent) == 42)
+      assert(innerResult == 342) // 200 + 100 + 42
+
+      // Combine with outer scope values, return $[Int]
+      for {
+        inner <- scoped(innerResult)
+        d     <- doubled
+        g     <- globalInOuter
+        m     <- mapped.map(_.length)
+        f     <- flatMapped
+      } yield inner + d + g + m + f
     }
 
+    // 342 + 200 + 42 + 3 ("100".length) + 101 = 688
+    assert(result == 688)
     println("ScopePrototype.test() passed!")
   }
 
-  def runTests(): Unit = test()
+  // ========================================================================
+  // Test: $ method
+  // ========================================================================
 
-  def main(args: Array[String]): Unit = test()
+  def testDollarMethod(): Unit = {
+    import Scope.global
+
+    var capturedValue: Int = 0
+
+    val result: Int = global.scoped { s =>
+      import s._
+
+      val x: $[Int] = scoped(42)
+
+      // $ method transforms scoped value
+      (s $ x) { n =>
+        capturedValue = n
+        n * 2
+      }
+      // Returns $[Int], unwrapped to Int at boundary
+    }
+
+    assert(result == 84)
+    assert(capturedValue == 42)
+    println("ScopePrototype.testDollarMethod() passed!")
+  }
+
+  // ========================================================================
+  // Test: for-comprehension
+  // ========================================================================
+
+  def testForComprehension(): Unit = {
+    import Scope.global
+
+    val result: String = global.scoped { s =>
+      import s._
+
+      // for-comprehension returns $[String], unwrapped at boundary
+      for {
+        a <- scoped(10)
+        b <- scoped(20)
+        c <- scoped(a + b)
+      } yield s"Result: $c"
+    }
+
+    assert(result == "Result: 30")
+    println("ScopePrototype.testForComprehension() passed!")
+  }
+
+  // ========================================================================
+  // Test: implicit conversion for Unscoped raw values
+  // ========================================================================
+
+  def testImplicitWrap(): Unit = {
+    import Scope.global
+
+    // Raw Int is implicitly wrapped to $[Int] via wrapUnscoped
+    val result: Int = global.scoped { s =>
+      import s._
+      42 // implicitly converted to s.$[Int]
+    }
+
+    assert(result == 42)
+    println("ScopePrototype.testImplicitWrap() passed!")
+  }
+
+  def runTests(): Unit = {
+    test()
+    testDollarMethod()
+    testForComprehension()
+    testImplicitWrap()
+  }
+
+  def main(args: Array[String]): Unit = runTests()
 }

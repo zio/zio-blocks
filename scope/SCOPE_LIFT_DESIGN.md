@@ -22,26 +22,31 @@ values at compile time—both have tags that are subtypes of the parent tag.
 
 ### Why This Works
 
-1. **Current `flatMap` requires matching tags**: After the "import scope._" refactor, `flatMap` 
-   signature is `def flatMap[B](f: A => B @@ self.ScopeTag): B @@ self.ScopeTag`. You cannot 
-   combine values from different scopes within a single scope's operations.
-
-2. **Contravariance still allows parent values**: Parent-scoped values can be used in child scopes
-   (their tags narrow to the child), which is safe because parents outlive children.
-
-3. **Scope-local types prevent sibling pollution**: A sibling-scoped value `sibling.$[A]` cannot
+1. **Scope-local types prevent sibling pollution**: A sibling-scoped value `sibling.$[A]` cannot
    enter a child scope because child operations expect `child.$[A]`, and these are different types.
+
+2. **Parent values require explicit `lower()`**: To use a parent-scoped value in a child scope,
+   you must explicitly call `child.lower(parentValue)`. This is safe because parents outlive children.
+
+3. **Operations are scope-specific**: After `import child._`, `flatMap` signature is
+   `def flatMap[B](f: A => $[B]): $[B]` where `$` is `child.$`. You cannot combine values from
+   different scopes within a single scope's operations.
 
 ### Proposed Design
 
 ```scala
-class Scope { self =>
+sealed abstract class Scope { self =>
   // Each scope has its own unique scoped value type
-  opaque type $[+A] = A | LazyScoped[A]
+  // ZERO-COST: $[A] = A (opaque type, no runtime overhead)
+  type $[+A]
   
-  // Parent reference for lowering (see Open Questions below)
+  // Parent reference for lowering
   type Parent <: Scope
   val parent: Parent
+  
+  // Zero-cost wrap/unwrap (identity at runtime)
+  protected def $wrap[A](a: A): $[A]
+  protected def $unwrap[A](sa: $[A]): A
   
   // Allocate returns this scope's $
   def allocate[A](resource: Resource[A]): $[A] = ...
@@ -49,35 +54,38 @@ class Scope { self =>
   // Lower parent-scoped value into this scope (safe: parent outlives child)
   def lower[A](value: parent.$[A]): $[A] = value.asInstanceOf[$[A]]
   
-  // Operations only work with this scope's $
-  def $[A, B](scoped: $[A])(f: A => B): $[B] = ...
+  // Operations are EAGER (no laziness needed - nothing can escape)
+  infix def $[A, B](scoped: $[A])(f: A => B): $[B] = $wrap(f($unwrap(scoped)))
   
-  // Child scope creation
-  def scoped[A](f: Scope { type Parent = self.type } => A)(using lift: ScopeLift[A]): lift.Out = {
-    val child = new Scope { 
-      type Parent = self.type
-      val parent: Parent = self 
-    }
-    // ... use child, apply lift, close
+  // Child scope creation - requires Unscoped[A] to prevent leaking resources/closures
+  def scoped[A: Unscoped](f: ScopeUser[self.type, A]): A = {
+    val child = new Scope.Child[self.type](self)
+    val result: child.$[A] = f.use(child)
+    val unwrapped: A = child.scoped.run(result)  // package-private
+    child.close()
+    unwrapped
   }
+}
+
+// SAM type for Scala 2/3 compatibility
+@FunctionalInterface
+trait ScopeUser[P <: Scope, +A] {
+  def use(child: Scope.Child[P]): child.$[A]
 }
 ```
 
-### ScopeLift Simplification
+### No ScopeLift Needed
 
-At scope boundary, ScopeLift only needs to handle **this scope's `$`**:
+The old `ScopeLift` typeclass with conditional output types is eliminated. Instead:
 
-- `self.$[A]` where `A` is `Unscoped` → unwrap to `A`
-- `Unscoped` types → pass through
-- `parent.$[A]` → pass through unchanged (different type, no unwrapping needed)
-
-Since `parent.$[A]` is a structurally different type from `self.$[A]`, it won't match the
-unwrapping instance and will pass through safely.
+- `scoped` always expects `child.$[A]` and unwraps to `A`
+- **`Unscoped[A]` constraint** ensures only pure data crosses the boundary (no resources, scopes, or closures)
+- This prevents the unsoundness of the old `scopedUnscoped` instance
 
 ### Scope Tags Eliminated
 
-With this approach, scope identity comes from the path-dependent `$` type, not from tag type
-parameters. The `Scope` class no longer needs `ParentTag` and `Tag0` type parameters.
+Scope identity comes from the path-dependent `$` type, not from tag type parameters.
+The `Scope` class no longer needs `ParentTag` and `Tag0` type parameters.
 
 ### Parent Value Usage
 
@@ -94,66 +102,22 @@ parent.scoped { child =>
 
 ---
 
-## Open Questions (To Explore in Prototype)
+## Resolved Design Questions
 
-### 1. The `parent` Type Problem
+### 1. The `parent` Type Problem → SOLVED
 
-We need each scope to have a typed reference to its parent so that `parent.$[A]` is a valid type.
+**Solution**: Global scope is self-referential (`type Parent = global.type`, `val parent = this`).
+Child scopes use `type Parent = P` where `P` is the parent scope type parameter.
 
-**Attempt 1** (doesn't work):
-```scala
-val parent: Scope  // parent.$ is not accessible because Scope.$ is opaque
-```
+### 2. Grandparent Lowering → SOLVED
 
-**Attempt 2** (recursive type issue):
-```scala
-type Parent <: Scope
-val parent: Parent
-// But for global scope: type Parent = Scope.type creates recursion
-```
+**Solution**: Chain explicit `lower` calls: `child.lower(parent.lower(grandparentValue))`.
+This is explicit but type-safe. No implicit conversion chains needed.
 
-**Possible solutions to explore**:
-- Use `Null` or a sentinel for global scope's parent
-- Use a type member with `Aux` pattern: `type Typed[P <: Scope] = Scope { type Parent = P }`
-- Use intersection types or match types
-- Make global scope special-cased
+### 3. ScopeLift → ELIMINATED
 
-### 2. Grandparent Lowering
-
-With nested scopes (grandparent → parent → child), how does child use grandparent values?
-
-Options:
-- Chain: `child.lower(parent.lower(grandparentValue))`
-- Transitive lowering: `child.lowerFrom(grandparent)(value)`
-- Implicit conversion chain
-
-### 3. ScopeLift Type Parameter
-
-Does `ScopeLift` need to know about the scope's `$` type?
-
-```scala
-// Option A: ScopeLift is scope-local
-class Scope {
-  trait ScopeLift[A] { type Out; def apply(a: A): Out }
-  given liftScoped[A: Unscoped]: ScopeLift[$[A]] = ...
-}
-
-// Option B: ScopeLift takes scope as parameter
-trait ScopeLift[A, S <: Scope] { ... }
-```
-
----
-
-## Prototype Plan
-
-Create a standalone prototype in `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala`
-to explore:
-
-1. Scope-local opaque `$[A]` type
-2. Parent type representation (the recursive type challenge)
-3. Lowering mechanism
-4. ScopeLift with scope-local types
-5. Sibling isolation verification
+**Solution**: No ScopeLift needed. `scoped[A: Unscoped]` requires `Unscoped` evidence directly.
+The `Unscoped[A]` constraint prevents leaking resources, scopes, or closures.
 
 ---
 
@@ -188,17 +152,15 @@ The following experimental code was removed:
 
 ### What Was Kept
 
-The **lift-before-close fix** in `scoped` method is valid and was kept:
+The **unwrap-before-close** principle in `scoped` method was kept:
 ```scala
-try {
-  val result = f(childScope)
-  out = lift(result)  // BEFORE close - thunk evaluated while scope open
-} finally {
-  childScope.close()
-}
+val result: child.$[A] = f.use(child)
+val unwrapped: A = child.scoped.run(result)  // BEFORE close
+child.close()
 ```
 
-A regression test was added to verify this behavior.
+With zero-cost `$[A] = A`, "unwrapping" is just identity, but the ordering still matters
+for finalizer semantics.
 
 ---
 
@@ -244,12 +206,13 @@ The new scope-local `$` approach solves this because `sibling.$[A]` is incompati
 
 ## PR #1053 Status
 
-- [x] Fixed lift-before-close bug in ScopeVersionSpecific
-- [x] Added regression test for lift-before-close
+- [x] Fixed unwrap-before-close ordering in scoped method
 - [x] Cleaned up failed macro experiment
 - [x] Documented new scope-local `$` approach
 - [x] Created working prototype in `ScopePrototype.scala`
-- [x] ScopeLift defined inside Scope - dramatically simplified
+- [x] Eliminated ScopeLift - replaced with `Unscoped[A]` constraint
+- [x] Zero-cost `$[A] = A` design (no thunks, all eager)
+- [x] ScopeUser SAM trait for Scala 2/3 compatibility
 - [ ] Implement scope-local `$` design in real Scope
 - [ ] Update tests
 - [ ] Fix scope-examples
@@ -260,11 +223,92 @@ See `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala`.
 
 Key features:
 - `Scope` is a sealed abstract class with abstract `$[+A]` type
-- `Scope.global` is self-referential with `$[A] = A` (zero overhead)
-- `Scope.Child[P]` has `opaque type $[+A] = A | (() => A)` (lazy thunks)
-- `ScopeLift` is defined INSIDE each Scope, so it knows about `self.$`
-- Eager/deferred logic based on `isClosed` state
+- **ZERO-COST**: `$[A] = A` for all scopes (no thunks, no union types)
+- `Scope.global` is self-referential with `$[A] = A`
+- `Scope.Child[P]` has `opaque type $[+A] = A` (zero-cost)
+- `ScopeUser` SAM trait with dependent return type for Scala 2/3 compatibility
+- `scoped[A: Unscoped]` requires `Unscoped` evidence to prevent leaking resources/closures
+- `scoped.run` is package-private (UNSOUND if exposed)
+- `import child._` pattern preserved: brings in `scoped`, `$`, `allocate`, `lower`, `ScopedOps`, `wrapUnscoped`
+- **All operations are EAGER** - no laziness needed since `Unscoped[A]` prevents escape
 
-ScopeLift instances:
-1. `selfScopedLift`: `self.$[A]` with A: Unscoped → unwrap to A
-2. `passThrough`: Everything else → pass through unchanged
+---
+
+## SOUNDNESS INVARIANT: Boundary-Only Escaping
+
+**Escaping (unwrapping `$[A]` to `A`) may ONLY occur at the boundary of `.scoped`.**
+
+This means:
+1. The `scoped` method itself controls when unwrapping occurs
+2. User code inside the block CANNOT trigger escaping (`scoped.run` is package-private)
+3. Escaping happens exactly once, at the moment `scoped` returns, BEFORE finalizers run
+
+Why this matters:
+- If escaping can happen anywhere inside the block, a user could unwrap a value, then continue using the scope
+- The unwrapped value may capture resources that get freed when the scope closes
+- This leads to use-after-free bugs
+
+**INCORRECT (unsound) design:**
+```scala
+// DON'T DO THIS - allows escaping anywhere
+final class ChildScope[P <: Scope](val scope: Scope.Child[P]) {
+  def lift[A](a: A)(using l: scope.ScopeLift[A]): l.Out = l(a)  // UNSOUND!
+}
+```
+
+**CORRECT design:**
+The `scoped` method must:
+1. Receive the block's return value (`child.$[A]`)
+2. Require `Unscoped[A]` evidence (prevents leaking resources, scopes, closures)
+3. Unwrap to `A` at boundary, BEFORE closing the scope
+
+---
+
+## Solution: ScopeUser SAM Type + Unscoped Constraint
+
+The solution uses a SAM (Single Abstract Method) trait with dependent return type,
+plus an `Unscoped[A]` constraint on the return type:
+
+```scala
+@FunctionalInterface
+trait ScopeUser[P <: Scope, +A] {
+  def use(child: Scope.Child[P]): child.$[A]
+}
+
+def scoped[A: Unscoped](f: ScopeUser[self.type, A]): A
+```
+
+Lambda syntax `{ child => ... }` works via SAM conversion in both Scala 2 and Scala 3.
+
+Key points:
+1. Block MUST return `child.$[A]` (enforced by type signature)
+2. **`Unscoped[A]` required** - prevents leaking resources, scopes, or closures
+3. `scoped` unwraps via `child.scoped.run(result)` (package-private)
+4. Unwrapping happens at boundary, BEFORE scope closes
+5. Returns raw `A` - no conditional output type, no ScopeLift needed
+
+For raw `Unscoped` values, an implicit conversion wraps them:
+```scala
+implicit def wrapUnscoped[A](a: A)(using Unscoped[A]): $[A] = scoped(a)
+```
+
+Usage:
+```scala
+global.scoped { child =>
+  import child._
+  val x: $[Int] = scoped(100)
+  val doubled: $[Int] = (child $ x)(_ * 2)
+  doubled  // returns $[Int], unwrapped to Int at boundary
+}
+
+// Or with implicit wrap (Int has Unscoped instance):
+global.scoped { child =>
+  import child._
+  42  // implicitly wrapped to $[Int], then unwrapped to Int
+}
+```
+
+**Why `Unscoped[A]` is critical:** Without it, users could return:
+- `child.$[Resource]` → leaks resource after scope closes
+- `child.$[Scope.Child[...]]` → leaks the closed child scope
+- `child.$[() => Unit]` → leaks closure capturing scope/resources
