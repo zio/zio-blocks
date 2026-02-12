@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.schema.json.JsonBinaryCodec
 import zio.blocks.typeid.TypeId
 
 case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
@@ -39,25 +41,27 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)        => sb.append('.').append(name)
-        case Node.Case(name)         => sb.append('<').append(name).append('>')
-        case Node.AtIndex(index)     => sb.append('[').append(index).append(']')
-        case Node.AtIndices(indices) =>
+        case f: Node.Field      => sb.append('.').append(f.name)
+        case c: Node.Case       => sb.append('<').append(c.name).append('>')
+        case ai: Node.AtIndex   => sb.append('[').append(ai.index).append(']')
+        case ai: Node.AtIndices =>
           sb.append('[')
-          val idxLen = indices.length
-          var i      = 0
+          val indices = ai.index
+          val idxLen  = indices.length
+          var i       = 0
           while (i < idxLen) {
             if (i > 0) sb.append(',')
             sb.append(indices(i))
             i += 1
           }
           sb.append(']')
-        case Node.AtMapKey(key) =>
+        case amk: Node.AtMapKey =>
           sb.append('{')
-          renderDynamicValue(sb, key)
+          renderDynamicValue(sb, amk.key)
           sb.append('}')
-        case Node.AtMapKeys(keys) =>
+        case amk: Node.AtMapKeys =>
           sb.append('{')
+          val keys   = amk.keys
           val keyLen = keys.length
           var i      = 0
           while (i < keyLen) {
@@ -66,10 +70,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append('}')
-        case Node.Elements  => sb.append("[*]")
-        case Node.MapKeys   => sb.append("{*:}")
-        case Node.MapValues => sb.append("{*}")
-        case Node.Wrapped   => sb.append(".~")
+        case _: Node.Elements.type  => sb.append("[*]")
+        case _: Node.MapKeys.type   => sb.append("{*:}")
+        case _: Node.MapValues.type => sb.append("{*}")
+        case _                      => sb.append(".~")
       }
       idx += 1
     }
@@ -89,25 +93,27 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)        => sb.append('.').append(name)
-        case Node.Case(name)         => sb.append(".when[").append(name).append(']')
-        case Node.AtIndex(index)     => sb.append(".at(").append(index).append(')')
-        case Node.AtIndices(indices) =>
+        case f: Node.Field      => sb.append('.').append(f.name)
+        case c: Node.Case       => sb.append(".when[").append(c.name).append(']')
+        case ai: Node.AtIndex   => sb.append(".at(").append(ai.index).append(')')
+        case ai: Node.AtIndices =>
           sb.append(".atIndices(")
-          val idxLen = indices.length
-          var i      = 0
+          val indices = ai.index
+          val idxLen  = indices.length
+          var i       = 0
           while (i < idxLen) {
             if (i > 0) sb.append(", ")
             sb.append(indices(i))
             i += 1
           }
           sb.append(')')
-        case Node.AtMapKey(key) =>
+        case amk: Node.AtMapKey =>
           sb.append(".atKey(")
-          renderDynamicValue(sb, key)
+          renderDynamicValue(sb, amk.key)
           sb.append(')')
-        case Node.AtMapKeys(keys) =>
+        case amk: Node.AtMapKeys =>
           sb.append(".atKeys(")
+          val keys   = amk.keys
           val keyLen = keys.length
           var i      = 0
           while (i < keyLen) {
@@ -116,10 +122,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append(')')
-        case Node.Elements  => sb.append(".each")
-        case Node.MapKeys   => sb.append(".eachKey")
-        case Node.MapValues => sb.append(".eachValue")
-        case Node.Wrapped   => sb.append(".wrapped")
+        case _: Node.Elements.type  => sb.append(".each")
+        case _: Node.MapKeys.type   => sb.append(".eachKey")
+        case _: Node.MapValues.type => sb.append(".eachValue")
+        case _                      => sb.append(".wrapped")
       }
       idx += 1
     }
@@ -129,9 +135,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   private def renderDynamicValue(sb: java.lang.StringBuilder, value: DynamicValue): Unit =
     value match {
-      case DynamicValue.Primitive(pv) =>
-        pv match {
-          case PrimitiveValue.String(s) =>
+      case pv: DynamicValue.Primitive =>
+        pv.value match {
+          case v: PrimitiveValue.String =>
+            val s = v.value
             sb.append('"')
             var i = 0
             while (i < s.length) {
@@ -146,10 +153,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
               i += 1
             }
             sb.append('"')
-          case PrimitiveValue.Boolean(b) => sb.append(b)
-          case PrimitiveValue.Char(c)    =>
+          case v: PrimitiveValue.Boolean => sb.append(v.value)
+          case v: PrimitiveValue.Char    =>
             sb.append('\'')
-            c match {
+            v.value match {
               case '\n' => sb.append("\\\\n")
               case '\t' => sb.append("\\\\t")
               case '\r' => sb.append("\\\\r")
@@ -158,28 +165,30 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
               case char => sb.append(char)
             }
             sb.append('\'')
-          case PrimitiveValue.Byte(b)   => sb.append(b)
-          case PrimitiveValue.Short(s)  => sb.append(s)
-          case PrimitiveValue.Int(i)    => sb.append(i)
-          case PrimitiveValue.Long(l)   => sb.append(l)
-          case PrimitiveValue.Float(f)  => sb.append(f)
-          case PrimitiveValue.Double(d) => sb.append(d)
-          case _                        => sb.append(pv.toString)
+          case v: PrimitiveValue.Byte       => sb.append(v.value)
+          case v: PrimitiveValue.Short      => sb.append(v.value)
+          case v: PrimitiveValue.Int        => sb.append(v.value)
+          case v: PrimitiveValue.Long       => sb.append(v.value)
+          case v: PrimitiveValue.Float      => sb.append(JsonBinaryCodec.floatCodec.encodeToString(v.value))
+          case v: PrimitiveValue.Double     => sb.append(JsonBinaryCodec.doubleCodec.encodeToString(v.value))
+          case v: PrimitiveValue.BigInt     => sb.append(JsonBinaryCodec.bigIntCodec.encodeToString(v.value))
+          case v: PrimitiveValue.BigDecimal => sb.append(JsonBinaryCodec.bigDecimalCodec.encodeToString(v.value))
+          case _                            => sb.append(pv.toString)
         }
       case _ => sb.append(value.toString)
     }
 }
 
 object DynamicOptic {
-  val root: DynamicOptic = new DynamicOptic(Vector.empty)
+  val root: DynamicOptic = new DynamicOptic(Chunk.empty)
 
-  val elements: DynamicOptic = new DynamicOptic(Vector(Node.Elements))
+  val elements: DynamicOptic = new DynamicOptic(Chunk.single(Node.Elements))
 
-  val mapKeys: DynamicOptic = new DynamicOptic(Vector(Node.MapKeys))
+  val mapKeys: DynamicOptic = new DynamicOptic(Chunk.single(Node.MapKeys))
 
-  val mapValues: DynamicOptic = new DynamicOptic(Vector(Node.MapValues))
+  val mapValues: DynamicOptic = new DynamicOptic(Chunk.single(Node.MapValues))
 
-  val wrapped: DynamicOptic = new DynamicOptic(Vector(Node.Wrapped))
+  val wrapped: DynamicOptic = new DynamicOptic(Chunk.single(Node.Wrapped))
 
   sealed trait Node
 
@@ -211,58 +220,56 @@ object DynamicOptic {
   // Schema for case objects
   implicit lazy val elementsSchema: Schema[Node.Elements.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Elements.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Node.Elements.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Node.Elements.type](Node.Elements),
         deconstructor = new ConstantDeconstructor[Node.Elements.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val mapKeysSchema: Schema[Node.MapKeys.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.MapKeys.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Node.MapKeys.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Node.MapKeys.type](Node.MapKeys),
         deconstructor = new ConstantDeconstructor[Node.MapKeys.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val mapValuesSchema: Schema[Node.MapValues.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.MapValues.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Node.MapValues.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Node.MapValues.type](Node.MapValues),
         deconstructor = new ConstantDeconstructor[Node.MapValues.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val wrappedSchema: Schema[Node.Wrapped.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Wrapped.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Node.Wrapped.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Node.Wrapped.type](Node.Wrapped),
         deconstructor = new ConstantDeconstructor[Node.Wrapped.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   // Schemas for case classes
   implicit lazy val fieldSchema: Schema[Node.Field] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Field](
-      fields = Vector(
-        Schema[String].reflect.asTerm("name")
-      ),
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
       typeId = TypeId.of[Node.Field],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.Field] {
@@ -276,15 +283,13 @@ object DynamicOptic {
             out.setObject(offset + 0, in.name)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val caseSchema: Schema[Node.Case] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Case](
-      fields = Vector(
-        Schema[String].reflect.asTerm("name")
-      ),
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
       typeId = TypeId.of[Node.Case],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.Case] {
@@ -298,15 +303,13 @@ object DynamicOptic {
             out.setObject(offset + 0, in.name)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val atIndexSchema: Schema[Node.AtIndex] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtIndex](
-      fields = Vector(
-        Schema[Int].reflect.asTerm("index")
-      ),
+      fields = Chunk.single(Schema[Int].reflect.asTerm("index")),
       typeId = TypeId.of[Node.AtIndex],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.AtIndex] {
@@ -320,15 +323,13 @@ object DynamicOptic {
             out.setInt(offset + 0, in.index)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val atMapKeySchema: Schema[Node.AtMapKey] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtMapKey](
-      fields = Vector(
-        Schema[DynamicValue].reflect.asTerm("key")
-      ),
+      fields = Chunk.single(Schema[DynamicValue].reflect.asTerm("key")),
       typeId = TypeId.of[Node.AtMapKey],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.AtMapKey] {
@@ -342,15 +343,13 @@ object DynamicOptic {
             out.setObject(offset + 0, in.key)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val atIndicesSchema: Schema[Node.AtIndices] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtIndices](
-      fields = Vector(
-        Schema[Seq[Int]].reflect.asTerm("index")
-      ),
+      fields = Chunk.single(Schema[Seq[Int]].reflect.asTerm("index")),
       typeId = TypeId.of[Node.AtIndices],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.AtIndices] {
@@ -364,15 +363,13 @@ object DynamicOptic {
             out.setObject(offset + 0, in.index)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val atMapKeysSchema: Schema[Node.AtMapKeys] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtMapKeys](
-      fields = Vector(
-        Schema[Seq[DynamicValue]].reflect.asTerm("keys")
-      ),
+      fields = Chunk.single(Schema[Seq[DynamicValue]].reflect.asTerm("keys")),
       typeId = TypeId.of[Node.AtMapKeys],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Node.AtMapKeys] {
@@ -386,14 +383,14 @@ object DynamicOptic {
             out.setObject(offset + 0, in.keys)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   // Schema for Node sealed trait
   implicit lazy val nodeSchema: Schema[Node] = new Schema(
     reflect = new Reflect.Variant[Binding, Node](
-      cases = Vector(
+      cases = Chunk(
         fieldSchema.reflect.asTerm("Field"),
         caseSchema.reflect.asTerm("Case"),
         atIndexSchema.reflect.asTerm("AtIndex"),
@@ -484,16 +481,14 @@ object DynamicOptic {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   // Schema for DynamicOptic
   implicit lazy val schema: Schema[DynamicOptic] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicOptic](
-      fields = Vector(
-        Schema[IndexedSeq[Node]].reflect.asTerm("nodes")
-      ),
+      fields = Chunk.single(Schema[IndexedSeq[Node]].reflect.asTerm("nodes")),
       typeId = TypeId.of[DynamicOptic],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicOptic] {
@@ -507,7 +502,7 @@ object DynamicOptic {
             out.setObject(offset + 0, in.nodes)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 }

@@ -11,12 +11,35 @@ on:
   release:
     types:
       - published
-
 concurrency:
   group: ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  buildDocs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: '0'
+      - name: Install libuv
+        run: sudo apt-get update && sudo apt-get install -y libuv1-dev
+      - name: Setup Scala
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: '17'
+          check-latest: true
+      - name: Setup SBT
+        uses: sbt/setup-sbt@v1
+      - name: Cache Dependencies
+        uses: coursier/cache-action@v7
+      - name: Check website build process
+        run: sbt docs/clean docs/buildWebsite
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -36,7 +59,7 @@ jobs:
           jvm: temurin:11
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Lint code
         run: sbt "++2.13; check; ++3.7; check"
 
@@ -65,7 +88,7 @@ jobs:
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
@@ -101,18 +124,18 @@ jobs:
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Run tests and compile docs
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
 
   ci:
     runs-on: ubuntu-latest
-    needs: [lint, testJVM, testJS]
+    needs: [lint, testJVM, testJS, buildDocs]
     steps:
       - name: Aggregate of lint, and all tests
         run: echo "ci passed"
 
-  publish:
+  release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [ci]
@@ -135,3 +158,37 @@ jobs:
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
 
+  release-docs:
+    name: Release Docs
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    needs:
+      - release
+    if: ${{ ((github.event_name == 'release') && (github.event.action == 'published')) || (github.event_name == 'workflow_dispatch') }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: '0'
+      - name: Install libuv
+        run: sudo apt-get update && sudo apt-get install -y libuv1-dev
+      - name: Setup Scala
+        uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: '17'
+          check-latest: true
+      - name: Setup SBT
+        uses: sbt/setup-sbt@v1
+      - name: Cache Dependencies
+        uses: coursier/cache-action@v7
+      - name: Setup NodeJs
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.12.0
+          registry-url: https://registry.npmjs.org
+      - name: Publish Docs to NPM Registry
+        run: sbt docs/publishToNpm

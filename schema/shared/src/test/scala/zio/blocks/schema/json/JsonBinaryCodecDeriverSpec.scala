@@ -226,7 +226,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Double]("1,", "expected end of input at: .")
       },
       test("Char") {
-        check(Gen.char.filter(x => x >= ' ' && x <= 0xd800 || x >= 0xdfff)) { // excluding control and surrogate chars
+        check(Gen.char.filter(x => x >= ' ' && (x < 0xd800 || x > 0xdfff))) { // excluding control and surrogate chars
           x => roundTrip(x, s""""${x.toString}"""")
         } &&
         roundTrip('7', "\"7\"") &&
@@ -296,7 +296,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(
           Gen
             .listOfBounded(0, 5)( // excluding control, surrogate and must be escaped chars
-              Gen.char.filter(x => x >= ' ' && x <= 0xd800 && x != '"' && x != '\\' && x != 0xff || x >= 0xdfff)
+              Gen.char.filter(x => x >= ' ' && x != '"' && x != '\\' && (x < 0xd800 || x > 0xdfff))
             )
             .map(_.mkString)
         )(x => roundTrip(x, s""""$x"""")) &&

@@ -73,10 +73,9 @@ object MergeStrategy {
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = jsonType eq JsonType.Object
 
     def apply(path: DynamicOptic, left: Json, right: Json): Json =
-      (left, right) match {
-        case (la: Json.Array, ra: Json.Array) => new Json.Array(la.value ++ ra.value)
-        case _                                => right
-      }
+      if (left.isInstanceOf[Json.Array] && right.isInstanceOf[Json.Array]) {
+        new Json.Array(left.asInstanceOf[Json.Array].value ++ right.asInstanceOf[Json.Array].value)
+      } else right
   }
 
   /**

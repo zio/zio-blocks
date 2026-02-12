@@ -81,14 +81,14 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("PrimitiveOp.StringEdit with single operation") {
       roundTrip(
-        PrimitiveOp.StringEdit(Vector(StringOp.Insert(0, "prefix"))): PrimitiveOp,
+        PrimitiveOp.StringEdit(Chunk(StringOp.Insert(0, "prefix"))): PrimitiveOp,
         """{"StringEdit":{"ops":[{"Insert":{"index":0,"text":"prefix"}}]}}"""
       )
     },
     test("PrimitiveOp.StringEdit with multiple operations") {
       roundTrip(
         PrimitiveOp.StringEdit(
-          Vector(
+          Chunk(
             StringOp.Delete(0, 5),
             StringOp.Insert(0, "new"),
             StringOp.Append("!")
@@ -188,14 +188,14 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("Op.PrimitiveDelta with StringEdit") {
       roundTrip(
-        Op.PrimitiveDelta(PrimitiveOp.StringEdit(Vector(StringOp.Append("!")))): Op,
+        Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(StringOp.Append("!")))): Op,
         """{"PrimitiveDelta":{"op":{"StringEdit":{"ops":[{"Append":{"text":"!"}}]}}}}"""
       )
     },
     test("Op.ArrayEdit serializes") {
       roundTrip(
         Op.ArrayEdit(
-          Vector(
+          Chunk(
             ArrayOp.Append(Chunk(Json.Number(1))),
             ArrayOp.Delete(0, 1)
           )
@@ -206,7 +206,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("Op.ObjectEdit serializes") {
       roundTrip(
         Op.ObjectEdit(
-          Vector(
+          Chunk(
             ObjectOp.Add("x", Json.Number(10)),
             ObjectOp.Remove("y")
           )
@@ -283,7 +283,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("JsonPatch with multiple operations") {
       roundTrip(
         JsonPatch(
-          Vector(
+          Chunk(
             JsonPatchOp(
               DynamicOptic.root.field("name"),
               Op.Set(Json.String("Alice"))
@@ -317,7 +317,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("ObjectOp.Modify with deeply nested patches") {
       val innerPatch = JsonPatch.root(
         Op.ObjectEdit(
-          Vector(
+          Chunk(
             ObjectOp.Add("nested", Json.Object("a" -> Json.Number(1))),
             ObjectOp.Modify(
               "other",
@@ -335,16 +335,16 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("ArrayOp.Modify containing ObjectEdit containing ArrayEdit") {
       val patch = JsonPatch.root(
         Op.ArrayEdit(
-          Vector(
+          Chunk(
             ArrayOp.Modify(
               0,
               Op.ObjectEdit(
-                Vector(
+                Chunk(
                   ObjectOp.Modify(
                     "items",
                     JsonPatch.root(
                       Op.ArrayEdit(
-                        Vector(
+                        Chunk(
                           ArrayOp.Append(Chunk(Json.Number(1), Json.Number(2)))
                         )
                       )
@@ -429,7 +429,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     test("Serialize and deserialize a patch with mixed operation types") {
       // Create a patch with various operation types
       val complexPatch = JsonPatch(
-        Vector(
+        Chunk(
           // Set a field
           JsonPatchOp(
             DynamicOptic.root.field("title"),
@@ -445,7 +445,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
             DynamicOptic.root.field("description"),
             Op.PrimitiveDelta(
               PrimitiveOp.StringEdit(
-                Vector(
+                Chunk(
                   StringOp.Insert(0, "IMPORTANT: "),
                   StringOp.Append(" (updated)")
                 )
@@ -456,7 +456,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
           JsonPatchOp(
             DynamicOptic.root.field("items"),
             Op.ArrayEdit(
-              Vector(
+              Chunk(
                 ArrayOp.Append(Chunk(Json.String("new item"))),
                 ArrayOp.Delete(0, 1),
                 ArrayOp.Modify(0, Op.Set(Json.String("modified")))
@@ -467,7 +467,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
           JsonPatchOp(
             DynamicOptic.root.field("metadata"),
             Op.ObjectEdit(
-              Vector(
+              Chunk(
                 ObjectOp.Add("created", Json.String("2024-01-01")),
                 ObjectOp.Remove("deprecated"),
                 ObjectOp.Modify(
@@ -482,7 +482,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
             DynamicOptic.root.field("config"),
             Op.Nested(
               JsonPatch(
-                Vector(
+                Chunk(
                   JsonPatchOp(
                     DynamicOptic.root.field("debug"),
                     Op.Set(Json.Boolean(true))
@@ -509,7 +509,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("Patch can be converted to readable JSON string") {
       val patch = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatchOp(
             DynamicOptic.root.field("name"),
             Op.Set(Json.String("Alice"))
@@ -541,7 +541,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
   private lazy val dynamicPatchConversionSuite = suite("DynamicPatch Conversion")(
     test("fromDynamicPatch converts ShortDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta(5.toShort))
@@ -560,7 +560,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts ByteDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta(3.toByte))
@@ -579,7 +579,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts FloatDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(1.5f))
@@ -598,7 +598,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts DoubleDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(2.5))
@@ -617,7 +617,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts BigIntDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(BigInt("12345678901234567890")))
@@ -636,7 +636,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts BigDecimalDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(BigDecimal("123.456")))
@@ -655,7 +655,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts IntDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(42))
@@ -674,7 +674,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
     },
     test("fromDynamicPatch converts LongDelta to NumberDelta") {
       val dynamicPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root,
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(9999999999L))

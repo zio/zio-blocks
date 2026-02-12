@@ -170,7 +170,7 @@ The parser supports all GitHub Flavored Markdown features:
 - **Tables with alignment**
 - **Inline formatting** (emphasis, strong, strikethrough, code)
 - **Links and images**
-- **Autolinks** (<url> or plain URLs)
+- **Autolinks** (`<url>` or plain URLs)
 - **HTML blocks and inline HTML**
 
 ### Not Supported

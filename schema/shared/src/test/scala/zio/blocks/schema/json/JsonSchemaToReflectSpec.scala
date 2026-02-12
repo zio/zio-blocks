@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{Chunk, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonSchema.{NonNegativeInt, RegexPattern}
 import zio.test._
@@ -87,7 +87,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           )
           val shape = analyze(schema)
           shape match {
-            case Record(fields, _, _) => assertTrue(fields.length == 2)
+            case Record(fields, _, _) => assertTrue(fields.size == 2)
             case _                    => assertTrue(false)
           }
         },
@@ -191,7 +191,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Tuple shapes")(
         test("prefixItems with items:false produces Tuple") {
           val schema = JsonSchema.Object(
-            prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+            prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
             items = Some(JsonSchema.False)
           )
           val shape = analyze(schema)
@@ -202,7 +202,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("prefixItems without items:false produces Sequence (not tuple)") {
           val schema = JsonSchema.Object(
-            prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+            prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
             items = Some(JsonSchema.string())
           )
           val shape = analyze(schema)
@@ -216,12 +216,12 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           val s2     = JsonSchema.integer()
           val s3     = JsonSchema.boolean
           val schema = JsonSchema.Object(
-            prefixItems = Some(new ::(s1, s2 :: s3 :: Nil)),
+            prefixItems = Some(NonEmptyChunk(s1, s2, s3)),
             items = Some(JsonSchema.False)
           )
           val shape = analyze(schema)
           shape match {
-            case Tuple(items) => assertTrue(items == List(s1, s2, s3))
+            case Tuple(items) => assertTrue(items == Chunk(s1, s2, s3))
             case _            => assertTrue(false)
           }
         }
@@ -229,17 +229,17 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Enum shapes")(
         test("string enum produces Enum") {
           val schema = JsonSchema.Object(
-            `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
+            `enum` = Some(NonEmptyChunk(Json.String("Red"), Json.String("Green"), Json.String("Blue")))
           )
           val shape = analyze(schema)
           shape match {
-            case Enum(cases) => assertTrue(cases == List("Red", "Green", "Blue"))
+            case Enum(cases) => assertTrue(cases == Chunk("Red", "Green", "Blue"))
             case _           => assertTrue(false)
           }
         },
         test("mixed enum (not all strings) does not produce Enum") {
           val schema = JsonSchema.Object(
-            `enum` = Some(new ::(Json.String("Red"), Json.Number(42) :: Nil))
+            `enum` = Some(NonEmptyChunk(Json.String("Red"), Json.Number(42)))
           )
           val shape = analyze(schema)
           shape match {
@@ -249,11 +249,11 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("single-value string enum produces Enum") {
           val schema = JsonSchema.Object(
-            `enum` = Some(new ::(Json.String("Only"), Nil))
+            `enum` = Some(NonEmptyChunk(Json.String("Only")))
           )
           val shape = analyze(schema)
           shape match {
-            case Enum(cases) => assertTrue(cases == List("Only"))
+            case Enum(cases) => assertTrue(cases == Chunk("Only"))
             case _           => assertTrue(false)
           }
         }
@@ -261,7 +261,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Option shapes")(
         test("union type [T, null] produces OptionOf") {
           val schema = JsonSchema.Object(
-            `type` = Some(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Null))))
+            `type` = Some(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Null)))
           )
           val shape = analyze(schema)
           shape match {
@@ -272,9 +272,9 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("anyOf with null schema produces OptionOf") {
           val schema = JsonSchema.Object(
             anyOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.string(),
-                JsonSchema.Object(`type` = Some(SchemaType.Single(JsonSchemaType.Null))) :: Nil
+                JsonSchema.Object(`type` = Some(SchemaType.Single(JsonSchemaType.Null)))
               )
             )
           )
@@ -286,9 +286,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         },
         test("anyOf with two non-null schemas does not produce OptionOf") {
           val schema = JsonSchema.Object(
-            anyOf = Some(
-              new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)
-            )
+            anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer()))
           )
           val shape = analyze(schema)
           shape match {
@@ -301,7 +299,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("oneOf with single-property wrapper objects produces KeyVariant") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(
                   properties = Some(
                     ChunkMap(
@@ -317,13 +315,13 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                     )
                   ),
                   required = Some(Set("BankAccount"))
-                ) :: Nil
+                )
               )
             )
           )
           val shape = analyze(schema)
           shape match {
-            case KeyVariant(cases) => assertTrue(cases.map(_._1) == List("CreditCard", "BankAccount"))
+            case KeyVariant(cases) => assertTrue(cases.map(_._1) == Chunk("CreditCard", "BankAccount"))
             case _                 => assertTrue(false)
           }
         },
@@ -332,12 +330,12 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
           val baBody = JsonSchema.obj(properties = Some(ChunkMap("accNo" -> JsonSchema.string())))
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(properties = Some(ChunkMap("CreditCard" -> ccBody)), required = Some(Set("CreditCard"))),
                 JsonSchema.obj(
                   properties = Some(ChunkMap("BankAccount" -> baBody)),
                   required = Some(Set("BankAccount"))
-                ) :: Nil
+                )
               )
             )
           )
@@ -351,7 +349,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("oneOf with multi-property objects does not produce KeyVariant") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(
                   properties = Some(ChunkMap("a" -> JsonSchema.string(), "b" -> JsonSchema.string())),
                   required = Some(Set("a", "b"))
@@ -359,7 +357,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                 JsonSchema.obj(
                   properties = Some(ChunkMap("c" -> JsonSchema.string())),
                   required = Some(Set("c"))
-                ) :: Nil
+                )
               )
             )
           )
@@ -374,7 +372,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("oneOf with common const discriminator field produces FieldVariant") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(
                   properties = Some(
                     ChunkMap(
@@ -390,21 +388,21 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                       "age"  -> JsonSchema.integer()
                     )
                   )
-                ) :: Nil
+                )
               )
             )
           )
           val shape = analyze(schema)
           shape match {
             case FieldVariant(disc, cases) =>
-              assertTrue(disc == "type" && cases.map(_._1) == List("dog", "cat"))
+              assertTrue(disc == "type" && cases.map(_._1) == Chunk("dog", "cat"))
             case _ => assertTrue(false)
           }
         },
         test("FieldVariant excludes discriminator field from body schema") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(
                   properties = Some(
                     ChunkMap(
@@ -420,14 +418,14 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                       "count" -> JsonSchema.integer()
                     )
                   )
-                ) :: Nil
+                )
               )
             )
           )
           val shape = analyze(schema)
           shape match {
             case FieldVariant(_, cases) =>
-              val bodyProps = cases.flatMap {
+              val bodyProps = cases.toChunk.flatMap {
                 case (_, bodySchema: JsonSchema.Object) =>
                   bodySchema.properties.map(_.keys.toSet).getOrElse(Set.empty)
                 case _ => Set.empty[String]
@@ -454,9 +452,9 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("untagged oneOf produces Dynamic") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(properties = Some(ChunkMap("left" -> JsonSchema.string()))),
-                JsonSchema.obj(properties = Some(ChunkMap("right" -> JsonSchema.integer()))) :: Nil
+                JsonSchema.obj(properties = Some(ChunkMap("right" -> JsonSchema.integer())))
               )
             )
           )
@@ -535,7 +533,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Tuple Reflect types")(
         test("tuple schema produces Reflect.Record with positional fields") {
           val schema = JsonSchema.Object(
-            prefixItems = Some(new ::(JsonSchema.string(), JsonSchema.integer() :: Nil)),
+            prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
             items = Some(JsonSchema.False)
           )
           val reflect    = toReflect(schema)
@@ -548,21 +546,21 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
       suite("Enum Reflect types")(
         test("enum schema produces Reflect.Variant") {
           val schema = JsonSchema.Object(
-            `enum` = Some(new ::(Json.String("Red"), Json.String("Green") :: Json.String("Blue") :: Nil))
+            `enum` = Some(NonEmptyChunk(Json.String("Red"), Json.String("Green"), Json.String("Blue")))
           )
           val reflect = toReflect(schema)
           assertTrue(reflect.isVariant)
         },
         test("enum cases are empty Records (isEnumeration)") {
           val schema = JsonSchema.Object(
-            `enum` = Some(new ::(Json.String("A"), Json.String("B") :: Nil))
+            `enum` = Some(NonEmptyChunk(Json.String("A"), Json.String("B")))
           )
           val reflect = toReflect(schema)
           assertTrue(reflect.isEnumeration)
         },
         test("enum has correct case names") {
           val schema = JsonSchema.Object(
-            `enum` = Some(new ::(Json.String("X"), Json.String("Y") :: Json.String("Z") :: Nil))
+            `enum` = Some(NonEmptyChunk(Json.String("X"), Json.String("Y"), Json.String("Z")))
           )
           val reflect   = toReflect(schema)
           val variant   = reflect.asVariant
@@ -574,7 +572,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("key-discriminated oneOf produces Reflect.Variant") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(
                   properties = Some(
                     ChunkMap(
@@ -590,7 +588,7 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
                     )
                   ),
                   required = Some(Set("BankAccount"))
-                ) :: Nil
+                )
               )
             )
           )
@@ -600,12 +598,12 @@ object JsonSchemaToReflectSpec extends SchemaBaseSpec {
         test("key-discriminated variant has correct case names") {
           val schema = JsonSchema.Object(
             oneOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(properties = Some(ChunkMap("Foo" -> JsonSchema.string())), required = Some(Set("Foo"))),
                 JsonSchema.obj(
                   properties = Some(ChunkMap("Bar" -> JsonSchema.integer())),
                   required = Some(Set("Bar"))
-                ) :: Nil
+                )
               )
             )
           )

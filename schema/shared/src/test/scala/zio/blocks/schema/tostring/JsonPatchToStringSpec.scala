@@ -1,9 +1,9 @@
 package zio.blocks.schema.tostring
 
-import zio.test._
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.json.{Json, JsonPatch}
+import zio.test._
 
 object JsonPatchToStringSpec extends ZIOSpecDefault {
 
@@ -42,7 +42,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     test("renders string edit insert") {
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Insert(0, "Hello")))
+          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Insert(0, "Hello")))
         )
       )
       assertTrue(
@@ -56,7 +56,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     test("renders string edit delete") {
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Delete(0, 5)))
+          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Delete(0, 5)))
         )
       )
       assertTrue(
@@ -70,7 +70,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     test("renders string edit append") {
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Append(" world")))
+          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Append(" world")))
         )
       )
       assertTrue(
@@ -84,7 +84,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     test("renders string edit modify") {
       val patch = JsonPatch.root(
         JsonPatch.Op.PrimitiveDelta(
-          JsonPatch.PrimitiveOp.StringEdit(Vector(JsonPatch.StringOp.Modify(0, 5, "Hi")))
+          JsonPatch.PrimitiveOp.StringEdit(Chunk(JsonPatch.StringOp.Modify(0, 5, "Hi")))
         )
       )
       assertTrue(
@@ -97,7 +97,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array append") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Append(Chunk(Json.Number(1), Json.Number(2)))))
+        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Append(Chunk(Json.Number(1), Json.Number(2)))))
       )
       assertTrue(
         patch.toString ==
@@ -110,7 +110,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array insert") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Insert(1, Chunk(Json.Number(42), Json.Number(43)))))
+        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Insert(1, Chunk(Json.Number(42), Json.Number(43)))))
       )
       assertTrue(
         patch.toString ==
@@ -123,7 +123,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array delete single element") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, 1)))
+        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Delete(0, 1)))
       )
       assertTrue(
         patch.toString ==
@@ -135,7 +135,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array delete multiple elements") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Delete(0, 3)))
+        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Delete(0, 3)))
       )
       assertTrue(
         patch.toString ==
@@ -147,7 +147,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders array modify with set") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ArrayEdit(Vector(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Set(Json.Number(99)))))
+        JsonPatch.Op.ArrayEdit(Chunk(JsonPatch.ArrayOp.Modify(0, JsonPatch.Op.Set(Json.Number(99)))))
       )
       assertTrue(
         patch.toString ==
@@ -159,7 +159,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders object add") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Add("name", Json.String("Alice"))))
+        JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Add("name", Json.String("Alice"))))
       )
       assertTrue(
         patch.toString ==
@@ -171,7 +171,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders object remove") {
       val patch = JsonPatch.root(
-        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Remove("name")))
+        JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Remove("name")))
       )
       assertTrue(
         patch.toString ==
@@ -184,7 +184,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     test("renders object modify") {
       val nestedPatch = JsonPatch.root(JsonPatch.Op.Set(Json.String("New York")))
       val patch       = JsonPatch.root(
-        JsonPatch.Op.ObjectEdit(Vector(JsonPatch.ObjectOp.Modify("city", nestedPatch)))
+        JsonPatch.Op.ObjectEdit(Chunk(JsonPatch.ObjectOp.Modify("city", nestedPatch)))
       )
       assertTrue(
         patch.toString ==
@@ -197,11 +197,11 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders composite patch") {
       val patch = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatch.JsonPatchOp(
             DynamicOptic.root,
             JsonPatch.Op.ObjectEdit(
-              Vector(
+              Chunk(
                 JsonPatch.ObjectOp.Add("name", Json.String("John")),
                 JsonPatch.ObjectOp.Remove("temp")
               )
@@ -279,7 +279,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders path with field and index") {
       val patch = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatch.JsonPatchOp(
             DynamicOptic.root.field("items").at(0),
             JsonPatch.Op.Set(Json.Number(1))
@@ -295,7 +295,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders path with multiple fields") {
       val patch = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatch.JsonPatchOp(
             DynamicOptic.root.field("user").field("address").field("city"),
             JsonPatch.Op.Set(Json.String("NYC"))
@@ -311,7 +311,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders path with nested indices") {
       val patch = JsonPatch(
-        Vector(
+        Chunk(
           JsonPatch.JsonPatchOp(
             DynamicOptic.root.at(0).at(1),
             JsonPatch.Op.Set(Json.Number(42))
@@ -384,7 +384,7 @@ object JsonPatchToStringSpec extends ZIOSpecDefault {
     test("renders array modify with non-Set nested operation") {
       val patch = JsonPatch.root(
         JsonPatch.Op.ArrayEdit(
-          Vector(
+          Chunk(
             JsonPatch.ArrayOp.Modify(
               0,
               JsonPatch.Op.PrimitiveDelta(JsonPatch.PrimitiveOp.NumberDelta(BigDecimal(5)))

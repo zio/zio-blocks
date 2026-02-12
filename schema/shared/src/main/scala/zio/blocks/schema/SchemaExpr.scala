@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+
 /**
  * A {{SchemaExpr}} is an expression on the value of a type fully described by a
  * {{Schema}}.
@@ -32,23 +34,11 @@ sealed trait SchemaExpr[A, +B] { self =>
    */
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 
-  final def &&[B2](
-    that: SchemaExpr[A, B2]
-  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    SchemaExpr.Logical(
-      self.asEquivalent[Boolean],
-      that.asEquivalent[Boolean],
-      SchemaExpr.LogicalOperator.And
-    )
+  final def &&[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+    new SchemaExpr.Logical(self.asEquivalent[Boolean], that.asEquivalent[Boolean], SchemaExpr.LogicalOperator.And)
 
-  final def ||[B2](
-    that: SchemaExpr[A, B2]
-  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    SchemaExpr.Logical(
-      self.asEquivalent[Boolean],
-      that.asEquivalent[Boolean],
-      SchemaExpr.LogicalOperator.Or
-    )
+  final def ||[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+    new SchemaExpr.Logical(self.asEquivalent[Boolean], that.asEquivalent[Boolean], SchemaExpr.LogicalOperator.Or)
 
   private final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] = {
     val _ = ev // suppress unused warning
@@ -62,22 +52,22 @@ object SchemaExpr {
 
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = dynamicResult
 
-    private[this] val result        = new Right(value :: Nil)
-    private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
+    private[this] val result        = new Right(Chunk.single(value))
+    private[this] val dynamicResult = new Right(Chunk.single(schema.toDynamicValue(value)))
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
       case l: Lens[?, ?] =>
-        new Right(l.get(input) :: Nil)
+        new Right(Chunk.single(l.get(input)))
       case p: Prism[?, ?] =>
         p.getOrFail(input) match {
-          case Right(x: B @scala.unchecked) => new Right(x :: Nil)
+          case Right(x: B @scala.unchecked) => new Right(Chunk.single(x))
           case left                         => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
       case o: Optional[?, ?] =>
         o.getOrFail(input) match {
-          case Right(x) => new Right(x :: Nil)
+          case Right(x) => new Right(Chunk.single(x))
           case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
       case t: Traversal[?, ?] =>
@@ -90,15 +80,15 @@ object SchemaExpr {
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = optic match {
       case l: Lens[?, ?] =>
-        new Right(toDynamicValue(l.get(input)) :: Nil)
+        new Right(Chunk.single(toDynamicValue(l.get(input))))
       case p: Prism[?, ?] =>
         p.getOrFail(input) match {
-          case Right(x: B @scala.unchecked) => new Right(toDynamicValue(x) :: Nil)
+          case Right(x: B @scala.unchecked) => new Right(Chunk.single(toDynamicValue(x)))
           case left                         => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
       case o: Optional[?, ?] =>
         o.getOrFail(input) match {
-          case Right(x) => new Right(toDynamicValue(x) :: Nil)
+          case Right(x) => new Right(Chunk.single(toDynamicValue(x)))
           case left     => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
       case t: Traversal[?, ?] =>
@@ -125,12 +115,12 @@ object SchemaExpr {
   final case class Relational[A, B](left: SchemaExpr[A, B], right: SchemaExpr[A, B], operator: RelationalOperator)
       extends BinaryOp[A, B, Boolean] {
     def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
-      if (operator == RelationalOperator.Equal || operator == RelationalOperator.NotEqual) {
+      if ((operator eq RelationalOperator.Equal) || (operator eq RelationalOperator.NotEqual)) {
         for {
           xs <- left.eval(input)
           ys <- right.eval(input)
         } yield {
-          if (operator == RelationalOperator.Equal) for { x <- xs; y <- ys } yield x == y
+          if (operator eq RelationalOperator.Equal) for { x <- xs; y <- ys } yield x == y
           else for { x <- xs; y <- ys } yield x != y
         }
       } else { // FIXME: Use Ordering to avoid converisons to dynamic values
@@ -138,9 +128,9 @@ object SchemaExpr {
           xs <- left.evalDynamic(input)
           ys <- right.evalDynamic(input)
         } yield {
-          if (operator == RelationalOperator.LessThan) for { x <- xs; y <- ys } yield x < y
-          else if (operator == RelationalOperator.LessThanOrEqual) for { x <- xs; y <- ys } yield x <= y
-          else if (operator == RelationalOperator.GreaterThan) for { x <- xs; y <- ys } yield x > y
+          if (operator eq RelationalOperator.LessThan) for { x <- xs; y <- ys } yield x < y
+          else if (operator eq RelationalOperator.LessThanOrEqual) for { x <- xs; y <- ys } yield x <= y
+          else if (operator eq RelationalOperator.GreaterThan) for { x <- xs; y <- ys } yield x > y
           else for { x <- xs; y <- ys } yield x >= y
         }
       }
@@ -150,12 +140,12 @@ object SchemaExpr {
         xs <- left.evalDynamic(input)
         ys <- right.evalDynamic(input)
       } yield operator match {
-        case RelationalOperator.LessThan           => for { x <- xs; y <- ys } yield toDynamicValue(x < y)
-        case RelationalOperator.LessThanOrEqual    => for { x <- xs; y <- ys } yield toDynamicValue(x <= y)
-        case RelationalOperator.GreaterThan        => for { x <- xs; y <- ys } yield toDynamicValue(x > y)
-        case RelationalOperator.GreaterThanOrEqual => for { x <- xs; y <- ys } yield toDynamicValue(x >= y)
-        case RelationalOperator.Equal              => for { x <- xs; y <- ys } yield toDynamicValue(x == y)
-        case RelationalOperator.NotEqual           => for { x <- xs; y <- ys } yield toDynamicValue(x != y)
+        case _: RelationalOperator.LessThan.type           => for { x <- xs; y <- ys } yield toDynamicValue(x < y)
+        case _: RelationalOperator.LessThanOrEqual.type    => for { x <- xs; y <- ys } yield toDynamicValue(x <= y)
+        case _: RelationalOperator.GreaterThan.type        => for { x <- xs; y <- ys } yield toDynamicValue(x > y)
+        case _: RelationalOperator.GreaterThanOrEqual.type => for { x <- xs; y <- ys } yield toDynamicValue(x >= y)
+        case _: RelationalOperator.Equal.type              => for { x <- xs; y <- ys } yield toDynamicValue(x == y)
+        case _: RelationalOperator.NotEqual.type           => for { x <- xs; y <- ys } yield toDynamicValue(x != y)
       }
 
     private[this] def toDynamicValue(value: Boolean): DynamicValue =
@@ -180,8 +170,8 @@ object SchemaExpr {
         xs <- left.eval(input)
         ys <- right.eval(input)
       } yield operator match {
-        case LogicalOperator.And => for { x <- xs; y <- ys } yield x && y
-        case LogicalOperator.Or  => for { x <- xs; y <- ys } yield x || y
+        case _: LogicalOperator.And.type => for { x <- xs; y <- ys } yield x && y
+        case _: LogicalOperator.Or.type  => for { x <- xs; y <- ys } yield x || y
       }
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
@@ -189,8 +179,8 @@ object SchemaExpr {
         xs <- left.eval(input)
         ys <- right.eval(input)
       } yield operator match {
-        case LogicalOperator.And => for { x <- xs; y <- ys } yield toDynamicValue(x && y)
-        case LogicalOperator.Or  => for { x <- xs; y <- ys } yield toDynamicValue(x || y)
+        case _: LogicalOperator.And.type => for { x <- xs; y <- ys } yield toDynamicValue(x && y)
+        case _: LogicalOperator.Or.type  => for { x <- xs; y <- ys } yield toDynamicValue(x || y)
       }
 
     private[this] def toDynamicValue(value: Boolean): DynamicValue =
@@ -232,9 +222,9 @@ object SchemaExpr {
       } yield {
         val n = isNumeric.numeric
         operator match {
-          case ArithmeticOperator.Add      => for { x <- xs; y <- ys } yield n.plus(x, y)
-          case ArithmeticOperator.Subtract => for { x <- xs; y <- ys } yield n.minus(x, y)
-          case ArithmeticOperator.Multiply => for { x <- xs; y <- ys } yield n.times(x, y)
+          case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield n.plus(x, y)
+          case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield n.minus(x, y)
+          case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield n.times(x, y)
         }
       }
 
@@ -245,9 +235,9 @@ object SchemaExpr {
       } yield {
         val n = isNumeric.numeric
         operator match {
-          case ArithmeticOperator.Add      => for { x <- xs; y <- ys } yield toDynamicValue(n.plus(x, y))
-          case ArithmeticOperator.Subtract => for { x <- xs; y <- ys } yield toDynamicValue(n.minus(x, y))
-          case ArithmeticOperator.Multiply => for { x <- xs; y <- ys } yield toDynamicValue(n.times(x, y))
+          case _: ArithmeticOperator.Add.type      => for { x <- xs; y <- ys } yield toDynamicValue(n.plus(x, y))
+          case _: ArithmeticOperator.Subtract.type => for { x <- xs; y <- ys } yield toDynamicValue(n.minus(x, y))
+          case _: ArithmeticOperator.Multiply.type => for { x <- xs; y <- ys } yield toDynamicValue(n.times(x, y))
         }
       }
 

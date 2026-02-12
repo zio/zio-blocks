@@ -369,12 +369,7 @@ object DiffSpec extends SchemaBaseSpec {
 
         // Should only have one operation (for the age field)
         assertTrue(patch.dynamicPatch.ops.length == 1) &&
-        assertTrue(
-          patch.dynamicPatch.ops(0).path.nodes match {
-            case Vector(DynamicOptic.Node.Field("age")) => true
-            case _                                      => false
-          }
-        )
+        assertTrue(patch.dynamicPatch.ops(0).path.nodes == Vector(DynamicOptic.Node.Field("age")))
       },
       test("diff on records with multiple changed fields") {
         case class Person(name: String, age: Int, city: String)
@@ -401,10 +396,10 @@ object DiffSpec extends SchemaBaseSpec {
         // Should have one operation for address.street
         assertTrue(patch.dynamicPatch.ops.length == 1) &&
         assertTrue(
-          patch.dynamicPatch.ops(0).path.nodes match {
-            case Vector(DynamicOptic.Node.Field("address"), DynamicOptic.Node.Field("street")) => true
-            case _                                                                             => false
-          }
+          patch.dynamicPatch.ops(0).path.nodes == Vector(
+            DynamicOptic.Node.Field("address"),
+            DynamicOptic.Node.Field("street")
+          )
         )
       },
       test("diff on deeply nested records") {

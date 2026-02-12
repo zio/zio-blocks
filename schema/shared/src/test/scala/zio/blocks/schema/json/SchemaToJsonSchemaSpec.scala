@@ -502,20 +502,44 @@ object SchemaToJsonSchemaSpec extends SchemaBaseSpec {
     ),
     suite("Error messages")(
       test("type mismatch error includes path information") {
-        val schema  = Schema[Person].toJsonSchema
-        val invalid = Json.Object("name" -> Json.Number(123), "age" -> Json.Number(30))
+        val schema  = Schema[Company].toJsonSchema
+        val invalid = Json.Object(
+          "name"      -> Json.String("Apple Inc"),
+          "address"   -> Json.Object("street" -> Json.String("One Apple Park Way"), "city" -> Json.String("Cupertino")),
+          "employees" -> Json.Array(Json.Object("name" -> Json.Number(123), "age" -> Json.Number(30)))
+        )
+        val error = schema.check(invalid)
+        assertTrue(
+          error.isDefined,
+          error.get.message == "Expected type string at: .employees.at(0).name"
+        )
+      },
+      test("enum value error includes allowed values") {
+        val schema  = Schema[Color].toJsonSchema
+        val invalid = Json.String("orange")
         val error   = schema.check(invalid)
         assertTrue(
           error.isDefined,
-          error.exists(_.message.contains("at:"))
+          error.get.message == "Value not in enum: \"Red\", \"Green\", \"Blue\" at: ."
+        )
+      },
+      test("shrink too long enum value error messages") {
+        val schema  = Schema[java.time.Month].toJsonSchema
+        val invalid = Json.String("June")
+        val error   = schema.check(invalid)
+        assertTrue(
+          error.isDefined,
+          error.get.message == """Value not in enum: "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", ... at: ."""
         )
       },
       test("error message describes the type mismatch") {
         val schema  = Schema[Person].toJsonSchema
-        val invalid = Json.Object("name" -> Json.Number(123), "age" -> Json.Number(30))
+        val invalid = Json.Object("name" -> Json.Number(123))
         val error   = schema.check(invalid)
         assertTrue(
-          error.exists(_.message.contains("Expected type"))
+          error.isDefined,
+          error.get.message == """Expected type string at: .name
+                                 |Missing required property 'age' at: .""".stripMargin
         )
       }
     ),

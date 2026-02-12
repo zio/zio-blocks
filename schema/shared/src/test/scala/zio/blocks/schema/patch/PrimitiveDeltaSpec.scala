@@ -1,5 +1,6 @@
 package zio.blocks.schema.patch
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 import java.time._
@@ -281,13 +282,13 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
     suite("Patch.editString")(
       test("inserts text at position") {
         val doc    = Document("Title", "Hello world")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Insert(6, "beautiful ")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Insert(6, "beautiful ")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello beautiful world")))
       },
       test("deletes text") {
         val doc    = Document("Title", "Hello beautiful world")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Delete(6, 10)))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Delete(6, 10)))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
@@ -295,7 +296,7 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
         val doc   = Document("Title", "Hello world")
         val patch = Patch.editString(
           Document.content,
-          Vector(
+          Chunk(
             DynamicPatch.StringOp.Insert(5, " there"),
             DynamicPatch.StringOp.Delete(0, 5) // Delete "Hello"
           )
@@ -307,67 +308,67 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
       },
       test("inserts at beginning") {
         val doc    = Document("Title", "world")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Insert(0, "Hello ")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Insert(0, "Hello ")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
       test("inserts at end") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Insert(5, " world")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Insert(5, " world")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
       test("handles unicode text") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Insert(5, " 世界 🌍")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Insert(5, " 世界 🌍")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello 世界 🌍")))
       },
       test("fails on out of bounds insert") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Insert(100, "!")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Insert(100, "!")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("fails on out of bounds delete") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Delete(0, 100)))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Delete(0, 100)))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("appends text to end") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Append(" world")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Append(" world")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
       test("appends empty string") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Append("")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Append("")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello")))
       },
       test("modifies (replaces) substring") {
         val doc    = Document("Title", "Hello world")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Modify(6, 5, "everyone")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Modify(6, 5, "everyone")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello everyone")))
       },
       test("modifies with empty replacement (equivalent to delete)") {
         val doc    = Document("Title", "Hello beautiful world")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Modify(6, 10, "")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Modify(6, 10, "")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Hello world")))
       },
       test("modifies at beginning") {
         val doc    = Document("Title", "Hello world")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Modify(0, 5, "Goodbye")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Modify(0, 5, "Goodbye")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result == Right(Document("Title", "Goodbye world")))
       },
       test("fails on out of bounds modify") {
         val doc    = Document("Title", "Hello")
-        val patch  = Patch.editString(Document.content, Vector(DynamicPatch.StringOp.Modify(0, 100, "test")))
+        val patch  = Patch.editString(Document.content, Chunk(DynamicPatch.StringOp.Modify(0, 100, "test")))
         val result = patch(doc, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
@@ -375,7 +376,7 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
         val doc   = Document("Title", "Hello")
         val patch = Patch.editString(
           Document.content,
-          Vector(
+          Chunk(
             DynamicPatch.StringOp.Insert(0, "Say: "),
             DynamicPatch.StringOp.Modify(5, 5, "Hi"),
             DynamicPatch.StringOp.Append("!")
@@ -397,9 +398,9 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
       val doc = Document("Title", "Content")
       // Manually construct a patch with wrong operation type
       val wrongPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
-            DynamicOptic(Vector(DynamicOptic.Node.Field("content"))),
+            DynamicOptic(Chunk(DynamicOptic.Node.Field("content"))),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
           )
         )
@@ -430,7 +431,7 @@ object PrimitiveDeltaSpec extends SchemaBaseSpec {
     },
     test("string edit with empty operations") {
       val doc    = Document("Title", "Content")
-      val patch  = Patch.editString(Document.content, Vector.empty)
+      val patch  = Patch.editString(Document.content, Chunk.empty)
       val result = patch(doc, PatchMode.Strict)
       assertTrue(result == Right(doc))
     }

@@ -26,7 +26,7 @@ package object json {
 
     // Extract individual arg expressions for type checking and processing
     val argExprs: Seq[Expr[Any]] = args match {
-      case Varargs(exprs) => exprs.toSeq
+      case Varargs(exprs) => exprs
       case _              => Seq.empty
     }
 

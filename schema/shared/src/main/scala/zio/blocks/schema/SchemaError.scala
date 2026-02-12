@@ -19,16 +19,13 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
     .toString
 
   /** Prepends a field access to the path of all errors in this SchemaError. */
-  def atField(name: String): SchemaError =
-    mapSource(path => DynamicOptic.root.field(name)(path))
+  def atField(name: String): SchemaError = mapSource(path => DynamicOptic.root.field(name)(path))
 
   /** Prepends an index access to the path of all errors in this SchemaError. */
-  def atIndex(index: Int): SchemaError =
-    mapSource(path => DynamicOptic.root.at(index)(path))
+  def atIndex(index: Int): SchemaError = mapSource(path => DynamicOptic.root.at(index)(path))
 
   /** Prepends a case access to the path of all errors in this SchemaError. */
-  def atCase(name: String): SchemaError =
-    mapSource(path => DynamicOptic.root.caseOf(name)(path))
+  def atCase(name: String): SchemaError = mapSource(path => DynamicOptic.root.caseOf(name)(path))
 
   /**
    * Prepends a map key access to the path of all errors in this SchemaError.
@@ -37,7 +34,7 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
     mapSource(path => new DynamicOptic(DynamicOptic.Node.AtMapKey(key) +: path.nodes))
 
   private def mapSource(f: DynamicOptic => DynamicOptic): SchemaError =
-    SchemaError(new ::(SchemaError.remapSource(errors.head, f), errors.tail.map(SchemaError.remapSource(_, f))))
+    new SchemaError(new ::(SchemaError.remapSource(errors.head, f), errors.tail.map(SchemaError.remapSource(_, f))))
 }
 
 object SchemaError {
@@ -73,8 +70,7 @@ object SchemaError {
    * convert string-based validation errors (e.g., from smart constructors) into
    * SchemaError.
    */
-  def validationFailed(message: String): SchemaError =
-    conversionFailed(Nil, message)
+  def validationFailed(message: String): SchemaError = conversionFailed(Nil, message)
 
   /**
    * Creates a SchemaError with a simple message at the given path. This is the
@@ -89,15 +85,14 @@ object SchemaError {
    */
   def apply(details: String): SchemaError = message(details)
 
-  private[schema] def remapSource(single: Single, f: DynamicOptic => DynamicOptic): Single =
-    single match {
-      case ConversionFailed(src, details, cause) => ConversionFailed(f(src), details, cause)
-      case MissingField(src, fieldName)          => MissingField(f(src), fieldName)
-      case DuplicatedField(src, fieldName)       => DuplicatedField(f(src), fieldName)
-      case ExpectationMismatch(src, exp)         => ExpectationMismatch(f(src), exp)
-      case UnknownCase(src, caseName)            => UnknownCase(f(src), caseName)
-      case Message(src, details)                 => Message(f(src), details)
-    }
+  private[schema] def remapSource(single: Single, f: DynamicOptic => DynamicOptic): Single = single match {
+    case e: ConversionFailed    => e.copy(source = f(e.source))
+    case e: MissingField        => e.copy(source = f(e.source))
+    case e: DuplicatedField     => e.copy(source = f(e.source))
+    case e: ExpectationMismatch => e.copy(source = f(e.source))
+    case e: UnknownCase         => e.copy(source = f(e.source))
+    case e: Message             => e.copy(source = f(e.source))
+  }
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
@@ -140,20 +135,17 @@ object SchemaError {
           val sb = new java.lang.StringBuilder(details)
           sb.append('\n')
           if (causeErr.errors.isEmpty) sb.append("<no further details>")
-          else if (causeErr.errors.length == 1) {
-            sb.append("  Caused by: ")
-            sb.append(causeErr.errors.head.message)
-          } else {
+          else if (causeErr.errors.length == 1) sb.append("  Caused by: ").append(causeErr.errors.head.message)
+          else {
             sb.append("  Caused by:\n")
             val start = sb.length
             causeErr.errors.foreach { e =>
               if (sb.length > start) sb.append('\n')
-              sb.append("  - ")
-              sb.append(e.message)
+              sb.append("  - ").append(e.message)
             }
           }
           sb.toString
-        case None => details
+        case _ => details
       }
   }
 

@@ -69,6 +69,7 @@ Enter only when fast loop is green. Run in order:
 4. **Downstream** — all projects that depend on what you changed:
     - `chunk*` → `schema*`, `benchmarks`
     - `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
+    - `scope*` → `scope-examples`
 
     If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 

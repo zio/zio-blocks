@@ -189,8 +189,8 @@ final class ChunkMap[K, +V] private (
   override def filter(pred: ((K, V)) => Boolean): ChunkMap[K, V] = {
     val len = _keys.length
     if (len == 0) return ChunkMap.empty
-    val keysBuilder   = Chunk.newBuilder[K]
-    val valuesBuilder = Chunk.newBuilder[V]
+    val keysBuilder   = ChunkBuilder.make[K]()
+    val valuesBuilder = ChunkBuilder.make[V]()
     var idx           = 0
     while (idx < len) {
       val k = _keys(idx)

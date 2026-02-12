@@ -7,10 +7,10 @@ import zio.blocks.schema.patch._
 import java.time._
 
 object DynamicPatchToStringSpec extends ZIOSpecDefault {
-  def spec = suite("DynamicPatch toString")(
+  def spec = suite("DynamicPatchToStringSpec")(
     test("renders simple set operation") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("name"),
             DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("John")))
@@ -26,7 +26,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders numeric delta") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("age"),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
@@ -42,7 +42,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders numeric delta negative") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("score"),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(-10))
@@ -58,11 +58,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders simple map edits") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("config"),
             DynamicPatch.Operation.MapEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.MapOp.Add(
                   DynamicValue.Primitive(PrimitiveValue.String("newKey")),
                   DynamicValue.Primitive(PrimitiveValue.String("new value"))
@@ -84,11 +84,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders simple sequence edits") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("items"),
             DynamicPatch.Operation.SequenceEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.String("inserted")))),
                 DynamicPatch.SeqOp.Delete(2, 1)
               )
@@ -107,7 +107,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders multi-operation patch with indentation") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("name"),
             DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("John")))
@@ -115,7 +115,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("tags"),
             DynamicPatch.Operation.SequenceEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.SeqOp.Append(Chunk(DynamicValue.Primitive(PrimitiveValue.String("new"))))
               )
             )
@@ -133,12 +133,12 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders string edits") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("bio"),
             DynamicPatch.Operation.PrimitiveDelta(
               DynamicPatch.PrimitiveOp.StringEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.StringOp.Insert(0, "Hello "),
                   DynamicPatch.StringOp.Append("!"),
                   DynamicPatch.StringOp.Delete(5, 1)
@@ -160,7 +160,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders various primitive deltas") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("long"),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(10L))
@@ -186,7 +186,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders nested patch") {
       val nested = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("street"),
             DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Broadway")))
@@ -194,7 +194,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
       )
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("address"),
             DynamicPatch.Operation.Patch(nested)
@@ -211,7 +211,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders nested map value patch") {
       val innerPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("counter"),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
@@ -219,11 +219,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
       )
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("data"),
             DynamicPatch.Operation.MapEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.MapOp.Modify(DynamicValue.Primitive(PrimitiveValue.String("item1")), innerPatch)
               )
             )
@@ -241,7 +241,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders all numeric primitive deltas") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("floatField"),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(2.5f))
@@ -277,7 +277,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders temporal primitive deltas") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("instant"),
             DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.InstantDelta(Duration.ofHours(1)))
@@ -310,11 +310,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders map with non-string keys") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("flags"),
             DynamicPatch.Operation.MapEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.MapOp.Add(
                   DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
                   DynamicValue.Primitive(PrimitiveValue.String("yes"))
@@ -329,7 +329,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("codes"),
             DynamicPatch.Operation.MapEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.MapOp.Add(
                   DynamicValue.Primitive(PrimitiveValue.Int(1)),
                   DynamicValue.Primitive(PrimitiveValue.String("one"))
@@ -359,7 +359,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders sequence modify operation") {
       val innerPatch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("status"),
             DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("updated")))
@@ -367,11 +367,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
       )
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("items"),
             DynamicPatch.Operation.SequenceEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.SeqOp.Modify(0, DynamicPatch.Operation.Patch(innerPatch))
               )
             )
@@ -390,12 +390,12 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders string modify operation") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("text"),
             DynamicPatch.Operation.PrimitiveDelta(
               DynamicPatch.PrimitiveOp.StringEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.StringOp.Modify(0, 5, "Goodbye")
                 )
               )
@@ -412,16 +412,16 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
       )
     },
     test("renders empty patch") {
-      val patch = DynamicPatch(Vector.empty)
+      val patch = DynamicPatch(Chunk.empty)
       assertTrue(patch.toString == "DynamicPatch {}")
     },
     test("renders multiple sequence deletes") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("items"),
             DynamicPatch.Operation.SequenceEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.SeqOp.Delete(0, 1),
                 DynamicPatch.SeqOp.Delete(2, 2),
                 DynamicPatch.SeqOp.Delete(7, 1)
@@ -442,11 +442,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     },
     test("renders multiple sequence inserts at different indices") {
       val patch = DynamicPatch(
-        Vector(
+        Chunk(
           DynamicPatch.DynamicPatchOp(
             DynamicOptic.root.field("tags"),
             DynamicPatch.Operation.SequenceEdit(
-              Vector(
+              Chunk(
                 DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.String("first")))),
                 DynamicPatch.SeqOp.Insert(3, Chunk(DynamicValue.Primitive(PrimitiveValue.String("middle")))),
                 DynamicPatch.SeqOp.Append(
@@ -474,18 +474,18 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     suite("Long-form editing - comprehensive edits")(
       test("renders all sequence operations combined") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("items"),
               DynamicPatch.Operation.SequenceEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.SeqOp.Insert(0, Chunk(DynamicValue.Primitive(PrimitiveValue.String("new-item")))),
                   DynamicPatch.SeqOp.Delete(5, 2),
                   DynamicPatch.SeqOp.Modify(
                     3,
                     DynamicPatch.Operation.Patch(
                       DynamicPatch(
-                        Vector(
+                        Chunk(
                           DynamicPatch.DynamicPatchOp(
                             DynamicOptic.root.field("status"),
                             DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("active")))
@@ -521,11 +521,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
       },
       test("renders all map operations combined") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("config"),
               DynamicPatch.Operation.MapEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.MapOp.Add(
                     DynamicValue.Primitive(PrimitiveValue.String("newKey")),
                     DynamicValue.Primitive(PrimitiveValue.String("newValue"))
@@ -534,7 +534,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
                   DynamicPatch.MapOp.Modify(
                     DynamicValue.Primitive(PrimitiveValue.String("existingKey")),
                     DynamicPatch(
-                      Vector(
+                      Chunk(
                         DynamicPatch.DynamicPatchOp(
                           DynamicOptic.root.field("counter"),
                           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(10))
@@ -565,12 +565,12 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
       },
       test("renders all string operations combined") {
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("text"),
               DynamicPatch.Operation.PrimitiveDelta(
                 DynamicPatch.PrimitiveOp.StringEdit(
-                  Vector(
+                  Chunk(
                     DynamicPatch.StringOp.Insert(0, "Prefix: "),
                     DynamicPatch.StringOp.Delete(10, 5),
                     DynamicPatch.StringOp.Modify(20, 3, "REPLACED"),
@@ -596,7 +596,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
     suite("Nested patch operations using DynamicPatchOp")(
       test("renders 3-level deep nested patch") {
         val level3Patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("deepValue"),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(999)))
@@ -605,7 +605,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
 
         val level2Patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("level3"),
               DynamicPatch.Operation.Patch(level3Patch)
@@ -614,7 +614,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
 
         val level1Patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("level2"),
               DynamicPatch.Operation.Patch(level2Patch)
@@ -633,7 +633,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
       },
       test("renders mixed nested patches with sequence and map modifications") {
         val itemPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("quantity"),
               DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
@@ -646,11 +646,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
 
         val patch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("items"),
               DynamicPatch.Operation.SequenceEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.SeqOp.Modify(0, DynamicPatch.Operation.Patch(itemPatch))
                 )
               )
@@ -658,11 +658,11 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("metadata"),
               DynamicPatch.Operation.MapEdit(
-                Vector(
+                Chunk(
                   DynamicPatch.MapOp.Modify(
                     DynamicValue.Primitive(PrimitiveValue.String("stats")),
                     DynamicPatch(
-                      Vector(
+                      Chunk(
                         DynamicPatch.DynamicPatchOp(
                           DynamicOptic.root.field("views"),
                           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
@@ -692,7 +692,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
       },
       test("renders deeply nested patch with variant navigation") {
         val innerPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("data").caseOf("Some").field("value"),
               DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("updated")))
@@ -701,7 +701,7 @@ object DynamicPatchToStringSpec extends ZIOSpecDefault {
         )
 
         val outerPatch = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("result").caseOf("Success").field("payload"),
               DynamicPatch.Operation.Patch(innerPatch)

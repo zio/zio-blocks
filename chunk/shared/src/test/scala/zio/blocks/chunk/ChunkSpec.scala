@@ -258,12 +258,15 @@ object ChunkSpec extends ChunkBaseSpec {
     },
     test("equals") {
       check(genChunk(intGen), genChunk(intGen)) { (c1, c2) =>
-        assert(c1.equals(c2))(equalTo(c1.toList.equals(c2.toList)))
+        assert(c1.equals(c2))(equalTo(c1.toList.equals(c2.toList))) &&
+        assert(c1.equals(c2.toVector))(equalTo(c1.toVector.equals(c2))) &&
+        assert(c1.equals(c2.toList))(equalTo(c1.toList.equals(c2))) &&
+        assertTrue(!c1.equals("c1"))
       } &&
       assert(Chunk(1, 2, 3, 4, 5))(Assertion.not(equalTo(Chunk(1, 2, 3, 4, 5, 6))))
     },
     test("materialize") {
-      check(genChunk(intGen))(c => assert(c.materialize.toList)(equalTo(c.toList)))
+      check(genChunk(intGen), genChunk(intGen))((c1, c2) => assert((c1 ++ c2).materialize)(equalTo(c1 ++ c2)))
     },
     test("nonEmptyOrElse") {
       check(genChunk(intGen))(c => assert(c.nonEmptyOrElse(0)(_.length))(equalTo(c.length)))
