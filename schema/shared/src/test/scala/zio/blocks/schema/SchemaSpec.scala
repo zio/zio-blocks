@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
@@ -14,6 +15,9 @@ import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
 
 object SchemaSpec extends SchemaBaseSpec {
+  
+  private def textDoc(s: String): Doc = 
+    Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
@@ -32,8 +36,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema[Int].defaultValue(1).getDefaultValue)(isSome(equalTo(1)))
       },
       test("gets and updates primitive documentation") {
-        assert(Schema[Long].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[Int].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
+        assert(Schema[Long].doc)(equalTo(Doc.empty)) &&
+        assert(Schema[Int].doc("Int (updated)").doc)(equalTo(textDoc("Int (updated)")))
       },
       test("gets and updates primitive examples") {
         assert(Schema[Int].examples)(equalTo(Nil)) &&
@@ -76,8 +80,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Record.schema.defaultValue(Record(1, 2)).getDefaultValue)(isSome(equalTo(Record(1, 2))))
       },
       test("gets and updates record documentation") {
-        assert(Record.schema.doc)(equalTo(Doc.Empty)) &&
-        assert(Record.schema.doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
+        assert(Record.schema.doc)(equalTo(Doc.empty)) &&
+        assert(Record.schema.doc("Record (updated)").doc)(equalTo(textDoc("Record (updated)")))
       },
       test("gets and updates record examples") {
         assert(Record.schema.examples)(equalTo(Nil)) &&
@@ -89,9 +93,9 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Record.schema.defaultValue(Record.x, true).getDefaultValue(Record.x))(isNone) // invalid lens
       },
       test("gets and updates documentation of record fields using optic focus") {
-        assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
-        assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i"))) &&
-        assert(Record.schema.doc(Record.x, "x").doc(Record.x))(equalTo(Doc.Empty)) // invalid lens
+        assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(textDoc("b"))) &&
+        assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(textDoc("i"))) &&
+        assert(Record.schema.doc(Record.x, "x").doc(Record.x))(equalTo(Doc.empty)) // invalid lens
       },
       test("gets and updates examples of record fields using optic focus") {
         assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
@@ -769,8 +773,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Variant.schema.defaultValue(Case1('1')).getDefaultValue)(isSome(equalTo(Case1('1'))))
       },
       test("gets and updates variant documentation") {
-        assert(Variant.schema.doc)(equalTo(Doc.Empty)) &&
-        assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
+        assert(Variant.schema.doc)(equalTo(Doc.empty)) &&
+        assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(textDoc("Variant (updated)")))
       },
       test("gets and updates variant examples") {
         assert(Variant.schema.examples)(equalTo(Nil)) &&
@@ -785,8 +789,8 @@ object SchemaSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates documentation of variant cases using optic focus") {
-        assert(Variant.schema.doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1"))) &&
-        assert(Variant.schema.doc(Variant.case2, "Case2").doc(Variant.case2))(equalTo(Doc("Case2")))
+        assert(Variant.schema.doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(textDoc("Case1"))) &&
+        assert(Variant.schema.doc(Variant.case2, "Case2").doc(Variant.case2))(equalTo(textDoc("Case2")))
       },
       test("gets and updates examples of variant cases using optic focus") {
         assert(Variant.schema.examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1')))) &&
@@ -1135,8 +1139,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema[Vector[Int]].defaultValue(Vector.empty).getDefaultValue)(isSome(equalTo(Vector.empty)))
       },
       test("gets and updates sequence documentation") {
-        assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema.derived[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
+        assert(Schema[List[Double]].doc)(equalTo(Doc.empty)) &&
+        assert(Schema.derived[Seq[Int]].doc("Seq (updated)").doc)(equalTo(textDoc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
@@ -1151,8 +1155,8 @@ object SchemaSpec extends SchemaBaseSpec {
       test("gets and updates documentation of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
-        assert(Schema[List[Int]].doc(elements1, "Int").doc(elements1))(equalTo(Doc("Int"))) &&
-        assert(Schema[Set[Long]].doc(elements2, "Long").doc(elements2))(equalTo(Doc("Long")))
+        assert(Schema[List[Int]].doc(elements1, "Int").doc(elements1))(equalTo(textDoc("Int"))) &&
+        assert(Schema[Set[Long]].doc(elements2, "Long").doc(elements2))(equalTo(textDoc("Long")))
       },
       test("gets and updates examples of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
@@ -1358,8 +1362,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema[Map[Int, Long]].defaultValue(Map.empty).getDefaultValue)(isSome(equalTo(Map.empty[Int, Long])))
       },
       test("gets and updates map documentation") {
-        assert(Schema[Map[Int, Long]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[Map[Int, Long]].doc("Map (updated)").doc)(equalTo(Doc("Map (updated)")))
+        assert(Schema[Map[Int, Long]].doc)(equalTo(Doc.empty)) &&
+        assert(Schema[Map[Int, Long]].doc("Map (updated)").doc)(equalTo(textDoc("Map (updated)")))
       },
       test("gets and updates map examples") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
@@ -1394,8 +1398,8 @@ object SchemaSpec extends SchemaBaseSpec {
       test("gets and updates documentation of map keys and values using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
-        assert(Schema[Map[Int, Long]].doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
-        assert(Schema[Map[Int, Long]].doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
+        assert(Schema[Map[Int, Long]].doc(mapKeys, "Int").doc(mapKeys))(equalTo(textDoc("Int"))) &&
+        assert(Schema[Map[Int, Long]].doc(mapValues, "Long").doc(mapValues))(equalTo(textDoc("Long")))
       },
       test("gets and updates examples of map keys and values using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
@@ -1481,8 +1485,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema[DynamicValue].defaultValue(value).getDefaultValue)(isSome(equalTo(value)))
       },
       test("gets and updates dynamic documentation") {
-        assert(Schema[DynamicValue].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[DynamicValue].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+        assert(Schema[DynamicValue].doc)(equalTo(Doc.empty)) &&
+        assert(Schema[DynamicValue].doc("Dynamic (updated)").doc)(equalTo(textDoc("Dynamic (updated)")))
       },
       test("gets and updates dynamic examples") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -1532,8 +1536,8 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("gets and updates sequence documentation") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
-        assert(Schema(deferred1).doc)(equalTo(Doc.Empty)) &&
-        assert(Schema(deferred1).doc("Deferred (updated)").doc)(equalTo(Doc("Deferred (updated)")))
+        assert(Schema(deferred1).doc)(equalTo(Doc.empty)) &&
+        assert(Schema(deferred1).doc("Deferred (updated)").doc)(equalTo(textDoc("Deferred (updated)")))
       },
       test("gets and updates deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
@@ -1571,11 +1575,11 @@ object SchemaSpec extends SchemaBaseSpec {
         val elements  = Traversal.listValues(Reflect.int[Binding])
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
-        assert(Schema(deferred1).doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
-        assert(Schema(deferred2).doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1")))
-        assert(Schema(deferred3).doc(elements, "Int").doc(elements))(equalTo(Doc("Int"))) &&
-        assert(Schema(deferred4).doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
-        assert(Schema(deferred4).doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
+        assert(Schema(deferred1).doc(Record.b, "b").doc(Record.b))(equalTo(textDoc("b"))) &&
+        assert(Schema(deferred2).doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(textDoc("Case1")))
+        assert(Schema(deferred3).doc(elements, "Int").doc(elements))(equalTo(textDoc("Int"))) &&
+        assert(Schema(deferred4).doc(mapKeys, "Int").doc(mapKeys))(equalTo(textDoc("Int"))) &&
+        assert(Schema(deferred4).doc(mapValues, "Long").doc(mapValues))(equalTo(textDoc("Long")))
       },
       test("gets and updates examples of deferred value using optic focus") {
         val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
@@ -1680,8 +1684,8 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Schema[PosInt].defaultValue(value).getDefaultValue)(isSome(equalTo(value)))
       },
       test("gets and updates wrapper documentation") {
-        assert(Schema[PosInt].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[PosInt].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+        assert(Schema[PosInt].doc)(equalTo(Doc.empty)) &&
+        assert(Schema[PosInt].doc("Dynamic (updated)").doc)(equalTo(textDoc("Dynamic (updated)")))
       },
       test("gets and updates wrapper examples") {
         val value = PosInt.applyUnsafe(1)
@@ -1695,8 +1699,8 @@ object SchemaSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates documentation of wrapped schema using optic focus") {
-        assert(PosInt.schema.doc(PosInt.wrapped, "Int").doc(PosInt.wrapped))(equalTo(Doc("Int"))) &&
-        assert(Email.schema.doc(Email.wrapped, "String").doc(Email.wrapped))(equalTo(Doc("String")))
+        assert(PosInt.schema.doc(PosInt.wrapped, "Int").doc(PosInt.wrapped))(equalTo(textDoc("Int"))) &&
+        assert(Email.schema.doc(Email.wrapped, "String").doc(Email.wrapped))(equalTo(textDoc("String")))
       },
       test("gets and updates examples of wrapped schema using optic focus") {
         assert(PosInt.schema.examples(PosInt.wrapped, 2).examples(PosInt.wrapped))(equalTo(Seq(2))) &&

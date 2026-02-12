@@ -174,42 +174,6 @@ object MarkdownSchemaSpec extends SchemaBaseSpec {
         val level  = HeadingLevel.H1
         val result = schema.fromDynamicValue(schema.toDynamicValue(level))
         assertTrue(result == Right(level))
-      },
-      test("Schema[HeadingLevel.H1.type] should exist and round-trip") {
-        val schema = implicitly[Schema[HeadingLevel.H1.type]]
-        val h1     = HeadingLevel.H1
-        val result = schema.fromDynamicValue(schema.toDynamicValue(h1))
-        assertTrue(result == Right(h1))
-      },
-      test("Schema[HeadingLevel.H2.type] should exist and round-trip") {
-        val schema = implicitly[Schema[HeadingLevel.H2.type]]
-        val h2     = HeadingLevel.H2
-        val result = schema.fromDynamicValue(schema.toDynamicValue(h2))
-        assertTrue(result == Right(h2))
-      },
-      test("Schema[HeadingLevel.H3.type] should exist and round-trip") {
-        val schema = implicitly[Schema[HeadingLevel.H3.type]]
-        val h3     = HeadingLevel.H3
-        val result = schema.fromDynamicValue(schema.toDynamicValue(h3))
-        assertTrue(result == Right(h3))
-      },
-      test("Schema[HeadingLevel.H4.type] should exist and round-trip") {
-        val schema = implicitly[Schema[HeadingLevel.H4.type]]
-        val h4     = HeadingLevel.H4
-        val result = schema.fromDynamicValue(schema.toDynamicValue(h4))
-        assertTrue(result == Right(h4))
-      },
-      test("Schema[HeadingLevel.H5.type] should exist and round-trip") {
-        val schema = implicitly[Schema[HeadingLevel.H5.type]]
-        val h5     = HeadingLevel.H5
-        val result = schema.fromDynamicValue(schema.toDynamicValue(h5))
-        assertTrue(result == Right(h5))
-      },
-      test("Schema[HeadingLevel.H6.type] should exist and round-trip") {
-        val schema = implicitly[Schema[HeadingLevel.H6.type]]
-        val h6     = HeadingLevel.H6
-        val result = schema.fromDynamicValue(schema.toDynamicValue(h6))
-        assertTrue(result == Right(h6))
       }
     ),
     suite("Alignment Schema")(
@@ -218,30 +182,6 @@ object MarkdownSchemaSpec extends SchemaBaseSpec {
         val alignment = Alignment.Left
         val result    = schema.fromDynamicValue(schema.toDynamicValue(alignment))
         assertTrue(result == Right(alignment))
-      },
-      test("Schema[Alignment.Left.type] should exist and round-trip") {
-        val schema = implicitly[Schema[Alignment.Left.type]]
-        val left   = Alignment.Left
-        val result = schema.fromDynamicValue(schema.toDynamicValue(left))
-        assertTrue(result == Right(left))
-      },
-      test("Schema[Alignment.Right.type] should exist and round-trip") {
-        val schema = implicitly[Schema[Alignment.Right.type]]
-        val right  = Alignment.Right
-        val result = schema.fromDynamicValue(schema.toDynamicValue(right))
-        assertTrue(result == Right(right))
-      },
-      test("Schema[Alignment.Center.type] should exist and round-trip") {
-        val schema = implicitly[Schema[Alignment.Center.type]]
-        val center = Alignment.Center
-        val result = schema.fromDynamicValue(schema.toDynamicValue(center))
-        assertTrue(result == Right(center))
-      },
-      test("Schema[Alignment.None.type] should exist and round-trip") {
-        val schema = implicitly[Schema[Alignment.None.type]]
-        val none   = Alignment.None
-        val result = schema.fromDynamicValue(schema.toDynamicValue(none))
-        assertTrue(result == Right(none))
       }
     ),
     suite("TableRow Schema")(

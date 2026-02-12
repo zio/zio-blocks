@@ -1,6 +1,8 @@
 package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.SchemaVersionSpecificSpec.{InnerId, InnerValue}
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
@@ -8,6 +10,9 @@ import zio.test.Assertion._
 import zio.test._
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
+  
+  private def textDoc(s: String): Doc = 
+    Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema using 'derives' keyword") {
@@ -37,7 +42,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(TypeId.of[Record1])
           )
         ) &&
-        assert(record.map(_.doc))(isSome(equalTo(Doc("/** Record: Record1 */"))))
+        assert(record.map(_.doc))(isSome(equalTo(textDoc("/** Record: Record1 */"))))
       },
       test("derives schema recursively for options and supported collections using 'derives' keyword") {
         case class Foo(
@@ -571,7 +576,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(variant.map(_.typeId))(
           isSome(equalTo(TypeId.of[Variant1]))
         ) &&
-        assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Variant1 */"))))
+        assert(variant.map(_.doc))(isSome(equalTo(textDoc("/** Variant: Variant1 */"))))
       },
       test("derives schema for Scala 3 enums using 'derives' keyword") {
         val schema  = Schema[Color]
@@ -600,10 +605,10 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
             equalTo(Seq(Modifier.config("type-key", "type-value-1"), Modifier.config("type-key", "type-value-2")))
           )
         ) &&
-        assert(record1.map(_.doc))(isSome(equalTo(Doc("/** Term: Red */")))) &&
-        assert(record2.map(_.doc))(isSome(equalTo(Doc("/** Term: Green */")))) &&
-        assert(record3.map(_.doc))(isSome(equalTo(Doc("/** Term: Blue */")))) &&
-        assert(record4.map(_.doc))(isSome(equalTo(Doc("/** Type: Mix */")))) &&
+        assert(record1.map(_.doc))(isSome(equalTo(textDoc("/** Term: Red */")))) &&
+        assert(record2.map(_.doc))(isSome(equalTo(textDoc("/** Term: Green */")))) &&
+        assert(record3.map(_.doc))(isSome(equalTo(textDoc("/** Term: Blue */")))) &&
+        assert(record4.map(_.doc))(isSome(equalTo(textDoc("/** Type: Mix */")))) &&
         assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
         assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
         assert(Color.mix_mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(0xffffff))) &&
@@ -620,7 +625,7 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         assert(variant.map(_.typeId))(
           isSome(equalTo(TypeId.of[Color]))
         ) &&
-        assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Color */"))))
+        assert(variant.map(_.doc))(isSome(equalTo(textDoc("/** Variant: Color */"))))
       },
       test("derives schema for one case enums using 'derives' keyword") {
         val schema  = Schema[OneCaseEnum]

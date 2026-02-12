@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.{Owner, TypeId}
@@ -9,6 +11,9 @@ import java.time._
 import java.util.{Currency, UUID}
 
 object ReflectSpec extends SchemaBaseSpec {
+  
+  private def textDoc(s: String): Doc = 
+    Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("ReflectSpec")(
     suite("Reflect")(
       test("has consistent asDynamic and isDynamic") {
@@ -155,7 +160,7 @@ object ReflectSpec extends SchemaBaseSpec {
         )
         val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
         val long3 = long1.copy(typeId = TypeId.nominal[Long]("Long1", Owner.fromPackagePath("zio.blocks.schema")))
-        val long4 = long1.copy(doc = Doc("text"))
+        val long4 = long1.copy(doc = textDoc("text"))
         val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(long1)(equalTo(long1)) &&
         assert(long1.hashCode)(equalTo(long1.hashCode)) &&
@@ -194,15 +199,15 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates primitive documentation") {
         val long1 = Reflect.long[Binding]
-        assert(long1.doc)(equalTo(Doc.Empty)) &&
-        assert(long1.doc("Long (updated)").doc)(equalTo(Doc("Long (updated)")))
+        assert(long1.doc)(equalTo(Doc.empty)) &&
+        assert(long1.doc("Long (updated)").doc)(equalTo(textDoc("Long (updated)")))
       },
       test("gets and updates primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](),
           typeId = TypeId.long,
-          doc = Doc("Long (positive)"),
+          doc = textDoc("Long (positive)"),
           storedExamples = Seq(1L, 2L, 3L).map(l => DynamicValue.Primitive(PrimitiveValue.Long(l)))
         )
         assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
@@ -226,7 +231,7 @@ object ReflectSpec extends SchemaBaseSpec {
           TypeId.nominal[(Byte, Short, Int, Long)]("Tuple4", Owner.fromPackagePath("zio.blocks.schema"))
         )
         val record3 = record1.copy(fields = record1.fields.reverse)
-        val record4 = record1.copy(doc = Doc("text"))
+        val record4 = record1.copy(doc = textDoc("text"))
         val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(record1)(equalTo(record1)) &&
         assert(record1.hashCode)(equalTo(record1.hashCode)) &&
@@ -297,8 +302,8 @@ object ReflectSpec extends SchemaBaseSpec {
         )
       },
       test("gets and updates record documentation") {
-        assert(tuple4Reflect.doc)(equalTo(Doc.Empty)) &&
-        assert(tuple4Reflect.doc("Tuple4 (updated)").doc)(equalTo(Doc("Tuple4 (updated)")))
+        assert(tuple4Reflect.doc)(equalTo(Doc.empty)) &&
+        assert(tuple4Reflect.doc("Tuple4 (updated)").doc)(equalTo(textDoc("Tuple4 (updated)")))
       },
       test("gets and updates record examples") {
         assert(tuple4Reflect.examples)(equalTo(Seq.empty)) &&
@@ -336,10 +341,10 @@ object ReflectSpec extends SchemaBaseSpec {
           tuple4Reflect
             .modifyField("_3")(new Term.Updater[Binding] {
               override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] =
-                Some(input.copy(doc = Doc("updated")))
+                Some(input.copy(doc = textDoc("updated")))
             })
             .flatMap(_.fieldByName("_3")): Option[Any]
-        )(isSome(equalTo(Reflect.int[Binding].asTerm("_3").copy(doc = Doc("updated"))))) &&
+        )(isSome(equalTo(Reflect.int[Binding].asTerm("_3").copy(doc = textDoc("updated"))))) &&
         assert(tuple4Reflect.modifyField("_3")(new Term.Updater[Binding] {
           override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] = None
         }): Option[Any])(isNone) &&
@@ -392,8 +397,8 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(eitherReflect.defaultValue(Left(0)).getDefaultValue)(isSome(equalTo(Left(0))))
       },
       test("gets and updates variant documentation") {
-        assert(eitherReflect.doc)(equalTo(Doc.Empty)) &&
-        assert(eitherReflect.doc("Option[Int] (updated)").doc)(equalTo(Doc("Option[Int] (updated)")))
+        assert(eitherReflect.doc)(equalTo(Doc.empty)) &&
+        assert(eitherReflect.doc("Option[Int] (updated)").doc)(equalTo(textDoc("Option[Int] (updated)")))
       },
       test("gets and updates variant examples") {
         assert(eitherReflect.examples)(equalTo(Seq.empty)) &&
@@ -425,10 +430,10 @@ object ReflectSpec extends SchemaBaseSpec {
           eitherReflect
             .modifyCase("Left")(new Term.Updater[Binding] {
               override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] =
-                Some(input.copy(doc = Doc("updated")))
+                Some(input.copy(doc = textDoc("updated")))
             })
             .flatMap(_.caseByName("Left").map(_.doc)): Option[Any]
-        )(isSome(equalTo(Doc("updated")))) &&
+        )(isSome(equalTo(textDoc("updated")))) &&
         assert(eitherReflect.modifyCase("Left")(new Term.Updater[Binding] {
           override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] = None
         }): Option[Any])(isNone) &&
@@ -443,10 +448,10 @@ object ReflectSpec extends SchemaBaseSpec {
           seqBinding = null // should be ignored in equals and hashCode
         )
         val sequence2 = sequence1.copy(element =
-          Primitive(PrimitiveType.Double(Validation.None), TypeId.double, Binding.Primitive.double, Doc("text"))
+          Primitive(PrimitiveType.Double(Validation.None), TypeId.double, Binding.Primitive.double, textDoc("text"))
         )
         val sequence3 = sequence1.copy(typeId = TypeId.nominal[List[Double]]("List2", Owner.fromPackagePath("scala")))
-        val sequence4 = sequence1.copy(doc = Doc("text"))
+        val sequence4 = sequence1.copy(doc = textDoc("text"))
         val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(sequence1)(equalTo(sequence1)) &&
         assert(sequence1.hashCode)(equalTo(sequence1.hashCode)) &&
@@ -508,8 +513,8 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates sequence documentation") {
         val sequence1 = Reflect.seq(Reflect.int[Binding])
-        assert(sequence1.doc)(equalTo(Doc.Empty)) &&
-        assert(sequence1.doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
+        assert(sequence1.doc)(equalTo(Doc.empty)) &&
+        assert(sequence1.doc("Seq (updated)").doc)(equalTo(textDoc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
@@ -559,10 +564,10 @@ object ReflectSpec extends SchemaBaseSpec {
           )
         )
         val map3 = map1.copy(value =
-          Primitive(PrimitiveType.Float(Validation.None), TypeId.float, Binding.Primitive.float, Doc("text"))
+          Primitive(PrimitiveType.Float(Validation.None), TypeId.float, Binding.Primitive.float, textDoc("text"))
         )
         val map4 = map1.copy(typeId = TypeId.nominal[Map[Short, Float]]("Map2", Owner.fromPackagePath("scala")))
-        val map5 = map1.copy(doc = Doc("text"))
+        val map5 = map1.copy(doc = textDoc("text"))
         val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(map1)(equalTo(map1)) &&
         assert(map1.hashCode)(equalTo(map1.hashCode)) &&
@@ -615,11 +620,11 @@ object ReflectSpec extends SchemaBaseSpec {
           value = Reflect.long,
           typeId = TypeId.of[Map[Int, Long]],
           mapBinding = null, // should be ignored in equals and hashCode
-          doc = Doc("Map of Int to Long")
+          doc = textDoc("Map of Int to Long")
         )
-        assert(map1.doc)(equalTo(Doc("Map of Int to Long"))) &&
+        assert(map1.doc)(equalTo(textDoc("Map of Int to Long"))) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).doc("Map (updated)").doc)(
-          equalTo(Doc("Map (updated)"))
+          equalTo(textDoc("Map (updated)"))
         )
       },
       test("gets and updates map examples") {
@@ -661,7 +666,7 @@ object ReflectSpec extends SchemaBaseSpec {
       test("has consistent equals and hashCode") {
         val dynamic1 = Reflect.dynamic[Binding]
         val dynamic2 = dynamic1.copy(dynamicBinding = null: Binding.Dynamic)
-        val dynamic3 = dynamic1.copy(doc = Doc("text"))
+        val dynamic3 = dynamic1.copy(doc = textDoc("text"))
         val dynamic4 = dynamic1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(dynamic1)(equalTo(dynamic1)) &&
         assert(dynamic1.hashCode)(equalTo(dynamic1.hashCode)) &&
@@ -709,8 +714,8 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates dynamic documentation") {
         val dynamic1 = Reflect.dynamic[Binding]
-        assert(dynamic1.doc)(equalTo(Doc.Empty)) &&
-        assert(dynamic1.doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+        assert(dynamic1.doc)(equalTo(Doc.empty)) &&
+        assert(dynamic1.doc("Dynamic (updated)").doc)(equalTo(textDoc("Dynamic (updated)")))
       },
       test("gets and updates dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
@@ -739,7 +744,7 @@ object ReflectSpec extends SchemaBaseSpec {
         val wrapper2 =
           wrapper1.copy(typeId = TypeId.nominal[Wrapper]("Tuple4", Owner.fromPackagePath("zio.blocks.schema")))
         val wrapper3 = wrapper1.copy(wrapped = Reflect.long[Binding].doc("Long (updated)"))
-        val wrapper4 = wrapper1.copy(doc = Doc("text"))
+        val wrapper4 = wrapper1.copy(doc = textDoc("text"))
         val wrapper5 = wrapper1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(wrapper1)(equalTo(wrapper1)) &&
         assert(wrapper1.hashCode)(equalTo(wrapper1.hashCode)) &&
@@ -774,8 +779,8 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(wrapperReflect.defaultValue(Wrapper(4L)).getDefaultValue)(isSome(equalTo(Wrapper(4L))))
       },
       test("gets and updates wrapper documentation") {
-        assert(wrapperReflect.doc)(equalTo(Doc.Empty)) &&
-        assert(wrapperReflect.doc("Tuple4 (updated)").doc)(equalTo(Doc("Tuple4 (updated)")))
+        assert(wrapperReflect.doc)(equalTo(Doc.empty)) &&
+        assert(wrapperReflect.doc("Tuple4 (updated)").doc)(equalTo(textDoc("Tuple4 (updated)")))
       },
       test("gets and updates wrapper examples") {
         assert(wrapperReflect.examples)(equalTo(Seq.empty)) &&
@@ -835,8 +840,8 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("gets and updates deferred documentation") {
         val deferred1 = Reflect.Deferred[Binding, Currency](() => Reflect.currency)
-        assert(deferred1.doc)(equalTo(Doc.Empty)) &&
-        assert(deferred1.doc("Currency (updated)").doc)(equalTo(Doc("Currency (updated)")))
+        assert(deferred1.doc)(equalTo(Doc.empty)) &&
+        assert(deferred1.doc("Currency (updated)").doc)(equalTo(textDoc("Currency (updated)")))
       },
       test("gets and updates deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Month](() => Reflect.month)

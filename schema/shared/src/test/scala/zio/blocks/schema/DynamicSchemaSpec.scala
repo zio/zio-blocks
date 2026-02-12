@@ -1,9 +1,13 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.test._
 
 object DynamicSchemaSpec extends SchemaBaseSpec {
+  
+  private def textDoc(s: String): Doc = 
+    Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   private def getTypeName(ds: DynamicSchema): String = ds.typeId.name
   case class Person(name: String, age: Int)
   object Person {
@@ -655,12 +659,12 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
     suite("delegated methods")(
       test("doc returns reflect.doc") {
         val ds = Schema[Person].doc("A person").toDynamicSchema
-        assertTrue(ds.doc == Doc.Text("A person"))
+        assertTrue(ds.doc == textDoc("A person"))
       },
       test("doc(value) updates reflect") {
         val ds  = Schema[Person].toDynamicSchema
         val ds2 = ds.doc("Updated doc")
-        assertTrue(ds2.doc == Doc.Text("Updated doc"))
+        assertTrue(ds2.doc == textDoc("Updated doc"))
       },
       test("typeId returns reflect.typeId") {
         val ds   = Schema[Person].toDynamicSchema
@@ -1877,7 +1881,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val original      = schemaWithDoc.toDynamicSchema
         val dv            = DynamicSchema.toDynamicValue(original)
         val roundTrip     = DynamicSchema.fromDynamicValue(dv)
-        assertTrue(roundTrip.doc != Doc.Empty)
+        assertTrue(roundTrip.doc != Doc.empty)
       }
     ),
     suite("Serialization regression tests")(
@@ -1950,18 +1954,15 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         testNumericValidation(Validation.Numeric.NonPositive) &&
         testNumericValidation(Validation.Numeric.NonNegative)
       },
-      test("regression: Doc.Concat 'flatten' field name consistency") {
-        val doc       = Doc.Concat(IndexedSeq(Doc.Text("a"), Doc.Text("b")))
+      test("regression: Doc concatenation round-trips correctly") {
+        val doc1      = textDoc("a")
+        val doc2      = textDoc("b")
+        val doc       = doc1 ++ doc2
         val schema    = Schema[Int].reflect.asPrimitive.map(p => new Schema(p.doc(doc))).get
         val ds        = schema.toDynamicSchema
         val dv        = DynamicSchema.toDynamicValue(ds)
         val roundTrip = DynamicSchema.fromDynamicValue(dv)
-        roundTrip.doc match {
-          case Doc.Concat(flatten) =>
-            assertTrue(flatten.length == 2)
-          case _ =>
-            assertTrue(false)
-        }
+        assertTrue(roundTrip.doc.blocks.length == 2)
       },
       test("regression: validation is enforced after round-trip") {
         val schema = Schema[Int].reflect.asPrimitive
@@ -2713,34 +2714,27 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
         val hasParams = roundTrip.toOption.exists(_.typeParams.nonEmpty)
         assertTrue(isRight) && assertTrue(name == "List") && assertTrue(hasParams)
       },
-      test("Doc.Empty round-trips via docSchema") {
-        val doc: Doc  = Doc.Empty
-        val schema    = DynamicSchema.docSchema
+      test("Doc.empty round-trips via Schema[Doc]") {
+        val doc: Doc  = Doc.empty
+        val schema    = Schema[Doc]
         val dv        = schema.toDynamicValue(doc)
         val roundTrip = schema.fromDynamicValue(dv)
-        assertTrue(roundTrip == Right(Doc.Empty))
+        assertTrue(roundTrip == Right(Doc.empty))
       },
-      test("Doc.Text round-trips via docSchema") {
-        val doc: Doc  = Doc.Text("hello")
-        val schema    = DynamicSchema.docSchema
+      test("Doc with text round-trips via Schema[Doc]") {
+        val doc: Doc  = textDoc("hello")
+        val schema    = Schema[Doc]
         val dv        = schema.toDynamicValue(doc)
         val roundTrip = schema.fromDynamicValue(dv)
-        assertTrue(roundTrip == Right(Doc.Text("hello")))
+        assertTrue(roundTrip == Right(textDoc("hello")))
       },
-      test("Doc.Concat round-trips via docSchema") {
-        val doc: Doc  = Doc.Concat(IndexedSeq(Doc.Text("hello"), Doc.Text("world")))
-        val schema    = DynamicSchema.docSchema
+      test("Doc concatenation round-trips via Schema[Doc]") {
+        val doc: Doc  = textDoc("hello") ++ textDoc("world")
+        val schema    = Schema[Doc]
         val dv        = schema.toDynamicValue(doc)
         val roundTrip = schema.fromDynamicValue(dv)
         val isRight   = roundTrip.isRight
         assertTrue(isRight)
-      },
-      test("Doc.Leaf round-trips via docLeafSchema") {
-        val leaf: Doc.Leaf = Doc.Text("test")
-        val schema         = DynamicSchema.docLeafSchema
-        val dv             = schema.toDynamicValue(leaf)
-        val roundTrip      = schema.fromDynamicValue(dv)
-        assertTrue(roundTrip == Right(Doc.Text("test")))
       },
       test("Validation.None round-trips via validationSchema") {
         val v: Validation[_] = Validation.None
@@ -3223,7 +3217,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
                   "params" -> DynamicValue.Sequence(Chunk.empty)
                 )
               ),
-              "doc"           -> DynamicValue.Primitive(PrimitiveValue.String("not a variant")),
+              "doc"           -> DynamicValue.Primitive(PrimitiveValue.Int(42)), // Non-String primitive falls back to empty
               "modifiers"     -> DynamicValue.Sequence(Chunk.empty),
               "primitiveType" -> DynamicValue.Variant("Int", DynamicValue.Record(Chunk.empty)),
               "defaultValue"  -> DynamicValue.Null,
@@ -3232,7 +3226,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           )
         )
         val roundTrip = DynamicSchema.fromDynamicValue(primitiveWithMalformedDoc)
-        assertTrue(roundTrip.doc == Doc.Empty)
+        assertTrue(roundTrip.doc == Doc.empty)
       },
       test("malformed typeArgs in TypeId falls back to empty") {
         val malformedTypeId = DynamicValue.Record(
@@ -3607,7 +3601,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           )
         )
         val roundTrip = DynamicSchema.fromDynamicValue(primitiveDv)
-        assertTrue(roundTrip.doc == Doc.Empty)
+        assertTrue(roundTrip.doc == Doc.empty)
       },
       test("Doc.Concat with missing flatten falls back to Empty") {
         val primitiveDv = DynamicValue.Variant(
@@ -3635,7 +3629,7 @@ object DynamicSchemaSpec extends SchemaBaseSpec {
           )
         )
         val roundTrip = DynamicSchema.fromDynamicValue(primitiveDv)
-        assertTrue(roundTrip.doc == Doc.Empty)
+        assertTrue(roundTrip.doc == Doc.empty)
       },
       test("Term modifiers with non-Sequence falls back to empty") {
         val termDv = DynamicValue.Record(

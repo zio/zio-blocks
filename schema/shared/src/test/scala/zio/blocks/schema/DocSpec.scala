@@ -1,43 +1,49 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.test.Assertion._
 import zio.test._
 
 object DocSpec extends SchemaBaseSpec {
+  
+  private def textDoc(s: String): Doc = 
+    Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
+
   def spec: Spec[TestEnvironment, Any] = suite("DocSpec")(
-    suite("Doc.Empty")(
+    suite("Doc.empty")(
       test("has consistent equals and hashCode") {
-        assertTrue(Doc.Empty == Doc.Empty) &&
-        assert(Doc.Empty.hashCode)(equalTo(Doc.Empty.hashCode)) &&
-        assert(Doc("text"))(not(equalTo(Doc.Empty))) &&
-        assert(Doc("text") + Doc("text2"))(not(equalTo(Doc.Empty))) &&
-        assert(Doc.Empty)(not(equalTo("test": Any)))
+        assertTrue(Doc.empty == Doc.empty) &&
+        assert(Doc.empty.hashCode)(equalTo(Doc.empty.hashCode)) &&
+        assert(textDoc("text"))(not(equalTo(Doc.empty))) &&
+        assert(textDoc("text") ++ textDoc("text2"))(not(equalTo(Doc.empty))) &&
+        assert(Doc.empty)(not(equalTo("test": Any)))
       }
     ),
-    suite("Doc.Text")(
+    suite("Doc with content")(
       test("has consistent equals and hashCode") {
-        val docText1 = Doc.Text("text")
-        val docText2 = Doc.Text("text")
-        assert(docText1)(equalTo(docText1)) &&
-        assert(docText1.hashCode)(equalTo(docText1.hashCode)) &&
-        assert(docText2)(equalTo(docText1)) &&
-        assert(docText2.hashCode)(equalTo(docText1.hashCode)) &&
-        assert(Doc("text1"))(not(equalTo(docText1))) &&
-        assert(Doc("text1") + Doc("text2"))(not(equalTo(docText1))) &&
-        assert(docText1)(not(equalTo("test": Any)))
+        val doc1 = textDoc("text")
+        val doc2 = textDoc("text")
+        assert(doc1)(equalTo(doc1)) &&
+        assert(doc1.hashCode)(equalTo(doc1.hashCode)) &&
+        assert(doc2)(equalTo(doc1)) &&
+        assert(doc2.hashCode)(equalTo(doc1.hashCode)) &&
+        assert(textDoc("text1"))(not(equalTo(doc1))) &&
+        assert(textDoc("text1") ++ textDoc("text2"))(not(equalTo(doc1))) &&
+        assert(doc1)(not(equalTo("test": Any)))
       }
     ),
-    suite("Doc.Concat")(
+    suite("Doc concatenation")(
       test("has consistent equals and hashCode") {
-        val docText1   = Doc.Text("text")
-        val docText2   = Doc.Text("text")
-        val docConcat1 = Doc.Concat(docText1, docText2)
-        val docConcat2 = Doc.Concat(docText2, docText1)
-        val docConcat3 = Doc.Concat(docText1, Doc.Concat(Doc.Empty, docText2))
-        val docConcat4 = Doc.Concat(docText1, Doc.Concat(docText2, Doc.Empty))
-        val docConcat5 = Doc.Concat(Doc.Empty, Doc.Empty)
-        val docConcat6 = Doc.Concat(docText1, Doc.Empty)
-        val docConcat7 = Doc.Concat(Doc.Empty, docText1)
+        val doc1 = textDoc("text")
+        val doc2 = textDoc("text")
+        val docConcat1 = doc1 ++ doc2
+        val docConcat2 = doc2 ++ doc1
+        val docConcat3 = doc1 ++ (Doc.empty ++ doc2)
+        val docConcat4 = doc1 ++ (doc2 ++ Doc.empty)
+        val docConcat5 = Doc.empty ++ Doc.empty
+        val docConcat6 = doc1 ++ Doc.empty
+        val docConcat7 = Doc.empty ++ doc1
         assert(docConcat1)(equalTo(docConcat1)) &&
         assert(docConcat1.hashCode)(equalTo(docConcat1.hashCode)) &&
         assert(docConcat2)(equalTo(docConcat1)) &&
@@ -46,15 +52,28 @@ object DocSpec extends SchemaBaseSpec {
         assert(docConcat3.hashCode)(equalTo(docConcat1.hashCode)) &&
         assert(docConcat4)(equalTo(docConcat1)) &&
         assert(docConcat4.hashCode)(equalTo(docConcat1.hashCode)) &&
-        assert(Doc.Empty: Doc)(equalTo(docConcat5)) &&
-        assert(docConcat5)(equalTo(Doc.Empty: Doc)) &&
+        assert(Doc.empty: Doc)(equalTo(docConcat5)) &&
+        assert(docConcat5)(equalTo(Doc.empty: Doc)) &&
         assert(docConcat6)(equalTo(docConcat7)) &&
         assert(docConcat7)(equalTo(docConcat6)) &&
-        assert(docConcat7)(equalTo(docText1: Doc)) &&
-        assert(docText1: Doc)(equalTo(docConcat7)) &&
-        assert(Doc("text"))(not(equalTo(docConcat1))) &&
-        assert(Doc.Empty: Doc)(not(equalTo(docConcat1))) &&
+        assert(docConcat7)(equalTo(doc1: Doc)) &&
+        assert(doc1: Doc)(equalTo(docConcat7)) &&
+        assert(textDoc("text"))(not(equalTo(docConcat1))) &&
+        assert(Doc.empty: Doc)(not(equalTo(docConcat1))) &&
         assert(docConcat1)(not(equalTo("test": Any)))
+      }
+    ),
+    suite("Doc round-trip through Schema")(
+      test("Doc.empty round-trips through DynamicValue") {
+        val schema = Schema[Doc]
+        val result = schema.fromDynamicValue(schema.toDynamicValue(Doc.empty))
+        assertTrue(result == Right(Doc.empty))
+      },
+      test("Doc with text content round-trips through DynamicValue") {
+        val schema = Schema[Doc]
+        val doc = textDoc("Hello World")
+        val result = schema.fromDynamicValue(schema.toDynamicValue(doc))
+        assertTrue(result == Right(doc))
       }
     )
   )
