@@ -271,18 +271,18 @@ val fromStr: Either[SchemaError, Person] = codec.decode("name: Alice\nage: 30")
 
 ### Summary of Convenience Methods
 
-All `BinaryCodec` subclasses (JSON, TOON, MessagePack, Avro, Thrift) share this common set of overloads:
+`BinaryCodec` subclasses (JSON, TOON, MessagePack, Avro, Thrift) expose the following convenience overloads (availability may vary by format):
 
-| Method                                               | Description                         |
-|------------------------------------------------------|-------------------------------------|
-| `encode(value): Array[Byte]`                         | Encode to a byte array              |
-| `decode(input: Array[Byte]): Either[SchemaError, A]` | Decode from a byte array            |
-| `encode(value, output: ByteBuffer): Unit`            | Encode into a `ByteBuffer`          |
-| `decode(input: ByteBuffer): Either[SchemaError, A]`  | Decode from a `ByteBuffer`          |
-| `encode(value, output: OutputStream): Unit`          | Encode into an `OutputStream`       |
-| `decode(input: InputStream): Either[SchemaError, A]` | Decode from an `InputStream`        |
-| `encodeToString(value): String`                      | Encode to a `String` (JSON, TOON)   |
-| `decode(input: String): Either[SchemaError, A]`      | Decode from a `String` (JSON, TOON) |
+| Method                                               | Description                                  |
+|------------------------------------------------------|----------------------------------------------|
+| `encode(value): Array[Byte]`                         | Encode to a byte array                       |
+| `decode(input: Array[Byte]): Either[SchemaError, A]` | Decode from a byte array                     |
+| `encode(value, output: ByteBuffer): Unit`            | Encode into a `ByteBuffer`                   |
+| `decode(input: ByteBuffer): Either[SchemaError, A]`  | Decode from a `ByteBuffer`                   |
+| `encode(value, output: OutputStream): Unit`          | Encode into an `OutputStream` (JSON, TOON, Avro)   |
+| `decode(input: InputStream): Either[SchemaError, A]` | Decode from an `InputStream` (JSON, TOON, Avro)    |
+| `encodeToString(value): String`                      | Encode to a `String` (JSON, TOON)            |
+| `decode(input: String): Either[SchemaError, A]`      | Decode from a `String` (JSON, TOON)          |
 
 The `String`-based methods are available on text-oriented binary codecs (JSON, TOON) but not on purely binary formats like Avro or Thrift.
 
