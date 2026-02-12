@@ -1,167 +1,194 @@
 # ScopeLift Redesign - Design Document
 
-## IMPORTANT: Read This First (Lessons from Failed Experiments)
+## Current Status: Scope-Local Opaque Type Approach
 
-This document chronicles an attempt to fix ScopeLift unsoundness using Scala 3 macros.
-**The approach described here DOES NOT WORK.** Read the "Why This Approach Failed" section
-before attempting anything similar.
+After the macro approach failed (see "Failed Experiments" below), we identified a new approach
+that uses **scope-local opaque types** to achieve compile-time soundness without macros.
 
-### Why This Approach Failed
+---
+
+## The New Approach: Scope-Local `$[A]`
+
+### Key Insight
+
+The macro approach failed because we couldn't distinguish sibling-scoped values from child-scoped
+values at compile time—both have tags that are subtypes of the parent tag.
+
+**Solution**: Make the scoped value type (`$[A]`) an **opaque type defined inside each Scope instance**.
+
+- `parent.$[A]` and `child.$[A]` are **structurally incompatible types**
+- `sibling.$[A]` is also incompatible with `child.$[A]`
+- No tag comparison needed—the type system enforces isolation automatically
+
+### Why This Works
+
+1. **Current `flatMap` requires matching tags**: After the "import scope._" refactor, `flatMap` 
+   signature is `def flatMap[B](f: A => B @@ self.ScopeTag): B @@ self.ScopeTag`. You cannot 
+   combine values from different scopes within a single scope's operations.
+
+2. **Contravariance still allows parent values**: Parent-scoped values can be used in child scopes
+   (their tags narrow to the child), which is safe because parents outlive children.
+
+3. **Scope-local types prevent sibling pollution**: A sibling-scoped value `sibling.$[A]` cannot
+   enter a child scope because child operations expect `child.$[A]`, and these are different types.
+
+### Proposed Design
+
+```scala
+class Scope { self =>
+  // Each scope has its own unique scoped value type
+  opaque type $[+A] = A | LazyScoped[A]
+  
+  // Parent reference for lowering (see Open Questions below)
+  type Parent <: Scope
+  val parent: Parent
+  
+  // Allocate returns this scope's $
+  def allocate[A](resource: Resource[A]): $[A] = ...
+  
+  // Lower parent-scoped value into this scope (safe: parent outlives child)
+  def lower[A](value: parent.$[A]): $[A] = value.asInstanceOf[$[A]]
+  
+  // Operations only work with this scope's $
+  def $[A, B](scoped: $[A])(f: A => B): $[B] = ...
+  
+  // Child scope creation
+  def scoped[A](f: Scope { type Parent = self.type } => A)(using lift: ScopeLift[A]): lift.Out = {
+    val child = new Scope { 
+      type Parent = self.type
+      val parent: Parent = self 
+    }
+    // ... use child, apply lift, close
+  }
+}
+```
+
+### ScopeLift Simplification
+
+At scope boundary, ScopeLift only needs to handle **this scope's `$`**:
+
+- `self.$[A]` where `A` is `Unscoped` → unwrap to `A`
+- `Unscoped` types → pass through
+- `parent.$[A]` → pass through unchanged (different type, no unwrapping needed)
+
+Since `parent.$[A]` is a structurally different type from `self.$[A]`, it won't match the
+unwrapping instance and will pass through safely.
+
+### Scope Tags Eliminated
+
+With this approach, scope identity comes from the path-dependent `$` type, not from tag type
+parameters. The `Scope` class no longer needs `ParentTag` and `Tag0` type parameters.
+
+### Parent Value Usage
+
+To use a parent-scoped value in a child scope:
+
+```scala
+parent.scoped { child =>
+  val parentValue: parent.$[A] = ...
+  val childValue: child.$[A] = child.lower(parentValue)  // explicit
+  // OR with implicit conversion:
+  // implicit def lowerParent[A](v: parent.$[A]): child.$[A] = child.lower(v)
+}
+```
+
+---
+
+## Open Questions (To Explore in Prototype)
+
+### 1. The `parent` Type Problem
+
+We need each scope to have a typed reference to its parent so that `parent.$[A]` is a valid type.
+
+**Attempt 1** (doesn't work):
+```scala
+val parent: Scope  // parent.$ is not accessible because Scope.$ is opaque
+```
+
+**Attempt 2** (recursive type issue):
+```scala
+type Parent <: Scope
+val parent: Parent
+// But for global scope: type Parent = Scope.type creates recursion
+```
+
+**Possible solutions to explore**:
+- Use `Null` or a sentinel for global scope's parent
+- Use a type member with `Aux` pattern: `type Typed[P <: Scope] = Scope { type Parent = P }`
+- Use intersection types or match types
+- Make global scope special-cased
+
+### 2. Grandparent Lowering
+
+With nested scopes (grandparent → parent → child), how does child use grandparent values?
+
+Options:
+- Chain: `child.lower(parent.lower(grandparentValue))`
+- Transitive lowering: `child.lowerFrom(grandparent)(value)`
+- Implicit conversion chain
+
+### 3. ScopeLift Type Parameter
+
+Does `ScopeLift` need to know about the scope's `$` type?
+
+```scala
+// Option A: ScopeLift is scope-local
+class Scope {
+  trait ScopeLift[A] { type Out; def apply(a: A): Out }
+  given liftScoped[A: Unscoped]: ScopeLift[$[A]] = ...
+}
+
+// Option B: ScopeLift takes scope as parameter
+trait ScopeLift[A, S <: Scope] { ... }
+```
+
+---
+
+## Prototype Plan
+
+Create a standalone prototype in `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala`
+to explore:
+
+1. Scope-local opaque `$[A]` type
+2. Parent type representation (the recursive type challenge)
+3. Lowering mechanism
+4. ScopeLift with scope-local types
+5. Sibling isolation verification
+
+---
+
+## Failed Experiments (Historical Reference)
+
+### Macro Approach (FAILED)
+
+Attempted to use Scala 3 macros to inspect type trees and strip child tags at compile time.
+
+**Why it failed**:
 
 1. **Subtype checking doesn't work across path-dependent types at macro expansion time**
    - `child.ScopeTag <:< parent.ScopeTag` returns `false` in the macro
-   - The compiler can't prove subtype relationships when types come from different scope instances
-   - This breaks any approach relying on `<:<` checks
 
 2. **TermRef name matching is unsound**
-   - We can extract `TermRef.name` (e.g., "child" from `child.ScopeTag`)
-   - BUT: stripping by name strips ALL tags with different names, including sibling-scoped tags
-   - Sibling-scoped values capture dead resources - stripping their tags allows use-after-close
+   - Stripping by name strips ALL tags with different names, including sibling-scoped tags
+   - Sibling-scoped values capture dead resources - stripping allows use-after-close
 
 3. **Inline methods + existential types don't mix**
-   - `scopedMacro` returns `Any` because we can't express the output type
-   - Nested `scopedMacro` calls fail because the parent scope has existential type `Scope[?, ?]`
-   - This makes inline/macro-based `scoped` impractical
+   - Nested `scopedMacro` calls fail because parent scope has existential type
 
-4. **The fundamental problem remains unsolved**
-   - At compile time, we can't distinguish "current closing child" from "already-dead sibling"
-   - Both have different TermRef names from parent
-   - Both are (in principle) subtypes of parent, but macro can't prove it
+4. **The fundamental problem**: At compile time, we couldn't distinguish "current closing child" 
+   from "already-dead sibling"—both have different TermRef names from parent.
 
-### What Might Work Instead
+### Cleanup Done
 
-1. **The Original/Intersection design** (discussed but not implemented):
-   - Track birth scope (`Original`) separately from accumulated tags (`Intersection`)
-   - At boundary, check if `ChildTag <:< Original` to decide if promotion is safe
-   - BUT: still requires working subtype checks, which don't work at macro time
+The following experimental code was removed:
+- `ScopeLiftMacros.scala`
+- `ScopeLiftMacroExploreSpec.scala`
+- `scopedMacro`, `liftScopedResult`, `scopedMacroWithChild` methods
+- `createChildScope` helper
 
-2. **Runtime tagging**:
-   - Attach scope identity at runtime, not just compile time
-   - Check scope liveness at runtime when forcing thunks
-   - Trades compile-time safety for actual soundness
+### What Was Kept
 
-3. **Stricter API**:
-   - Reject ALL child-scoped values at boundaries (no scopedUnscoped)
-   - Force users to explicitly extract values while scope is open
-   - Sound but restrictive
-
-4. **Accept partial unsoundness**:
-   - Document that sibling-scoped values reaching boundaries are UB
-   - If each boundary handles its own children correctly, siblings shouldn't exist
-   - Relies on invariants holding, not type system enforcement
-
-## Problem Statement
-
-The current `scopedUnscoped` instance in `ScopeLift` is **UNSOUND**:
-
-```scala
-given scopedUnscoped[A, T, S](using Unscoped[A]): ScopeLift.Aux[A @@ T, S, A]
-```
-
-It outputs raw `A` instead of `A @@ S` (parent-scoped), losing all scope tracking. Values become accessible even after the parent scope closes.
-
-## Core Concepts
-
-### What is `A @@ S`?
-
-- A **lazy thunk** that depends on resources acquired in scope `S`
-- The thunk captures over resources that may be closed
-- You can only safely evaluate it while scope `S` is open
-
-### What is `A @@ (T & S)`?
-
-- A thunk depending on resources from **BOTH** T and S scopes
-- Arises from `flatMap` when operations touch multiple scopes' resources
-- Example: socket from parent, file from child, logger from grandparent
-
-### Scope Boundaries
-
-Each `scoped { ... }` block is the **ONE and ONLY chance** to eliminate that scope's tag:
-
-```scala
-grandparent.scoped { parent =>
-  parent.scoped { child =>
-    // result: A @@ (grandparent & parent & child)
-    result
-  }
-  // Exit child: strip child → A @@ (grandparent & parent)
-}
-// Exit parent: strip parent → A @@ grandparent
-// Exit grandparent: strip grandparent → raw A
-```
-
-## The Unsoundness Problem
-
-### Why We Can't Strip All Subtypes
-
-Initial idea: strip any tag `Ti` where `Ti <: S` (proper subtype of parent tag).
-
-**This is WRONG because:**
-
-1. Sibling-scoped values: `sibling.ScopeTag <: parent.ScopeTag`
-2. Grandchild-scoped values: `grandchild.ScopeTag <: parent.ScopeTag`
-
-Both are subtypes of parent, but:
-- Sibling scope is **already closed** before current child was created
-- Grandchild scope is **already closed** when child's nested `scoped` exited
-
-If we strip these tags, the thunk escapes but still captures **dead resources**. Forcing it later = undefined behavior.
-
-### The Key Insight
-
-We must strip **exactly the current closing scope's tag** - nothing more, nothing less.
-
-The challenge: at compile time, how do we identify which tag is "the current child" vs "some other descendant/sibling"?
-
-## Proposed Solution: Type Tree Inspection
-
-Path-dependent types like `parent.ScopeTag` may be easily detectable in the macro:
-
-- Parent scopes have paths like `parent.ScopeTag`, `grandparent.ScopeTag`
-- The current child scope has a path like `child.ScopeTag` where `child` is the lambda parameter
-
-### Exploratory Approach
-
-Build a simple macro that:
-1. Prints the type tree structure
-2. Shows how different scope tags appear (path-dependent types, etc.)
-3. For now, unsafely strips all tags (to get something working)
-
-Once we understand the type structure, we can implement proper tag detection.
-
-## Alternative Design Considered: Original + Intersection
-
-We explored tracking two tags separately:
-
-```scala
-trait Scoped[+A, Original, -Intersection]
-```
-
-- `Original` = exact scope where value was CREATED (immutable provenance)
-- `Intersection` = accumulated tags from operations
-
-At boundary, check `ChildTag <:< Original`:
-- If yes: value born in scope containing closing scope → safe to strip
-- If no: value from dead/unrelated scope → pass through unchanged
-
-This is more complex but provides stronger guarantees. May revisit if simple approach fails.
-
-## Implementation Notes
-
-### `scoped` Must Be Inline/Macro
-
-The `scoped` method needs access to the exact child scope tag at compile time:
-
-```scala
-inline def scoped[A](f: Scope[self.ScopeTag, ? <: self.ScopeTag] => A): ??? = ${
-  scopedImpl[A, self.ScopeTag]('f)
-}
-```
-
-### Lift Before Close
-
-The lift/promotion happens BEFORE the scope closes (already fixed in `ScopeVersionSpecific.scala`):
-
+The **lift-before-close fix** in `scoped` method is valid and was kept:
 ```scala
 try {
   val result = f(childScope)
@@ -171,174 +198,26 @@ try {
 }
 ```
 
-### When All Tags Are Stripped
+A regression test was added to verify this behavior.
 
-If after stripping the child tag, NO tags remain:
-- Safe to force the thunk and return raw value
-- This is the common case (child scope using only child resources)
+---
 
-## Files Involved
+## Original Problem Statement
 
-- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeLift.scala`
-- `scope/shared/src/main/scala-2/zio/blocks/scope/ScopeLift.scala`
-- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeVersionSpecific.scala`
-- `scope/shared/src/main/scala-2/zio/blocks/scope/ScopeVersionSpecific.scala`
-- `scope/shared/src/main/scala-3/zio/blocks/scope/Scoped.scala`
-- `scope/shared/src/test/scala-3/zio/blocks/scope/ScopeCompileTimeSafetyScala3Spec.scala`
-- `scope-examples/src/main/scala/scope/examples/TransactionBoundaryExample.scala`
+The `scopedUnscoped` instance in `ScopeLift` is **UNSOUND**:
 
-## Type Tree Structure (from exploratory macro)
-
-### Key Finding
-
-Scope tags appear as path-dependent types with **distinct `TermRef` qualifiers**:
-
-```
-parent.ScopeTag → TypeRef(name=ScopeTag)
-                    qualifier: TermRef(name=parent)
-                      qualifier: NoPrefix
-
-child.ScopeTag → TypeRef(name=ScopeTag) 
-                   qualifier: TermRef(name=child)
-                     qualifier: NoPrefix
-
-Scope.GlobalTag → TypeRef(name=GlobalTag)
-                    qualifier: TermRef(name=Scope)
-                      qualifier: ThisType(...)
+```scala
+given scopedUnscoped[A, T, S](using Unscoped[A]): ScopeLift.Aux[A @@ T, S, A]
 ```
 
-### Detection Strategy
+It outputs raw `A` instead of `A @@ S` (parent-scoped), losing all scope tracking. Values become
+accessible even after the parent scope closes.
 
-The lambda parameter name (`parent`, `child`, `scope`) is preserved in the type tree as `TermRef.name`.
+### The Sibling Problem
 
-**Key insight:** We don't need to extract the lambda parameter name from the AST - we can extract it from the S type parameter itself!
-
-When `ScopeLift[A, S]` is resolved:
-- S is the parent scope's tag (e.g., `parent.ScopeTag`)
-- S's `TermRef.name` is `"parent"`
-- A might contain `child.ScopeTag` with `TermRef.name = "child"`
-
-To detect if a tag in A should be stripped:
-1. Extract `TermRef.name` from S (e.g., "parent")
-2. For each tag T in A's intersection:
-   - If T's `TermRef.name` ≠ S's `TermRef.name` AND `T <:< S` → it's a child tag, strip it
-   - If T's `TermRef.name` == S's `TermRef.name` → it's the parent tag, keep it
-   - If `!(T <:< S)` → it's an ancestor tag, keep it
-
-### For Intersection Types
-
-`A @@ (parent.ScopeTag & child.ScopeTag)` appears as:
-```
-AppliedType
-  tycon: Scoped.Scoped
-  args:
-    [0]: A's type
-    [1]: AndType(&)
-           left: TypeRef(name=ScopeTag) / qualifier: TermRef(name=parent)
-           right: TypeRef(name=ScopeTag) / qualifier: TermRef(name=child)
-```
-
-The macro can:
-1. Flatten the `AndType` into a list of component types
-2. Filter out the one matching the child's parameter name
-3. Reconstruct the intersection (or use parent tag if empty)
-
-## Current Implementation Status
-
-### What Works
-
-1. **Type tree inspection**: We can extract `TermRef.name` from scope tags
-2. **Tag detection**: `child.ScopeTag` has `TermRef.name = "child"`, `parent.ScopeTag` has `TermRef.name = "parent"`
-3. **Intersection handling**: We can flatten `A @@ (child & parent)` and filter tags by name
-
-### The Detection Rule
-
-Strip a tag T from A if:
-- We can extract `TermRef.name` from both T and S
-- T's `TermRef.name` ≠ S's `TermRef.name`
-
-This correctly handles:
-- `A @@ child.ScopeTag` with `S = parent.ScopeTag` → strip child tag, force thunk
-- `A @@ (child & parent)` with `S = parent.ScopeTag` → strip child, keep parent
-- `A @@ parent.ScopeTag` with `S = parent.ScopeTag` → keep parent tag
-
-### Known Limitation
-
-Subtype checking (`T <:< S`) doesn't work across path-dependent types from different scope instances at macro expansion time. We rely solely on `TermRef.name` matching.
-
-This means if somehow a sibling-scoped value (with `sibling.ScopeTag`) reaches the `child→parent` boundary, it would be incorrectly stripped. However, this shouldn't happen if each boundary correctly handles its own child tags.
-
-### scopedMacro Implementation
-
-Added `scopedMacro` method in `ScopeVersionSpecific.scala` that uses macro-based lifting:
-- No ScopeLift typeclass needed
-- Returns `Any` (type information lost, but value is correct)
-- Works for simple cases
-
-**Limitation**: Nested `scopedMacro` calls don't work due to existential type limitations with inline methods.
-
-### Next Steps
-
-1. Consider replacing `scoped` with `scopedMacro` once nested scope issues are resolved
-2. Or: Add macro-based `given` for ScopeLift that integrates with existing `scoped`
-3. Update existing tests to validate new behavior
-4. Fix scope-examples
-
-## PR #1053 Status
-
-- [x] Fixed lift-before-close bug in ScopeVersionSpecific (this is a valid fix, keep it)
-- [x] Build exploratory macro to understand type tree structure
-- [x] Implement TermRef name-based tag detection
-- [x] Implement `scopedMacro` method with macro-based lifting
-- [x] **FAILED**: TermRef approach is unsound (sibling tags stripped incorrectly)
-- [x] **FAILED**: Inline scoped doesn't work with nested scopes
-
-## Cleanup Required
-
-The following experimental files should be removed or marked as exploratory:
-
-1. `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeLiftMacros.scala` - experimental macros
-2. `scope/shared/src/test/scala-3/zio/blocks/scope/ScopeLiftMacroExploreSpec.scala` - exploration tests
-3. Changes to `ScopeVersionSpecific.scala` adding `scopedMacro` - doesn't work for nested scopes
-4. Changes to `Scope.scala` adding `createChildScope` - only needed for scopedMacro
-
-The fix to `ScopeVersionSpecific.scala` ensuring `lift(result)` runs BEFORE `childScope.close()` 
-is valid and should be kept.
-
-## For the Next Agent
-
-If you're picking up this work:
-
-1. **Don't repeat these experiments** - they don't work
-2. **The core issue**: we need to know the EXACT child scope identity at compile time to strip only its tag
-3. **Read the thread discussion** about the Original/Intersection design - it's the most promising path
-4. **Consider runtime solutions** - compile-time may not be sufficient
-5. **The lift-before-close fix is good** - don't revert it
-
-### Technical Details That May Help
-
-**Type tree structure** (from macro exploration):
-```
-child.ScopeTag appears as:
-  TypeRef(name=ScopeTag)
-    qualifier: TermRef(name=child)
-      qualifier: NoPrefix
-
-parent.ScopeTag appears as:
-  TypeRef(name=ScopeTag)
-    qualifier: TermRef(name=parent)
-      qualifier: NoPrefix
-```
-
-**The Scoped opaque type**:
-- Defined in `Scoped.scala` as `opaque type Scoped[+A, -S] = A | LazyScoped[A]`
-- `@@` is an infix type alias for `Scoped.Scoped`
-- Tag type (S) is contravariant, enabling parent-scoped values in child scopes
-
-**Why sibling tags are dangerous**:
 ```scala
 parent.scoped { sibling =>
-  val x = allocate(...) // x: A @@ sibling.ScopeTag, captures resource
+  val x = allocate(...)  // x: A @@ sibling.ScopeTag, captures resource
 }
 // sibling scope CLOSED, resource freed
 
@@ -349,12 +228,43 @@ parent.scoped { child =>
 }
 ```
 
-**The user's key insight** (from discussion):
-> Because the boundary of scoped {. .... } is the only way you can eliminate a tag, 
-> it's important that we only eliminate the very tag introduced by the scope. 
-> Otherwise, unsoundness results and leaks may happen.
+The new scope-local `$` approach solves this because `sibling.$[A]` is incompatible with `child.$[A]`.
 
-**Possible direction not fully explored**:
-- Pass the child scope's exact type to ScopeLift via an additional type parameter
-- Make `scoped` signature include the child tag explicitly
-- This requires API changes but might enable sound compile-time checking
+---
+
+## Files Involved
+
+- `scope/shared/src/main/scala-3/zio/blocks/scope/Scope.scala`
+- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeLift.scala`
+- `scope/shared/src/main/scala-3/zio/blocks/scope/Scoped.scala`
+- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeVersionSpecific.scala`
+- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala` (new, for exploration)
+
+---
+
+## PR #1053 Status
+
+- [x] Fixed lift-before-close bug in ScopeVersionSpecific
+- [x] Added regression test for lift-before-close
+- [x] Cleaned up failed macro experiment
+- [x] Documented new scope-local `$` approach
+- [x] Created working prototype in `ScopePrototype.scala`
+- [x] ScopeLift defined inside Scope - dramatically simplified
+- [ ] Implement scope-local `$` design in real Scope
+- [ ] Update tests
+- [ ] Fix scope-examples
+
+## Working Prototype
+
+See `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala`.
+
+Key features:
+- `Scope` is a sealed abstract class with abstract `$[+A]` type
+- `Scope.global` is self-referential with `$[A] = A` (zero overhead)
+- `Scope.Child[P]` has `opaque type $[+A] = A | (() => A)` (lazy thunks)
+- `ScopeLift` is defined INSIDE each Scope, so it knows about `self.$`
+- Eager/deferred logic based on `isClosed` state
+
+ScopeLift instances:
+1. `selfScopedLift`: `self.$[A]` with A: Unscoped → unwrap to A
+2. `passThrough`: Everything else → pass through unchanged
