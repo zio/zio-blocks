@@ -21,7 +21,7 @@ abstract class Codec[DecodeInput, EncodeOutput, Value] {
 
 End users rarely interact with `Codec` directly. Instead, they work with format-specific subclasses like `JsonBinaryCodec[A]` or `ToonBinaryCodec[A]`, which add convenience methods for common input/output types.
 
-Given an a `Schema[A]`, you can derive a codec for any supported format by calling `Schema[A].derive(format)`, which uses the `Deriver` associated with that format to generate the appropriate codec instance. For example, to derive a JSON codec:
+Given a `Schema[A]`, you can derive a codec for any supported format by calling `Schema[A].derive(format)`, which uses the `Deriver` associated with that format to generate the appropriate codec instance. For example, to derive a JSON codec:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
