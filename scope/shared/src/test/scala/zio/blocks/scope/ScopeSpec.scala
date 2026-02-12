@@ -33,12 +33,11 @@ object ScopeSpec extends ZIOSpecDefault {
     ),
     suite("scope.scoped")(
       test("scoped executes block and closes scope") {
-        var blockRan = false
-        var cleaned  = false
-        Scope.global.scoped { scope =>
+        var cleaned           = false
+        val blockRan: Boolean = Scope.global.scoped { scope =>
           import scope._
-          blockRan = true
           defer { cleaned = true }
+          true
         }
         assertTrue(blockRan, cleaned)
       },
@@ -164,14 +163,13 @@ object ScopeSpec extends ZIOSpecDefault {
     ),
     suite("eager operations")(
       test("use executes eagerly when scope is open") {
-        var executed = false
-
         class TrackedResource extends AutoCloseable {
-          def doWork(): Unit = executed = true
-          def close(): Unit  = ()
+          var done              = false
+          def doWork(): Boolean = { done = true; done }
+          def close(): Unit     = ()
         }
 
-        Scope.global.scoped { scope =>
+        val executed: Boolean = Scope.global.scoped { scope =>
           import scope._
           val resource: $[TrackedResource] = allocate(Resource(new TrackedResource))
           scope.use(resource)(_.doWork())
@@ -179,14 +177,12 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(executed)
       },
       test("map executes eagerly when scope is open") {
-        var executed = false
-
         class TrackedResource extends AutoCloseable {
-          def doWork(): Boolean = { executed = true; true }
+          def doWork(): Boolean = true
           def close(): Unit     = ()
         }
 
-        Scope.global.scoped { scope =>
+        val executed: Boolean = Scope.global.scoped { scope =>
           import scope._
           val resource: $[TrackedResource] = allocate(Resource(new TrackedResource))
           resource.map(_.doWork())
@@ -194,19 +190,14 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(executed)
       },
       test("nested scoped values evaluate eagerly") {
-        var evaluated = false
-
-        Scope.global.scoped { scope =>
+        val result: Int = Scope.global.scoped { scope =>
           import scope._
-          val base: $[Int]  = allocate(Resource(1))
-          val inner: $[Int] = base.map { x =>
-            evaluated = true
-            x + 1
-          }
+          val base: $[Int]      = allocate(Resource(1))
+          val inner: $[Int]     = base.map(_ + 1)
           val nested: $[$[Int]] = scope.use(base)(_ => inner)
           nested.flatMap(identity)
         }
-        assertTrue(evaluated)
+        assertTrue(result == 2)
       }
     ),
     suite("map/flatMap")(
