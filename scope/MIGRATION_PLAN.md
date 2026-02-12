@@ -174,17 +174,21 @@ object Scope {
 // OLD: Same class with different type parameters
 new Scope[self.ScopeTag, self.ScopeTag](childFinalizers)
 
-// NEW: Separate Child class (zero-cost)
-final class Child[P <: Scope](val parent: P) extends Scope {
+// NEW: Separate Child class (zero-cost), constructor private[scope]
+final class Child[P <: Scope] private[scope] (val parent: P, finalizers: Finalizers) extends Scope {
   type Parent = P
-  opaque type $[+A] = A  // Zero-cost!
   
-  def close(): Unit = ()  // TODO: integrate with Finalizers
+  // Scala 3: opaque type (see ScopeVersionSpecific)
+  // Scala 2: phantom type pattern (see ScopeVersionSpecific)
   
-  protected def $wrap[A](a: A): $[A] = a
-  protected def $unwrap[A](sa: $[A]): A = sa
+  def close(): Chunk[Throwable] = finalizers.runAll()
+  
+  protected def $wrap[A](a: A): $[A] = a.asInstanceOf[$[A]]
+  protected def $unwrap[A](sa: $[A]): A = sa.asInstanceOf[A]
 }
 ```
+
+**Note:** Constructor is `private[scope]` to prevent manual child scope creation without proper lifecycle management.
 
 ---
 

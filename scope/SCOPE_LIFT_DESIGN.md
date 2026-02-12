@@ -207,34 +207,30 @@ final class Child[P <: Scope](val parent: P) extends Scope {
 }
 ```
 
-### Scala 2: Phantom Type Pattern (Zero-Cost)
-Uses phantom type + `asInstanceOf` casts, exactly like existing `Scoped.Tag`:
+### Scala 2: Module Pattern to Emulate Opaque Types (Zero-Cost)
+
+Use the module pattern.
 
 ```scala
 final class Child[P <: Scope](val parent: P) extends Scope {
   // Phantom type - no runtime representation
-  type DollarTag[+A]
-  type $[+A] = DollarTag[A]
-  
+  type DollarModule {
+    type $[+A]
+  }
+  private val dollarModule: DollarModule = new DollarModule {
+    type $[+A] = A
+
+    def $wrap[A](a: A): $[A] = a
+
+  }
+
+ 
   // Zero-cost casts (same as Scoped.eager/Scoped.run pattern)
-  protected def $wrap[A](a: A): $[A] = a.asInstanceOf[$[A]]
-  protected def $unwrap[A](sa: $[A]): A = sa.asInstanceOf[A]
+  protected def $wrap[A](a: A): $[A] = dollarModule.$wrap(a)
+  protected def $unwrap[A](sa: $[A]): A = dollarModule.$unwrap(sa)
 }
 ```
 
-**Why This Works:**
-- Each `Child` instance has its own path-dependent `DollarTag` phantom type
-- `child1.$[A]` and `child2.$[A]` are structurally incompatible (different paths)
-- At runtime, `$[A]` erases to `A` - zero allocation, zero boxing
-- The `asInstanceOf` casts are sound because the phantom type carries no data
-
-**Comparison to Existing Code:**
-| Existing Pattern | New Pattern |
-|------------------|-------------|
-| `type Tag[+A, -S]` in `object Scoped` | `type DollarTag[+A]` in each `Scope` |
-| `type Scoped[+A, -S] = Tag[A, S]` | `type $[+A] = DollarTag[A]` |
-| `a.asInstanceOf[Scoped[A, S]]` | `a.asInstanceOf[$[A]]` |
-| Global phantom, scope via type param | Per-scope phantom, scope via path |
 
 ---
 
