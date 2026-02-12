@@ -38,14 +38,34 @@ For example, the `JsonFormat` is a `BinaryFormat` that represents a JSON binary 
 object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDeriver)
 ```
 
+### Defining a Custom Format
+
+To add a new serialization format, define a `BinaryFormat` (or `TextFormat`) singleton with a custom `Deriver`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
+import zio.blocks.schema.derive.Deriver
+
+// 1. Define your codec base class
+abstract class MyCodec[A] extends BinaryCodec[A]
+
+// 2. Implement a Deriver[MyCodec] (see Type-class Derivation docs)
+// val myDeriver: Deriver[MyCodec] = ...
+
+// 3. Create the format singleton
+// object MyFormat extends BinaryFormat[MyCodec]("application/x-myformat", myDeriver)
+```
+
+For details on implementing a `Deriver`, see [Type-class Derivation](./type-class-derivation.md).
+
 ## Built-in Formats
 
 Here's a summary of the formats currently supported by ZIO Blocks. Each format provides a `BinaryFormat` object that can be passed to `derive`:
 
-| Format      | Object              | MIME Type             |
-|-------------|---------------------|-----------------------|
-| JSON        | `JsonFormat`        | `application/json`    |
-| TOON        | `ToonFormat`        | `text/toon`           |
-| MessagePack | `MessagePackFormat` | `application/msgpack` |
-| Avro        | `AvroFormat`        | `application/avro`    |
-| Thrift      | `ThriftFormat`      | `application/thrift`  |
+| Format Object       | Codec Type                  | MIME Type             | Module                          |
+|---------------------|-----------------------------|-----------------------|---------------------------------|
+| `JsonFormat`        | `JsonBinaryCodec[A]`        | `application/json`    | `zio-blocks-schema`             |
+| `ToonFormat`        | `ToonBinaryCodec[A]`        | `text/toon`           | `zio-blocks-schema-toon`        |
+| `MessagePackFormat` | `MessagePackBinaryCodec[A]` | `application/msgpack` | `zio-blocks-schema-messagepack` |
+| `AvroFormat`        | `AvroBinaryCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        |
+| `ThriftFormat`      | `ThriftBinaryCodec[A]`      | `application/thrift`  | `zio-blocks-schema-thrift`      |
