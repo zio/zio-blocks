@@ -274,7 +274,7 @@ val program = for {
 ### Phase 5: Cleanup
 1. [ ] Remove `ScopeVersionSpecific` (merge into Scope)
 2. [ ] Remove `ScopePrototype.scala` (was just for exploration)
-3. [ ] Update documentation
+3. [ ] Update documentation (including scope.md and index.md)
 
 ---
 

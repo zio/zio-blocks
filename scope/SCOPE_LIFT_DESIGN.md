@@ -194,13 +194,56 @@ The new scope-local `$` approach solves this because `sibling.$[A]` is incompati
 
 ---
 
+## Scala 2 Compatibility: Phantom Type Pattern
+
+The scope-local `$[A]` type uses the same module pattern as the existing `@@` type in Scala 2.
+
+### Scala 3: Opaque Type (Zero-Cost)
+```scala
+final class Child[P <: Scope](val parent: P) extends Scope {
+  opaque type $[+A] = A
+  protected def $wrap[A](a: A): $[A] = a
+  protected def $unwrap[A](sa: $[A]): A = sa
+}
+```
+
+### Scala 2: Phantom Type Pattern (Zero-Cost)
+Uses phantom type + `asInstanceOf` casts, exactly like existing `Scoped.Tag`:
+
+```scala
+final class Child[P <: Scope](val parent: P) extends Scope {
+  // Phantom type - no runtime representation
+  type DollarTag[+A]
+  type $[+A] = DollarTag[A]
+  
+  // Zero-cost casts (same as Scoped.eager/Scoped.run pattern)
+  protected def $wrap[A](a: A): $[A] = a.asInstanceOf[$[A]]
+  protected def $unwrap[A](sa: $[A]): A = sa.asInstanceOf[A]
+}
+```
+
+**Why This Works:**
+- Each `Child` instance has its own path-dependent `DollarTag` phantom type
+- `child1.$[A]` and `child2.$[A]` are structurally incompatible (different paths)
+- At runtime, `$[A]` erases to `A` - zero allocation, zero boxing
+- The `asInstanceOf` casts are sound because the phantom type carries no data
+
+**Comparison to Existing Code:**
+| Existing Pattern | New Pattern |
+|------------------|-------------|
+| `type Tag[+A, -S]` in `object Scoped` | `type DollarTag[+A]` in each `Scope` |
+| `type Scoped[+A, -S] = Tag[A, S]` | `type $[+A] = DollarTag[A]` |
+| `a.asInstanceOf[Scoped[A, S]]` | `a.asInstanceOf[$[A]]` |
+| Global phantom, scope via type param | Per-scope phantom, scope via path |
+
+---
+
 ## Files Involved
 
-- `scope/shared/src/main/scala-3/zio/blocks/scope/Scope.scala`
-- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeLift.scala`
-- `scope/shared/src/main/scala-3/zio/blocks/scope/Scoped.scala`
+- `scope/shared/src/main/scala/zio/blocks/scope/Scope.scala` (shared, cross-compiled)
 - `scope/shared/src/main/scala-3/zio/blocks/scope/ScopeVersionSpecific.scala`
-- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala` (new, for exploration)
+- `scope/shared/src/main/scala-2/zio/blocks/scope/ScopeVersionSpecific.scala`
+- `scope/shared/src/main/scala-3/zio/blocks/scope/ScopePrototype.scala` (exploration, to be deleted)
 
 ---
 
