@@ -35,10 +35,11 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
             def close(): Unit = closed = true
           }
 
-          val (scope, _) = Scope.createTestableScope()
-          import scope._
-          val db = allocate(Resource.from[Database])
-          db.query("test")
+          Scope.global.scoped { scope =>
+            import scope._
+            val db = allocate(Resource.from[Database])
+            db.query("test")
+          }
         """))(isLeft(containsString("is not a member")))
       }
     ),
@@ -62,17 +63,17 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
           }
         """))(isLeft(containsString("Unscoped")))
       },
-      test("returning unscoped values works with createTestableScope") {
-        val (scope, close) = Scope.createTestableScope()
-        import scope._
-        val db               = allocate(Resource(new Database))
+      test("returning unscoped values works via scoped") {
         var captured: String = null
-        $(db) { d =>
-          val r = d.query("SELECT 1")
-          captured = r
-          r
+        Scope.global.scoped { scope =>
+          import scope._
+          val db = allocate(Resource(new Database))
+          $(db) { d =>
+            val r = d.query("SELECT 1")
+            captured = r
+            r
+          }
         }
-        close()
         assertTrue(captured == "result: SELECT 1")
       }
     )

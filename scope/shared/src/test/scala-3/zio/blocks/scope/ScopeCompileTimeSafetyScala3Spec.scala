@@ -107,18 +107,17 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
       }
     ),
     suite("lower() enables access to parent scope values")(
-      test("lower() works with testable scope pattern") {
-        val (scope, close) = Scope.createTestableScope()
-        import scope._
-        var captured             = ""
-        val parentStr: $[String] = allocate(Resource("hello"))
-
-        scope.scoped { child =>
-          import child._
-          val childStr     = lower(parentStr)
-          val _: $[String] = $(childStr) { s => captured = s; s }
+      test("lower() works") {
+        val captured: String = Scope.global.scoped { outer =>
+          import outer._
+          val parentStr: $[String] = allocate(Resource("hello"))
+          val result: String       = outer.scoped { child =>
+            import child._
+            val childStr = lower(parentStr)
+            child.$(childStr)(identity)
+          }
+          result
         }
-        close()
         assertTrue(captured == "hello")
       }
     ),

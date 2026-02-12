@@ -127,23 +127,4 @@ object Scope {
     protected def $wrap[A](a: A): $[A]    = a.asInstanceOf[$[A]]
     protected def $unwrap[A](sa: $[A]): A = sa.asInstanceOf[A]
   }
-
-  /**
-   * Creates a testable scope that can be manually closed. Returns a fresh child
-   * scope.
-   */
-  private[scope] def createTestableScope(): (Child[global.type], () => Unit) = {
-    val child = new Child[global.type](global, new Finalizers)
-    (
-      child,
-      () => {
-        val errors = child.close()
-        if (errors.nonEmpty) {
-          val first = errors.head
-          errors.tail.foreach(first.addSuppressed)
-          throw first
-        }
-      }
-    )
-  }
 }

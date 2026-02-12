@@ -15,51 +15,32 @@ object ScopeInferenceSpec extends ZIOSpecDefault {
 
   def spec = suite("Scope inference (Scala 2)")(
     test("map works with allocate") {
-      val (scope, close) = Scope.createTestableScope()
-      import scope._
-      var captured: Int = 0
-
-      val resource: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
-      val len: $[Int]               = resource.map(_.length)
-
-      $(len) { l =>
-        captured = l
-        l
+      val captured: Int = Scope.global.scoped { scope =>
+        import scope._
+        val resource: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
+        resource.map(_.length)
       }
-      close()
       assertTrue(captured == 5)
     },
     test("$ operator works") {
-      val (scope, close) = Scope.createTestableScope()
-      import scope._
-      var captured: String = null
-
-      val resource: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
-      $(resource) { holder =>
-        captured = holder.value
-        holder.value
+      val captured: String = Scope.global.scoped { scope =>
+        import scope._
+        val resource: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
+        scope.$(resource)(_.value)
       }
-      close()
       assertTrue(captured == "hello")
     },
     test("for-comprehension works") {
-      val (scope, close) = Scope.createTestableScope()
-      import scope._
-      var captured: Boolean = false
-
-      val a: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
-      val b: $[StringHolder] = allocate(Resource(new StringHolder("world")))
-
-      val result: $[Boolean] = for {
-        x <- a
-        y <- b
-      } yield x.length == y.length
-
-      $(result) { r =>
-        captured = r
-        r
+      val captured: Boolean = Scope.global.scoped { scope =>
+        import scope._
+        val a: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
+        val b: $[StringHolder] = allocate(Resource(new StringHolder("world")))
+        val result: $[Boolean] = for {
+          x <- a
+          y <- b
+        } yield x.length == y.length
+        result
       }
-      close()
       assertTrue(captured == true)
     }
   )
