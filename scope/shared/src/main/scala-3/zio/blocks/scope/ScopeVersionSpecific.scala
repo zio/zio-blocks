@@ -2,7 +2,7 @@ package zio.blocks.scope
 
 /**
  * Scala 3 version-specific methods for Scope.
- * 
+ *
  * Provides the `scoped` method using Scala 3's dependent function types.
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
@@ -22,9 +22,9 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   }}}
    */
   final def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using ev: Unscoped[A]): A = {
-    val child = new Scope.Child[self.type](self, new internal.Finalizers)
+    val child              = new Scope.Child[self.type](self, new internal.Finalizers)
     var primary: Throwable = null
-    var unwrapped: A = null.asInstanceOf[A]
+    var unwrapped: A       = null.asInstanceOf[A]
     try {
       val result: child.$[A] = f(child)
       unwrapped = child.wrap.run(result)
