@@ -62,8 +62,7 @@ final case class Migration[A, B](
    * Composes this migration with another in strict mode. Throws if the
    * right-hand migration contains lossy actions.
    *
-   * @throws IllegalArgumentException
-   *   if `that` contains lossy actions
+   * Throws `IllegalArgumentException` if `that` contains lossy actions.
    */
   def composeStrict[C](that: Migration[B, C]): Migration[A, C] = {
     if (that.isLossy) {
@@ -88,8 +87,7 @@ final case class Migration[A, B](
   /**
    * Returns the reverse migration or throws if any action is lossy.
    *
-   * @throws IllegalStateException
-   *   listing which actions are irreversible
+   * Throws `IllegalStateException` listing which actions are irreversible.
    */
   def unsafeReverse: Migration[B, A] =
     Migration(dynamicMigration.unsafeReverse, targetSchema, sourceSchema)

@@ -6,11 +6,11 @@ import scala.language.implicitConversions
 import scala.reflect.macros.blackbox
 
 /**
- * Scala 2 macros for converting selector lambdas to DynamicOptic instances,
- * and an implicit class that provides the selector-based MigrationBuilder API.
+ * Scala 2 macros for converting selector lambdas to DynamicOptic instances, and
+ * an implicit class that provides the selector-based MigrationBuilder API.
  *
- * Selectors like `_.firstName` or `_.address.street` are parsed at compile
- * time into `DynamicOptic.root.field("firstName")` or
+ * Selectors like `_.firstName` or `_.address.street` are parsed at compile time
+ * into `DynamicOptic.root.field("firstName")` or
  * `DynamicOptic.root.field("address").field("street")`.
  */
 object MigrationBuilderMacros {
@@ -18,7 +18,7 @@ object MigrationBuilderMacros {
   def selectorToOpticImpl(c: blackbox.Context)(f: c.Expr[Any]): c.Expr[DynamicOptic] = {
     import c.universe._
 
-    def extractNodes(tree: Tree, paramName: Name): List[String] = {
+    def extractNodes(tree: Tree, paramName: Name): List[String] =
       tree match {
         case Select(qualifier, name) =>
           extractNodes(qualifier, paramName) :+ name.decodedName.toString
@@ -28,10 +28,9 @@ object MigrationBuilderMacros {
           c.abort(
             tree.pos,
             s"Unsupported selector expression. Expected simple field access like _.field or _.field.subfield, " +
-            s"got: ${showCode(tree)}"
+              s"got: ${showCode(tree)}"
           )
       }
-    }
 
     val body = f.tree match {
       case Function(List(param), body) =>
@@ -57,7 +56,7 @@ object MigrationBuilderMacros {
  * the corresponding `*At` methods.
  */
 final class MigrationBuilderSelectorOps[A, B](private val builder: MigrationBuilder[A, B]) extends AnyVal {
-
+  // format: off
   def addField[T](selector: B => T)(default: T)(implicit s: Schema[T]): MigrationBuilder[A, B] =
     macro MigrationBuilderSelectorOps.addFieldImpl[A, B, T]
 
@@ -72,6 +71,7 @@ final class MigrationBuilderSelectorOps[A, B](private val builder: MigrationBuil
 
   def optionalize(selector: A => Any): MigrationBuilder[A, B] =
     macro MigrationBuilderSelectorOps.optionalizeImpl[A, B]
+  // format: on
 }
 
 object MigrationBuilderSelectorOps {
@@ -85,7 +85,7 @@ object MigrationBuilderSelectorOps {
     import c.universe._
     val optic = MigrationBuilderMacros.selectorToOpticImpl(c)(selector.asInstanceOf[c.Expr[Any]])
     c.Expr[MigrationBuilder[A, B]](
-      q"${c.prefix}.builder.addFieldAt[${ weakTypeOf[T] }]($optic, $default)($s)"
+      q"${c.prefix}.builder.addFieldAt[${weakTypeOf[T]}]($optic, $default)($s)"
     )
   }
 
@@ -115,7 +115,7 @@ object MigrationBuilderSelectorOps {
     import c.universe._
     val optic = MigrationBuilderMacros.selectorToOpticImpl(c)(selector.asInstanceOf[c.Expr[Any]])
     c.Expr[MigrationBuilder[A, B]](
-      q"${c.prefix}.builder.mandateAt[${ weakTypeOf[T] }]($optic, $default)($s)"
+      q"${c.prefix}.builder.mandateAt[${weakTypeOf[T]}]($optic, $default)($s)"
     )
   }
 

@@ -54,9 +54,18 @@ object MigrationMetadata {
       }
       s"${a.getClass.getSimpleName}:${a.at}:${a.lossy}$details"
     }
-    val digest = java.security.MessageDigest
-      .getInstance("SHA-256")
-      .digest(parts.mkString("|").getBytes("UTF-8"))
-    digest.take(16).map("%02x".format(_)).mkString
+    // Use a platform-independent hash (FNV-1a inspired) to avoid
+    // java.security.MessageDigest which is unavailable in Scala.js.
+    val data = parts.mkString("|")
+    var h1   = 0xcbf29ce484222325L
+    var h2   = 0x100000001b3L
+    var i    = 0
+    while (i < data.length) {
+      val c = data.charAt(i).toLong
+      h1 = (h1 ^ c) * 0x100000001b3L
+      h2 = (h2 ^ c) * 0xcbf29ce484222325L
+      i += 1
+    }
+    f"$h1%016x$h2%016x"
   }
 }

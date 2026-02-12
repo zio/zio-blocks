@@ -85,8 +85,8 @@ final case class DynamicMigration(
   /**
    * Returns the reverse migration or throws if any action is lossy.
    *
-   * @throws IllegalStateException
-   *   if any action is irreversible, listing the lossy actions
+   * Throws `IllegalStateException` if any action is irreversible, listing the
+   * lossy actions.
    */
   def unsafeReverse: DynamicMigration = reverse.getOrElse {
     val lossyDetails = actions.zipWithIndex.collect {
