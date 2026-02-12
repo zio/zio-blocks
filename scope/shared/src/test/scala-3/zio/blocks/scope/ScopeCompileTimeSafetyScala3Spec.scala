@@ -114,22 +114,22 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
           val result: String       = outer.scoped { child =>
             import child._
             val childStr = lower(parentStr)
-            child.$(childStr)(identity)
+            child.use(childStr)(identity)
           }
           result
         }
         assertTrue(captured == "hello")
       }
     ),
-    suite("$ returns scoped values")(
-      test("$ returns $[B], not raw B") {
+    suite("use returns scoped values")(
+      test("use returns $[B], not raw B") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
 
           Scope.global.scoped { scope =>
             import scope._
             val db = allocate(Resource("test"))
-            val result: String = $(db)(identity)
+            val result: String = scope.use(db)(identity)
             result
           }
         """))(isLeft(containsString("Found:")))
@@ -153,7 +153,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
         Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource(new Database))
-          val _: $[String]    = $(db) { d =>
+          val _: $[String]    = scope.use(db) { d =>
             val r = d.query("SELECT 1")
             captured = r
             r

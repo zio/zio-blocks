@@ -61,7 +61,7 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
  *
  * Key concepts:
  *   - `allocate` returns `$[A]` (scoped value)
- *   - `(scope $ scopedValue)(f)` applies a function to the underlying value
+ *   - `scope.use(scopedValue)(f)` applies a function to the underlying value
  *   - Operations are eager (zero-cost wrapper)
  *   - For-comprehensions chain scoped values naturally
  */
@@ -101,18 +101,18 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
         JsonParser.parse(response.body)
       }
 
-    // Step 3: Access results using scope.$(value)(f)
-    scope.$(users) { u =>
+    // Step 3: Access results using scope.use(value)(f)
+    scope.use(users) { u =>
       println(s"\n=== Users Result ===")
       println(s"Users data: ${u.values}")
     }
 
-    scope.$(orders) { o =>
+    scope.use(orders) { o =>
       println(s"\n=== Orders Result ===")
       println(s"Orders data: ${o.values}")
     }
 
-    scope.$(analytics) { a =>
+    scope.use(analytics) { a =>
       println(s"\n=== Analytics Result ===")
       println(s"Analytics: ${a.values}")
     }

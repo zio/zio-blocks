@@ -97,7 +97,7 @@ class Application(a: ServiceAImpl, @annotation.unused b: ServiceBApi) {
       )
     )
 
-    println(s"Result: ${scope.$(app)(_.run())}")
+    println(s"Result: ${scope.use(app)(_.run())}")
     println("\nThe dependency graph was validated at compile time.")
     println("No cycles detected - application wired successfully.")
   }

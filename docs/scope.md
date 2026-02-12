@@ -53,8 +53,8 @@ Scope.global.scoped { scope =>
 
   val db: $[Database] = allocate(Resource(new Database))
 
-  // scope.$ applies a function to the scoped value, returning a scoped result
-  val result: $[String] = scope.$(db)(_.query("SELECT 1"))
+  // scope.use applies a function to the scoped value, returning a scoped result
+  val result: $[String] = scope.use(db)(_.query("SELECT 1"))
   println(result)  // $[String] = String at runtime, prints directly
 }
 ```
@@ -64,7 +64,7 @@ Key things to notice:
 - `allocate(...)` returns a **scoped** value: `$[Database]` (or `scope.$[Database]`)
 - `$[A] = A` at runtime — zero-cost opaque type, no boxing
 - All operations are **eager** — values are computed immediately, no lazy thunks
-- Use `scope.$(value)(f)` to work with scoped values; returns `$[B]`
+- Use `scope.use(value)(f)` to work with scoped values; returns `$[B]`
 - When the `scoped { ... }` block exits, finalizers run **LIFO** and errors are handled safely
 - The `scoped` method requires `Unscoped[A]` evidence on the return type
 
@@ -119,7 +119,7 @@ object Scope {
 - **Key effect:** methods on `A` are hidden at the type level; you can't call `a.method` directly
 - **All operations are eager:** `allocate(resource)` acquires the resource **immediately** and returns a scoped value
 - **Access paths:**
-  - `scope.$(a)(f)` to apply a function and get `$[B]`
+  - `scope.use(a)(f)` to apply a function and get `$[B]`
 
 #### Scala 2 note
 
@@ -237,7 +237,7 @@ Scope.global.scoped { parent =>
 
     // Use lower() to access parent-scoped value in child scope
     val db: $[Database] = lower(parentDb)
-    scope.$(db)(_.query("SELECT 1"))
+    scope.use(db)(_.query("SELECT 1"))
 
     "done"
   }
@@ -325,7 +325,7 @@ Compile-time safety is verified in tests, e.g.:
 
 Each scope defines its own `$[A]` opaque type. Even though `$[A] = A` at runtime, the compiler treats each scope's `$[A]` as distinct. A child's `$[Database]` is a different type than the parent's `$[Database]`.
 
-Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access route is `scope.$(value)(f)`.
+Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access route is `scope.use(value)(f)`.
 
 ---
 
@@ -346,8 +346,8 @@ Scope.global.scoped { scope =>
 
   val h: $[FileHandle] = allocate(Resource(new FileHandle("data.txt")))
 
-  // scope.$ applies function to scoped value, returns $[String]
-  val contents: $[String] = scope.$(h)(_.readAll())
+  // scope.use applies function to scoped value, returns $[String]
+  val contents: $[String] = scope.use(h)(_.readAll())
   println(contents)  // $[String] = String at runtime
 }
 ```
@@ -369,12 +369,12 @@ Scope.global.scoped { parent =>
 
     // Use lower() to access parent-scoped values in child scope:
     val db: $[Database] = lower(parentDb)
-    println(scope.$(db)(_.query("SELECT 1")))
+    println(scope.use(db)(_.query("SELECT 1")))
 
     val childDb: $[Database] = allocate(Resource(new Database))
 
     // You can use childDb *inside* the child:
-    println(scope.$(childDb)(_.query("SELECT 2")))
+    println(scope.use(childDb)(_.query("SELECT 2")))
 
     // Return an Unscoped value
     "done"
@@ -384,7 +384,7 @@ Scope.global.scoped { parent =>
   }
 
   // parentDb is still usable here:
-  println(scope.$(parentDb)(_.query("SELECT 3")))
+  println(scope.use(parentDb)(_.query("SELECT 3")))
 }
 ```
 
@@ -413,10 +413,10 @@ Scope.global.scoped { scope =>
 
   val pool: $[Pool] = allocate(Resource.from[Pool])
 
-  // Use scope.$ to access the pool and allocate a connection
-  val result: $[String] = scope.$(pool) { p =>
+  // Use scope.use to access the pool and allocate a connection
+  val result: $[String] = scope.use(pool) { p =>
     val connection: $[Connection] = allocate(p.lease)
-    scope.$(connection)(_.query("SELECT 1"))
+    scope.use(connection)(_.query("SELECT 1"))
   }
 
   println(result)
@@ -486,7 +486,7 @@ Scope.global.scoped { scope =>
 
 Why `Finalizer` instead of `Scope`?
 - `Finalizer` is the minimal interface—it only has `defer`
-- Classes that need cleanup should not have access to `allocate` or `$`
+- Classes that need cleanup should not have access to `allocate` or `use`
 - The macros pass a `Finalizer` at runtime, so declaring `Scope` would be misleading
 
 ---
@@ -509,7 +509,7 @@ Scope.global.scoped { scope =>
 
   val cfg: $[Config] = allocate(w.toResource(deps))
 
-  val debug: $[Boolean] = scope.$(cfg)(_.debug)
+  val debug: $[Boolean] = scope.use(cfg)(_.debug)
 
   println(debug)  // $[Boolean] = Boolean at runtime
 }
@@ -558,7 +558,7 @@ val serviceResource: Resource[Service] =
 Scope.global.scoped { scope =>
   import scope._
   val svc: $[Service] = allocate(serviceResource)
-  scope.$(svc)(_.run())
+  scope.use(svc)(_.run())
 }
 // Output: running with [jdbc:postgresql://localhost/db] SELECT 1
 // Then: service closed, database closed (LIFO order)
@@ -602,7 +602,7 @@ val appResource: Resource[App] =
 Scope.global.scoped { scope =>
   import scope._
   val app: $[App] = allocate(appResource)
-  scope.$(app)(_.run())
+  scope.use(app)(_.run())
 }
 ```
 
@@ -820,7 +820,10 @@ final class Scope[ParentTag, Tag0 <: ParentTag] {
   def defer(f: => Unit): Unit
 
   // Apply function to scoped value, returns scoped result
-  def $[A, B](scoped: $[A])(f: A => B): $[B]
+  def use[A, B](scoped: $[A])(f: A => B): $[B]
+
+  // Construct a scoped value from a raw value
+  def $[A](a: A): $[A]
 
   // Lower parent-scoped value into this scope
   def lower[A](parentScoped: parent.$[A]): $[A]
@@ -879,7 +882,7 @@ object Wire {
 - Use `Scope.global.scoped { scope => import scope._; ... }` to create a safe region.
 - For simple resources: `allocate(Resource(value))` or `allocate(Resource.acquireRelease(...)(...))`
 - For dependency injection: `allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- Use `scope.$(value)(f)` to work with scoped values — all operations are eager.
+- Use `scope.use(value)(f)` to work with scoped values — all operations are eager.
 - `$[A] = A` at runtime — zero-cost opaque type.
 - The `scoped` method requires `Unscoped[A]` evidence on the return type.
 - Use `lower(parentValue)` to access parent-scoped values in child scopes.

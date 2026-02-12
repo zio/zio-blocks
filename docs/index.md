@@ -299,7 +299,7 @@ Scope.global.scoped { connScope =>
     // Lower parent-scoped conn into child scope
     val localConn = lower(conn)
 
-    val tx = allocate(txScope.$(localConn)(_.beginTransaction()))
+    val tx = allocate(txScope.use(localConn)(_.beginTransaction()))
 
     $(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
     $(tx)(_.commit())

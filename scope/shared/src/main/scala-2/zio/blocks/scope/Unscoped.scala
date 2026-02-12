@@ -13,10 +13,10 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   // Primitives escape freely
- *   val n: Int = scope.$(stream)(_.read())  // Int is Unscoped
+ *   val n: Int = scope.use(stream)(_.read())  // Int is Unscoped
  *
  *   // Resources stay scoped
- *   val body: $[InputStream] = scope.$(request)(_.body)  // InputStream stays scoped
+ *   val body: $[InputStream] = scope.use(request)(_.body)  // InputStream stays scoped
  *   }}}
  */
 trait Unscoped[A]

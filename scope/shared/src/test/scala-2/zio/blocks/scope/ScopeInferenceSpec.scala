@@ -22,11 +22,11 @@ object ScopeInferenceSpec extends ZIOSpecDefault {
       }
       assertTrue(captured == 5)
     },
-    test("$ operator works") {
+    test("use operator works") {
       val captured: String = Scope.global.scoped { scope =>
         import scope._
         val resource: $[StringHolder] = allocate(Resource(new StringHolder("hello")))
-        scope.$(resource)(_.value)
+        scope.use(resource)(_.value)
       }
       assertTrue(captured == "hello")
     },

@@ -12,7 +12,7 @@ package zio.blocks
  * Scope.global.scoped { scope =>
  *   import scope._
  *   val db: $[Database] = allocate(Resource[Database])
- *   val result: $[Int] = scope.$(db)(_.query("SELECT 1"))
+ *   val result: $[Int] = scope.use(db)(_.query("SELECT 1"))
  *   result  // Returns $[Int], unwrapped to Int at boundary
  * }
  * }}}
@@ -23,7 +23,7 @@ package zio.blocks
  *     escape
  *   - '''`import scope._`''': Bring scope operations into lexical scope
  *   - '''`allocate(resource)`''': Allocate a value in the current scope
- *   - '''`scope.$(value)(f)`''': Apply a function to a scoped value
+ *   - '''`scope.use(value)(f)`''': Apply a function to a scoped value
  *   - '''`scoped { s => ... }`''': Create a child scope
  *   - '''`defer { ... }`''': Register cleanup to run when scope closes
  *

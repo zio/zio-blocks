@@ -26,17 +26,13 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /** Unwrap a value (identity - zero cost). */
   protected def $unwrap[A](sa: $[A]): A
 
-  /** Operations for wrapping/unwrapping scoped values. */
-  object wrap {
+  /** Create a scoped value from a raw value (zero-cost). */
+  def $[A](a: A): $[A] = $wrap(a)
 
-    /** Create a scoped value (zero-cost wrap). */
-    def apply[A](a: A): $[A] = $wrap(a)
-
-    /**
-     * Force evaluation of a scoped value. Package-private - UNSOUND if exposed.
-     */
-    private[scope] def run[A](sa: $[A]): A = $unwrap(sa)
-  }
+  /**
+   * Force evaluation of a scoped value. Package-private - UNSOUND if exposed.
+   */
+  private[scope] def $run[A](sa: $[A]): A = $unwrap(sa)
 
   /**
    * Lower a parent-scoped value into this scope. Safe because parent outlives
@@ -62,7 +58,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   def defer(f: => Unit): Unit = finalizers.add(f)
 
   /** Apply a function to a scoped value. Always eager (zero-cost). */
-  def $[A, B](scoped: $[A])(f: A => B): $[B] =
+  def use[A, B](scoped: $[A])(f: A => B): $[B] =
     $wrap(f($unwrap(scoped)))
 
   /** Implicit ops for map/flatMap on scoped values. All eager (zero-cost). */
@@ -78,7 +74,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Implicit conversion: wrap Unscoped values so they can be returned from
    * scoped blocks.
    */
-  implicit def wrapUnscoped[A](a: A)(implicit ev: Unscoped[A]): $[A] = wrap(a)
+  implicit def wrapUnscoped[A](a: A)(implicit ev: Unscoped[A]): $[A] = $(a)
 }
 
 object Scope {

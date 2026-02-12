@@ -80,7 +80,7 @@ final class Database(config: DbConfig) extends AutoCloseable {
  *
  * This example shows:
  *   - Allocating an AutoCloseable resource with automatic cleanup
- *   - Using `$(value)(f)` to access scoped values and execute queries
+ *   - Using `use(value)(f)` to access scoped values and execute queries
  *   - LIFO finalizer ordering (last allocated = first closed)
  *
  * When the scope exits, all registered finalizers run in reverse order,
@@ -103,8 +103,8 @@ final class Database(config: DbConfig) extends AutoCloseable {
       database
     })
 
-    // Use scope.$(value)(f) to access the scoped value and execute queries.
-    scope.$(db) { database =>
+    // Use scope.use(value)(f) to access the scoped value and execute queries.
+    scope.use(db) { database =>
       val users = database.query("SELECT * FROM users")
       println(s"[Result] Found ${users.size} users: ${users.rows.map(_("name")).mkString(", ")}\n")
 

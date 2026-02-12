@@ -21,7 +21,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   Scope.global.scoped { scope =>
    *     import scope._
    *     val db: $[Database] = allocate(Resource(new Database))
-   *     val result: String = scope.$(db)(_.query("SELECT 1"))
+   *     val result: String = scope.use(db)(_.query("SELECT 1"))
    *     result  // String is Unscoped, can be returned
    *   }
    *   }}}

@@ -66,7 +66,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
     } yield conn.query("SELECT * FROM users").value.toUpperCase
 
     // Access the result
-    println(s"\n  Result: ${scope.$(result)(identity)}")
+    println(s"\n  Result: ${scope.use(result)(identity)}")
     // Scope exits: Connection closed, then Pool closed (LIFO)
   }
 
@@ -76,10 +76,10 @@ case class QueryData(value: String) extends Unscoped[QueryData]
     val result: $[String] = for {
       pool   <- allocate(Resource.from[Pool])
       conn   <- allocate(Resource(pool.lease()))
-      prefix <- wrap("PREFIX: ")
+      prefix <- $("PREFIX: ")
     } yield prefix + conn.query("SELECT name FROM employees").value
 
-    println(s"\n  Result: ${scope.$(result)(identity)}")
+    println(s"\n  Result: ${scope.use(result)(identity)}")
   }
 
   println("\n--- Pattern 3: Nested scopes with for-comprehensions ---")
@@ -98,7 +98,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
         conn <- allocate(Resource(p.lease()))
       } yield conn.query("SELECT 1").value
 
-      val output = inner.$(result)(identity)
+      val output = inner.use(result)(identity)
       println(s"  [inner] Result: $output")
       // inner scope exits: Connection released
     }

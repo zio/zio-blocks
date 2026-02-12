@@ -59,7 +59,7 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
             import child._
             val db = allocate(Resource(new Database))
             val leakedAction: () => String = () => "leaked"
-            wrap(leakedAction)
+            $(leakedAction)
           }
         """))(isLeft(containsString("Unscoped")))
       },
@@ -68,7 +68,7 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
         Scope.global.scoped { scope =>
           import scope._
           val db = allocate(Resource(new Database))
-          $(db) { d =>
+          scope.use(db) { d =>
             val r = d.query("SELECT 1")
             captured = r
             r
