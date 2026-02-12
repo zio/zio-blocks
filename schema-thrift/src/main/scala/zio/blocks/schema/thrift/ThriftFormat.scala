@@ -2,6 +2,7 @@ package zio.blocks.schema.thrift
 
 import org.apache.thrift.protocol._
 import scala.reflect.ClassTag
+import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema.codec.BinaryFormat
