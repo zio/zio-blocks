@@ -214,6 +214,39 @@ object ScopeLiftSpec extends ZIOSpecDefault {
         """))(isLeft(containsString("Found:")))
       }
     ),
+    suite("lift-before-close regression")(
+      test("deferred computation accessing child resource executes before scope closes") {
+        // This tests that lift(result) happens BEFORE childScope.close().
+        // If lift happened AFTER close, the deferred computation would access a closed resource.
+        var resourceClosedWhenAccessed = false
+        var resourceClosed             = false
+
+        class TrackedResource extends AutoCloseable {
+          def value: String = {
+            resourceClosedWhenAccessed = resourceClosed
+            "accessed"
+          }
+          def close(): Unit = resourceClosed = true
+        }
+
+        val result: String = Scope.global.scoped { parent =>
+          parent.scoped { child =>
+            import child._
+            val tracked: TrackedResource @@ child.ScopeTag = allocate(new TrackedResource)
+            // Create a deferred computation that accesses the resource
+            val deferred: String @@ child.ScopeTag = tracked.map(_.value)
+            // scopedUnscoped will force this deferred computation during lift
+            deferred
+          }
+        }
+
+        // The resource MUST be closed after scoped exits
+        assertTrue(resourceClosed) &&
+        // But it must NOT have been closed when accessed during lift
+        assertTrue(!resourceClosedWhenAccessed) &&
+        assertTrue(result == "accessed")
+      }
+    ),
     suite("Working patterns for tests")(
       test("use for-comprehension and return Unscoped at boundary") {
         val result: String = Scope.global.scoped { parent =>

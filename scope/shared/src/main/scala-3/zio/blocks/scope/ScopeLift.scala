@@ -80,6 +80,7 @@ object ScopeLift extends ScopeLiftMidPriority {
       type Out = A
       def apply(a: A): Out = a
     }
+
 }
 
 /**
