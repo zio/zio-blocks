@@ -629,11 +629,11 @@ object ParserSpec extends MarkdownBaseSpec {
     suite("Empty and whitespace")(
       test("parses empty input") {
         val result = Parser.parse("")
-        assertTrue(result == Right(Doc(Chunk.empty)))
+        assertTrue(result == Right(Doc.empty))
       },
       test("parses whitespace only") {
         val result = Parser.parse("   \n\n   ")
-        assertTrue(result == Right(Doc(Chunk.empty)))
+        assertTrue(result == Right(Doc.empty))
       }
     ),
     suite("Edge cases")(
@@ -987,7 +987,7 @@ object ParserSpec extends MarkdownBaseSpec {
       },
       test("parses empty inline content") {
         val result = Parser.parse("")
-        assertTrue(result == Right(Doc(Chunk.empty)))
+        assertTrue(result == Right(Doc.empty))
       },
       test("parses text only paragraph") {
         val result = Parser.parse("just plain text")

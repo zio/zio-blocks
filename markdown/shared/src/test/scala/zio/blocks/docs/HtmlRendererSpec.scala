@@ -329,7 +329,7 @@ object HtmlRendererSpec extends MarkdownBaseSpec {
     ),
     suite("render - Full document")(
       test("empty document") {
-        val doc    = Doc(Chunk.empty)
+        val doc    = Doc.empty
         val result = HtmlRenderer.render(doc)
         assertTrue(result == "<!DOCTYPE html><html><head></head><body></body></html>")
       },

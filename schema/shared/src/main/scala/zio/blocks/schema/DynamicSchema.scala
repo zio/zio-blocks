@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Renderer, Parser}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.json.JsonSchema
@@ -251,7 +252,6 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 object DynamicSchema extends TypeIdSchemas {
   private[this] val zioBlocksSchemaOwner: Owner   = Owner.fromPackagePath("zio.blocks.schema")
-  private[this] val docOwner: Owner               = zioBlocksSchemaOwner.tpe("Doc")
   private[this] val validationOwner: Owner        = zioBlocksSchemaOwner.tpe("Validation")
   private[this] val validationNumericOwner: Owner = validationOwner.tpe("Numeric")
   private[this] val validationStringOwner: Owner  = validationOwner.tpe("String")
@@ -580,137 +580,136 @@ object DynamicSchema extends TypeIdSchemas {
       fail(trace, "Set validation only applies to numeric types")
   }
 
-  private[this] def fail(trace: List[DynamicOptic.Node], msg: Predef.String): Option[SchemaError] =
-    new Some(SchemaError.conversionFailed(trace, s"Validation failed: $msg"))
+   private[this] def fail(trace: List[DynamicOptic.Node], msg: Predef.String): Option[SchemaError] =
+     new Some(SchemaError.conversionFailed(trace, s"Validation failed: $msg"))
 
-  /** Schema for [[Doc.Empty]]. */
-  private[this] lazy val docEmptySchema: Schema[Doc.Empty.type] = new Schema(
-    reflect = new Reflect.Record[Binding, Doc.Empty.type](
-      fields = Chunk.empty,
-      typeId = TypeId.nominal[Doc.Empty.type]("Empty", docOwner),
-      recordBinding = new Binding.Record(
-        constructor = new ConstantConstructor[Doc.Empty.type](Doc.Empty),
-        deconstructor = new ConstantDeconstructor[Doc.Empty.type]
-      ),
-      modifiers = Chunk.empty
-    )
-  )
+   /** Schema for [[Doc.Empty]]. */
+   private[this] lazy val docEmptySchema: Schema[Doc.Empty.type] = new Schema(
+     reflect = new Reflect.Record[Binding, Doc.Empty.type](
+       fields = Chunk.empty,
+       typeId = TypeId.nominal[Doc.Empty.type]("Empty", docOwner),
+       recordBinding = new Binding.Record(
+         constructor = new ConstantConstructor[Doc.Empty.type](Doc.Empty),
+         deconstructor = new ConstantDeconstructor[Doc.Empty.type]
+       ),
+       modifiers = Chunk.empty
+     )
+   )
 
-  /** Schema for [[Doc.Text]]. */
-  private[this] lazy val docTextSchema: Schema[Doc.Text] = new Schema(
-    reflect = new Reflect.Record[Binding, Doc.Text](
-      fields = Chunk.single(Schema[String].reflect.asTerm("value")),
-      typeId = TypeId.nominal[Doc.Text]("Text", docOwner),
-      recordBinding = new Binding.Record(
-        constructor = new Constructor[Doc.Text] {
-          def usedRegisters: RegisterOffset                              = 1
-          def construct(in: Registers, offset: RegisterOffset): Doc.Text =
-            Doc.Text(in.getObject(offset).asInstanceOf[String])
-        },
-        deconstructor = new Deconstructor[Doc.Text] {
-          def usedRegisters: RegisterOffset                                           = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Doc.Text): Unit =
-            out.setObject(offset, in.value)
-        }
-      ),
-      modifiers = Chunk.empty
-    )
-  )
+   /** Schema for [[Doc.Text]]. */
+   private[this] lazy val docTextSchema: Schema[Doc.Text] = new Schema(
+     reflect = new Reflect.Record[Binding, Doc.Text](
+       fields = Chunk.single(Schema[String].reflect.asTerm("value")),
+       typeId = TypeId.nominal[Doc.Text]("Text", docOwner),
+       recordBinding = new Binding.Record(
+         constructor = new Constructor[Doc.Text] {
+           def usedRegisters: RegisterOffset                              = 1
+           def construct(in: Registers, offset: RegisterOffset): Doc.Text =
+             Doc.Text(in.getObject(offset).asInstanceOf[String])
+         },
+         deconstructor = new Deconstructor[Doc.Text] {
+           def usedRegisters: RegisterOffset                                           = 1
+           def deconstruct(out: Registers, offset: RegisterOffset, in: Doc.Text): Unit =
+             out.setObject(offset, in.value)
+         }
+       ),
+       modifiers = Chunk.empty
+     )
+   )
 
-  /** Schema for [[Doc.Concat]]. */
-  private[this] lazy val docConcatSchema: Schema[Doc.Concat] = new Schema(
-    reflect = new Reflect.Record[Binding, Doc.Concat](
-      fields = Chunk.single(Schema[IndexedSeq[Doc.Leaf]].reflect.asTerm("flatten")),
-      typeId = TypeId.nominal[Doc.Concat]("Concat", docOwner),
-      recordBinding = new Binding.Record(
-        constructor = new Constructor[Doc.Concat] {
-          def usedRegisters: RegisterOffset                                = 1
-          def construct(in: Registers, offset: RegisterOffset): Doc.Concat =
-            Doc.Concat(in.getObject(offset).asInstanceOf[IndexedSeq[Doc.Leaf]])
-        },
-        deconstructor = new Deconstructor[Doc.Concat] {
-          def usedRegisters: RegisterOffset                                             = 1
-          def deconstruct(out: Registers, offset: RegisterOffset, in: Doc.Concat): Unit =
-            out.setObject(offset, in.flatten)
-        }
-      ),
-      modifiers = Chunk.empty
-    )
-  )
+   /** Schema for [[Doc.Concat]]. */
+   private[this] lazy val docConcatSchema: Schema[Doc.Concat] = new Schema(
+     reflect = new Reflect.Record[Binding, Doc.Concat](
+       fields = Chunk.single(Schema[IndexedSeq[Doc.Leaf]].reflect.asTerm("flatten")),
+       typeId = TypeId.nominal[Doc.Concat]("Concat", docOwner),
+       recordBinding = new Binding.Record(
+         constructor = new Constructor[Doc.Concat] {
+           def usedRegisters: RegisterOffset                                = 1
+           def construct(in: Registers, offset: RegisterOffset): Doc.Concat =
+             Doc.Concat(in.getObject(offset).asInstanceOf[IndexedSeq[Doc.Leaf]])
+         },
+         deconstructor = new Deconstructor[Doc.Concat] {
+           def usedRegisters: RegisterOffset                                             = 1
+           def deconstruct(out: Registers, offset: RegisterOffset, in: Doc.Concat): Unit =
+             out.setObject(offset, in.flatten)
+         }
+       ),
+       modifiers = Chunk.empty
+     )
+   )
 
-  /** Schema for [[Doc.Leaf]]. */
-  implicit lazy val docLeafSchema: Schema[Doc.Leaf] = new Schema(
-    reflect = new Reflect.Variant[Binding, Doc.Leaf](
-      cases = Chunk(docEmptySchema.reflect.asTerm("Empty"), docTextSchema.reflect.asTerm("Text")),
-      typeId = TypeId.nominal[Doc.Leaf]("Leaf", docOwner),
-      variantBinding = new Binding.Variant(
-        discriminator = new Discriminator[Doc.Leaf] {
-          def discriminate(a: Doc.Leaf): Int = a match {
-            case _: Doc.Empty.type => 0
-            case _: Doc.Text       => 1
-          }
-        },
-        matchers = Matchers(
-          new Matcher[Doc.Empty.type] {
-            def downcastOrNull(a: Any): Doc.Empty.type = a match {
-              case _: Doc.Empty.type => Doc.Empty
-              case _                 => null.asInstanceOf[Doc.Empty.type]
-            }
-          },
-          new Matcher[Doc.Text] {
-            def downcastOrNull(a: Any): Doc.Text = a match {
-              case x: Doc.Text => x
-              case _           => null.asInstanceOf[Doc.Text]
-            }
-          }
-        )
-      ),
-      modifiers = Chunk.empty
-    )
-  )
+   /** Schema for [[Doc.Leaf]]. */
+   implicit lazy val docLeafSchema: Schema[Doc.Leaf] = new Schema(
+     reflect = new Reflect.Variant[Binding, Doc.Leaf](
+       cases = Chunk(docEmptySchema.reflect.asTerm("Empty"), docTextSchema.reflect.asTerm("Text")),
+       typeId = TypeId.nominal[Doc.Leaf]("Leaf", docOwner),
+       variantBinding = new Binding.Variant(
+         discriminator = new Discriminator[Doc.Leaf] {
+           def discriminate(a: Doc.Leaf): Int = a match {
+             case _: Doc.Empty.type => 0
+             case _: Doc.Text       => 1
+           }
+         },
+         matchers = Matchers(
+           new Matcher[Doc.Empty.type] {
+             def downcastOrNull(a: Any): Doc.Empty.type = a match {
+               case _: Doc.Empty.type => Doc.Empty
+               case _                 => null.asInstanceOf[Doc.Empty.type]
+             }
+           },
+           new Matcher[Doc.Text] {
+             def downcastOrNull(a: Any): Doc.Text = a match {
+               case x: Doc.Text => x
+               case _           => null.asInstanceOf[Doc.Text]
+             }
+           }
+         )
+       ),
+       modifiers = Chunk.empty
+     )
+   )
 
-  /** Schema for [[Doc]]. */
-  implicit lazy val docSchema: Schema[Doc] = new Schema(
-    reflect = new Reflect.Variant[Binding, Doc](
-      cases = Chunk(
-        docEmptySchema.reflect.asTerm("Empty"),
-        docTextSchema.reflect.asTerm("Text"),
-        docConcatSchema.reflect.asTerm("Concat")
-      ),
-      typeId = TypeId.nominal[Doc]("Doc", zioBlocksSchemaOwner),
-      variantBinding = new Binding.Variant(
-        discriminator = new Discriminator[Doc] {
-          def discriminate(a: Doc): Int = a match {
-            case _: Doc.Empty.type => 0
-            case _: Doc.Text       => 1
-            case _: Doc.Concat     => 2
-          }
-        },
-        matchers = Matchers(
-          new Matcher[Doc.Empty.type] {
-            def downcastOrNull(a: Any): Doc.Empty.type = a match {
-              case _: Doc.Empty.type => Doc.Empty
-              case _                 => null.asInstanceOf[Doc.Empty.type]
-            }
-          },
-          new Matcher[Doc.Text] {
-            def downcastOrNull(a: Any): Doc.Text = a match {
-              case x: Doc.Text => x
-              case _           => null.asInstanceOf[Doc.Text]
-            }
-          },
-          new Matcher[Doc.Concat] {
-            def downcastOrNull(a: Any): Doc.Concat = a match {
-              case x: Doc.Concat => x
-              case _             => null.asInstanceOf[Doc.Concat]
-            }
-          }
-        )
-      ),
-      modifiers = Chunk.empty
-    )
-  )
-
+   /** Schema for [[Doc]]. */
+   implicit lazy val docSchema: Schema[Doc] = new Schema(
+     reflect = new Reflect.Variant[Binding, Doc](
+       cases = Chunk(
+         docEmptySchema.reflect.asTerm("Empty"),
+         docTextSchema.reflect.asTerm("Text"),
+         docConcatSchema.reflect.asTerm("Concat")
+       ),
+       typeId = TypeId.nominal[Doc]("Doc", zioBlocksSchemaOwner),
+       variantBinding = new Binding.Variant(
+         discriminator = new Discriminator[Doc] {
+           def discriminate(a: Doc): Int = a match {
+             case _: Doc.Empty.type => 0
+             case _: Doc.Text       => 1
+             case _: Doc.Concat     => 2
+           }
+         },
+         matchers = Matchers(
+           new Matcher[Doc.Empty.type] {
+             def downcastOrNull(a: Any): Doc.Empty.type = a match {
+               case _: Doc.Empty.type => Doc.Empty
+               case _                 => null.asInstanceOf[Doc.Empty.type]
+             }
+           },
+           new Matcher[Doc.Text] {
+             def downcastOrNull(a: Any): Doc.Text = a match {
+               case x: Doc.Text => x
+               case _           => null.asInstanceOf[Doc.Text]
+             }
+           },
+           new Matcher[Doc.Concat] {
+             def downcastOrNull(a: Any): Doc.Concat = a match {
+               case x: Doc.Concat => x
+               case _             => null.asInstanceOf[Doc.Concat]
+             }
+           }
+         )
+       ),
+       modifiers = Chunk.empty
+     )
+   )
   // ===========================================================================
   // Validation Schemas
   // ===========================================================================
@@ -1524,22 +1523,9 @@ object DynamicSchema extends TypeIdSchemas {
   private[this] def reflectToDynamicValue(reflect: Reflect[NoBinding, _]): DynamicValue = {
     def typeIdToDV(tid: TypeId[_]): DynamicValue = typeIdSchema.toDynamicValue(tid)
 
-    def docToDV(doc: Doc): DynamicValue = doc match {
-      case _: Doc.Empty.type => new DynamicValue.Variant("Empty", emptyDynamicRecord)
-      case t: Doc.Text       =>
-        new DynamicValue.Variant(
-          "Text",
-          new DynamicValue.Record(
-            Chunk.single("value" -> new DynamicValue.Primitive(new PrimitiveValue.String(t.value)))
-          )
-        )
-      case c: Doc.Concat =>
-        new DynamicValue.Variant(
-          "Concat",
-          new DynamicValue.Record(
-            Chunk.single("flatten" -> new DynamicValue.Sequence(Chunk.from(c.flatten).map(docToDV)))
-          )
-        )
+    def docToDV(doc: Doc): DynamicValue = {
+      val markdown = Renderer.render(doc)
+      new DynamicValue.Primitive(new PrimitiveValue.String(markdown))
     }
 
     def modifierToDV(m: Modifier.Reflect): DynamicValue = m match {
@@ -1762,19 +1748,9 @@ object DynamicSchema extends TypeIdSchemas {
       }
 
     def dvToDoc(dv: DynamicValue): Doc = dv match {
-      case DynamicValue.Variant("Empty", _)                          => Doc.Empty
-      case DynamicValue.Variant("Text", DynamicValue.Record(fields)) =>
-        getFieldValue(fields, "value") match {
-          case Some(DynamicValue.Primitive(PrimitiveValue.String(s))) => new Doc.Text(s)
-          case _                                                      => Doc.Empty
-        }
-      case DynamicValue.Variant("Concat", DynamicValue.Record(fields)) =>
-        getFieldValue(fields, "flatten") match {
-          case Some(DynamicValue.Sequence(elems)) =>
-            new Doc.Concat(elems.map(dvToDoc).collect { case l: Doc.Leaf => l })
-          case _ => Doc.Empty
-        }
-      case _ => Doc.Empty
+      case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+        Parser.parse(s).getOrElse(Doc.empty)
+      case _ => Doc.empty
     }
 
     def dvToModifiers(dv: DynamicValue): Seq[Modifier.Reflect] = dv match {
