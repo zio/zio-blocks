@@ -194,6 +194,29 @@ This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala
 - **Use "ZIO Blocks"** (not "zio-blocks") for the project name.
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
+- **Tense**: Use present tense ("returns", "creates", "modifies").
+
+### Admonitions
+
+Use Docusaurus admonition syntax for warnings and caveats:
+
+```
+:::caution
+`update` is not the composition of `get` and `set`. This composition is not concurrent-safe.
+:::
+```
+
+```
+:::warning
+A `Ref` must be used with **immutable data**. Storing mutable data breaks atomic guarantees.
+:::
+```
+
+```
+:::note
+Additional context or clarification.
+:::
+```
 
 ## Step 3: Integrate
 
