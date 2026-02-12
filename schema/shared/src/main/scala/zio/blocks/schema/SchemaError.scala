@@ -135,20 +135,17 @@ object SchemaError {
           val sb = new java.lang.StringBuilder(details)
           sb.append('\n')
           if (causeErr.errors.isEmpty) sb.append("<no further details>")
-          else if (causeErr.errors.length == 1) {
-            sb.append("  Caused by: ")
-            sb.append(causeErr.errors.head.message)
-          } else {
+          else if (causeErr.errors.length == 1) sb.append("  Caused by: ").append(causeErr.errors.head.message)
+          else {
             sb.append("  Caused by:\n")
             val start = sb.length
             causeErr.errors.foreach { e =>
               if (sb.length > start) sb.append('\n')
-              sb.append("  - ")
-              sb.append(e.message)
+              sb.append("  - ").append(e.message)
             }
           }
           sb.toString
-        case None => details
+        case _ => details
       }
   }
 

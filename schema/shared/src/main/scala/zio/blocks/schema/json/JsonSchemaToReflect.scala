@@ -231,34 +231,25 @@ private[schema] object JsonSchemaToReflect {
       case _           =>
         val minLen = obj.minLength.map(_.value)
         val maxLen = obj.maxLength.map(_.value)
-        (minLen, maxLen) match {
-          case (Some(min), Some(max)) if min == max && min == 1 => Validation.String.NonEmpty
-          case (Some(min), _) if min > 0                        => Validation.String.Length(Some(min), maxLen)
-          case (_, Some(max))                                   => Validation.String.Length(minLen, Some(max))
-          case _                                                => Validation.None
-        }
+        if ((minLen ne None) || (maxLen ne None)) {
+          if ((minLen ne None) && (maxLen ne None) && minLen.get == maxLen.get && minLen.get == 1) {
+            Validation.String.NonEmpty
+          } else new Validation.String.Length(minLen, maxLen)
+        } else Validation.None
     }
 
   private[this] def buildBigIntValidation(obj: JsonSchema.Object): Validation[BigInt] = {
     val min = obj.minimum.orElse(obj.exclusiveMinimum).map(_.toBigInt)
     val max = obj.maximum.orElse(obj.exclusiveMaximum).map(_.toBigInt)
-    (min, max) match {
-      case (Some(minVal), Some(maxVal)) => Validation.Numeric.Range(Some(minVal), Some(maxVal))
-      case (Some(minVal), None)         => Validation.Numeric.Range(Some(minVal), None)
-      case (None, Some(maxVal))         => Validation.Numeric.Range(None, Some(maxVal))
-      case (None, None)                 => Validation.None
-    }
+    if (min.isDefined || max.isDefined) new Validation.Numeric.Range(min, max)
+    else Validation.None
   }
 
   private[this] def buildBigDecimalValidation(obj: JsonSchema.Object): Validation[BigDecimal] = {
     val min = obj.minimum.orElse(obj.exclusiveMinimum)
     val max = obj.maximum.orElse(obj.exclusiveMaximum)
-    (min, max) match {
-      case (Some(minVal), Some(maxVal)) => Validation.Numeric.Range(Some(minVal), Some(maxVal))
-      case (Some(minVal), None)         => Validation.Numeric.Range(Some(minVal), None)
-      case (None, Some(maxVal))         => Validation.Numeric.Range(None, Some(maxVal))
-      case (None, None)                 => Validation.None
-    }
+    if (min.isDefined || max.isDefined) new Validation.Numeric.Range(min, max)
+    else Validation.None
   }
 
   private[this] def wrapPrimitive[A](primitiveType: PrimitiveType[A]): Reflect[Binding, DynamicValue] = {

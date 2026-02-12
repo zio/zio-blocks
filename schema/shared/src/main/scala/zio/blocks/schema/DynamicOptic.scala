@@ -41,25 +41,27 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)        => sb.append('.').append(name)
-        case Node.Case(name)         => sb.append('<').append(name).append('>')
-        case Node.AtIndex(index)     => sb.append('[').append(index).append(']')
-        case Node.AtIndices(indices) =>
+        case f: Node.Field      => sb.append('.').append(f.name)
+        case c: Node.Case       => sb.append('<').append(c.name).append('>')
+        case ai: Node.AtIndex   => sb.append('[').append(ai.index).append(']')
+        case ai: Node.AtIndices =>
           sb.append('[')
-          val idxLen = indices.length
-          var i      = 0
+          val indices = ai.index
+          val idxLen  = indices.length
+          var i       = 0
           while (i < idxLen) {
             if (i > 0) sb.append(',')
             sb.append(indices(i))
             i += 1
           }
           sb.append(']')
-        case Node.AtMapKey(key) =>
+        case amk: Node.AtMapKey =>
           sb.append('{')
-          renderDynamicValue(sb, key)
+          renderDynamicValue(sb, amk.key)
           sb.append('}')
-        case Node.AtMapKeys(keys) =>
+        case amk: Node.AtMapKeys =>
           sb.append('{')
+          val keys   = amk.keys
           val keyLen = keys.length
           var i      = 0
           while (i < keyLen) {
@@ -68,10 +70,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append('}')
-        case Node.Elements  => sb.append("[*]")
-        case Node.MapKeys   => sb.append("{*:}")
-        case Node.MapValues => sb.append("{*}")
-        case Node.Wrapped   => sb.append(".~")
+        case _: Node.Elements.type  => sb.append("[*]")
+        case _: Node.MapKeys.type   => sb.append("{*:}")
+        case _: Node.MapValues.type => sb.append("{*}")
+        case _                      => sb.append(".~")
       }
       idx += 1
     }
@@ -91,25 +93,27 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name)        => sb.append('.').append(name)
-        case Node.Case(name)         => sb.append(".when[").append(name).append(']')
-        case Node.AtIndex(index)     => sb.append(".at(").append(index).append(')')
-        case Node.AtIndices(indices) =>
+        case f: Node.Field      => sb.append('.').append(f.name)
+        case c: Node.Case       => sb.append(".when[").append(c.name).append(']')
+        case ai: Node.AtIndex   => sb.append(".at(").append(ai.index).append(')')
+        case ai: Node.AtIndices =>
           sb.append(".atIndices(")
-          val idxLen = indices.length
-          var i      = 0
+          val indices = ai.index
+          val idxLen  = indices.length
+          var i       = 0
           while (i < idxLen) {
             if (i > 0) sb.append(", ")
             sb.append(indices(i))
             i += 1
           }
           sb.append(')')
-        case Node.AtMapKey(key) =>
+        case amk: Node.AtMapKey =>
           sb.append(".atKey(")
-          renderDynamicValue(sb, key)
+          renderDynamicValue(sb, amk.key)
           sb.append(')')
-        case Node.AtMapKeys(keys) =>
+        case amk: Node.AtMapKeys =>
           sb.append(".atKeys(")
+          val keys   = amk.keys
           val keyLen = keys.length
           var i      = 0
           while (i < keyLen) {
@@ -118,10 +122,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
             i += 1
           }
           sb.append(')')
-        case Node.Elements  => sb.append(".each")
-        case Node.MapKeys   => sb.append(".eachKey")
-        case Node.MapValues => sb.append(".eachValue")
-        case Node.Wrapped   => sb.append(".wrapped")
+        case _: Node.Elements.type  => sb.append(".each")
+        case _: Node.MapKeys.type   => sb.append(".eachKey")
+        case _: Node.MapValues.type => sb.append(".eachValue")
+        case _                      => sb.append(".wrapped")
       }
       idx += 1
     }

@@ -798,7 +798,7 @@ object DynamicPatch {
   implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Insert](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[String].reflect.asTerm("text")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[String].reflect.asTerm("text")),
         typeId = TypeId.of[StringOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Insert] {
@@ -814,14 +814,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpDeleteSchema: Schema[StringOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Delete](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("length")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("length")),
         typeId = TypeId.of[StringOp.Delete],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Delete] {
@@ -840,14 +840,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpAppendSchema: Schema[StringOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Append](
-        fields = Vector(Schema[String].reflect.asTerm("text")),
+        fields = Chunk.single(Schema[String].reflect.asTerm("text")),
         typeId = TypeId.of[StringOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Append] {
@@ -861,14 +861,14 @@ object DynamicPatch {
               out.setObject(offset, in.text)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpModifySchema: Schema[StringOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Modify](
-        fields = Vector(
+        fields = Chunk(
           Schema[Int].reflect.asTerm("index"),
           Schema[Int].reflect.asTerm("length"),
           Schema[String].reflect.asTerm("text")
@@ -893,13 +893,13 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpSchema: Schema[StringOp] = new Schema(
     reflect = new Reflect.Variant[Binding, StringOp](
-      cases = Vector(
+      cases = Chunk(
         stringOpInsertSchema.reflect.asTerm("Insert"),
         stringOpDeleteSchema.reflect.asTerm("Delete"),
         stringOpAppendSchema.reflect.asTerm("Append"),
@@ -942,14 +942,14 @@ object DynamicPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val primitiveOpIntDeltaSchema: Schema[PrimitiveOp.IntDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.IntDelta](
-        fields = Vector(Schema[Int].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[Int].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.IntDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.IntDelta] {
@@ -963,14 +963,14 @@ object DynamicPatch {
               out.setInt(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpLongDeltaSchema: Schema[PrimitiveOp.LongDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LongDelta](
-        fields = Vector(Schema[Long].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[Long].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.LongDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.LongDelta] {
@@ -984,14 +984,14 @@ object DynamicPatch {
               out.setLong(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpDoubleDeltaSchema: Schema[PrimitiveOp.DoubleDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DoubleDelta](
-        fields = Vector(Schema[Double].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[Double].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.DoubleDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.DoubleDelta] {
@@ -1005,14 +1005,14 @@ object DynamicPatch {
               out.setDouble(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpFloatDeltaSchema: Schema[PrimitiveOp.FloatDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.FloatDelta](
-        fields = Vector(Schema[Float].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[Float].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.FloatDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.FloatDelta] {
@@ -1026,14 +1026,14 @@ object DynamicPatch {
               out.setFloat(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpShortDeltaSchema: Schema[PrimitiveOp.ShortDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ShortDelta](
-        fields = Vector(Schema[Short].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[Short].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.ShortDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.ShortDelta] {
@@ -1047,14 +1047,14 @@ object DynamicPatch {
               out.setShort(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpByteDeltaSchema: Schema[PrimitiveOp.ByteDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ByteDelta](
-        fields = Vector(Schema[Byte].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[Byte].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.ByteDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.ByteDelta] {
@@ -1068,14 +1068,14 @@ object DynamicPatch {
               out.setByte(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpBigIntDeltaSchema: Schema[PrimitiveOp.BigIntDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigIntDelta](
-        fields = Vector(Schema[BigInt].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[BigInt].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.BigIntDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.BigIntDelta] {
@@ -1089,14 +1089,14 @@ object DynamicPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpBigDecimalDeltaSchema: Schema[PrimitiveOp.BigDecimalDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigDecimalDelta](
-        fields = Vector(Schema[BigDecimal].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[BigDecimal].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.BigDecimalDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.BigDecimalDelta] {
@@ -1110,14 +1110,14 @@ object DynamicPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
-        fields = Vector(Schema[Chunk[StringOp]].reflect.asTerm("ops")),
+        fields = Chunk.single(Schema[Chunk[StringOp]].reflect.asTerm("ops")),
         typeId = TypeId.of[PrimitiveOp.StringEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.StringEdit] {
@@ -1131,14 +1131,14 @@ object DynamicPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpInstantDeltaSchema: Schema[PrimitiveOp.InstantDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.InstantDelta](
-        fields = Vector(Schema[java.time.Duration].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[java.time.Duration].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.InstantDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.InstantDelta] {
@@ -1152,14 +1152,14 @@ object DynamicPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpDurationDeltaSchema: Schema[PrimitiveOp.DurationDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DurationDelta](
-        fields = Vector(Schema[java.time.Duration].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[java.time.Duration].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.DurationDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.DurationDelta] {
@@ -1173,14 +1173,14 @@ object DynamicPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpLocalDateDeltaSchema: Schema[PrimitiveOp.LocalDateDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateDelta](
-        fields = Vector(Schema[java.time.Period].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[java.time.Period].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.LocalDateDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.LocalDateDelta] {
@@ -1194,14 +1194,14 @@ object DynamicPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpLocalDateTimeDeltaSchema: Schema[PrimitiveOp.LocalDateTimeDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateTimeDelta](
-        fields = Vector(
+        fields = Chunk(
           Schema[java.time.Period].reflect.asTerm("periodDelta"),
           Schema[java.time.Duration].reflect.asTerm("durationDelta")
         ),
@@ -1223,14 +1223,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpPeriodDeltaSchema: Schema[PrimitiveOp.PeriodDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.PeriodDelta](
-        fields = Vector(Schema[java.time.Period].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[java.time.Period].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.PeriodDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.PeriodDelta] {
@@ -1244,13 +1244,13 @@ object DynamicPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpSchema: Schema[PrimitiveOp] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveOp](
-      cases = Vector(
+      cases = Chunk(
         primitiveOpIntDeltaSchema.reflect.asTerm("IntDelta"),
         primitiveOpLongDeltaSchema.reflect.asTerm("LongDelta"),
         primitiveOpDoubleDeltaSchema.reflect.asTerm("DoubleDelta"),
@@ -1373,14 +1373,14 @@ object DynamicPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val seqOpInsertSchema: Schema[SeqOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Insert](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
         typeId = TypeId.of[SeqOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Insert] {
@@ -1396,14 +1396,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val seqOpAppendSchema: Schema[SeqOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Append](
-        fields = Vector(Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
+        fields = Chunk.single(Schema[Chunk[DynamicValue]].reflect.asTerm("values")),
         typeId = TypeId.of[SeqOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Append] {
@@ -1417,14 +1417,14 @@ object DynamicPatch {
               out.setObject(offset, in.values)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val seqOpDeleteSchema: Schema[SeqOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Delete](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("count")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("count")),
         typeId = TypeId.of[SeqOp.Delete],
         recordBinding = new Binding.Record(
           constructor = new Constructor[SeqOp.Delete] {
@@ -1440,14 +1440,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val seqOpModifySchema: Schema[SeqOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Modify](
-        fields = Vector(
+        fields = Chunk(
           Schema[Int].reflect.asTerm("index"),
           Reflect.Deferred(() => operationSchema.reflect).asTerm("op")
         ),
@@ -1466,13 +1466,13 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val seqOpSchema: Schema[SeqOp] = new Schema(
     reflect = new Reflect.Variant[Binding, SeqOp](
-      cases = Vector(
+      cases = Chunk(
         seqOpInsertSchema.reflect.asTerm("Insert"),
         seqOpAppendSchema.reflect.asTerm("Append"),
         seqOpDeleteSchema.reflect.asTerm("Delete"),
@@ -1515,14 +1515,14 @@ object DynamicPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val mapOpAddSchema: Schema[MapOp.Add] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Add](
-        fields = Vector(Schema[DynamicValue].reflect.asTerm("key"), Schema[DynamicValue].reflect.asTerm("value")),
+        fields = Chunk(Schema[DynamicValue].reflect.asTerm("key"), Schema[DynamicValue].reflect.asTerm("value")),
         typeId = TypeId.of[MapOp.Add],
         recordBinding = new Binding.Record(
           constructor = new Constructor[MapOp.Add] {
@@ -1541,14 +1541,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val mapOpRemoveSchema: Schema[MapOp.Remove] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Remove](
-        fields = Vector(Schema[DynamicValue].reflect.asTerm("key")),
+        fields = Chunk.single(Schema[DynamicValue].reflect.asTerm("key")),
         typeId = TypeId.of[MapOp.Remove],
         recordBinding = new Binding.Record(
           constructor = new Constructor[MapOp.Remove] {
@@ -1562,14 +1562,14 @@ object DynamicPatch {
               out.setObject(offset, in.key)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val mapOpModifySchema: Schema[MapOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Modify](
-        fields = Vector(
+        fields = Chunk(
           Schema[DynamicValue].reflect.asTerm("key"),
           Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")
         ),
@@ -1591,13 +1591,13 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val mapOpSchema: Schema[MapOp] = new Schema(
     reflect = new Reflect.Variant[Binding, MapOp](
-      cases = Vector(
+      cases = Chunk(
         mapOpAddSchema.reflect.asTerm("Add"),
         mapOpRemoveSchema.reflect.asTerm("Remove"),
         Reflect.Deferred(() => mapOpModifySchema.reflect).asTerm("Modify")
@@ -1632,14 +1632,14 @@ object DynamicPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val operationSetSchema: Schema[Operation.Set] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Set](
-        fields = Vector(Schema[DynamicValue].reflect.asTerm("value")),
+        fields = Chunk.single(Schema[DynamicValue].reflect.asTerm("value")),
         typeId = TypeId.of[Operation.Set],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.Set] {
@@ -1653,14 +1653,14 @@ object DynamicPatch {
               out.setObject(offset, in.value)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val operationPrimitiveDeltaSchema: Schema[Operation.PrimitiveDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.PrimitiveDelta](
-        fields = Vector(primitiveOpSchema.reflect.asTerm("op")),
+        fields = Chunk.single(primitiveOpSchema.reflect.asTerm("op")),
         typeId = TypeId.of[Operation.PrimitiveDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.PrimitiveDelta] {
@@ -1674,14 +1674,14 @@ object DynamicPatch {
               out.setObject(offset, in.op)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val operationSequenceEditSchema: Schema[Operation.SequenceEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.SequenceEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Chunk[SeqOp]].reflect).asTerm("ops")),
+        fields = Chunk.single(Reflect.Deferred(() => Schema[Chunk[SeqOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Operation.SequenceEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.SequenceEdit] {
@@ -1695,14 +1695,14 @@ object DynamicPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val operationMapEditSchema: Schema[Operation.MapEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.MapEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Chunk[MapOp]].reflect).asTerm("ops")),
+        fields = Chunk.single(Reflect.Deferred(() => Schema[Chunk[MapOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Operation.MapEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.MapEdit] {
@@ -1716,14 +1716,14 @@ object DynamicPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val operationPatchSchema: Schema[Operation.Patch] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Patch](
-        fields = Vector(Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")),
+        fields = Chunk.single(Reflect.Deferred(() => dynamicPatchSchema.reflect).asTerm("patch")),
         typeId = TypeId.of[Operation.Patch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Operation.Patch] {
@@ -1737,13 +1737,13 @@ object DynamicPatch {
               out.setObject(offset, in.patch)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val operationSchema: Schema[Operation] = new Schema(
     reflect = new Reflect.Variant[Binding, Operation](
-      cases = Vector(
+      cases = Chunk(
         operationSetSchema.reflect.asTerm("Set"),
         operationPrimitiveDeltaSchema.reflect.asTerm("PrimitiveDelta"),
         operationSequenceEditSchema.reflect.asTerm("SequenceEdit"),
@@ -1794,14 +1794,14 @@ object DynamicPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatchOp](
-        fields = Vector(
+        fields = Chunk(
           Schema[DynamicOptic].reflect.asTerm("path"),
           Reflect.Deferred(() => operationSchema.reflect).asTerm("operation")
         ),
@@ -1823,14 +1823,14 @@ object DynamicPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatch](
-        fields = Vector(Reflect.Deferred(() => Schema[Chunk[DynamicPatchOp]].reflect).asTerm("ops")),
+        fields = Chunk.single(Reflect.Deferred(() => Schema[Chunk[DynamicPatchOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[DynamicPatch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[DynamicPatch] {
@@ -1844,7 +1844,7 @@ object DynamicPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 }

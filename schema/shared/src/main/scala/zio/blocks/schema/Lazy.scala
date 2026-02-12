@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import scala.util.control.NonFatal
+
 sealed trait Lazy[+A] {
   import Lazy._
 
@@ -41,7 +43,7 @@ sealed trait Lazy[+A] {
           val cont = stack.head
           loop(
             try cont.ifSuccess(thunk())
-            catch { case e: Throwable => cont.ifError(e) },
+            catch { case e if NonFatal(e) => cont.ifError(e) },
             stack.tail
           )
         }
@@ -55,7 +57,7 @@ sealed trait Lazy[+A] {
          value = loop(this, Nil)
          value
        } catch {
-         case e: Throwable =>
+         case e if NonFatal(e) =>
            error = e
            throw e
        }
