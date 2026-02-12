@@ -41,9 +41,9 @@ object MarkdownSchemaSpec extends SchemaBaseSpec {
         assertTrue(result == Right(codeBlock))
       },
       test("Schema[ThematicBreak.type] should exist and round-trip") {
-        val schema         = implicitly[Schema[ThematicBreak.type]]
-        val thematicBreak  = ThematicBreak
-        val result         = schema.fromDynamicValue(schema.toDynamicValue(thematicBreak))
+        val schema        = implicitly[Schema[ThematicBreak.type]]
+        val thematicBreak = ThematicBreak
+        val result        = schema.fromDynamicValue(schema.toDynamicValue(thematicBreak))
         assertTrue(result == Right(thematicBreak))
       },
       test("Schema[BlockQuote] should exist and round-trip") {

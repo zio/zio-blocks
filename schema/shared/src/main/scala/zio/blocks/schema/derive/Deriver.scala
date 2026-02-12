@@ -4,6 +4,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
+import zio.blocks.docs.Doc
 
 trait Deriver[TC[_]] { self =>
   type HasInstance[F[_, _]] = zio.blocks.schema.derive.HasInstance[F, TC]

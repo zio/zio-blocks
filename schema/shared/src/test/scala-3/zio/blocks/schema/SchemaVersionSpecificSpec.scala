@@ -10,8 +10,8 @@ import zio.test.Assertion._
 import zio.test._
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
-  
-  private def textDoc(s: String): Doc = 
+
+  private def textDoc(s: String): Doc =
     Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(

@@ -15,8 +15,8 @@ import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
 
 object SchemaSpec extends SchemaBaseSpec {
-  
-  private def textDoc(s: String): Doc = 
+
+  private def textDoc(s: String): Doc =
     Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(

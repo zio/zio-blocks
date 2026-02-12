@@ -7,8 +7,8 @@ import zio.test.Assertion._
 import zio.test._
 
 object SchemaAspectSpec extends SchemaBaseSpec {
-  
-  private def textDoc(s: String): Doc = 
+
+  private def textDoc(s: String): Doc =
     Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   case class Person(name: String, age: Int)
 

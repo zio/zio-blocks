@@ -5,8 +5,8 @@ import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.test._
 
 object DynamicSchemaSpec extends SchemaBaseSpec {
-  
-  private def textDoc(s: String): Doc = 
+
+  private def textDoc(s: String): Doc =
     Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   private def getTypeName(ds: DynamicSchema): String = ds.typeId.name
   case class Person(name: String, age: Int)

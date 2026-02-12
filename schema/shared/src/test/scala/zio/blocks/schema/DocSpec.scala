@@ -6,8 +6,8 @@ import zio.test.Assertion._
 import zio.test._
 
 object DocSpec extends SchemaBaseSpec {
-  
-  private def textDoc(s: String): Doc = 
+
+  private def textDoc(s: String): Doc =
     Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
 
   def spec: Spec[TestEnvironment, Any] = suite("DocSpec")(
@@ -35,8 +35,8 @@ object DocSpec extends SchemaBaseSpec {
     ),
     suite("Doc concatenation")(
       test("has consistent equals and hashCode") {
-        val doc1 = textDoc("text")
-        val doc2 = textDoc("text")
+        val doc1       = textDoc("text")
+        val doc2       = textDoc("text")
         val docConcat1 = doc1 ++ doc2
         val docConcat2 = doc2 ++ doc1
         val docConcat3 = doc1 ++ (Doc.empty ++ doc2)
@@ -71,7 +71,7 @@ object DocSpec extends SchemaBaseSpec {
       },
       test("Doc with text content round-trips through DynamicValue") {
         val schema = Schema[Doc]
-        val doc = textDoc("Hello World")
+        val doc    = textDoc("Hello World")
         val result = schema.fromDynamicValue(schema.toDynamicValue(doc))
         assertTrue(result == Right(doc))
       }

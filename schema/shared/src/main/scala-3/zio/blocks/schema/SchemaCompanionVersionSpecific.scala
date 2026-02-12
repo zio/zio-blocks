@@ -7,6 +7,7 @@ import scala.quoted._
 import zio.blocks.schema.{Term => SchemaTerm}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
+import zio.blocks.docs.Doc
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
@@ -316,7 +317,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     if (isEnumValue(tpe)) tpe.termSymbol
     else tpe.typeSymbol
   }.docstring
-    .fold('{ Doc.Empty })(s => '{ new Doc.Text(${ Expr(s) }) })
+    .fold('{ Doc.empty })(s =>
+      '{
+        Doc(
+          zio.blocks.chunk.Chunk
+            .single(zio.blocks.docs.Paragraph(zio.blocks.chunk.Chunk.single(zio.blocks.docs.Inline.Text(${ Expr(s) }))))
+        )
+      }
+    )
     .asInstanceOf[Expr[Doc]]
 
   private def modifiers(tpe: TypeRepr)(using Quotes): Expr[Seq[Modifier.Reflect]] = {
