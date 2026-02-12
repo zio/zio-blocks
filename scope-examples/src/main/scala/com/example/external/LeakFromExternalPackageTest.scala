@@ -20,12 +20,12 @@ import zio.blocks.scope._
 
   Scope.global.scoped { scope =>
     import scope._
-    val db: Database @@ scope.ScopeTag = allocate(Resource(new Database))
+    val db: $[Database] = allocate(Resource(new Database))
 
-    // This uses the leak macro from an external package
-    // If private[scope] run() is not accessible, this will fail to compile
-    @nowarn("msg=is being leaked")
-    val leaked: Database = leak(db)
+    // Since $[A] = A at runtime, we can extract the raw value via cast.
+    // This bypasses compile-time safety - use sparingly.
+    @nowarn
+    val leaked: Database = db.asInstanceOf[Database]
 
     println(s"Leaked database query: ${leaked.query("SELECT 1")}")
   }

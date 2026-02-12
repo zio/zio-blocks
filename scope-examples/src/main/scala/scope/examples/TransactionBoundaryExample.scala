@@ -83,7 +83,7 @@ object TransactionBoundaryExample {
     Scope.global.scoped { connScope =>
       import connScope._
       // Allocate the connection in the outer scope
-      val conn = allocate(Resource.fromAutoCloseable(new DbConnection("db-001")))
+      val conn: $[DbConnection] = allocate(Resource.fromAutoCloseable(new DbConnection("db-001")))
       println()
 
       // Transaction 1: Successful insert
@@ -91,15 +91,14 @@ object TransactionBoundaryExample {
       val result1: TxResult =
         scoped { txScope =>
           import txScope._
-          val program = for {
-            c  <- conn
+          for {
+            c  <- lower(conn)
             tx <- allocate(c.beginTransaction("tx-001"))
           } yield {
             val rows = tx.execute("INSERT INTO users VALUES (1, 'Alice')")
             tx.commit()
             TxResult(success = true, affectedRows = rows)
           }
-          execute(program)
         }
       println(s"  Result: $result1\n")
 
@@ -108,8 +107,8 @@ object TransactionBoundaryExample {
       val result2: TxResult =
         scoped { txScope =>
           import txScope._
-          val program = for {
-            c  <- conn
+          for {
+            c  <- lower(conn)
             tx <- allocate(c.beginTransaction("tx-002"))
           } yield {
             val rows1 = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
@@ -117,7 +116,6 @@ object TransactionBoundaryExample {
             tx.commit()
             TxResult(success = true, affectedRows = rows1 + rows2)
           }
-          execute(program)
         }
       println(s"  Result: $result2\n")
 
@@ -127,15 +125,14 @@ object TransactionBoundaryExample {
         scoped { txScope =>
           import txScope._
 
-          val program = for {
-            c  <- conn
+          for {
+            c  <- lower(conn)
             tx <- allocate(c.beginTransaction("tx-003"))
           } yield {
             tx.execute("DELETE FROM audit_log")
             println("    [App] Not committing - scope exit will trigger auto-rollback...")
             TxResult(success = false, affectedRows = 0)
           }
-          execute(program)
         }
       println(s"  Result: $result3\n")
 

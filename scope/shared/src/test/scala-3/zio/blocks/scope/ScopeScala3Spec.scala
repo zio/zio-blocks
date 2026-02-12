@@ -3,7 +3,7 @@ package zio.blocks.scope
 import zio.test._
 
 /**
- * Tests for the new Scope design with existential types.
+ * Tests for the new Scope design with scope-local opaque types.
  */
 object ScopeScala3Spec extends ZIOSpecDefault {
 
@@ -42,7 +42,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("scoped closes scope even on exception") {
         var cleaned = false
         try {
-          Scope.global.scoped { scope =>
+          Scope.global.scoped[Nothing] { scope =>
             import scope._
             defer { cleaned = true }
             throw new RuntimeException("boom")
@@ -69,14 +69,12 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         close()
         assertTrue(db.closed)
       },
-      test("allocate returns tagged value and $ works") {
-        // Capture result via side effect in the function passed to $
+      test("allocate returns scoped value and $ works") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           import scope._
-          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
-          // $ executes immediately, so side effect happens now
-          $(db) { d =>
+          val db: $[Database] = allocate(Resource.from[Database])
+          val _: $[String]    = $(db) { d =>
             val result = d.query("SELECT 1")
             captured = result
             result
@@ -90,8 +88,8 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         var captured: Boolean | Null = null
         Scope.global.scoped { scope =>
           import scope._
-          val config: Config @@ scope.ScopeTag = allocate(Resource(Config(true)))
-          $(config) { c =>
+          val config: $[Config] = allocate(Resource(Config(true)))
+          val _: $[Boolean]     = $(config) { c =>
             val debug = c.debug
             captured = debug
             debug
@@ -99,12 +97,12 @@ object ScopeScala3Spec extends ZIOSpecDefault {
         }
         assertTrue(captured == true)
       },
-      test("$ always returns tagged value") {
+      test("$ always returns scoped value") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           import scope._
-          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
-          $(db) { d =>
+          val db: $[Database] = allocate(Resource.from[Database])
+          val _: $[String]    = $(db) { d =>
             val result = d.query("test")
             captured = result
             result
@@ -114,83 +112,81 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       }
     ),
     suite("nested scopes")(
-      test("child scope can access parent resources via Tag subtyping") {
+      test("child scope can access parent resources via lower") {
+        val (parent, closeParent) = Scope.createTestableScope()
+        import parent._
         var captured: String | Null = null
-        Scope.global.scoped { parentScope =>
-          import parentScope._
-          val db: Database @@ parentScope.ScopeTag = allocate(Resource.from[Database])
+        val db: $[Database]         = allocate(Resource.from[Database])
 
-          parentScope.scoped { childScope =>
-            import childScope._
-            $(db) { d =>
-              val result = d.query("child")
-              captured = result
-              result
-            }
-            () // Return Unit (Unscoped)
+        parent.scoped { child =>
+          import child._
+          val childDb      = lower(db)
+          val _: $[String] = $(childDb) { d =>
+            val result = d.query("child")
+            captured = result
+            result
           }
         }
+        closeParent()
         assertTrue(captured == "result: child")
       },
       test("child scope closes before parent") {
+        val (parent, closeParent) = Scope.createTestableScope()
+        import parent._
         val order = scala.collection.mutable.ArrayBuffer.empty[String]
+        defer(order += "parent")
 
-        Scope.global.scoped { parent =>
-          import parent._
-          defer(order += "parent")
-
-          parent.scoped { child =>
-            import child._
-            defer(order += "child")
-          }
+        parent.scoped { child =>
+          import child._
+          defer(order += "child")
         }
-
+        closeParent()
         assertTrue(order.toList == List("child", "parent"))
       }
     ),
-    suite("Scoped monad")(
-      test("map creates Scoped computation") {
+    suite("map/flatMap (eager operations)")(
+      test("map works with scoped values") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           import scope._
-          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
-          val computation                    = db.map { d =>
-            val result = d.query("mapped")
-            captured = result
-            result
+          val db: $[Database]   = allocate(Resource.from[Database])
+          val result: $[String] = db.map { d =>
+            val r = d.query("mapped")
+            captured = r
+            r
           }
-          execute(computation) // execute runs the computation
+          captured.nn
         }
         assertTrue(captured == "result: mapped")
       },
-      test("map and Scoped.map composition") {
+      test("map and map composition") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           import scope._
-          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
-          val computation                    = db.map(_.query("a")).map { s =>
-            val result = s.toUpperCase
-            captured = result
-            result
+          val db: $[Database]   = allocate(Resource.from[Database])
+          val result: $[String] = db.map(_.query("a")).map { s =>
+            val r = s.toUpperCase
+            captured = r
+            r
           }
-          execute(computation)
+          captured.nn
         }
         assertTrue(captured == "RESULT: A")
       },
-      test("flatMap chains scoped computations") {
+      test("flatMap chains scoped values") {
         var captured: String | Null = null
         Scope.global.scoped { scope =>
           import scope._
-          val db: Database @@ scope.ScopeTag = allocate(Resource.from[Database])
-          val computation                    = for {
+          val db: $[Database]   = allocate(Resource.from[Database])
+          val result: $[String] = for {
             d <- db
-            r <- Scoped(d.query("chained"))
+            r <- wrap(d.query("chained"))
           } yield {
-            val result = r.toUpperCase
-            captured = result
-            result
+            val upper = r.toUpperCase
+            captured = upper
+            upper
           }
-          execute(computation)
+          captured.nn
         }
         assertTrue(captured == "RESULT: CHAINED")
       },
@@ -212,7 +208,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
 
         Scope.global.scoped { scope =>
           import scope._
-          val program = for {
+          val program: $[String] = for {
             pool <- allocate(Resource.acquireRelease(new Pool) { p =>
                       poolClosed = true
                       p.close()
@@ -226,7 +222,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
             captured = result
             result
           }
-          execute(program)
+          captured.nn
         }
 
         assertTrue(
@@ -272,7 +268,7 @@ object ScopeScala3Spec extends ZIOSpecDefault {
       test("block throws and finalizers throw: primary thrown, finalizer errors suppressed") {
         var caught: Throwable | Null = null
         try {
-          Scope.global.scoped { scope =>
+          Scope.global.scoped[Nothing] { scope =>
             import scope._
             defer(throw new RuntimeException("finalizer 1"))
             defer(throw new RuntimeException("finalizer 2"))
@@ -322,74 +318,25 @@ object ScopeScala3Spec extends ZIOSpecDefault {
     ),
     suite("edge cases")(
       test("runtime cast is unsafe with sibling scopes (demonstration)") {
-        // This demonstrates that runtime casts can bypass type safety
-        // The type system prevents this, but asInstanceOf can circumvent it
+        val (parent, closeParent)   = Scope.createTestableScope()
         var captured: String | Null = null
-        Scope.global.scoped { parent =>
-          var leaked: Any = null
-          parent.scoped { child1 =>
-            import child1._
-            leaked = allocate(Resource.from[Database])
-            () // Return Unit
-          }
-          parent.scoped { child2 =>
-            import child2._
-            val db = leaked.asInstanceOf[Database @@ child2.ScopeTag]
-            $(db) { d =>
-              val result = d.query("test")
-              captured = result
-              result
-            }
-            () // Return Unit
+        var leaked: Any             = null
+
+        parent.scoped { child1 =>
+          import child1._
+          leaked = allocate(Resource.from[Database])
+        }
+        parent.scoped { child2 =>
+          import child2._
+          val db           = leaked.asInstanceOf[$[Database]]
+          val _: $[String] = $(db) { d =>
+            val result = d.query("test")
+            captured = result
+            result
           }
         }
+        closeParent()
         assertTrue(captured == "result: test")
-      }
-    ),
-
-    suite("scope + scoped value leak prevention")(
-      test("scoped on closed scope creates already-closed child preventing use-after-close") {
-        var accessedAfterClose = false
-        var resourceClosed     = false
-
-        class TrackedResource extends AutoCloseable {
-          def read(): Int = {
-            accessedAfterClose = resourceClosed
-            42
-          }
-          def close(): Unit = resourceClosed = true
-        }
-
-        // The attack: return both the child scope AND a scoped value from global.scoped
-        // globalScope ScopeLift instance allows ANY type to escape from GlobalTag parent
-        // Use a case class to bundle them with matching existential types
-        case class Leaked[T <: Scope.GlobalTag](scope: Scope[Scope.GlobalTag, T], value: TrackedResource @@ T)
-
-        val leaked = Scope.global.scoped { child =>
-          import child._
-          val resource = allocate(Resource(new TrackedResource))
-          Leaked(child, resource)
-        }
-        // Child scope is now CLOSED, but we have both the scope and the scoped value
-
-        assertTrue(resourceClosed) // Finalizer ran, resource is closed
-
-        // Attempted attack: call scoped() on the closed scope
-        // Before fix: scoped() would create an open child, allowing eager execution
-        // After fix: scoped() creates an already-closed child, so $ stays lazy
-        var result: Int = 0
-        leaked.scope.scoped { newChild =>
-          import newChild._
-          // newChild is created as already-closed (because parent is closed)
-          // $ checks isClosed → true → stays lazy, doesn't execute
-          $(leaked.value) { r =>
-            result = r.read() // This never executes!
-          }
-          ()
-        }
-
-        // Fix verified: resource was NOT accessed after close
-        assertTrue(!accessedAfterClose, result == 0)
       }
     )
   )

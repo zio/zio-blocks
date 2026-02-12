@@ -64,15 +64,15 @@ object FinalizersSpec extends ZIOSpecDefault {
       assertTrue(order.toList == List(3, 1))
     },
     test("if block throws and finalizers throw: primary thrown, finalizer errors suppressed") {
-      val (scope, close) = Scope.createTestableScope()
-      scope.defer(throw new RuntimeException("finalizer1"))
-      scope.defer(throw new RuntimeException("finalizer2"))
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("finalizer1"))
+      finalizers.add(throw new RuntimeException("finalizer2"))
 
       val primary = new RuntimeException("primary")
       val result  = try {
         try throw primary
         finally {
-          val errors = scope.close()
+          val errors = finalizers.runAll()
           if (errors.nonEmpty) errors.foreach(primary.addSuppressed)
         }
         None
@@ -87,17 +87,17 @@ object FinalizersSpec extends ZIOSpecDefault {
       )
     },
     test("if block succeeds and finalizers throw multiple: first thrown, rest suppressed") {
-      val (scope, close) = Scope.createTestableScope()
-      scope.defer(throw new RuntimeException("finalizer1"))
-      scope.defer(throw new RuntimeException("finalizer2"))
-      scope.defer(throw new RuntimeException("finalizer3"))
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("finalizer1"))
+      finalizers.add(throw new RuntimeException("finalizer2"))
+      finalizers.add(throw new RuntimeException("finalizer3"))
 
-      val result = try {
-        close()
-        None
-      } catch {
-        case e: RuntimeException => Some(e)
-      }
+      val errors = finalizers.runAll()
+      val result = if (errors.nonEmpty) {
+        val first = errors.head
+        errors.tail.foreach(first.addSuppressed)
+        Some(first)
+      } else None
 
       assertTrue(
         result.exists(_.getMessage == "finalizer3"),

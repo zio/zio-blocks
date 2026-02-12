@@ -17,7 +17,7 @@ private[scope] object MacroCore {
   /** Check if a type is a Scope type (subtype of Scope) */
   def isScopeType(c: blackbox.Context)(tpe: c.Type): Boolean = {
     import c.universe._
-    tpe <:< typeOf[zio.blocks.scope.Scope[_, _]]
+    tpe <:< typeOf[zio.blocks.scope.Scope]
   }
 
   /** Check if a type is a Finalizer type (subtype of Finalizer) */

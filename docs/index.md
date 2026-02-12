@@ -205,7 +205,8 @@ import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
   import scope._
-  val db: Database @@ ScopeTag = allocate(Resource(openDatabase()))
+
+  val db: $[Database] = allocate(Resource(openDatabase()))
 
   // Methods are hidden - can't call db.query() directly
   // Must use $ to access:
@@ -219,11 +220,12 @@ Scope.global.scoped { scope =>
 
 ### Key Features
 
-- **Compile-Time Leak Prevention**: Values tagged with `A @@ S` can only be used with proof of scope access. Returning a scoped value from its scope is a type error.
-- **Zero Runtime Overhead**: On the eager path the `@@` tag is erased—`A @@ S` is represented as just `A` when evaluated—while deferred/composed computations use a small wrapper/thunk.
+- **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
+- **Zero Runtime Overhead**: The `$[A]` type is erased at runtime—`scope.$[A]` is represented as just `A`.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
+- **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
 
 ### Installation
 
@@ -243,11 +245,13 @@ final class Database extends AutoCloseable {
 
 Scope.global.scoped { scope =>
   import scope._
-  // Allocate returns Database @@ ScopeTag (scoped value)
-  val db = allocate(Resource(new Database))
+
+  // Allocate returns scope.$[Database] (scoped value)
+  val db: $[Database] = allocate(Resource(new Database))
 
   // Access via $ - result (String) escapes, db does not
   val result = $(db)(_.query("SELECT * FROM users"))
+
   println(result)
 }
 // Output: Result: SELECT * FROM users
@@ -272,7 +276,9 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
 
 Scope.global.scoped { scope =>
   import scope._
+
   val service = allocate(serviceResource)
+
   $(service)(_.createUser("Alice"))
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
@@ -283,14 +289,21 @@ Scope.global.scoped { scope =>
 ```scala
 Scope.global.scoped { connScope =>
   import connScope._
+
   val conn = allocate(Resource.fromAutoCloseable(new Connection))
 
   // Transaction lives in child scope - cleaned up before connection
-  val result = scoped { txScope =>
-    import txScope._
-    val tx = allocate(conn.beginTransaction())  // Returns Resource!
+  val result = scope.scoped { txScope =>
+    import txScope._ 
+
+    // Lower parent-scoped conn into child scope
+    val localConn = lower(conn)
+
+    val tx = allocate(txScope.$(localConn)(_.beginTransaction()))
+
     $(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
     $(tx)(_.commit())
+    
     "success"
   }
   // Transaction closed here, connection still open

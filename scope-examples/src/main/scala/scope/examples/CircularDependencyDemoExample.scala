@@ -91,13 +91,13 @@ class Application(a: ServiceAImpl, @annotation.unused b: ServiceBApi) {
     println("Creating application with proper dependency structure...")
 
     // Wire.shared[ServiceBImpl] provides both ServiceBImpl and ServiceBApi (via subtyping)
-    val app = allocate(
+    val app: $[Application] = allocate(
       Resource.from[Application](
         Wire.shared[ServiceBImpl]
       )
     )
 
-    println(s"Result: ${$(app)(_.run())}")
+    println(s"Result: ${scope.$(app)(_.run())}")
     println("\nThe dependency graph was validated at compile time.")
     println("No cycles detected - application wired successfully.")
   }

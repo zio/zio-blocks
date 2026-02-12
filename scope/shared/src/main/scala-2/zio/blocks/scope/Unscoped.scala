@@ -13,15 +13,24 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   // Primitives escape freely
- *   val n: Int = stream $ (_.read())  // Int is Unscoped
+ *   val n: Int = scope.$(stream)(_.read())  // Int is Unscoped
  *
  *   // Resources stay scoped
- *   val body = request $ (_.body)     // InputStream @@ Tag (not raw InputStream)
+ *   val body: $[InputStream] = scope.$(request)(_.body)  // InputStream stays scoped
  *   }}}
  */
 trait Unscoped[A]
 
-object Unscoped extends UnscopedVersionSpecific {
+/**
+ * Low-priority Unscoped instances to avoid ambiguity.
+ */
+private[scope] trait UnscopedLowPriority {
+  // Nothing - can always escape (never actually returned)
+  // Must be low priority since Nothing <: A for all A
+  implicit val unscopedNothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
+}
+
+object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives
   implicit val unscopedInt: Unscoped[Int]               = new Unscoped[Int] {}
   implicit val unscopedLong: Unscoped[Long]             = new Unscoped[Long] {}

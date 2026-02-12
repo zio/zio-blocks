@@ -80,7 +80,7 @@ final class Database(config: DbConfig) extends AutoCloseable {
  *
  * This example shows:
  *   - Allocating an AutoCloseable resource with automatic cleanup
- *   - Using `$(value)` to access scoped values and execute queries
+ *   - Using `$(value)(f)` to access scoped values and execute queries
  *   - LIFO finalizer ordering (last allocated = first closed)
  *
  * When the scope exits, all registered finalizers run in reverse order,
@@ -97,15 +97,14 @@ final class Database(config: DbConfig) extends AutoCloseable {
 
     // Allocate the database resource. Because Database extends AutoCloseable,
     // its close() method is automatically registered as a finalizer.
-    val db = allocate(Resource {
+    val db: $[Database] = allocate(Resource {
       val database = new Database(config)
       database.connect()
       database
     })
 
-    // Use $(value) to access the scoped value and execute queries.
-    // $ executes immediately, so we can capture results via side effects or use directly.
-    $(db) { database =>
+    // Use scope.$(value)(f) to access the scoped value and execute queries.
+    scope.$(db) { database =>
       val users = database.query("SELECT * FROM users")
       println(s"[Result] Found ${users.size} users: ${users.rows.map(_("name")).mkString(", ")}\n")
 

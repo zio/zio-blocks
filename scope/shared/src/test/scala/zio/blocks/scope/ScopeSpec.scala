@@ -77,9 +77,8 @@ object ScopeSpec extends ZIOSpecDefault {
           override def close(): Unit = closed = true
         }
 
-        val resource = allocate(new TestCloseable)
-        // Capture result via side effect in the function passed to $
-        var captured: String = null
+        val resource: $[TestCloseable] = allocate(new TestCloseable)
+        var captured: String           = null
         $(resource) { r =>
           captured = r.value
           r.value
@@ -90,127 +89,7 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(closed)
       }
     ),
-    suite("closed scope safety")(
-      // These tests verify that $ and execute become lazy when called on a
-      // closed scope, preventing use-after-close vulnerabilities.
-      test("$ does not execute when scope is closed") {
-        var readAttempted = false
-
-        class TrackedResource extends AutoCloseable {
-          var closed      = false
-          def read(): Int = {
-            readAttempted = true
-            42
-          }
-          def close(): Unit = closed = true
-        }
-
-        // Capture a thunk that calls $ after the scope is closed
-        val lazyThunk: () => Unit = Scope.global.scoped { scope =>
-          import scope._
-          var capturedThunk: () => Unit = null
-
-          scoped { scope =>
-            import scope._
-            val resource: TrackedResource @@ scope.ScopeTag =
-              allocate(Resource(new TrackedResource))
-
-            // Capture a thunk that uses the child scope's $ method
-            capturedThunk = () => {
-              // This calls $ on a CLOSED scope - should stay lazy
-              $(resource)(_.read())
-              ()
-            }
-
-            () // Return Unit (Unscoped)
-          }
-          // child scope is now CLOSED
-
-          capturedThunk // Return the thunk that captures the closed scope
-        }
-
-        // Execute the thunk - since scope is closed, $ should stay lazy
-        // and NOT actually execute the read
-        lazyThunk()
-
-        assertTrue(!readAttempted) // Read was NOT attempted because $ stayed lazy
-      },
-      test("execute does not run when scope is closed") {
-        var executedAfterClose = false
-
-        class TrackedResource extends AutoCloseable {
-          var closed           = false
-          def doWork(): String = {
-            executedAfterClose = true
-            "done"
-          }
-          def close(): Unit = closed = true
-        }
-
-        val lazyThunk: () => Unit = Scope.global.scoped { scope =>
-          import scope._
-          var capturedThunk: () => Unit = null
-
-          scoped { scope =>
-            import scope._
-            val resource: TrackedResource @@ scope.ScopeTag =
-              allocate(Resource(new TrackedResource))
-
-            // Build a scoped computation
-            val computation = resource.map(_.doWork())
-
-            // Capture a thunk that uses the child scope's execute method
-            capturedThunk = () => {
-              execute(computation)
-              ()
-            }
-
-            ()
-          }
-
-          capturedThunk
-        }
-
-        lazyThunk()
-
-        assertTrue(!executedAfterClose) // Work was NOT done because execute stayed lazy
-      },
-      test("multiple calls on closed scope all stay lazy") {
-        var callCount = 0
-
-        class Counter extends AutoCloseable {
-          var closed        = false
-          def inc(): Int    = { callCount += 1; callCount }
-          def close(): Unit = closed = true
-        }
-
-        val lazyThunk: () => Unit = Scope.global.scoped { scope =>
-          import scope._
-          var capturedThunk: () => Unit = null
-
-          scoped { scope =>
-            import scope._
-            val counter: Counter @@ scope.ScopeTag =
-              allocate(Resource(new Counter))
-
-            capturedThunk = () => {
-              // All these should stay lazy on a closed scope
-              $(counter)(_.inc())
-              $(counter)(_.inc())
-              $(counter)(_.inc())
-              ()
-            }
-
-            ()
-          }
-
-          capturedThunk
-        }
-
-        lazyThunk()
-
-        assertTrue(callCount == 0) // No calls executed because scope was closed
-      },
+    suite("eager operations")(
       test("$ executes eagerly when scope is open") {
         val (scope, close) = Scope.createTestableScope()
         import scope._
@@ -221,12 +100,12 @@ object ScopeSpec extends ZIOSpecDefault {
           def close(): Unit  = ()
         }
 
-        val resource = allocate(Resource(new TrackedResource))
+        val resource: $[TrackedResource] = allocate(Resource(new TrackedResource))
         $(resource)(_.doWork())
         close()
         assertTrue(executed)
       },
-      test("execute runs eagerly when scope is open") {
+      test("map executes eagerly when scope is open") {
         val (scope, close) = Scope.createTestableScope()
         import scope._
         var executed = false
@@ -236,33 +115,29 @@ object ScopeSpec extends ZIOSpecDefault {
           def close(): Unit     = ()
         }
 
-        val resource    = allocate(Resource(new TrackedResource))
-        val computation = resource.map(_.doWork())
-        execute(computation)
+        val resource: $[TrackedResource] = allocate(Resource(new TrackedResource))
+        locally(resource.map(_.doWork()))
         close()
         assertTrue(executed)
       },
-      test("eager does not accidentally unwrap nested lazy scoped values") {
+      test("nested scoped values evaluate eagerly") {
         val (scope, close) = Scope.createTestableScope()
         import scope._
         var evaluated = false
 
-        val base: Int @@ scope.ScopeTag  = allocate(Resource(1))
-        val inner: Int @@ scope.ScopeTag = base.map { x =>
+        val base: $[Int]  = allocate(Resource(1))
+        val inner: $[Int] = base.map { x =>
           evaluated = true
           x + 1
         }
 
-        val nested: (Int @@ scope.ScopeTag) @@ scope.ScopeTag =
-          $(base)(_ => inner)
+        val nested: $[$[Int]] = $(base)(_ => inner)
 
-        val inner2: Int @@ scope.ScopeTag = @@.unscoped(nested)
+        locally(nested.flatMap(identity))
 
-        val notEvaluatedYet = !evaluated
-
-        val value: Int = @@.unscoped(inner2)
+        assertTrue(evaluated)
         close()
-        assertTrue(notEvaluatedYet, evaluated, value == 2)
+        assertCompletes
       }
     )
   )

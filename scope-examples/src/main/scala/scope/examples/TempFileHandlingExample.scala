@@ -68,7 +68,7 @@ object FileProcessor {
  * @return
  *   the created TempFile
  */
-private def createTempFile(s: Scope[?, ?], path: String, content: String): TempFile = {
+private def createTempFile(s: Scope, path: String, content: String): TempFile = {
   val file = TempFile(path)
   file.write(content)
   println(s"Created: $path (${content.length} bytes)")
