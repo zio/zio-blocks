@@ -394,16 +394,16 @@ The API is the same—just import `zio.blocks.schema._` and the appropriate synt
 
 ## Method Reference
 
-| Method | Receiver | Return Type | Description |
-|--------|----------|-------------|-------------|
-| `toJson` | `A` | `Json` | Convert to JSON AST |
-| `toJsonString` | `A` | `String` | Convert to JSON string |
-| `toJsonBytes` | `A` | `Array[Byte]` | Convert to UTF-8 bytes |
-| `fromJson[A]` | `String` | `Either[SchemaError, A]` | Parse JSON string |
-| `fromJson[A]` | `Array[Byte]` | `Either[SchemaError, A]` | Parse JSON bytes |
-| `show` | `A` | `String` | Pretty-print via DynamicValue |
-| `diff` | `A` | `Patch[A]` | Compute patch to another value |
-| `applyPatch` | `A` | `A` | Apply patch (lenient) |
-| `applyPatchStrict` | `A` | `Either[SchemaError, A]` | Apply patch (strict) |
+| Method             | Receiver      | Return Type              | Description                    |
+|--------------------|---------------|--------------------------|--------------------------------|
+| `toJson`           | `A`           | `Json`                   | Convert to JSON AST            |
+| `toJsonString`     | `A`           | `String`                 | Convert to JSON string         |
+| `toJsonBytes`      | `A`           | `Array[Byte]`            | Convert to UTF-8 bytes         |
+| `fromJson[A]`      | `String`      | `Either[SchemaError, A]` | Parse JSON string              |
+| `fromJson[A]`      | `Array[Byte]` | `Either[SchemaError, A]` | Parse JSON bytes               |
+| `show`             | `A`           | `String`                 | Pretty-print via DynamicValue  |
+| `diff`             | `A`           | `Patch[A]`               | Compute patch to another value |
+| `applyPatch`       | `A`           | `A`                      | Apply patch (lenient)          |
+| `applyPatchStrict` | `A`           | `Either[SchemaError, A]` | Apply patch (strict)           |
 
 All methods require an implicit/given `Schema[A]` in scope.
