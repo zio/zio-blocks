@@ -6,8 +6,8 @@ import zio.test.Assertion.{containsString, isLeft}
 /**
  * Scala 2-only compile-time safety tests.
  *
- * Tests that verify the Scala 2 macro's specific error behavior.
- * Cross-platform tests live in ScopeSpec.
+ * Tests that verify the Scala 2 macro's specific error behavior. Cross-platform
+ * tests live in ScopeSpec.
  */
 object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
 

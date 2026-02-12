@@ -4,7 +4,7 @@ import scala.language.experimental.macros
 
 /**
  * Scala 2 version-specific methods for Scope.
- * 
+ *
  * Provides the macro-based `scoped` method that enables ergonomic
  * `scoped { child => ... }` syntax in Scala 2.
  */
