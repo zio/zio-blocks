@@ -143,6 +143,11 @@ trait ScopeLiftLowestPriority {
    * raw value from `A @@ T` regardless of the scope tag `T`. The value is
    * evaluated while the scope is still open, and the result is pure data that
    * doesn't hold resources.
+   *
+   * '''UNSOUND (TODO fix):''' This instance outputs raw `A`, losing all scope
+   * tracking. The sound behavior would be to output `A @@ S` (parent-scoped),
+   * maintaining laziness and scope protection. With raw `A`, values are
+   * accessible even after the parent scope closes, bypassing scope safety.
    */
   given scopedUnscoped[A, T, S](using Unscoped[A]): ScopeLift.Aux[A @@ T, S, A] =
     new ScopeLift[A @@ T, S] {
