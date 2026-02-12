@@ -21,8 +21,9 @@ private[schema] object ContextDetector {
    *   The literal string parts from StringContext (parts.length == args.length
    *   + 1)
    * @return
-   *   A list of contexts, one for each interpolation (length == parts.length -
-   *   1)
+   *   Either an error message (`Left`) if the JSON structure cannot be parsed,
+   *   or a sequence of contexts (`Right`), one for each interpolation (length ==
+   *   parts.length - 1)
    */
   def detectContexts(parts: Seq[String]): Either[String, Seq[InterpolationContext]] =
     if (parts.isEmpty || parts.tail.isEmpty) new Right(Nil)
@@ -150,5 +151,5 @@ private[schema] object ContextDetector {
     new Right(contexts.result())
   }
 
-  private def isWhitespace(ch: Char): Boolean = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+  private[this] def isWhitespace(ch: Char): Boolean = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
 }

@@ -15,7 +15,7 @@ private[schema] object JsonSchemaToReflect {
 
   private[this] def typeIdFromTitle(title: Option[String]): TypeId[DynamicValue] = title match {
     case Some(name) => TypeId.nominal[DynamicValue](name, Owner.Root)
-    case None       => TypeId.of[DynamicValue]
+    case _          => TypeId.of[DynamicValue]
   }
 
   private[json] sealed trait Shape
