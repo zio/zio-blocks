@@ -553,6 +553,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Serialization
 
+- [Codec & Format](./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](./reference/json.md) - JSON codec and parsing
 - [JSON Schema](./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
