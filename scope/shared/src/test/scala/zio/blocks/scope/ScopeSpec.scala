@@ -596,7 +596,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         val wrapped = child.$(42)
         child.close()
-        var fnRan = false
+        var fnRan  = false
         val result = child.use(wrapped) { v =>
           fnRan = true
           v + 1
@@ -614,7 +614,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val wrapped = child.$("hello")
         child.close()
         import child._
-        var fnRan = false
+        var fnRan  = false
         val result = wrapped.map { v =>
           fnRan = true
           v.toUpperCase
@@ -626,7 +626,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val wrapped = child.$(99)
         child.close()
         import child._
-        var fnRan = false
+        var fnRan  = false
         val result = wrapped.flatMap { v =>
           fnRan = true
           child.$(v + 1)

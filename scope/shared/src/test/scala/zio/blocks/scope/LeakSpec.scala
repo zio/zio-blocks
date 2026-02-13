@@ -4,8 +4,8 @@ import scala.annotation.nowarn
 import zio.test._
 
 /**
- * Tests for Scope.leak — the escape hatch that unwraps $[A] to A
- * with a compiler warning.
+ * Tests for Scope.leak — the escape hatch that unwraps $[A] to A with a
+ * compiler warning.
  */
 object LeakSpec extends ZIOSpecDefault {
 
@@ -20,7 +20,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak unwraps $[A] to A for String") {
       val result: String = Scope.global.scoped { scope =>
         import scope._
-        val s: $[String] = allocate(Resource("hello"))
+        val s: $[String]   = allocate(Resource("hello"))
         val leaked: String = scope.leak(s)
         leaked
       }
@@ -29,7 +29,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak unwraps $[A] to A for Int") {
       val result: Int = Scope.global.scoped { scope =>
         import scope._
-        val n: $[Int] = $(42)
+        val n: $[Int]   = $(42)
         val leaked: Int = scope.leak(n)
         leaked
       }
@@ -38,7 +38,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak unwraps $[A] to A for custom class") {
       val result: String = Scope.global.scoped { scope =>
         import scope._
-        val db: $[Database] = allocate(Resource.from[Database])
+        val db: $[Database]  = allocate(Resource.from[Database])
         val leaked: Database = scope.leak(db)
         leaked.query("SELECT 1")
       }
@@ -57,7 +57,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak works with AutoCloseable allocated via allocate overload") {
       val result: String = Scope.global.scoped { scope =>
         import scope._
-        val db: $[Database] = allocate(new Database)
+        val db: $[Database]  = allocate(new Database)
         val leaked: Database = scope.leak(db)
         leaked.query("test")
       }
@@ -66,7 +66,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak works with Boolean") {
       val result: Boolean = Scope.global.scoped { scope =>
         import scope._
-        val b: $[Boolean] = $(true)
+        val b: $[Boolean]   = $(true)
         val leaked: Boolean = scope.leak(b)
         leaked
       }

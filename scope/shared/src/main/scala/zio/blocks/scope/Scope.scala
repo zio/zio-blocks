@@ -61,7 +61,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   def allocate[A <: AutoCloseable](value: => A): $[A] =
     allocate(Resource(value))
 
-  /** Register a finalizer to run when scope closes (no-op if already closed). */
+  /**
+   * Register a finalizer to run when scope closes (no-op if already closed).
+   */
   def defer(f: => Unit): Unit = finalizers.add(f)
 
   /** Apply a function to a scoped value. Returns null-scoped if closed. */
@@ -93,7 +95,10 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
     if (isClosed) $wrap(null.asInstanceOf[B])
     else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4), $unwrap(s5)))
 
-  /** Implicit ops for map/flatMap on scoped values. Guarded against closed scope. */
+  /**
+   * Implicit ops for map/flatMap on scoped values. Guarded against closed
+   * scope.
+   */
   implicit class ScopedOps[A](private val sa: $[A]) {
     def map[B](f: A => B): $[B] =
       if (isClosed) $wrap(null.asInstanceOf[B])

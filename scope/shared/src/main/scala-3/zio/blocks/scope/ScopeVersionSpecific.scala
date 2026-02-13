@@ -3,8 +3,8 @@ package zio.blocks.scope
 /**
  * Scala 3 version-specific methods for Scope.
  *
- * Provides the `scoped` method using Scala 3's dependent function types,
- * and the `leak` macro for escaping the scoped type system with a warning.
+ * Provides the `scoped` method using Scala 3's dependent function types, and
+ * the `leak` macro for escaping the scoped type system with a warning.
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
 
@@ -51,11 +51,11 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   }
 
   /**
-   * Escape hatch: unwrap a scoped value to its raw type, bypassing
-   * compile-time scope safety. Emits a compiler warning.
+   * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time
+   * scope safety. Emits a compiler warning.
    *
-   * Use this only for interop with code that cannot work with scoped types.
-   * If the type is pure data, prefer adding an `Unscoped` instance instead.
+   * Use this only for interop with code that cannot work with scoped types. If
+   * the type is pure data, prefer adding an `Unscoped` instance instead.
    *
    * @example
    *   {{{

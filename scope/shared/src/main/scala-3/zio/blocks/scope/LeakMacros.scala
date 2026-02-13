@@ -6,8 +6,8 @@ import zio.blocks.scope.internal.MacroCore
 /**
  * Scala 3 macro implementation for Scope.leak.
  *
- * Emits a compiler warning via MacroCore.warnLeak and returns the
- * unwrapped value (using asInstanceOf which is sound since $[A] = A at runtime).
+ * Emits a compiler warning via MacroCore.warnLeak and returns the unwrapped
+ * value (using asInstanceOf which is sound since $[A] = A at runtime).
  */
 private[scope] object LeakMacros {
 
