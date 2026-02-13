@@ -204,10 +204,9 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-     coverageMinimumStmtTotal   := 80,
-     coverageMinimumBranchTotal := 80,
-     coverageExcludedFiles      := ".*BuildInfo.*|.*Macros.*|.*MacroUtils.*|.*CommonMacroOps.*|.*PathInterpolator.*|.*VersionSpecific.*|.*CompanionOptics.*|.*DerivedOptics.*|.*RegisterOffset.*",
-     coverageExcludedPackages   := "zio\\.blocks\\.docs\\..*"
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 80,
+    coverageExcludedFiles      := ".*BuildInfo.*|.*Macros.*|.*MacroUtils.*|.*CommonMacroOps.*|.*PathInterpolator.*|.*VersionSpecific.*|.*CompanionOptics.*|.*DerivedOptics.*|.*RegisterOffset.*"
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {

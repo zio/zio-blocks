@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.{Binding, BindingType}
 import zio.blocks.typeid.{TypeId, TypeRepr}
 
@@ -18,38 +17,6 @@ sealed trait PrimitiveType[A] {
   def validation: Validation[A]
 }
 
-/**
- * Sub-trait of PrimitiveType for numeric types that support arithmetic
- * operations. Provides access to the Scala Numeric type class for the
- * underlying type.
- *
- * This trait is sealed within the PrimitiveType hierarchy - all implementations
- * are the numeric case classes (Byte, Short, Int, Long, Float, Double, BigInt,
- * BigDecimal).
- */
-sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
-  def numeric: Numeric[A]
-
-  /**
-   * Returns a Schema for this numeric primitive type.
-   */
-  def schema: Schema[A] = new Schema(
-    new Reflect.Primitive(
-      this,
-      typeId,
-      binding,
-      Doc.empty,
-      Vector.empty,
-      None,
-      Seq.empty
-    )
-  )
-
-  /**
-   * Convert to NumericTypeTag for DynamicSchemaExpr.
-   */
-  def toTag: DynamicSchemaExpr.NumericTypeTag
-}
 object PrimitiveType {
   case object Unit extends PrimitiveType[scala.Unit] {
     def validation: Validation[scala.Unit] = Validation.None
