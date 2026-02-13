@@ -23,7 +23,10 @@ trap cleanup EXIT
 
 # ─── 1. Collect existing documentation ────────────────────────────────────────
 
-DOC_FILES_LIST=$(find "$DOCS_DIR" -name '*.md' -type f | sort)
+# Exclude generated tracking docs from the corpus so the scan is idempotent
+EXCLUDE_PATTERN='undocumented-report'
+
+DOC_FILES_LIST=$(find "$DOCS_DIR" -name '*.md' -type f | grep -v "$EXCLUDE_PATTERN" | sort)
 
 # Build a word-frequency file from all docs (one pass over all doc content)
 echo "$DOC_FILES_LIST" | xargs cat 2>/dev/null \
@@ -31,8 +34,8 @@ echo "$DOC_FILES_LIST" | xargs cat 2>/dev/null \
   | sort | uniq -c | sort -rn > "$DOCS_WORDS_FILE"
 
 # Map of existing doc IDs (kebab-case filenames without .md)
-REF_IDS=$(find "$REF_DIR" -name '*.md' -type f 2>/dev/null | while read -r f; do basename "$f" .md; done | sort)
-OTHER_IDS=$(find "$DOCS_DIR" -maxdepth 1 -name '*.md' -type f 2>/dev/null | while read -r f; do basename "$f" .md; done | sort)
+REF_IDS=$(find "$REF_DIR" -name '*.md' -type f 2>/dev/null | grep -v "$EXCLUDE_PATTERN" | while read -r f; do basename "$f" .md; done | sort)
+OTHER_IDS=$(find "$DOCS_DIR" -maxdepth 1 -name '*.md' -type f 2>/dev/null | grep -v "$EXCLUDE_PATTERN" | while read -r f; do basename "$f" .md; done | sort)
 ALL_DOC_IDS=$(printf '%s\n%s\n' "$REF_IDS" "$OTHER_IDS" | sort -u)
 
 # ─── 2. Extract public types from source code ────────────────────────────────
