@@ -29,6 +29,7 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [Nested scopes (child can use parent, not vice versa)](#nested-scopes-child-can-use-parent-not-vice-versa)
   - [Chaining resource acquisition](#chaining-resource-acquisition)
   - [Registering cleanup manually with `defer`](#registering-cleanup-manually-with-defer)
+  - [Classes with `Finalizer` parameters](#classes-with-finalizer-parameters)
   - [Dependency injection with `Wire` + `Context`](#dependency-injection-with-wire--context)
   - [Dependency injection with `Resource.from[T](wires*)`](#dependency-injection-with-resourcefromtwires)
   - [Injecting traits via subtype wires](#injecting-traits-via-subtype-wires)
@@ -480,6 +481,7 @@ There is also a package-level helper `defer` that only requires a `Finalizer`:
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
+  import scope._
   given Finalizer = scope
 
   defer { println("cleanup") }
@@ -698,7 +700,7 @@ The scope macros produce beautiful, actionable compile-time error messages with 
   This type (primitive, collection, or function) cannot be auto-created.
 
   Required by:
-    ├── Config
+  ├── Config
     └── App
 
   Fix: Provide Wire(value) with the desired value:
@@ -721,7 +723,7 @@ The scope macros produce beautiful, actionable compile-time error messages with 
   This type is abstract (trait or abstract class).
 
   Required by:
-    └── App
+  └── App
 
   Fix: Provide a wire for a concrete implementation:
 
