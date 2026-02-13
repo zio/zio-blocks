@@ -173,7 +173,7 @@ val head: Int = nonEmpty.head  // Always safe, no Option needed
 
 ## Scope
 
-Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope, and child scope values cannot escape to parent scopes.
+Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope. Child scope values cannot escape to parent scopes, enforced by both the abstract scope-tagged type and the `Unscoped` constraint on `scoped`.
 
 ### The Problem
 
@@ -204,11 +204,13 @@ Scope makes resource leaks a **compile error**, not a runtime bug:
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
-  val db: Database @@ scope.Tag = scope.allocate(Resource(openDatabase()))
+  import scope._
+
+  val db: $[Database] = allocate(Resource(openDatabase()))
 
   // Methods are hidden - can't call db.query() directly
-  // Must use scope $ to access:
-  val result = (scope $ db)(_.query("SELECT 1"))
+  // Must use scope.use to access:
+  val result = scope.use(db)(_.query("SELECT 1"))
 
   // Trying to return `db` would be a compile error!
   result  // Only pure data escapes
@@ -218,11 +220,12 @@ Scope.global.scoped { scope =>
 
 ### Key Features
 
-- **Compile-Time Leak Prevention**: Values tagged with `A @@ S` can only be used with proof of scope access. Returning a scoped value from its scope is a type error.
-- **Zero Runtime Overhead**: On the eager path the `@@` tag is erased—`A @@ S` is represented as just `A` when evaluated—while deferred/composed computations use a small wrapper/thunk.
+- **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
+- **Zero Runtime Overhead**: `$[A]` erases to `A` at runtime—zero allocation overhead.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
+- **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
 
 ### Installation
 
@@ -241,11 +244,14 @@ final class Database extends AutoCloseable {
 }
 
 Scope.global.scoped { scope =>
-  // Allocate returns Database @@ scope.Tag (scoped value)
-  val db = scope.allocate(Resource(new Database))
+  import scope._
 
-  // Access via scope $ - result (String) escapes, db does not
-  val result = (scope $ db)(_.query("SELECT * FROM users"))
+  // Allocate returns scope.$[Database] (scoped value)
+  val db: $[Database] = allocate(Resource(new Database))
+
+  // Access via scope.use - result (String) escapes, db does not
+  val result = scope.use(db)(_.query("SELECT * FROM users"))
+
   println(result)
 }
 // Output: Result: SELECT * FROM users
@@ -269,8 +275,11 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
 )
 
 Scope.global.scoped { scope =>
-  val service = scope.allocate(serviceResource)
-  (scope $ service)(_.createUser("Alice"))
+  import scope._
+
+  val service = allocate(serviceResource)
+
+  scope.use(service)(_.createUser("Alice"))
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
@@ -279,14 +288,24 @@ Scope.global.scoped { scope =>
 
 ```scala
 Scope.global.scoped { connScope =>
-  val conn = connScope.allocate(Resource.fromAutoCloseable(new Connection))
+  import connScope._
+
+  val conn = allocate(Resource.fromAutoCloseable(new Connection))
 
   // Transaction lives in child scope - cleaned up before connection
-  val result = connScope.scoped { txScope =>
-    val tx = txScope.allocate(conn.beginTransaction())  // Returns Resource!
-    (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
-    (txScope $ tx)(_.commit())
-    "success"
+  val result: String = scoped { txScope =>
+    import txScope._
+
+    // For-comprehension: flatMap unwraps $[Connection] to Connection,
+    // so c.beginTransaction() returns a raw Resource[Transaction]
+    for {
+      c  <- lower(conn)
+      tx <- allocate(c.beginTransaction())
+    } yield {
+      tx.execute("INSERT INTO users VALUES (1, 'Alice')")
+      tx.commit()
+      "success"
+    }
   }
   // Transaction closed here, connection still open
 

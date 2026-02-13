@@ -16,28 +16,27 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
 
   def spec = suite("Finalizer injection")(
     test("Wire.shared[T] injects ProxyFinalizer and cleanup runs on scope close") {
-      var finalizerClass: String = ""
+      var finalizerClass = ""
+      var cleaned        = false
 
       class Service(val config: Config)(implicit finalizer: Finalizer) {
-        var cleaned = false
         finalizerClass = finalizer.getClass.getName
         finalizer.defer { cleaned = true }
       }
 
-      val wire           = Wire.shared[Service]
-      val configWire     = Wire(Config("test"))
-      val resource       = Resource.from[Service](wire, configWire)
-      val (scope, close) = Scope.createTestableScope()
-      val service        = resource.make(scope)
+      val wire       = Wire.shared[Service]
+      val configWire = Wire(Config("test"))
+      val resource   = Resource.from[Service](wire, configWire)
 
-      val cleanedBefore = service.cleaned
-      close()
-      val cleanedAfter = service.cleaned
+      val cleanedBefore = Scope.global.scoped { scope =>
+        resource.make(scope)
+        cleaned
+      }
 
       assertTrue(
         finalizerClass.contains("ProxyFinalizer"),
         !cleanedBefore,
-        cleanedAfter
+        cleaned
       )
     },
     test("Wire.shared[T] multiple defers run in LIFO order") {
@@ -49,35 +48,36 @@ object FinalizerInjectionSpec extends ZIOSpecDefault {
         finalizer.defer { order = 3 :: order }
       }
 
-      val wire           = Wire.shared[Service]
-      val intWire        = Wire(42)
-      val resource       = Resource.from[Service](wire, intWire)
-      val (scope, close) = Scope.createTestableScope()
-      resource.make(scope)
-      close()
+      val wire     = Wire.shared[Service]
+      val intWire  = Wire(42)
+      val resource = Resource.from[Service](wire, intWire)
+
+      Scope.global.scoped { scope =>
+        val _ = resource.make(scope)
+      }
 
       assertTrue(order == List(1, 2, 3)) // LIFO: 3 registered last, runs first
     },
     test("Wire.unique[T] injects Finalizer and cleanup runs") {
+      var cleaned = false
+
       class Service(val config: Config)(implicit finalizer: Finalizer) {
-        var cleaned = false
         finalizer.defer { cleaned = true }
       }
 
-      val wire           = Wire.unique[Service]
-      val configWire     = Wire(Config("test"))
-      val resource       = Resource.from[Service](wire, configWire)
-      val (scope, close) = Scope.createTestableScope()
-      val service        = resource.make(scope)
+      val wire       = Wire.unique[Service]
+      val configWire = Wire(Config("test"))
+      val resource   = Resource.from[Service](wire, configWire)
 
-      val cleanedBefore = service.cleaned
-      close()
-      val cleanedAfter = service.cleaned
+      val cleanedBefore = Scope.global.scoped { scope =>
+        resource.make(scope)
+        cleaned
+      }
 
       // The important thing is cleanup runs correctly
       assertTrue(
         !cleanedBefore,
-        cleanedAfter
+        cleaned
       )
     }
   )

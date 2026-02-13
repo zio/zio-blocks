@@ -31,8 +31,8 @@ final case class QueryResult(rows: List[Map[String, String]]) {
  * Simulates a database connection with lifecycle management.
  *
  * This class demonstrates how AutoCloseable resources integrate with ZIO Blocks
- * Scope. When allocated via `scope.allocate(Resource(...))`, the `close()`
- * method is automatically registered as a finalizer.
+ * Scope. When allocated via `allocate(Resource(...))`, the `close()` method is
+ * automatically registered as a finalizer.
  *
  * @param config
  *   the database configuration
@@ -80,7 +80,7 @@ final class Database(config: DbConfig) extends AutoCloseable {
  *
  * This example shows:
  *   - Allocating an AutoCloseable resource with automatic cleanup
- *   - Using `(scope $ value)` to access scoped values and execute queries
+ *   - Using `use(value)(f)` to access scoped values and execute queries
  *   - LIFO finalizer ordering (last allocated = first closed)
  *
  * When the scope exits, all registered finalizers run in reverse order,
@@ -92,19 +92,19 @@ final class Database(config: DbConfig) extends AutoCloseable {
   val config = DbConfig("localhost", 5432, "myapp")
 
   Scope.global.scoped { scope =>
+    import scope._
     println("[Scope] Entering scoped region\n")
 
     // Allocate the database resource. Because Database extends AutoCloseable,
     // its close() method is automatically registered as a finalizer.
-    val db = scope.allocate(Resource {
+    val db: $[Database] = allocate(Resource {
       val database = new Database(config)
       database.connect()
       database
     })
 
-    // Use (scope $ value) to access the scoped value and execute queries.
-    // $ executes immediately, so we can capture results via side effects or use directly.
-    (scope $ db) { database =>
+    // Use scope.use(value)(f) to access the scoped value and execute queries.
+    scope.use(db) { database =>
       val users = database.query("SELECT * FROM users")
       println(s"[Result] Found ${users.size} users: ${users.rows.map(_("name")).mkString(", ")}\n")
 

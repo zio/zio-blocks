@@ -5,9 +5,9 @@ import zio.blocks.scope._
 /**
  * HTTP Client Pipeline Example
  *
- * Demonstrates building computations using `Scoped` that defer execution until
- * explicitly run via `scope.execute(scopedComputation)`. This shows how to
- * compose operations over scoped resources lazily.
+ * Demonstrates building computations using scoped values with
+ * for-comprehensions and the `$` operator. Operations are eager with the new
+ * opaque type API.
  */
 
 /** API configuration containing base URL and authentication credentials. */
@@ -57,67 +57,58 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 }
 
 /**
- * Demonstrates building and executing a Scoped computation pipeline.
+ * Demonstrates using scoped values with the opaque type API.
  *
  * Key concepts:
- *   - `(scopedValue).map(f)` builds a `Scoped` computation lazily
- *   - `(scopedValue).flatMap(f)` chains scoped computations
- *   - `(scope $ scopedValue) { v => ... }` executes and applies a function
- *   - The computation only runs when explicitly executed
+ *   - `allocate` returns `$[A]` (scoped value)
+ *   - `scope.use(scopedValue)(f)` applies a function to the underlying value
+ *   - Operations are eager (zero-cost wrapper)
+ *   - For-comprehensions chain scoped values naturally
  */
 @main def httpClientPipelineExample(): Unit = {
   println("=== HTTP Client Pipeline Example ===\n")
   val config = ApiConfig("https://api.example.com", "secret-key-123")
 
   Scope.global.scoped { scope =>
+    import scope._
     // Step 1: Allocate the HTTP client (automatically cleaned up when scope closes)
-    val client: HttpClient @@ scope.Tag = scope.allocate(Resource[HttpClient](new HttpClient(config)))
+    val client: $[HttpClient] = allocate(Resource[HttpClient](new HttpClient(config)))
 
-    // Step 2: Build lazy computations using map
-    // These define WHAT to do, but don't execute yet
-    println("Building pipeline (nothing executes yet)...")
+    // Step 2: Use the client to fetch and parse data
+    println("Executing requests...\n")
 
-    // First computation: fetch and parse users
-    val fetchUsers: ParsedData @@ scope.Tag =
+    // Fetch and parse users
+    println("--- Fetching: users ---")
+    val users: $[ParsedData] =
       client.map { c =>
         val response = c.get("/users")
         JsonParser.parse(response.body)
       }
 
-    // Second computation: fetch and parse orders
-    val fetchOrders: ParsedData @@ scope.Tag =
+    // Fetch and parse orders
+    println("\n--- Fetching: orders ---")
+    val orders: $[ParsedData] =
       client.map { c =>
         val response = c.get("/orders")
         JsonParser.parse(response.body)
       }
 
-    // Third computation: post analytics event
-    val postAnalytics: ParsedData @@ scope.Tag =
+    // Post analytics event
+    println("\n--- Posting: analytics ---")
+    val analytics: $[ParsedData] =
       client.map { c =>
         val response = c.post("/analytics", """{"event":"fetch_complete"}""")
         JsonParser.parse(response.body)
       }
 
-    println("Pipeline definitions built. Now executing each step...\n")
-
-    // Step 3: Execute each computation using (scope $ value)
-    // Use (scope $ value) to apply a function to the scoped value
-    println("--- Executing: fetchUsers ---")
-    (scope $ scope.execute(fetchUsers)) { users =>
+    // Step 3: Access all results together using multi-arity use
+    scope.use(users, orders, analytics) { (u, o, a) =>
       println(s"\n=== Users Result ===")
-      println(s"Users data: ${users.values}")
-    }
-
-    println("\n--- Executing: fetchOrders ---")
-    (scope $ scope.execute(fetchOrders)) { orders =>
+      println(s"Users data: ${u.values}")
       println(s"\n=== Orders Result ===")
-      println(s"Orders data: ${orders.values}")
-    }
-
-    println("\n--- Executing: postAnalytics ---")
-    (scope $ scope.execute(postAnalytics)) { analytics =>
+      println(s"Orders data: ${o.values}")
       println(s"\n=== Analytics Result ===")
-      println(s"Analytics: ${analytics.values}")
+      println(s"Analytics: ${a.values}")
     }
   }
 

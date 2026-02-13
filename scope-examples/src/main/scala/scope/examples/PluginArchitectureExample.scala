@@ -87,8 +87,9 @@ final class CheckoutService(gateway: PaymentGateway) extends AutoCloseable {
   )
 
   Scope.global.scoped { scope =>
-    val checkout = scope.allocate(stripeResource)
-    (scope $ checkout) { c =>
+    import scope._
+    val checkout: $[CheckoutService] = allocate(stripeResource)
+    scope.use(checkout) { c =>
       val result = c.processOrder("ORD-001", BigDecimal("99.99"))
       println(s"Result: ${result.message}")
     }
@@ -101,8 +102,9 @@ final class CheckoutService(gateway: PaymentGateway) extends AutoCloseable {
   )
 
   Scope.global.scoped { scope =>
-    val checkout = scope.allocate(paypalResource)
-    (scope $ checkout) { c =>
+    import scope._
+    val checkout: $[CheckoutService] = allocate(paypalResource)
+    scope.use(checkout) { c =>
       val result = c.processOrder("ORD-002", BigDecimal("149.99"))
       println(s"Result: ${result.message}")
     }

@@ -1,36 +1,24 @@
 package zio.blocks.scope
 
-import zio.blocks.scope.internal.MacroCore
 import scala.quoted.*
+import zio.blocks.scope.internal.MacroCore
 
+/**
+ * Scala 3 macro implementation for Scope.leak.
+ *
+ * Emits a compiler warning via MacroCore.warnLeak and returns the unwrapped
+ * value (using asInstanceOf which is sound since $[A] = A at runtime).
+ */
 private[scope] object LeakMacros {
 
-  def leakImpl[A: Type, S: Type](scopedExpr: Expr[A @@ S])(using Quotes): Expr[A] = {
+  def leakImpl[A: Type](sa: Expr[Any], self: Expr[Scope])(using Quotes): Expr[A] = {
     import quotes.reflect.*
 
-    // Get the source code and position of the scoped expression
-    val scopedTerm = scopedExpr.asTerm
-    val pos        = scopedTerm.pos
-    val sourceCode = pos.sourceCode.getOrElse(scopedTerm.show)
-    val scopeTag   = Type.show[S]
+    val sourceCode = sa.asTerm.pos.sourceCode.getOrElse(sa.show)
+    val scopeName  = self.asTerm.tpe.widen.show
 
-    // Extract a human-readable scope name from the tag type
-    val scopeName = extractScopeName(scopeTag)
+    MacroCore.warnLeak(sa.asTerm.pos, sourceCode, scopeName)
 
-    // Emit compiler warning using shared renderer
-    MacroCore.warnLeak(pos, sourceCode, scopeName)
-
-    // Return the unwrapped value (run the thunk)
-    '{ Scoped.run($scopedExpr) }
+    '{ $sa.asInstanceOf[A] }
   }
-
-  private def extractScopeName(scopeTag: String): String =
-    // The scope tag is often something like "scope.Tag" or a more complex type
-    // Try to extract a meaningful name
-    scopeTag
-      .replace("zio.blocks.scope.", "")
-      .replace("_root_.", "")
-      .split("\\.")
-      .lastOption
-      .getOrElse(scopeTag)
 }

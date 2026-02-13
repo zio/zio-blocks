@@ -3,13 +3,11 @@ package scope.examples
 import zio.blocks.scope._
 
 /**
- * Demonstrates the `Unscoped` marker trait and `ScopeLift` behavior.
+ * Demonstrates the `Unscoped` marker trait behavior.
  *
  * ==Key Concepts==
  *
  *   - '''`Unscoped`''' marks pure data types that can safely escape a scope
- *   - '''`ScopeLift`''' controls whether `scope.scoped` returns raw `A` or
- *     `A @@ S`
  *   - Pure data escapes freely; resources remain scope-bound
  *
  * ==Example Scenario==
@@ -26,8 +24,7 @@ import zio.blocks.scope._
  * Pure configuration data that can safely escape any scope.
  *
  * By deriving `Unscoped`, we declare this type contains no resources. When
- * extracted via `scope.scoped`, the raw `ConfigData` is returned instead of
- * `ConfigData @@ Tag`.
+ * returned from `scoped { ... }`, the raw `ConfigData` is returned.
  */
 case class ConfigData(
   appName: String,
@@ -66,8 +63,7 @@ class ConfigReader extends AutoCloseable {
  * Manages access to application secrets.
  *
  * This resource maintains connections and caches; it should NOT have an
- * `Unscoped` instance. Attempting to escape it from a child scope yields
- * `SecretStore @@ Tag` (still scoped), not raw `SecretStore`.
+ * `Unscoped` instance. It cannot escape the scope.
  */
 class SecretStore extends AutoCloseable {
   private var closed = false
@@ -88,15 +84,16 @@ class SecretStore extends AutoCloseable {
 // ---------------------------------------------------------------------------
 
 @main def runConfigReaderExample(): Unit = {
-  println("=== ScopeLift & Unscoped Example ===\n")
+  println("=== Unscoped Example ===\n")
 
-  var escapedConfig: ConfigData = null.asInstanceOf[ConfigData]
-  Scope.global.scoped { scope =>
-    val reader = scope.allocate(Resource(new ConfigReader))
+  // ConfigData is Unscoped, so it escapes the scope as raw ConfigData
+  val escapedConfig: ConfigData = Scope.global.scoped { scope =>
+    import scope._
+    val reader: $[ConfigReader] = allocate(Resource(new ConfigReader))
 
-    (scope $ reader) { r =>
-      escapedConfig = r.readConfig("/etc/app/config.json")
-    }
+    // scope.use(reader)(f) returns $[ConfigData], which is unwrapped
+    // to raw ConfigData because ConfigData derives Unscoped
+    scope.use(reader)(_.readConfig("/etc/app/config.json"))
   }
 
   println("Escaped config (used outside scope):")
@@ -106,9 +103,10 @@ class SecretStore extends AutoCloseable {
 
   println("SecretStore stays scoped:")
   Scope.global.scoped { scope =>
-    val secrets = scope.allocate(Resource(new SecretStore))
+    import scope._
+    val secrets: $[SecretStore] = allocate(Resource(new SecretStore))
 
-    (scope $ secrets) { s =>
+    scope.use(secrets) { s =>
       val dbPassword = s.getSecret("database.password")
       println(s"  Retrieved secret: $dbPassword")
     }

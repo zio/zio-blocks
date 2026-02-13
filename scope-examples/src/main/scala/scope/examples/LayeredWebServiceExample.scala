@@ -93,11 +93,12 @@ class UserController(repo: UserRepository) extends AutoCloseable {
 
   // Allocate within a scoped block; cleanup runs on scope exit
   Scope.global.scoped { scope =>
-    val controller = scope.allocate(controllerResource)
+    import scope._
+    val controller: $[UserController] = allocate(controllerResource)
 
     println("\n=== Handling requests ===")
-    println(s"  GET /users/1  → ${(scope $ controller)(_.getUser(1))}")
-    println(s"  POST /users   → ${(scope $ controller)(_.createUser("Bob", "bob@example.com"))}")
+    println(s"  GET /users/1  → ${scope.use(controller)(_.getUser(1))}")
+    println(s"  POST /users   → ${scope.use(controller)(_.createUser("Bob", "bob@example.com"))}")
 
     println("\n=== Scope closing (LIFO cleanup: controller → database) ===")
   }

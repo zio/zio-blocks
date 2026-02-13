@@ -104,13 +104,14 @@ object IntegrationTestHarnessExample {
 
     // Run in a scoped block - all resources cleaned up on exit
     Scope.global.scoped { scope =>
+      import scope._
       println("Allocating resources...")
-      val harness = scope.allocate(testHarnessResource)
+      val harness: $[(TestFixture, AppUnderTest)] = allocate(testHarnessResource)
       println()
 
-      // Run test scenarios - access the tuple components via scope.$
+      // Run test scenarios - access the tuple components via scope.use
       println("Running test scenarios:")
-      (scope $ harness) { case (fixture, app) =>
+      scope.use(harness) { case (fixture, app) =>
         println(s"  GET user:1 -> ${app.handleRequest("user:1")}")
         println(s"  GET user:2 -> ${app.handleRequest("user:2")}")
         println(s"  GET user:3 -> ${app.handleRequest("user:3")}")

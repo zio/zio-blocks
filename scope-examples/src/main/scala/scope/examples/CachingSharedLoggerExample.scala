@@ -106,7 +106,8 @@ object CachingSharedLoggerExample {
 
     println("─── Resource Acquisition ───")
     Scope.global.scoped { scope =>
-      val app = scope.allocate(
+      import scope._
+      val app: $[CachingApp] = allocate(
         Resource.from[CachingApp](
           Wire.shared[Logger],
           Wire.unique[Cache]
@@ -116,7 +117,7 @@ object CachingSharedLoggerExample {
       println("\n─── Verification ───")
       println(s"  Logger instances created: ${loggerInstances.get()} (expected: 1)")
       println(s"  Cache instances created:  ${cacheInstances.get()} (expected: 2)")
-      (scope $ app) { a =>
+      scope.use(app) { a =>
         println(s"  ProductService.logger eq OrderService.logger: ${a.productService.logger eq a.orderService.logger}")
         println(s"  ProductService.cache  eq OrderService.cache:  ${a.productService.cache eq a.orderService.cache}")
 

@@ -74,61 +74,65 @@ object TransactionBoundaryExample {
   }
 
   /** Result of transaction operations. */
-  case class TxResult(success: Boolean, affectedRows: Int)
+  case class TxResult(success: Boolean, affectedRows: Int) derives Unscoped
 
   @main def runTransactionBoundaryExample(): Unit = {
     println("=== Transaction Boundary Example ===\n")
     println("Demonstrating Resource-returning beginTransaction method\n")
 
     Scope.global.scoped { connScope =>
+      import connScope._
       // Allocate the connection in the outer scope
-      val conn = connScope.allocate(Resource.fromAutoCloseable(new DbConnection("db-001")))
+      val conn: $[DbConnection] = allocate(Resource.fromAutoCloseable(new DbConnection("db-001")))
       println()
 
       // Transaction 1: Successful insert
       println("--- Transaction 1: Insert user ---")
-      val result1 = connScope.scoped { txScope =>
-        (connScope $ conn) { rawConn =>
-          // beginTransaction returns Resource[DbTransaction] - must allocate it!
-          val tx = txScope.allocate(rawConn.beginTransaction("tx-001"))
-          (txScope $ tx) { t =>
-            val rows = t.execute("INSERT INTO users VALUES (1, 'Alice')")
-            t.commit()
+      val result1: TxResult =
+        scoped { txScope =>
+          import txScope._
+          for {
+            c  <- lower(conn)
+            tx <- allocate(c.beginTransaction("tx-001"))
+          } yield {
+            val rows = tx.execute("INSERT INTO users VALUES (1, 'Alice')")
+            tx.commit()
             TxResult(success = true, affectedRows = rows)
           }
         }
-      }
       println(s"  Result: $result1\n")
 
       // Transaction 2: Transfer funds (multiple operations)
       println("--- Transaction 2: Transfer funds ---")
-      val result2 = connScope.scoped { txScope =>
-        (connScope $ conn) { rawConn =>
-          val tx = txScope.allocate(rawConn.beginTransaction("tx-002"))
-          (txScope $ tx) { t =>
-            val rows1 = t.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
-            val rows2 = t.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
-            t.commit()
+      val result2: TxResult =
+        scoped { txScope =>
+          import txScope._
+          for {
+            c  <- lower(conn)
+            tx <- allocate(c.beginTransaction("tx-002"))
+          } yield {
+            val rows1 = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
+            val rows2 = tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
+            tx.commit()
             TxResult(success = true, affectedRows = rows1 + rows2)
           }
         }
-      }
       println(s"  Result: $result2\n")
 
       // Transaction 3: Demonstrates auto-rollback on scope exit without commit
       println("--- Transaction 3: Auto-rollback (no explicit commit) ---")
-      val result3 = connScope.scoped { txScope =>
-        (connScope $ conn) { rawConn =>
-          val tx = txScope.allocate(rawConn.beginTransaction("tx-003"))
-          (txScope $ tx) { t =>
-            t.execute("DELETE FROM audit_log")
+      val result3: TxResult =
+        scoped { txScope =>
+          import txScope._
+          for {
+            c  <- lower(conn)
+            tx <- allocate(c.beginTransaction("tx-003"))
+          } yield {
+            tx.execute("DELETE FROM audit_log")
             println("    [App] Not committing - scope exit will trigger auto-rollback...")
-            // Returning without commit - the Resource's release will call close(),
-            // which detects no commit and triggers rollback automatically
             TxResult(success = false, affectedRows = 0)
           }
         }
-      }
       println(s"  Result: $result3\n")
 
       println("--- All transactions complete, connection still open ---")

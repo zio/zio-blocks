@@ -94,46 +94,47 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     Resource.fromAutoCloseable(new ConnectionPool(poolConfig))
 
   Scope.global.scoped { appScope =>
+    import appScope._
     println("[App] Allocating pool\n")
-    val pool = appScope.allocate(poolResource)
+    val pool: $[ConnectionPool] = allocate(poolResource)
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
-    appScope.scoped { workScope =>
-      (appScope $ pool) { p =>
-        val conn = workScope.allocate(p.acquire)
-        (workScope $ conn) { c =>
-          val result = c.execute("SELECT * FROM service_a_table")
-          println(s"  [ServiceA] Got: $result")
-        }
+    scoped { workScope =>
+      import workScope._
+      for {
+        p <- lower(pool)
+        c <- allocate(p.acquire)
+      } yield {
+        val result = c.execute("SELECT * FROM service_a_table")
+        println(s"  [ServiceA] Got: $result")
       }
     }
     println()
 
     println("--- ServiceB doing work ---")
-    appScope.scoped { workScope =>
-      (appScope $ pool) { p =>
-        val conn = workScope.allocate(p.acquire)
-        (workScope $ conn) { c =>
-          val result = c.execute("SELECT * FROM service_b_table")
-          println(s"  [ServiceB] Got: $result")
-        }
+    scoped { workScope =>
+      import workScope._
+      for {
+        p <- lower(pool)
+        c <- allocate(p.acquire)
+      } yield {
+        val result = c.execute("SELECT * FROM service_b_table")
+        println(s"  [ServiceB] Got: $result")
       }
     }
     println()
 
     println("--- Multiple connections in same scope ---")
-    appScope.scoped { workScope =>
-      (appScope $ pool) { p =>
-        val connA = workScope.allocate(p.acquire)
-        val connB = workScope.allocate(p.acquire)
-
-        (workScope $ connA) { a =>
-          (workScope $ connB) { b =>
-            println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
-            a.execute("UPDATE table_a SET x = 1")
-            b.execute("UPDATE table_b SET y = 2")
-          }
-        }
+    scoped { workScope =>
+      import workScope._
+      for {
+        p <- lower(pool)
+        a <- allocate(p.acquire)
+        b <- allocate(p.acquire)
+      } yield {
+        println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
+        a.execute("UPDATE table_a SET x = 1")
+        b.execute("UPDATE table_b SET y = 2")
       }
     }
     println()

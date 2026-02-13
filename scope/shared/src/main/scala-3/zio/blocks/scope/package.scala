@@ -1,8 +1,8 @@
 package zio.blocks
 
 /**
- * Scope: A compile-time safe resource management library using existential
- * types.
+ * Scope: A compile-time safe resource management library using scope-local
+ * opaque types.
  *
  * ==Quick Start==
  *
@@ -10,33 +10,36 @@ package zio.blocks
  * import zio.blocks.scope._
  *
  * Scope.global.scoped { scope =>
- *   val db = scope.allocate(Resource[Database])
- *   val result = (scope $ db)(_.query("SELECT 1"))
- *   println(result)
+ *   import scope._
+ *   val db: $[Database] = allocate(Resource[Database])
+ *   val result: $[Int] = scope.use(db)(_.query("SELECT 1"))
+ *   result  // Returns $[Int], unwrapped to Int at boundary
  * }
  * }}}
  *
  * ==Key Concepts==
  *
- *   - '''Scoped values''' (`A @@ S`): Values tagged with a scope, preventing
+ *   - '''Scoped values''' (`scope.$[A]`): Values tied to a scope, preventing
  *     escape
- *   - '''`scope.allocate(resource)`''': Allocate a value in a scope
- *   - '''`(scope $ value)(f)`''': Apply a function to a scoped value
- *   - '''`scope.scoped { s => ... }`''': Create a child scope with existential
- *     tag
- *   - '''`scope.defer { ... }`''': Register cleanup to run when scope closes
+ *   - '''`import scope._`''': Bring scope operations into lexical scope
+ *   - '''`allocate(resource)`''': Allocate a value in the current scope
+ *   - '''`scope.use(value)(f)`''': Apply a function to a scoped value
+ *   - '''`scoped { s => ... }`''': Create a child scope
+ *   - '''`defer { ... }`''': Register cleanup to run when scope closes
  *
  * ==How It Works==
  *
- * The `.scoped` method creates a fresh existential `Tag` type for each
- * invocation using a local `type Fresh <: ParentTag` declaration. This tag
- * cannot be named outside the lambda, making it impossible to leak resources or
- * capabilities.
+ * Each scope has its own `$[A]` opaque type. Child scopes create structurally
+ * incompatible `$[A]` types, preventing sibling-scoped values from being mixed.
+ * Parent-scoped values can be lowered into child scopes via `lower()`.
+ *
+ * The `.scoped` method requires `Unscoped[A]` evidence on the return type,
+ * ensuring only pure data (not resources or closures) can escape.
  *
  * @see
- *   [[scope.Scope]] for scope types and operations [[scope.@@]] for scoped
- *   value operations [[scope.Resource]] for creating scoped values
- *   [[scope.Scoped]] for deferred scoped computations
+ *   [[scope.Scope]] for scope types and operations [[scope.Resource]] for
+ *   creating scoped values [[scope.Unscoped]] for types that can cross scope
+ *   boundaries
  */
 package object scope {
 
@@ -63,40 +66,4 @@ package object scope {
   def defer(finalizer: => Unit)(using fin: Finalizer): Unit =
     fin.defer(finalizer)
 
-  /**
-   * Leaks a scoped value out of its scope, returning the raw unwrapped value.
-   *
-   * '''Warning''': This function emits a compiler warning because leaking
-   * resources bypasses Scope's compile-time safety guarantees. The resource may
-   * be closed while still in use, leading to runtime errors.
-   *
-   * Use only for interop where third-party or Java code cannot operate with
-   * scoped values.
-   *
-   * @example
-   *   {{{
-   *   Scope.global.scoped { scope =>
-   *     val stream = scope.allocate(Resource[InputStream])
-   *     val leaked = leak(stream)
-   *     ThirdPartyProcessor.process(leaked)
-   *   }
-   *   }}}
-   *
-   * To suppress the warning for a specific call site, use
-   * `@nowarn("msg=is being leaked")` or configure your build tool's lint
-   * settings.
-   *
-   * If the type is not actually resourceful, consider adding a `given Unscoped`
-   * instance to avoid needing `leak`.
-   *
-   * @param scoped
-   *   the scoped value to leak
-   * @tparam A
-   *   the underlying value type
-   * @tparam S
-   *   the scope tag type
-   * @return
-   *   the raw unwrapped value
-   */
-  inline def leak[A, S](inline scoped: A @@ S): A = ${ LeakMacros.leakImpl[A, S]('scoped) }
 }

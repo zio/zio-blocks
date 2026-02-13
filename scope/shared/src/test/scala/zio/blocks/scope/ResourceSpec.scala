@@ -1,6 +1,6 @@
 package zio.blocks.scope
 
-import zio.{ZIO, Scope => _}
+import zio.{Scope => _}
 import zio.test._
 
 import java.util.concurrent.atomic.AtomicInteger
@@ -17,27 +17,27 @@ object ResourceSpec extends ZIOSpecDefault {
 
   def spec = suite("Resource")(
     test("Resource(value) creates a resource for non-AutoCloseable") {
-      val resource       = Resource(Config("jdbc://localhost"))
-      val (scope, close) = Scope.createTestableScope()
-      val config         = resource.make(scope)
-      close()
-      assertTrue(config.url == "jdbc://localhost")
+      val resource = Resource(Config("jdbc://localhost"))
+      val url      = Scope.global.scoped { scope =>
+        resource.make(scope).url
+      }
+      assertTrue(url == "jdbc://localhost")
     },
     test("Resource(value) auto-registers close for AutoCloseable") {
-      val db             = new Database(Config("url"))
-      val resource       = Resource(db)
-      val (scope, close) = Scope.createTestableScope()
-      val result         = resource.make(scope)
-      assertTrue(!result.closed)
-      close()
-      assertTrue(result.closed)
+      val db          = new Database(Config("url"))
+      val resource    = Resource(db)
+      val beforeClose = Scope.global.scoped { scope =>
+        resource.make(scope)
+        !db.closed
+      }
+      assertTrue(beforeClose, db.closed)
     },
     test("Resource.shared creates from function") {
-      val resource       = Resource.shared[Config](_ => Config("test-url"))
-      val (scope, close) = Scope.createTestableScope()
-      val config         = resource.make(scope)
-      close()
-      assertTrue(config.url == "test-url")
+      val resource = Resource.shared[Config](_ => Config("test-url"))
+      val url      = Scope.global.scoped { scope =>
+        resource.make(scope).url
+      }
+      assertTrue(url == "test-url")
     },
     test("Resource.unique creates fresh instances") {
       var counter  = 0
@@ -45,34 +45,37 @@ object ResourceSpec extends ZIOSpecDefault {
         counter += 1
         counter
       }
-      val (scope, close) = Scope.createTestableScope()
-      val a              = resource.make(scope)
-      val b              = resource.make(scope)
-      close()
+      val (a, b) = Scope.global.scoped { scope =>
+        val a = resource.make(scope)
+        val b = resource.make(scope)
+        (a, b)
+      }
       assertTrue(a == 1, b == 2)
     },
     test("Resource can register finalizers") {
-      val resource = Resource.shared[Database] { scope =>
+      var finalizerRan = false
+      val resource     = Resource.shared[Database] { scope =>
+        import scope._
         val db = new Database(Config("url"))
-        scope.defer(db.close())
+        defer { db.close(); finalizerRan = true }
         db
       }
-      val (scope, close) = Scope.createTestableScope()
-      val db             = resource.make(scope)
-      val beforeClose    = db.closed
-      close()
-      val afterClose = db.closed
-      assertTrue(!beforeClose, afterClose)
+      val beforeClose = Scope.global.scoped { scope =>
+        resource.make(scope)
+        !finalizerRan
+      }
+      assertTrue(beforeClose, finalizerRan)
     },
     test("Resource.shared memoizes across multiple makes") {
       val counter  = new AtomicInteger(0)
       val resource = Resource.shared[Int] { _ =>
         counter.incrementAndGet()
       }
-      val (scope, close) = Scope.createTestableScope()
-      val a              = resource.make(scope)
-      val b              = resource.make(scope)
-      close()
+      val (a, b) = Scope.global.scoped { scope =>
+        val a = resource.make(scope)
+        val b = resource.make(scope)
+        (a, b)
+      }
       assertTrue(a == 1, b == 1, counter.get() == 1)
     },
     test("Resource.shared runs finalizers only when all references released") {
@@ -81,24 +84,21 @@ object ResourceSpec extends ZIOSpecDefault {
         finalizer.defer(closeCalls += 1)
         "shared-value"
       }
-
-      val (scope1, close1) = Scope.createTestableScope()
-      val (scope2, close2) = Scope.createTestableScope()
-
-      val v1 = resource.make(scope1)
-      val v2 = resource.make(scope2)
-
-      close1()
-      val afterFirstClose = closeCalls
-
-      close2()
-      val afterSecondClose = closeCalls
-
+      var v1              = ""
+      var v2              = ""
+      var afterFirstClose = -1
+      Scope.global.scoped { scope1 =>
+        v1 = resource.make(scope1)
+        scope1.scoped { scope2 =>
+          v2 = resource.make(scope2)
+        }
+        afterFirstClose = closeCalls
+      }
       assertTrue(
         v1 == "shared-value",
         v2 == "shared-value",
         afterFirstClose == 0,
-        afterSecondClose == 1
+        closeCalls == 1
       )
     },
     test("Resource.shared runs finalizers in LIFO order") {
@@ -109,9 +109,9 @@ object ResourceSpec extends ZIOSpecDefault {
         finalizer.defer(order += 3)
         "value"
       }
-      val (scope, close) = Scope.createTestableScope()
-      resource.make(scope)
-      close()
+      Scope.global.scoped { scope =>
+        resource.make(scope)
+      }
       assertTrue(order.toList == List(3, 2, 1))
     },
     test("Resource.shared collects suppressed exceptions from finalizers") {
@@ -121,13 +121,13 @@ object ResourceSpec extends ZIOSpecDefault {
         finalizer.defer(throw new RuntimeException("error3"))
         "value"
       }
-      val (scope, close) = Scope.createTestableScope()
-      resource.make(scope)
 
       val caught =
         try {
-          close()
-          None
+          Scope.global.scoped { scope =>
+            resource.make(scope)
+          }
+          Option.empty[RuntimeException]
         } catch {
           case e: RuntimeException => Some(e)
         }
@@ -140,35 +140,18 @@ object ResourceSpec extends ZIOSpecDefault {
         caught.get.getSuppressed.apply(1).getMessage == "error1"
       )
     },
-    test("Resource.shared is thread-safe under concurrent makes") {
-      for {
-        counter      <- ZIO.succeed(new AtomicInteger(0))
-        closeCounter <- ZIO.succeed(new AtomicInteger(0))
-        resource      = Resource.shared[Int] { finalizer =>
-                     finalizer.defer { closeCounter.incrementAndGet(); () }
-                     counter.incrementAndGet()
-                   }
-        (scope, close) = Scope.createTestableScope()
-        results       <- ZIO.foreachPar(1 to 20) { _ =>
-                     ZIO.attempt(resource.make(scope))
-                   }
-        _ <- ZIO.succeed(close())
-      } yield assertTrue(
-        results.forall(_ == 1),
-        counter.get() == 1,
-        closeCounter.get() == 1
-      )
-    },
+    // NOTE: "Resource.shared is thread-safe under concurrent makes" is in
+    // scope/jvm/src/test/.../ResourceConcurrencySpec.scala (uses JVM-only classes)
     test("Resource.shared throws if allocated after destroyed") {
-      val resource         = Resource.shared[String](_ => "value")
-      val (scope1, close1) = Scope.createTestableScope()
-      resource.make(scope1)
-      close1()
-
-      val (scope2, _) = Scope.createTestableScope()
-      val caught      =
+      val resource = Resource.shared[String](_ => "value")
+      Scope.global.scoped { scope1 =>
+        resource.make(scope1)
+      }
+      val caught: Option[IllegalStateException] =
         try {
-          resource.make(scope2)
+          Scope.global.scoped { scope2 =>
+            resource.make(scope2)
+          }
           None
         } catch {
           case e: IllegalStateException => Some(e)
@@ -187,50 +170,51 @@ object ResourceSpec extends ZIOSpecDefault {
       } { _ =>
         released = true
       }
-      val (scope, close) = Scope.createTestableScope()
-      val value          = resource.make(scope)
-      assertTrue(acquired, !released, value == "value")
-      close()
-      assertTrue(released)
+      val (acq, rel, value) = Scope.global.scoped { scope =>
+        val value = resource.make(scope)
+        (acquired, released, value)
+      }
+      assertTrue(acq, !rel, value == "value", released)
     },
     test("Resource.fromAutoCloseable registers close as finalizer") {
       class MyCloseable extends AutoCloseable {
         var closed        = false
         def close(): Unit = closed = true
       }
-      val resource       = Resource.fromAutoCloseable(new MyCloseable)
-      val (scope, close) = Scope.createTestableScope()
-      val closeable      = resource.make(scope)
-      assertTrue(!closeable.closed)
-      close()
-      assertTrue(closeable.closed)
+      val closeable   = new MyCloseable
+      val resource    = Resource.fromAutoCloseable(closeable)
+      val beforeClose = Scope.global.scoped { scope =>
+        resource.make(scope)
+        !closeable.closed
+      }
+      assertTrue(beforeClose, closeable.closed)
     },
     suite("Resource.from with overrides")(
       test("creates standalone Resource when all deps covered") {
         case class Cfg(debug: Boolean)
         class SimpleService(@annotation.unused config: Cfg)
 
-        val configWire     = Wire(Cfg(true))
-        val resource       = Resource.from[SimpleService](configWire)
-        val (scope, close) = Scope.createTestableScope()
-        val service        = resource.make(scope)
-        close()
-        assertTrue(service.isInstanceOf[SimpleService])
+        val configWire      = Wire(Cfg(true))
+        val resource        = Resource.from[SimpleService](configWire)
+        val isSimpleService = Scope.global.scoped { scope =>
+          resource.make(scope).isInstanceOf[SimpleService]
+        }
+        assertTrue(isSimpleService)
       },
       test("with AutoCloseable registers finalizer") {
         case class Cfg(debug: Boolean)
+        var serviceClosed = false
         class CloseableService(@annotation.unused config: Cfg) extends AutoCloseable {
-          var closed        = false
-          def close(): Unit = closed = true
+          def close(): Unit = serviceClosed = true
         }
 
-        val configWire     = Wire(Cfg(true))
-        val resource       = Resource.from[CloseableService](configWire)
-        val (scope, close) = Scope.createTestableScope()
-        val service        = resource.make(scope)
-        assertTrue(!service.closed)
-        close()
-        assertTrue(service.closed)
+        val configWire  = Wire(Cfg(true))
+        val resource    = Resource.from[CloseableService](configWire)
+        val beforeClose = Scope.global.scoped { scope =>
+          resource.make(scope)
+          !serviceClosed
+        }
+        assertTrue(beforeClose, serviceClosed)
       },
       test("with multiple dependencies") {
         case class Cfg(debug: Boolean)
@@ -245,14 +229,14 @@ object ResourceSpec extends ZIOSpecDefault {
           @annotation.unused port: Port
         )
 
-        val configWire     = Wire(Cfg(false))
-        val dbWire         = Wire.shared[Db]
-        val portWire       = Wire(Port(8080))
-        val resource       = Resource.from[MultiDepService](configWire, dbWire, portWire)
-        val (scope, close) = Scope.createTestableScope()
-        val service        = resource.make(scope)
-        close()
-        assertTrue(service.isInstanceOf[MultiDepService])
+        val configWire = Wire(Cfg(false))
+        val dbWire     = Wire.shared[Db]
+        val portWire   = Wire(Port(8080))
+        val resource   = Resource.from[MultiDepService](configWire, dbWire, portWire)
+        val isMultiDep = Scope.global.scoped { scope =>
+          resource.make(scope).isInstanceOf[MultiDepService]
+        }
+        assertTrue(isMultiDep)
       }
     ),
     suite("map")(
@@ -260,9 +244,9 @@ object ResourceSpec extends ZIOSpecDefault {
         val portResource = Resource(8080)
         val urlResource  = portResource.map(port => s"http://localhost:$port")
 
-        val (scope, close) = Scope.createTestableScope()
-        val url            = urlResource.make(scope)
-        close()
+        val url = Scope.global.scoped { scope =>
+          urlResource.make(scope)
+        }
 
         assertTrue(url == "http://localhost:8080")
       },
@@ -276,27 +260,29 @@ object ResourceSpec extends ZIOSpecDefault {
         val connResource = Resource.fromAutoCloseable(new Conn)
         val idResource   = connResource.map(_ => "connection-id")
 
-        val (scope, close) = Scope.createTestableScope()
-        val id             = idResource.make(scope)
+        val id = Scope.global.scoped { scope =>
+          idResource.make(scope)
+        }
 
-        assertTrue(id == "connection-id", !closed)
-        close()
-        assertTrue(closed)
+        assertTrue(id == "connection-id", closed)
       }
     ),
     suite("flatMap")(
       test("sequences two resources") {
+        var dbClosed       = false
         val configResource = Resource(Config("jdbc://localhost"))
         val dbResource     = configResource.flatMap { config =>
-          Resource.fromAutoCloseable(new Database(config))
+          Resource.fromAutoCloseable(new Database(config) {
+            override def close(): Unit = { dbClosed = true; super.close() }
+          })
         }
 
-        val (scope, close) = Scope.createTestableScope()
-        val db             = dbResource.make(scope)
+        val beforeClose = Scope.global.scoped { scope =>
+          dbResource.make(scope)
+          !dbClosed
+        }
 
-        assertTrue(!db.closed)
-        close()
-        assertTrue(db.closed)
+        assertTrue(beforeClose, dbClosed)
       },
       test("runs finalizers in LIFO order (inner before outer)") {
         val order = ListBuffer[String]()
@@ -306,9 +292,9 @@ object ResourceSpec extends ZIOSpecDefault {
           Resource.acquireRelease("inner")(_ => order += "inner-released")
         }
 
-        val (scope, close) = Scope.createTestableScope()
-        combined.make(scope)
-        close()
+        Scope.global.scoped { scope =>
+          combined.make(scope)
+        }
 
         assertTrue(order.toList == List("inner-released", "outer-released"))
       }
@@ -319,11 +305,12 @@ object ResourceSpec extends ZIOSpecDefault {
         val cacheResource = Resource(42)
         val combined      = dbResource.zip(cacheResource)
 
-        val (scope, close) = Scope.createTestableScope()
-        val (db, cache)    = combined.make(scope)
-        close()
+        val (isDb, cache) = Scope.global.scoped { scope =>
+          val (db, cache) = combined.make(scope)
+          (db.isInstanceOf[Database], cache)
+        }
 
-        assertTrue(db.isInstanceOf[Database], cache == 42)
+        assertTrue(isDb, cache == 42)
       },
       test("runs both finalizers") {
         var dbClosed    = false
@@ -340,11 +327,10 @@ object ResourceSpec extends ZIOSpecDefault {
         val cacheResource = Resource.fromAutoCloseable(new Cache)
         val combined      = dbResource.zip(cacheResource)
 
-        val (scope, close) = Scope.createTestableScope()
-        combined.make(scope)
+        Scope.global.scoped { scope =>
+          val _ = combined.make(scope)
+        }
 
-        assertTrue(!dbClosed, !cacheClosed)
-        close()
         assertTrue(dbClosed, cacheClosed)
       },
       test("runs finalizers in LIFO order (second before first)") {
@@ -354,9 +340,9 @@ object ResourceSpec extends ZIOSpecDefault {
         val second   = Resource.acquireRelease("second")(_ => order += "second-released")
         val combined = first.zip(second)
 
-        val (scope, close) = Scope.createTestableScope()
-        combined.make(scope)
-        close()
+        Scope.global.scoped { scope =>
+          combined.make(scope)
+        }
 
         assertTrue(order.toList == List("second-released", "first-released"))
       }

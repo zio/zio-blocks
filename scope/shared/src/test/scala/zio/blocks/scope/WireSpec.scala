@@ -18,29 +18,29 @@ object WireSpec extends ZIOSpecDefault {
       assertTrue(wire.isInstanceOf[Wire.Shared[?, ?]])
     },
     test("Wire(...) construction works") {
-      val wire           = Wire(Config(true))
-      val (scope, close) = Scope.createTestableScope()
-      val config         = wire.make(scope, Context.empty)
-      close()
-      assertTrue(config.debug)
+      val wire  = Wire(Config(true))
+      val debug = Scope.global.scoped { scope =>
+        wire.make(scope, Context.empty).debug
+      }
+      assertTrue(debug)
     },
     test("Wire.Shared constructs value") {
       val wire: Wire.Shared[Any, Config] = Wire.Shared.fromFunction[Any, Config] { (_, _) =>
         Config(debug = true)
       }
-      val (scope, close) = Scope.createTestableScope()
-      val config         = wire.make(scope, Context.empty)
-      close()
-      assertTrue(config.debug)
+      val debug = Scope.global.scoped { scope =>
+        wire.make(scope, Context.empty).debug
+      }
+      assertTrue(debug)
     },
     test("Wire.Unique constructs value") {
       val wire: Wire.Unique[Any, Config] = Wire.Unique.fromFunction[Any, Config] { (_, _) =>
         Config(debug = false)
       }
-      val (scope, close) = Scope.createTestableScope()
-      val config         = wire.make(scope, Context.empty)
-      close()
-      assertTrue(!config.debug)
+      val debug = Scope.global.scoped { scope =>
+        wire.make(scope, Context.empty).debug
+      }
+      assertTrue(!debug)
     },
     test("Wire.isShared and isUnique") {
       val sharedWire = Wire(Config(true))
@@ -67,12 +67,12 @@ object WireSpec extends ZIOSpecDefault {
     },
     suite("toResource")(
       test("Wire with no deps uses toResource(Context.empty)") {
-        val wire           = Wire(Config(true))
-        val resource       = wire.toResource(Context.empty)
-        val (scope, close) = Scope.createTestableScope()
-        val config         = resource.make(scope)
-        close()
-        assertTrue(config.debug)
+        val wire     = Wire(Config(true))
+        val resource = wire.toResource(Context.empty)
+        val debug    = Scope.global.scoped { scope =>
+          resource.make(scope).debug
+        }
+        assertTrue(debug)
       },
       test("Wire.Unique.toResource with Context creates unique resource") {
         var counter = 0
@@ -80,12 +80,13 @@ object WireSpec extends ZIOSpecDefault {
           counter += 1
           counter
         }
-        val deps           = Context[Config](Config(true))
-        val resource       = wire.toResource(deps)
-        val (scope, close) = Scope.createTestableScope()
-        val a              = resource.make(scope)
-        val b              = resource.make(scope)
-        close()
+        val deps     = Context[Config](Config(true))
+        val resource = wire.toResource(deps)
+        val (a, b)   = Scope.global.scoped { scope =>
+          val a = resource.make(scope)
+          val b = resource.make(scope)
+          (a, b)
+        }
         assertTrue(a == 1, b == 2)
       },
       test("Wire(value) auto-finalizes AutoCloseable") {
@@ -93,14 +94,13 @@ object WireSpec extends ZIOSpecDefault {
         class Closeable extends AutoCloseable {
           def close(): Unit = closed = true
         }
-        val closeable        = new Closeable
-        val wire             = Wire(closeable)
-        val (scope, doClose) = Scope.createTestableScope()
-        val _                = wire.make(scope, Context.empty)
-        val closedBefore     = closed // capture value before close
-        doClose()
-        val closedAfter = closed // capture value after close
-        assertTrue(!closedBefore, closedAfter)
+        val closeable    = new Closeable
+        val wire         = Wire(closeable)
+        val closedBefore = Scope.global.scoped { scope =>
+          wire.make(scope, Context.empty)
+          closed
+        }
+        assertTrue(!closedBefore, closed)
       }
     )
   )

@@ -76,9 +76,10 @@ object LegacyProtocolHandler {
   println("Demonstrating leak() for passing scoped resources to third-party code.\n")
 
   Scope.global.scoped { scope =>
+    import scope._
     // Allocate the socket as a scoped resource.
     // The socket is tagged with the scope's type, preventing accidental escape.
-    val scopedSocket = scope.allocate(
+    val scopedSocket: $[ManagedSocket] = allocate(
       Resource.fromAutoCloseable(new ManagedSocket(SocketConfig("api.example.com", 443)))
     )
     println("Allocated scoped socket.\n")
@@ -97,10 +98,10 @@ object LegacyProtocolHandler {
     //   3. The third-party code won't cache or transfer ownership
     // -------------------------------------------------------------------------
 
-    // The @nowarn annotation suppresses the compiler warning that leak() emits.
-    // This acknowledges that you understand the risks.
-    @nowarn("msg=is being leaked")
-    val rawSocket: ManagedSocket = leak(scopedSocket)
+    // WARNING: leak() bypasses compile-time safety — use only for third-party interop.
+    // This intentionally escapes the scoped type and will emit a compiler warning.
+    @nowarn("msg=.*leaked.*|.*leak.*")
+    val rawSocket: ManagedSocket = scope.leak(scopedSocket)
 
     println("Passing raw socket to legacy protocol handler:")
     LegacyProtocolHandler.handleConnection(rawSocket)

@@ -25,8 +25,9 @@ import zio.blocks.scope.internal.ProxyFinalizer
  * @example
  *   {{{
  *   Scope.global.scoped { scope =>
- *     val db = scope.allocate(Resource.fromAutoCloseable(new Database()))
- *     (scope $ db)(_.query("SELECT 1"))
+ *     import scope._
+ *     val db = allocate(Resource.fromAutoCloseable(new Database()))
+ *     $(db)(_.query("SELECT 1"))
  *   }
  *   }}}
  *

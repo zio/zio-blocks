@@ -89,9 +89,9 @@ object DependencySharingSpec extends ZIOSpecDefault {
         // Mid should be constructed once and shared
         val resource = Resource.from[DiamondApp]()
 
-        val (scope, close) = Scope.createTestableScope()
-        resource.make(scope)
-        close()
+        Scope.global.scoped { scope =>
+          val _ = resource.make(scope)
+        }
 
         assertTrue(
           leafCounter.get() == 1,
@@ -109,9 +109,9 @@ object DependencySharingSpec extends ZIOSpecDefault {
         // Whole graph wireup via Resource.from
         val resource = Resource.from[App](dbWire, userWire, orderWire)
 
-        val (scope, close) = Scope.createTestableScope()
-        resource.make(scope)
-        close()
+        Scope.global.scoped { scope =>
+          val _ = resource.make(scope)
+        }
 
         // Database should be constructed exactly once, shared between UserService and OrderService
         assertTrue(
@@ -133,9 +133,9 @@ object DependencySharingSpec extends ZIOSpecDefault {
         val appWire  = Wire.shared[App]
         val resource = Resource.from[App](appWire, dbWire, userWire, orderWire)
 
-        val (scope, close) = Scope.createTestableScope()
-        resource.make(scope)
-        close()
+        Scope.global.scoped { scope =>
+          val _ = resource.make(scope)
+        }
 
         assertTrue(
           dbCounter.get() == 1,
@@ -153,15 +153,16 @@ object DependencySharingSpec extends ZIOSpecDefault {
         val dbWire1 = Wire.shared[Database]
         val dbWire2 = Wire.shared[Database]
 
-        val (scope, close) = Scope.createTestableScope()
-        val db1            = dbWire1.toResource(Context.empty).make(scope)
-        val db2            = dbWire2.toResource(Context.empty).make(scope)
-        close()
+        val (id1, id2) = Scope.global.scoped { scope =>
+          val db1 = dbWire1.toResource(Context.empty).make(scope)
+          val db2 = dbWire2.toResource(Context.empty).make(scope)
+          (db1.id, db2.id)
+        }
 
         // Two databases - different Wire instances = different Resources
         assertTrue(
           dbCounter.get() == 2,
-          db1.id != db2.id
+          id1 != id2
         )
       }
     ),
@@ -172,14 +173,15 @@ object DependencySharingSpec extends ZIOSpecDefault {
         val dbWire   = Wire.shared[Database]
         val resource = dbWire.toResource(Context.empty)
 
-        val (scope, close) = Scope.createTestableScope()
-        val db1            = resource.make(scope)
-        val db2            = resource.make(scope)
-        close()
+        val same = Scope.global.scoped { scope =>
+          val db1 = resource.make(scope)
+          val db2 = resource.make(scope)
+          db1.eq(db2)
+        }
 
         assertTrue(
           dbCounter.get() == 1,
-          db1.eq(db2)
+          same
         )
       }
     ),
@@ -192,9 +194,9 @@ object DependencySharingSpec extends ZIOSpecDefault {
           Wire.shared[LiveService]
         )
 
-        val (scope, close) = Scope.createTestableScope()
-        resource.make(scope)
-        close()
+        Scope.global.scoped { scope =>
+          val _ = resource.make(scope)
+        }
 
         // Should create only one LiveService instance
         assertTrue(liveServiceCounter.get() == 1)
