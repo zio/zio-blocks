@@ -205,12 +205,7 @@ object Resource extends ResourceCompanionVersionSpecific {
               if (created.refCount == 1) {
                 // We're the last reference - transition to Destroyed and run finalizers
                 if (state.compareAndSet(created, Destroyed)) {
-                  val errors = created.proxy.runAll()
-                  if (errors.nonEmpty) {
-                    val first = errors.head
-                    errors.tail.foreach(first.addSuppressed)
-                    throw first
-                  }
+                  created.proxy.runAllOrThrow()
                   decrementDone = true
                 }
                 // else: state changed, retry

@@ -86,6 +86,45 @@ object FinalizersSpec extends ZIOSpecDefault {
         result.exists(_.getSuppressed.map(_.getMessage).toSet == Set("finalizer1", "finalizer2"))
       )
     },
+    test("runAllOrThrow does nothing when no finalizers throw") {
+      val finalizers = new Finalizers
+      var count      = 0
+      finalizers.add(count += 1)
+      finalizers.add(count += 1)
+      finalizers.runAllOrThrow()
+      assertTrue(count == 2)
+    },
+    test("runAllOrThrow throws single exception") {
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("boom"))
+      val result = try {
+        finalizers.runAllOrThrow()
+        None
+      } catch {
+        case e: RuntimeException => Some(e)
+      }
+      assertTrue(
+        result.exists(_.getMessage == "boom"),
+        result.exists(_.getSuppressed.isEmpty)
+      )
+    },
+    test("runAllOrThrow throws first exception with rest suppressed") {
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("finalizer1"))
+      finalizers.add(throw new RuntimeException("finalizer2"))
+      finalizers.add(throw new RuntimeException("finalizer3"))
+      val result = try {
+        finalizers.runAllOrThrow()
+        None
+      } catch {
+        case e: RuntimeException => Some(e)
+      }
+      assertTrue(
+        result.exists(_.getMessage == "finalizer3"),
+        result.exists(_.getSuppressed.length == 2),
+        result.exists(_.getSuppressed.map(_.getMessage).toSet == Set("finalizer1", "finalizer2"))
+      )
+    },
     test("if block succeeds and finalizers throw multiple: first thrown, rest suppressed") {
       val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer1"))

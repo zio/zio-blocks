@@ -21,4 +21,12 @@ private[scope] final class ProxyFinalizer extends Finalizer {
    *   any exceptions thrown during finalization
    */
   def runAll(): Chunk[Throwable] = finalizers.runAll()
+
+  /**
+   * Runs all collected finalizers in LIFO order, throwing if any failed.
+   *
+   * @throws Throwable
+   *   the first finalizer exception, with others suppressed
+   */
+  def runAllOrThrow(): Unit = finalizers.runAllOrThrow()
 }

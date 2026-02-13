@@ -141,12 +141,7 @@ object Scope {
     protected val finalizers: Finalizers = {
       val f = new Finalizers
       PlatformScope.registerShutdownHook { () =>
-        val errors = f.runAll()
-        if (errors.nonEmpty) {
-          val first = errors.head
-          errors.tail.foreach(first.addSuppressed)
-          throw first
-        }
+        f.runAllOrThrow()
       }
       f
     }

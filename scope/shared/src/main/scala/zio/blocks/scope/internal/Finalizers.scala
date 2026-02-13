@@ -64,6 +64,25 @@ private[scope] final class Finalizers {
   }
 
   /**
+   * Runs all registered finalizers in LIFO order, throwing if any failed.
+   *
+   * If multiple finalizers throw, the first exception (LIFO order) is thrown
+   * with all subsequent exceptions added as suppressed. This ensures no
+   * exceptions are lost.
+   *
+   * @throws Throwable
+   *   the first finalizer exception, with others suppressed
+   */
+  def runAllOrThrow(): Unit = {
+    val errors = runAll()
+    if (errors.nonEmpty) {
+      val first = errors.head
+      errors.tail.foreach(first.addSuppressed)
+      throw first
+    }
+  }
+
+  /**
    * Returns true if this finalizer collection has been closed.
    */
   def isClosed: Boolean = state.get() eq Closed
