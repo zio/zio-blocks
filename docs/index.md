@@ -173,7 +173,7 @@ val head: Int = nonEmpty.head  // Always safe, no Option needed
 
 ## Scope
 
-Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope, and child scope values cannot escape to parent scopes.
+Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope. Child scope values cannot escape to parent scopes, enforced by both the abstract scope-tagged type and the `Unscoped` constraint on `scoped`.
 
 ### The Problem
 
@@ -221,7 +221,7 @@ Scope.global.scoped { scope =>
 ### Key Features
 
 - **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
-- **Zero Runtime Overhead**: The `$[A]` type is erased at runtime—`scope.$[A]` is represented as just `A`.
+- **Zero Runtime Overhead**: `$[A]` erases to `A` at runtime—zero allocation overhead.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
@@ -296,17 +296,16 @@ Scope.global.scoped { connScope =>
   val result: String = scoped { txScope =>
     import txScope._
 
-    // Lower parent-scoped conn into child scope
-    val localConn: $[Connection] = lower(conn)
-
-    val tx = allocate(txScope.use(localConn)(_.beginTransaction()))
-
-    txScope.use(tx) { t =>
-      t.execute("INSERT INTO users VALUES (1, 'Alice')")
-      t.commit()
+    // For-comprehension: flatMap unwraps $[Connection] to Connection,
+    // so c.beginTransaction() returns a raw Resource[Transaction]
+    for {
+      c  <- lower(conn)
+      tx <- allocate(c.beginTransaction())
+    } yield {
+      tx.execute("INSERT INTO users VALUES (1, 'Alice')")
+      tx.commit()
+      "success"
     }
-
-    "success"
   }
   // Transaction closed here, connection still open
 

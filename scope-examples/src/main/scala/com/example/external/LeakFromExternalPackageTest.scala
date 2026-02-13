@@ -7,9 +7,10 @@ import zio.blocks.scope._
  * Test that the `leak` macro works from a package completely outside
  * zio.blocks.scope hierarchy.
  *
- * This verifies whether `private[scope] run()` is accessible when the leak
- * macro expands at an external call site.
+ * This verifies that the leak macro expansion works correctly at
+ * external call sites, even though `$run` is `private[scope]`.
  */
+@nowarn("msg=.*leaked.*|.*leak.*")
 @main def leakFromExternalPackageTest(): Unit = {
   println("=== Testing leak from external package ===\n")
 
@@ -22,10 +23,8 @@ import zio.blocks.scope._
     import scope._
     val db: $[Database] = allocate(Resource(new Database))
 
-    // Since $[A] = A at runtime, we can extract the raw value via cast.
-    // This bypasses compile-time safety - use sparingly.
-    @nowarn
-    val leaked: Database = db.asInstanceOf[Database]
+    // Use the proper leak escape hatch (emits a compiler warning)
+    val leaked: Database = scope.leak(db)
 
     println(s"Leaked database query: ${leaked.query("SELECT 1")}")
   }

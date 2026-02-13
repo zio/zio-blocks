@@ -61,7 +61,7 @@ Scope.global.scoped { scope =>
 
 Key things to notice:
 
-- `allocate(...)` returns a **scoped** value: `$[Database]` (or `scope.$[Database]`)
+- `allocate(...)` returns a **scoped** value of type `$[Database]` (the path-dependent type of the enclosing scope)
 - `$[A] = A` at runtime — zero-cost opaque type, no boxing
 - All operations are **eager** — values are computed immediately, no lazy thunks
 - Use `scope.use(value)(f)` to work with scoped values; returns `$[B]`
@@ -117,7 +117,7 @@ object Scope {
 
 ### 2) Scoped values: `$[+A]`
 
-`$[+A]` (or `scope.$[+A]`) is a path-dependent opaque type representing a value of type `A` that is locked to a specific scope. It is covariant in `A`.
+`$[+A]` (or `scope.$[A]` in type annotations) is a path-dependent opaque type representing a value of type `A` that is locked to a specific scope. It is covariant in `A`.
 
 - **Runtime representation:** `$[A] = A` — zero-cost opaque type, no boxing or wrapping
 - **Key effect:** methods on `A` are hidden at the type level; you can't call `a.method` directly
@@ -208,9 +208,16 @@ The `Unscoped[A]` typeclass marks types as pure data that don't hold resources. 
 
 **Custom Unscoped types:**
 ```scala
+// Scala 3:
 case class Config(debug: Boolean)
 object Config {
   given Unscoped[Config] = Unscoped.derived
+}
+
+// Scala 2:
+case class Config(debug: Boolean)
+object Config {
+  implicit val unscopedConfig: Unscoped[Config] = Unscoped.derived[Config]
 }
 ```
 
@@ -259,7 +266,7 @@ Scope.global.scoped { parent =>
 
     // Use lower() to access parent-scoped value in child scope
     val db: $[Database] = lower(parentDb)
-    scope.use(db)(_.query("SELECT 1"))
+    child.use(db)(_.query("SELECT 1"))
 
     "done"
   }
@@ -347,7 +354,7 @@ Compile-time safety is verified in tests, e.g.:
 
 Each scope defines its own `$[A]` opaque type. Even though `$[A] = A` at runtime, the compiler treats each scope's `$[A]` as distinct. A child's `$[Database]` is a different type than the parent's `$[Database]`.
 
-Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access route is `scope.use(value)(f)`.
+Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. Access routes are `scope.use(value)(f)` and the `ScopedOps` methods (`map`, `flatMap`) for for-comprehensions.
 
 ---
 
@@ -398,11 +405,11 @@ Scope.global.scoped { parent =>
     // You can use childDb *inside* the child:
     println(child.use(childDb)(_.query("SELECT 2")))
 
+    // But you cannot return childDb to the parent:
+    // $[Database] has no Unscoped instance — compile error
+
     // Return an Unscoped value
     "done"
-    
-    // But you cannot return childDb to the parent:
-    // $[Database] has no Unscoped instance
   }
 
   // parentDb is still usable here:
@@ -414,14 +421,13 @@ Scope.global.scoped { parent =>
 
 ### Chaining resource acquisition
 
-Since all operations are eager, you work with scoped values directly:
+Since `$[A]` supports `map` and `flatMap` via `ScopedOps`, you can chain resource acquisitions in for-comprehensions:
 
 ```scala
 import zio.blocks.scope._
 
-// A pool that leases connections
-class Pool(implicit finalizer: Finalizer) extends AutoCloseable {
-  def lease: Resource[Connection] = Resource(new Connection)
+class Pool extends AutoCloseable {
+  def lease(): Connection = new Connection
   def close(): Unit = println("pool closed")
 }
 
@@ -433,12 +439,12 @@ class Connection extends AutoCloseable {
 Scope.global.scoped { scope =>
   import scope._
 
-  val pool: $[Pool] = allocate(Resource.from[Pool])
-
-  // Allocate a connection from the pool's resource
-  val connection: $[Connection] = allocate(scope.use(pool)(_.lease))
-
-  val result: $[String] = scope.use(connection)(_.query("SELECT 1"))
+  // Chain allocations in a for-comprehension:
+  // flatMap unwraps $[Pool] to Pool, so pool.lease() returns a raw Connection
+  val result: $[String] = for {
+    pool <- allocate(Resource.from[Pool])
+    conn <- allocate(Resource(pool.lease()))
+  } yield conn.query("SELECT 1")
 
   println(result)
 }

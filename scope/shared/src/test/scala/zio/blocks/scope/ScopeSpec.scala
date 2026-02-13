@@ -579,6 +579,85 @@ object ScopeSpec extends ZIOSpecDefault {
         }
         assertTrue(result == 100)
       }
+    ),
+    suite("closed scope defense")(
+      test("isClosed is false while scope is open") {
+        val result: Boolean = Scope.global.scoped { scope =>
+          scope.$(scope.isClosed)
+        }
+        assertTrue(!result)
+      },
+      test("isClosed is true after scope closes") {
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        child.close()
+        assertTrue(child.isClosed)
+      },
+      test("use on closed scope returns null instead of executing function") {
+        val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        val wrapped = child.$(42)
+        child.close()
+        var fnRan = false
+        val result = child.use(wrapped) { v =>
+          fnRan = true
+          v + 1
+        }
+        assertTrue(!fnRan, result == null)
+      },
+      test("allocate on closed scope returns null instead of acquiring resource") {
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        child.close()
+        val result = child.allocate(Resource(new Database))
+        assertTrue(child.isClosed, result == null)
+      },
+      test("map on closed scope returns null instead of executing function") {
+        val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        val wrapped = child.$("hello")
+        child.close()
+        import child._
+        var fnRan = false
+        val result = wrapped.map { v =>
+          fnRan = true
+          v.toUpperCase
+        }
+        assertTrue(!fnRan, result == null)
+      },
+      test("flatMap on closed scope returns null instead of executing function") {
+        val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        val wrapped = child.$(99)
+        child.close()
+        import child._
+        var fnRan = false
+        val result = wrapped.flatMap { v =>
+          fnRan = true
+          child.$(v + 1)
+        }
+        assertTrue(!fnRan, result == null)
+      },
+      test("scoped on closed scope creates born-closed child") {
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        child.close()
+        var innerClosed = false
+        child.scoped { inner =>
+          innerClosed = inner.isClosed
+        }
+        assertTrue(child.isClosed, innerClosed)
+      },
+      test("defer on closed scope is silently ignored") {
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        child.close()
+        var finalizerRan = false
+        child.defer { finalizerRan = true }
+        assertTrue(child.isClosed, !finalizerRan)
+      },
+      test("$ on closed scope returns null") {
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
+        child.close()
+        val result = child.$(42)
+        assertTrue(result == null)
+      },
+      test("global scope isClosed is always false") {
+        assertTrue(!Scope.global.isClosed)
+      }
     )
   )
 }

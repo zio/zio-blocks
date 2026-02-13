@@ -6,6 +6,39 @@ import zio.blocks.scope.internal.{MacroCore => MC}
 private[scope] object ScopeMacros {
 
   /**
+   * Scala 2 macro implementation for Scope.leak.
+   *
+   * Emits a compiler warning via MacroCore.warnLeak and returns the
+   * unwrapped value (using asInstanceOf which is sound since $[A] = A at runtime).
+   */
+  def leakImpl(c: whitebox.Context)(sa: c.Tree): c.Tree = {
+    import c.universe._
+
+    val self = c.prefix.tree
+
+    // Extract source code for the warning message
+    val sourceCode = sa match {
+      case Ident(name)       => name.toString
+      case Select(_, name)   => name.toString
+      case _                 => show(sa)
+    }
+
+    // Extract scope name for the warning message
+    val scopeName = self.tpe.widen.toString
+
+    MC.warnLeak(c)(sa.pos, sourceCode, scopeName)
+
+    // Extract the underlying type A from $[A]
+    val saType = sa.tpe.widen
+    val underlyingType = saType match {
+      case TypeRef(_, sym, List(arg)) if sym.name.toString == "$" => arg
+      case _                                                      => saType
+    }
+
+    q"$sa.asInstanceOf[$underlyingType]"
+  }
+
+  /**
    * Production Scope.scoped macro implementation for Scala 2.
    *
    * This macro enables ergonomic `scoped { child => ... }` syntax in Scala 2
@@ -82,12 +115,16 @@ private[scope] object ScopeMacros {
       }
     }
 
-    // Generate production code with full finalizer handling
+    // Generate production code with full finalizer handling.
+    // If the parent scope is already closed, create a born-closed child
+    // so that operations inside the block become no-ops.
     q"""
       val parent = $self
+      val fins = if (parent.isClosed) _root_.zio.blocks.scope.internal.Finalizers.closed
+                 else new _root_.zio.blocks.scope.internal.Finalizers
       val child = new _root_.zio.blocks.scope.Scope.Child[parent.type](
-        parent, 
-        new _root_.zio.blocks.scope.internal.Finalizers
+        parent,
+        fins
       )
       var primary: Throwable = null
       var unwrapped: $underlyingType = null.asInstanceOf[$underlyingType]

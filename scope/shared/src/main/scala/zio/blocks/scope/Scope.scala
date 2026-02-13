@@ -27,7 +27,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   protected def $unwrap[A](sa: $[A]): A
 
   /** Create a scoped value from a raw value (zero-cost). */
-  def $[A](a: A): $[A] = $wrap(a)
+  def $[A](a: A): $[A] =
+    if (isClosed) $wrap(null.asInstanceOf[A])
+    else $wrap(a)
 
   /**
    * Force evaluation of a scoped value. Package-private - UNSOUND if exposed.
@@ -44,50 +46,62 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   // Resource allocation - abstract, implemented by Child and global
   protected def finalizers: Finalizers
 
-  /** Allocate a resource in this scope. */
-  def allocate[A](resource: Resource[A]): $[A] = {
-    val value = resource.make(this)
-    $wrap(value)
-  }
+  /** Returns true if this scope has been closed (finalizers already ran). */
+  def isClosed: Boolean = finalizers.isClosed
 
-  /** Allocate an AutoCloseable directly. */
+  /** Allocate a resource in this scope. Returns null-scoped if closed. */
+  def allocate[A](resource: Resource[A]): $[A] =
+    if (isClosed) $wrap(null.asInstanceOf[A])
+    else {
+      val value = resource.make(this)
+      $wrap(value)
+    }
+
+  /** Allocate an AutoCloseable directly. Returns null-scoped if closed. */
   def allocate[A <: AutoCloseable](value: => A): $[A] =
     allocate(Resource(value))
 
-  /** Register a finalizer to run when scope closes. */
+  /** Register a finalizer to run when scope closes (no-op if already closed). */
   def defer(f: => Unit): Unit = finalizers.add(f)
 
-  /** Apply a function to a scoped value. Always eager (zero-cost). */
+  /** Apply a function to a scoped value. Returns null-scoped if closed. */
   def use[A, B](scoped: $[A])(f: A => B): $[B] =
-    $wrap(f($unwrap(scoped)))
+    if (isClosed) $wrap(null.asInstanceOf[B])
+    else $wrap(f($unwrap(scoped)))
 
-  /** Apply a function to two scoped values. */
+  /** Apply a function to two scoped values. Returns null-scoped if closed. */
   def use[A1, A2, B](s1: $[A1], s2: $[A2])(f: (A1, A2) => B): $[B] =
-    $wrap(f($unwrap(s1), $unwrap(s2)))
+    if (isClosed) $wrap(null.asInstanceOf[B])
+    else $wrap(f($unwrap(s1), $unwrap(s2)))
 
-  /** Apply a function to three scoped values. */
+  /** Apply a function to three scoped values. Returns null-scoped if closed. */
   def use[A1, A2, A3, B](s1: $[A1], s2: $[A2], s3: $[A3])(f: (A1, A2, A3) => B): $[B] =
-    $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3)))
+    if (isClosed) $wrap(null.asInstanceOf[B])
+    else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3)))
 
-  /** Apply a function to four scoped values. */
+  /** Apply a function to four scoped values. Returns null-scoped if closed. */
   def use[A1, A2, A3, A4, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4])(
     f: (A1, A2, A3, A4) => B
   ): $[B] =
-    $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4)))
+    if (isClosed) $wrap(null.asInstanceOf[B])
+    else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4)))
 
-  /** Apply a function to five scoped values. */
+  /** Apply a function to five scoped values. Returns null-scoped if closed. */
   def use[A1, A2, A3, A4, A5, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4], s5: $[A5])(
     f: (A1, A2, A3, A4, A5) => B
   ): $[B] =
-    $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4), $unwrap(s5)))
+    if (isClosed) $wrap(null.asInstanceOf[B])
+    else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4), $unwrap(s5)))
 
-  /** Implicit ops for map/flatMap on scoped values. All eager (zero-cost). */
+  /** Implicit ops for map/flatMap on scoped values. Guarded against closed scope. */
   implicit class ScopedOps[A](private val sa: $[A]) {
     def map[B](f: A => B): $[B] =
-      $wrap(f($unwrap(sa)))
+      if (isClosed) $wrap(null.asInstanceOf[B])
+      else $wrap(f($unwrap(sa)))
 
     def flatMap[B](f: A => $[B]): $[B] =
-      f($unwrap(sa))
+      if (isClosed) $wrap(null.asInstanceOf[B])
+      else f($unwrap(sa))
   }
 
   /**
