@@ -260,7 +260,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 88,
+    coverageMinimumStmtTotal   := 91,
     coverageMinimumBranchTotal := 86
   )
 
