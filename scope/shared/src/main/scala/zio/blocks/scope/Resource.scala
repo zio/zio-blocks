@@ -205,7 +205,7 @@ object Resource extends ResourceCompanionVersionSpecific {
               if (created.refCount == 1) {
                 // We're the last reference - transition to Destroyed and run finalizers
                 if (state.compareAndSet(created, Destroyed)) {
-                  created.proxy.runAllOrThrow()
+                  created.proxy.runAll().orThrow()
                   decrementDone = true
                 }
                 // else: state changed, retry

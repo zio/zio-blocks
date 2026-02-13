@@ -38,13 +38,11 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
         primary = t
         throw t
     } finally {
-      val errors = child.close()
+      val finalization = fins.runAll()
       if (primary != null) {
-        errors.foreach(primary.addSuppressed)
-      } else if (errors.nonEmpty) {
-        val first = errors.head
-        errors.tail.foreach(first.addSuppressed)
-        throw first
+        finalization.suppress(primary)
+      } else {
+        finalization.orThrow()
       }
     }
     unwrapped

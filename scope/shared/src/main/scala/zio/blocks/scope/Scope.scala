@@ -1,7 +1,6 @@
 package zio.blocks.scope
 
 import scala.language.implicitConversions
-import zio.blocks.chunk.Chunk
 import zio.blocks.scope.internal.Finalizers
 
 /**
@@ -75,7 +74,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /**
    * Register a finalizer to run when scope closes (no-op if already closed).
    */
-  def defer(f: => Unit): Unit = finalizers.add(f)
+  override def defer(f: => Unit): Unit = finalizers.add(f)
 
   /** Apply a function to a scoped value. Returns null-scoped if closed. */
   def use[A, B](scoped: $[A])(f: A => B): $[B] =
@@ -141,12 +140,12 @@ object Scope {
     protected val finalizers: Finalizers = {
       val f = new Finalizers
       PlatformScope.registerShutdownHook { () =>
-        f.runAllOrThrow()
+        f.runAll().orThrow()
       }
       f
     }
 
-    private[scope] def runFinalizers(): Chunk[Throwable] = finalizers.runAll()
+    private[scope] def runFinalizers(): Finalization = finalizers.runAll()
   }
 
   /** Child scope - created by scoped { ... }. */
@@ -156,7 +155,7 @@ object Scope {
   ) extends Scope { self =>
     type Parent = P
 
-    def close(): Chunk[Throwable] = finalizers.runAll()
+    private[scope] def close(): Finalization = finalizers.runAll()
 
     // $[A] type and $wrap/$unwrap are version-specific
     // Scala 3: opaque type $[+A] = A
