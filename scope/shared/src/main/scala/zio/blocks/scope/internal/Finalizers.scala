@@ -1,6 +1,7 @@
 package zio.blocks.scope.internal
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.scope.Finalization
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -45,12 +46,12 @@ private[scope] final class Finalizers {
    * finalizers once. Subsequent calls return an empty Chunk.
    *
    * @return
-   *   A Chunk containing any exceptions thrown by finalizers
+   *   A Finalization containing any exceptions thrown by finalizers
    */
-  def runAll(): Chunk[Throwable] = {
+  def runAll(): Finalization = {
     val prev = state.getAndSet(Closed)
     prev match {
-      case Closed             => Chunk.empty
+      case Closed             => Finalization.empty
       case o: Open @unchecked =>
         val errorsBuilder = Chunk.newBuilder[Throwable]
         var current       = o.head
@@ -59,7 +60,7 @@ private[scope] final class Finalizers {
           catch { case t: Throwable => errorsBuilder += t }
           current = current.next
         }
-        errorsBuilder.result()
+        Finalization(errorsBuilder.result())
     }
   }
 
@@ -94,7 +95,7 @@ private[scope] object Finalizers {
    * Creates a Finalizers instance that starts in the closed state.
    *
    * All operations on a closed Finalizers are no-ops: add() is ignored,
-   * runAll() returns empty, isClosed returns true.
+   * runAll() returns Finalization.empty, isClosed returns true.
    */
   def closed: Finalizers = {
     val f = new Finalizers

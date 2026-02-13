@@ -17,13 +17,13 @@ object FinalizersSpec extends ZIOSpecDefault {
       finalizers.runAll()
       assertTrue(order.toList == List(3, 2, 1))
     },
-    test("exception in finalizer is returned in Chunk") {
+    test("exception in finalizer is returned in Finalization") {
       val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer boom"))
-      val errors = finalizers.runAll()
+      val fin = finalizers.runAll()
       assertTrue(
-        errors.size == 1,
-        errors.headOption.exists(_.getMessage == "finalizer boom")
+        fin.errors.size == 1,
+        fin.errors.headOption.exists(_.getMessage == "finalizer boom")
       )
     },
     test("isClosed returns correct state") {
@@ -72,8 +72,7 @@ object FinalizersSpec extends ZIOSpecDefault {
       val result  = try {
         try throw primary
         finally {
-          val errors = finalizers.runAll()
-          if (errors.nonEmpty) errors.foreach(primary.addSuppressed)
+          finalizers.runAll().suppress(primary)
         }
         None
       } catch {
@@ -86,16 +85,89 @@ object FinalizersSpec extends ZIOSpecDefault {
         result.exists(_.getSuppressed.map(_.getMessage).toSet == Set("finalizer1", "finalizer2"))
       )
     },
+    test("orThrow does nothing when no finalizers throw") {
+      val finalizers = new Finalizers
+      var count      = 0
+      finalizers.add(count += 1)
+      finalizers.add(count += 1)
+      finalizers.runAll().orThrow()
+      assertTrue(count == 2)
+    },
+    test("orThrow throws single exception") {
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("boom"))
+      val result = try {
+        finalizers.runAll().orThrow()
+        None
+      } catch {
+        case e: RuntimeException => Some(e)
+      }
+      assertTrue(
+        result.exists(_.getMessage == "boom"),
+        result.exists(_.getSuppressed.isEmpty)
+      )
+    },
+    test("orThrow throws first exception with rest suppressed") {
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("finalizer1"))
+      finalizers.add(throw new RuntimeException("finalizer2"))
+      finalizers.add(throw new RuntimeException("finalizer3"))
+      val result = try {
+        finalizers.runAll().orThrow()
+        None
+      } catch {
+        case e: RuntimeException => Some(e)
+      }
+      assertTrue(
+        result.exists(_.getMessage == "finalizer3"),
+        result.exists(_.getSuppressed.length == 2),
+        result.exists(_.getSuppressed.map(_.getMessage).toSet == Set("finalizer1", "finalizer2"))
+      )
+    },
+    test("suppress adds no suppressed when no finalizers throw") {
+      val finalizers = new Finalizers
+      finalizers.add(())
+      val initial = new RuntimeException("primary")
+      val result  = finalizers.runAll().suppress(initial)
+      assertTrue(
+        result eq initial,
+        result.getSuppressed.isEmpty
+      )
+    },
+    test("suppress adds single finalizer error as suppressed") {
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("fin1"))
+      val initial = new RuntimeException("primary")
+      val result  = finalizers.runAll().suppress(initial)
+      assertTrue(
+        result eq initial,
+        result.getSuppressed.length == 1,
+        result.getSuppressed.head.getMessage == "fin1"
+      )
+    },
+    test("suppress adds all finalizer errors as suppressed") {
+      val finalizers = new Finalizers
+      finalizers.add(throw new RuntimeException("fin1"))
+      finalizers.add(throw new RuntimeException("fin2"))
+      finalizers.add(throw new RuntimeException("fin3"))
+      val initial = new RuntimeException("primary")
+      val result  = finalizers.runAll().suppress(initial)
+      assertTrue(
+        result eq initial,
+        result.getSuppressed.length == 3,
+        result.getSuppressed.map(_.getMessage).toSet == Set("fin1", "fin2", "fin3")
+      )
+    },
     test("if block succeeds and finalizers throw multiple: first thrown, rest suppressed") {
       val finalizers = new Finalizers
       finalizers.add(throw new RuntimeException("finalizer1"))
       finalizers.add(throw new RuntimeException("finalizer2"))
       finalizers.add(throw new RuntimeException("finalizer3"))
 
-      val errors = finalizers.runAll()
-      val result = if (errors.nonEmpty) {
-        val first = errors.head
-        errors.tail.foreach(first.addSuppressed)
+      val fin    = finalizers.runAll()
+      val result = if (fin.nonEmpty) {
+        val first = fin.errors.head
+        fin.errors.tail.foreach(first.addSuppressed)
         Some(first)
       } else None
 
