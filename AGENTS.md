@@ -79,6 +79,10 @@ If any step fails: return to phase 1, fix, get green in phase 2, rerun the faili
 
 Run once after verify passes.
 
+## Cross-Version Code Structure
+
+For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
+
 ## Testing
 
 ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
