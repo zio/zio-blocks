@@ -1315,14 +1315,14 @@ object DynamicValue {
       case DynamicOptic.Node.AtIndex(i) =>
         dv match {
           case s: Sequence =>
+            val elements = s.elements
             if (isLast) {
-              if (i >= 0 && i <= s.elements.length) {
-                val (before, after) = s.elements.splitAt(i)
-                Some(Sequence(before ++ (value +: after)))
+              if (i >= 0 && i <= elements.length) {
+                new Some(new Sequence(elements.take(i) ++ (value +: elements.drop(i))))
               } else None
-            } else if (i >= 0 && i < s.elements.length) {
-              insertAtPath(s.elements(i), nodes, index + 1, value) match {
-                case Some(nv) => new Some(new Sequence(s.elements.updated(i, nv)))
+            } else if (i >= 0 && i < elements.length) {
+              insertAtPath(elements(i), nodes, index + 1, value) match {
+                case Some(nv) => new Some(new Sequence(elements.updated(i, nv)))
                 case _        => None
               }
             } else None

@@ -4,7 +4,6 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.json.JsonBinaryCodec
 import zio.blocks.typeid.TypeId
 import java.lang
 
@@ -42,7 +41,7 @@ final case class DynamicPatch(ops: Chunk[DynamicPatch.DynamicPatchOp]) {
     if (ops.isEmpty) "DynamicPatch {}"
     else {
       val sb = new java.lang.StringBuilder("DynamicPatch {\n")
-      ops.foreach(op => DynamicPatch.renderOp(sb, op, "  "))
+      ops.foreach(op => DynamicPatch.renderOp(sb, op, 1))
       sb.append('}').toString
     }
 }
@@ -60,100 +59,114 @@ object DynamicPatch {
   def apply(path: DynamicOptic, operation: Operation): DynamicPatch =
     new DynamicPatch(Chunk.single(new DynamicPatchOp(path, operation)))
 
-  private[patch] def renderOp(sb: lang.StringBuilder, op: DynamicPatchOp, indent: String): Unit = {
-    val pathStr = op.path.toString
+  private def renderOp(sb: lang.StringBuilder, op: DynamicPatchOp, indent: Int): Unit = {
+    appendIndent(sb, indent)
+    DynamicOptic.renderString(sb, op.path.nodes)
     op.operation match {
-      case Operation.Set(value) =>
-        sb.append(indent).append(pathStr).append(" = ").append(value).append('\n')
-      case Operation.PrimitiveDelta(primitiveOp) =>
-        renderPrimitiveDelta(sb, pathStr, primitiveOp, indent)
-      case Operation.SequenceEdit(seqOps) =>
-        sb.append(indent).append(pathStr).append(":\n")
-        seqOps.foreach(so => renderSeqOp(sb, so, indent + "  "))
-      case Operation.MapEdit(mapOps) =>
-        sb.append(indent).append(pathStr).append(":\n")
-        mapOps.foreach(mo => renderMapOp(sb, mo, indent + "  "))
-      case Operation.Patch(nestedPatch) =>
-        sb.append(indent).append(pathStr).append(":\n")
-        nestedPatch.ops.foreach(op => renderOp(sb, op, indent + "  "))
+      case s: Operation.Set             => sb.append(" = ").append(s.value).append('\n')
+      case pd: Operation.PrimitiveDelta => renderPrimitiveDelta(sb, pd.op, indent)
+      case se: Operation.SequenceEdit   =>
+        sb.append(":\n")
+        se.ops.foreach(so => renderSeqOp(sb, so, indent + 1))
+      case me: Operation.MapEdit =>
+        sb.append(":\n")
+        me.ops.foreach(mo => renderMapOp(sb, mo, indent + 1))
+      case p: Operation.Patch =>
+        sb.append(":\n")
+        p.patch.ops.foreach(op => renderOp(sb, op, indent + 1))
     }
   }
 
-  private[this] def renderPrimitiveDelta(
-    sb: lang.StringBuilder,
-    pathStr: String,
-    op: PrimitiveOp,
-    indent: String
-  ): Unit = {
-    sb.append(indent)
+  private[this] def renderPrimitiveDelta(sb: lang.StringBuilder, op: PrimitiveOp, indent: Int): Unit = {
     op match {
-      case PrimitiveOp.IntDelta(d) =>
-        if (d >= 0) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.LongDelta(d) =>
-        if (d >= 0) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.DoubleDelta(d) =>
-        if (d >= 0) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.FloatDelta(d) =>
-        if (d >= 0) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.ShortDelta(d) =>
-        if (d >= 0) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.ByteDelta(d) =>
-        if (d >= 0) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.BigIntDelta(d) =>
-        if (d >= BigInt(0)) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.BigDecimalDelta(d) =>
-        if (d >= BigDecimal(0)) sb.append(pathStr).append(" += ").append(d).append('\n')
-        else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-      case PrimitiveOp.InstantDelta(d) =>
-        sb.append(pathStr).append(" += ").append(d).append('\n')
-      case PrimitiveOp.DurationDelta(d) =>
-        sb.append(pathStr).append(" += ").append(d).append('\n')
-      case PrimitiveOp.LocalDateDelta(d) =>
-        sb.append(pathStr).append(" += ").append(d).append('\n')
-      case PrimitiveOp.LocalDateTimeDelta(p, d) =>
-        sb.append(pathStr).append(" += ").append(p).append(", ").append(d).append('\n')
-      case PrimitiveOp.PeriodDelta(d) =>
-        sb.append(pathStr).append(" += ").append(d).append('\n')
-      case PrimitiveOp.StringEdit(ops) =>
-        sb.append(pathStr).append(":\n")
-        ops.foreach {
-          case StringOp.Insert(idx, text) =>
-            sb.append(indent).append("  + [").append(idx).append(": ").append(escapeString(text)).append("]\n")
-          case StringOp.Delete(idx, len) =>
-            sb.append(indent).append("  - [").append(idx).append(", ").append(len).append("]\n")
-          case StringOp.Append(text) =>
-            sb.append(indent).append("  + ").append(escapeString(text)).append('\n')
-          case StringOp.Modify(idx, len, text) =>
-            sb.append(indent)
-              .append("  ~ [")
-              .append(idx)
-              .append(", ")
-              .append(len)
-              .append(": ")
-              .append(escapeString(text))
-              .append("]\n")
+      case id: PrimitiveOp.IntDelta =>
+        val d = id.delta
+        if (d >= 0) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case ld: PrimitiveOp.LongDelta =>
+        val d = ld.delta
+        if (d >= 0) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case dd: PrimitiveOp.DoubleDelta =>
+        val d = dd.delta
+        if (d >= 0) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case fd: PrimitiveOp.FloatDelta =>
+        val d = fd.delta
+        if (d >= 0) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case sd: PrimitiveOp.ShortDelta =>
+        val d = sd.delta
+        if (d >= 0) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case bd: PrimitiveOp.ByteDelta =>
+        val d = bd.delta
+        if (d >= 0) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case bid: PrimitiveOp.BigIntDelta =>
+        val d = bid.delta
+        if (d >= BigInt(0)) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case bdd: PrimitiveOp.BigDecimalDelta =>
+        val d = bdd.delta
+        if (d >= BigDecimal(0)) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case id: PrimitiveOp.InstantDelta =>
+        sb.append(" += ").append(id.delta)
+      case dd: PrimitiveOp.DurationDelta =>
+        sb.append(" += ").append(dd.delta)
+      case ldd: PrimitiveOp.LocalDateDelta =>
+        sb.append(" += ").append(ldd.delta)
+      case ldtd: PrimitiveOp.LocalDateTimeDelta =>
+        sb.append(" += ").append(ldtd.periodDelta).append(", ").append(ldtd.durationDelta)
+      case pd: PrimitiveOp.PeriodDelta =>
+        sb.append(" += ").append(pd.delta)
+      case se: PrimitiveOp.StringEdit =>
+        sb.append(":\n")
+        se.ops.foreach {
+          var idx = 0
+          op =>
+            if (idx > 0) sb.append('\n')
+            idx += 1
+            appendIndent(sb, indent)
+            op match {
+              case StringOp.Insert(idx, text) =>
+                sb.append("  + [").append(idx).append(": ")
+                escapeString(sb, text)
+                sb.append(']')
+              case StringOp.Delete(idx, len) =>
+                sb.append("  - [").append(idx).append(", ").append(len).append(']')
+              case StringOp.Append(text) =>
+                sb.append("  + ")
+                escapeString(sb, text)
+              case StringOp.Modify(idx, len, text) =>
+                sb.append("  ~ [").append(idx).append(", ").append(len).append(": ")
+                escapeString(sb, text)
+                sb.append(']')
+            }
         }
     }
+    sb.append('\n')
   }
 
-  private[this] def renderSeqOp(sb: lang.StringBuilder, op: SeqOp, indent: String): Unit = op match {
-    case SeqOp.Insert(index, values) =>
-      values.foreach {
-        var idx = -1
+  private[this] def renderSeqOp(sb: lang.StringBuilder, op: SeqOp, indent: Int): Unit = op match {
+    case i: SeqOp.Insert =>
+      i.values.foreach {
+        var idx = i.index
         v =>
+          appendIndent(sb, indent)
+          sb.append("+ [").append(idx).append(": ").append(v).append("]\n")
           idx += 1
-          sb.append(indent).append("+ [").append(index + idx).append(": ").append(v).append("]\n")
       }
-    case SeqOp.Append(values)       => values.foreach(v => sb.append(indent).append("+ ").append(v).append('\n'))
-    case SeqOp.Delete(index, count) =>
-      sb.append(indent)
+    case a: SeqOp.Append =>
+      a.values.foreach { v =>
+        appendIndent(sb, indent)
+        sb.append("+ ").append(v).append('\n')
+      }
+    case d: SeqOp.Delete =>
+      appendIndent(sb, indent)
+      val index = d.index
+      val count = d.count
       if (count == 1) sb.append("- [").append(index).append("]\n")
       else {
         sb.append("- [")
@@ -166,31 +179,62 @@ object DynamicPatch {
         }
         sb.append("]\n")
       }
-    case SeqOp.Modify(index, nestedOp) =>
-      sb.append(indent)
+    case m: SeqOp.Modify =>
+      appendIndent(sb, indent)
+      val nestedOp = m.op
+      val index    = m.index
       nestedOp match {
         case Operation.Set(v) => sb.append("~ [").append(index).append(": ").append(v).append("]\n")
         case _                =>
           sb.append("~ [").append(index).append("]:\n")
-          renderOp(sb, DynamicPatchOp(DynamicOptic.root, nestedOp), indent + "  ")
+          renderOp(sb, DynamicPatchOp(DynamicOptic.root, nestedOp), indent + 1)
       }
   }
 
-  private[this] def renderMapOp(sb: lang.StringBuilder, op: MapOp, indent: String): Unit = {
-    sb.append(indent)
+  private[this] def renderMapOp(sb: lang.StringBuilder, op: MapOp, indent: Int): Unit = {
+    appendIndent(sb, indent)
     op match {
-      case MapOp.Add(k, v)        => sb.append("+ {").append(k).append(": ").append(v).append("}\n")
-      case MapOp.Remove(k)        => sb.append("- {").append(k).append("}\n")
-      case MapOp.Modify(k, patch) =>
-        sb.append("~ {").append(k).append("}:\n")
-        patch.ops.foreach(op => renderOp(sb, op, indent + "  "))
+      case a: MapOp.Add    => sb.append("+ {").append(a.key).append(": ").append(a.value).append("}\n")
+      case r: MapOp.Remove => sb.append("- {").append(r.key).append("}\n")
+      case m: MapOp.Modify =>
+        sb.append("~ {").append(m.key).append("}:\n")
+        m.patch.ops.foreach(op => renderOp(sb, op, indent + 1))
     }
   }
 
-  private[this] def escapeString(s: String): String = JsonBinaryCodec.stringCodec.encodeToString(s)
+  private[this] def escapeString(sb: lang.StringBuilder, s: String): Unit = {
+    sb.append('\"')
+    val len = s.length
+    var idx = 0
+    while (idx < len) {
+      val c = s.charAt(idx)
+      c match {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\b' => sb.append("\\b")
+        case '\f' => sb.append("\\f")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c    =>
+          if (c >= ' ') sb.append(c)
+          else sb.append(f"\\u${c.toInt}%04x")
+      }
+      idx += 1
+    }
+    sb.append('\"')
+  }
+
+  private[this] def appendIndent(sb: lang.StringBuilder, indent: Int): Unit = {
+    var idx = indent
+    while (idx > 0) {
+      sb.append(' ').append(' ')
+      idx -= 1
+    }
+  }
 
   // Apply a single operation at a path within a value.
-  private[schema] def applyOp(
+  private def applyOp(
     value: DynamicValue,
     path: IndexedSeq[DynamicOptic.Node],
     operation: Operation,
@@ -215,20 +259,17 @@ object DynamicPatch {
       case f: DynamicOptic.Node.Field =>
         val name = f.name
         value match {
-          case DynamicValue.Record(fields) =>
+          case r: DynamicValue.Record =>
+            val fields   = r.fields
             val fieldIdx = fields.indexWhere(_._1 == name)
             if (fieldIdx < 0) new Left(SchemaError.missingField(trace, name))
             else {
               val (fieldName, fieldValue) = fields(fieldIdx)
-              val newTrace                = f :: trace
-              if (isLast) {
-                applyOperation(fieldValue, operation, mode, newTrace).map { newFieldValue =>
-                  new DynamicValue.Record(fields.updated(fieldIdx, (fieldName, newFieldValue)))
-                }
-              } else {
-                navigateAndApply(fieldValue, path, pathIdx + 1, operation, mode, newTrace).map { newFieldValue =>
-                  new DynamicValue.Record(fields.updated(fieldIdx, (fieldName, newFieldValue)))
-                }
+              val trace_                  = f :: trace
+              (if (isLast) applyOperation(fieldValue, operation, mode, trace_)
+               else navigateAndApply(fieldValue, path, pathIdx + 1, operation, mode, trace_)) match {
+                case Right(v) => new Right(new DynamicValue.Record(fields.updated(fieldIdx, (fieldName, v))))
+                case l        => l
               }
             }
           case _ =>
@@ -243,16 +284,12 @@ object DynamicPatch {
               val msg = s"Index $index out of bounds for sequence of length $len"
               new Left(SchemaError.expectationMismatch(trace, msg))
             } else {
-              val element  = elements(index)
-              val newTrace = ai :: trace
-              if (isLast) {
-                applyOperation(element, operation, mode, newTrace).map { newElement =>
-                  new DynamicValue.Sequence(elements.updated(index, newElement))
-                }
-              } else {
-                navigateAndApply(element, path, pathIdx + 1, operation, mode, newTrace).map { newElement =>
-                  new DynamicValue.Sequence(elements.updated(index, newElement))
-                }
+              val element = elements(index)
+              val trace_  = ai :: trace
+              (if (isLast) applyOperation(element, operation, mode, trace_)
+               else navigateAndApply(element, path, pathIdx + 1, operation, mode, trace_)) match {
+                case Right(e) => new Right(new DynamicValue.Sequence(elements.updated(index, e)))
+                case l        => l
               }
             }
           case _ =>
@@ -266,16 +303,12 @@ object DynamicPatch {
             val entryIdx = entries.indexWhere(_._1 == key)
             if (entryIdx < 0) new Left(SchemaError.expectationMismatch(trace, s"Key not found in map"))
             else {
-              val (k, v)   = entries(entryIdx)
-              val newTrace = amk :: trace
-              if (isLast) {
-                applyOperation(v, operation, mode, newTrace).map { newValue =>
-                  new DynamicValue.Map(entries.updated(entryIdx, (k, newValue)))
-                }
-              } else {
-                navigateAndApply(v, path, pathIdx + 1, operation, mode, newTrace).map { newValue =>
-                  new DynamicValue.Map(entries.updated(entryIdx, (k, newValue)))
-                }
+              val (k, v) = entries(entryIdx)
+              val trace_ = amk :: trace
+              (if (isLast) applyOperation(v, operation, mode, trace_)
+               else navigateAndApply(v, path, pathIdx + 1, operation, mode, trace_)) match {
+                case Right(nv) => new Right(new DynamicValue.Map(entries.updated(entryIdx, (k, nv))))
+                case l         => l
               }
             }
           case _ =>
@@ -285,17 +318,15 @@ object DynamicPatch {
         val expectedCase = c.name
         value match {
           case DynamicValue.Variant(caseName, innerValue) =>
-            val newTrace = c :: trace
+            val trace_ = c :: trace
             if (caseName != expectedCase) {
               // Case doesn't match - this is an error in Strict mode
-              new Left(SchemaError.expectationMismatch(newTrace, s"Expected case $expectedCase but got $caseName"))
-            } else if (isLast) {
-              applyOperation(innerValue, operation, mode, newTrace).map { newInnerValue =>
-                new DynamicValue.Variant(caseName, newInnerValue)
-              }
+              new Left(SchemaError.expectationMismatch(trace_, s"Expected case $expectedCase but got $caseName"))
             } else {
-              navigateAndApply(innerValue, path, pathIdx + 1, operation, mode, newTrace).map { newInnerValue =>
-                new DynamicValue.Variant(caseName, newInnerValue)
+              (if (isLast) applyOperation(innerValue, operation, mode, trace_)
+               else navigateAndApply(innerValue, path, pathIdx + 1, operation, mode, trace_)) match {
+                case Right(v) => new Right(new DynamicValue.Variant(caseName, v))
+                case l        => l
               }
             }
           case _ =>
@@ -305,14 +336,14 @@ object DynamicPatch {
       case e: DynamicOptic.Node.Elements.type =>
         value match {
           case DynamicValue.Sequence(elements) =>
-            val newTrace = e :: trace
+            val trace_ = e :: trace
             if (elements.isEmpty) {
               // Empty sequence - in Strict mode, this is an error (can't apply patch to empty list)
               // In Lenient/Clobber mode, return unchanged
               if (mode ne PatchMode.Strict) new Right(value)
-              else new Left(SchemaError.expectationMismatch(newTrace, "encountered an empty sequence"))
-            } else if (isLast) applyToAllElements(elements, operation, mode, newTrace)
-            else navigateAllElements(elements, path, pathIdx + 1, operation, mode, newTrace)
+              else new Left(SchemaError.expectationMismatch(trace_, "encountered an empty sequence"))
+            } else if (isLast) applyToAllElements(elements, operation, mode, trace_)
+            else navigateAllElements(elements, path, pathIdx + 1, operation, mode, trace_)
           case _ =>
             val msg = s"Expected Sequence but got ${value.getClass.getSimpleName}"
             new Left(SchemaError.expectationMismatch(trace, msg))
@@ -320,9 +351,9 @@ object DynamicPatch {
       case w: DynamicOptic.Node.Wrapped.type =>
         // Wrappers in DynamicValue are typically represented as the unwrapped value directly
         // or as a Record with a single field. For now, we pass through.
-        val newTrace = w :: trace
-        if (isLast) applyOperation(value, operation, mode, newTrace)
-        else navigateAndApply(value, path, pathIdx + 1, operation, mode, newTrace)
+        val trace_ = w :: trace
+        if (isLast) applyOperation(value, operation, mode, trace_)
+        else navigateAndApply(value, path, pathIdx + 1, operation, mode, trace_)
       case _: DynamicOptic.Node.AtIndices =>
         new Left(SchemaError.expectationMismatch(trace, "AtIndices not supported in patches"))
       case _: DynamicOptic.Node.AtMapKeys =>
@@ -401,11 +432,11 @@ object DynamicPatch {
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = operation match {
-    case Operation.Set(newValue)        => new Right(newValue)
-    case Operation.PrimitiveDelta(op)   => applyPrimitiveDelta(value, op, trace)
-    case Operation.SequenceEdit(seqOps) => applySequenceEdit(value, seqOps, mode, trace)
-    case Operation.MapEdit(mapOps)      => applyMapEdit(value, mapOps, mode, trace)
-    case Operation.Patch(nestedPatch)   => nestedPatch.apply(value, mode)
+    case s: Operation.Set             => new Right(s.value)
+    case pd: Operation.PrimitiveDelta => applyPrimitiveDelta(value, pd.op, trace)
+    case se: Operation.SequenceEdit   => applySequenceEdit(value, se.ops, mode, trace)
+    case me: Operation.MapEdit        => applyMapEdit(value, me.ops, mode, trace)
+    case p: Operation.Patch           => p.patch.apply(value, mode)
   }
 
   private[this] def applyPrimitiveDelta(
@@ -414,8 +445,8 @@ object DynamicPatch {
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] =
     value match {
-      case DynamicValue.Primitive(pv) => applyPrimitiveOpToValue(pv, op, trace)
-      case _                          =>
+      case p: DynamicValue.Primitive => applyPrimitiveOpToValue(p.value, op, trace)
+      case _                         =>
         new Left(SchemaError.expectationMismatch(trace, s"Expected Primitive but got ${value.getClass.getSimpleName}"))
     }
 
@@ -423,45 +454,46 @@ object DynamicPatch {
     pv: PrimitiveValue,
     op: PrimitiveOp,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, DynamicValue] =
-    (pv, op) match {
-      // Numeric deltas
-      case (PrimitiveValue.Int(v), PrimitiveOp.IntDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Int(v + delta)))
-      case (PrimitiveValue.Long(v), PrimitiveOp.LongDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Long(v + delta)))
-      case (PrimitiveValue.Double(v), PrimitiveOp.DoubleDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Double(v + delta)))
-      case (PrimitiveValue.Float(v), PrimitiveOp.FloatDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Float(v + delta)))
-      case (PrimitiveValue.Short(v), PrimitiveOp.ShortDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Short((v + delta).toShort)))
-      case (PrimitiveValue.Byte(v), PrimitiveOp.ByteDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Byte((v + delta).toByte)))
-      case (PrimitiveValue.BigInt(v), PrimitiveOp.BigIntDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.BigInt(v + delta)))
-      case (PrimitiveValue.BigDecimal(v), PrimitiveOp.BigDecimalDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(v + delta)))
-      // String edits
-      case (PrimitiveValue.String(v), PrimitiveOp.StringEdit(ops)) => applyStringEdits(v, ops, trace)
-      // Temporal deltas
-      case (PrimitiveValue.Instant(v), PrimitiveOp.InstantDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Instant(v.plus(delta))))
-      case (PrimitiveValue.Duration(v), PrimitiveOp.DurationDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Duration(v.plus(delta))))
-      case (PrimitiveValue.LocalDate(v), PrimitiveOp.LocalDateDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.LocalDate(v.plus(delta))))
-      case (PrimitiveValue.LocalDateTime(v), PrimitiveOp.LocalDateTimeDelta(periodDelta, durationDelta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.LocalDateTime(v.plus(periodDelta).plus(durationDelta))))
-      case (PrimitiveValue.Period(v), PrimitiveOp.PeriodDelta(delta)) =>
-        new Right(new DynamicValue.Primitive(new PrimitiveValue.Period(v.plus(delta))))
-      case _ =>
-        val msg = s"Type mismatch: cannot apply ${op.getClass.getSimpleName} to ${pv.getClass.getSimpleName}"
-        new Left(SchemaError.expectationMismatch(trace, msg))
-    }
+  ): Either[SchemaError, DynamicValue] = (pv, op) match {
+    // Numeric deltas
+    case (v: PrimitiveValue.Int, d: PrimitiveOp.IntDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Int(v.value + d.delta)))
+    case (v: PrimitiveValue.Long, d: PrimitiveOp.LongDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Long(v.value + d.delta)))
+    case (v: PrimitiveValue.Double, d: PrimitiveOp.DoubleDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Double(v.value + d.delta)))
+    case (v: PrimitiveValue.Float, d: PrimitiveOp.FloatDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Float(v.value + d.delta)))
+    case (v: PrimitiveValue.Short, d: PrimitiveOp.ShortDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Short((v.value + d.delta).toShort)))
+    case (v: PrimitiveValue.Byte, d: PrimitiveOp.ByteDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Byte((v.value + d.delta).toByte)))
+    case (v: PrimitiveValue.BigInt, d: PrimitiveOp.BigIntDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.BigInt(v.value + d.delta)))
+    case (v: PrimitiveValue.BigDecimal, d: PrimitiveOp.BigDecimalDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(v.value + d.delta)))
+    // String edits
+    case (v: PrimitiveValue.String, se: PrimitiveOp.StringEdit) => applyStringEdits(v.value, se.ops, trace)
+    // Temporal deltas
+    case (v: PrimitiveValue.Instant, d: PrimitiveOp.InstantDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Instant(v.value.plus(d.delta))))
+    case (v: PrimitiveValue.Duration, d: PrimitiveOp.DurationDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Duration(v.value.plus(d.delta))))
+    case (v: PrimitiveValue.LocalDate, d: PrimitiveOp.LocalDateDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.LocalDate(v.value.plus(d.delta))))
+    case (v: PrimitiveValue.LocalDateTime, d: PrimitiveOp.LocalDateTimeDelta) =>
+      new Right(
+        new DynamicValue.Primitive(new PrimitiveValue.LocalDateTime(v.value.plus(d.periodDelta).plus(d.durationDelta)))
+      )
+    case (v: PrimitiveValue.Period, d: PrimitiveOp.PeriodDelta) =>
+      new Right(new DynamicValue.Primitive(new PrimitiveValue.Period(v.value.plus(d.delta))))
+    case _ =>
+      val msg = s"Type mismatch: cannot apply ${op.getClass.getSimpleName} to ${pv.getClass.getSimpleName}"
+      new Left(SchemaError.expectationMismatch(trace, msg))
+  }
 
   private[this] def applyStringEdits(
-    str: String,
+    str: lang.String,
     ops: Chunk[StringOp],
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = {
@@ -470,27 +502,30 @@ object DynamicPatch {
     var idx    = 0
     while (idx < opsLen) {
       ops(idx) match {
-        case StringOp.Insert(index, text) =>
-          val len = result.length
+        case i: StringOp.Insert =>
+          val index = i.index
+          val len   = result.length
           if (index < 0 || index > len) {
             val msg = s"String insert index $index out of bounds for string of length $len"
             return new Left(SchemaError.expectationMismatch(trace, msg))
-          } else result = result.substring(0, index) + text + result.substring(index)
-        case StringOp.Delete(index, length) =>
+          } else result = result.substring(0, index) + i.text + result.substring(index)
+        case d: StringOp.Delete =>
+          val index = d.index
           val len   = result.length
-          val limit = index + length
+          val limit = index + d.length
           if (index < 0 || limit > len) {
             val msg = s"String delete range [$index, $limit) out of bounds for string of length $len"
             return new Left(SchemaError.expectationMismatch(trace, msg))
-          } else result = result.substring(0, index) + result.substring(index + length)
-        case StringOp.Append(text)                => result = result + text
-        case StringOp.Modify(index, length, text) =>
+          } else result = result.substring(0, index) + result.substring(limit)
+        case a: StringOp.Append => result = result + a.text
+        case m: StringOp.Modify =>
+          val index = m.index
           val len   = result.length
-          val limit = index + length
+          val limit = index + m.length
           if (index < 0 || limit > len) {
             val msg = s"String modify range [$index, $limit) out of bounds for string of length $len"
             return new Left(SchemaError.expectationMismatch(trace, msg))
-          } else result = result.substring(0, index) + text + result.substring(index + length)
+          } else result = result.substring(0, index) + m.text + result.substring(limit)
       }
       idx += 1
     }
@@ -534,44 +569,33 @@ object DynamicPatch {
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Chunk[DynamicValue]] = op match {
-    case SeqOp.Append(values)        => new Right(elements ++ values)
-    case SeqOp.Insert(index, values) =>
-      val len = elements.length
-      if (index < 0 || index > len) {
-        if (mode eq PatchMode.Clobber) { // In clobber mode, clamp the index
-          val clampedIndex    = Math.max(0, Math.min(index, len))
-          val (before, after) = elements.splitAt(clampedIndex)
-          new Right(before ++ values ++ after)
-        } else {
-          val msg = s"Insert index $index out of bounds for sequence of length $len"
-          new Left(SchemaError.expectationMismatch(trace, msg))
-        }
-      } else {
-        val (before, after) = elements.splitAt(index)
-        new Right(before ++ values ++ after)
-      }
-    case SeqOp.Delete(index, count) =>
+    case a: SeqOp.Append => new Right(elements ++ a.values)
+    case i: SeqOp.Insert =>
+      val index = i.index
       val len   = elements.length
-      val limit = index + count
-      if (index < 0 || limit > len) {
-        if (mode eq PatchMode.Clobber) { // In clobber mode, delete what we can
-          val clampedIndex = Math.max(0, Math.min(index, len))
-          val clampedEnd   = Math.max(0, Math.min(limit, len))
-          new Right(elements.take(clampedIndex) ++ elements.drop(clampedEnd))
-        } else {
-          val msg = s"Delete range [$index, $limit) out of bounds for sequence of length $len"
-          new Left(SchemaError.expectationMismatch(trace, msg))
-        }
+      if ((index < 0 || index > len) && (mode ne PatchMode.Clobber)) {
+        val msg = s"Insert index $index out of bounds for sequence of length $len"
+        new Left(SchemaError.expectationMismatch(trace, msg))
+      } else new Right(elements.take(index) ++ i.values ++ elements.drop(index))
+    case d: SeqOp.Delete =>
+      val index = d.index
+      val len   = elements.length
+      val limit = index + d.count
+      if ((index < 0 || limit > len) && (mode ne PatchMode.Clobber)) {
+        val msg = s"Delete range [$index, $limit) out of bounds for sequence of length $len"
+        new Left(SchemaError.expectationMismatch(trace, msg))
       } else new Right(elements.take(index) ++ elements.drop(limit))
-    case SeqOp.Modify(index, nestedOp) =>
-      val len = elements.length
+    case m: SeqOp.Modify =>
+      val index = m.index
+      val len   = elements.length
       if (index < 0 || index >= len) {
         val msg = s"Modify index $index out of bounds for sequence of length $len"
         new Left(SchemaError.expectationMismatch(trace, msg))
       } else {
-        val element  = elements(index)
-        val newTrace = new DynamicOptic.Node.AtIndex(index) :: trace
-        applyOperation(element, nestedOp, mode, newTrace).map(elements.updated(index, _))
+        applyOperation(elements(index), m.op, mode, new DynamicOptic.Node.AtIndex(index) :: trace) match {
+          case Right(e) => new Right(elements.updated(index, e))
+          case l        => l.asInstanceOf[Either[SchemaError, Chunk[DynamicValue]]]
+        }
       }
   }
 
@@ -610,24 +634,28 @@ object DynamicPatch {
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]] = op match {
-    case MapOp.Add(key, value) =>
+    case a: MapOp.Add =>
+      val key         = a.key
+      val value       = a.value
       val existingIdx = entries.indexWhere(_._1 == key)
       if (existingIdx >= 0) {
         if (mode eq PatchMode.Clobber) new Right(entries.updated(existingIdx, (key, value)))
         else new Left(SchemaError.expectationMismatch(trace, s"Key already exists in map"))
       } else new Right(entries :+ (key, value))
-    case MapOp.Remove(key) =>
+    case r: MapOp.Remove =>
+      val key         = r.key
       val existingIdx = entries.indexWhere(_._1 == key)
       if (existingIdx < 0) {
         if (mode eq PatchMode.Clobber) new Right(entries) // Nothing to remove, return unchanged
         else new Left(SchemaError.expectationMismatch(trace, s"Key not found in map"))
       } else new Right(entries.take(existingIdx) ++ entries.drop(existingIdx + 1))
-    case MapOp.Modify(key, nestedPatch) =>
+    case m: MapOp.Modify =>
+      val key         = m.key
       val existingIdx = entries.indexWhere(_._1 == key)
       if (existingIdx < 0) new Left(SchemaError.expectationMismatch(trace, s"Key not found in map"))
       else {
-        val (k, v) = entries(existingIdx)
-        nestedPatch.apply(v, mode).map(newValue => entries.updated(existingIdx, (k, newValue)))
+        val kv = entries(existingIdx)
+        m.patch.apply(kv._2, mode).map(newValue => entries.updated(existingIdx, (kv._1, newValue)))
       }
   }
 
