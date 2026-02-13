@@ -1,6 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
+import zio.blocks.docs.Doc
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}

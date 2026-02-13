@@ -4,6 +4,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import zio.blocks.typeid.TypeId
+import zio.blocks.docs.Doc
 
 /**
  * A `DerivationBuilder` is capable of deriving a type class instance for any

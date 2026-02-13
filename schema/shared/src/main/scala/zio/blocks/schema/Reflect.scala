@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
@@ -48,7 +49,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def doc(value: Doc): Reflect[F, A]
 
-  def doc(value: String): Reflect[F, A] = doc(Doc.Text(value))
+  def doc(value: String): Reflect[F, A] = doc(Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(value))))))
 
   override def equals(obj: Any): Boolean = obj match {
     case that: Reflect[?, ?] => (this eq that) || inner == that.inner
@@ -315,7 +316,7 @@ object Reflect {
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
     recordBinding: F[BindingType.Record, A],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
@@ -537,7 +538,7 @@ object Reflect {
     cases: IndexedSeq[Term[F, A, ? <: A]],
     typeId: TypeId[A],
     variantBinding: F[BindingType.Variant, A],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
@@ -652,7 +653,7 @@ object Reflect {
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
     seqBinding: F[BindingType.Seq[C], C[A]],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
@@ -766,7 +767,7 @@ object Reflect {
     value: Reflect[F, V],
     typeId: TypeId[M[K, V]],
     mapBinding: F[BindingType.Map[M], M[K, V]],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
@@ -886,7 +887,7 @@ object Reflect {
   case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
     typeId: TypeId[DynamicValue] = TypeId.of[DynamicValue],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
@@ -946,7 +947,7 @@ object Reflect {
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
     primitiveBinding: F[BindingType.Primitive, A],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil
@@ -1017,7 +1018,7 @@ object Reflect {
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
-    doc: Doc = Doc.Empty,
+    doc: Doc = Doc.empty,
     modifiers: Seq[Modifier.Reflect] = Nil,
     storedDefaultValue: Option[DynamicValue] = None,
     storedExamples: collection.immutable.Seq[DynamicValue] = Nil

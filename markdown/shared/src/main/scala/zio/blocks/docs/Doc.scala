@@ -89,6 +89,8 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
 
 object Doc {
 
+  val empty: Doc = Doc(Chunk.empty)
+
   /**
    * Normalize a chunk of blocks to canonical form.
    *

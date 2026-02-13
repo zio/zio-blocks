@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.typeid.TypeId
@@ -44,7 +45,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
 
   def doc(value: String): Schema[A] = new Schema(reflect.doc(value))
 
-  def doc[B](optic: Optic[A, B]): Doc = get(optic).fold[Doc](Doc.Empty)(_.doc)
+  def doc[B](optic: Optic[A, B]): Doc = get(optic).fold[Doc](Doc.empty)(_.doc)
 
   def doc[B](optic: Optic[A, B], value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
 
@@ -173,7 +174,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   }
 }
 
-object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
+object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with DocsSchemas {
+
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])

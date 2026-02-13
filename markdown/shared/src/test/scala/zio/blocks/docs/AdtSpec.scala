@@ -221,7 +221,7 @@ object AdtSpec extends MarkdownBaseSpec {
         assertTrue(doc.blocks.size == 1)
       },
       test("Doc with empty blocks") {
-        val doc = Doc(Chunk.empty)
+        val doc = Doc.empty
         assertTrue(doc.blocks.size == 0)
       },
       test("Doc with multiple blocks") {

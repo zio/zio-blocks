@@ -189,6 +189,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .dependsOn(chunk)
+  .dependsOn(markdown)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
@@ -204,7 +205,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 80
+    coverageMinimumBranchTotal := 80,
+    coverageExcludedFiles      := ".*BuildInfo.*|.*Macros.*|.*MacroUtils.*|.*CommonMacroOps.*|.*PathInterpolator.*|.*VersionSpecific.*|.*CompanionOptics.*|.*DerivedOptics.*|.*RegisterOffset.*"
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {

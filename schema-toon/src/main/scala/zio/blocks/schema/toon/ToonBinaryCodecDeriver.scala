@@ -1,5 +1,6 @@
 package zio.blocks.schema.toon
 
+import zio.blocks.docs.Doc
 import zio.blocks.schema.toon.ToonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import zio.blocks.schema._

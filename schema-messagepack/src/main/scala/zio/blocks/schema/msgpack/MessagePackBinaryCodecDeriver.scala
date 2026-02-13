@@ -1,5 +1,6 @@
 package zio.blocks.schema.msgpack
 
+import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
 import zio.blocks.chunk.Chunk

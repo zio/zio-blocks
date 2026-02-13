@@ -21,7 +21,7 @@ object TerminalRendererSpec extends MarkdownBaseSpec {
   override def spec = suite("TerminalRendererSpec")(
     suite("render - Full document")(
       test("empty document") {
-        val doc    = Doc(Chunk.empty)
+        val doc    = Doc.empty
         val result = TerminalRenderer.render(doc)
         assertTrue(result == "")
       },
@@ -208,7 +208,7 @@ object TerminalRendererSpec extends MarkdownBaseSpec {
     ),
     suite("Edge cases")(
       test("Empty document") {
-        val doc    = Doc(Chunk.empty)
+        val doc    = Doc.empty
         val result = TerminalRenderer.render(doc)
         assertTrue(result == "")
       },
