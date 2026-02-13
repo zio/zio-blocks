@@ -6,6 +6,17 @@ import zio.blocks.scope.internal.Finalizers
 
 /**
  * A scope that manages resource lifecycle with compile-time verified safety.
+ *
+ * ==Closed-scope defense==
+ *
+ * If a scope reference escapes to another thread (e.g. via a `Future`) and the
+ * original scope closes while the other thread still holds a reference, all
+ * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
+ * that return `null` (wrapped as `$[B]`). This prevents the escaped thread from
+ * interacting with already-released resources, but callers should be aware that
+ * `null` values may appear if scopes are used across thread boundaries
+ * incorrectly. `defer` on a closed scope is silently ignored, and `scoped`
+ * creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 

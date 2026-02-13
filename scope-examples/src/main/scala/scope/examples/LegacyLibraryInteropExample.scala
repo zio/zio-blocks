@@ -98,11 +98,10 @@ object LegacyProtocolHandler {
     //   3. The third-party code won't cache or transfer ownership
     // -------------------------------------------------------------------------
 
-    // WARNING: Since $[A] = A at runtime, we can extract the raw value via cast.
-    // This bypasses compile-time safety - use only for third-party interop.
-    // The @nowarn annotation suppresses any associated warnings.
-    @nowarn
-    val rawSocket: ManagedSocket = scopedSocket.asInstanceOf[ManagedSocket]
+    // WARNING: leak() bypasses compile-time safety — use only for third-party interop.
+    // This intentionally escapes the scoped type and will emit a compiler warning.
+    @nowarn("msg=.*leaked.*|.*leak.*")
+    val rawSocket: ManagedSocket = scope.leak(scopedSocket)
 
     println("Passing raw socket to legacy protocol handler:")
     LegacyProtocolHandler.handleConnection(rawSocket)
