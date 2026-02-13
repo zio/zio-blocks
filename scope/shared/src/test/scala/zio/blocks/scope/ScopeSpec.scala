@@ -163,6 +163,52 @@ object ScopeSpec extends ZIOSpecDefault {
           scope.use(db)(_.query("test"))
         }
         assertTrue(captured == "result: test")
+      },
+      test("use with two scoped values") {
+        val captured: String = Scope.global.scoped { scope =>
+          import scope._
+          val db: $[Database]   = allocate(Resource.from[Database])
+          val config: $[Config] = allocate(Resource(Config(true)))
+          scope.use(db, config) { (d, c) =>
+            s"${d.query("test")}-${c.debug}"
+          }
+        }
+        assertTrue(captured == "result: test-true")
+      },
+      test("use with three scoped values") {
+        val captured: String = Scope.global.scoped { scope =>
+          import scope._
+          val a: $[Int]    = allocate(Resource(1))
+          val b: $[Int]    = allocate(Resource(2))
+          val c: $[String] = allocate(Resource("x"))
+          scope.use(a, b, c) { (x, y, z) =>
+            s"$z${x + y}"
+          }
+        }
+        assertTrue(captured == "x3")
+      },
+      test("use with four scoped values") {
+        val captured: Int = Scope.global.scoped { scope =>
+          import scope._
+          val a: $[Int] = allocate(Resource(1))
+          val b: $[Int] = allocate(Resource(2))
+          val c: $[Int] = allocate(Resource(3))
+          val d: $[Int] = allocate(Resource(4))
+          scope.use(a, b, c, d)(_ + _ + _ + _)
+        }
+        assertTrue(captured == 10)
+      },
+      test("use with five scoped values") {
+        val captured: String = Scope.global.scoped { scope =>
+          import scope._
+          val a: $[String] = allocate(Resource("h"))
+          val b: $[String] = allocate(Resource("e"))
+          val c: $[String] = allocate(Resource("l"))
+          val d: $[String] = allocate(Resource("l"))
+          val e: $[String] = allocate(Resource("o"))
+          scope.use(a, b, c, d, e)(_ + _ + _ + _ + _)
+        }
+        assertTrue(captured == "hello")
       }
     ),
     suite("eager operations")(

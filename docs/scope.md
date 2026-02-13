@@ -17,8 +17,8 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
 
 - [Quick start](#quick-start)
 - [Core concepts](#core-concepts)
-  - [1) `Scope[ParentTag, ScopeTag]`](#1-scopeparenttag-scopetag)
-  - [2) Scoped values: `$[A]`](#2-scoped-values-a)
+  - [1) `Scope`](#1-scope)
+  - [2) Scoped values: `$[+A]`](#2-scoped-values-a)
   - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
   - [4) `Unscoped`: marking pure data types](#4-unscoped-marking-pure-data-types)
   - [5) `lower`: accessing parent-scoped values](#5-lower-accessing-parent-scoped-values)
@@ -72,18 +72,18 @@ Key things to notice:
 
 ## Core concepts
 
-### 1) `Scope[ParentTag, ScopeTag]`
+### 1) `Scope`
 
-A `Scope` manages finalizers and ties values to a *type-level identity* called a **ScopeTag**.
+`Scope` is a `sealed abstract class` with **no** type parameters. It manages finalizers and ties values to a *type-level identity* via abstract type members.
 
-- `Scope[ParentTag, ScopeTag]` has **two** type parameters:
-  - `ParentTag`: the parent scope's tag (capability boundary)
-  - `ScopeTag <: ParentTag`: this scope's unique identity (used to tag values)
+- **`type $[+A]`** — a path-dependent opaque type that tags values to this scope. Covariant in `A`. Equal to `A` at runtime (zero-cost).
+- **`type Parent <: Scope`** — the parent scope's type.
+- **`val parent: Parent`** — reference to the parent scope.
 
-Every `Scope` also exposes a *path-dependent* opaque type alias:
+Each scope instance exposes its own `$[+A]`, so a parent's `$[Database]` is a different type than a child's `$[Database]`, even though both equal `Database` at runtime.
 
 ```scala
-opaque type $[A] = A  // zero-cost at runtime
+type $[+A]  // = A at runtime (zero-cost)
 ```
 
 So in code you'll typically write:
@@ -95,14 +95,18 @@ Scope.global.scoped { scope =>
 }
 ```
 
+Child scopes are represented by `Scope.Child[P <: Scope]`, a `final class` nested in the `Scope` companion object.
+
 #### Global scope
 
-`Scope.global` is the root of the tag hierarchy:
+`Scope.global` is the root of the scope hierarchy:
 
 ```scala
 object Scope {
-  type GlobalTag
-  lazy val global: Scope[GlobalTag, GlobalTag]
+  object global extends Scope {
+    type $[+A] = A
+    type Parent = global.type
+  }
 }
 ```
 
@@ -111,15 +115,33 @@ object Scope {
 
 ---
 
-### 2) Scoped values: `$[A]`
+### 2) Scoped values: `$[+A]`
 
-`$[A]` (or `scope.$[A]`) is a path-dependent opaque type representing a value of type `A` that is locked to a specific scope.
+`$[+A]` (or `scope.$[+A]`) is a path-dependent opaque type representing a value of type `A` that is locked to a specific scope. It is covariant in `A`.
 
 - **Runtime representation:** `$[A] = A` — zero-cost opaque type, no boxing or wrapping
 - **Key effect:** methods on `A` are hidden at the type level; you can't call `a.method` directly
 - **All operations are eager:** `allocate(resource)` acquires the resource **immediately** and returns a scoped value
 - **Access paths:**
   - `scope.use(a)(f)` to apply a function and get `$[B]`
+
+#### `ScopedOps`: `map` and `flatMap` on `$[A]`
+
+`Scope` provides an implicit class `ScopedOps[A]` that adds `map` and `flatMap` to `$[A]` values, enabling for-comprehension syntax:
+
+```scala
+Scope.global.scoped { scope =>
+  import scope._
+
+  val x: $[Int] = $(42)
+  val y: $[String] = x.map(_.toString)
+  val z: $[String] = x.flatMap(v => $(s"value: $v"))
+}
+```
+
+- `sa.map(f: A => B): $[B]` — applies `f` to the unwrapped value, re-wraps the result
+- `sa.flatMap(f: A => $[B]): $[B]` — applies `f` to the unwrapped value (where `f` returns a scoped value)
+- All operations are **eager** (zero-cost)
 
 #### Scala 2 note
 
@@ -215,7 +237,7 @@ Scope.global.scoped { parent =>
   // ❌ COMPILE ERROR: $[Database] has no Unscoped instance
   // val escaped = scoped { child =>
   //   import child._
-  //   allocate(Resource[Database])  // $[Database] can't escape
+  //   allocate(Resource(new Database))  // $[Database] can't escape
   // }
 }
 ```
@@ -230,7 +252,7 @@ When working in a child scope, you may need to access values allocated in a pare
 Scope.global.scoped { parent =>
   import parent._
 
-  val parentDb: $[Database] = allocate(Resource[Database])
+  val parentDb: $[Database] = allocate(Resource(new Database))
 
   scoped { child =>
     import child._
@@ -369,12 +391,12 @@ Scope.global.scoped { parent =>
 
     // Use lower() to access parent-scoped values in child scope:
     val db: $[Database] = lower(parentDb)
-    println(scope.use(db)(_.query("SELECT 1")))
+    println(child.use(db)(_.query("SELECT 1")))
 
     val childDb: $[Database] = allocate(Resource(new Database))
 
     // You can use childDb *inside* the child:
-    println(scope.use(childDb)(_.query("SELECT 2")))
+    println(child.use(childDb)(_.query("SELECT 2")))
 
     // Return an Unscoped value
     "done"
@@ -384,7 +406,7 @@ Scope.global.scoped { parent =>
   }
 
   // parentDb is still usable here:
-  println(scope.use(parentDb)(_.query("SELECT 3")))
+  println(parent.use(parentDb)(_.query("SELECT 3")))
 }
 ```
 
@@ -413,11 +435,10 @@ Scope.global.scoped { scope =>
 
   val pool: $[Pool] = allocate(Resource.from[Pool])
 
-  // Use scope.use to access the pool and allocate a connection
-  val result: $[String] = scope.use(pool) { p =>
-    val connection: $[Connection] = allocate(p.lease)
-    scope.use(connection)(_.query("SELECT 1"))
-  }
+  // Allocate a connection from the pool's resource
+  val connection: $[Connection] = allocate(scope.use(pool)(_.lease))
+
+  val result: $[String] = scope.use(connection)(_.query("SELECT 1"))
 
   println(result)
 }
@@ -670,8 +691,8 @@ The scope macros produce beautiful, actionable compile-time error messages with 
   This type (primitive, collection, or function) cannot be auto-created.
 
   Required by:
-    └── Config
-        └── App
+    ├── Config
+    └── App
 
   Fix: Provide Wire(value) with the desired value:
 
@@ -799,7 +820,7 @@ When using `leak(value)` to escape the scoped type system:
 
   Hint:
      If you know this data type is not resourceful, then add an Unscoped
-     instance for it so it can be returned from scoped blocks.
+     instance for it so you do not need to leak it.
 
 ────────────────────────────────────────────────────────────────────────────
 ```
@@ -813,10 +834,13 @@ When using `leak(value)` to escape the scoped type system:
 Core methods (Scala 3 `using` vs Scala 2 `implicit` differs, but the shapes are the same):
 
 ```scala
-final class Scope[ParentTag, Tag0 <: ParentTag] {
-  opaque type $[A] = A  // zero-cost at runtime
+sealed abstract class Scope extends Finalizer {
+  type $[+A]         // = A at runtime (zero-cost)
+  type Parent <: Scope
+  val parent: Parent
 
   def allocate[A](resource: Resource[A]): $[A]
+  def allocate[A <: AutoCloseable](value: => A): $[A]
   def defer(f: => Unit): Unit
 
   // Apply function to scoped value, returns scoped result
@@ -826,10 +850,20 @@ final class Scope[ParentTag, Tag0 <: ParentTag] {
   def $[A](a: A): $[A]
 
   // Lower parent-scoped value into this scope
-  def lower[A](parentScoped: parent.$[A]): $[A]
+  def lower[A](value: parent.$[A]): $[A]
 
   // Creates a child scope - requires Unscoped evidence on return type
-  def scoped[A: Unscoped](f: Scope[this.ScopeTag, ? <: this.ScopeTag] => A): A
+  // Scala 3:
+  def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using Unscoped[A]): A
+  // Scala 2:
+  def scoped[A: Unscoped](f: Scope.Child[_] => A): A  // macro
+
+  implicit class ScopedOps[A](sa: $[A]) {
+    def map[B](f: A => B): $[B]
+    def flatMap[B](f: A => $[B]): $[B]
+  }
+
+  implicit def wrapUnscoped[A: Unscoped](a: A): $[A]
 }
 ```
 
@@ -870,8 +904,8 @@ object Wire {
   // Wrap pre-existing value (auto-finalizes if AutoCloseable):
   def apply[T](value: T): Wire.Shared[Any, T]
   
-  final class Shared[-In, +Out] extends Wire[In, Out]
-  final class Unique[-In, +Out] extends Wire[In, Out]
+  final case class Shared[-In, +Out] extends Wire[In, Out]
+  final case class Unique[-In, +Out] extends Wire[In, Out]
 }
 ```
 

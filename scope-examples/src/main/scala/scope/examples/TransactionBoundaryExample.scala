@@ -124,7 +124,6 @@ object TransactionBoundaryExample {
       val result3: TxResult =
         scoped { txScope =>
           import txScope._
-
           for {
             c  <- lower(conn)
             tx <- allocate(c.beginTransaction("tx-003"))

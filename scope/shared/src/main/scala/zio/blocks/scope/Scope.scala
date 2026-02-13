@@ -61,6 +61,26 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   def use[A, B](scoped: $[A])(f: A => B): $[B] =
     $wrap(f($unwrap(scoped)))
 
+  /** Apply a function to two scoped values. */
+  def use[A1, A2, B](s1: $[A1], s2: $[A2])(f: (A1, A2) => B): $[B] =
+    $wrap(f($unwrap(s1), $unwrap(s2)))
+
+  /** Apply a function to three scoped values. */
+  def use[A1, A2, A3, B](s1: $[A1], s2: $[A2], s3: $[A3])(f: (A1, A2, A3) => B): $[B] =
+    $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3)))
+
+  /** Apply a function to four scoped values. */
+  def use[A1, A2, A3, A4, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4])(
+    f: (A1, A2, A3, A4) => B
+  ): $[B] =
+    $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4)))
+
+  /** Apply a function to five scoped values. */
+  def use[A1, A2, A3, A4, A5, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4], s5: $[A5])(
+    f: (A1, A2, A3, A4, A5) => B
+  ): $[B] =
+    $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4), $unwrap(s5)))
+
   /** Implicit ops for map/flatMap on scoped values. All eager (zero-cost). */
   implicit class ScopedOps[A](private val sa: $[A]) {
     def map[B](f: A => B): $[B] =

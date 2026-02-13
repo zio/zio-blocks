@@ -101,18 +101,12 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
         JsonParser.parse(response.body)
       }
 
-    // Step 3: Access results using scope.use(value)(f)
-    scope.use(users) { u =>
+    // Step 3: Access all results together using multi-arity use
+    scope.use(users, orders, analytics) { (u, o, a) =>
       println(s"\n=== Users Result ===")
       println(s"Users data: ${u.values}")
-    }
-
-    scope.use(orders) { o =>
       println(s"\n=== Orders Result ===")
       println(s"Orders data: ${o.values}")
-    }
-
-    scope.use(analytics) { a =>
       println(s"\n=== Analytics Result ===")
       println(s"Analytics: ${a.values}")
     }

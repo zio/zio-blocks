@@ -209,8 +209,8 @@ Scope.global.scoped { scope =>
   val db: $[Database] = allocate(Resource(openDatabase()))
 
   // Methods are hidden - can't call db.query() directly
-  // Must use $ to access:
-  val result = $(db)(_.query("SELECT 1"))
+  // Must use scope.use to access:
+  val result = scope.use(db)(_.query("SELECT 1"))
 
   // Trying to return `db` would be a compile error!
   result  // Only pure data escapes
@@ -249,8 +249,8 @@ Scope.global.scoped { scope =>
   // Allocate returns scope.$[Database] (scoped value)
   val db: $[Database] = allocate(Resource(new Database))
 
-  // Access via $ - result (String) escapes, db does not
-  val result = $(db)(_.query("SELECT * FROM users"))
+  // Access via scope.use - result (String) escapes, db does not
+  val result = scope.use(db)(_.query("SELECT * FROM users"))
 
   println(result)
 }
@@ -279,7 +279,7 @@ Scope.global.scoped { scope =>
 
   val service = allocate(serviceResource)
 
-  $(service)(_.createUser("Alice"))
+  scope.use(service)(_.createUser("Alice"))
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
@@ -293,17 +293,19 @@ Scope.global.scoped { connScope =>
   val conn = allocate(Resource.fromAutoCloseable(new Connection))
 
   // Transaction lives in child scope - cleaned up before connection
-  val result = scope.scoped { txScope =>
-    import txScope._ 
+  val result: String = scoped { txScope =>
+    import txScope._
 
     // Lower parent-scoped conn into child scope
-    val localConn = lower(conn)
+    val localConn: $[Connection] = lower(conn)
 
     val tx = allocate(txScope.use(localConn)(_.beginTransaction()))
 
-    $(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
-    $(tx)(_.commit())
-    
+    txScope.use(tx) { t =>
+      t.execute("INSERT INTO users VALUES (1, 'Alice')")
+      t.commit()
+    }
+
     "success"
   }
   // Transaction closed here, connection still open
