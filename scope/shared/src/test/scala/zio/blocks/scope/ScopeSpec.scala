@@ -601,13 +601,13 @@ object ScopeSpec extends ZIOSpecDefault {
           fnRan = true
           v + 1
         }
-        assertTrue(!fnRan, result == null)
+        assertTrue(!fnRan, (result: Any) == null)
       },
       test("allocate on closed scope returns null instead of acquiring resource") {
         val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         val result = child.allocate(Resource(new Database))
-        assertTrue(child.isClosed, result == null)
+        assertTrue(child.isClosed, (result: Any) == null)
       },
       test("map on closed scope returns null instead of executing function") {
         val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
@@ -619,7 +619,7 @@ object ScopeSpec extends ZIOSpecDefault {
           fnRan = true
           v.toUpperCase
         }
-        assertTrue(!fnRan, result == null)
+        assertTrue(!fnRan, (result: Any) == null)
       },
       test("flatMap on closed scope returns null instead of executing function") {
         val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
@@ -631,7 +631,7 @@ object ScopeSpec extends ZIOSpecDefault {
           fnRan = true
           child.$(v + 1)
         }
-        assertTrue(!fnRan, result == null)
+        assertTrue(!fnRan, (result: Any) == null)
       },
       test("scoped on closed scope creates born-closed child") {
         val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
@@ -653,7 +653,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         val result = child.$(42)
-        assertTrue(result == null)
+        assertTrue((result: Any) == null)
       },
       test("global scope isClosed is always false") {
         assertTrue(!Scope.global.isClosed)

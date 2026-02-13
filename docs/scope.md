@@ -104,8 +104,9 @@ Child scopes are represented by `Scope.Child[P <: Scope]`, a `final class` neste
 ```scala
 object Scope {
   object global extends Scope {
-    type $[+A] = A
+    type $[+A]  = A
     type Parent = global.type
+    val parent: Parent = this
   }
 }
 ```
@@ -496,7 +497,7 @@ import zio.blocks.scope._
 
 class ConnectionPool(config: Config)(implicit finalizer: Finalizer) {
   private val pool = createPool(config)
-  defer { pool.shutdown() }
+  finalizer.defer { pool.shutdown() }  // or: defer { ... } with import zio.blocks.scope._
   
   def getConnection(): Connection = pool.acquire()
 }
@@ -861,8 +862,8 @@ sealed abstract class Scope extends Finalizer {
   // Creates a child scope - requires Unscoped evidence on return type
   // Scala 3:
   def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using Unscoped[A]): A
-  // Scala 2:
-  def scoped[A: Unscoped](f: Scope.Child[_] => A): A  // macro
+  // Scala 2 (macro rewrites the types; declared signature is untyped):
+  def scoped(f: Scope.Child[self.type] => Any): Any  // macro
 
   implicit class ScopedOps[A](sa: $[A]) {
     def map[B](f: A => B): $[B]
@@ -883,8 +884,9 @@ object Resource {
   def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
   def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
 
-  // Macro - DI entry point (can also be called with no args for zero-dep classes):
-  def from[T](wires: Wire[?, ?]*): Resource[T]
+  // Macro - DI entry point:
+  def from[T]: Resource[T]                      // zero-dep classes
+  def from[T](wires: Wire[?, ?]*): Resource[T]  // with dependency wires
 
   // Internal (used by generated code):
   def shared[A](f: Finalizer => A): Resource[A]
@@ -904,8 +906,8 @@ sealed trait Wire[-In, +Out] {
 
 object Wire {
   // Macro entry points:
-  def shared[T]: Wire[?, T]  // derive from T's constructor
-  def unique[T]: Wire[?, T]  // derive from T's constructor
+  def shared[T]: Wire.Shared[?, T]  // derive from T's constructor
+  def unique[T]: Wire.Unique[?, T]  // derive from T's constructor
   
   // Wrap pre-existing value (auto-finalizes if AutoCloseable):
   def apply[T](value: T): Wire.Shared[Any, T]
