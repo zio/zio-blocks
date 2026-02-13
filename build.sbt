@@ -33,20 +33,20 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
 )
 
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
 )
 addCommandAlias(
   "docJS",
-  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
 )
 
 lazy val root = project
