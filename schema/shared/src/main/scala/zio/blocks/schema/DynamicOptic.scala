@@ -36,49 +36,9 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
   override lazy val toString: String = {
-    val sb  = new java.lang.StringBuilder
-    val len = nodes.length
-    var idx = 0
-    while (idx < len) {
-      nodes(idx) match {
-        case f: Node.Field      => sb.append('.').append(f.name)
-        case c: Node.Case       => sb.append('<').append(c.name).append('>')
-        case ai: Node.AtIndex   => sb.append('[').append(ai.index).append(']')
-        case ai: Node.AtIndices =>
-          sb.append('[')
-          val indices = ai.index
-          val idxLen  = indices.length
-          var i       = 0
-          while (i < idxLen) {
-            if (i > 0) sb.append(',')
-            sb.append(indices(i))
-            i += 1
-          }
-          sb.append(']')
-        case amk: Node.AtMapKey =>
-          sb.append('{')
-          renderDynamicValue(sb, amk.key)
-          sb.append('}')
-        case amk: Node.AtMapKeys =>
-          sb.append('{')
-          val keys   = amk.keys
-          val keyLen = keys.length
-          var i      = 0
-          while (i < keyLen) {
-            if (i > 0) sb.append(", ")
-            renderDynamicValue(sb, keys(i))
-            i += 1
-          }
-          sb.append('}')
-        case _: Node.Elements.type  => sb.append("[*]")
-        case _: Node.MapKeys.type   => sb.append("{*:}")
-        case _: Node.MapValues.type => sb.append("{*}")
-        case _                      => sb.append(".~")
-      }
-      idx += 1
-    }
-    if (sb.length == 0) "."
-    else sb.toString
+    val sb = new java.lang.StringBuilder
+    DynamicOptic.renderString(sb, nodes)
+    sb.toString
   }
 
   /**
@@ -88,52 +48,107 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
    * interpolator syntax.
    */
   lazy val toScalaString: String = {
-    val sb  = new java.lang.StringBuilder
-    val len = nodes.length
-    var idx = 0
-    while (idx < len) {
-      nodes(idx) match {
-        case f: Node.Field      => sb.append('.').append(f.name)
-        case c: Node.Case       => sb.append(".when[").append(c.name).append(']')
-        case ai: Node.AtIndex   => sb.append(".at(").append(ai.index).append(')')
-        case ai: Node.AtIndices =>
-          sb.append(".atIndices(")
-          val indices = ai.index
-          val idxLen  = indices.length
-          var i       = 0
-          while (i < idxLen) {
-            if (i > 0) sb.append(", ")
-            sb.append(indices(i))
-            i += 1
-          }
-          sb.append(')')
-        case amk: Node.AtMapKey =>
-          sb.append(".atKey(")
-          renderDynamicValue(sb, amk.key)
-          sb.append(')')
-        case amk: Node.AtMapKeys =>
-          sb.append(".atKeys(")
-          val keys   = amk.keys
-          val keyLen = keys.length
-          var i      = 0
-          while (i < keyLen) {
-            if (i > 0) sb.append(", ")
-            renderDynamicValue(sb, keys(i))
-            i += 1
-          }
-          sb.append(')')
-        case _: Node.Elements.type  => sb.append(".each")
-        case _: Node.MapKeys.type   => sb.append(".eachKey")
-        case _: Node.MapValues.type => sb.append(".eachValue")
-        case _                      => sb.append(".wrapped")
-      }
-      idx += 1
-    }
-    if (sb.length == 0) "."
-    else sb.toString
+    val sb = new java.lang.StringBuilder
+    DynamicOptic.renderScalaString(sb, nodes)
+    sb.toString
   }
 
-  private def renderDynamicValue(sb: java.lang.StringBuilder, value: DynamicValue): Unit =
+}
+
+object DynamicOptic {
+  private[schema] def renderString(sb: java.lang.StringBuilder, nodes: IndexedSeq[DynamicOptic.Node]): Unit = {
+    val len = nodes.length
+    if (len == 0) sb.append('.')
+    else {
+      var idx = 0
+      while (idx < len) {
+        nodes(idx) match {
+          case f: Node.Field      => sb.append('.').append(f.name)
+          case c: Node.Case       => sb.append('<').append(c.name).append('>')
+          case ai: Node.AtIndex   => sb.append('[').append(ai.index).append(']')
+          case ai: Node.AtIndices =>
+            sb.append('[')
+            val indices = ai.index
+            val idxLen  = indices.length
+            var i       = 0
+            while (i < idxLen) {
+              if (i > 0) sb.append(',')
+              sb.append(indices(i))
+              i += 1
+            }
+            sb.append(']')
+          case amk: Node.AtMapKey =>
+            sb.append('{')
+            renderDynamicValue(sb, amk.key)
+            sb.append('}')
+          case amk: Node.AtMapKeys =>
+            sb.append('{')
+            val keys   = amk.keys
+            val keyLen = keys.length
+            var i      = 0
+            while (i < keyLen) {
+              if (i > 0) sb.append(", ")
+              renderDynamicValue(sb, keys(i))
+              i += 1
+            }
+            sb.append('}')
+          case _: Node.Elements.type  => sb.append("[*]")
+          case _: Node.MapKeys.type   => sb.append("{*:}")
+          case _: Node.MapValues.type => sb.append("{*}")
+          case _                      => sb.append(".~")
+        }
+        idx += 1
+      }
+    }
+  }
+
+  private[schema] def renderScalaString(sb: java.lang.StringBuilder, nodes: IndexedSeq[DynamicOptic.Node]): Unit = {
+    val len = nodes.length
+    if (len == 0) sb.append('.')
+    else {
+      var idx = 0
+      while (idx < len) {
+        nodes(idx) match {
+          case f: Node.Field      => sb.append('.').append(f.name)
+          case c: Node.Case       => sb.append(".when[").append(c.name).append(']')
+          case ai: Node.AtIndex   => sb.append(".at(").append(ai.index).append(')')
+          case ai: Node.AtIndices =>
+            sb.append(".atIndices(")
+            val indices = ai.index
+            val idxLen  = indices.length
+            var i       = 0
+            while (i < idxLen) {
+              if (i > 0) sb.append(", ")
+              sb.append(indices(i))
+              i += 1
+            }
+            sb.append(')')
+          case amk: Node.AtMapKey =>
+            sb.append(".atKey(")
+            renderDynamicValue(sb, amk.key)
+            sb.append(')')
+          case amk: Node.AtMapKeys =>
+            sb.append(".atKeys(")
+            val keys   = amk.keys
+            val keyLen = keys.length
+            var i      = 0
+            while (i < keyLen) {
+              if (i > 0) sb.append(", ")
+              renderDynamicValue(sb, keys(i))
+              i += 1
+            }
+            sb.append(')')
+          case _: Node.Elements.type  => sb.append(".each")
+          case _: Node.MapKeys.type   => sb.append(".eachKey")
+          case _: Node.MapValues.type => sb.append(".eachValue")
+          case _                      => sb.append(".wrapped")
+        }
+        idx += 1
+      }
+    }
+  }
+
+  private[this] def renderDynamicValue(sb: java.lang.StringBuilder, value: DynamicValue): Unit =
     value match {
       case pv: DynamicValue.Primitive =>
         pv.value match {
@@ -177,9 +192,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
         }
       case _ => sb.append(value.toString)
     }
-}
 
-object DynamicOptic {
   val root: DynamicOptic = new DynamicOptic(Chunk.empty)
 
   val elements: DynamicOptic = new DynamicOptic(Chunk.single(Node.Elements))

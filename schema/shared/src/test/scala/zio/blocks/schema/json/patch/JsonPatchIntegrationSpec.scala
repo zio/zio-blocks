@@ -278,7 +278,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val result = JsonPatch.fromDynamicPatch(dynamicPatch)
       assertTrue(
         result.isLeft &&
-          result.left.exists(_.message.contains("InstantDelta"))
+          result.left.exists(_.message.contains("Temporal operations are not supported in JsonPatch"))
       )
     },
     test("DurationDelta fails with SchemaError") {
@@ -289,7 +289,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val result = JsonPatch.fromDynamicPatch(dynamicPatch)
       assertTrue(
         result.isLeft &&
-          result.left.exists(_.message.contains("DurationDelta"))
+          result.left.exists(_.message.contains("Temporal operations are not supported in JsonPatch"))
       )
     },
     test("LocalDateDelta fails with SchemaError") {
@@ -300,7 +300,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val result = JsonPatch.fromDynamicPatch(dynamicPatch)
       assertTrue(
         result.isLeft &&
-          result.left.exists(_.message.contains("LocalDateDelta"))
+          result.left.exists(_.message.contains("Temporal operations are not supported in JsonPatch"))
       )
     },
     test("LocalDateTimeDelta fails with SchemaError") {
@@ -313,7 +313,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val result = JsonPatch.fromDynamicPatch(dynamicPatch)
       assertTrue(
         result.isLeft &&
-          result.left.exists(_.message.contains("LocalDateTimeDelta"))
+          result.left.exists(_.message.contains("Temporal operations are not supported in JsonPatch"))
       )
     },
     test("PeriodDelta fails with SchemaError") {
@@ -324,7 +324,7 @@ object JsonPatchIntegrationSpec extends SchemaBaseSpec {
       val result = JsonPatch.fromDynamicPatch(dynamicPatch)
       assertTrue(
         result.isLeft &&
-          result.left.exists(_.message.contains("PeriodDelta"))
+          result.left.exists(_.message.contains("Temporal operations are not supported in JsonPatch"))
       )
     },
     test("non-string map keys fail with SchemaError") {
