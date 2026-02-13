@@ -108,6 +108,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Adding dependencies (even test-only)
 - Creating or removing subprojects
 - Any repo-wide test or coverage run
+- **New modules:** When adding a new module, update the `testJVM`, `testJS`, `docJVM`, and `docJS` command aliases in `build.sbt`.
 
 ### Never
 - Use coverage as starting point for test design (think first, verify with coverage)
