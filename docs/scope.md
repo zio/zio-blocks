@@ -338,7 +338,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-The child scope has an existential tag (fresh per invocation). You can allocate in the child, but you can't return those values to the parent in a usable form because the parent cannot name (or satisfy) the child's `ScopeTag`.
+The child scope has a fresh, unnameable `$[A]` type (created per invocation). You can allocate in the child, but you can't return those values to the parent in a usable form because the parent cannot name (or satisfy) the child's `$[A]` type.
 
 Compile-time safety is verified in tests, e.g.:
 `ScopeCompileTimeSafetyScala3Spec`.
