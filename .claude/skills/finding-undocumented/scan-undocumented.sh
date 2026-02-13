@@ -40,8 +40,9 @@ ALL_DOC_IDS=$(printf '%s\n%s\n' "$REF_IDS" "$OTHER_IDS" | sort -u)
 
 # ─── 2. Extract public types from source code ────────────────────────────────
 
-# Find all main Scala source files (excluding test, benchmark, example)
-find "$ROOT" -name '*.scala' -path '*/src/main/scala/*' \
+# Find all main Scala source files across all source roots
+# (scala/, scala-2/, scala-3/, scala-3.5+/, etc.)
+find "$ROOT" -name '*.scala' -regex '.*/src/main/scala[^/]*/.*' \
   -not -path '*/test/*' \
   -not -path '*benchmarks*' \
   -not -path '*examples*' \
