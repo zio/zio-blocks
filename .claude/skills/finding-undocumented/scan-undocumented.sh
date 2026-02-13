@@ -90,7 +90,7 @@ done < "$TYPES_FILE"
 
 awk -F'|' '{print $4}' "$UNDOC_FILE" | sort -u | while read -r tname; do
   [ -z "$tname" ] && continue
-  usage=$(grep -rl "\b${tname}\b" "$ROOT" --include='*.scala' 2>/dev/null \
+  usage=$(grep -rlw "$tname" "$ROOT" --include='*.scala' 2>/dev/null \
     | grep -v -E '(test|benchmarks|examples)' | wc -l)
   echo "${tname}|${usage}"
 done > "$USAGE_FILE"
