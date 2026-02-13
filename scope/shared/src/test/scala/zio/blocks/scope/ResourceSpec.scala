@@ -140,30 +140,8 @@ object ResourceSpec extends ZIOSpecDefault {
         caught.get.getSuppressed.apply(1).getMessage == "error1"
       )
     },
-    test("Resource.shared is thread-safe under concurrent makes") {
-      val counter      = new AtomicInteger(0)
-      val closeCounter = new AtomicInteger(0)
-      val resource     = Resource.shared[Int] { finalizer =>
-        finalizer.defer { closeCounter.incrementAndGet(); () }
-        counter.incrementAndGet()
-      }
-      val results = new java.util.concurrent.ConcurrentLinkedQueue[Int]()
-      Scope.global.scoped { scope =>
-        val barrier = new java.util.concurrent.CyclicBarrier(20)
-        val latch   = new java.util.concurrent.CountDownLatch(20)
-        (0 until 20).foreach { _ =>
-          new Thread(() => {
-            barrier.await()
-            results.add(resource.make(scope))
-            latch.countDown()
-          }).start()
-        }
-        latch.await()
-      }
-      import scala.jdk.CollectionConverters._
-      val allResults = results.asScala.toList
-      assertTrue(allResults.forall(_ == 1), counter.get() == 1, closeCounter.get() == 1)
-    },
+    // NOTE: "Resource.shared is thread-safe under concurrent makes" is in
+    // scope/jvm/src/test/.../ResourceConcurrencySpec.scala (uses JVM-only classes)
     test("Resource.shared throws if allocated after destroyed") {
       val resource = Resource.shared[String](_ => "value")
       Scope.global.scoped { scope1 =>
