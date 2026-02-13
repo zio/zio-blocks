@@ -8,8 +8,8 @@ private[scope] object ScopeMacros {
   /**
    * Scala 2 macro implementation for Scope.leak.
    *
-   * Emits a compiler warning via MacroCore.warnLeak and returns the
-   * unwrapped value (using asInstanceOf which is sound since $[A] = A at runtime).
+   * Emits a compiler warning via MacroCore.warnLeak and returns the unwrapped
+   * value (using asInstanceOf which is sound since $[A] = A at runtime).
    */
   def leakImpl(c: whitebox.Context)(sa: c.Tree): c.Tree = {
     import c.universe._
@@ -18,9 +18,9 @@ private[scope] object ScopeMacros {
 
     // Extract source code for the warning message
     val sourceCode = sa match {
-      case Ident(name)       => name.toString
-      case Select(_, name)   => name.toString
-      case _                 => show(sa)
+      case Ident(name)     => name.toString
+      case Select(_, name) => name.toString
+      case _               => show(sa)
     }
 
     // Extract scope name for the warning message
@@ -29,7 +29,7 @@ private[scope] object ScopeMacros {
     MC.warnLeak(c)(sa.pos, sourceCode, scopeName)
 
     // Extract the underlying type A from $[A]
-    val saType = sa.tpe.widen
+    val saType         = sa.tpe.widen
     val underlyingType = saType match {
       case TypeRef(_, sym, List(arg)) if sym.name.toString == "$" => arg
       case _                                                      => saType
