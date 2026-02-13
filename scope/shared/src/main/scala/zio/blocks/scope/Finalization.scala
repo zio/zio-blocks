@@ -31,9 +31,6 @@ final class Finalization(val errors: Chunk[Throwable]) {
    *
    * The first error corresponds to the head of the chunk (the first finalizer
    * that failed in LIFO execution order).
-   *
-   * @throws Throwable
-   *   the first finalizer error, with the rest as suppressed
    */
   def orThrow(): Unit =
     if (errors.nonEmpty) {

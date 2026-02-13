@@ -38,6 +38,9 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
         primary = t
         throw t
     } finally {
+      // Use fins.runAll() directly (not child.close()) for consistency with
+      // the Scala 2 macro, where private[scope] members are inaccessible
+      // at the call-site expansion.
       val finalization = fins.runAll()
       if (primary != null) {
         finalization.suppress(primary)
