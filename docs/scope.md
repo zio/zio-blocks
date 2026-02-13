@@ -861,6 +861,12 @@ sealed abstract class Scope extends Finalizer {
   // Lower parent-scoped value into this scope
   def lower[A](value: parent.$[A]): $[A]
 
+  // Escape hatch: unwrap scoped value (emits compiler warning)
+  // Scala 3:
+  inline def leak[A](inline sa: $[A]): A  // macro — emits warning
+  // Scala 2:
+  def leak[A](sa: $[A]): A               // macro — emits warning
+
   // Creates a child scope - requires Unscoped evidence on return type
   // Scala 3:
   def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using Unscoped[A]): A
