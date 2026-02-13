@@ -5,7 +5,7 @@
 # Outputs a Markdown report comparing source-code types/modules against
 # existing documentation in docs/.
 #
-# Usage:  bash .claude/skills/finding-undocumented/scan-undocumented.sh [PROJECT_ROOT]
+# Usage:  bash .claude/skills/finding-undocumented/scan-undocumented.sh [PROJECT/SUB_MODULE ROOT]
 #
 
 ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
