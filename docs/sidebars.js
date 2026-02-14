@@ -27,6 +27,7 @@ const sidebars = {
          "reference/json",
          "reference/json-schema",
          "reference/syntax",
+         "reference/media-type",
       ]
     }
   ]

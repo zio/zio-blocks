@@ -72,7 +72,10 @@ Then list key properties as bullet points if applicable:
 
 The definition should be concise but informative, with enough detail about type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
 
-After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration). This should be the actual type signature from the source code — the class/trait/object declaration with its type parameters, variance annotations, and extends clauses. Strip method bodies and private members; show only the structural shape of the type.
+After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration):
+
+- Show only the structural shape — the trait/class declaration with type parameters, variance annotations, and extends clauses
+- Strip method bodies, private members, and extra keywords like `final`; show only the structural shape of the type
 
 #### 2. Motivation / Use Case (if applicable)
 
@@ -139,7 +142,21 @@ For each group:
 For each method:
 a. **Use a `####` heading** with the method name
 b. **Explain what it does** in plain language
-c. **Show the method signature** in a plain `scala` code block
+c. **Show the method signature** in a plain `scala` code block using the simplest trait interface format — just the method name, parameters, and return type, without extra keywords like `override`, `final`, `sealed`. For example:
+
+```scala
+trait Chunk[+A] {
+  def map[B](f: A => B): Chunk[B]
+}
+```
+
+If the method is in the companion object, show it as a function in the companion object's simplest form:
+
+```scala
+object Chunk {
+  def apply[A](as: A*): Chunk[A]
+}
+```
 d. **Show a usage example** in a [compile-checked code blocks with mdoc](#compile-checked-code-blocks-with-mdoc)
 e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
