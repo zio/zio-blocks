@@ -298,7 +298,9 @@ MediaType("text", "*").fullType // "text/*"
 Compares two `MediaType` values with support for wildcards, case insensitivity, and parameter matching:
 
 ```scala
-def matches(other: MediaType, ignoreParameters: Boolean = false): Boolean
+final case class MediaType(...) {
+  def matches(other: MediaType, ignoreParameters: Boolean = false): Boolean
+}
 ```
 
 The matching rules are:
