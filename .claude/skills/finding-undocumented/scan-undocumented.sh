@@ -204,7 +204,6 @@ echo ""
 
 echo "### Stub or Minimal Pages (< 20 lines)"
 echo ""
-stub_found=false
 echo "$DOC_FILES_LIST" | while read -r doc_file; do
   [ -z "$doc_file" ] && continue
   line_count=$(wc -l < "$doc_file" | tr -d ' ')
