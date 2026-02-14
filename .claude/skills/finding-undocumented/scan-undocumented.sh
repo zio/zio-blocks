@@ -236,7 +236,7 @@ if [ -z "$undoc_only_packages" ]; then
   echo "All packages have at least some documentation."
 else
   echo "$undoc_only_packages" | while read -r pkg; do
-    [ -z "$pkg" ] || [ "$pkg" = "unknown" ] && continue
+    { [ -z "$pkg" ] || [ "$pkg" = "unknown" ]; } && continue
     echo "- \`$pkg\`"
   done
 fi
