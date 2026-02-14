@@ -72,26 +72,10 @@ Then list key properties as bullet points if applicable:
 
 The definition should be concise but informative, with enough detail about type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
 
-After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration). 
+After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration):
 
-- If the original definition is a `case class`, convert it to a conceptual data type using a `trait` interface with `val` fields represented as abstract defs
 - Show only the structural shape — the trait/class declaration with type parameters, variance annotations, and extends clauses
-- Strip method bodies, private members, and extra keywords like `override`, `final`, `sealed`; show only the structural shape of the type
-
-For example, if the source is:
-
-```scala
-case class Person(name: String, age: Int)
-```
-
-Convert it to:
-
-```scala
-trait Person {
-  def name: String
-  def age: Int
-}
-```
+- Strip method bodies, private members, and extra keywords like `final`; show only the structural shape of the type
 
 #### 2. Motivation / Use Case (if applicable)
 
