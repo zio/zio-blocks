@@ -81,14 +81,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.22"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.20"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.20"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.20"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.20"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.22"
 ```
 
 ### Example: Optics
@@ -143,7 +143,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.22"
 ```
 
 ### Example
@@ -174,7 +174,7 @@ val head: Int = nonEmpty.head  // Always safe, no Option needed
 
 ## Scope
 
-Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope, and child scope values cannot escape to parent scopes.
+Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope. Child scope values cannot escape to parent scopes, enforced by both the abstract scope-tagged type and the `Unscoped` constraint on `scoped`.
 
 ### The Problem
 
@@ -206,11 +206,12 @@ import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
   import scope._
-  val db: Database @@ ScopeTag = allocate(Resource(openDatabase()))
+
+  val db: $[Database] = allocate(Resource(openDatabase()))
 
   // Methods are hidden - can't call db.query() directly
-  // Must use $ to access:
-  val result = $(db)(_.query("SELECT 1"))
+  // Must use scope.use to access:
+  val result = scope.use(db)(_.query("SELECT 1"))
 
   // Trying to return `db` would be a compile error!
   result  // Only pure data escapes
@@ -220,16 +221,17 @@ Scope.global.scoped { scope =>
 
 ### Key Features
 
-- **Compile-Time Leak Prevention**: Values tagged with `A @@ S` can only be used with proof of scope access. Returning a scoped value from its scope is a type error.
-- **Zero Runtime Overhead**: On the eager path the `@@` tag is erased—`A @@ S` is represented as just `A` when evaluated—while deferred/composed computations use a small wrapper/thunk.
+- **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
+- **Zero Runtime Overhead**: `$[A]` erases to `A` at runtime—zero allocation overhead.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
+- **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
 
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.22"
 ```
 
 ### Example: Basic Resource Management
@@ -244,11 +246,13 @@ final class Database extends AutoCloseable {
 
 Scope.global.scoped { scope =>
   import scope._
-  // Allocate returns Database @@ ScopeTag (scoped value)
-  val db = allocate(Resource(new Database))
 
-  // Access via $ - result (String) escapes, db does not
-  val result = $(db)(_.query("SELECT * FROM users"))
+  // Allocate returns scope.$[Database] (scoped value)
+  val db: $[Database] = allocate(Resource(new Database))
+
+  // Access via scope.use - result (String) escapes, db does not
+  val result = scope.use(db)(_.query("SELECT * FROM users"))
+
   println(result)
 }
 // Output: Result: SELECT * FROM users
@@ -273,8 +277,10 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
 
 Scope.global.scoped { scope =>
   import scope._
+
   val service = allocate(serviceResource)
-  $(service)(_.createUser("Alice"))
+
+  scope.use(service)(_.createUser("Alice"))
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
@@ -284,15 +290,23 @@ Scope.global.scoped { scope =>
 ```scala
 Scope.global.scoped { connScope =>
   import connScope._
+
   val conn = allocate(Resource.fromAutoCloseable(new Connection))
 
   // Transaction lives in child scope - cleaned up before connection
-  val result = scoped { txScope =>
+  val result: String = scoped { txScope =>
     import txScope._
-    val tx = allocate(conn.beginTransaction())  // Returns Resource!
-    $(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
-    $(tx)(_.commit())
-    "success"
+
+    // For-comprehension: flatMap unwraps $[Connection] to Connection,
+    // so c.beginTransaction() returns a raw Resource[Transaction]
+    for {
+      c  <- lower(conn)
+      tx <- allocate(c.beginTransaction())
+    } yield {
+      tx.execute("INSERT INTO users VALUES (1, 'Alice')")
+      tx.commit()
+      "success"
+    }
   }
   // Transaction closed here, connection still open
 
@@ -327,7 +341,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.22"
 ```
 
 ### Example
@@ -411,7 +425,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.22"
 ```
 
 ### Example
@@ -454,7 +468,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.20"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.22"
 ```
 
 ### Example
@@ -540,6 +554,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Serialization
 
+- [Codec & Format](docs/./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](docs/./reference/json.md) - JSON codec and parsing
 - [JSON Schema](docs/./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](docs/./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
@@ -557,7 +572,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Scope](docs/./scope.md) - Compile-time safe resource management and DI
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
-- [Docs (Markdown)](docs/./reference/docs.md) - Markdown parsing and rendering
+- [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 
 ## Documentation
 
