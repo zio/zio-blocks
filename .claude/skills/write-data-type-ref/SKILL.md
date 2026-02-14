@@ -32,7 +32,7 @@ Before writing anything, build a complete mental model of the type:
 5. **Find usages**: Grep for the type name across the codebase to find how it's used by other modules — this reveals integration points and relationships.
 6. **Read related docs**: Check `docs/` and `docs/reference/` for pages that reference this type.
 
-## Step 2: Write the Reference Page
+## Step 2: Write the Documentation
 
 ### File Location and Frontmatter
 
@@ -47,33 +47,40 @@ title: "<TypeName>"
 
 The `id` must match the filename (without `.md`).
 
-### Required Structure
+### Document Structure
 
 Follow this structure precisely. Every section below marked **(required)** must appear. Sections marked **(if applicable)** should only appear when relevant.
 
 #### 1. Opening Definition (required)
 
-A single paragraph starting with the type name in backticks, followed by a concise definition. This is the most important sentence — it tells the reader what the type IS and what it's FOR.
+Start with a concise, technical definition. Use inline code for the type signature. Explain the type parameters. State the core purpose in 1-3 sentences.
 
-Pattern: `` `TypeName[A]` is a <what-it-is> that <what-it-does>. ``
+Pattern:
 
-Examples from existing docs:
-- `` `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations. ``
-- `` `Context[+R]` is a type-indexed heterogeneous collection. ``
-- `` `TypeId[A]` represents the identity of a type or type constructor at runtime. ``
-- `` `DynamicValue` is a schema-less, dynamically-typed representation of any structured value in ZIO Blocks. ``
+```
+`TypeName[A]` is a **key concept in two or three words** that does X. The fundamental operations are `op1` and `op2`.
+```
 
-The definition should be concise but informative, with enough detail to type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
+Then list key properties as bullet points if applicable:
+
+```
+`TypeName`:
+- is purely functional and referentially transparent
+- is concurrent-safe and lock-free
+- updates and modifies atomically
+```
+
+The definition should be concise but informative, with enough detail about type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
 
 After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration). This should be the actual type signature from the source code — the class/trait/object declaration with its type parameters, variance annotations, and extends clauses. Strip method bodies and private members; show only the structural shape of the type.
 
-#### 2. Motivation / Why? (required)
+#### 2. Motivation / Use Case (if applicable)
 
-This section answers following questions:
+This section answers the following questions:
 1. What is the purpose of this data type?
 2. What problem does it solve?
-3. Why was it created?
-4. What are its key advantages over alternatives?
+3. Why was it created, and when should we use it?
+4. What are its key advantages over alternatives? Compare with alternatives if it helps clarify.
 
 Tools:
 
@@ -109,13 +116,16 @@ Document all ways to create values of the type, organized by method:
 
 Each method gets its own `###` subsection with a short explanation and a code example.
 
-Use `` ```scala mdoc:compile-only `` for all code blocks. Always include imports.
+#### 5. Predefined Instances (if applicable)
 
-#### 5. Core Operations (required)
+If the companion object provides predefined instances (like `TypeId.int`, `TypeId.string`), list them organized by category with a brief table or grouped code block.
+
+#### 6. Core Operations (Required)
 
 Document the primary API organized by category. Group related methods under `###` subsections:
 
-- **Element access** (get, apply, head, etc.)
+For example:
+- **Element Access** (get, apply, head, etc.)
 - **Transformations** (map, flatMap, filter, etc.)
 - **Combining** (++, combine, merge, etc.)
 - **Querying** (exists, forall, find, contains, etc.)
@@ -126,16 +136,37 @@ For each group:
 - Show a code example demonstrating 2-4 methods together
 - Note performance characteristics inline when relevant (e.g., "O(1)", "O(n)")
 
-#### 6. Subtypes / Variants (if applicable)
+For each method:
+a. **Use a `####` heading** with the method name
+b. **Explain what it does** in plain language
+c. **Show the method signature** in a plain `scala` code block
+d. **Show a usage example** in a [compile-checked code blocks with mdoc](#compile-checked-code-blocks-with-mdoc)
+e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
-If the type has important subtypes, variants, or related types (e.g., `NonEmptyChunk` for `Chunk`, `Nominal`/`Alias`/`Opaque` for `TypeId`), document each with:
+#### 7. Subtypes / Variants (if applicable)
+
+If the type has important subtypes, variants, or related types (e.g., `NonEmptyChunk` for `Chunk`, `Nominal`/`Alias`/`Opaque` for `TypeId`), document each in a dedicated section. For each subtype:
 
 - What it is and when to use it
 - How to create it
-- Key operations that differ from the parent type
+- Key operations that differ from the parent/related type
 - How to convert between the parent and subtype
 
-#### 7. Integration (if applicable)
+#### 8. Comparison Sections (when applicable)
+
+Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when it adds clarity. Examples:
+- "Ref vs AtomicReference in Java"
+- "Ref vs State Monad"
+- "Promise vs Scala's Promise"
+- "Chunk vs List vs Array"
+- "TypeId vs Scala's TypeTag vs Java's Class"
+- "Lazy vs lazy val vs def"
+
+#### 9. Advanced Usage / Building Blocks (when applicable)
+
+Show how the type composes with other types or how it can be used to build higher-level abstractions.
+
+#### 10. Integration (if applicable)
 
 Show how this type integrates with other ZIO Blocks data types and module. For example:
 - How `TypeId` is used in `Schema`
@@ -144,11 +175,7 @@ Show how this type integrates with other ZIO Blocks data types and module. For e
 
 Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](./reflect.md)`) after explaining the integration of each related type.
 
-#### 8. Predefined Instances (if applicable)
-
-If the companion object provides predefined instances (like `TypeId.int`, `TypeId.string`), list them organized by category with a brief table or grouped code block.
-
-### mdoc Code Block Reference
+### Compile-checked Code Blocks with mdoc
 
 This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala code blocks in documentation. Every Scala code block must use one of the mdoc modifiers below. **Choosing the right modifier is critical** — incorrect usage causes mdoc compilation failures or broken rendered output.
 
@@ -196,21 +223,9 @@ This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
 
-### Admonitions
+### Docusaurus Admonitions
 
-Use Docusaurus admonition syntax for warnings and caveats:
-
-```
-:::caution
-`update` is not the composition of `get` and `set`. This composition is not concurrent-safe.
-:::
-```
-
-```
-:::warning
-A `Ref` must be used with **immutable data**. Storing mutable data breaks atomic guarantees.
-:::
-```
+Use Docusaurus admonition syntax for adding any of `note`, `tip`, `info`, `warning`, and `danger` to highlight important information. Example for a `note`:
 
 ```
 :::note
@@ -222,6 +237,16 @@ Additional context or clarification.
 
 After writing the reference page:
 
-1. **Update `docs/index.md`**: Add the new page under the appropriate section in the "Documentation" heading.
-2. **Cross-reference**: Add links from related existing docs to the new page.
-3. **Verify all links**: Ensure relative links in the new page and in updated pages are correct.
+1. If updating an existing file, edit it in place.
+2. If creating a new file, place it in the appropriate `docs/reference/` subdirectory based on where it logically belongs and update `sidebars.js` to add it to the sidebar.
+3. **Update `docs/index.md`**: Add the new page under the appropriate section in the "Documentation" heading.
+4. **Cross-reference**: Add links from related existing docs to the new page.
+5. **Verify all links**: Ensure relative links in the new page and in updated pages are correct.
+
+## Step 4: Review
+
+After writing, re-read the document and verify:
+- All method signatures match the actual source code
+- All code examples would compile with `mdoc`
+- The frontmatter `id` matches what `sidebars.js` expects (if an entry exists)
+- The document is self-contained—a reader shouldn't need to look at the source code to understand the type's API
