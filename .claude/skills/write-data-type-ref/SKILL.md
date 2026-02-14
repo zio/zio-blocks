@@ -120,12 +120,12 @@ Each method gets its own `###` subsection with a short explanation and a code ex
 
 If the companion object provides predefined instances (like `TypeId.int`, `TypeId.string`), list them organized by category with a brief table or grouped code block.
 
-#### 6. Core Operations (required)
+#### 6. Core Operations (Required)
 
 Document the primary API organized by category. Group related methods under `###` subsections:
 
 For example:
-- **Element access** (get, apply, head, etc.)
+- **Element Access** (get, apply, head, etc.)
 - **Transformations** (map, flatMap, filter, etc.)
 - **Combining** (++, combine, merge, etc.)
 - **Querying** (exists, forall, find, contains, etc.)
@@ -137,7 +137,7 @@ For each group:
 - Note performance characteristics inline when relevant (e.g., "O(1)", "O(n)")
 
 For each method:
-a. **Use a `###` heading** with the method name
+a. **Use a `####` heading** with the method name
 b. **Explain what it does** in plain language
 c. **Show the method signature** in a plain `scala` code block
 d. **Show a usage example** in a [compile-checked code blocks with mdoc](#compile-checked-code-blocks-with-mdoc)
