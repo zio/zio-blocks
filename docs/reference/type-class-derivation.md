@@ -193,7 +193,6 @@ import zio.blocks.schema.DynamicValue.Null
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
-import zio.blocks.docs.Doc
 
 object DeriveShow extends Deriver[Show] {
 
@@ -436,7 +435,6 @@ import zio.blocks.schema.DynamicValue.Null
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
-import zio.blocks.docs.Doc
 ```
 
 ```scala mdoc:compile-only

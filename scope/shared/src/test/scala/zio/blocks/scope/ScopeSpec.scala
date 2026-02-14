@@ -588,20 +588,12 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(!result)
       },
       test("isClosed is true after scope closes") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         assertTrue(child.isClosed)
       },
       test("use on closed scope returns null instead of executing function") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         val wrapped = child.$(42)
         child.close()
         var fnRan  = false
@@ -612,21 +604,13 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(!fnRan, (result: Any) == null)
       },
       test("allocate on closed scope returns null instead of acquiring resource") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         val result = child.allocate(Resource(new Database))
         assertTrue(child.isClosed, (result: Any) == null)
       },
       test("map on closed scope returns null instead of executing function") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         val wrapped = child.$("hello")
         child.close()
         import child._
@@ -638,11 +622,7 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(!fnRan, (result: Any) == null)
       },
       test("flatMap on closed scope returns null instead of executing function") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child   = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         val wrapped = child.$(99)
         child.close()
         import child._
@@ -654,11 +634,7 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(!fnRan, (result: Any) == null)
       },
       test("scoped on closed scope creates born-closed child") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         var innerClosed = false
         child.scoped { inner =>
@@ -667,22 +643,14 @@ object ScopeSpec extends ZIOSpecDefault {
         assertTrue(child.isClosed, innerClosed)
       },
       test("defer on closed scope is silently ignored") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         var finalizerRan = false
         child.defer { finalizerRan = true }
         assertTrue(child.isClosed, !finalizerRan)
       },
       test("$ on closed scope returns null") {
-        val child = new Scope.Child[Scope.global.type](
-          Scope.global,
-          new zio.blocks.scope.internal.Finalizers,
-          PlatformScope.captureOwner()
-        )
+        val child = new Scope.Child[Scope.global.type](Scope.global, new zio.blocks.scope.internal.Finalizers)
         child.close()
         val result = child.$(42)
         assertTrue((result: Any) == null)

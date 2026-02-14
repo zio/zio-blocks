@@ -28,6 +28,7 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [Allocating and using a resource](#allocating-and-using-a-resource)
   - [Nested scopes (child can use parent, not vice versa)](#nested-scopes-child-can-use-parent-not-vice-versa)
   - [Chaining resource acquisition](#chaining-resource-acquisition)
+  - [Pooling with `SharedResource` + `Pool.lease`](#pooling-with-sharedresource--poollease)
   - [Registering cleanup manually with `defer`](#registering-cleanup-manually-with-defer)
   - [Classes with `Finalizer` parameters](#classes-with-finalizer-parameters)
   - [Dependency injection with `Wire` + `Context`](#dependency-injection-with-wire--context)
@@ -453,6 +454,59 @@ Scope.global.scoped { scope =>
 // Output: result: SELECT 1
 // Then: connection closed, pool closed (LIFO)
 ```
+
+---
+
+### Pooling with `SharedResource` + `Pool.lease`
+
+`Pool` leases values as ordinary `Resource[A]`, so release is always tied to scope finalization.
+Current V1 pool behavior is intentionally minimal: there is no configurable capacity,
+no backpressure, and no built-in metrics/health reporting.
+
+Lease/close semantics:
+
+- Acquiring a lease from `p` (for example via `allocate(p.lease)`) throws `IllegalStateException` if the pool is already closed.
+- Releasing a lease after pool close destroys the value instead of returning it to idle reuse.
+- For shared pools, recycle runs on lease release while open; if recycle throws, the value is destroyed and the release fails.
+
+```scala
+import zio.blocks.scope._
+
+final class Connection(var dirty: Boolean) extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = ()
+}
+
+val pooledConnection: SharedResource[Connection] =
+  SharedResource(
+    Resource.acquireRelease(new Connection(dirty = false))(_.close()),
+    { c =>
+      // Runs each time a lease is returned to the pool
+      c.dirty = false
+    }
+  )
+
+Scope.global.scoped { scope =>
+  import scope._
+  val pool: $[Pool[Connection]] = allocate(Pool.shared(pooledConnection))
+
+  val result: String = scoped { child =>
+    import child._
+    val leased: $[Connection] = for {
+      p <- lower(pool)
+      c <- allocate(p.lease)
+    } yield {
+      c.dirty = true
+      c
+    }
+    use(leased)(_.query("SELECT 1"))
+  }
+
+  println(result)
+}
+```
+
+Use `Pool.unique(resource)` when you want a fresh value per lease with no reuse.
 
 ---
 

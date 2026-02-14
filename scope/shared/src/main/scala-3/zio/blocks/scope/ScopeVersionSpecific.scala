@@ -23,21 +23,11 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   }}}
    */
   final def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using ev: Unscoped[A]): A = {
-    if (!self.isOwner) {
-      val current   = PlatformScope.currentThreadName()
-      val ownerInfo = self match {
-        case c: Scope.Child[_] => s" (owner: '${PlatformScope.ownerName(c.owner)}')"
-        case _                 => ""
-      }
-      throw new IllegalStateException(
-        s"Cannot create child scope: current thread '$current' does not own this scope$ownerInfo"
-      )
-    }
     // If this scope is already closed, create a born-closed child.
     // The child's operations will be no-ops (returning null-scoped values),
     // and its finalizers run immediately after the block completes.
     val fins               = if (self.isClosed) internal.Finalizers.closed else new internal.Finalizers
-    val child              = new Scope.Child[self.type](self, fins, PlatformScope.captureOwner())
+    val child              = new Scope.Child[self.type](self, fins)
     var primary: Throwable = null
     var unwrapped: A       = null.asInstanceOf[A]
     try {

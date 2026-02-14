@@ -59,9 +59,6 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /** Returns true if this scope has been closed (finalizers already ran). */
   def isClosed: Boolean = finalizers.isClosed
 
-  /** Returns true if the current thread owns this scope. */
-  def isOwner: Boolean
-
   /** Allocate a resource in this scope. Returns null-scoped if closed. */
   def allocate[A](resource: Resource[A]): $[A] =
     if (isClosed) $wrap(null.asInstanceOf[A])
@@ -148,20 +145,15 @@ object Scope {
       f
     }
 
-    def isOwner: Boolean = true
-
     private[scope] def runFinalizers(): Finalization = finalizers.runAll()
   }
 
   /** Child scope - created by scoped { ... }. */
   final class Child[P <: Scope] private[scope] (
     val parent: P,
-    protected val finalizers: Finalizers,
-    private[scope] val owner: AnyRef
+    protected val finalizers: Finalizers
   ) extends Scope { self =>
     type Parent = P
-
-    def isOwner: Boolean = PlatformScope.isOwner(owner)
 
     private[scope] def close(): Finalization = finalizers.runAll()
 
