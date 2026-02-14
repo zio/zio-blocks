@@ -23,6 +23,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
+| **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
 
 ## Core Principles
@@ -572,3 +573,4 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [TypeId](./reference/typeid.md) - Type identity and metadata
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
+- [MediaType](./reference/media-type.md) - Type-safe IANA media types

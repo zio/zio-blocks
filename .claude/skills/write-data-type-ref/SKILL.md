@@ -139,7 +139,12 @@ For each group:
 For each method:
 a. **Use a `####` heading** with the method name
 b. **Explain what it does** in plain language
-c. **Show the method signature** in a plain `scala` code block
+c. **Show the method signature** in a plain `scala` code block for example:
+```scala
+trait Chunk[+A] {
+  def map[B](f: A => B): Chunk[B]
+}
+```
 d. **Show a usage example** in a [compile-checked code blocks with mdoc](#compile-checked-code-blocks-with-mdoc)
 e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
