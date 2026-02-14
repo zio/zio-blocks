@@ -6,7 +6,7 @@ When reviewing a pull request, check whether it introduces a **new feature**, **
 
 ### What counts as a public API change
 
-- Adding or removing a `public` trait, class, object, or type alias in any module under `src/main/scala/`
+- Adding or removing a `public` trait, class, object, or type alias in any module's `src/main/scala/` directory (for example, `*/src/main/scala/`)
 - Adding, removing, or changing the signature of a `public` method or value
 - Adding a new data type, codec, optic, schema, or format
 - Changing the behavior of an existing public method in a way that users would need to know about
