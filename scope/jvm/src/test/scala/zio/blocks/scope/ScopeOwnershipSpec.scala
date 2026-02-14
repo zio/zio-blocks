@@ -191,7 +191,7 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         assertTrue(result1.get().isEmpty, result2.get().isEmpty)
       }
     },
-    test("exception message contains thread information") {
+    test("exception message contains thread names") {
       ZIO.succeed {
         val result = new AtomicReference[Option[Throwable]](None)
         val latch  = new CountDownLatch(1)
@@ -200,7 +200,7 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
             () => {
               try {
                 scope.scoped { inner =>
-                  inner.$(42)
+                  inner.$(())
                 }
               } catch {
                 case e: Throwable => result.set(Some(e))
@@ -213,8 +213,11 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           latch.await()
           scope.$(())
         }
+        val msg = result.get().map(_.getMessage).getOrElse("")
         assertTrue(
-          result.get().exists(_.getMessage.contains("Cannot create child scope"))
+          msg.contains("Cannot create child scope"),
+          msg.contains("test-non-owner-thread"),
+          msg.contains("owner:")
         )
       }
     },
