@@ -145,7 +145,7 @@ e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonit
 
 #### 7. Subtypes / Variants (if applicable)
 
-If the type has important subtypes, variants, or related types (e.g., `NonEmptyChunk` for `Chunk`, `Nominal`/`Alias`/`Opaque` for `TypeId`), document each with in a dedicated section. For each subtype:
+If the type has important subtypes, variants, or related types (e.g., `NonEmptyChunk` for `Chunk`, `Nominal`/`Alias`/`Opaque` for `TypeId`), document each in a dedicated section. For each subtype:
 
 - What it is and when to use it
 - How to create it
