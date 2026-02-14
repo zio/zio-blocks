@@ -120,11 +120,17 @@ private[scope] object ScopeMacros {
     // so that operations inside the block become no-ops.
     q"""
       val parent = $self
+      if (!parent.isOwner) {
+        throw new IllegalStateException(
+          "Cannot create child scope from a thread that does not own this scope"
+        )
+      }
       val fins = if (parent.isClosed) _root_.zio.blocks.scope.internal.Finalizers.closed
                  else new _root_.zio.blocks.scope.internal.Finalizers
       val child = new _root_.zio.blocks.scope.Scope.Child[parent.type](
         parent,
-        fins
+        fins,
+        _root_.zio.blocks.scope.PlatformScope.captureOwner()
       )
       var primary: Throwable = null
       var unwrapped: $underlyingType = null.asInstanceOf[$underlyingType]
