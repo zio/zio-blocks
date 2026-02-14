@@ -517,5 +517,13 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true
   )
-  .dependsOn(schema.jvm, markdown.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
+  .dependsOn(
+    schema.jvm,
+    markdown.jvm,
+    `schema-toon`.jvm,
+    `schema-avro`,
+    `schema-messagepack`.jvm,
+    `schema-thrift`,
+    `schema-bson`
+  )
   .enablePlugins(WebsitePlugin)
