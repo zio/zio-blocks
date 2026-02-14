@@ -74,13 +74,13 @@ The definition should be concise but informative, with enough detail to type par
 
 After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration). This should be the actual type signature from the source code — the class/trait/object declaration with its type parameters, variance annotations, and extends clauses. Strip method bodies and private members; show only the structural shape of the type.
 
-#### 2. Motivation / Use-case (if applicable)
+#### 2. Motivation / Use Case (if applicable)
 
-This section answers following questions:
+This section answers the following questions:
 1. What is the purpose of this data type?
 2. What problem does it solve?
-3. Why was it created? and When we should use it?
-4. What are its key advantages over alternatives? And compare with alternatives if it helps clarify.
+3. Why was it created, and when should we use it?
+4. What are its key advantages over alternatives? Compare with alternatives if it helps clarify.
 
 Tools:
 
