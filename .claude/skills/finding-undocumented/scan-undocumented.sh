@@ -13,11 +13,11 @@ DOCS_DIR="$ROOT/docs"
 REF_DIR="$DOCS_DIR/reference"
 
 # Temp files
-DOCS_WORDS_FILE=$(mktemp /tmp/scan-words.XXXXXX)
-TYPES_FILE=$(mktemp /tmp/scan-types.XXXXXX)
-UNDOC_FILE=$(mktemp /tmp/scan-undoc.XXXXXX)
-DOC_FILE_TMP=$(mktemp /tmp/scan-doc.XXXXXX)
-USAGE_FILE=$(mktemp /tmp/scan-usage.XXXXXX)
+DOCS_WORDS_FILE=$(mktemp -t scan-words.XXXXXX)
+TYPES_FILE=$(mktemp -t scan-types.XXXXXX)
+UNDOC_FILE=$(mktemp -t scan-undoc.XXXXXX)
+DOC_FILE_TMP=$(mktemp -t scan-doc.XXXXXX)
+USAGE_FILE=$(mktemp -t scan-usage.XXXXXX)
 cleanup() { rm -f "$DOCS_WORDS_FILE" "$TYPES_FILE" "$UNDOC_FILE" "$DOC_FILE_TMP" "$USAGE_FILE"; }
 trap cleanup EXIT
 
