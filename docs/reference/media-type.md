@@ -343,7 +343,9 @@ htmlUtf8.matches(htmlFull)                           // true  — subset match (
 Looks up a `MediaType` by file extension. The lookup is case-insensitive and strips a leading `.` if present:
 
 ```scala
-def forFileExtension(ext: String): Option[MediaType]
+object MediaType {
+  def forFileExtension(ext: String): Option[MediaType]
+}
 ```
 
 ```scala mdoc:compile-only
