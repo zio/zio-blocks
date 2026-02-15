@@ -488,13 +488,13 @@ lazy val benchmarks = project
 
 lazy val examples = project
   .in(file("zio-blocks-examples"))
+  .settings(stdSettings("zio-blocks-examples"))
   .settings(
-    moduleName     := "zio-blocks-examples",
-    publish / skip := true,
-    scalacOptions += "-experimental"
+    publish / skip := true
   )
   .dependsOn(
     schema.jvm,
+    markdown.jvm,
     streams.jvm,
     chunk.jvm,
     `schema-toon`.jvm,
