@@ -239,6 +239,7 @@ This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
+- **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
 
 ### Docusaurus Admonitions
 
