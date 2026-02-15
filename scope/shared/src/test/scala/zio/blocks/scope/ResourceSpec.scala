@@ -80,8 +80,8 @@ object ResourceSpec extends ZIOSpecDefault {
     },
     test("Resource.shared runs finalizers only when all references released") {
       var closeCalls = 0
-      val resource   = Resource.shared[String] { finalizer =>
-        finalizer.defer(closeCalls += 1)
+      val resource   = Resource.shared[String] { scope =>
+        scope.defer(closeCalls += 1)
         "shared-value"
       }
       var v1              = ""
@@ -103,10 +103,10 @@ object ResourceSpec extends ZIOSpecDefault {
     },
     test("Resource.shared runs finalizers in LIFO order") {
       val order    = ListBuffer[Int]()
-      val resource = Resource.shared[String] { finalizer =>
-        finalizer.defer(order += 1)
-        finalizer.defer(order += 2)
-        finalizer.defer(order += 3)
+      val resource = Resource.shared[String] { scope =>
+        scope.defer(order += 1)
+        scope.defer(order += 2)
+        scope.defer(order += 3)
         "value"
       }
       Scope.global.scoped { scope =>
@@ -115,10 +115,10 @@ object ResourceSpec extends ZIOSpecDefault {
       assertTrue(order.toList == List(3, 2, 1))
     },
     test("Resource.shared collects suppressed exceptions from finalizers") {
-      val resource = Resource.shared[String] { finalizer =>
-        finalizer.defer(throw new RuntimeException("error1"))
-        finalizer.defer(throw new RuntimeException("error2"))
-        finalizer.defer(throw new RuntimeException("error3"))
+      val resource = Resource.shared[String] { scope =>
+        scope.defer(throw new RuntimeException("error1"))
+        scope.defer(throw new RuntimeException("error2"))
+        scope.defer(throw new RuntimeException("error3"))
         "value"
       }
 

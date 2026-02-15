@@ -1,7 +1,6 @@
 package zio.blocks.scope
 
 import java.util.concurrent.atomic.AtomicReference
-import zio.blocks.scope.internal.ProxyFinalizer
 
 /**
  * A description of how to acquire and release a resource.
@@ -43,19 +42,18 @@ import zio.blocks.scope.internal.ProxyFinalizer
 sealed trait Resource[+A] { self =>
 
   /**
-   * Acquires the resource value using the given finalizer for cleanup
-   * registration.
+   * Acquires the resource value using the given scope for cleanup registration.
    *
    * This method is package-private to ensure resources are only created through
    * [[Scope.allocate]], which properly tags the result with the scope's
    * identity.
    *
-   * @param finalizer
-   *   the finalizer to register cleanup actions with
+   * @param scope
+   *   the scope to register cleanup actions with
    * @return
    *   the acquired resource value
    */
-  private[scope] def make(finalizer: Finalizer): A
+  private[scope] def make(scope: Scope): A
 
   /**
    * Transforms the value produced by this resource.
@@ -76,7 +74,7 @@ sealed trait Resource[+A] { self =>
    *   val urlResource: Resource[String] = portResource.map(port => s"http://localhost:$$port")
    *   }}}
    */
-  def map[B](f: A => B): Resource[B] = new Resource.Unique[B](finalizer => f(self.make(finalizer)))
+  def map[B](f: A => B): Resource[B] = new Resource.Unique[B](scope => f(self.make(scope)))
 
   /**
    * Sequences two resources, using the result of this resource to create
@@ -100,9 +98,9 @@ sealed trait Resource[+A] { self =>
    *   }
    *   }}}
    */
-  def flatMap[B](f: A => Resource[B]): Resource[B] = new Resource.Unique[B](finalizer => {
-    val a = self.make(finalizer)
-    f(a).make(finalizer)
+  def flatMap[B](f: A => Resource[B]): Resource[B] = new Resource.Unique[B](scope => {
+    val a = self.make(scope)
+    f(a).make(scope)
   })
 
   /**
@@ -125,9 +123,9 @@ sealed trait Resource[+A] { self =>
    *   val combined: Resource[(Database, Cache)] = dbResource.zip(cacheResource)
    *   }}}
    */
-  def zip[B](that: Resource[B]): Resource[(A, B)] = new Resource.Unique[(A, B)](finalizer => {
-    val a = self.make(finalizer)
-    val b = that.make(finalizer)
+  def zip[B](that: Resource[B]): Resource[(A, B)] = new Resource.Unique[(A, B)](scope => {
+    val a = self.make(scope)
+    val b = that.make(scope)
     (a, b)
   })
 }
@@ -138,92 +136,78 @@ object Resource extends ResourceCompanionVersionSpecific {
    * A resource that produces shared (memoized) instances with reference
    * counting.
    *
-   * The first call to `make` initializes the value using a proxy finalizer that
-   * collects cleanup actions. Subsequent calls increment a reference count.
-   * Each scope that receives the value registers a finalizer that decrements
-   * the count. When the count reaches zero, collected finalizers run.
+   * The first call to `make` initializes the value using an OpenScope parented
+   * to Scope.global. Subsequent calls increment a reference count. Each scope
+   * that receives the value registers a finalizer that decrements the count.
+   * When the count reaches zero, the shared scope is closed.
    *
    * This is thread-safe and lock-free using AtomicReference with CAS.
    */
   private[scope] final class Shared[A] private[scope] (
-    private[scope] val makeFn: Finalizer => A
+    private[scope] val makeFn: Scope => A
   ) extends Resource[A] {
     import Resource.SharedState._
 
     private val state: AtomicReference[SharedState[A]] = new AtomicReference(Uninitialized)
 
-    private[scope] def make(realFinalizer: Finalizer): A = {
+    private[scope] def make(scope: Scope): A = {
       var result: A = null.asInstanceOf[A]
       var done      = false
 
       while (!done) {
         state.get() match {
           case Uninitialized =>
-            // Try to become the initializer
             if (state.compareAndSet(Uninitialized, Pending)) {
-              // We won - initialize the resource
-              val proxy = new ProxyFinalizer
+              val os = Scope.global.open()
               try {
-                val value = makeFn(proxy)
-                // Transition to Created with refCount=1
-                state.set(Created(value, proxy, 1))
+                val value = makeFn(os.scope)
+                state.set(Created(value, os, 1))
                 result = value
                 done = true
               } catch {
                 case t: Throwable =>
-                  // Initialization failed - reset to Uninitialized so others can retry
+                  os.close()
                   state.set(Uninitialized)
                   throw t
               }
             }
-          // else: lost race, loop and retry
 
           case Pending =>
-            // Another thread is initializing - spin wait
             PlatformScope.threadYield()
 
           case created: Created[A @unchecked] =>
-            // Resource exists - try to increment refCount
             val newState = created.copy(refCount = created.refCount + 1)
             if (state.compareAndSet(created, newState)) {
               result = created.value
               done = true
             }
-          // else: state changed, retry
 
           case Destroyed =>
             throw new IllegalStateException("Cannot allocate from a destroyed shared resource")
         }
       }
 
-      // Register a decrement finalizer with the real scope
-      realFinalizer.defer {
+      scope.defer {
         var decrementDone = false
         while (!decrementDone) {
           state.get() match {
             case created: Created[A @unchecked] =>
               if (created.refCount == 1) {
-                // We're the last reference - transition to Destroyed and run finalizers
                 if (state.compareAndSet(created, Destroyed)) {
-                  created.proxy.runAll().orThrow()
+                  created.openScope.close().orThrow()
                   decrementDone = true
                 }
-                // else: state changed, retry
               } else {
-                // Decrement refCount
                 val newState = created.copy(refCount = created.refCount - 1)
                 if (state.compareAndSet(created, newState)) {
                   decrementDone = true
                 }
-                // else: state changed, retry
               }
 
             case Destroyed =>
-              // Already destroyed (shouldn't happen in correct usage)
               decrementDone = true
 
             case Uninitialized | Pending =>
-              // Shouldn't happen - we have a reference so it must be Created
               throw new IllegalStateException("Shared resource in unexpected state during finalization")
           }
         }
@@ -243,10 +227,10 @@ object Resource extends ResourceCompanionVersionSpecific {
    */
   private[scope] sealed trait SharedState[+A]
   private[scope] object SharedState {
-    case object Uninitialized                                                   extends SharedState[Nothing]
-    case object Pending                                                         extends SharedState[Nothing]
-    final case class Created[A](value: A, proxy: ProxyFinalizer, refCount: Int) extends SharedState[A]
-    case object Destroyed                                                       extends SharedState[Nothing]
+    case object Uninitialized                                                        extends SharedState[Nothing]
+    case object Pending                                                              extends SharedState[Nothing]
+    final case class Created[A](value: A, openScope: Scope.OpenScope, refCount: Int) extends SharedState[A]
+    case object Destroyed                                                            extends SharedState[Nothing]
   }
 
   /**
@@ -256,9 +240,9 @@ object Resource extends ResourceCompanionVersionSpecific {
    * value. Use for resources that should not be shared, like per-request state.
    */
   private[scope] final class Unique[+A] private[scope] (
-    private[scope] val makeFn: Finalizer => A
+    private[scope] val makeFn: Scope => A
   ) extends Resource[A] {
-    private[scope] def make(finalizer: Finalizer): A = makeFn(finalizer)
+    private[scope] def make(scope: Scope): A = makeFn(scope)
   }
 
   /**
@@ -284,10 +268,10 @@ object Resource extends ResourceCompanionVersionSpecific {
    *   val configResource = Resource(Config("localhost", 8080))
    *   }}}
    */
-  def apply[A](value: => A): Resource[A] = new Unique[A](finalizer => {
+  def apply[A](value: => A): Resource[A] = new Unique[A](scope => {
     val a = value
     a match {
-      case closeable: AutoCloseable => finalizer.defer(closeable.close())
+      case closeable: AutoCloseable => scope.defer(closeable.close())
       case _                        => ()
     }
     a
@@ -317,9 +301,9 @@ object Resource extends ResourceCompanionVersionSpecific {
    *   }
    *   }}}
    */
-  def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A] = new Unique[A](finalizer => {
+  def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A] = new Unique[A](scope => {
     val a = acquire
-    finalizer.defer(release(a))
+    scope.defer(release(a))
     a
   })
 
@@ -344,9 +328,9 @@ object Resource extends ResourceCompanionVersionSpecific {
    *   }
    *   }}}
    */
-  def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A] = new Unique[A](finalizer => {
+  def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A] = new Unique[A](scope => {
     val a = thunk
-    finalizer.defer(a.close())
+    scope.defer(a.close())
     a
   })
 
@@ -358,13 +342,13 @@ object Resource extends ResourceCompanionVersionSpecific {
    * Finalizers run when the last reference is released.
    *
    * @param f
-   *   a function from finalizer to value
+   *   a function from scope to value
    * @tparam A
    *   the value type
    * @return
    *   a shared resource
    */
-  def shared[A](f: Finalizer => A): Resource[A] = new Shared(f)
+  def shared[A](f: Scope => A): Resource[A] = new Shared(f)
 
   /**
    * Creates a unique resource from a function.
@@ -372,11 +356,11 @@ object Resource extends ResourceCompanionVersionSpecific {
    * Unique resources create a fresh instance each time they are allocated.
    *
    * @param f
-   *   a function from finalizer to value
+   *   a function from scope to value
    * @tparam A
    *   the value type
    * @return
    *   a unique resource
    */
-  def unique[A](f: Finalizer => A): Resource[A] = new Unique(f)
+  def unique[A](f: Scope => A): Resource[A] = new Unique(f)
 }

@@ -1,7 +1,7 @@
 package zio.blocks.scope.internal
 
 import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.{Finalizer, Wire}
+import zio.blocks.scope.{Scope, Wire}
 import scala.quoted.*
 import scala.compiletime.summonInline
 
@@ -62,11 +62,13 @@ private[scope] object WireCodeGen {
 
     def generateArgTerm(
       paramType: TypeRepr,
-      finalizerExpr: Expr[Finalizer],
+      scopeExpr: Expr[Scope],
       ctxExpr: Expr[Context[?]]
     ): Term =
-      if (MacroCore.isFinalizerType(paramType)) {
-        finalizerExpr.asTerm
+      if (MacroCore.isScopeType(paramType)) {
+        scopeExpr.asTerm
+      } else if (MacroCore.isFinalizerType(paramType)) {
+        scopeExpr.asTerm
       } else {
         paramType.asType match {
           case '[d] =>
@@ -75,13 +77,13 @@ private[scope] object WireCodeGen {
         }
       }
 
-    def generateWireBody[In: Type](finalizerExpr: Expr[Finalizer], ctxExpr: Expr[Context[In]]): Expr[T] = {
+    def generateWireBody[In: Type](scopeExpr: Expr[Scope], ctxExpr: Expr[Context[In]]): Expr[T] = {
       val ctorSym = tpe.typeSymbol.primaryConstructor
 
       val argListTerms: List[List[Term]] = paramLists.map { params =>
         params.map { param =>
           val paramType = tpe.memberType(param).dealias.simplified
-          generateArgTerm(paramType, finalizerExpr, ctxExpr.asExprOf[Context[?]])
+          generateArgTerm(paramType, scopeExpr, ctxExpr.asExprOf[Context[?]])
         }
       }
 
@@ -95,7 +97,7 @@ private[scope] object WireCodeGen {
       if (isAutoCloseable) {
         '{
           val instance = $instanceExpr
-          $finalizerExpr.defer(instance.asInstanceOf[AutoCloseable].close())
+          $scopeExpr.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
         }
       } else {
@@ -108,15 +110,15 @@ private[scope] object WireCodeGen {
         kind match {
           case WireKind.Shared =>
             '{
-              Wire.Shared[inTpe, T] { (finalizer: Finalizer, ctx: Context[inTpe]) =>
-                ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
+              Wire.Shared[inTpe, T] { (scope: Scope, ctx: Context[inTpe]) =>
+                ${ generateWireBody[inTpe]('{ scope }, '{ ctx }) }
               }
             }
 
           case WireKind.Unique =>
             '{
-              Wire.Unique[inTpe, T] { (finalizer: Finalizer, ctx: Context[inTpe]) =>
-                ${ generateWireBody[inTpe]('{ finalizer }, '{ ctx }) }
+              Wire.Unique[inTpe, T] { (scope: Scope, ctx: Context[inTpe]) =>
+                ${ generateWireBody[inTpe]('{ scope }, '{ ctx }) }
               }
             }
         }

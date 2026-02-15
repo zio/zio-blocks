@@ -55,21 +55,19 @@ private[scope] object ResourceMacros {
 
     val paramLists = ctor.paramLists
 
-    // Separate regular params from implicit params
-    val (regularParams, implicitParams) = paramLists.partition { params =>
-      params.headOption.forall(!_.isImplicit)
+    // Pre-compute which params are Scope/Finalizer type
+    val finalizerParamFlags: List[List[Boolean]] = paramLists.map { params =>
+      params.map { param =>
+        val paramType = param.typeSignature
+        MC.isScopeType(c)(paramType) || MC.isFinalizerType(c)(paramType)
+      }
     }
 
-    val allRegularParams = regularParams.flatten
+    // Check for Scope/Finalizer parameter in ANY param list
+    val hasScopeParam = finalizerParamFlags.flatten.exists(identity)
 
-    // Check for Scope/Finalizer parameter in implicits
-    val hasScopeParam = implicitParams.flatten.exists { param =>
-      val paramType = param.typeSignature
-      MC.isScopeType(c)(paramType) || MC.isFinalizerType(c)(paramType)
-    }
-
-    // Collect dependencies (non-Scope/Finalizer regular params)
-    val depTypes: List[Type] = allRegularParams.flatMap { param =>
+    // Collect dependencies (non-Scope/Finalizer params from all lists)
+    val depTypes: List[Type] = paramLists.flatten.flatMap { param =>
       val paramType = param.typeSignature
       MC.classifyAndExtractDep(c)(paramType)
     }
@@ -81,10 +79,31 @@ private[scope] object ResourceMacros {
     val isAutoCloseable = tpe <:< typeOf[AutoCloseable]
 
     val resourceBody = if (hasScopeParam) {
-      // Constructor takes implicit Scope/Finalizer
+      // Constructor takes Scope/Finalizer in some param list - build correct Apply chain
+      val scopeName = TermName(c.freshName("scope"))
+      val ctorTerm  = Select(New(TypeTree(tpe)), termNames.CONSTRUCTOR)
+      val applied   =
+        paramLists.zip(finalizerParamFlags).foldLeft(ctorTerm: Tree) { case (acc, (params, isFinalizerFlags)) =>
+          if (params.isEmpty) {
+            Apply(acc, Nil)
+          } else {
+            val args = params.zip(isFinalizerFlags).map { case (_, isFinalizer) =>
+              if (isFinalizer) q"$scopeName"
+              else {
+                val color = zio.blocks.scope.internal.ErrorMessages.Colors.shouldUseColor
+                c.abort(
+                  c.enclosingPosition,
+                  zio.blocks.scope.internal.ErrorMessages
+                    .renderUnsupportedImplicitParam(tpe.toString, "non-Finalizer/Scope", color)
+                )
+              }
+            }
+            Apply(acc, args)
+          }
+        }
       q"""
-        _root_.zio.blocks.scope.Resource.shared[$tpe] { scope =>
-          new $tpe()(scope)
+        _root_.zio.blocks.scope.Resource.shared[$tpe] { ($scopeName: _root_.zio.blocks.scope.Scope) =>
+          $applied
         }
       """
     } else if (isAutoCloseable) {
@@ -252,7 +271,7 @@ private[scope] object ResourceMacros {
         params.map { param =>
           val paramType = param.typeSignature
           if (MC.isFinalizerType(c)(paramType)) {
-            q"finalizer"
+            q"scope"
           } else {
             q"ctx.get[$paramType]"
           }
@@ -270,7 +289,7 @@ private[scope] object ResourceMacros {
       val wireBody = if (isAutoCloseable) {
         q"""
           val instance = $ctorCall
-          finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
+          scope.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
         """
       } else {
@@ -278,7 +297,7 @@ private[scope] object ResourceMacros {
       }
 
       val wireExpr =
-        q"_root_.zio.blocks.scope.Wire.Shared.apply[$inType, $targetType] { (finalizer, ctx) => $wireBody }"
+        q"_root_.zio.blocks.scope.Wire.Shared.apply[$inType, $targetType] { (scope: _root_.zio.blocks.scope.Scope, ctx) => $wireBody }"
 
       WireInfo(wireExpr, targetType, allDepTypes, isShared = true, isExplicit = false)
     }
@@ -412,16 +431,16 @@ private[scope] object ResourceMacros {
         // Leaf resource
         if (we.isShared) {
           q"""
-            _root_.zio.blocks.scope.Resource.shared[${we.outType}] { finalizer =>
+            _root_.zio.blocks.scope.Resource.shared[${we.outType}] { scope =>
               val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
-              wire.make(finalizer, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+              wire.make(scope, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
             }
           """
         } else {
           q"""
-            _root_.zio.blocks.scope.Resource.unique[${we.outType}] { finalizer =>
+            _root_.zio.blocks.scope.Resource.unique[${we.outType}] { scope =>
               val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
-              wire.make(finalizer, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+              wire.make(scope, _root_.zio.blocks.context.Context.empty.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
             }
           """
         }
@@ -431,7 +450,7 @@ private[scope] object ResourceMacros {
         def buildDepAcquisition(
           remainingDeps: List[Type],
           boundValues: List[(Type, TermName)],
-          finalizerName: TermName
+          scopeName: TermName
         ): Tree =
           remainingDeps match {
             case Nil =>
@@ -442,7 +461,7 @@ private[scope] object ResourceMacros {
               }
               q"""
                 val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
-                wire.make($finalizerName, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+                wire.make($scopeName, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
               """
 
             case dep :: rest =>
@@ -450,15 +469,15 @@ private[scope] object ResourceMacros {
               val depValName = depValNames(depKey)
               val valName    = TermName(c.freshName("dep"))
               q"""
-                val $valName: $dep = $depValName.make($finalizerName)
-                ${buildDepAcquisition(rest, boundValues :+ (dep, valName), finalizerName)}
+                val $valName: $dep = $depValName.make($scopeName)
+                ${buildDepAcquisition(rest, boundValues :+ (dep, valName), scopeName)}
               """
           }
 
-        val finalizerName = TermName(c.freshName("finalizer"))
+        val scopeName = TermName(c.freshName("scope"))
         q"""
-          _root_.zio.blocks.scope.Resource.shared[${we.outType}] { ($finalizerName: _root_.zio.blocks.scope.Finalizer) =>
-            ${buildDepAcquisition(deps, Nil, finalizerName)}
+          _root_.zio.blocks.scope.Resource.shared[${we.outType}] { ($scopeName: _root_.zio.blocks.scope.Scope) =>
+            ${buildDepAcquisition(deps, Nil, scopeName)}
           }
         """
       } else {
@@ -476,9 +495,9 @@ private[scope] object ResourceMacros {
                 q"$ctx.add[$depType]($valName)"
               }
               q"""
-                _root_.zio.blocks.scope.Resource.unique[${we.outType}] { finalizer =>
+                _root_.zio.blocks.scope.Resource.unique[${we.outType}] { scope =>
                   val wire = ${we.wireExpr}.asInstanceOf[_root_.zio.blocks.scope.Wire[Any, ${we.outType}]]
-                  wire.make(finalizer, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
+                  wire.make(scope, $ctxExpr.asInstanceOf[_root_.zio.blocks.context.Context[Any]])
                 }
               """
 

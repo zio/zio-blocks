@@ -37,21 +37,19 @@ private[scope] object ResourceMacros {
 
     val paramLists = ctor.paramSymss
 
-    // Separate regular params from implicit/given params
-    val (regularParams, implicitParams) = paramLists.partition { params =>
-      params.headOption.forall(p => !p.flags.is(Flags.Given) && !p.flags.is(Flags.Implicit))
+    // Pre-compute which params are Finalizer/Scope type (before entering splice)
+    val finalizerParamFlags: List[List[Boolean]] = paramLists.map { params =>
+      params.map { param =>
+        val paramType = tpe.memberType(param)
+        MacroCore.isFinalizerType(paramType)
+      }
     }
 
-    val allRegularParams = regularParams.flatten
+    // Check for Scope/Finalizer parameter in ANY param list
+    val hasFinalizerParam = finalizerParamFlags.flatten.exists(identity)
 
-    // Check for Finalizer parameter in implicits (not Scope - Scope is not supported)
-    val hasFinalizerParam = implicitParams.flatten.exists { param =>
-      val paramType = tpe.memberType(param)
-      MacroCore.isFinalizerType(paramType)
-    }
-
-    // Collect dependencies (non-Finalizer regular params)
-    val depTypes: List[TypeRepr] = allRegularParams.flatMap { param =>
+    // Collect dependencies (non-Finalizer params from all lists)
+    val depTypes: List[TypeRepr] = paramLists.flatten.flatMap { param =>
       val paramType = tpe.memberType(param).dealias.simplified
       if (MacroCore.isFinalizerType(paramType)) None
       else Some(paramType)
@@ -64,19 +62,11 @@ private[scope] object ResourceMacros {
     val isAutoCloseable = tpe <:< TypeRepr.of[AutoCloseable]
     val ctorSym         = sym.primaryConstructor
 
-    // Pre-compute which params are Finalizer type (before entering splice)
-    val finalizerParamFlags: List[List[Boolean]] = paramLists.map { params =>
-      params.map { param =>
-        val paramType = tpe.memberType(param)
-        MacroCore.isFinalizerType(paramType)
-      }
-    }
-
     // Generate resource body
     if (hasFinalizerParam) {
-      // Constructor takes implicit Finalizer - build correct Apply chain
+      // Constructor takes Scope/Finalizer in some param list - build correct Apply chain
       '{
-        Resource.shared[T] { finalizer =>
+        Resource.shared[T] { scope =>
           ${
             val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
             // Build Apply chain matching the actual param lists
@@ -84,18 +74,15 @@ private[scope] object ResourceMacros {
               paramLists.zip(finalizerParamFlags).foldLeft(ctorTerm: Term) { case (acc, (params, isFinalizerFlags)) =>
                 if (params.isEmpty) {
                   Apply(acc, Nil)
-                } else if (params.exists(p => p.flags.is(Flags.Given) || p.flags.is(Flags.Implicit))) {
-                  // Implicit/given param list - inject finalizer for Finalizer params
+                } else {
                   val args = params.zip(isFinalizerFlags).map { case (param, isFinalizer) =>
-                    if (isFinalizer) '{ finalizer }.asTerm
+                    if (isFinalizer) '{ scope }.asTerm
                     else {
                       val paramType = tpe.memberType(param)
                       MacroCore.abortUnsupportedImplicitParam(tpe.show, paramType.show)
                     }
                   }
                   Apply(acc, args)
-                } else {
-                  Apply(acc, Nil)
                 }
               }
             applied.asExprOf[T]
@@ -105,12 +92,12 @@ private[scope] object ResourceMacros {
     } else if (isAutoCloseable) {
       // AutoCloseable - register finalizer
       '{
-        Resource.shared[T] { finalizer =>
+        Resource.shared[T] { scope =>
           val instance = ${
             val ctorTerm = Select(New(TypeTree.of[T]), ctorSym)
             Apply(ctorTerm, Nil).asExprOf[T]
           }
-          finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
+          scope.defer(instance.asInstanceOf[AutoCloseable].close())
           instance
         }
       }
@@ -387,12 +374,12 @@ private[scope] object ResourceMacros {
             if (we.isShared) {
               '{
                 val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                Resource.shared[outT](f => wire.make(f, Context.empty.asInstanceOf[Context[Any]]))
+                Resource.shared[outT](scope => wire.make(scope, Context.empty.asInstanceOf[Context[Any]]))
               }
             } else {
               '{
                 val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                Resource.unique[outT](f => wire.make(f, Context.empty.asInstanceOf[Context[Any]]))
+                Resource.unique[outT](scope => wire.make(scope, Context.empty.asInstanceOf[Context[Any]]))
               }
             }
           } else if (we.isShared) {
@@ -404,14 +391,14 @@ private[scope] object ResourceMacros {
             def buildDepAcquisition(
               remainingDeps: List[TypeRepr],
               boundValues: List[(TypeRepr, Expr[?])],
-              finalizerExpr: Expr[Finalizer]
+              scopeExpr: Expr[Scope]
             ): Expr[outT] =
               remainingDeps match {
                 case Nil =>
                   val ctxExpr = buildContextFromValues(boundValues)
                   '{
                     val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                    wire.make($finalizerExpr, $ctxExpr.asInstanceOf[Context[Any]])
+                    wire.make($scopeExpr, $ctxExpr.asInstanceOf[Context[Any]])
                   }
 
                 case dep :: rest =>
@@ -422,15 +409,15 @@ private[scope] object ResourceMacros {
                     case '[depT] =>
                       val typedDepRes = depRes.asExprOf[Resource[depT]]
                       '{
-                        val depValue: depT = $typedDepRes.make($finalizerExpr)
-                        ${ buildDepAcquisition(rest, boundValues :+ (dep, 'depValue), finalizerExpr) }
+                        val depValue: depT = $typedDepRes.make($scopeExpr)
+                        ${ buildDepAcquisition(rest, boundValues :+ (dep, 'depValue), scopeExpr) }
                       }
                   }
               }
 
             '{
-              Resource.shared[outT] { finalizer =>
-                ${ buildDepAcquisition(deps, Nil, 'finalizer) }
+              Resource.shared[outT] { scope =>
+                ${ buildDepAcquisition(deps, Nil, 'scope) }
               }
             }
           } else {
@@ -447,7 +434,7 @@ private[scope] object ResourceMacros {
                   val ctxExpr = buildContextFromValues(boundValues)
                   '{
                     val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                    Resource.unique[outT](f => wire.make(f, $ctxExpr.asInstanceOf[Context[Any]]))
+                    Resource.unique[outT](scope => wire.make(scope, $ctxExpr.asInstanceOf[Context[Any]]))
                   }
 
                 case dep :: rest =>

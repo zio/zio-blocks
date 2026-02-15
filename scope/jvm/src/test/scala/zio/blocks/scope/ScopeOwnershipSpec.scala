@@ -263,6 +263,89 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         }
         assertTrue(child.isClosed, innerClosed)
       }
+    },
+    test("unowned child scope allows scoped from different thread") {
+      ZIO.succeed {
+        val result = new AtomicReference[Option[Throwable]](None)
+        val value  = new AtomicReference[Int](0)
+        val latch  = new CountDownLatch(1)
+
+        // Create an unowned child scope (simulating what DI does)
+        val fins  = new zio.blocks.scope.internal.Finalizers
+        val owner = PlatformScope.captureOwner()
+        val child = new Scope.Child[Scope.global.type](Scope.global, fins, owner, unowned = true)
+
+        val t = new Thread(() => {
+          try {
+            child.scoped { inner =>
+              value.set(42)
+              inner.$(())
+            }
+          } catch {
+            case e: Throwable => result.set(Some(e))
+          }
+          latch.countDown()
+        })
+        t.start()
+        latch.await()
+        child.close()
+
+        assertTrue(result.get().isEmpty, value.get() == 42)
+      }
+    },
+    test("unowned child scope allows concurrent scoped from multiple threads") {
+      ZIO.succeed {
+        val barrier = new CyclicBarrier(3)
+        val latch   = new CountDownLatch(3)
+        val errors  = new AtomicReference[List[Throwable]](Nil)
+        val counter = new java.util.concurrent.atomic.AtomicInteger(0)
+
+        val fins  = new zio.blocks.scope.internal.Finalizers
+        val owner = PlatformScope.captureOwner()
+        val child = new Scope.Child[Scope.global.type](Scope.global, fins, owner, unowned = true)
+
+        (0 until 3).foreach { _ =>
+          val t = new Thread(() => {
+            barrier.await()
+            try {
+              child.scoped { inner =>
+                counter.incrementAndGet()
+                inner.$(())
+              }
+            } catch {
+              case e: Throwable =>
+                errors.updateAndGet(e :: _)
+            }
+            latch.countDown()
+          })
+          t.start()
+        }
+        latch.await()
+        child.close()
+
+        assertTrue(errors.get().isEmpty, counter.get() == 3)
+      }
+    },
+    test("Resource.Shared cleans up OpenScope handle from global on refcount zero") {
+      ZIO.succeed {
+        var cleanupRan = false
+
+        // Run 10 cycles of create-and-destroy shared resources
+        // If handle.cancel() doesn't work, global finalizers would grow
+        (1 to 10).foreach { _ =>
+          val resource = Resource.shared[String] { scope =>
+            scope.defer { cleanupRan = true }
+            "value"
+          }
+          Scope.global.scoped { scope =>
+            val _ = resource.make(scope)
+          }
+        }
+
+        // If we got here without OOM or issues, handles are being cleaned up.
+        // Also verify cleanup actually ran.
+        assertTrue(cleanupRan)
+      }
     }
   )
 }

@@ -63,7 +63,7 @@ package object scope {
    * @param fin
    *   the finalizer capability to register cleanup with
    */
-  def defer(finalizer: => Unit)(using fin: Finalizer): Unit =
+  def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle =
     fin.defer(finalizer)
 
 }

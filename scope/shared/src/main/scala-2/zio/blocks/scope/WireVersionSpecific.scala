@@ -5,7 +5,7 @@ import zio.blocks.context.Context
 
 private[scope] trait WireVersionSpecific[-In, +Out] { self: Wire[In, Out] =>
 
-  def make(finalizer: Finalizer, ctx: Context[In]): Out
+  def make(scope: Scope, ctx: Context[In]): Out
 }
 
 private[scope] trait WireCompanionVersionSpecific {
@@ -15,7 +15,7 @@ private[scope] trait WireCompanionVersionSpecific {
    *
    * The macro inspects `T`'s primary constructor and generates a wire that:
    *   - Retrieves constructor parameters from the context
-   *   - Passes a `Finalizer` parameter if present
+   *   - Passes a `Scope` parameter if present
    *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
    *
    * Shared wires are memoized within a single scope, so multiple dependents
@@ -44,12 +44,12 @@ private[scope] trait WireCompanionVersionSpecific {
 
 private[scope] trait SharedVersionSpecific {
 
-  def fromFunction[In, Out](f: (Finalizer, Context[In]) => Out): Wire.Shared[In, Out] =
+  def fromFunction[In, Out](f: (Scope, Context[In]) => Out): Wire.Shared[In, Out] =
     Wire.Shared[In, Out](f)
 }
 
 private[scope] trait UniqueVersionSpecific {
 
-  def fromFunction[In, Out](f: (Finalizer, Context[In]) => Out): Wire.Unique[In, Out] =
+  def fromFunction[In, Out](f: (Scope, Context[In]) => Out): Wire.Unique[In, Out] =
     Wire.Unique[In, Out](f)
 }

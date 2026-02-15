@@ -124,6 +124,7 @@ object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   given Unscoped[scala.concurrent.duration.FiniteDuration] =
     new Unscoped[scala.concurrent.duration.FiniteDuration] {}
 
-  // zio-blocks Chunk
+  // zio-blocks types
   given [A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] = new Unscoped[zio.blocks.chunk.Chunk[A]] {}
+  given Unscoped[DeferHandle]                              = new Unscoped[DeferHandle] {}
 }

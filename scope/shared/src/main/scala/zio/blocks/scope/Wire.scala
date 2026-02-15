@@ -119,7 +119,7 @@ object Wire extends WireCompanionVersionSpecific {
    * @tparam Out
    *   the service type produced
    */
-  final case class Shared[-In, +Out](makeFn: (Finalizer, Context[In]) => Out) extends Wire[In, Out] {
+  final case class Shared[-In, +Out](makeFn: (Scope, Context[In]) => Out) extends Wire[In, Out] {
 
     /**
      * Returns true since this is a shared wire.
@@ -146,16 +146,16 @@ object Wire extends WireCompanionVersionSpecific {
     def unique: Unique[In, Out] = Unique[In, Out](makeFn)
 
     /**
-     * Constructs the service using the given finalizer and context.
+     * Constructs the service using the given scope and context.
      *
-     * @param finalizer
-     *   the finalizer for cleanup registration
+     * @param scope
+     *   the scope for cleanup registration
      * @param ctx
      *   the context providing dependencies
      * @return
      *   the constructed service
      */
-    def make(finalizer: Finalizer, ctx: Context[In]): Out = makeFn(finalizer, ctx)
+    def make(scope: Scope, ctx: Context[In]): Out = makeFn(scope, ctx)
 
     /**
      * Converts this Wire to a Resource by providing resolved dependencies.
@@ -166,7 +166,7 @@ object Wire extends WireCompanionVersionSpecific {
      *   a Resource that creates Out values with memoization
      */
     def toResource(deps: Context[In]): Resource[Out] =
-      Resource.shared[Out](finalizer => this.makeFn(finalizer, deps))
+      Resource.shared[Out](scope => this.makeFn(scope, deps))
   }
 
   /**
@@ -188,7 +188,7 @@ object Wire extends WireCompanionVersionSpecific {
    * @tparam Out
    *   the service type produced
    */
-  final case class Unique[-In, +Out](makeFn: (Finalizer, Context[In]) => Out) extends Wire[In, Out] {
+  final case class Unique[-In, +Out](makeFn: (Scope, Context[In]) => Out) extends Wire[In, Out] {
 
     /**
      * Returns false since this is a unique wire.
@@ -215,16 +215,16 @@ object Wire extends WireCompanionVersionSpecific {
     def unique: Unique[In, Out] = this
 
     /**
-     * Constructs the service using the given finalizer and context.
+     * Constructs the service using the given scope and context.
      *
-     * @param finalizer
-     *   the finalizer for cleanup registration
+     * @param scope
+     *   the scope for cleanup registration
      * @param ctx
      *   the context providing dependencies
      * @return
      *   the constructed service
      */
-    def make(finalizer: Finalizer, ctx: Context[In]): Out = makeFn(finalizer, ctx)
+    def make(scope: Scope, ctx: Context[In]): Out = makeFn(scope, ctx)
 
     /**
      * Converts this Wire to a Resource by providing resolved dependencies.
@@ -235,7 +235,7 @@ object Wire extends WireCompanionVersionSpecific {
      *   a Resource that creates fresh Out values on each use
      */
     def toResource(deps: Context[In]): Resource[Out] =
-      Resource.unique[Out](finalizer => this.makeFn(finalizer, deps))
+      Resource.unique[Out](scope => this.makeFn(scope, deps))
   }
 
   /**
@@ -258,9 +258,9 @@ object Wire extends WireCompanionVersionSpecific {
    *   a shared wire that provides the value
    */
   def apply[T](t: T): Wire.Shared[Any, T] =
-    new Shared[Any, T]((finalizer, _) => {
+    new Shared[Any, T]((scope, _) => {
       t match {
-        case c: AutoCloseable => finalizer.defer(c.close())
+        case c: AutoCloseable => scope.defer(c.close())
         case _                => ()
       }
       t

@@ -15,8 +15,8 @@ object ResourceConcurrencySpec extends ZIOSpecDefault {
     test("Resource.shared is thread-safe under concurrent makes") {
       val counter      = new AtomicInteger(0)
       val closeCounter = new AtomicInteger(0)
-      val resource     = Resource.shared[Int] { finalizer =>
-        finalizer.defer { closeCounter.incrementAndGet(); () }
+      val resource     = Resource.shared[Int] { scope =>
+        scope.defer { closeCounter.incrementAndGet(); () }
         counter.incrementAndGet()
       }
       val results = new java.util.concurrent.ConcurrentLinkedQueue[Int]()

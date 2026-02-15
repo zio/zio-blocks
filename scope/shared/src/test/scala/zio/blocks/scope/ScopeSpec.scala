@@ -343,7 +343,7 @@ object ScopeSpec extends ZIOSpecDefault {
         Scope.global.scoped { outer =>
           outer.defer(order += "parent")
 
-          val _: Unit = outer.scoped { inner =>
+          val _: DeferHandle = outer.scoped { inner =>
             inner.defer(order += "child")
           }
         }
