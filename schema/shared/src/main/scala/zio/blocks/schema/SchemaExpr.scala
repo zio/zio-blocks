@@ -276,13 +276,13 @@ object SchemaExpr {
       for {
         xs <- regex.eval(input)
         ys <- string.eval(input)
-      } yield for { x <- xs; y <- ys } yield x.matches(y)
+      } yield for { x <- xs; y <- ys } yield y.matches(x)
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       for {
         xs <- regex.eval(input)
         ys <- string.eval(input)
-      } yield for { x <- xs; y <- ys } yield toDynamicValue(x.matches(y))
+      } yield for { x <- xs; y <- ys } yield toDynamicValue(y.matches(x))
 
     private[this] def toDynamicValue(value: Boolean): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
