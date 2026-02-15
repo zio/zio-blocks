@@ -27,17 +27,15 @@ When working with schema-described data, we often need to express computations o
 3. **Data Migration** — Define transformation rules that can be analyzed and optimized before execution.
 
 ```text
-                         SchemaExpr[A, B]
-                               │
-          ┌────────────────────┼─────────────────────┐
-          │                    │                     │
-     Leaf Nodes           Unary Ops             Binary Ops
-          │                    │                     │
-    ┌─────┴─────┐             Not         ┌──────────┼──────────┐
-  Literal    Optic                   Relational  Logical   Arithmetic
-                                                           StringConcat
-                                                         StringRegexMatch
-                                                           StringLength
+                              SchemaExpr[A, B]
+                                     │
+          ┌──────────┬───────────────┼───────────────┬──────────────────┐
+          │          │               │               │                  │
+     Leaf Nodes   Unary Ops     Binary Ops    StringRegexMatch   StringLength
+          │          │               │
+    ┌─────┴─────┐   Not    ┌────────┼────────┐
+  Literal    Optic       Relational Logical  Arithmetic
+                                             StringConcat
 ```
 
 The typical way to build expressions is through the operator syntax on [Optic](./optics.md) values:
@@ -421,7 +419,7 @@ val result = inactive.eval(User(active = true))
 
 ### Binary Operations
 
-All binary operations extend `BinaryOp[A, B, C]`, which provides `left` and `right` sub-expressions.
+`Relational`, `Logical`, `Arithmetic`, and `StringConcat` extend `BinaryOp[A, B, C]`, which provides `left` and `right` sub-expressions. `StringRegexMatch` and `StringLength` extend `SchemaExpr` directly — see [Other Operations](#other-operations) below.
 
 #### `SchemaExpr.Relational`
 
@@ -529,9 +527,13 @@ val result = withName.eval(Greeting("Hello"))
 // Right(List("Hello, World!"))
 ```
 
+### Other Operations
+
+`StringRegexMatch` and `StringLength` extend `SchemaExpr` directly rather than through `UnaryOp` or `BinaryOp`.
+
 #### `SchemaExpr.StringRegexMatch`
 
-Tests whether a string matches a regular expression pattern.
+Tests whether a string matches a regular expression pattern. Despite having two operands (`regex` and `string`), it extends `SchemaExpr[A, Boolean]` directly.
 
 ```scala
 object SchemaExpr {
@@ -562,7 +564,7 @@ val result = isValid.eval(Email("alice@example.com"))
 
 #### `SchemaExpr.StringLength`
 
-Computes the length of a string expression.
+Computes the length of a string expression. This is a unary operation but extends `SchemaExpr[A, Int]` directly rather than `UnaryOp`.
 
 ```scala
 object SchemaExpr {
@@ -592,12 +594,12 @@ val result = bodyLength.eval(Message("Hello!"))
 
 ### Abstract Intermediate Traits
 
-Two sealed traits categorize expressions by arity:
+Two sealed traits categorize some expressions by arity:
 
 - **`UnaryOp[A, B]`** — has a single `expr: SchemaExpr[A, B]`. Extended by `Not`.
-- **`BinaryOp[A, B, C]`** — has `left: SchemaExpr[A, B]` and `right: SchemaExpr[A, B]`. Extended by `Relational`, `Logical`, and `Arithmetic`.
+- **`BinaryOp[A, B, C]`** — has `left: SchemaExpr[A, B]` and `right: SchemaExpr[A, B]`. Extended by `Relational`, `Logical`, `Arithmetic`, and `StringConcat`.
 
-These are useful for pattern matching when you need to generically process the expression tree.
+Not all expression nodes use these traits — `StringRegexMatch` and `StringLength` extend `SchemaExpr` directly. These intermediate traits are useful for pattern matching when you need to generically process the expression tree.
 
 ## Error Handling
 
