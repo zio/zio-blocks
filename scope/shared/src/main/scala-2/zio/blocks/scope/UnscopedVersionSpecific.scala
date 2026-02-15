@@ -5,6 +5,18 @@ import scala.reflect.macros.blackbox
 import zio.blocks.scope.internal.ErrorMessages
 
 private[scope] trait UnscopedVersionSpecific {
+
+  /**
+   * Derives [[Unscoped]] for case classes and sealed traits/abstract classes.
+   * All fields (for case classes) or subtypes (for sealed hierarchies) must
+   * themselves have `Unscoped` instances, verified at compile time via a macro.
+   *
+   * @tparam A
+   *   the case class or sealed trait/abstract class to derive `Unscoped` for
+   * @return
+   *   an `Unscoped[A]` instance, or a compile error if any constituent type
+   *   lacks an `Unscoped` instance
+   */
   def derived[A]: Unscoped[A] = macro UnscopedMacros.derivedImpl[A]
 }
 

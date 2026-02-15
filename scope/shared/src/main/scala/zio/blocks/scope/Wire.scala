@@ -10,8 +10,9 @@ import zio.blocks.context.Context
  *
  * ==Wire Types==
  *
- *   - [[Wire.Shared]]: Memoized within a single scope (default)
- *   - [[Wire.Unique]]: Creates fresh instances each time
+ *   - [[Wire.Shared]]: Converted to a reference-counted [[Resource.shared]]
+ *     (default)
+ *   - [[Wire.Unique]]: Converted to a fresh [[Resource.unique]] each time
  *
  * ==Creating Wires==
  *
@@ -48,10 +49,12 @@ import zio.blocks.context.Context
 sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 
   /**
-   * Returns true if this wire is shared (memoized within a single scope).
+   * Returns true if this wire is shared (reference-counted via
+   * [[Resource.shared]]).
    *
-   * Shared wires create one instance per scope, reused across all dependents
-   * within that scope.
+   * Shared wires are converted to `Resource.shared`, meaning allocations may
+   * share a single underlying instance across scopes. The instance is released
+   * when the last referencing scope is closed.
    *
    * @return
    *   true if this wire is shared, false if unique
@@ -107,10 +110,13 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 object Wire extends WireCompanionVersionSpecific {
 
   /**
-   * A wire that produces a shared (memoized) instance within a single scope.
+   * A wire that produces a reference-counted shared instance via
+   * [[Resource.shared]].
    *
-   * When multiple services depend on the same shared wire, only one instance is
-   * created and reused. This is the default wire type produced by `shared[T]`.
+   * The underlying instance may be shared across multiple allocating scopes. A
+   * reference count tracks usage, and the instance is released when the last
+   * referencing scope is closed. This is the default wire type produced by
+   * `shared[T]`.
    *
    * @param makeFn
    *   the function that constructs the service given a finalizer and context

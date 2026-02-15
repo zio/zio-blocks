@@ -29,7 +29,10 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   // Primitives escape freely
- *   val n: Int = scope.use(stream)(_.read())  // Int is Unscoped, returns raw Int
+ *   Scope.global.scoped { s =>
+ *     import s._
+ *     use(stream)(_.read()) // returns s.$[Int], unwrapped to Int at the boundary
+ *   }
  *
  *   // Resources stay scoped
  *   val body: $[InputStream] = scope.use(request)(_.body)  // InputStream stays scoped
