@@ -77,7 +77,19 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /**
    * Register a finalizer to run when scope closes (no-op if already closed).
    */
-  override def defer(f: => Unit): Unit = finalizers.add(f)
+  override def defer(f: => Unit): DeferHandle = finalizers.add(f)
+
+  def open(): $[Scope.OpenScope] = {
+    val fins                        = new internal.Finalizers
+    val owner                       = PlatformScope.captureOwner()
+    val childScope                  = new Scope.Child(self, fins, owner, unowned = true)
+    val handle                      = self.defer(fins.runAll().orThrow())
+    val closeFn: () => Finalization = () => {
+      handle.cancel()
+      fins.runAll()
+    }
+    $(Scope.OpenScope(childScope, closeFn))
+  }
 
   /** Apply a function to a scoped value. Returns null-scoped if closed. */
   def use[A, B](scoped: $[A])(f: A => B): $[B] =
@@ -153,15 +165,18 @@ object Scope {
     private[scope] def runFinalizers(): Finalization = finalizers.runAll()
   }
 
+  case class OpenScope private[scope] (scope: Scope, close: () => Finalization)
+
   /** Child scope - created by scoped { ... }. */
   final class Child[P <: Scope] private[scope] (
     val parent: P,
     protected val finalizers: Finalizers,
-    private[scope] val owner: AnyRef
+    private[scope] val owner: AnyRef,
+    private[scope] val unowned: Boolean = false
   ) extends Scope { self =>
     type Parent = P
 
-    def isOwner: Boolean = PlatformScope.isOwner(owner)
+    def isOwner: Boolean = if (unowned) true else PlatformScope.isOwner(owner)
 
     private[scope] def close(): Finalization = finalizers.runAll()
 

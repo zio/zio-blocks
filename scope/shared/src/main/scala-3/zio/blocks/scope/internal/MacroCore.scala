@@ -15,6 +15,14 @@ private[scope] object MacroCore {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
+   * Check if a type is a Scope type (subtype of Scope).
+   */
+  def isScopeType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
+    import quotes.reflect.*
+    tpe <:< TypeRepr.of[zio.blocks.scope.Scope]
+  }
+
+  /**
    * Check if a type is a Finalizer type (subtype of Finalizer).
    *
    * Finalizer is the minimal interface for registering cleanup actions.
@@ -29,7 +37,7 @@ private[scope] object MacroCore {
   /**
    * Classify a parameter type and extract its dependency if applicable.
    *
-   *   - Finalizer → None (finalizer is passed through, not a dependency)
+   *   - Finalizer/Scope → None (passed through, not a dependency)
    *   - Regular type → Some(type) as dependency
    */
   def classifyParam(using

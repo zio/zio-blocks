@@ -91,7 +91,8 @@ object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   implicit val unscopedFiniteDuration: Unscoped[scala.concurrent.duration.FiniteDuration] =
     new Unscoped[scala.concurrent.duration.FiniteDuration] {}
 
-  // zio-blocks Chunk
+  // zio-blocks types
   implicit def unscopedChunk[A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] =
     new Unscoped[zio.blocks.chunk.Chunk[A]] {}
+  implicit val unscopedDeferHandle: Unscoped[DeferHandle] = new Unscoped[DeferHandle] {}
 }

@@ -15,5 +15,5 @@ trait Finalizer {
    * @param f
    *   a by-name expression to execute during cleanup
    */
-  def defer(f: => Unit): Unit
+  def defer(f: => Unit): DeferHandle
 }

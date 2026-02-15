@@ -207,7 +207,7 @@ private[scope] object ScopeMacros {
       params.map { param =>
         val paramType = param.typeSignature
         if (MC.isFinalizerType(c)(paramType)) {
-          q"finalizer"
+          q"scope"
         } else {
           q"ctx.get[$paramType]"
         }
@@ -230,7 +230,7 @@ private[scope] object ScopeMacros {
     val wireBody = if (isAutoCloseable) {
       q"""
         val instance = $ctorCall
-        finalizer.defer(instance.asInstanceOf[AutoCloseable].close())
+        scope.defer(instance.asInstanceOf[AutoCloseable].close())
         instance
       """
     } else {
@@ -239,7 +239,7 @@ private[scope] object ScopeMacros {
       """
     }
 
-    val result = q"$wireFactory.apply[$inType, $tpe] { (finalizer, ctx) => $wireBody }"
+    val result = q"$wireFactory.apply[$inType, $tpe] { (scope: _root_.zio.blocks.scope.Scope, ctx) => $wireBody }"
     c.Expr[Wire[_, T]](result)
   }
 }
