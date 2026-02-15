@@ -115,7 +115,7 @@ object Scope {
 ```
 
 - The global scope is intended to live for the lifetime of the process.
-- Its finalizers run on JVM shutdown.
+- On the JVM, its finalizers run on shutdown via a shutdown hook. On Scala.js, no shutdown hook is available, so global finalizers do not run automatically.
 
 ---
 
@@ -297,7 +297,7 @@ There are two wire flavors:
 
 #### Creating wires
 
-There are exactly **3 macro entry points**:
+There are exactly **3 DI macro entry points**:
 
 | Macro | Purpose |
 |-------|---------|
@@ -619,6 +619,7 @@ import zio.blocks.context.Context
 
 final case class Config(debug: Boolean)
 
+// Wire.shared[Config] infers the constructor deps (here: Boolean → Config):
 val w: Wire.Shared[Boolean, Config] = Wire.shared[Config]
 val deps: Context[Boolean] = Context[Boolean](true)
 
@@ -1044,10 +1045,13 @@ case class OpenScope private[scope] (
 - `$[A] = A` at runtime — zero-cost opaque type.
 - The `scoped` method requires `Unscoped[A]` evidence on the return type.
 - Use `lower(parentValue)` to access parent-scoped values in child scopes.
+- Use `scope.open()` for non-lexical child scopes (class-level, cross-thread); keep the `OpenScope` handle and call `close()` when done.
+- Classes can accept `Scope` (full capabilities) or `Finalizer` (only `defer`) as DI-injected parameters.
+- `defer` returns a `DeferHandle` for O(1) cancellation of registered finalizers.
 - Return `Unscoped` types from child scopes to extract raw values.
 - If it doesn't typecheck, it would have been unsafe at runtime.
 
-**The 3 macro entry points:**
+**The 3 DI macro entry points:**
 - `Wire.shared[T]` — shared wire from constructor
 - `Wire.unique[T]` — unique wire from constructor
 - `Resource.from[T](wires*)` — wire up T and all dependencies
