@@ -54,7 +54,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Wraps a raw value into this scope's `$` type.
    *
    * Identity at runtime (zero-cost); exists only for type-level safety.
-   * Invariant: `$unwrap($wrap(a)) == a`.
+   * Invariant: `\$unwrap(\$wrap(a)) == a`.
    *
    * @param a
    *   the value to wrap
@@ -69,7 +69,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Unwraps a scoped value back to its raw type.
    *
    * Identity at runtime (zero-cost); exists only for type-level safety.
-   * Invariant: `$unwrap($wrap(a)) == a`.
+   * Invariant: `\$unwrap(\$wrap(a)) == a`.
    *
    * @param sa
    *   the scoped value to unwrap
@@ -85,7 +85,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *
    * If this scope is closed, returns a default-valued `$[A]` instead (`null`
    * for reference types, zero/false for value types). Callers should generally
-   * use [[allocate]] for resources and this method for plain values that don't
+   * use `allocate` for resources and this method for plain values that don't
    * require finalization.
    *
    * @param a
@@ -200,13 +200,13 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *
    * Finalizers are executed in LIFO order when the scope closes. If the scope
    * is already closed, the finalizer is silently ignored and
-   * [[DeferHandle.Noop]] is returned.
+   * a no-op `DeferHandle` is returned.
    *
    * @param f
    *   the cleanup action to run on scope closure
    * @return
    *   a [[DeferHandle]] that can be used to cancel the registration, or
-   *   [[DeferHandle.Noop]] if the scope is already closed
+   *   a no-op handle if the scope is already closed
    */
   override def defer(f: => Unit): DeferHandle = finalizers.add(f)
 
@@ -404,7 +404,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *     val name: $[String] = $("Alice")
    *     val greeting: $[String] = for {
    *       n <- name
-   *     } yield s"Hello, $n!"
+   *     } yield "Hello, " + n + "!"
    *   }
    *   }}}
    */
