@@ -293,7 +293,7 @@ There are two wire flavors:
 - `Wire.Shared`: produces a shared (memoized) instance
 - `Wire.Unique`: produces a fresh instance each time
 
-**Important clarification:** `Wire` itself is just a recipe. The sharing/uniqueness behavior is realized when the wire is used inside `Resource.from`, which composes `Resource.Shared` or `Resource.Unique` instances accordingly.
+**Important clarification:** `Wire` itself is just a recipe. The sharing/uniqueness behavior is realized when the wire is used inside `Resource.from`, which composes `Resource.Shared` or `Resource.Unique` instances accordingly. Sharing is **per `Resource.Shared` instance**, not per-scope or per-graph: if `wire.toResource(ctx)` is called twice, you get two independent ref-counted singletons that don't share with each other. Inside `Resource.from`, each wire produces exactly one `Resource`, so diamond dependencies correctly share a single instance.
 
 #### Creating wires
 

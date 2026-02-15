@@ -60,8 +60,8 @@ private[scope] trait SharedVersionSpecific {
   /**
    * Creates a [[Wire.Shared]] from a manually provided construction function.
    *
-   * Use this when automatic derivation via `Wire.shared[T]` is not suitable
-   * and you need full control over how the service is constructed.
+   * Use this when automatic derivation via `Wire.shared[T]` is not suitable and
+   * you need full control over how the service is constructed.
    *
    * @param f
    *   the function that constructs the service given a scope and context
@@ -81,8 +81,8 @@ private[scope] trait UniqueVersionSpecific {
   /**
    * Creates a [[Wire.Unique]] from a manually provided construction function.
    *
-   * Use this when automatic derivation via `Wire.unique[T]` is not suitable
-   * and you need full control over how the service is constructed.
+   * Use this when automatic derivation via `Wire.unique[T]` is not suitable and
+   * you need full control over how the service is constructed.
    *
    * @param f
    *   the function that constructs the service given a scope and context

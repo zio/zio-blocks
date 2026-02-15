@@ -8,8 +8,8 @@ private[scope] trait ResourceCompanionVersionSpecific {
    * Derives a Resource[T] from T's constructor.
    *
    * Only works for types with no dependencies. If T has constructor parameters
-   * (other than constructor parameters of type Scope/Finalizer), use [[Wire]][T] and call
-   * `.toResource(deps)`.
+   * (other than constructor parameters of type Scope/Finalizer), use
+   * [[Wire]][T] and call `.toResource(deps)`.
    *
    * If T extends `AutoCloseable`, its `close()` method is automatically
    * registered as a finalizer.
