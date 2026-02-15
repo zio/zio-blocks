@@ -988,7 +988,7 @@ object Resource {
   def from[T]: Resource[T]                      // zero-dep classes
   def from[T](wires: Wire[?, ?]*): Resource[T]  // with dependency wires
 
-  // Internal (used by generated code):
+  // Low-level constructors (also used by generated code):
   def shared[A](f: Scope => A): Resource[A]
   def unique[A](f: Scope => A): Resource[A]
 }

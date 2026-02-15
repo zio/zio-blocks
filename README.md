@@ -24,7 +24,6 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
-| **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
 
 ## Core Principles
@@ -225,9 +224,8 @@ Scope.global.scoped { scope =>
 - **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
 - **Zero Runtime Overhead**: `$[A]` erases to `A` at runtime—zero allocation overhead.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
-- **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI. Classes can receive `Scope` or `Finalizer` parameters for lifecycle management.
+- **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
-- **Non-Lexical Scopes**: `scope.open()` creates manually-closeable child scopes (still parent-linked) whose lifetime isn't tied to a block, enabling class-level resource management across method calls and threads.
 - **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
 
 ### Installation
@@ -575,7 +573,6 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
-- [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
 
 ## Documentation
 

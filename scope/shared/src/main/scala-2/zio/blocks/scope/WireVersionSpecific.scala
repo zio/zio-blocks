@@ -31,8 +31,9 @@ private[scope] trait WireCompanionVersionSpecific {
    *   - Passes a `Scope` parameter if present
    *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
    *
-   * Shared wires are memoized within a single scope, so multiple dependents
-   * receive the same instance.
+   * When converted to a `Resource` via `toResource`, shared wires produce a
+   * reference-counted `Resource.shared` so dependents receive the same
+   * instance.
    *
    * @tparam T
    *   the service type to construct (must be a class, not a trait or abstract)

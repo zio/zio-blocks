@@ -224,9 +224,8 @@ Scope.global.scoped { scope =>
 - **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
 - **Zero Runtime Overhead**: `$[A]` erases to `A` at runtime—zero allocation overhead.
 - **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
-- **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI. Classes can receive `Scope` or `Finalizer` parameters for lifecycle management.
+- **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
-- **Non-Lexical Scopes**: `scope.open()` creates manually-closeable child scopes (still parent-linked) whose lifetime isn't tied to a block, enabling class-level resource management across method calls and threads.
 - **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
 
 ### Installation
