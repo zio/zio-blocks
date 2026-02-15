@@ -199,14 +199,14 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Registers a finalizer to run when this scope closes.
    *
    * Finalizers are executed in LIFO order when the scope closes. If the scope
-   * is already closed, the finalizer is silently ignored and
-   * a no-op `DeferHandle` is returned.
+   * is already closed, the finalizer is silently ignored and a no-op
+   * `DeferHandle` is returned.
    *
    * @param f
    *   the cleanup action to run on scope closure
    * @return
-   *   a [[DeferHandle]] that can be used to cancel the registration, or
-   *   a no-op handle if the scope is already closed
+   *   a [[DeferHandle]] that can be used to cancel the registration, or a no-op
+   *   handle if the scope is already closed
    */
   override def defer(f: => Unit): DeferHandle = finalizers.add(f)
 
