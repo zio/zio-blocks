@@ -17,10 +17,23 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   Scope.global.scoped { scope =>
    *     import scope._
    *     val db: $[Database] = allocate(Resource(new Database))
-   *     val result: String = scope.use(db)(_.query("SELECT 1"))
-   *     result  // String is Unscoped, can be returned
+   *     val result = scope.use(db)(_.query("SELECT 1"))
+   *     result  // returned as child.$[String], unwrapped to String at the boundary
    *   }
    *   }}}
+   *
+   * @tparam A
+   *   the return type of the scoped block; must have an [[Unscoped]] instance,
+   *   ensuring only pure data escapes the scope boundary
+   * @param f
+   *   a dependent function that receives a [[Scope.Child]] and returns a scoped
+   *   value `child.$[A]`
+   * @return
+   *   the unwrapped value of type `A`, after all child-scope finalizers have
+   *   run
+   * @throws java.lang.IllegalStateException
+   *   if the current thread does not own this scope (thread-ownership
+   *   violation)
    */
   final def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using ev: Unscoped[A]): A = {
     if (!self.isOwner) {
@@ -77,6 +90,13 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *     leaked
    *   }
    *   }}}
+   *
+   * @tparam A
+   *   the underlying type of the scoped value
+   * @param sa
+   *   the scoped value to unwrap
+   * @return
+   *   the raw value of type `A`, no longer tracked by the scope
    */
   inline def leak[A](inline sa: $[A]): A = ${ LeakMacros.leakImpl[A]('sa, 'self) }
 }

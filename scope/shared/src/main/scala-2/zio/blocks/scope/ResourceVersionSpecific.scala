@@ -8,7 +8,7 @@ private[scope] trait ResourceCompanionVersionSpecific {
    * Derives a Resource[T] from T's constructor.
    *
    * Only works for types with no dependencies. If T has constructor parameters
-   * (other than an implicit Scope/Finalizer), use [[Wire]][T] and call
+   * (other than constructor parameters of type Scope/Finalizer), use [[Wire]][T] and call
    * `.toResource(deps)`.
    *
    * If T extends `AutoCloseable`, its `close()` method is automatically
@@ -22,14 +22,34 @@ private[scope] trait ResourceCompanionVersionSpecific {
   def from[T]: Resource[T] = macro ResourceMacros.deriveResourceImpl[T]
 
   /**
-   * Derives a Resource[T] from T's constructor with wire overrides for all
+   * Derives a Resource[T] from T's constructor with wire overrides for
    * dependencies.
    *
-   * All of T's constructor dependencies must be satisfied by the provided
-   * wires. If any dependency is not covered, a compile-time error is produced.
+   * The provided wires act as overrides for constructor dependencies. Any
+   * remaining dependencies are derived automatically when possible. If a
+   * dependency cannot be satisfied (no override and not derivable), a
+   * compile-time error is produced.
    *
    * This is useful when you want to create a standalone resource that fully
    * encapsulates its dependency graph.
+   *
+   * @example
+   *   {{{
+   *   class Service(db: Database, config: Config)
+   *
+   *   // Provide wires for all dependencies
+   *   val resource = Resource.from[Service](
+   *     Wire.shared[Database],
+   *     Wire(Config("localhost", 8080))
+   *   )
+   *   }}}
+   *
+   * @tparam T
+   *   the type to construct
+   * @param wires
+   *   wires that provide all required dependencies
+   * @return
+   *   a resource that creates T instances
    */
   def from[T](wires: Wire[_, _]*): Resource[T] = macro ResourceMacros.deriveResourceWithOverridesImpl[T]
 }

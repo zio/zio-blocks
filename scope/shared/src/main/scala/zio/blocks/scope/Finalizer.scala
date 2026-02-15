@@ -14,6 +14,9 @@ trait Finalizer {
    *
    * @param f
    *   a by-name expression to execute during cleanup
+   * @return
+   *   a [[DeferHandle]] that can be used to cancel the registered finalizer
+   *   before the scope closes
    */
   def defer(f: => Unit): DeferHandle
 }

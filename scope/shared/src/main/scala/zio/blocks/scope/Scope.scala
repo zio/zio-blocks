@@ -11,32 +11,90 @@ import zio.blocks.scope.internal.Finalizers
  * If a scope reference escapes to another thread (e.g. via a `Future`) and the
  * original scope closes while the other thread still holds a reference, all
  * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
- * that return `null` (wrapped as `$[B]`). This prevents the escaped thread from
- * interacting with already-released resources, but callers should be aware that
- * `null` values may appear if scopes are used across thread boundaries
- * incorrectly. `defer` on a closed scope is silently ignored, and `scoped`
- * creates a born-closed child.
+ * that return a default-valued `$[B]` (`null` for reference types, `0` for
+ * numeric types, `false` for `Boolean`, etc.). This prevents the escaped thread
+ * from interacting with already-released resources, but callers should be aware
+ * that these default values may appear if scopes are used across thread
+ * boundaries incorrectly. `defer` on a closed scope is silently ignored, and
+ * `scoped` creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
   /**
-   * The scoped value type - unique to each scope instance. Zero-cost: $[A] = A.
+   * Opaque scoped-value wrapper, unique to each scope instance.
+   *
+   * Different scopes have structurally incompatible `$` types, which prevents
+   * accidentally mixing values from one scope with operations on another at
+   * compile time. Erased to `A` at runtime (zero-cost).
+   *
+   * @tparam A
+   *   the underlying value type
    */
   type $[+A]
 
-  /** Parent scope type. */
+  /**
+   * The parent scope type in the scope hierarchy.
+   *
+   * For [[Scope.global]], this is `global.type` (self-referential). For child
+   * scopes, this is the concrete type of the enclosing scope. Used by [[lower]]
+   * to safely widen parent-scoped values into this scope.
+   */
   type Parent <: Scope
 
-  /** Reference to parent scope. */
+  /**
+   * Reference to the parent scope in the hierarchy.
+   *
+   * [[Scope.global]] is self-referential (`parent == this`). For child scopes,
+   * this points to the scope that created this one. The parent always outlives
+   * its children, which is what makes [[lower]] safe.
+   */
   val parent: Parent
 
-  /** Wrap a value (identity - zero cost). */
+  /**
+   * Wraps a raw value into this scope's `$` type.
+   *
+   * Identity at runtime (zero-cost); exists only for type-level safety.
+   * Invariant: `$unwrap($wrap(a)) == a`.
+   *
+   * @param a
+   *   the value to wrap
+   * @tparam A
+   *   the value type
+   * @return
+   *   the value tagged with this scope's identity
+   */
   protected def $wrap[A](a: A): $[A]
 
-  /** Unwrap a value (identity - zero cost). */
+  /**
+   * Unwraps a scoped value back to its raw type.
+   *
+   * Identity at runtime (zero-cost); exists only for type-level safety.
+   * Invariant: `$unwrap($wrap(a)) == a`.
+   *
+   * @param sa
+   *   the scoped value to unwrap
+   * @tparam A
+   *   the value type
+   * @return
+   *   the underlying raw value
+   */
   protected def $unwrap[A](sa: $[A]): A
 
-  /** Create a scoped value from a raw value (zero-cost). */
+  /**
+   * Wraps a raw value into a scoped value (zero-cost).
+   *
+   * If this scope is closed, returns a default-valued `$[A]` instead (`null`
+   * for reference types, zero/false for value types). Callers should generally
+   * use [[allocate]] for resources and this method for plain values that don't
+   * require finalization.
+   *
+   * @param a
+   *   the value to wrap
+   * @tparam A
+   *   the value type
+   * @return
+   *   the scoped value, or a default-valued scoped value if the scope is closed
+   */
   def $[A](a: A): $[A] =
     if (isClosed) $wrap(null.asInstanceOf[A])
     else $wrap(a)
@@ -47,22 +105,71 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   private[scope] def $run[A](sa: $[A]): A = $unwrap(sa)
 
   /**
-   * Lower a parent-scoped value into this scope. Safe because parent outlives
-   * child.
+   * Lowers a parent-scoped value into this scope.
+   *
+   * This is safe because a parent scope always outlives its children: the
+   * child's finalizers run before the parent closes. The operation is zero-cost
+   * at runtime (a cast).
+   *
+   * @param value
+   *   a value scoped to this scope's [[parent]]
+   * @tparam A
+   *   the underlying value type
+   * @return
+   *   the same value, re-tagged with this scope's identity
    */
   final def lower[A](value: parent.$[A]): $[A] =
     value.asInstanceOf[$[A]]
 
-  // Resource allocation - abstract, implemented by Child and global
+  /**
+   * Underlying finalizer registry. Package-private; implemented by
+   * [[Scope.Child]] and [[Scope.global]].
+   */
   protected def finalizers: Finalizers
 
-  /** Returns true if this scope has been closed (finalizers already ran). */
+  /**
+   * Thread-safe check for whether this scope has been closed.
+   *
+   * Once a scope is closed its finalizers have already run and all subsequent
+   * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
+   * that return default-valued scoped values (`null` for reference types,
+   * zero/false for value types). [[Scope.global]] returns `false` until JVM
+   * shutdown.
+   *
+   * @return
+   *   `true` if this scope's finalizers have already been executed
+   */
   def isClosed: Boolean = finalizers.isClosed
 
-  /** Returns true if the current thread owns this scope. */
+  /**
+   * Returns whether the current thread owns this scope.
+   *
+   * Ownership is checked to detect cross-thread scope usage. Always returns
+   * `true` for [[Scope.global]] and for scopes created with `open()` (which are
+   * ''unowned''). For scopes created via `scoped`, returns `true` only on the
+   * thread that entered the `scoped` block.
+   *
+   * @return
+   *   `true` if the calling thread is the owner of this scope
+   */
   def isOwner: Boolean
 
-  /** Allocate a resource in this scope. Returns null-scoped if closed. */
+  /**
+   * Acquires a resource in this scope, registering its finalizer.
+   *
+   * The resource's `make` method is called to produce a value and register any
+   * cleanup actions with this scope's finalizer registry. If this scope is
+   * already closed, no acquisition occurs and a default-valued `$[A]` is
+   * returned.
+   *
+   * @param resource
+   *   the [[Resource]] describing how to acquire and release the value
+   * @tparam A
+   *   the resource value type
+   * @return
+   *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if
+   *   closed
+   */
   def allocate[A](resource: Resource[A]): $[A] =
     if (isClosed) $wrap(null.asInstanceOf[A])
     else {
@@ -70,15 +177,52 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
       $wrap(value)
     }
 
-  /** Allocate an AutoCloseable directly. Returns null-scoped if closed. */
+  /**
+   * Convenience overload that acquires an `AutoCloseable` value directly.
+   *
+   * Equivalent to `allocate(Resource(value))`; the value's `close()` method is
+   * registered as a finalizer. If this scope is already closed, no acquisition
+   * occurs and a default-valued `$[A]` is returned.
+   *
+   * @param value
+   *   a by-name expression producing the `AutoCloseable` value
+   * @tparam A
+   *   the `AutoCloseable` subtype
+   * @return
+   *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if
+   *   closed
+   */
   def allocate[A <: AutoCloseable](value: => A): $[A] =
     allocate(Resource(value))
 
   /**
-   * Register a finalizer to run when scope closes (no-op if already closed).
+   * Registers a finalizer to run when this scope closes.
+   *
+   * Finalizers are executed in LIFO order when the scope closes. If the scope
+   * is already closed, the finalizer is silently ignored and
+   * [[DeferHandle.Noop]] is returned.
+   *
+   * @param f
+   *   the cleanup action to run on scope closure
+   * @return
+   *   a [[DeferHandle]] that can be used to cancel the registration, or
+   *   [[DeferHandle.Noop]] if the scope is already closed
    */
   override def defer(f: => Unit): DeferHandle = finalizers.add(f)
 
+  /**
+   * Creates a child scope that must be explicitly closed.
+   *
+   * The returned [[Scope.OpenScope]] contains the child scope and a `close()`
+   * function. The child's finalizers are linked to this (parent) scope so that
+   * if the parent closes first, the child's finalizers also run. Calling
+   * `close()` on the [[Scope.OpenScope]] detaches the child from the parent,
+   * runs its finalizers, and returns a [[Finalization]].
+   *
+   * @return
+   *   a scoped [[Scope.OpenScope]] wrapping the new child, or a default-valued
+   *   scoped value if this scope is already closed
+   */
   def open(): $[Scope.OpenScope] = {
     val fins                        = new internal.Finalizers
     val owner                       = PlatformScope.captureOwner()
@@ -91,29 +235,151 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
     $(Scope.OpenScope(childScope, closeFn))
   }
 
-  /** Apply a function to a scoped value. Returns null-scoped if closed. */
+  /**
+   * Unwraps a scoped value, applies a function, and re-wraps the result.
+   *
+   * This is the fundamental combinator for working with scoped values. The
+   * value is unwrapped from `$[A]`, passed to `f`, and the result is wrapped
+   * back into `$[B]`. If this scope is closed, the function is not called and a
+   * default-valued `$[B]` is returned.
+   *
+   * @param scoped
+   *   the scoped value to unwrap
+   * @param f
+   *   the function to apply to the unwrapped value
+   * @tparam A
+   *   the input value type
+   * @tparam B
+   *   the output value type
+   * @return
+   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   */
   def use[A, B](scoped: $[A])(f: A => B): $[B] =
     if (isClosed) $wrap(null.asInstanceOf[B])
     else $wrap(f($unwrap(scoped)))
 
-  /** Apply a function to two scoped values. Returns null-scoped if closed. */
+  /**
+   * Arity-2 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
+   *
+   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
+   * is returned.
+   *
+   * @param s1
+   *   the first scoped value
+   * @param s2
+   *   the second scoped value
+   * @param f
+   *   the function to apply to the unwrapped values
+   * @tparam A1
+   *   the first input type
+   * @tparam A2
+   *   the second input type
+   * @tparam B
+   *   the result type
+   * @return
+   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   */
   def use[A1, A2, B](s1: $[A1], s2: $[A2])(f: (A1, A2) => B): $[B] =
     if (isClosed) $wrap(null.asInstanceOf[B])
     else $wrap(f($unwrap(s1), $unwrap(s2)))
 
-  /** Apply a function to three scoped values. Returns null-scoped if closed. */
+  /**
+   * Arity-3 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
+   *
+   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
+   * is returned.
+   *
+   * @param s1
+   *   the first scoped value
+   * @param s2
+   *   the second scoped value
+   * @param s3
+   *   the third scoped value
+   * @param f
+   *   the function to apply to the unwrapped values
+   * @tparam A1
+   *   the first input type
+   * @tparam A2
+   *   the second input type
+   * @tparam A3
+   *   the third input type
+   * @tparam B
+   *   the result type
+   * @return
+   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   */
   def use[A1, A2, A3, B](s1: $[A1], s2: $[A2], s3: $[A3])(f: (A1, A2, A3) => B): $[B] =
     if (isClosed) $wrap(null.asInstanceOf[B])
     else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3)))
 
-  /** Apply a function to four scoped values. Returns null-scoped if closed. */
+  /**
+   * Arity-4 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
+   *
+   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
+   * is returned.
+   *
+   * @param s1
+   *   the first scoped value
+   * @param s2
+   *   the second scoped value
+   * @param s3
+   *   the third scoped value
+   * @param s4
+   *   the fourth scoped value
+   * @param f
+   *   the function to apply to the unwrapped values
+   * @tparam A1
+   *   the first input type
+   * @tparam A2
+   *   the second input type
+   * @tparam A3
+   *   the third input type
+   * @tparam A4
+   *   the fourth input type
+   * @tparam B
+   *   the result type
+   * @return
+   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   */
   def use[A1, A2, A3, A4, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4])(
     f: (A1, A2, A3, A4) => B
   ): $[B] =
     if (isClosed) $wrap(null.asInstanceOf[B])
     else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4)))
 
-  /** Apply a function to five scoped values. Returns null-scoped if closed. */
+  /**
+   * Arity-5 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
+   *
+   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
+   * is returned.
+   *
+   * @param s1
+   *   the first scoped value
+   * @param s2
+   *   the second scoped value
+   * @param s3
+   *   the third scoped value
+   * @param s4
+   *   the fourth scoped value
+   * @param s5
+   *   the fifth scoped value
+   * @param f
+   *   the function to apply to the unwrapped values
+   * @tparam A1
+   *   the first input type
+   * @tparam A2
+   *   the second input type
+   * @tparam A3
+   *   the third input type
+   * @tparam A4
+   *   the fourth input type
+   * @tparam A5
+   *   the fifth input type
+   * @tparam B
+   *   the result type
+   * @return
+   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   */
   def use[A1, A2, A3, A4, A5, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4], s5: $[A5])(
     f: (A1, A2, A3, A4, A5) => B
   ): $[B] =
@@ -121,29 +387,91 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
     else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4), $unwrap(s5)))
 
   /**
-   * Implicit ops for map/flatMap on scoped values. Guarded against closed
-   * scope.
+   * Enrichment for `$[A]` values enabling for-comprehension syntax.
+   *
+   * Provides `map` and `flatMap` so that scoped values can be composed with
+   * `for`/`yield`. All operations are guarded against closed scopes: if the
+   * scope is closed, the function is not called and a default-valued result is
+   * returned.
+   *
+   * @tparam A
+   *   the underlying value type
+   *
+   * @example
+   *   {{{
+   *   scope.scoped { s =>
+   *     import s._
+   *     val name: $[String] = $("Alice")
+   *     val greeting: $[String] = for {
+   *       n <- name
+   *     } yield s"Hello, $n!"
+   *   }
+   *   }}}
    */
   implicit class ScopedOps[A](private val sa: $[A]) {
+
+    /**
+     * Transforms the value inside a `$[A]` by applying `f`.
+     *
+     * @param f
+     *   the transformation function
+     * @tparam B
+     *   the result type
+     * @return
+     *   the transformed value as `$[B]`, or a default-valued `$[B]` if closed
+     */
     def map[B](f: A => B): $[B] =
       if (isClosed) $wrap(null.asInstanceOf[B])
       else $wrap(f($unwrap(sa)))
 
+    /**
+     * Sequences a scoped computation that itself produces a `$[B]`.
+     *
+     * @param f
+     *   a function returning a scoped value
+     * @tparam B
+     *   the result type
+     * @return
+     *   the resulting `$[B]`, or a default-valued `$[B]` if closed
+     */
     def flatMap[B](f: A => $[B]): $[B] =
       if (isClosed) $wrap(null.asInstanceOf[B])
       else f($unwrap(sa))
   }
 
   /**
-   * Implicit conversion: wrap Unscoped values so they can be returned from
-   * scoped blocks.
+   * Implicit conversion that auto-wraps [[Unscoped]] values into `$[A]`.
+   *
+   * This allows plain values of types that have an `Unscoped` instance (e.g.
+   * `Int`, `String`, primitives) to be returned directly from scoped blocks
+   * without explicit wrapping.
+   *
+   * @param a
+   *   the value to wrap
+   * @param ev
+   *   evidence that `A` is an unscoped type
+   * @tparam A
+   *   the value type
+   * @return
+   *   the value wrapped as `$[A]`
    */
   implicit def wrapUnscoped[A](a: A)(implicit ev: Unscoped[A]): $[A] = $(a)
 }
 
+/**
+ * Companion object for [[Scope]], providing the global scope, child scope
+ * implementation, and the [[OpenScope]] handle.
+ */
 object Scope {
 
-  /** Global scope - self-referential, never closes. $[A] = A (zero-cost). */
+  /**
+   * The root of all scope hierarchies.
+   *
+   * `global` is self-referential (`parent == this`) and never closes under
+   * normal operation. Its `$[A]` is simply `A` (zero-cost identity). Finalizers
+   * registered with `global.defer` run on JVM shutdown via a shutdown hook.
+   * `isOwner` always returns `true`.
+   */
   object global extends Scope { self =>
     type $[+A]  = A
     type Parent = global.type
@@ -165,9 +493,38 @@ object Scope {
     private[scope] def runFinalizers(): Finalization = finalizers.runAll()
   }
 
+  /**
+   * A handle returned by [[Scope.open]] representing an explicitly-managed
+   * child scope.
+   *
+   * @param scope
+   *   the child scope that was created
+   * @param close
+   *   a function that detaches the child from its parent, runs the child's
+   *   finalizers in LIFO order, and returns a [[Finalization]] collecting any
+   *   errors
+   */
   case class OpenScope private[scope] (scope: Scope, close: () => Finalization)
 
-  /** Child scope - created by scoped { ... }. */
+  /**
+   * A child scope created by `scoped { ... }` or [[Scope.open]].
+   *
+   * Child scopes have their own finalizer registry and are linked to a parent
+   * scope. When the child closes, its finalizers run in LIFO order. The `$[A]`
+   * type is structurally distinct from the parent's, preventing accidental
+   * value mixing at compile time (use [[Scope.lower]] to convert explicitly).
+   *
+   * @tparam P
+   *   the concrete type of the parent scope
+   * @param parent
+   *   the parent scope that created this child
+   * @param finalizers
+   *   the finalizer registry for this child
+   * @param owner
+   *   opaque reference to the creating thread (used by [[isOwner]])
+   * @param unowned
+   *   if `true`, [[isOwner]] always returns `true` (used by [[Scope.open]])
+   */
   final class Child[P <: Scope] private[scope] (
     val parent: P,
     protected val finalizers: Finalizers,
@@ -176,6 +533,16 @@ object Scope {
   ) extends Scope { self =>
     type Parent = P
 
+    /**
+     * Returns whether the current thread owns this scope.
+     *
+     * Always returns `true` for unowned scopes (created via [[Scope.open]]).
+     * For scopes created via `scoped`, returns `true` only on the creating
+     * thread.
+     *
+     * @return
+     *   `true` if the calling thread is the owner of this scope
+     */
     def isOwner: Boolean = if (unowned) true else PlatformScope.isOwner(owner)
 
     private[scope] def close(): Finalization = finalizers.runAll()

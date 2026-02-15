@@ -9,7 +9,7 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
 - **Compile-time prevention of scope leaks**
 - **Zero-cost opaque type** (`$[A]` is the scoped type, equal to `A` at runtime)
 - **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
-- **Eager evaluation** (all operations execute immediately, no deferred thunks)
+- **Eager allocation** (all scope operations execute immediately; `Resource` is a lazy *description* that becomes eager when passed to `allocate`)
 
 ---
 
@@ -30,6 +30,8 @@ If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the
   - [Chaining resource acquisition](#chaining-resource-acquisition)
   - [Registering cleanup manually with `defer`](#registering-cleanup-manually-with-defer)
   - [Classes with `Finalizer` parameters](#classes-with-finalizer-parameters)
+  - [Classes with `Scope` parameters (scope injection)](#classes-with-scope-parameters-scope-injection)
+  - [Non-lexical scopes with `open()`](#non-lexical-scopes-with-open)
   - [Dependency injection with `Wire` + `Context`](#dependency-injection-with-wire--context)
   - [Dependency injection with `Resource.from[T](wires*)`](#dependency-injection-with-resourcefromtwires)
   - [Injecting traits via subtype wires](#injecting-traits-via-subtype-wires)
@@ -191,9 +193,9 @@ Common constructors:
   - Produces a **fresh** instance every time you allocate it (typical for `Resource(...)`, `acquireRelease`, etc.).
 - `Resource.Shared[A]`
   - Produces a **shared** instance per `Resource.Shared` value, with **reference counting**:
-    - the first allocation initializes the value and collects finalizers
+    - the first allocation initializes the value using a child scope parented to `Scope.global`
     - each allocating scope registers a decrement finalizer
-    - when the reference count reaches zero, the collected finalizers run
+    - when the reference count reaches zero, the shared scope is closed (running its finalizers)
 
 **Important clarification:** sharing is **not** "memoized within a Wire graph" or "within a scope" by magic. Sharing happens **within the specific `Resource.Shared` instance** you reuse.
 
@@ -458,7 +460,7 @@ Scope.global.scoped { scope =>
 
 ### Registering cleanup manually with `defer`
 
-Use `defer` when you already have a value and just need to register cleanup.
+Use `defer` when you already have a value and just need to register cleanup. `defer` returns a `DeferHandle` that can be used to cancel the finalizer before the scope closes.
 
 ```scala
 import zio.blocks.scope._
@@ -468,10 +470,13 @@ Scope.global.scoped { scope =>
 
   val handle = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
 
-  defer { handle.close() }
+  val deferHandle: DeferHandle = defer { handle.close() }
 
   val firstByte = handle.read()
   println(firstByte)
+
+  // Optionally cancel the finalizer if you've already cleaned up:
+  // deferHandle.cancel()
 }
 ```
 
@@ -492,7 +497,7 @@ Scope.global.scoped { scope =>
 
 ### Classes with `Finalizer` parameters
 
-If your class needs to register cleanup logic, accept a `Finalizer` parameter (not `Scope`). The wire and resource macros automatically inject the `Finalizer` when constructing such classes.
+If your class only needs to register cleanup logic, accept a `Finalizer` parameter. The wire and resource macros automatically inject the `Finalizer` when constructing such classes.
 
 ```scala
 import zio.blocks.scope._
@@ -514,10 +519,93 @@ Scope.global.scoped { scope =>
 }
 ```
 
-Why `Finalizer` instead of `Scope`?
+When to use `Finalizer` instead of `Scope`:
 - `Finalizer` is the minimal interface—it only has `defer`
-- Classes that need cleanup should not have access to `allocate` or `use`
-- The macros pass a `Finalizer` at runtime, so declaring `Scope` would be misleading
+- Use it when your class only needs to register cleanup actions
+- Since `Scope extends Finalizer`, a `Scope` is always passed at runtime; declaring `Finalizer` simply narrows the visible API
+
+---
+
+### Classes with `Scope` parameters (scope injection)
+
+If your class needs full scope capabilities—creating child scopes, allocating sub-resources, or managing per-request lifetimes—accept a `Scope` parameter instead of `Finalizer`. The macros automatically inject the `Scope` when constructing such classes.
+
+```scala
+import zio.blocks.scope._
+
+class RequestHandler(config: Config)(implicit scope: Scope) {
+  // Create child scopes for per-request resource management:
+  def handle(request: String): String = {
+    scope.scoped { child =>
+      import child._
+      val conn = allocate(Resource(new Connection(config)))
+      child.use(conn)(_.query(request))
+    }
+  }
+}
+
+// The macro sees the implicit Scope and injects it automatically:
+val resource = Resource.from[RequestHandler](Wire(Config("jdbc://localhost")))
+
+Scope.global.scoped { scope =>
+  import scope._
+  val handler = allocate(resource)
+  scope.use(handler)(_.handle("SELECT 1"))
+}
+```
+
+The `Scope` parameter can appear in any parameter list position—value, implicit, or using (Scala 3). The macros detect `Scope` parameters the same way they detect `Finalizer` parameters.
+
+When to use `Scope` instead of `Finalizer`:
+- The class needs to create child scopes (via `scoped` or `open()`)
+- The class needs to allocate sub-resources (via `allocate`)
+- The class manages per-request or per-operation lifetimes
+
+---
+
+### Non-lexical scopes with `open()`
+
+The `scoped` method creates a lexically-scoped child that closes when the block exits. For cases where you need a scope whose lifetime isn't tied to a block—such as class-level resource management or resources shared across method calls—use `open()`:
+
+```scala
+import zio.blocks.scope._
+
+// From Scope.global, open() returns OpenScope directly ($[A] = A for global):
+val os: Scope.OpenScope = Scope.global.open()
+
+// Use the child scope to allocate resources:
+val db = os.scope.allocate(Resource(new Database))
+
+// ... use db across multiple method calls or threads ...
+
+// Explicitly close when done (runs finalizers, returns Finalization):
+os.close()
+```
+
+Within a child scope, `open()` returns `$[OpenScope]`, so you need to unwrap it:
+
+```scala
+Scope.global.scoped { scope =>
+  import scope._
+
+  val os: $[Scope.OpenScope] = scope.open()
+  val openScope: Scope.OpenScope = leak(os)  // unwrap the scoped wrapper
+
+  val db = openScope.scope.allocate(Resource(new Database))
+  // ...
+  openScope.close()
+}
+```
+
+`OpenScope` is a case class with two fields:
+- `scope: Scope` — the child scope for allocating resources and registering finalizers
+- `close: () => Finalization` — explicitly closes the scope and runs its finalizers
+
+Key properties of `open()`:
+- The child scope is **unowned**: `isOwner` always returns `true`, so it can be used from any thread
+- The child is still **parent-linked**: if the parent scope closes before `close()` is called, the child's finalizers still run (the parent registered a safety finalizer)
+- Calling `close()` cancels the parent's safety finalizer to avoid double-finalization
+- You must keep the `OpenScope` handle and call `close()` when done to release resources deterministically
 
 ---
 
@@ -850,7 +938,10 @@ sealed abstract class Scope extends Finalizer {
 
   def allocate[A](resource: Resource[A]): $[A]
   def allocate[A <: AutoCloseable](value: => A): $[A]
-  def defer(f: => Unit): Unit
+  def defer(f: => Unit): DeferHandle
+
+  // Create a non-lexical child scope (usable from any thread)
+  def open(): $[Scope.OpenScope]
 
   // Apply function to scoped value, returns scoped result
   def use[A, B](scoped: $[A])(f: A => B): $[B]
@@ -897,8 +988,8 @@ object Resource {
   def from[T](wires: Wire[?, ?]*): Resource[T]  // with dependency wires
 
   // Internal (used by generated code):
-  def shared[A](f: Finalizer => A): Resource[A]
-  def unique[A](f: Finalizer => A): Resource[A]
+  def shared[A](f: Scope => A): Resource[A]
+  def unique[A](f: Scope => A): Resource[A]
 }
 ```
 
@@ -923,6 +1014,23 @@ object Wire {
   final case class Shared[-In, +Out] extends Wire[In, Out]
   final case class Unique[-In, +Out] extends Wire[In, Out]
 }
+```
+
+### `DeferHandle`
+
+```scala
+abstract class DeferHandle {
+  def cancel(): Unit  // Remove the finalizer so it won't run at scope close
+}
+```
+
+### `Scope.OpenScope`
+
+```scala
+case class OpenScope private[scope] (
+  scope: Scope,               // the child scope (unowned, usable from any thread)
+  close: () => Finalization    // explicitly close the scope and run its finalizers
+)
 ```
 
 ---

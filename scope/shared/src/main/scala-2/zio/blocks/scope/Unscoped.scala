@@ -13,7 +13,10 @@ package zio.blocks.scope
  * @example
  *   {{{
  *   // Primitives escape freely
- *   val n: Int = scope.use(stream)(_.read())  // Int is Unscoped
+ *   Scope.global.scoped { s =>
+ *     import s._
+ *     use(stream)(_.read()) // returns s.$[Int], unwrapped to Int at the boundary
+ *   }
  *
  *   // Resources stay scoped
  *   val body: $[InputStream] = scope.use(request)(_.body)  // InputStream stays scoped
@@ -30,6 +33,23 @@ private[scope] trait UnscopedLowPriority {
   implicit val unscopedNothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 }
 
+/**
+ * Companion object providing implicit instances for common types.
+ *
+ * ==Adding Custom Instances==
+ *
+ * To mark your own type as safe to escape scopes, define an implicit instance:
+ *
+ * {{{
+ * case class UserId(value: Long)
+ * object UserId {
+ *   implicit val unscopedUserId: Unscoped[UserId] = new Unscoped[UserId] {}
+ * }
+ * }}}
+ *
+ * Only add `Unscoped` instances for pure data types that don't hold resources.
+ * Resource types (streams, connections, handles) should NOT have instances.
+ */
 object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives
   implicit val unscopedInt: Unscoped[Int]               = new Unscoped[Int] {}
