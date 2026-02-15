@@ -239,6 +239,8 @@ This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
+- **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
+- **Instance methods and companion object members**: When referencing an instance method, use the `#` notation (e.g., `Ref#update`). For companion object members, use the `.` notation (e.g., `Ref.make`).
 
 ### Docusaurus Admonitions
 
