@@ -14,6 +14,7 @@ const sidebars = {
          "reference/modifier",
          "reference/dynamic-value",
          "reference/optics",
+         "reference/schema-expr",
          "reference/dynamic-optic",
          "reference/type-class-derivation",
          "reference/codec",
