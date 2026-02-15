@@ -60,7 +60,7 @@ val combined: SchemaExpr[Person, Boolean]   = isAdult && isAlice
 // Evaluate against a value
 val alice = Person("Alice", 30)
 val result: Either[OpticCheck, Seq[Boolean]] = combined.eval(alice)
-// Right(List(true))
+// Right(Seq(true))
 ```
 
 ## Installation
