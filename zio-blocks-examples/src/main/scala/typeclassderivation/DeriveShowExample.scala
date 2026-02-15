@@ -1,9 +1,10 @@
 package typeclassderivation
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.*
+import zio.blocks.docs.Doc
+import zio.blocks.schema._
 import zio.blocks.schema.DynamicValue.Null
-import zio.blocks.schema.binding.*
+import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
 
@@ -41,7 +42,7 @@ object DeriveShowExample extends App {
       }
 
     override def deriveRecord[F[_, _], A](
-      fields: IndexedSeq[Term[F, A, ?]],
+      fields: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
       binding: Binding[BindingType.Record, A],
       doc: Doc,
@@ -60,7 +61,7 @@ object DeriveShowExample extends App {
         }
 
         // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
-        val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
+        val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
 
         // Cast to Binding.Record to access constructor/deconstructor
         val recordBinding = binding.asInstanceOf[Binding.Record[A]]
@@ -91,7 +92,7 @@ object DeriveShowExample extends App {
       }
 
     override def deriveVariant[F[_, _], A](
-      cases: IndexedSeq[Term[F, A, ?]],
+      cases: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
       binding: Binding[BindingType.Variant, A],
       doc: Doc,
@@ -195,7 +196,7 @@ object DeriveShowExample extends App {
       new Show[DynamicValue] {
         def show(value: DynamicValue): String =
           value match {
-            case DynamicValue.Primitive(pv) =>
+            case DynamicValue.Primitive(_) =>
               value.toString
 
             case DynamicValue.Record(fields) =>

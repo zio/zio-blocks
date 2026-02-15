@@ -101,6 +101,8 @@ jobs:
       - name: Run Scala Next tests
         if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
+      - name: Compile example project
+        run: sbt ++${{ matrix.scala }} examples/compile
 
   testJS:
     runs-on: ubuntu-latest
