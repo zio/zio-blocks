@@ -394,7 +394,7 @@ Negates a boolean expression.
 
 ```scala
 object SchemaExpr {
-  case class Not[A](expr: SchemaExpr[A, Boolean]) extends SchemaExpr[A, Boolean]
+  case class Not[A](expr: SchemaExpr[A, Boolean]) extends UnaryOp[A, Boolean](expr)
 }
 ```
 
