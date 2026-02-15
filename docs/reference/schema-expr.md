@@ -367,7 +367,7 @@ object SchemaExpr {
 }
 ```
 
-The `SchemaExpr.Literal#eval` always returns `Right(Seq(value))` regardless of the input. The `Literal#schema` parameter enables conversion to `DynamicValue` via `evalDynamic`.
+The `Literal#eval` always returns `Right(Seq(value))` regardless of the input. The `Literal#schema` parameter enables conversion to `DynamicValue` via `evalDynamic`.
 
 #### `SchemaExpr.Optic`
 
