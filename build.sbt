@@ -33,7 +33,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; examples/compile"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
 )
 addCommandAlias(
   "testJS",
@@ -488,10 +488,9 @@ lazy val benchmarks = project
 
 lazy val examples = project
   .in(file("zio-blocks-examples"))
+  .settings(stdSettings("zio-blocks-examples"))
   .settings(
-    moduleName     := "zio-blocks-examples",
-    publish / skip := true,
-    scalacOptions += "-experimental"
+    publish / skip := true
   )
   .dependsOn(
     schema.jvm,

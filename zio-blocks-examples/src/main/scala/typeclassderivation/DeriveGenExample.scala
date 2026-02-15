@@ -2,8 +2,8 @@ package typeclassderivation
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
-import zio.blocks.schema.*
-import zio.blocks.schema.binding.*
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
 import zio.blocks.schema.derive.Deriver
 import zio.blocks.typeid.TypeId
 
@@ -72,7 +72,7 @@ object DeriveGenExample extends App {
      *   3. Use the constructor to build the record
      */
     override def deriveRecord[F[_, _], A](
-      fields: IndexedSeq[Term[F, A, ?]],
+      fields: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
       binding: Binding[BindingType.Record, A],
       doc: Doc,
@@ -87,7 +87,7 @@ object DeriveGenExample extends App {
         }
 
         // Build Reflect.Record to access registers and constructor
-        val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
+        val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
         val recordBinding = binding.asInstanceOf[Binding.Record[A]]
         val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
 
@@ -115,7 +115,7 @@ object DeriveGenExample extends App {
      *   3. Generate a value for that case
      */
     override def deriveVariant[F[_, _], A](
-      cases: IndexedSeq[Term[F, A, ?]],
+      cases: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
       binding: Binding[BindingType.Variant, A],
       doc: Doc,
