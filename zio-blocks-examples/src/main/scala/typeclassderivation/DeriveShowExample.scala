@@ -1,6 +1,7 @@
 package typeclassderivation
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.Doc
 import zio.blocks.schema.*
 import zio.blocks.schema.DynamicValue.Null
 import zio.blocks.schema.binding.*
