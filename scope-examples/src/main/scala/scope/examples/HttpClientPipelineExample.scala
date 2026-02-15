@@ -5,9 +5,8 @@ import zio.blocks.scope._
 /**
  * HTTP Client Pipeline Example
  *
- * Demonstrates building computations using scoped values with
- * for-comprehensions and the `$` operator. Operations are eager with the new
- * opaque type API.
+ * Demonstrates using scoped values with the `use` macro and `.get` for safe
+ * resource access. Operations are eager with the new opaque type API.
  */
 
 /** API configuration containing base URL and authentication credentials. */
@@ -57,13 +56,13 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 }
 
 /**
- * Demonstrates using scoped values with the opaque type API.
+ * Demonstrates using scoped values with the `use` macro and `.get`.
  *
  * Key concepts:
  *   - `allocate` returns `$[A]` (scoped value)
  *   - `scope.use(scopedValue)(f)` applies a function to the underlying value
+ *   - `.get` extracts pure data from `$[A]` when `A: Unscoped`
  *   - Operations are eager (zero-cost wrapper)
- *   - For-comprehensions chain scoped values naturally
  */
 @main def httpClientPipelineExample(): Unit = {
   println("=== HTTP Client Pipeline Example ===\n")
@@ -79,37 +78,38 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     // Fetch and parse users
     println("--- Fetching: users ---")
-    val users: $[ParsedData] =
-      client.map { c =>
+    val users: ParsedData = scope
+      .use(client) { c =>
         val response = c.get("/users")
         JsonParser.parse(response.body)
       }
+      .get
 
     // Fetch and parse orders
     println("\n--- Fetching: orders ---")
-    val orders: $[ParsedData] =
-      client.map { c =>
+    val orders: ParsedData = scope
+      .use(client) { c =>
         val response = c.get("/orders")
         JsonParser.parse(response.body)
       }
+      .get
 
     // Post analytics event
     println("\n--- Posting: analytics ---")
-    val analytics: $[ParsedData] =
-      client.map { c =>
+    val analytics: ParsedData = scope
+      .use(client) { c =>
         val response = c.post("/analytics", """{"event":"fetch_complete"}""")
         JsonParser.parse(response.body)
       }
+      .get
 
-    // Step 3: Access all results together using multi-arity use
-    scope.use(users, orders, analytics) { (u, o, a) =>
-      println(s"\n=== Users Result ===")
-      println(s"Users data: ${u.values}")
-      println(s"\n=== Orders Result ===")
-      println(s"Orders data: ${o.values}")
-      println(s"\n=== Analytics Result ===")
-      println(s"Analytics: ${a.values}")
-    }
+    // Step 3: Access all results
+    println(s"\n=== Users Result ===")
+    println(s"Users data: ${users.values}")
+    println(s"\n=== Orders Result ===")
+    println(s"Orders data: ${orders.values}")
+    println(s"\n=== Analytics Result ===")
+    println(s"Analytics: ${analytics.values}")
   }
 
   println("\n[Scope closed - HttpClient was automatically cleaned up]")

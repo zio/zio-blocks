@@ -1,5 +1,6 @@
 package scope.examples
 
+import scala.annotation.nowarn
 import zio.blocks.scope._
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -85,6 +86,7 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     }
 }
 
+@nowarn("msg=.*leaked.*|.*leak.*")
 @main def connectionPoolExample(): Unit = {
   println("=== Connection Pool with Resource-based Acquire ===\n")
 
@@ -99,43 +101,40 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     val pool: $[ConnectionPool] = allocate(poolResource)
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
-    scoped { workScope =>
+    appScope.scoped { workScope =>
       import workScope._
-      for {
-        p <- lower(pool)
-        c <- allocate(p.acquire)
-      } yield {
-        val result = c.execute("SELECT * FROM service_a_table")
-        println(s"  [ServiceA] Got: $result")
-      }
+      val p: $[ConnectionPool]   = lower(pool)
+      val rawPool                = workScope.leak(p)
+      val c: $[PooledConnection] = allocate(rawPool.acquire)
+      val result                 = workScope.use(c)(_.execute("SELECT * FROM service_a_table")).get
+      println(s"  [ServiceA] Got: $result")
     }
     println()
 
     println("--- ServiceB doing work ---")
-    scoped { workScope =>
+    appScope.scoped { workScope =>
       import workScope._
-      for {
-        p <- lower(pool)
-        c <- allocate(p.acquire)
-      } yield {
-        val result = c.execute("SELECT * FROM service_b_table")
-        println(s"  [ServiceB] Got: $result")
-      }
+      val p: $[ConnectionPool]   = lower(pool)
+      val rawPool                = workScope.leak(p)
+      val c: $[PooledConnection] = allocate(rawPool.acquire)
+      val result                 = workScope.use(c)(_.execute("SELECT * FROM service_b_table")).get
+      println(s"  [ServiceB] Got: $result")
     }
     println()
 
     println("--- Multiple connections in same scope ---")
-    scoped { workScope =>
+    appScope.scoped { workScope =>
       import workScope._
-      for {
-        p <- lower(pool)
-        a <- allocate(p.acquire)
-        b <- allocate(p.acquire)
-      } yield {
-        println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
-        a.execute("UPDATE table_a SET x = 1")
-        b.execute("UPDATE table_b SET y = 2")
-      }
+      val p: $[ConnectionPool]   = lower(pool)
+      val rawPool                = workScope.leak(p)
+      val a: $[PooledConnection] = allocate(rawPool.acquire)
+      val b: $[PooledConnection] = allocate(rawPool.acquire)
+      val aId                    = workScope.use(a)(_.id).get
+      val bId                    = workScope.use(b)(_.id).get
+      println(s"  [Parallel] Using connections $aId and $bId")
+      workScope.use(a)(_.execute("UPDATE table_a SET x = 1"))
+      workScope.use(b)(_.execute("UPDATE table_b SET y = 2"))
+      ()
     }
     println()
 

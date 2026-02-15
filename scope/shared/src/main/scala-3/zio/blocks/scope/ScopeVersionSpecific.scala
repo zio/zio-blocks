@@ -3,22 +3,22 @@ package zio.blocks.scope
 /**
  * Scala 3 version-specific methods for Scope.
  *
- * Provides the `scoped` method using Scala 3's dependent function types, and
- * the `leak` macro for escaping the scoped type system with a warning.
+ * Provides the `scoped` method using Scala 3's dependent function types, the
+ * macro-enforced `use` for safe resource access, and the `leak` macro for
+ * escaping the scoped type system with a warning.
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
 
   /**
-   * Create a child scope. Block must return child.$[A], unwrapped to A at
-   * boundary. Validates Unscoped[A] at compile time.
+   * Create a child scope. The block receives a child scope and returns a plain
+   * value of type `A`, which must have an [[Unscoped]] instance.
    *
    * @example
    *   {{{
    *   Scope.global.scoped { scope =>
    *     import scope._
    *     val db: $[Database] = allocate(Resource(new Database))
-   *     val result = scope.use(db)(_.query("SELECT 1"))
-   *     result  // returned as child.$[String], unwrapped to String at the boundary
+   *     scope.use(db)(_.query("SELECT 1")).get
    *   }
    *   }}}
    *
@@ -26,16 +26,15 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   the return type of the scoped block; must have an [[Unscoped]] instance,
    *   ensuring only pure data escapes the scope boundary
    * @param f
-   *   a dependent function that receives a [[Scope.Child]] and returns a scoped
-   *   value `child.$[A]`
+   *   a function that receives a [[Scope.Child]] and returns a value of type
+   *   `A`
    * @return
-   *   the unwrapped value of type `A`, after all child-scope finalizers have
-   *   run
+   *   the value of type `A`, after all child-scope finalizers have run
    * @throws java.lang.IllegalStateException
    *   if the current thread does not own this scope (thread-ownership
    *   violation)
    */
-  final def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using ev: Unscoped[A]): A = {
+  final def scoped[A](f: (child: Scope.Child[self.type]) => A)(using ev: Unscoped[A]): A = {
     if (!self.isOwner) {
       val current   = PlatformScope.currentThreadName()
       val ownerInfo = self match {
@@ -46,24 +45,17 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
         s"Cannot create child scope: current thread '$current' does not own this scope$ownerInfo"
       )
     }
-    // If this scope is already closed, create a born-closed child.
-    // The child's operations will be no-ops (returning null-scoped values),
-    // and its finalizers run immediately after the block completes.
     val fins               = if (self.isClosed) internal.Finalizers.closed else new internal.Finalizers
     val child              = new Scope.Child[self.type](self, fins, PlatformScope.captureOwner())
     var primary: Throwable = null
-    var unwrapped: A       = null.asInstanceOf[A]
+    var result: A          = null.asInstanceOf[A]
     try {
-      val result: child.$[A] = f(child)
-      unwrapped = child.$run(result)
+      result = f(child)
     } catch {
       case t: Throwable =>
         primary = t
         throw t
     } finally {
-      // Use fins.runAll() directly (not child.close()) for consistency with
-      // the Scala 2 macro, where private[scope] members are inaccessible
-      // at the call-site expansion.
       val finalization = fins.runAll()
       if (primary != null) {
         finalization.suppress(primary)
@@ -71,7 +63,47 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
         finalization.orThrow()
       }
     }
-    unwrapped
+    result
+  }
+
+  /**
+   * Macro-enforced access to a scoped value.
+   *
+   * Unwraps the scoped value, applies the function, and re-wraps the result.
+   * The macro verifies at compile time that the lambda parameter is only used
+   * in method-receiver position (e.g., `x.method()`), preventing resource leaks
+   * through capture, storage, or passing as an argument.
+   *
+   * @example
+   *   {{{
+   *   // Allowed:
+   *   scope.use(db)(_.query("SELECT 1"))
+   *   scope.use(db)(db => db.query("a") + db.query("b"))
+   *
+   *   // Rejected at compile time:
+   *   scope.use(db)(db => store(db))       // param as argument
+   *   scope.use(db)(db => () => db.query()) // captured in closure
+   *   }}}
+   *
+   * @param sa
+   *   the scoped value to access
+   * @param f
+   *   a lambda whose parameter is only used as a method receiver
+   * @tparam A
+   *   the input value type
+   * @tparam B
+   *   the output value type
+   * @return
+   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   */
+  transparent inline def use[A, B](sa: $[A])(inline f: A => B): $[B] = {
+    UseMacros.check[A, B](f)
+    if (self.isClosed) null.asInstanceOf[$[B]]
+    else {
+      val unwrapped = sa.asInstanceOf[A]
+      val result    = f(unwrapped)
+      result.asInstanceOf[$[B]]
+    }
   }
 
   /**
@@ -80,16 +112,6 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *
    * Use this only for interop with code that cannot work with scoped types. If
    * the type is pure data, prefer adding an `Unscoped` instance instead.
-   *
-   * @example
-   *   {{{
-   *   Scope.global.scoped { scope =>
-   *     import scope._
-   *     val db: $[Database] = allocate(Resource(new Database))
-   *     val leaked: Database = scope.leak(db) // compiler warning
-   *     leaked
-   *   }
-   *   }}}
    *
    * @tparam A
    *   the underlying type of the scoped value

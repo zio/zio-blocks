@@ -129,5 +129,4 @@ object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
 
   // zio-blocks types
   given [A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] = new Unscoped[zio.blocks.chunk.Chunk[A]] {}
-  given Unscoped[DeferHandle]                              = new Unscoped[DeferHandle] {}
 }

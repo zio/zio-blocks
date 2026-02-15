@@ -1,5 +1,6 @@
 package scope.examples
 
+import scala.annotation.nowarn
 import zio.blocks.scope._
 
 /**
@@ -76,6 +77,7 @@ object TransactionBoundaryExample {
   /** Result of transaction operations. */
   case class TxResult(success: Boolean, affectedRows: Int) derives Unscoped
 
+  @nowarn("msg=.*leaked.*|.*leak.*")
   @main def runTransactionBoundaryExample(): Unit = {
     println("=== Transaction Boundary Example ===\n")
     println("Demonstrating Resource-returning beginTransaction method\n")
@@ -89,49 +91,43 @@ object TransactionBoundaryExample {
       // Transaction 1: Successful insert
       println("--- Transaction 1: Insert user ---")
       val result1: TxResult =
-        scoped { txScope =>
+        connScope.scoped { txScope =>
           import txScope._
-          for {
-            c  <- lower(conn)
-            tx <- allocate(c.beginTransaction("tx-001"))
-          } yield {
-            val rows = tx.execute("INSERT INTO users VALUES (1, 'Alice')")
-            tx.commit()
-            TxResult(success = true, affectedRows = rows)
-          }
+          val c: $[DbConnection]    = lower(conn)
+          val rawConn: DbConnection = txScope.leak(c)
+          val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-001"))
+          val rows                  = txScope.use(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
+          txScope.use(tx)(_.commit())
+          TxResult(success = true, affectedRows = rows)
         }
       println(s"  Result: $result1\n")
 
       // Transaction 2: Transfer funds (multiple operations)
       println("--- Transaction 2: Transfer funds ---")
       val result2: TxResult =
-        scoped { txScope =>
+        connScope.scoped { txScope =>
           import txScope._
-          for {
-            c  <- lower(conn)
-            tx <- allocate(c.beginTransaction("tx-002"))
-          } yield {
-            val rows1 = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")
-            val rows2 = tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")
-            tx.commit()
-            TxResult(success = true, affectedRows = rows1 + rows2)
-          }
+          val c: $[DbConnection]    = lower(conn)
+          val rawConn: DbConnection = txScope.leak(c)
+          val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-002"))
+          val rows1                 = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
+          val rows2                 = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")).get
+          txScope.use(tx)(_.commit())
+          TxResult(success = true, affectedRows = rows1 + rows2)
         }
       println(s"  Result: $result2\n")
 
       // Transaction 3: Demonstrates auto-rollback on scope exit without commit
       println("--- Transaction 3: Auto-rollback (no explicit commit) ---")
       val result3: TxResult =
-        scoped { txScope =>
+        connScope.scoped { txScope =>
           import txScope._
-          for {
-            c  <- lower(conn)
-            tx <- allocate(c.beginTransaction("tx-003"))
-          } yield {
-            tx.execute("DELETE FROM audit_log")
-            println("    [App] Not committing - scope exit will trigger auto-rollback...")
-            TxResult(success = false, affectedRows = 0)
-          }
+          val c: $[DbConnection]    = lower(conn)
+          val rawConn: DbConnection = txScope.leak(c)
+          val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-003"))
+          txScope.use(tx)(_.execute("DELETE FROM audit_log"))
+          println("    [App] Not committing - scope exit will trigger auto-rollback...")
+          TxResult(success = false, affectedRows = 0)
         }
       println(s"  Result: $result3\n")
 

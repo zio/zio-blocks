@@ -109,13 +109,13 @@ object IntegrationTestHarnessExample {
       val harness: $[(TestFixture, AppUnderTest)] = allocate(testHarnessResource)
       println()
 
-      // Run test scenarios - access the tuple components via scope.use
+      // Run test scenarios - access the tuple via use
       println("Running test scenarios:")
-      scope.use(harness) { case (fixture, app) =>
-        println(s"  GET user:1 -> ${app.handleRequest("user:1")}")
-        println(s"  GET user:2 -> ${app.handleRequest("user:2")}")
-        println(s"  GET user:3 -> ${app.handleRequest("user:3")}")
-        println(s"  Server URL: ${fixture.server.baseUrl}")
+      scope.use(harness) { h =>
+        println(s"  GET user:1 -> ${h._2.handleRequest("user:1")}")
+        println(s"  GET user:2 -> ${h._2.handleRequest("user:2")}")
+        println(s"  GET user:3 -> ${h._2.handleRequest("user:3")}")
+        println(s"  Server URL: ${h._1.server.baseUrl}")
       }
       println()
 

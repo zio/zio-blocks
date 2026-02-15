@@ -93,6 +93,7 @@ final class CheckoutService(gateway: PaymentGateway) extends AutoCloseable {
       val result = c.processOrder("ORD-001", BigDecimal("99.99"))
       println(s"Result: ${result.message}")
     }
+    ()
   }
 
   println("\n=== Using PayPal Gateway ===")
@@ -108,5 +109,6 @@ final class CheckoutService(gateway: PaymentGateway) extends AutoCloseable {
       val result = c.processOrder("ORD-002", BigDecimal("149.99"))
       println(s"Result: ${result.message}")
     }
+    ()
   }
 }
