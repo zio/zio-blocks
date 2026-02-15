@@ -364,7 +364,7 @@ case class Person(name: String, age: Int)
 
 object Person {
   implicit val schema: Schema[Person] = Schema.derived
-  val codec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
+  val codec: JsonBinaryCodec[Person] = schema.deriveFormat(JsonFormat)
 }
 
 val person = Person("John", 42)

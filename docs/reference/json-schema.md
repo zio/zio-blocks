@@ -65,7 +65,7 @@ object User {
 }
 
 // Derive codec first, then get JSON Schema
-val codec = Schema[User].derive(JsonFormat)
+val codec = Schema[User].deriveFormat(JsonFormat)
 val jsonSchema = codec.toJsonSchema
 ```
 

@@ -33,7 +33,7 @@ object Person {
 }
 
 // Derive the Thrift codec
-val codec = Schema[Person].derive(ThriftFormat)
+val codec = Schema[Person].deriveFormat(ThriftFormat)
 
 // Encode to Thrift binary
 val person = Person("Alice", 30)
@@ -72,7 +72,7 @@ object Team {
   implicit val schema: Schema[Team] = Schema.derived
 }
 
-val teamCodec = Schema[Team].derive(ThriftFormat)
+val teamCodec = Schema[Team].deriveFormat(ThriftFormat)
 val team = Team(List(User(1, "Alice"), User(2, "Bob")))
 
 // Encode
@@ -95,7 +95,7 @@ object Shape {
   implicit val schema: Schema[Shape] = Schema.derived
 }
 
-val shapeCodec = Schema[Shape].derive(ThriftFormat)
+val shapeCodec = Schema[Shape].deriveFormat(ThriftFormat)
 
 // Circle is encoded with field ID 1 (first variant)
 val circle: Shape = Circle(5.0)

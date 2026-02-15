@@ -4,7 +4,7 @@ title: "Serialization Formats"
 sidebar_label: "Formats"
 ---
 
-ZIO Blocks Schema provides automatic codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for any supported format using the unified `Schema.derive(Format)` pattern.
+ZIO Blocks Schema provides automatic codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for any supported format using the unified `Schema.deriveFormat(Format)` pattern.
 
 A `Format` is an abstraction that bundles together everything needed to serialize and deserialize data in a specific format (JSON, Avro, Protobuf, etc.).
 
@@ -87,7 +87,7 @@ object Person {
 }
 
 // Derive codec for any format (using TOON as an example)
-val codec = Schema[Person].derive(ToonFormat)
+val codec = Schema[Person].deriveFormat(ToonFormat)
 
 // Encode to bytes
 val bytes: Array[Byte] = codec.encode(Person("Alice", 30))
@@ -156,7 +156,7 @@ object Person {
 }
 
 // Derive Avro codec
-val codec = Schema[Person].derive(AvroFormat)
+val codec = Schema[Person].deriveFormat(AvroFormat)
 
 // Encode to Avro binary format
 val person = Person("Alice", 30)
@@ -181,7 +181,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val codec = Schema[Person].derive(AvroFormat)
+val codec = Schema[Person].deriveFormat(AvroFormat)
 val avroSchema: AvroSchema = codec.avroSchema
 println(avroSchema.toString(true))
 // {
@@ -230,7 +230,7 @@ object Shape {
   implicit val schema: Schema[Shape] = Schema.derived
 }
 
-val codec = Schema[Shape].derive(AvroFormat)
+val codec = Schema[Shape].deriveFormat(AvroFormat)
 
 // The variant index (0 for Circle, 1 for Rectangle) is written first,
 // followed by the record data
@@ -269,7 +269,7 @@ object Person {
 }
 
 // Derive TOON codec
-val codec = Schema[Person].derive(ToonFormat)
+val codec = Schema[Person].deriveFormat(ToonFormat)
 
 // Encode to TOON
 val person = Person("Alice", 30)
@@ -363,7 +363,7 @@ object Shape {
 }
 
 // Key discriminator (default)
-val keyCodec = Schema[Shape].derive(ToonFormat)
+val keyCodec = Schema[Shape].deriveFormat(ToonFormat)
 // Circle:
 //   radius: 5
 
@@ -398,7 +398,7 @@ object Person {
 }
 
 // Derive MessagePack codec
-val codec = Schema[Person].derive(MessagePackFormat)
+val codec = Schema[Person].deriveFormat(MessagePackFormat)
 
 // Encode to MessagePack
 val person = Person("Alice", 30)
@@ -451,7 +451,7 @@ object Shape {
   implicit val schema: Schema[Shape] = Schema.derived
 }
 
-val codec = Schema[Shape].derive(MessagePackFormat)
+val codec = Schema[Shape].deriveFormat(MessagePackFormat)
 
 // Circle is encoded as: 0 followed by {radius: 5.0}
 val circle: Shape = Circle(5.0)
@@ -583,7 +583,7 @@ object Person {
 }
 
 // Derive Thrift codec
-val codec = Schema[Person].derive(ThriftFormat)
+val codec = Schema[Person].deriveFormat(ThriftFormat)
 
 // Encode to Thrift binary format
 val person = Person("Alice", 30)
@@ -681,7 +681,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val codec = Schema[Person].derive(ToonFormat)
+val codec = Schema[Person].deriveFormat(ToonFormat)
 
 // Example: decoding invalid bytes
 val invalidBytes = "invalid: data\nwrong: format".getBytes

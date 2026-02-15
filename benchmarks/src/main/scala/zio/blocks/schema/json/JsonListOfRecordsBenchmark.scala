@@ -70,7 +70,7 @@ object JsonListOfRecordsDomain {
 
   implicit val jsoniterScalaCodec: JsonValueCodec[List[Person]] = JsonCodecMaker.make
 
-  val zioBlocksCodec = Schema.derived[List[Person]].derive(JsonFormat)
+  val zioBlocksCodec = Schema.derived[List[Person]].deriveFormat(JsonFormat)
 
   implicit val zioJsonCodec: zio.json.JsonCodec[Person] = zio.json.DeriveJsonCodec.gen
 
