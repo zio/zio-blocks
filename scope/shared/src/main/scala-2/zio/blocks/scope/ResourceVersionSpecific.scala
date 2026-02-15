@@ -82,8 +82,8 @@ private[scope] object ResourceMacros {
       // Constructor takes Scope/Finalizer in some param list - build correct Apply chain
       val scopeName = TermName(c.freshName("scope"))
       val ctorTerm  = Select(New(TypeTree(tpe)), termNames.CONSTRUCTOR)
-      val applied = paramLists.zip(finalizerParamFlags).foldLeft(ctorTerm: Tree) {
-        case (acc, (params, isFinalizerFlags)) =>
+      val applied   =
+        paramLists.zip(finalizerParamFlags).foldLeft(ctorTerm: Tree) { case (acc, (params, isFinalizerFlags)) =>
           if (params.isEmpty) {
             Apply(acc, Nil)
           } else {
@@ -100,7 +100,7 @@ private[scope] object ResourceMacros {
             }
             Apply(acc, args)
           }
-      }
+        }
       q"""
         _root_.zio.blocks.scope.Resource.shared[$tpe] { ($scopeName: _root_.zio.blocks.scope.Scope) =>
           $applied
