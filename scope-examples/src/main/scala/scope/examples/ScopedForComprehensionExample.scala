@@ -57,7 +57,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   println("--- Pattern 1: Chaining allocates with use + .get ---")
   Scope.global.scoped { scope =>
     import scope._
-    val pool: $[Pool]       = allocate(Resource.from[Pool])
+    val pool: $[Pool] = allocate(Resource.from[Pool])
+    // Interop: Pool.lease() requires the raw Pool; use leak() as an explicit escape hatch
     val rawPool             = scope.leak(pool)
     val conn: $[Connection] = allocate(Resource(rawPool.lease()))
     val result              = scope.use(conn)(_.query("SELECT * FROM users")).get
@@ -68,7 +69,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   println("\n--- Pattern 2: Mixing allocates with pure computations ---")
   Scope.global.scoped { scope =>
     import scope._
-    val pool: $[Pool]       = allocate(Resource.from[Pool])
+    val pool: $[Pool] = allocate(Resource.from[Pool])
+    // Interop: Pool.lease() requires the raw Pool; use leak() as an explicit escape hatch
     val rawPool             = scope.leak(pool)
     val conn: $[Connection] = allocate(Resource(rawPool.lease()))
     val prefix              = "PREFIX: "
@@ -86,7 +88,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
     outer.scoped { inner =>
       import inner._
       println("  [inner] Acquiring connection from parent's pool")
-      val p: $[Pool]          = lower(pool)
+      val p: $[Pool] = lower(pool)
+      // Interop: Pool.lease() requires the raw Pool; use leak() as an explicit escape hatch
       val rawPool             = inner.leak(p)
       val conn: $[Connection] = allocate(Resource(rawPool.lease()))
       val result              = inner.use(conn)(_.query("SELECT 1")).get

@@ -103,7 +103,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>
       import workScope._
-      val p: $[ConnectionPool]   = lower(pool)
+      val p: $[ConnectionPool] = lower(pool)
+      // Interop: ConnectionPool.acquire requires the raw pool; use leak() as an explicit escape hatch
       val rawPool                = workScope.leak(p)
       val c: $[PooledConnection] = allocate(rawPool.acquire)
       val result                 = workScope.use(c)(_.execute("SELECT * FROM service_a_table")).get
@@ -114,7 +115,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- ServiceB doing work ---")
     appScope.scoped { workScope =>
       import workScope._
-      val p: $[ConnectionPool]   = lower(pool)
+      val p: $[ConnectionPool] = lower(pool)
+      // Interop: ConnectionPool.acquire requires the raw pool; use leak() as an explicit escape hatch
       val rawPool                = workScope.leak(p)
       val c: $[PooledConnection] = allocate(rawPool.acquire)
       val result                 = workScope.use(c)(_.execute("SELECT * FROM service_b_table")).get
@@ -125,7 +127,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- Multiple connections in same scope ---")
     appScope.scoped { workScope =>
       import workScope._
-      val p: $[ConnectionPool]   = lower(pool)
+      val p: $[ConnectionPool] = lower(pool)
+      // Interop: ConnectionPool.acquire requires the raw pool; use leak() as an explicit escape hatch
       val rawPool                = workScope.leak(p)
       val a: $[PooledConnection] = allocate(rawPool.acquire)
       val b: $[PooledConnection] = allocate(rawPool.acquire)

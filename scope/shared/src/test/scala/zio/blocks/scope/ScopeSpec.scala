@@ -413,6 +413,40 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.use(db)(a => new Wrapper(a))
           }
         """))(isLeft)
+      },
+      test("match expression where param could escape via pattern binding is rejected") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.use(db)(d => d match { case x => x })
+          }
+        """))(isLeft)
+      },
+      test("if-expression where param is branch result is rejected") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.use(db)(d => if (true) d else null)
+          }
+        """))(isLeft)
       }
     ),
     suite("use macro allows safe patterns")(

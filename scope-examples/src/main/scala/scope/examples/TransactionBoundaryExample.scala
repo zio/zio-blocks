@@ -93,7 +93,8 @@ object TransactionBoundaryExample {
       val result1: TxResult =
         connScope.scoped { txScope =>
           import txScope._
-          val c: $[DbConnection]    = lower(conn)
+          val c: $[DbConnection] = lower(conn)
+          // Interop: beginTransaction requires the raw DbConnection; use leak() as an explicit escape hatch
           val rawConn: DbConnection = txScope.leak(c)
           val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-001"))
           val rows                  = txScope.use(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
@@ -107,7 +108,8 @@ object TransactionBoundaryExample {
       val result2: TxResult =
         connScope.scoped { txScope =>
           import txScope._
-          val c: $[DbConnection]    = lower(conn)
+          val c: $[DbConnection] = lower(conn)
+          // Interop: beginTransaction requires the raw DbConnection; use leak() as an explicit escape hatch
           val rawConn: DbConnection = txScope.leak(c)
           val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-002"))
           val rows1                 = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
@@ -122,7 +124,8 @@ object TransactionBoundaryExample {
       val result3: TxResult =
         connScope.scoped { txScope =>
           import txScope._
-          val c: $[DbConnection]    = lower(conn)
+          val c: $[DbConnection] = lower(conn)
+          // Interop: beginTransaction requires the raw DbConnection; use leak() as an explicit escape hatch
           val rawConn: DbConnection = txScope.leak(c)
           val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-003"))
           txScope.use(tx)(_.execute("DELETE FROM audit_log"))

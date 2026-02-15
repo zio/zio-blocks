@@ -120,6 +120,48 @@ Key observations:
 - Resources (`$[DbConnection]`, `$[DbTransaction]`) can never be `.get`-ed
 - The return value is plain `TxResult` (which has `Unscoped`), no unwrapping at boundary
 
+## `.get` — Extracting Pure Data from `$[A]`
+
+The `.get` method on `$[A]` unwraps the scoped value when `A` has an `Unscoped`
+instance, returning the underlying `A` directly:
+
+```scala
+val name: String = scope.use(db)(_.query("SELECT name")).get
+val count: Int   = scope.use(db)(_.rowCount).get
+```
+
+### When to use `.get` vs `leak()`
+
+| Method | Purpose | Safety |
+|--------|---------|--------|
+| `.get` | Extract pure data (`String`, `Int`, case classes) from `$[A]` | **Safe** — only works when `A: Unscoped`, so the value cannot hold resource references |
+| `leak()` | Extract a raw resource (`$[Socket]` → `Socket`) for third-party interop | **Unsafe** — bypasses compile-time safety; emits a compiler warning |
+
+Use `.get` whenever the result is pure data. Use `leak()` only when you must pass
+a raw resource to a third-party API that cannot accept scoped types — and ensure the
+scope outlives all usage of the leaked value.
+
+### Example
+
+```scala
+Scope.global.scoped { scope =>
+  import scope._
+  val db: $[Database] = allocate(Resource.from[Database])
+
+  // .get extracts pure data — safe, no warnings
+  val result: String = scope.use(db)(_.query("SELECT 1")).get
+  val count: Int     = scope.use(db)(_.rowCount).get
+
+  // leak() extracts the raw resource — unsafe, emits compiler warning
+  // Only needed for third-party APIs that require raw types
+  @nowarn("msg=.*leak.*")
+  val raw: Database = scope.leak(db)
+  legacyLibrary.doSomething(raw)
+
+  result
+}
+```
+
 ## Safety Analysis
 
 | Leak vector | Prevention |
