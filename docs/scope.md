@@ -148,8 +148,8 @@ Scope.global.scoped { scope =>
 
   val db: $[Database] = Resource.from[Database].allocate
 
-  val s: String = (scope $ db)(_.query("SELECT 1"))      // String is Unscoped => unwrapped
-  val n: Int    = (scope $ db)(_.query("x").length)      // Int is Unscoped => unwrapped
+  val s: String = $(db)(_.query("SELECT 1"))      // String is Unscoped => unwrapped
+  val n: Int    = $(db)(_.query("x").length)      // Int is Unscoped => unwrapped
 }
 ```
 
@@ -274,7 +274,7 @@ Scope.global.scoped { outer =>
   outer.scoped { inner =>
     import inner.*
     val innerDb: $[Database] = lower(db)
-    (inner $ innerDb)(_.query("child"))
+    $(innerDb)(_.query("child"))
   }
 }
 ```
@@ -351,9 +351,9 @@ import zio.blocks.scope.*
 Scope.global.scoped { parent =>
   import parent.*
 
-  val os: $[Scope.OpenScope] = parent.open()
+  val os: $[Scope.OpenScope] = open()
 
-  (parent $ os) { h =>
+  $(os) { h =>
     val child = h.scope
     val db    = child.allocate(Resource.fromAutoCloseable(new Database))
 
@@ -457,7 +457,7 @@ final class FileHandle(path: String) extends AutoCloseable:
       Resource(new FileHandle("data.txt")).allocate
 
     val contents: String =
-      (scope $ h)(_.readAll())
+      $(h)(_.readAll())
 
     println(contents)
   }
@@ -485,16 +485,16 @@ final class Database extends AutoCloseable:
         import child.*
 
         val db: $[Database] = lower(parentDb)
-        println((child $ db)(_.query("SELECT 1")))
+        println($(db)(_.query("SELECT 1")))
 
         val childDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
-        println((child $ childDb)(_.query("SELECT 2")))
+        println($(childDb)(_.query("SELECT 2")))
 
         // childDb cannot be returned to the parent (not Unscoped)
         "done"
       }
 
-    println((parent $ parentDb)(_.query("SELECT 3")))
+    println($(parentDb)(_.query("SELECT 3")))
     done
   }
 ```
@@ -524,12 +524,12 @@ final class Conn extends AutoCloseable:
 
     val pool: $[Pool] = Resource.fromAutoCloseable(new Pool).allocate
 
-    // (scope $ pool)(_.lease()) : $[Resource[Conn]]
+    // $(pool)(_.lease()) : $[Resource[Conn]]
     val conn: $[Conn] =
-      (scope $ pool)(_.lease()).allocate
+      $(pool)(_.lease()).allocate
 
     val result: String =
-      (scope $ conn)(_.query("SELECT 1"))
+      $(conn)(_.query("SELECT 1"))
 
     println(result)
   }
@@ -552,7 +552,7 @@ Scope.global.scoped { scope =>
   val db: $[Database] =
     Resource.fromAutoCloseable(new Database).allocate
 
-  (scope $ db)(_.query("SELECT 1"))
+  $(db)(_.query("SELECT 1"))
 }
 ```
 
@@ -569,9 +569,9 @@ final case class Config(url: String)
 object Config:
   given Unscoped[Config] = Unscoped.derived
 
-final class ConnectionPool(config: Config)(using fin: Finalizer):
+final class ConnectionPool(config: Config)(using Finalizer):
   private val pool = s"pool(${config.url})"
-  fin.defer(println(s"shutdown $pool"))
+  defer(println(s"shutdown $pool"))
 
 val poolResource: Resource[ConnectionPool] =
   Resource.from[ConnectionPool](
@@ -613,7 +613,7 @@ final class RequestHandler(config: Config)(using scope: Scope):
     scope.scoped { child =>
       import child.*
       val conn: $[Connection] = Resource.fromAutoCloseable(new Connection(config)).allocate
-      (child $ conn)(_.query(sql))
+      $(conn)(_.query(sql))
     }
 
 val handlerResource: Resource[RequestHandler] =
@@ -625,7 +625,7 @@ val handlerResource: Resource[RequestHandler] =
   Scope.global.scoped { scope =>
     import scope.*
     val handler: $[RequestHandler] = handlerResource.allocate
-    val out: String = (scope $ handler)(_.handle("SELECT 1"))
+    val out: String = $(handler)(_.handle("SELECT 1"))
     println(out)
   }
 ```
@@ -666,10 +666,10 @@ val deps: Context[Boolean] =
     import scope.*
 
     val cfg: $[Config] =
-      scope.allocate(w.toResource(deps))
+      allocate(w.toResource(deps))
 
     val debug: Boolean =
-      (scope $ cfg)(_.debug)
+      $(cfg)(_.debug)
 
     println(debug)
   }
@@ -727,7 +727,7 @@ val serviceResource: Resource[Service] =
   Scope.global.scoped { scope =>
     import scope.*
     val svc: $[Service] = serviceResource.allocate
-    (scope $ svc)(_.run())
+    $(svc)(_.run())
   }
 ```
 
@@ -756,7 +756,7 @@ val appResource: Resource[App] =
   Scope.global.scoped { scope =>
     import scope.*
     val app: $[App] = appResource.allocate
-    (scope $ app)(_.run())
+    $(app)(_.run())
   }
 ```
 
