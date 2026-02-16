@@ -28,14 +28,14 @@ package zio.blocks.scope
  *
  * @example
  *   {{{
- *   // Primitives escape freely
+ *   // Primitives escape freely (auto-unwrapped by $)
  *   Scope.global.scoped { s =>
  *     import s._
- *     use(stream)(_.read()) // returns s.$[Int], unwrapped to Int at the boundary
+ *     (s $ stream)(_.read()) // returns Int directly since Int: Unscoped
  *   }
  *
  *   // Resources stay scoped
- *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped
+ *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped (no Unscoped instance)
  *   }}}
  *
  * @tparam A

@@ -10,11 +10,13 @@ import zio.blocks.scope.internal.Finalizers
  * If a scope reference escapes to another thread (e.g. via a `Future`) and the
  * original scope closes while the other thread still holds a reference, all
  * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that return
- * a default-valued `$[B]` (`null` for reference types, `0` for numeric types,
- * `false` for `Boolean`, etc.). This prevents the escaped thread from
- * interacting with already-released resources, but callers should be aware that
- * these default values may appear if scopes are used across thread boundaries
- * incorrectly. `defer` on a closed scope is silently ignored, and `scoped`
+ * default values (`null` for reference types, `0` for numeric types, `false`
+ * for `Boolean`, etc.). For `$`, if `B` has an `Unscoped` instance the default
+ * is a plain `B`; otherwise it is a default-valued `$[B]`. This prevents the
+ * escaped thread from interacting with already-released resources, but callers
+ * should be aware that these default values may appear if scopes are used
+ * across thread boundaries incorrectly. `defer` on a closed scope is silently
+ * ignored, and `scoped`
  * creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
@@ -107,8 +109,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *
    * Once a scope is closed its finalizers have already run and all subsequent
    * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that
-   * return default-valued scoped values (`null` for reference types, zero/false
-   * for value types). [[Scope.global]] returns `false` until JVM shutdown.
+   * return default values (`null` for reference types, zero/false for value
+   * types). For `$`, auto-unwrapped types return a plain default `B`.
+   * [[Scope.global]] returns `false` until JVM shutdown.
    *
    * @return
    *   `true` if this scope's finalizers have already been executed

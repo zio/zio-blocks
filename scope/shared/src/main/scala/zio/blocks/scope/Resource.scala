@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference
  *   Scope.global.scoped { scope =>
  *     import scope._
  *     val db = allocate(Resource.fromAutoCloseable(new Database()))
- *     use(db)(_.query("SELECT 1"))
+ *     (scope $ db)(_.query("SELECT 1"))
  *   }
  *   }}}
  *

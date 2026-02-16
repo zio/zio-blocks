@@ -63,7 +63,9 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to a scoped value.
    *
-   * Unwraps the scoped value, applies the function, and re-wraps the result.
+   * Unwraps the scoped value, applies the function, and returns the result.
+   * If `B` has an [[Unscoped]] instance, the result is returned directly as
+   * `B` (auto-unwrapped). Otherwise, the result is re-wrapped as `$[B]`.
    * The macro verifies at compile time that the lambda parameter is only used
    * in method-receiver position (e.g., `x.method()`), preventing resource
    * leaks.
