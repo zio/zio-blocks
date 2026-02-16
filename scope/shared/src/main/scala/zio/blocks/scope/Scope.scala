@@ -211,39 +211,11 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   }
 
   /**
-   * Enrichment for `$[A]` scoped values.
-   *
-   * Provides `get` for extracting pure-data values from `$[A]` when the type
-   * has an [[Unscoped]] instance.
-   *
-   * @tparam A
-   *   the underlying value type
-   */
-  implicit class ScopedOps[A](private val sa: $[A]) {
-
-    /**
-     * Extracts the underlying value from a `$[A]`.
-     *
-     * Only available when `A` has an [[Unscoped]] instance, ensuring only pure
-     * data (not resources) can be extracted. This is sound because the
-     * macro-enforced `$` prevents creating `$[A]` values where `A: Unscoped`
-     * but the value secretly holds a resource reference.
-     *
-     * @param ev
-     *   evidence that `A` is safe to extract (pure data, not a resource)
-     * @return
-     *   the underlying value of type `A`
-     */
-    def get(implicit ev: Unscoped[A]): A = $unwrap(sa)
-  }
-
-  /**
    * Enrichment for `$[Resource[A]]` scoped values.
    *
-   * Provides `allocate` for acquiring a resource that is itself scoped, without
-   * needing to extract the `Resource` from `$` via `.get`. This is sound
-   * because the `Resource` never leaves the scope wrapper; only its *result*
-   * becomes scoped.
+   * Provides `allocate` for acquiring a resource that is itself scoped. The
+   * `Resource` never leaves the scope wrapper; only its *result* becomes
+   * scoped.
    *
    * @tparam A
    *   the underlying resource value type

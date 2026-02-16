@@ -9,7 +9,7 @@ is unsound.
 ## Exploit
 
 A user can construct a `Resource` whose internal thunk captures scoped references,
-then extract it from the scope via `.get`:
+then extract it from the scope:
 
 ```scala
 val leaked: Resource[() => Int] = Scope.global.scoped { scope =>

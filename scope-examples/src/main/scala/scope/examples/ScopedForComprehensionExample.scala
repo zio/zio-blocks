@@ -3,12 +3,11 @@ package scope.examples
 import zio.blocks.scope._
 
 /**
- * Demonstrates the `$[A]` scoped type with `$` + `.get` for resource access.
+ * Demonstrates the `$[A]` scoped type with `$` for resource access.
  *
  * This example showcases the key design of ZIO Blocks Scope:
  *   - `allocate` returns `$[A]` (a scoped value)
  *   - `(scope $ x)(f)` safely accesses scoped values with macro enforcement
- *   - `.get` extracts pure data from `$[A]` when `A: Unscoped`
  *   - `ScopedResourceOps` enables `.allocate` on `$[Resource[A]]` for chained
  *     acquisition
  *   - Operations are eager (zero-cost wrapper)
@@ -54,13 +53,13 @@ case class QueryData(value: String) extends Unscoped[QueryData]
 @main def scopedForComprehensionExample(): Unit = {
   println("=== Scoped Resource Access Example ===\n")
 
-  println("--- Pattern 1: Chaining allocates with $ + .get ---")
+  println("--- Pattern 1: Chaining allocates with $ ---")
   Scope.global.scoped { scope =>
     import scope._
     val pool: $[Pool] = Resource.from[Pool].allocate
     // (scope $ pool)(_.lease()) returns $[Resource[Connection]]; .allocate acquires it
     val conn: $[Connection] = (scope $ pool)(_.lease()).allocate
-    val result              = (scope $ conn)(_.query("SELECT * FROM users")).get
+    val result              = (scope $ conn)(_.query("SELECT * FROM users"))
     println(s"\n  Result: ${result.value.toUpperCase}")
     // Scope exits: Connection closed, then Pool closed (LIFO)
   }
@@ -72,7 +71,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
     // (scope $ pool)(_.lease()) returns $[Resource[Connection]]; .allocate acquires it
     val conn: $[Connection] = (scope $ pool)(_.lease()).allocate
     val prefix              = "PREFIX: "
-    val result              = (scope $ conn)(_.query("SELECT name FROM employees")).get
+    val result              = (scope $ conn)(_.query("SELECT name FROM employees"))
     println(s"\n  Result: $prefix${result.value}")
   }
 
@@ -89,7 +88,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
       val p: $[Pool] = lower(pool)
       // (inner $ p)(_.lease()) returns $[Resource[Connection]]; .allocate acquires it
       val conn: $[Connection] = (inner $ p)(_.lease()).allocate
-      val result              = (inner $ conn)(_.query("SELECT 1")).get
+      val result              = (inner $ conn)(_.query("SELECT 1"))
       println(s"  [inner] Result: ${result.value}")
       // inner scope exits: Connection released
     }
@@ -102,7 +101,6 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   println("  - $[A] is the scoped value type (zero-cost wrapper)")
   println("  - allocate returns $[A]")
   println("  - (scope $ x)(f) safely accesses scoped values")
-  println("  - .get extracts pure data from $[A]")
   println("  - Operations are eager")
   println("  - Resources cleaned up in LIFO order on scope exit")
 }

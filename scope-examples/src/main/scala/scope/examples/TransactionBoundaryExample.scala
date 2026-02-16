@@ -93,7 +93,7 @@ object TransactionBoundaryExample {
           import txScope._
           val c: $[DbConnection]   = lower(conn)
           val tx: $[DbTransaction] = (txScope $ c)(_.beginTransaction("tx-001")).allocate
-          val rows                 = (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
+          val rows                 = (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
           (txScope $ tx)(_.commit())
           TxResult(success = true, affectedRows = rows)
         }
@@ -106,8 +106,8 @@ object TransactionBoundaryExample {
           import txScope._
           val c: $[DbConnection]   = lower(conn)
           val tx: $[DbTransaction] = (txScope $ c)(_.beginTransaction("tx-002")).allocate
-          val rows1                = (txScope $ tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
-          val rows2                = (txScope $ tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")).get
+          val rows1                = (txScope $ tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1"))
+          val rows2                = (txScope $ tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2"))
           (txScope $ tx)(_.commit())
           TxResult(success = true, affectedRows = rows1 + rows2)
         }

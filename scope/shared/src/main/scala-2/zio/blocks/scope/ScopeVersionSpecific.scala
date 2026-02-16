@@ -77,9 +77,9 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @tparam B
    *   the output value type
    * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped), otherwise as `$[B]`; returns a default value if the scope is closed
    */
-  def $[A, B](sa: $[A])(f: A => B): $[B] = macro ScopeMacros.useImpl
+  def $[A, B](sa: $[A])(f: A => B): Any = macro ScopeMacros.useImpl
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

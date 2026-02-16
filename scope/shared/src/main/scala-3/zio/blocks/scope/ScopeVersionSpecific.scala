@@ -20,7 +20,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   Scope.global.scoped { scope =>
    *     import scope._
    *     val db: $[Database] = allocate(Resource(new Database))
-   *     (scope $ db)(_.query("SELECT 1")).get
+   *     (scope $ db)(_.query("SELECT 1"))
    *   }
    *   }}}
    *
@@ -96,15 +96,25 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @tparam B
    *   the output value type
    * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
+   *   otherwise as `$[B]`; returns a default value if the scope is closed
    */
-  infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): $[B] = {
+  infix transparent inline def $[A, B](sa: $[A])(inline f: A => B) = {
     UseMacros.check[A, B](f)
-    if (self.isClosed) null.asInstanceOf[$[B]]
-    else {
-      val unwrapped = sa.asInstanceOf[A]
-      val result    = f(unwrapped)
-      result.asInstanceOf[$[B]]
+    scala.compiletime.summonFrom {
+      case _: Unscoped[B] =>
+        if (self.isClosed) null.asInstanceOf[B]
+        else {
+          val unwrapped = sa.asInstanceOf[A]
+          f(unwrapped)
+        }
+      case _ =>
+        if (self.isClosed) null.asInstanceOf[$[B]]
+        else {
+          val unwrapped = sa.asInstanceOf[A]
+          val result    = f(unwrapped)
+          result.asInstanceOf[$[B]]
+        }
     }
   }
 

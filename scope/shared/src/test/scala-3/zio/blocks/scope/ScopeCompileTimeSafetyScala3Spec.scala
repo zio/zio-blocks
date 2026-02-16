@@ -25,10 +25,8 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
     test("custom Unscoped type via derives") {
       case class TxResult(value: Int) derives Unscoped
 
-      val result: TxResult = Scope.global.scoped { scope =>
-        import scope._
-        val data: $[Int] = allocate(Resource(42))
-        TxResult(data.get)
+      val result: TxResult = Scope.global.scoped { _ =>
+        TxResult(42)
       }
       assertTrue(result.value == 42)
     }

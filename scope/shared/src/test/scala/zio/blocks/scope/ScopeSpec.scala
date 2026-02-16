@@ -107,7 +107,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val isDb: Boolean = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.isInstanceOf[Database]).get
+          scope.$(db)(_.isInstanceOf[Database])
         }
         assertTrue(isDb)
       },
@@ -117,7 +117,7 @@ object ScopeSpec extends ZIOSpecDefault {
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
           defer { closed = true }
-          scope.$(db)(d => !d.closed).get
+          scope.$(db)(d => !d.closed)
         }
         assertTrue(beforeClose, closed)
       }
@@ -127,7 +127,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("SELECT 1")).get
+          scope.$(db)(_.query("SELECT 1"))
         }
         assertTrue(captured == "result: SELECT 1")
       },
@@ -142,10 +142,29 @@ object ScopeSpec extends ZIOSpecDefault {
         val beforeClose: Boolean = Scope.global.scoped { scope =>
           import scope._
           val resource: $[TestCloseable] = allocate(new TestCloseable)
-          val captured: String           = scope.$(resource)(_.value).get
+          val captured: String           = scope.$(resource)(_.value)
           captured == "test" && !closed
         }
         assertTrue(beforeClose, closed)
+      },
+      test("ScopedResourceOps.allocate works for $[Resource[A]]") {
+        class Outer extends AutoCloseable {
+          def makeInner: Resource[Inner] = Resource.fromAutoCloseable(new Inner)
+          def close(): Unit              = ()
+        }
+
+        class Inner extends AutoCloseable {
+          def value: String = "inner"
+          def close(): Unit = ()
+        }
+
+        val result: String = Scope.global.scoped { scope =>
+          import scope._
+          val outer: $[Outer] = allocate(Resource.fromAutoCloseable(new Outer))
+          val inner: $[Inner] = (scope $ outer)(_.makeInner).allocate
+          scope.$(inner)(_.value)
+        }
+        assertTrue(result == "inner")
       }
     ),
     suite("$ operator")(
@@ -153,15 +172,15 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: Boolean = Scope.global.scoped { scope =>
           import scope._
           val config: $[Config] = allocate(Resource(Config(true)))
-          scope.$(config)(_.debug).get
+          scope.$(config)(_.debug)
         }
         assertTrue(captured == true)
       },
-      test("$ always returns scoped value") {
+      test("$ auto-unwraps Unscoped results") {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("test")).get
+          scope.$(db)(_.query("test"))
         }
         assertTrue(captured == "result: test")
       },
@@ -169,7 +188,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("test").toUpperCase).get
+          scope.$(db)(_.query("test").toUpperCase)
         }
         assertTrue(captured == "RESULT: TEST")
       },
@@ -177,7 +196,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(d => d.query("a") + " " + d.query("b")).get
+          scope.$(db)(d => d.query("a") + " " + d.query("b"))
         }
         assertTrue(captured == "result: a result: b")
       }
@@ -193,7 +212,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val executed: Boolean = Scope.global.scoped { scope =>
           import scope._
           val resource: $[TrackedResource] = allocate(Resource(new TrackedResource))
-          scope.$(resource)(_.doWork()).get
+          scope.$(resource)(_.doWork())
         }
         assertTrue(executed)
       }
@@ -204,9 +223,8 @@ object ScopeSpec extends ZIOSpecDefault {
           val db: outer.$[Database] = outer.allocate(Resource.from[Database])
 
           val result: String = outer.scoped { inner =>
-            import inner._
             val innerDb: inner.$[Database] = inner.lower(db)
-            inner.$(innerDb)(_.query("child")).get
+            inner.$(innerDb)(_.query("child"))
           }
           result
         }
@@ -463,7 +481,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("SELECT 1")).get
+          scope.$(db)(_.query("SELECT 1"))
         }
         assertTrue(captured == "result: SELECT 1")
       },
@@ -471,7 +489,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("test").toUpperCase).get
+          scope.$(db)(_.query("test").toUpperCase)
         }
         assertTrue(captured == "RESULT: TEST")
       },
@@ -479,7 +497,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(a => a.query("a") + " " + a.query("b")).get
+          scope.$(db)(a => a.query("a") + " " + a.query("b"))
         }
         assertTrue(captured == "result: a result: b")
       },
@@ -487,7 +505,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("raw arg")).get
+          scope.$(db)(_.query("raw arg"))
         }
         assertTrue(captured == "result: raw arg")
       },
@@ -495,7 +513,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: Boolean = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.closed).get
+          scope.$(db)(_.closed)
         }
         assertTrue(captured == false)
       },
@@ -503,7 +521,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.status()).get
+          scope.$(db)(_.status())
         }
         assertTrue(captured == "open")
       }
@@ -579,7 +597,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val result: Config = Scope.global.scoped { scope =>
           import scope._
           val data: $[Boolean] = allocate(Resource(true))
-          Config(scope.$(data)(_.booleanValue()).get)
+          Config(scope.$(data)(_.booleanValue()))
         }
         assertTrue(result.debug)
       }
@@ -589,7 +607,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val resource: $[CloseableResource] = allocate(Resource(new CloseableResource("hello")))
-          scope.$(resource)(_.name).get
+          scope.$(resource)(_.name)
         }
         assertTrue(captured == "hello")
       },
@@ -597,7 +615,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: Option[String] = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource(new Database))
-          scope.$(db)(d => Option(d.query("SELECT 1"))).get
+          scope.$(db)(d => Option(d.query("SELECT 1")))
         }
         assertTrue(captured.contains("result: SELECT 1"))
       },
@@ -608,63 +626,6 @@ object ScopeSpec extends ZIOSpecDefault {
           100
         }
         assertTrue(result == 100)
-      }
-    ),
-    suite(".get")(
-      test("get works for Unscoped types") {
-        val (nVal, sVal) = Scope.global.scoped { scope =>
-          import scope._
-          val n: $[Int]    = allocate(Resource(42))
-          val s: $[String] = allocate(Resource("hello"))
-          (n.get, s.get)
-        }
-        assertTrue(nVal == 42, sVal == "hello")
-      },
-      test("ScopedResourceOps.allocate works for $[Resource[A]]") {
-        class Outer extends AutoCloseable {
-          def makeInner: Resource[Inner] = Resource.fromAutoCloseable(new Inner)
-          def close(): Unit              = ()
-        }
-
-        class Inner extends AutoCloseable {
-          def value: String = "inner"
-          def close(): Unit = ()
-        }
-
-        val result: String = Scope.global.scoped { scope =>
-          import scope._
-          val outer: $[Outer] = allocate(Resource.fromAutoCloseable(new Outer))
-          val inner: $[Inner] = (scope $ outer)(_.makeInner).allocate
-          scope.$(inner)(_.value).get
-        }
-        assertTrue(result == "inner")
-      },
-      test("Resource[A] cannot be .get-ed (not Unscoped)") {
-        assertZIO(typeCheck("""
-          import zio.blocks.scope._
-          Scope.global.scoped { scope =>
-            import scope._
-            val r: $[Resource[Int]] = allocate(Resource(Resource(42)))
-            r.get
-            ()
-          }
-        """))(isLeft(containsString("Unscoped")))
-      },
-      test("get does not compile for non-Unscoped types") {
-        assertZIO(typeCheck("""
-          import zio.blocks.scope._
-
-          class MyResource extends AutoCloseable {
-            def close(): Unit = ()
-          }
-
-          Scope.global.scoped { scope =>
-            import scope._
-            val r: $[MyResource] = allocate(Resource(new MyResource))
-            r.get
-            ()
-          }
-        """))(isLeft(containsString("Unscoped")))
       }
     ),
     suite("closed scope defense")(
