@@ -338,9 +338,94 @@ Use admonitions sparingly — at most 3-4 in a typical guide. They should highli
 
 ---
 
-## Step 4: Integrate
+## Step 4: Create Companion Examples
 
-After writing the guide:
+Each guide must have a companion example module in `zio-blocks-examples/src/main/scala/` that provides **runnable code** for the key steps and the final result. This gives readers working code they can clone and run immediately.
+
+### 4a. Directory and Package Structure
+
+Create a package directory matching the guide's kebab-case id (converted to a valid Scala package name):
+
+```
+zio-blocks-examples/src/main/scala/<packagename>/
+```
+
+For example, a guide with id `query-dsl-sql` would use the package `querydsl` (drop hyphens). A guide with id `typeclass-derivation` would use `typeclassderivation`.
+
+### 4b. Example File Structure
+
+Create **one Scala file per major step** of the guide, plus a final file for the complete example. Each file should be a standalone runnable `object` extending `App` (or defining a `@main` method).
+
+**Naming convention:**
+
+| File | Purpose |
+|------|---------|
+| `Step1BasicExample.scala` | First step of the guide |
+| `Step2AdvancedExample.scala` | Second step |
+| `...` | Additional steps as needed |
+| `CompleteExample.scala` | The "Putting It Together" example from the guide |
+
+You do not need a file for every single section — only for sections that introduce a meaningful, self-contained code example. Use your judgment to decide which steps are substantial enough to warrant their own file. Typically 3-5 files is appropriate.
+
+### 4c. Example File Template
+
+Each example file follows this pattern:
+
+```scala
+package <packagename>
+
+import zio.blocks.schema._
+// ... other imports as needed
+
+/**
+ * <Guide Title> — Step N: <Step Title>
+ *
+ * <1-2 sentence description of what this example demonstrates.>
+ *
+ * Run with: sbt "examples/runMain <packagename>.<ObjectName>"
+ */
+object <ObjectName> extends App {
+
+  // --- Domain Types ---
+  // (repeat the domain types needed for this step)
+
+  // --- Step Logic ---
+  // (the code from this step of the guide)
+
+  // --- Output ---
+  // (print statements showing the result)
+  println(result)
+}
+```
+
+**Key rules for example files:**
+
+- **Each file must be fully self-contained.** It must compile and run independently — do not rely on types or values defined in other example files. Duplicate domain types across files if needed.
+- **Include all imports.** Every file must have complete imports at the top.
+- **Include `println` output.** The reader should see meaningful output when they run the example. Print intermediate results, not just the final answer.
+- **Include a scaladoc comment** with the guide title, step number, description, and the `sbt runMain` command.
+- **Mirror the guide's code closely.** The example code should match what the guide shows, with only the additions needed to make it runnable (e.g., wrapping in `object ... extends App`, adding `println`).
+- **Use descriptive object names.** `Step1Expressions` is better than `Step1`. `CompleteQueryDSL` is better than `Complete`.
+
+### 4d. The Complete Example
+
+The final `CompleteExample.scala` (or a descriptively-named equivalent like `CompleteSqlGenerator.scala`) must contain the **entire "Putting It Together" code block** from the guide, wrapped in a runnable `object`. This is the most important example file — it is the working artifact the reader takes away.
+
+### 4e. Verify Examples Compile
+
+After creating all example files, verify they compile:
+
+```bash
+sbt "examples/compile"
+```
+
+If any example fails to compile, fix it before proceeding. The examples must compile successfully.
+
+---
+
+## Step 5: Integrate
+
+After writing the guide and creating examples:
 
 1. **Add to `sidebars.js`**: Add the guide's `id` to the sidebar. Place it after reference pages, grouped with other guides if any exist. If there is no "Guides" category yet, add one:
 
@@ -362,7 +447,7 @@ After writing the guide:
 
 ---
 
-## Step 5: Review Checklist
+## Step 6: Review Checklist
 
 After writing, verify every item on this checklist:
 
@@ -384,6 +469,16 @@ After writing, verify every item on this checklist:
 - [ ] Imports are complete and correct in every code block
 - [ ] The sbt dependency in Prerequisites is correct
 - [ ] No deprecated methods or outdated patterns are used
+
+### Companion Examples
+- [ ] A package directory exists in `zio-blocks-examples/src/main/scala/<packagename>/`
+- [ ] There is one example file per major guide step (typically 3-5 files)
+- [ ] There is a `CompleteExample.scala` (or descriptively named equivalent) with the full "Putting It Together" code
+- [ ] Each example file is fully self-contained (compiles and runs independently)
+- [ ] Each example file has complete imports
+- [ ] Each example file has a scaladoc with guide title, step description, and `sbt runMain` command
+- [ ] Each example file includes `println` output showing meaningful results
+- [ ] All examples compile successfully (`sbt "examples/compile"`)
 
 ### Style and Integration
 - [ ] The frontmatter `id` matches the filename
