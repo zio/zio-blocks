@@ -297,7 +297,7 @@ Scope.global.scoped { connScope =>
   val result: String = scoped { txScope =>
     import txScope._
     val c  = lower(conn)
-    val tx = allocate((txScope $ c)(_.beginTransaction()).get)
+    val tx = (txScope $ c)(_.beginTransaction()).allocate
     (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
     (txScope $ tx)(_.commit())
     "success"
