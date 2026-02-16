@@ -58,7 +58,7 @@ When Scaladoc is missing or incomplete, leave a **suggestion** comment on the li
   * @tparam A    the target type
   * @return      a `DecodeResult` containing either the decoded value or an error
   *
-  * Example:
+  * @example
   * {{{
   * val result = Codec.decode[Person](bytes)
   * result match {
