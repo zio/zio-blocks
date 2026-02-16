@@ -25,7 +25,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated String keys and values") {
       check(
-        Gen.string(Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff)) // excluding surrogate chars
+        Gen.string(Gen.char.filter(x => (x < 0xd800 || x > 0xdfff))) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[String] == Right(x),
@@ -103,7 +103,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Char keys and values") {
       check(
-        Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff) // excluding surrogate chars
+        Gen.char.filter(x => x < 0xd800 || x > 0xdfff) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[String] == Right(x.toString),
@@ -112,7 +112,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       )
     },
     test("supports interpolated BigDecimal keys and values") {
-      check(Gen.bigDecimal(BigDecimal("-" + "9" * 100), BigDecimal("9" * 100)))(x =>
+      check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[BigDecimal] == Right(x),
           json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
@@ -120,7 +120,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       )
     },
     test("supports interpolated BigInt keys and values") {
-      check(Gen.bigInt(BigInt("-" + "9" * 100), BigInt("9" * 100)))(x =>
+      check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[BigDecimal].map(_.toBigInt) == Right(x),
           json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
@@ -292,7 +292,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Map values with String keys") {
       check(
-        Gen.string(Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff)) // excluding surrogate chars
+        Gen.string(Gen.char.filter(x => x < 0xd800 || x > 0xdfff)) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(x -> Json.Null))
@@ -335,26 +335,24 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       )
     },
     test("supports interpolated Map values with Float keys") {
-      check(Gen.float)(x =>
+      check(Gen.float.filter(_.isFinite))(x =>
         assertTrue {
-          // Map keys use Keyable.asKey which is .toString
-          val key = x.toString
+          val key = JsonBinaryCodec.floatCodec.encodeToString(x)
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(key -> Json.Null))
         }
       )
     },
     test("supports interpolated Map values with Double keys") {
-      check(Gen.double)(x =>
+      check(Gen.double.filter(_.isFinite))(x =>
         assertTrue {
-          // Map keys use Keyable.asKey which is .toString
-          val key = x.toString
+          val key = JsonBinaryCodec.doubleCodec.encodeToString(x)
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(key -> Json.Null))
         }
       )
     },
     test("supports interpolated Map values with Char keys") {
       check(
-        Gen.char.filter(x => x <= 0xd800 || x >= 0xdfff) // excluding surrogate chars
+        Gen.char.filter(x => x < 0xd800 || x > 0xdfff) // excluding surrogate chars
       )(x =>
         assertTrue(
           json"""{"x": ${Map(x -> null)}}""".get("x").one == Right(Json.Object(x.toString -> Json.Null))

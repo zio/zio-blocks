@@ -30,5 +30,4 @@ object MapConstructor {
 
     def updated[K, V](map: Map[K, V], key: K, value: V): Map[K, V] = map.updated(key, value)
   }
-
 }

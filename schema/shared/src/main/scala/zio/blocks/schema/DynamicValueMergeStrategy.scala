@@ -56,7 +56,8 @@ object DynamicValueMergeStrategy {
    * replaces left value.
    */
   case object Replace extends DynamicValueMergeStrategy {
-    def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean                = false
+    def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean = false
+
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = right
   }
 
@@ -64,7 +65,8 @@ object DynamicValueMergeStrategy {
    * Always take left value, never recurse.
    */
   case object KeepLeft extends DynamicValueMergeStrategy {
-    def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean                = false
+    def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean = false
+
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = left
   }
 
@@ -114,7 +116,8 @@ object DynamicValueMergeStrategy {
         t == DynamicValueType.Map ||
         t == DynamicValueType.Variant
   ) extends DynamicValueMergeStrategy {
-    def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean                = r(path, valueType)
+    def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean = r(path, valueType)
+
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = f(path, left, right)
   }
 }

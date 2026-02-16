@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.Schema
 
 import java.time._
@@ -143,22 +143,19 @@ object JsonEncoder {
   }
 
   implicit def vectorEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Vector[A]] = new JsonEncoder[Vector[A]] {
-    def encode(vec: Vector[A]): Json = new Json.Array(Chunk.from(vec.map(encoder.encode)))
+    def encode(vec: Vector[A]): Json = new Json.Array(Chunk.from(vec).map(encoder.encode))
   }
 
   implicit def listEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[List[A]] = new JsonEncoder[List[A]] {
-    def encode(list: List[A]): Json =
-      new Json.Array(Chunk.from(list.map(encoder.encode)))
+    def encode(list: List[A]): Json = new Json.Array(Chunk.from(list).map(encoder.encode))
   }
 
   implicit def seqEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Seq[A]] = new JsonEncoder[Seq[A]] {
-    def encode(seq: Seq[A]): Json =
-      new Json.Array(Chunk.from(seq.map(encoder.encode)))
+    def encode(seq: Seq[A]): Json = new Json.Array(Chunk.from(seq).map(encoder.encode))
   }
 
   implicit def setEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Set[A]] = new JsonEncoder[Set[A]] {
-    def encode(set: Set[A]): Json =
-      new Json.Array(Chunk.from(set.iterator.map(encoder.encode).toSeq))
+    def encode(set: Set[A]): Json = new Json.Array(Chunk.from(set).map(encoder.encode))
   }
 
   implicit def mapEncoder[V](implicit valueEncoder: JsonEncoder[V]): JsonEncoder[Map[String, V]] =
@@ -166,7 +163,7 @@ object JsonEncoder {
       def encode(map: Map[String, V]): Json =
         new Json.Object(
           map
-            .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
+            .foldLeft(ChunkBuilder.make[(String, Json)](map.size)) { (acc, kv) =>
               acc.addOne((kv._1, valueEncoder.encode(kv._2)))
             }
             .result()
@@ -176,35 +173,34 @@ object JsonEncoder {
   implicit def mapWithKeyableKeyEncoder[K, V](implicit
     keyKeyable: Keyable[K],
     valueEncoder: JsonEncoder[V]
-  ): JsonEncoder[Map[K, V]] =
-    new JsonEncoder[Map[K, V]] {
-      def encode(map: Map[K, V]): Json =
-        new Json.Object(
-          map
-            .foldLeft(Chunk.newBuilder[(String, Json)]) { (acc, kv) =>
-              acc.addOne((keyKeyable.asKey(kv._1), valueEncoder.encode(kv._2)))
-            }
-            .result()
-        )
-    }
+  ): JsonEncoder[Map[K, V]] = new JsonEncoder[Map[K, V]] {
+    def encode(map: Map[K, V]): Json =
+      new Json.Object(
+        map
+          .foldLeft(ChunkBuilder.make[(String, Json)](map.size)) { (acc, kv) =>
+            acc.addOne((keyKeyable.asKey(kv._1), valueEncoder.encode(kv._2)))
+          }
+          .result()
+      )
+  }
 
   implicit def arrayEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Array[A]] =
     new JsonEncoder[Array[A]] {
       def encode(arr: Array[A]): Json = {
-        val builder = Array.newBuilder[Json]
-        var i       = 0
-        while (i < arr.length) {
-          builder.addOne(encoder.encode(arr(i)))
-          i += 1
+        val len   = arr.length
+        val jsons = new Array[Json](len)
+        var idx   = 0
+        while (idx < len) {
+          jsons(idx) = encoder.encode(arr(idx))
+          idx += 1
         }
-        new Json.Array(Chunk.from(builder.result()))
+        new Json.Array(Chunk.fromArray(jsons))
       }
     }
 
   implicit def iterableEncoder[A](implicit encoder: JsonEncoder[A]): JsonEncoder[Iterable[A]] =
     new JsonEncoder[Iterable[A]] {
-      def encode(iter: Iterable[A]): Json =
-        new Json.Array(Chunk.from(iter.map(encoder.encode)))
+      def encode(iter: Iterable[A]): Json = new Json.Array(Chunk.from(iter.map(encoder.encode)))
     }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -215,8 +211,7 @@ object JsonEncoder {
     encoderA: JsonEncoder[A],
     encoderB: JsonEncoder[B]
   ): JsonEncoder[(A, B)] = new JsonEncoder[(A, B)] {
-    def encode(v: (A, B)): Json =
-      new Json.Array(Chunk(encoderA.encode(v._1), encoderB.encode(v._2)))
+    def encode(v: (A, B)): Json = new Json.Array(Chunk(encoderA.encode(v._1), encoderB.encode(v._2)))
   }
 
   implicit def tuple3Encoder[A, B, C](implicit
@@ -334,7 +329,7 @@ object JsonEncoder {
    * value to bytes, then parses it back to Json.
    */
   implicit def fromSchema[A](implicit schema: Schema[A]): JsonEncoder[A] = new JsonEncoder[A] {
-    private[this] val codec = schema.derive(JsonBinaryCodecDeriver)
+    private[this] val codec = schema.getInstance(JsonFormat)
 
     def encode(a: A): Json = Json.jsonCodec.decode(codec.encode(a)) match {
       case Right(json) => json

@@ -1356,7 +1356,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       if (occurrences.size > 1) {
         val types = occurrences.map(_._2.show).distinct
         if (types.size > 1) {
-          fail(s"Conflicting types for member '$name' in intersection: ${types.mkString(", ")}")
+          fail(s"Conflicting types for member '$name' in structural type: ${types.mkString(", ")}")
         }
       }
     }

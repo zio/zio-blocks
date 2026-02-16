@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import zio.blocks.typeid.TypeId
@@ -16,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
-  private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
+  private[schema] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
       .computeIfAbsent(format, _ => derive(format))
@@ -35,7 +36,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
-    new DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
+    new DerivationBuilder[TC, A](this, deriver, Chunk.empty, Chunk.empty)
 
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[SchemaError, A] =
     getInstance(format).decode(decodeInput)
@@ -44,7 +45,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
 
   def doc(value: String): Schema[A] = new Schema(reflect.doc(value))
 
-  def doc[B](optic: Optic[A, B]): Doc = get(optic).fold[Doc](Doc.Empty)(_.doc)
+  def doc[B](optic: Optic[A, B]): Doc = get(optic).fold[Doc](Doc.empty)(_.doc)
 
   def doc[B](optic: Optic[A, B], value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
 
@@ -100,15 +101,10 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
-  def diff(oldValue: A, newValue: A): Patch[A] = {
-    val oldDynamic   = toDynamicValue(oldValue)
-    val newDynamic   = toDynamicValue(newValue)
-    val dynamicPatch = oldDynamic.diff(newDynamic)
-    Patch(dynamicPatch, this)
-  }
+  def diff(oldValue: A, newValue: A): Patch[A] =
+    new Patch(toDynamicValue(oldValue).diff(toDynamicValue(newValue)), this)
 
-  def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
-    patch.apply(value, PatchMode.Strict)
+  def patch(value: A, patch: Patch[A]): Either[SchemaError, A] = patch.apply(value, PatchMode.Strict)
 
   /**
    * Transforms this schema from type `A` to type `B` using transformation
@@ -168,25 +164,18 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * @return
    *   A new schema for type `B`
    */
-  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B]): Schema[B] = new Schema(
-    new Reflect.Wrapper[Binding, B, A](
-      reflect,
-      typeId,
-      new Binding.Wrapper(to, from)
-    )
-  )
+  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B]): Schema[B] =
+    new Schema(new Reflect.Wrapper[Binding, B, A](reflect, typeId, new Binding.Wrapper(to, from)))
 
   override def toString: String = {
     val reflectStr = reflect.toString
-    if (reflectStr.contains('\n')) {
-      s"Schema {\n  ${reflectStr.replace("\n", "\n  ")}\n}"
-    } else {
-      s"Schema {\n  $reflectStr\n}"
-    }
+    if (reflectStr.contains('\n')) s"Schema {\n  ${reflectStr.replace("\n", "\n  ")}\n}"
+    else s"Schema {\n  $reflectStr\n}"
   }
 }
 
-object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
+object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with DocsSchemas {
+
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
@@ -295,18 +284,16 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
    * the JsonSchema during construction.
    */
-  def fromJsonSchema(jsonSchema: JsonSchema): Schema[Json] = {
-    val structuredReflect: Reflect[Binding, DynamicValue] = JsonSchemaToReflect.toReflect(jsonSchema)
-
+  def fromJsonSchema(jsonSchema: JsonSchema): Schema[Json] =
     new Schema(
       new Reflect.Wrapper[Binding, Json, DynamicValue](
-        structuredReflect,
+        JsonSchemaToReflect.toReflect(jsonSchema),
         TypeId.of[Json],
         new Binding.Wrapper[Json, DynamicValue](
           wrap = { dv =>
-            val j = Json.fromDynamicValue(dv)
-            jsonSchema.check(j) match {
-              case None        => j
+            val json = Json.fromDynamicValue(dv)
+            jsonSchema.check(json) match {
+              case None        => json
               case Some(error) => throw error
             }
           },
@@ -314,5 +301,4 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas {
         )
       )
     )
-  }
 }

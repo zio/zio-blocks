@@ -3322,4 +3322,155 @@ object JsonWriter {
     ) idx += 1
     idx == len
   }
+
+  final def toBigDecimal(x: Float): BigDecimal = {
+    // Based on the ingenious work of Xiang JunBo and Wang TieJun
+    // "xjb: Fast Float to String Algorithm": https://github.com/xjb714/xjb/blob/4852e533287bd0e8d554c2a9f4cc6eaa93ca799f/fast_f2s.pdf
+    // Sources with the license are here: https://github.com/xjb714/xjb
+    val bits = java.lang.Float.floatToRawIntBits(x)
+    if (bits << 1 == 0) BigDecimal(0)
+    else {
+      val e2IEEE   = bits >> 23 & 0xff
+      val m2IEEE   = bits & 0x7fffff
+      var e2       = e2IEEE - 150
+      var m2       = m2IEEE | 0x800000
+      var m10, e10 = 0
+      if (e2 == 0) m10 = m2
+      else if ((e2 >= -23 && e2 < 0) && m2 << e2 == 0) m10 = m2 >> -e2
+      else {
+        if (e2IEEE == 0) {
+          m2 = m2IEEE
+          e2 = -149
+        } else if (e2 == 105) throw new IllegalArgumentException("Infinity or NaN")
+        if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
+        else e10 = (e2 * 315653) >> 20
+        val h     = (((e10 + 1) * -217707) >> 16) + e2
+        val pow10 = floatPow10s(31 - e10)
+        val hi64  = unsignedMultiplyHigh1(
+          pow10,
+          m2.toLong << (h + 37)
+        ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10, m2.toLong << (h + 37))
+        m10 = (hi64 >>> 36).toInt * 10
+        val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
+        val dotOne          = hi64 & 0xfffffffffL
+        if (
+          {
+            if (m2IEEE == 0) halfUlpPlusEven >>> 1
+            else halfUlpPlusEven
+          } <= dotOne
+        ) {
+          if (halfUlpPlusEven > 0xfffffffffL - dotOne) m10 += 10
+          else m10 += ((dotOne * 20 + ((hi64 >>> 32).toInt & 0xf) + 0xffffffff9L) >>> 37).toInt
+        }
+        if (m2IEEE == 0 && ((e2 == -119) | (e2 == 64) | (e2 == 67))) m10 += 1
+      }
+      var q = 0
+      while (
+        m10 >= 100 && {
+          val p = m10 * 1374389535L
+          q = (p >> 37).toInt      // divide a positive int by 100
+          (p & 0x1fc0000000L) == 0 // check if q is divisible by 100
+        }
+      ) {
+        e10 += 2
+        m10 = q
+      }
+      val sign = bits >> 31
+      new BigDecimal(java.math.BigDecimal.valueOf((m10 ^ sign) - sign, -e10))
+    }
+  }
+
+  final def toBigDecimal(x: Double): BigDecimal = {
+    // Based on the ingenious work of Xiang JunBo and Wang TieJun
+    // "xjb: Fast Float to String Algorithm": https://github.com/xjb714/xjb/blob/4852e533287bd0e8d554c2a9f4cc6eaa93ca799f/fast_f2s.pdf
+    // Sources with the license are here: https://github.com/xjb714/xjb
+    val bits = java.lang.Double.doubleToRawLongBits(x)
+    if (bits << 1 == 0L) BigDecimal(0)
+    else {
+      val e2IEEE = (bits >> 52).toInt & 0x7ff
+      val m2IEEE = bits & 0xfffffffffffffL
+      var e2     = e2IEEE - 1075
+      var m2     = m2IEEE | 0x10000000000000L
+      var m10    = 0L
+      var e10    = 0
+      if (e2 == 0) m10 = m2
+      else if ((e2 >= -52 && e2 < 0) && m2 << e2 == 0) m10 = m2 >> -e2
+      else {
+        if (e2IEEE == 0) {
+          m2 = m2IEEE
+          e2 = -1074
+        } else if (e2 == 972) throw new IllegalArgumentException("Infinity or NaN")
+        if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
+        else e10 = (e2 * 315653) >> 20
+        val h       = (((e10 + 1) * -217707) >> 16) + e2
+        val pow10s  = doublePow10s
+        val i       = 292 - e10 << 1
+        val pow10_1 = pow10s(i)
+        val pow10_2 = pow10s(i + 1)
+        val cb      = m2 << (h + 7)
+        val lo64_1  = unsignedMultiplyHigh2(
+          pow10_2,
+          cb
+        ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_2, cb)
+        val lo64_2 = pow10_1 * cb
+        var hi64   = unsignedMultiplyHigh2(
+          pow10_1,
+          cb
+        ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_1, cb)
+        val lo64 = lo64_1 + lo64_2
+        hi64 += compareUnsigned(lo64, lo64_1) >>> 31
+        m10 = (hi64 >>> 6) * 10L
+        val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
+        val dotOne          = (hi64 << 58) | (lo64 >>> 6)
+        if (compareUnsigned(halfUlpPlusEven, -1 - dotOne) > 0) m10 += 10L
+        else if (m2IEEE != 0) {
+          if (compareUnsigned(halfUlpPlusEven, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
+        } else {
+          val tmp = (dotOne >>> 4) * 10L
+          if (compareUnsigned((tmp << 4) >>> 4, (halfUlpPlusEven >>> 4) * 5L) > 0) m10 += (tmp >>> 60).toInt + 1
+          else if (compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
+        }
+      }
+      var q1 = 0L
+      while (
+        m10 >= 1000000000L && {
+          q1 = Math.multiplyHigh(m10 >> 2, 2951479051793528259L) >> 2 // divide a positive long by 100
+          q1 * 100 == m10
+        }
+      ) {
+        e10 += 2
+        m10 = q1
+      }
+      if (m10 == m10.toInt) {
+        var q2 = 0
+        while (
+          m10 >= 100 && {
+            val p = m10 * 1374389535L
+            q2 = (p >> 37).toInt     // divide a positive int by 100
+            (p & 0x1fc0000000L) == 0 // check if q is divisible by 100
+          }
+        ) {
+          e10 += 2
+          m10 = q2
+        }
+      }
+      val sign = bits >> 63
+      new BigDecimal(java.math.BigDecimal.valueOf((m10 ^ sign) - sign, -e10))
+    }
+  }
+
+  private[this] def calculateM10(hi: Long, lo: Long, dotOne: Long): Long =
+    (hi * 10L + unsignedMultiplyHigh2(
+      lo,
+      10L
+    ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
+      if (dotOne == 0x4000000000000000L) 0x1fL
+      else 0x20L
+    }) >>> 6
+
+  private[this] def unsignedMultiplyHigh1(x: Long, y: Long): Long =
+    Math.multiplyHigh(x, y) + y // Use implementation that works only when x is negative and y is positive
+
+  private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
+    Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
 }

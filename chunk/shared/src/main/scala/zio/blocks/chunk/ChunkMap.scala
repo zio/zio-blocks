@@ -63,9 +63,14 @@ final class ChunkMap[K, +V] private (
     None
   }
 
-  override def apply(key: K): V = get(key) match {
-    case Some(v) => v
-    case None    => throw new NoSuchElementException(s"key not found: $key")
+  override def apply(key: K): V = {
+    var idx = 0
+    val len = _keys.length
+    while (idx < len) {
+      if (_keys(idx) == key) return _values(idx)
+      idx += 1
+    }
+    throw new NoSuchElementException(s"key not found: $key")
   }
 
   override def contains(key: K): Boolean = {
@@ -184,8 +189,8 @@ final class ChunkMap[K, +V] private (
   override def filter(pred: ((K, V)) => Boolean): ChunkMap[K, V] = {
     val len = _keys.length
     if (len == 0) return ChunkMap.empty
-    val keysBuilder   = Chunk.newBuilder[K]
-    val valuesBuilder = Chunk.newBuilder[V]
+    val keysBuilder   = ChunkBuilder.make[K]()
+    val valuesBuilder = ChunkBuilder.make[V]()
     var idx           = 0
     while (idx < len) {
       val k = _keys(idx)

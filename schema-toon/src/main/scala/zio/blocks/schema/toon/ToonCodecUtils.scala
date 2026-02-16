@@ -12,7 +12,7 @@ private[toon] object ToonCodecUtils {
     if (!s.startsWith("\"") || !s.endsWith("\"")) return s
     val inner = s.substring(1, s.length - 1)
     if (inner.indexOf('\\') < 0) return inner
-    val sb = new StringBuilder(inner.length)
+    val sb = new java.lang.StringBuilder(inner.length)
     var i  = 0
     while (i < inner.length) {
       val c = inner.charAt(i)

@@ -19,9 +19,11 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 |-------|-------------|--------|
 | **Schema** | Type-safe schemas with automatic codec derivation | ✅ Available |
 | **Chunk** | High-performance immutable indexed sequences | ✅ Available |
+| **Scope** | Compile-time safe resource management and DI | ✅ Available |
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
+| **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
 
 ## Core Principles
@@ -166,6 +168,145 @@ val masked = bits & Chunk.fill(bits.length)(true)
 // NonEmptyChunk for type-safe non-emptiness
 val nonEmpty = NonEmptyChunk(1, 2, 3)
 val head: Int = nonEmpty.head  // Always safe, no Option needed
+```
+
+---
+
+## Scope
+
+Compile-time verified resource safety for synchronous Scala code. Scope prevents resource leaks at compile time by tagging values with an unnameable type-level identity—values allocated in a scope can only be used within that scope. Child scope values cannot escape to parent scopes, enforced by both the abstract scope-tagged type and the `Unscoped` constraint on `scoped`.
+
+### The Problem
+
+Resource management in Scala is error-prone:
+
+```scala
+// Classic try/finally - verbose and easy to get wrong
+val db = openDatabase()
+try {
+  val tx = db.beginTransaction()
+  try {
+    doWork(tx)
+    tx.commit()
+  } finally tx.close()  // What if commit() throws?
+} finally db.close()
+
+// Using - better, but doesn't prevent returning resources
+Using(openDatabase()) { db =>
+  db  // Oops! Returned the resource - use after close!
+}
+```
+
+### The Solution
+
+Scope makes resource leaks a **compile error**, not a runtime bug:
+
+```scala
+import zio.blocks.scope._
+
+Scope.global.scoped { scope =>
+  import scope._
+
+  val db: $[Database] = allocate(Resource(openDatabase()))
+
+  // Methods are hidden - can't call db.query() directly
+  // Must use scope $ to access:
+  val result: String = (scope $ db)(_.query("SELECT 1")).get
+
+  // Trying to return `db` would be a compile error!
+  result  // Only pure data (String) escapes
+}
+// db.close() called automatically
+```
+
+### Key Features
+
+- **Compile-Time Leak Prevention**: Values of type `scope.$[A]` are opaque and unique to each scope instance. Returning a scoped value from its scope is a type error.
+- **Zero Runtime Overhead**: `$[A]` erases to `A` at runtime—zero allocation overhead.
+- **Structured Scopes**: Child scopes nest within parents; resources clean up LIFO when scopes exit.
+- **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
+- **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
+- **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
+```
+
+### Example: Basic Resource Management
+
+```scala
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"Result: $sql"
+  def close(): Unit = println("Database closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+
+  // Allocate returns scope.$[Database] (scoped value)
+  val db: $[Database] = allocate(Resource(new Database))
+
+  // Access via scope $ - result (String) escapes, db does not
+  val result: String = (scope $ db)(_.query("SELECT * FROM users")).get
+
+  println(result)
+}
+// Output: Result: SELECT * FROM users
+//         Database closed
+```
+
+### Example: Dependency Injection
+
+```scala
+import zio.blocks.scope._
+
+case class Config(dbUrl: String)
+class Database(config: Config) extends AutoCloseable { ... }
+class UserRepo(db: Database) { ... }
+class UserService(repo: UserRepo) extends AutoCloseable { ... }
+
+// Resource.from auto-wires the dependency graph
+// Only provide leaf values - concrete classes are auto-wired
+val serviceResource: Resource[UserService] = Resource.from[UserService](
+  Wire(Config("jdbc:postgresql://localhost/mydb"))
+)
+
+Scope.global.scoped { scope =>
+  import scope._
+
+  val service = allocate(serviceResource)
+
+  (scope $ service)(_.createUser("Alice")).get
+}
+// Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
+```
+
+### Example: Nested Scopes with Transactions
+
+```scala
+Scope.global.scoped { connScope =>
+  import connScope._
+
+  val conn = allocate(Resource.fromAutoCloseable(new Connection))
+
+  // Transaction lives in child scope - cleaned up before connection
+  val result: String = scoped { txScope =>
+    import txScope._
+    val c  = lower(conn)
+    val tx = allocate((txScope $ c)(_.beginTransaction()).get)
+    (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
+    (txScope $ tx)(_.commit())
+    "success"
+  }
+  // Transaction closed here, connection still open
+
+  println(result)
+}
+// Connection closed here
 ```
 
 ---
@@ -385,10 +526,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Docs | TypeId | Context | Streams |
-|----------|--------|-------|------|--------|---------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Streams |
+|----------|--------|-------|-------|------|--------|---------|---------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Documentation
 
@@ -402,11 +543,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Optics & Navigation
 
 - [Optics](./reference/optics.md) - Lenses, prisms, and traversals
+- [SchemaExpr](./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
 
 ### Serialization
 
+- [Codec & Format](./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](./reference/json.md) - JSON codec and parsing
 - [JSON Schema](./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
@@ -421,6 +564,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Other Blocks
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences
+- [Scope](./scope.md) - Compile-time safe resource management and DI
 - [TypeId](./reference/typeid.md) - Type identity and metadata
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
+- [MediaType](./reference/media-type.md) - Type-safe IANA media types

@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.patch.{DynamicPatch, Patch, PatchMode}
 import zio.test._
 import zio.test.Assertion._
@@ -94,7 +95,7 @@ object PatchSpec extends SchemaBaseSpec {
 
         val person = TestPerson("John", 30)
         val dp     = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("nonexistent"),
               Patch.Operation.Set(DynamicValue.int(99))
@@ -111,7 +112,7 @@ object PatchSpec extends SchemaBaseSpec {
 
         val person = TestPerson("John", 30)
         val dp     = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("nonexistent"),
               Patch.Operation.Set(DynamicValue.int(99))
@@ -128,7 +129,7 @@ object PatchSpec extends SchemaBaseSpec {
 
         val person = TestPerson("John", 30)
         val dp     = DynamicPatch(
-          Vector(
+          Chunk(
             DynamicPatch.DynamicPatchOp(
               DynamicOptic.root.field("nonexistent"),
               Patch.Operation.Set(DynamicValue.int(99))

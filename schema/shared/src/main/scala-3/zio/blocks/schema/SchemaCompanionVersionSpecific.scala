@@ -7,6 +7,7 @@ import scala.quoted._
 import zio.blocks.schema.{Term => SchemaTerm}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
+import zio.blocks.docs.Doc
 
 trait SchemaCompanionVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
@@ -158,6 +159,44 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = CommonMacroOps.isNonAbstractScalaClass(tpe)
 
+  // === Structural Type Support (JVM only) ===
+
+  private def isStructuralType(tpe: TypeRepr): Boolean = tpe.dealias match {
+    case Refinement(_, _, _)            => true
+    case t if t =:= TypeRepr.of[AnyRef] => true
+    case _                              => false
+  }
+
+  private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
+    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t match {
+      case Refinement(parent, name, info) =>
+        val memberType = info match {
+          case MethodType(_, _, returnType) => returnType
+          case ByNameType(underlying)       => underlying
+          case other                        => other
+        }
+        (name, memberType) :: collectMembers(parent)
+      case _ => Nil
+    }
+    collectMembers(tpe.dealias).reverse
+  }
+
+  private def structuralFieldOffset(tpe: TypeRepr): RegisterOffset = {
+    val dealiased = tpe.dealias
+    if (dealiased <:< intTpe) RegisterOffset(ints = 1)
+    else if (dealiased <:< floatTpe) RegisterOffset(floats = 1)
+    else if (dealiased <:< longTpe) RegisterOffset(longs = 1)
+    else if (dealiased <:< doubleTpe) RegisterOffset(doubles = 1)
+    else if (dealiased <:< booleanTpe) RegisterOffset(booleans = 1)
+    else if (dealiased <:< byteTpe) RegisterOffset(bytes = 1)
+    else if (dealiased <:< charTpe) RegisterOffset(chars = 1)
+    else if (dealiased <:< shortTpe) RegisterOffset(shorts = 1)
+    else if (dealiased <:< unitTpe) RegisterOffset.Zero
+    else RegisterOffset(objects = 1)
+  }
+
+  private class StructuralFieldInfo(val name: String, val tpe: TypeRepr, val offset: RegisterOffset)
+
   private def typeArgs(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.typeArgs(tpe)
 
   private def isGenericTuple(tpe: TypeRepr): Boolean = CommonMacroOps.isGenericTuple(tpe)
@@ -278,7 +317,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     if (isEnumValue(tpe)) tpe.termSymbol
     else tpe.typeSymbol
   }.docstring
-    .fold('{ Doc.Empty })(s => '{ new Doc.Text(${ Expr(s) }) })
+    .fold('{ Doc.empty })(s =>
+      '{
+        Doc(
+          zio.blocks.chunk.Chunk
+            .single(zio.blocks.docs.Paragraph(zio.blocks.chunk.Chunk.single(zio.blocks.docs.Inline.Text(${ Expr(s) }))))
+        )
+      }
+    )
     .asInstanceOf[Expr[Doc]]
 
   private def modifiers(tpe: TypeRepr)(using Quotes): Expr[Seq[Modifier.Reflect]] = {
@@ -920,8 +966,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
         else if (vTpe <:< anyRefTpe && !isOpaque(vTpe) && !isZioPreludeNewtype(vTpe) && !isNeotypeNewtype(vTpe)) {
           vTpe.asType match {
             case '[vt] =>
-              val schema = findImplicitOrDeriveSchema[vt & AnyRef](vTpe)
-              '{ Schema.option($schema) }
+              val schema = findImplicitOrDeriveSchema[vt](vTpe)
+              '{ Schema.option($schema.asInstanceOf[Schema[vt & AnyRef]]) }
           }
         } else deriveSchemaForSealedTraitOrAbstractClassOrUnion(tpe)
       }
@@ -976,6 +1022,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             )
           }
       }
+    } else if (isStructuralType(tpe)) {
+      deriveSchemaForStructuralType(tpe)
     } else if (isNonAbstractScalaClass(tpe)) {
       deriveSchemaForNonAbstractScalaClass(tpe)
     } else if (isZioPreludeNewtype(tpe)) {
@@ -1063,6 +1111,169 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           ),
           doc = ${ doc(tpe) },
           modifiers = ${ modifiers(tpe) }
+        )
+      )
+    }
+  }
+
+  private def deriveSchemaForStructuralType[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
+    if (!Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Schema for structural type '${tpe.show}' on ${Platform.name}.
+           |
+           |Structural types require reflection which is only available on JVM.
+           |
+           |Consider using a case class instead.""".stripMargin
+      )
+    }
+
+    val members = getStructuralMembers(tpe)
+
+    if (members.isEmpty) {
+      '{
+        new Schema(
+          reflect = new Reflect.Record[Binding, T](
+            fields = Vector.empty,
+            typeId = zio.blocks.typeid.TypeId.of[T],
+            recordBinding = new Binding.Record(
+              constructor = new Constructor {
+                def usedRegisters: RegisterOffset                           = RegisterOffset.Zero
+                def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                  val emptyInstance = new Object {}
+                  emptyInstance.asInstanceOf[T]
+                }
+              },
+              deconstructor = new Deconstructor {
+                def usedRegisters: RegisterOffset                                        = RegisterOffset.Zero
+                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ()
+              }
+            )
+          )
+        )
+      }
+    } else {
+      deriveSchemaForPureStructuralType[T](members)
+    }
+  }
+
+  private def deriveSchemaForPureStructuralType[T: Type](members: List[(String, TypeRepr)])(using
+    Quotes
+  ): Expr[Schema[T]] = {
+
+    var currentOffset                                           = RegisterOffset.Zero
+    val fieldInfos: List[(StructuralFieldInfo, RegisterOffset)] = members.map { case (name, memberTpe) =>
+      val offset     = structuralFieldOffset(memberTpe)
+      val baseOffset = currentOffset
+      currentOffset = currentOffset + offset
+      (new StructuralFieldInfo(name, memberTpe, offset), baseOffset)
+    }
+
+    val totalRegisters     = currentOffset
+    val totalRegistersExpr = '{
+      RegisterOffset(
+        objects = ${ Expr(RegisterOffset.getObjects(totalRegisters)) },
+        bytes = ${ Expr(RegisterOffset.getBytes(totalRegisters)) }
+      )
+    }
+
+    val fieldTerms = Varargs(fieldInfos.map { case (fi, _) =>
+      fi.tpe.asType match {
+        case '[ft] =>
+          val fieldName   = Expr(fi.name)
+          val fieldSchema = findImplicitOrDeriveSchema[ft](fi.tpe)
+          '{ $fieldSchema.reflect.asTerm[T]($fieldName).asInstanceOf[SchemaTerm[Binding, T, ?]] }
+      }
+    })
+
+    val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
+      val typeIndicator =
+        if (fi.tpe.dealias <:< intTpe) 1
+        else if (fi.tpe.dealias <:< longTpe) 2
+        else if (fi.tpe.dealias <:< floatTpe) 3
+        else if (fi.tpe.dealias <:< doubleTpe) 4
+        else if (fi.tpe.dealias <:< booleanTpe) 5
+        else if (fi.tpe.dealias <:< byteTpe) 6
+        else if (fi.tpe.dealias <:< charTpe) 7
+        else if (fi.tpe.dealias <:< shortTpe) 8
+        else 0
+      (fi.name, typeIndicator, RegisterOffset.getBytes(baseOffset), RegisterOffset.getObjects(baseOffset))
+    }
+
+    val fieldNamesExpr   = Expr(fieldInfoForRuntime.map(_._1).toArray)
+    val fieldTypesExpr   = Expr(fieldInfoForRuntime.map(_._2).toArray)
+    val fieldBytesExpr   = Expr(fieldInfoForRuntime.map(_._3).toArray)
+    val fieldObjectsExpr = Expr(fieldInfoForRuntime.map(_._4).toArray)
+
+    '{
+      val _fieldNames: Array[String] = $fieldNamesExpr
+      val _fieldTypes: Array[Int]    = $fieldTypesExpr
+      val _fieldBytes: Array[Int]    = $fieldBytesExpr
+      val _fieldObjects: Array[Int]  = $fieldObjectsExpr
+
+      new Schema(
+        reflect = new Reflect.Record[Binding, T](
+          fields = Vector($fieldTerms*),
+          typeId = zio.blocks.typeid.TypeId.of[T],
+          recordBinding = new Binding.Record(
+            constructor = new Constructor {
+              def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+              def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                val values = new scala.collection.mutable.HashMap[String, Any]()
+                var idx    = 0
+                val len    = _fieldNames.length
+                while (idx < len) {
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  val value: Any  = _fieldTypes(idx) match {
+                    case 1 => in.getInt(baseOffset + fieldOffset)
+                    case 2 => in.getLong(baseOffset + fieldOffset)
+                    case 3 => in.getFloat(baseOffset + fieldOffset)
+                    case 4 => in.getDouble(baseOffset + fieldOffset)
+                    case 5 => in.getBoolean(baseOffset + fieldOffset)
+                    case 6 => in.getByte(baseOffset + fieldOffset)
+                    case 7 => in.getChar(baseOffset + fieldOffset)
+                    case 8 => in.getShort(baseOffset + fieldOffset)
+                    case _ => in.getObject(baseOffset + fieldOffset)
+                  }
+                  values.put(_fieldNames(idx), value)
+                  idx += 1
+                }
+                (new scala.Selectable {
+                  private val fields = values.toMap
+                  @scala.annotation.unused
+                  def selectDynamic(name: String): Any = fields(name)
+                }).asInstanceOf[T]
+              }
+            },
+            deconstructor = new Deconstructor {
+              def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
+                var idx = 0
+                val len = _fieldNames.length
+                while (idx < len) {
+                  val method      = in.getClass.getMethod(_fieldNames(idx))
+                  val value       = method.invoke(in)
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  _fieldTypes(idx) match {
+                    case 1 => out.setInt(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Integer].intValue)
+                    case 2 => out.setLong(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Long].longValue)
+                    case 3 => out.setFloat(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Float].floatValue)
+                    case 4 =>
+                      out.setDouble(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Double].doubleValue)
+                    case 5 =>
+                      out.setBoolean(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Boolean].booleanValue)
+                    case 6 => out.setByte(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Byte].byteValue)
+                    case 7 =>
+                      out.setChar(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Character].charValue)
+                    case 8 => out.setShort(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Short].shortValue)
+                    case _ => out.setObject(baseOffset + fieldOffset, value.asInstanceOf[AnyRef])
+                  }
+                  idx += 1
+                }
+              }
+            }
+          )
         )
       )
     }

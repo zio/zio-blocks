@@ -1,8 +1,10 @@
 package zio.blocks.schema.derive
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
+import zio.blocks.docs.Doc
 
 trait Deriver[TC[_]] { self =>
   type HasInstance[F[_, _]] = zio.blocks.schema.derive.HasInstance[F, TC]
@@ -80,7 +82,7 @@ trait Deriver[TC[_]] { self =>
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
-  def instanceOverrides: IndexedSeq[InstanceOverride] = IndexedSeq.empty
+  def instanceOverrides: IndexedSeq[InstanceOverride] = Chunk.empty
 
-  def modifierOverrides: IndexedSeq[ModifierOverride] = IndexedSeq.empty
+  def modifierOverrides: IndexedSeq[ModifierOverride] = Chunk.empty
 }

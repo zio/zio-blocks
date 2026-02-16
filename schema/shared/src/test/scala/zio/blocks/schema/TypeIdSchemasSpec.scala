@@ -31,7 +31,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     memberSuite,
     tupleElementSuite,
     enumCaseParamSuite,
-    enumCaseInfoSuite,
     annotationArgSuite,
     annotationSuite,
     typeReprSuite,
@@ -266,28 +265,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     }
   )
 
-  lazy val enumCaseInfoSuite = suite("EnumCaseInfo")(
-    test("roundtrip simple EnumCaseInfo") {
-      val info = EnumCaseInfo(
-        name = "Red",
-        ordinal = 0,
-        params = Nil,
-        isObjectCase = true
-      )
-      assertTrue(roundtrip(info))
-    },
-    test("roundtrip EnumCaseInfo with params") {
-      val param = EnumCaseParam("value", TypeRepr.Ref(TypeId.of[Int]))
-      val info  = EnumCaseInfo(
-        name = "Some",
-        ordinal = 1,
-        params = List(param),
-        isObjectCase = false
-      )
-      assertTrue(roundtrip(info))
-    }
-  )
-
   lazy val annotationArgSuite = suite("AnnotationArg")(
     test("roundtrip Const with DynamicValue") {
       val dv = DynamicValue.Primitive(PrimitiveValue.String("test"))
@@ -504,7 +481,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     test("roundtrip Trait simple") {
       val defKind: TypeDefKind = TypeDefKind.Trait(
         isSealed = false,
-        knownSubtypes = Nil,
         bases = Nil
       )
       assertTrue(roundtrip(defKind))
@@ -512,7 +488,6 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
     test("roundtrip Trait sealed") {
       val defKind: TypeDefKind = TypeDefKind.Trait(
         isSealed = true,
-        knownSubtypes = List(TypeRepr.Ref(TypeId.of[Some[_]]), TypeRepr.Ref(TypeId.of[None.type])),
         bases = Nil
       )
       assertTrue(roundtrip(defKind))
@@ -526,11 +501,7 @@ object TypeIdSchemasSpec extends SchemaBaseSpec {
       assertTrue(roundtrip(defKind))
     },
     test("roundtrip Enum") {
-      val caseInfo             = EnumCaseInfo("Red", 0, Nil, isObjectCase = true)
-      val defKind: TypeDefKind = TypeDefKind.Enum(
-        cases = List(caseInfo),
-        bases = Nil
-      )
+      val defKind: TypeDefKind = TypeDefKind.Enum(bases = Nil)
       assertTrue(roundtrip(defKind))
     },
     test("roundtrip EnumCase simple") {

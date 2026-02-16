@@ -1,6 +1,7 @@
 package zio.blocks.schema.json
 
 import java.lang.Character._
+import java.lang
 
 /**
  * A sealed trait that represents a generic contract for mapping string input to
@@ -44,7 +45,7 @@ object NameMapper {
       }
     } else {
       val len             = s.length
-      val sb              = new StringBuilder(len)
+      val sb              = new lang.StringBuilder(len)
       var i               = 0
       var isPrecedingDash = toPascal
       while (i < len) isPrecedingDash = {
@@ -63,7 +64,7 @@ object NameMapper {
 
   private[this] def enforceSnakeOrKebabCase(s: String, separator: Char): String = {
     val len                      = s.length
-    val sb                       = new StringBuilder(len << 1)
+    val sb                       = new lang.StringBuilder(len << 1)
     var i                        = 0
     var isPrecedingNotUpperCased = false
     while (i < len) isPrecedingNotUpperCased = {

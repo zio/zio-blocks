@@ -359,6 +359,46 @@ object TypeIdMacros {
     import c.universe._
 
     tpe match {
+      case RefinedType(parents, decls) =>
+        // Structural/refinement type (e.g., { def name: String; def age: Int })
+        val structuralMembers = decls.toList.collect {
+          case m: MethodSymbol if m.paramLists.flatten.isEmpty && !m.isConstructor && m.isPublic =>
+            val memberName   = m.name.decodedName.toString
+            val memberType   = m.returnType.asSeenFrom(tpe, tpe.typeSymbol)
+            val memberRepr   = buildTypeReprFromType(c)(memberType)
+            val hasParamList = m.paramLists.nonEmpty
+            if (hasParamList) {
+              // Parameterless def (e.g., def foo: Int)
+              q"_root_.zio.blocks.typeid.Member.Def($memberName, _root_.scala.Nil, _root_.scala.Nil, $memberRepr)"
+            } else {
+              // Val-like member
+              q"_root_.zio.blocks.typeid.Member.Val($memberName, $memberRepr)"
+            }
+        }
+
+        // Build parent type reprs, filtering out AnyRef/Any/Object
+        val meaningfulParents = parents.filterNot { p =>
+          val fullName = p.typeSymbol.fullName
+          fullName == "scala.Any" || fullName == "scala.AnyRef" || fullName == "java.lang.Object"
+        }
+        val parentReprs = if (meaningfulParents.nonEmpty) {
+          meaningfulParents.map(buildTypeReprFromType(c)(_))
+        } else {
+          val anyRefName = "AnyRef"
+          val scalaPkg   = "scala"
+          List(
+            q"""_root_.zio.blocks.typeid.TypeRepr.Ref(
+              _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.AnyRef](
+                $anyRefName,
+                _root_.zio.blocks.typeid.Owner(_root_.scala.List(_root_.zio.blocks.typeid.Owner.Package($scalaPkg))),
+                _root_.zio.blocks.typeid.TypeDefKind.Unknown
+              )
+            )"""
+          )
+        }
+
+        q"_root_.zio.blocks.typeid.TypeRepr.Structural(_root_.scala.List(..$parentReprs), _root_.scala.List(..$structuralMembers))"
+
       case TypeRef(_, sym, args) if args.nonEmpty =>
         // Applied type (e.g., List[Int], Map[String, Int])
         val tyconRepr = buildTypeReprFromSymbol(c)(sym)
@@ -369,7 +409,7 @@ object TypeIdMacros {
         buildTypeReprFromSymbol(c)(sym)
       case _ =>
         // Fallback for other types
-        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing](${tpe.typeSymbol.name.toString}, _root_.zio.blocks.typeid.Owner.Root, _root_.scala.Nil))"
+        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing](${tpe.typeSymbol.name.toString}, _root_.zio.blocks.typeid.Owner.Root, _root_.zio.blocks.typeid.TypeDefKind.Unknown))"
     }
   }
 
@@ -473,27 +513,48 @@ object TypeIdMacros {
   private def buildOwner(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
-    def loop(s: Symbol, acc: List[c.Tree]): List[c.Tree] =
+    sealed trait SegmentInfo { def name: String }
+    case class PkgSegment(name: String)  extends SegmentInfo
+    case class TermSegment(name: String) extends SegmentInfo
+    case class TypeSegment(name: String) extends SegmentInfo
+
+    def loop(s: Symbol, acc: List[SegmentInfo]): List[SegmentInfo] =
       if (s == NoSymbol || s.isPackageClass && s.fullName == "<root>" || s.fullName == "<empty>") {
         acc
       } else if (s.isPackage || s.isPackageClass) {
         val pkgName = s.name.decodedName.toString
         if (pkgName != "<root>" && pkgName != "<empty>") {
-          loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Package($pkgName)" :: acc)
+          loop(s.owner, PkgSegment(pkgName) :: acc)
         } else {
           acc
         }
       } else if (s.isModule || s.isModuleClass) {
         val termName = s.name.decodedName.toString.stripSuffix("$")
-        loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Term($termName)" :: acc)
+        loop(s.owner, TermSegment(termName) :: acc)
       } else if (s.isClass || s.isType) {
-        loop(s.owner, q"_root_.zio.blocks.typeid.Owner.Type(${s.name.decodedName.toString})" :: acc)
+        loop(s.owner, TypeSegment(s.name.decodedName.toString) :: acc)
       } else {
         loop(s.owner, acc)
       }
 
-    val segments = loop(sym, Nil)
-    q"_root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments))"
+    val segmentInfos = loop(sym, Nil)
+
+    if (segmentInfos.isEmpty) {
+      q"_root_.zio.blocks.typeid.Owner.Root"
+    } else {
+      val (pkgPrefix, rest) = segmentInfos.span(_.isInstanceOf[PkgSegment])
+      val base              =
+        if (pkgPrefix.isEmpty) q"_root_.zio.blocks.typeid.Owner.Root"
+        else {
+          val path = pkgPrefix.map(_.name).mkString(".")
+          q"_root_.zio.blocks.typeid.Owner.fromPackagePath($path)"
+        }
+      rest.foldLeft(base: c.Tree) {
+        case (acc, TermSegment(name)) => q"$acc.term($name)"
+        case (acc, TypeSegment(name)) => q"$acc.tpe($name)"
+        case (acc, PkgSegment(name))  => q"$acc./($name)"
+      }
+    }
   }
 
   private def buildTypeParams(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
@@ -536,80 +597,89 @@ object TypeIdMacros {
     }
   }
 
-  private def buildBaseTypes(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
-    import c.universe._
+  private val filteredBaseTypes = Set(
+    "scala.Any",
+    "scala.AnyRef",
+    "java.lang.Object",
+    "scala.Matchable",
+    "scala.Product",
+    "scala.Equals",
+    "scala.deriving.Mirror",
+    "scala.deriving.Mirror$.Product",
+    "scala.deriving.Mirror$.Singleton",
+    "scala.deriving.Mirror$.Sum",
+    "java.io.Serializable"
+  )
 
-    // Get base classes excluding the type itself and common types
-    val baseClasses = if (sym.isClass) {
-      sym.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
+  private def filteredBaseClasses(c: blackbox.Context)(sym: c.Symbol): List[c.Symbol] =
+    if (sym.isClass) {
+      sym.asClass.baseClasses.filterNot(base => base == sym || filteredBaseTypes.contains(base.fullName))
     } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
+      sym.asModule.moduleClass.asClass.baseClasses.filterNot(base =>
+        base == sym || filteredBaseTypes.contains(base.fullName)
+      )
     } else {
       Nil
     }
 
-    val baseExprs = baseClasses.map { base =>
-      buildTypeReprFromSymbol(c)(base)
-    }
-
+  private def buildBaseTypesFromClasses(c: blackbox.Context)(baseClasses: List[c.Symbol]): c.Tree = {
+    import c.universe._
+    val baseExprs = baseClasses.map(base => buildTypeReprFromSymbol(c)(base))
     q"_root_.scala.List(..$baseExprs)"
   }
 
   private def buildObjectDefKind(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
-    val basesExpr = buildBaseTypes(c)(sym)
-    q"_root_.zio.blocks.typeid.TypeDefKind.Object(bases = $basesExpr)"
+    val baseClasses = filteredBaseClasses(c)(sym)
+    if (baseClasses.isEmpty) {
+      q"_root_.zio.blocks.typeid.TypeDefKind.basicObject"
+    } else {
+      val basesExpr = buildBaseTypesFromClasses(c)(baseClasses)
+      q"_root_.zio.blocks.typeid.TypeDefKind.Object(bases = $basesExpr)"
+    }
   }
 
   private def buildClassDefKind(c: blackbox.Context)(classSym: c.universe.ClassSymbol): c.Tree = {
     import c.universe._
 
-    val basesExpr = buildBaseTypes(c)(classSym)
+    val baseClasses = filteredBaseClasses(c)(classSym)
 
     if (classSym.isTrait) {
-      // Trait
       val isSealed = classSym.isSealed
-      if (isSealed) {
-        // Get known subtypes for sealed traits
-        val children     = classSym.knownDirectSubclasses.toList
-        val subtypeExprs = children.map { child =>
-          buildTypeReprFromSymbol(c)(child)
-        }
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, knownSubtypes = _root_.scala.List(..$subtypeExprs), bases = $basesExpr)"
+      if (baseClasses.isEmpty) {
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.sealedTrait"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.unsealedTrait"
       } else {
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
+        val basesExpr = buildBaseTypesFromClasses(c)(baseClasses)
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
       }
     } else {
-      // Class (regular, case, abstract, final, value)
       val isFinal    = classSym.isFinal
       val isAbstract = classSym.isAbstract && !classSym.isTrait
       val isCase     = classSym.isCaseClass
+      val isValue    = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
 
-      // Check if it's a value class (extends AnyVal)
-      val isValue = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
-
-      q"""
-        _root_.zio.blocks.typeid.TypeDefKind.Class(
-          isFinal = $isFinal,
-          isAbstract = $isAbstract,
-          isCase = $isCase,
-          isValue = $isValue,
-          bases = $basesExpr
-        )
-      """
+      if (baseClasses.isEmpty && !isAbstract && !isValue) {
+        (isFinal, isCase) match {
+          case (false, false) => q"_root_.zio.blocks.typeid.TypeDefKind.basicClass"
+          case (true, false)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalClass"
+          case (false, true)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicCaseClass"
+          case (true, true)   => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalCaseClass"
+        }
+      } else {
+        val basesExpr = buildBaseTypesFromClasses(c)(baseClasses)
+        q"""
+          _root_.zio.blocks.typeid.TypeDefKind.Class(
+            isFinal = $isFinal,
+            isAbstract = $isAbstract,
+            isCase = $isCase,
+            isValue = $isValue,
+            bases = $basesExpr
+          )
+        """
+      }
     }
   }
 
@@ -633,18 +703,17 @@ object TypeIdMacros {
   private def buildClassDefKindShallow(c: blackbox.Context)(classSym: c.universe.ClassSymbol): c.Tree = {
     import c.universe._
 
-    val basesExpr = buildBaseTypesMinimal(c)(classSym)
+    val baseClasses = filteredBaseClasses(c)(classSym)
 
     if (classSym.isTrait) {
       val isSealed = classSym.isSealed
-      if (isSealed) {
-        val children     = classSym.knownDirectSubclasses.toList
-        val subtypeExprs = children.map { child =>
-          buildTypeReprMinimal(c)(child)
-        }
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, knownSubtypes = _root_.scala.List(..$subtypeExprs), bases = $basesExpr)"
+      if (baseClasses.isEmpty) {
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.sealedTrait"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.unsealedTrait"
       } else {
-        q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
+        val basesExpr = buildBaseTypesMinimalFromClasses(c)(baseClasses)
+        if (isSealed) q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = true, bases = $basesExpr)"
+        else q"_root_.zio.blocks.typeid.TypeDefKind.Trait(isSealed = false, bases = $basesExpr)"
       }
     } else {
       val isFinal    = classSym.isFinal
@@ -652,45 +721,31 @@ object TypeIdMacros {
       val isCase     = classSym.isCaseClass
       val isValue    = classSym.baseClasses.exists(_.fullName == "scala.AnyVal")
 
-      q"""
-        _root_.zio.blocks.typeid.TypeDefKind.Class(
-          isFinal = $isFinal,
-          isAbstract = $isAbstract,
-          isCase = $isCase,
-          isValue = $isValue,
-          bases = $basesExpr
-        )
-      """
+      if (baseClasses.isEmpty && !isAbstract && !isValue) {
+        (isFinal, isCase) match {
+          case (false, false) => q"_root_.zio.blocks.typeid.TypeDefKind.basicClass"
+          case (true, false)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalClass"
+          case (false, true)  => q"_root_.zio.blocks.typeid.TypeDefKind.basicCaseClass"
+          case (true, true)   => q"_root_.zio.blocks.typeid.TypeDefKind.basicFinalCaseClass"
+        }
+      } else {
+        val basesExpr = buildBaseTypesMinimalFromClasses(c)(baseClasses)
+        q"""
+          _root_.zio.blocks.typeid.TypeDefKind.Class(
+            isFinal = $isFinal,
+            isAbstract = $isAbstract,
+            isCase = $isCase,
+            isValue = $isValue,
+            bases = $basesExpr
+          )
+        """
+      }
     }
   }
 
-  private def buildBaseTypesMinimal(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+  private def buildBaseTypesMinimalFromClasses(c: blackbox.Context)(baseClasses: List[c.Symbol]): c.Tree = {
     import c.universe._
-
-    val baseClasses = if (sym.isClass) {
-      sym.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
-    } else if (sym.isModule) {
-      sym.asModule.moduleClass.asClass.baseClasses.filterNot { base =>
-        base == sym ||
-        base.fullName == "scala.Any" ||
-        base.fullName == "scala.AnyRef" ||
-        base.fullName == "java.lang.Object" ||
-        base.fullName == "scala.Matchable"
-      }
-    } else {
-      Nil
-    }
-
-    val baseExprs = baseClasses.map { base =>
-      buildTypeReprMinimal(c)(base)
-    }
-
+    val baseExprs = baseClasses.map(base => buildTypeReprMinimal(c)(base))
     q"_root_.scala.List(..$baseExprs)"
   }
 
@@ -720,7 +775,7 @@ object TypeIdMacros {
       case "Null"    => q"_root_.zio.blocks.typeid.TypeRepr.NullType"
       case _         =>
         val ownerExpr = buildOwner(c)(sym.owner)
-        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil))"
+        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.zio.blocks.typeid.TypeDefKind.Unknown))"
     }
   }
 
@@ -755,16 +810,16 @@ object TypeIdMacros {
 
     if (annotSym == NoSymbol) return None
 
-    val annotName       = annotSym.name.decodedName.toString
-    val annotOwnerExpr  = buildOwner(c)(annotSym.owner)
+    val annotName      = annotSym.name.decodedName.toString
+    val annotOwnerExpr = buildOwner(c)(annotSym.owner)
+    val defKind        =
+      q"_root_.zio.blocks.typeid.TypeDefKind.basicClass"
     val annotTypeIdExpr =
       q"""
         _root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](
           $annotName,
           $annotOwnerExpr,
-          _root_.scala.Nil,
-          _root_.scala.Nil,
-          _root_.zio.blocks.typeid.TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = false, isValue = false)
+          $defKind
         )
       """
 
@@ -820,7 +875,7 @@ object TypeIdMacros {
         val nestedAnnotSym   = tpt.tpe.typeSymbol
         val nestedOwnerExpr  = buildOwner(c)(nestedAnnotSym.owner)
         val nestedTypeIdExpr =
-          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.scala.Nil)"
+          q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Any](${nestedAnnotSym.name.decodedName.toString}, $nestedOwnerExpr, _root_.zio.blocks.typeid.TypeDefKind.basicClass)"
         val nestedArgsExpr = nestedArgs.flatMap(a => buildAnnotationArg(c)(a))
         Some(
           q"_root_.zio.blocks.typeid.AnnotationArg.Nested(_root_.zio.blocks.typeid.Annotation($nestedTypeIdExpr, _root_.scala.List(..$nestedArgsExpr)))"

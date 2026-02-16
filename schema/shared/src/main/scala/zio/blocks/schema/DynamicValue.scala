@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
-import zio.blocks.chunk.Chunk
-import zio.blocks.schema.json.Json
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.schema.json.{Json, JsonBinaryCodec}
 import zio.blocks.schema.patch.{DynamicPatch, Differ}
 
 /**
@@ -73,7 +73,7 @@ sealed trait DynamicValue {
   /**
    * Returns true if this DynamicValue is of the specified type.
    */
-  def is(t: DynamicValueType): Boolean = this.valueType == t
+  def is(t: DynamicValueType): Boolean = this.valueType eq t
 
   /**
    * Narrows this DynamicValue to the specified type, returning `Some` if the
@@ -172,8 +172,7 @@ sealed trait DynamicValue {
    */
   def modifyOrFail(path: DynamicOptic)(
     pf: PartialFunction[DynamicValue, DynamicValue]
-  ): Either[SchemaError, DynamicValue] =
-    DynamicValue.modifyAtPathOrFail(this, path, pf)
+  ): Either[SchemaError, DynamicValue] = DynamicValue.modifyAtPathOrFail(this, path, pf)
 
   /**
    * Sets a value at the given path. If the path doesn't exist, returns the
@@ -230,19 +229,19 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Recursively sorts all Record fields alphabetically. */
-  def sortFields: DynamicValue = DynamicValue.sortFieldsImpl(this)
+  def sortFields: DynamicValue = DynamicValue.sortFields(this)
 
   /** Recursively sorts all Map entries by key. */
-  def sortMapKeys: DynamicValue = DynamicValue.sortMapKeysImpl(this)
+  def sortMapKeys: DynamicValue = DynamicValue.sortMapKeys(this)
 
   /** Recursively removes all Null values from containers. */
-  def dropNulls: DynamicValue = DynamicValue.dropNullsImpl(this)
+  def dropNulls: DynamicValue = DynamicValue.dropNulls(this)
 
   /** Recursively removes all Primitive(Unit) values from containers. */
-  def dropUnits: DynamicValue = DynamicValue.dropUnitsImpl(this)
+  def dropUnits: DynamicValue = DynamicValue.dropUnits(this)
 
   /** Recursively removes empty Records, Sequences, and Maps. */
-  def dropEmpty: DynamicValue = DynamicValue.dropEmptyImpl(this)
+  def dropEmpty: DynamicValue = DynamicValue.dropEmpty(this)
 
   /** Applies sortFields, sortMapKeys, dropNulls, dropUnits, and dropEmpty. */
   def normalize: DynamicValue = sortFields.sortMapKeys.dropNulls.dropUnits.dropEmpty
@@ -284,7 +283,7 @@ sealed trait DynamicValue {
    * values are transformed before their parents.
    */
   def transformUp(f: (DynamicOptic, DynamicValue) => DynamicValue): DynamicValue =
-    DynamicValue.transformUpImpl(this, DynamicOptic.root, f)
+    DynamicValue.transformUp(this, DynamicOptic.root, f)
 
   /**
    * Transforms this DynamicValue top-down using the given function. The
@@ -292,21 +291,21 @@ sealed trait DynamicValue {
    * Parent values are transformed before their children.
    */
   def transformDown(f: (DynamicOptic, DynamicValue) => DynamicValue): DynamicValue =
-    DynamicValue.transformDownImpl(this, DynamicOptic.root, f)
+    DynamicValue.transformDown(this, DynamicOptic.root, f)
 
   /**
    * Transforms all Record field names using the given function. The function
    * receives the current path and the field name at that path.
    */
   def transformFields(f: (DynamicOptic, String) => String): DynamicValue =
-    DynamicValue.transformFieldsImpl(this, DynamicOptic.root, f)
+    DynamicValue.transformFields(this, DynamicOptic.root, f)
 
   /**
    * Transforms all Map keys using the given function. The function receives the
    * current path and the key at that path.
    */
   def transformMapKeys(f: (DynamicOptic, DynamicValue) => DynamicValue): DynamicValue =
-    DynamicValue.transformMapKeysImpl(this, DynamicOptic.root, f)
+    DynamicValue.transformMapKeys(this, DynamicOptic.root, f)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Selection
@@ -333,69 +332,69 @@ sealed trait DynamicValue {
    * Recursively removes elements/fields for which the predicate returns true.
    */
   def prune(p: DynamicValue => Boolean): DynamicValue =
-    DynamicValue.pruneImpl(this, DynamicOptic.root, (_, dv) => p(dv))
+    DynamicValue.prune(this, DynamicOptic.root, (_, dv) => p(dv))
 
   /**
    * Recursively removes elements/fields at paths for which the predicate
    * returns true.
    */
   def prunePath(p: DynamicOptic => Boolean): DynamicValue =
-    DynamicValue.pruneImpl(this, DynamicOptic.root, (path, _) => p(path))
+    DynamicValue.prune(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
    * Recursively removes elements/fields for which the predicate on both path
    * and value returns true.
    */
   def pruneBoth(p: (DynamicOptic, DynamicValue) => Boolean): DynamicValue =
-    DynamicValue.pruneImpl(this, DynamicOptic.root, p)
+    DynamicValue.prune(this, DynamicOptic.root, p)
 
   /**
    * Recursively keeps only elements/fields for which the predicate returns
    * true.
    */
   def retain(p: DynamicValue => Boolean): DynamicValue =
-    DynamicValue.retainImpl(this, DynamicOptic.root, (_, dv) => p(dv))
+    DynamicValue.retain(this, DynamicOptic.root, (_, dv) => p(dv))
 
   /**
    * Recursively keeps only elements/fields at paths for which the predicate
    * returns true.
    */
   def retainPath(p: DynamicOptic => Boolean): DynamicValue =
-    DynamicValue.retainImpl(this, DynamicOptic.root, (path, _) => p(path))
+    DynamicValue.retain(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
    * Recursively keeps only elements/fields for which the predicate on both path
    * and value returns true.
    */
   def retainBoth(p: (DynamicOptic, DynamicValue) => Boolean): DynamicValue =
-    DynamicValue.retainImpl(this, DynamicOptic.root, p)
+    DynamicValue.retain(this, DynamicOptic.root, p)
 
   /**
    * Projects only the specified paths from this DynamicValue. Creates a new
    * DynamicValue containing only values at the given paths.
    */
-  def project(paths: DynamicOptic*): DynamicValue = DynamicValue.projectImpl(this, paths)
+  def project(paths: DynamicOptic*): DynamicValue = DynamicValue.project(this, paths)
 
   /**
    * Partitions elements/fields based on a predicate on the value. Returns a
    * tuple of (matching, non-matching) DynamicValues.
    */
   def partition(p: DynamicValue => Boolean): (DynamicValue, DynamicValue) =
-    DynamicValue.partitionImpl(this, DynamicOptic.root, (_, dv) => p(dv))
+    DynamicValue.partition(this, DynamicOptic.root, (_, dv) => p(dv))
 
   /**
    * Partitions elements/fields based on a predicate on the path. Returns a
    * tuple of (matching, non-matching) DynamicValues.
    */
   def partitionPath(p: DynamicOptic => Boolean): (DynamicValue, DynamicValue) =
-    DynamicValue.partitionImpl(this, DynamicOptic.root, (path, _) => p(path))
+    DynamicValue.partition(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
    * Partitions elements/fields based on a predicate on both path and value.
    * Returns a tuple of (matching, non-matching) DynamicValues.
    */
   def partitionBoth(p: (DynamicOptic, DynamicValue) => Boolean): (DynamicValue, DynamicValue) =
-    DynamicValue.partitionImpl(this, DynamicOptic.root, p)
+    DynamicValue.partition(this, DynamicOptic.root, p)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Folding
@@ -407,7 +406,7 @@ sealed trait DynamicValue {
    * folded before their parents.
    */
   def foldUp[B](z: B)(f: (DynamicOptic, DynamicValue, B) => B): B =
-    DynamicValue.foldUpImpl(this, DynamicOptic.root, z, f)
+    DynamicValue.foldUp(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the DynamicValue structure top-down. The function receives the
@@ -415,29 +414,25 @@ sealed trait DynamicValue {
    * folded before their children.
    */
   def foldDown[B](z: B)(f: (DynamicOptic, DynamicValue, B) => B): B =
-    DynamicValue.foldDownImpl(this, DynamicOptic.root, z, f)
+    DynamicValue.foldDown(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the DynamicValue structure bottom-up, allowing failure.
    */
-  def foldUpOrFail[B](z: B)(
-    f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]
-  ): Either[SchemaError, B] =
-    DynamicValue.foldUpOrFailImpl(this, DynamicOptic.root, z, f)
+  def foldUpOrFail[B](z: B)(f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]): Either[SchemaError, B] =
+    DynamicValue.foldUpOrFail(this, DynamicOptic.root, z, f)
 
   /**
    * Folds over the DynamicValue structure top-down, allowing failure.
    */
-  def foldDownOrFail[B](z: B)(
-    f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]
-  ): Either[SchemaError, B] =
-    DynamicValue.foldDownOrFailImpl(this, DynamicOptic.root, z, f)
+  def foldDownOrFail[B](z: B)(f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]): Either[SchemaError, B] =
+    DynamicValue.foldDownOrFail(this, DynamicOptic.root, z, f)
 
   /**
    * Converts this DynamicValue to a Chunk of path-value pairs. Each pair
    * contains the path to a leaf value and the value itself.
    */
-  def toKV: Chunk[(DynamicOptic, DynamicValue)] = DynamicValue.toKVImpl(this, DynamicOptic.root)
+  def toKV: Chunk[(DynamicOptic, DynamicValue)] = DynamicValue.toKV(this, DynamicOptic.root)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion
@@ -446,7 +441,11 @@ sealed trait DynamicValue {
   /** Converts this DynamicValue to a Json value. */
   def toJson: Json = Json.fromDynamicValue(this)
 
-  def toEjson(indent: Int = 0): String = DynamicValue.toEjson(this, indent)
+  def toEjson(indent: Int = 0): String = {
+    val sb = new java.lang.StringBuilder
+    DynamicValue.toEjson(this, indent, sb)
+    sb.toString
+  }
 
   override def toString: String = toEjson()
 }
@@ -477,12 +476,14 @@ object DynamicValue {
     def valueType: DynamicValueType = DynamicValueType.Primitive
 
     override def as(t: DynamicValueType): Option[t.Type] =
-      if (t == DynamicValueType.Primitive) Some(this.asInstanceOf[t.Type]) else None
+      if (t eq DynamicValueType.Primitive) new Some(this.asInstanceOf[t.Type])
+      else None
 
     override def unwrap(t: DynamicValueType): Option[t.Unwrap] =
-      if (t == DynamicValueType.Primitive) Some(value.asInstanceOf[t.Unwrap]) else None
+      if (t eq DynamicValueType.Primitive) new Some(value.asInstanceOf[t.Unwrap])
+      else None
 
-    override def primitiveValue: Option[PrimitiveValue] = Some(value)
+    override def primitiveValue: Option[PrimitiveValue] = new Some(value)
 
     def compare(that: DynamicValue): Int = that match {
       case thatPrimitive: Primitive => value.compare(thatPrimitive.value)
@@ -494,8 +495,7 @@ object DynamicValue {
    * A collection of named fields, analogous to a case class or JSON object.
    *
    * Field order is preserved and significant for equality comparison. Use
-   * [[DynamicValue.sortFields]] to normalize field ordering for
-   * order-independent comparison.
+   * sortFields to normalize field ordering for order-independent comparison.
    */
   final case class Record(override val fields: Chunk[(String, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -520,10 +520,12 @@ object DynamicValue {
     def valueType: DynamicValueType = DynamicValueType.Record
 
     override def as(t: DynamicValueType): Option[t.Type] =
-      if (t == DynamicValueType.Record) Some(this.asInstanceOf[t.Type]) else None
+      if (t eq DynamicValueType.Record) new Some(this.asInstanceOf[t.Type])
+      else None
 
     override def unwrap(t: DynamicValueType): Option[t.Unwrap] =
-      if (t == DynamicValueType.Record) Some(fields.asInstanceOf[t.Unwrap]) else None
+      if (t eq DynamicValueType.Record) new Some(fields.asInstanceOf[t.Unwrap])
+      else None
 
     override def get(fieldName: String): DynamicValueSelection = {
       val matches = fields.collect { case (name, value) if name == fieldName => value }
@@ -578,14 +580,16 @@ object DynamicValue {
     def valueType: DynamicValueType = DynamicValueType.Variant
 
     override def as(t: DynamicValueType): Option[t.Type] =
-      if (t == DynamicValueType.Variant) Some(this.asInstanceOf[t.Type]) else None
+      if (t eq DynamicValueType.Variant) new Some(this.asInstanceOf[t.Type])
+      else None
 
     override def unwrap(t: DynamicValueType): Option[t.Unwrap] =
-      if (t == DynamicValueType.Variant) Some((caseNameValue, value).asInstanceOf[t.Unwrap]) else None
+      if (t eq DynamicValueType.Variant) new Some((caseNameValue, value).asInstanceOf[t.Unwrap])
+      else None
 
-    override def caseName: Option[String] = Some(caseNameValue)
+    override def caseName: Option[String] = new Some(caseNameValue)
 
-    override def caseValue: Option[DynamicValue] = Some(value)
+    override def caseValue: Option[DynamicValue] = new Some(value)
 
     override def getCase(name: String): DynamicValueSelection =
       if (caseNameValue == name) DynamicValueSelection.succeed(value)
@@ -626,10 +630,12 @@ object DynamicValue {
     def valueType: DynamicValueType = DynamicValueType.Sequence
 
     override def as(t: DynamicValueType): Option[t.Type] =
-      if (t == DynamicValueType.Sequence) Some(this.asInstanceOf[t.Type]) else None
+      if (t eq DynamicValueType.Sequence) new Some(this.asInstanceOf[t.Type])
+      else None
 
     override def unwrap(t: DynamicValueType): Option[t.Unwrap] =
-      if (t == DynamicValueType.Sequence) Some(elements.asInstanceOf[t.Unwrap]) else None
+      if (t eq DynamicValueType.Sequence) new Some(elements.asInstanceOf[t.Unwrap])
+      else None
 
     override def get(index: Int): DynamicValueSelection =
       if (index >= 0 && index < elements.length) DynamicValueSelection.succeed(elements(index))
@@ -665,7 +671,7 @@ object DynamicValue {
    *
    * Unlike [[Record]] which uses String keys, Map supports arbitrary
    * DynamicValue keys. Entry order is preserved and significant for equality
-   * comparison. Use [[DynamicValue.sortMapKeys]] to normalize key ordering.
+   * comparison. Use sortMapKeys to normalize key ordering.
    */
   final case class Map(override val entries: Chunk[(DynamicValue, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -690,13 +696,15 @@ object DynamicValue {
     def valueType: DynamicValueType = DynamicValueType.Map
 
     override def as(t: DynamicValueType): Option[t.Type] =
-      if (t == DynamicValueType.Map) Some(this.asInstanceOf[t.Type]) else None
+      if (t eq DynamicValueType.Map) new Some(this.asInstanceOf[t.Type])
+      else None
 
     override def unwrap(t: DynamicValueType): Option[t.Unwrap] =
-      if (t == DynamicValueType.Map) Some(entries.asInstanceOf[t.Unwrap]) else None
+      if (t eq DynamicValueType.Map) new Some(entries.asInstanceOf[t.Unwrap])
+      else None
 
     override def get(key: DynamicValue): DynamicValueSelection = {
-      val matches = entries.collect { case (k, v) if k == key => v }
+      val matches = entries.collect { case kv if kv._1 == key => kv._2 }
       if (matches.isEmpty) DynamicValueSelection.fail(SchemaError(s"Key not found in Map"))
       else DynamicValueSelection.succeedMany(matches)
     }
@@ -732,8 +740,8 @@ object DynamicValue {
   /**
    * Represents the absence of a value.
    *
-   * Analogous to JSON null or Scala's None. Use [[DynamicValue.dropNulls]] to
-   * recursively remove Null values from containers.
+   * Analogous to JSON null or Scala's None. Use dropNulls to recursively remove
+   * Null values from containers.
    */
   case object Null extends DynamicValue {
     def typeIndex: Int = 5
@@ -741,44 +749,45 @@ object DynamicValue {
     def valueType: DynamicValueType = DynamicValueType.Null
 
     override def as(t: DynamicValueType): Option[t.Type] =
-      if (t == DynamicValueType.Null) Some(this.asInstanceOf[t.Type]) else None
+      if (t eq DynamicValueType.Null) new Some(this.asInstanceOf[t.Type])
+      else None
 
     override def unwrap(t: DynamicValueType): Option[t.Unwrap] =
-      if (t == DynamicValueType.Null) Some(().asInstanceOf[t.Unwrap]) else None
+      if (t eq DynamicValueType.Null) new Some(().asInstanceOf[t.Unwrap])
+      else None
 
-    def compare(that: DynamicValue): Int = that match {
-      case Null => 0
-      case _    => 5 - that.typeIndex
-    }
+    def compare(that: DynamicValue): Int =
+      if (that eq Null) 0
+      else 5 - that.typeIndex
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Convenience Constructors
   // ─────────────────────────────────────────────────────────────────────────
 
-  val unit: DynamicValue = Primitive(PrimitiveValue.Unit)
+  val unit: DynamicValue = new Primitive(PrimitiveValue.Unit)
 
-  def string(s: String): DynamicValue = Primitive(PrimitiveValue.String(s))
+  def string(s: String): DynamicValue = new Primitive(new PrimitiveValue.String(s))
 
-  def int(i: Int): DynamicValue = Primitive(PrimitiveValue.Int(i))
+  def int(i: Int): DynamicValue = new Primitive(new PrimitiveValue.Int(i))
 
-  def long(l: Long): DynamicValue = Primitive(PrimitiveValue.Long(l))
+  def long(l: Long): DynamicValue = new Primitive(new PrimitiveValue.Long(l))
 
-  def boolean(b: Boolean): DynamicValue = Primitive(PrimitiveValue.Boolean(b))
+  def boolean(b: Boolean): DynamicValue = new Primitive(new PrimitiveValue.Boolean(b))
 
-  def double(d: Double): DynamicValue = Primitive(PrimitiveValue.Double(d))
+  def double(d: Double): DynamicValue = new Primitive(new PrimitiveValue.Double(d))
 
-  def float(f: Float): DynamicValue = Primitive(PrimitiveValue.Float(f))
+  def float(f: Float): DynamicValue = new Primitive(new PrimitiveValue.Float(f))
 
-  def short(s: Short): DynamicValue = Primitive(PrimitiveValue.Short(s))
+  def short(s: Short): DynamicValue = new Primitive(new PrimitiveValue.Short(s))
 
-  def byte(b: Byte): DynamicValue = Primitive(PrimitiveValue.Byte(b))
+  def byte(b: Byte): DynamicValue = new Primitive(new PrimitiveValue.Byte(b))
 
-  def char(c: Char): DynamicValue = Primitive(PrimitiveValue.Char(c))
+  def char(c: Char): DynamicValue = new Primitive(new PrimitiveValue.Char(c))
 
-  def bigInt(b: BigInt): DynamicValue = Primitive(PrimitiveValue.BigInt(b))
+  def bigInt(b: BigInt): DynamicValue = new Primitive(new PrimitiveValue.BigInt(b))
 
-  def bigDecimal(b: BigDecimal): DynamicValue = Primitive(PrimitiveValue.BigDecimal(b))
+  def bigDecimal(b: BigDecimal): DynamicValue = new Primitive(new PrimitiveValue.BigDecimal(b))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Ordering
@@ -792,8 +801,7 @@ object DynamicValue {
    * Compute the difference between two DynamicValues. Returns a DynamicPatch
    * that transforms oldValue into newValue.
    */
-  def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
-    Differ.diff(oldValue, newValue)
+  def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch = Differ.diff(oldValue, newValue)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Path Navigation Implementation
@@ -802,75 +810,56 @@ object DynamicValue {
   private[schema] def getAtPath(dv: DynamicValue, path: DynamicOptic): DynamicValueSelection = {
     val nodes = path.nodes
     if (nodes.isEmpty) return DynamicValueSelection.succeed(dv)
-
-    var current: Chunk[DynamicValue] = Chunk(dv)
+    var current: Chunk[DynamicValue] = Chunk.single(dv)
     var idx                          = 0
     val len                          = nodes.length
-
     while (idx < len && current.nonEmpty) {
       val node = nodes(idx)
       current = node match {
         case DynamicOptic.Node.Field(name) =>
           current.flatMap {
-            case r: Record => r.fields.collect { case (n, v) if n == name => v }
+            case r: Record => r.fields.collect { case kv if kv._1 == name => kv._2 }
             case _         => Chunk.empty
           }
-
         case DynamicOptic.Node.Case(name) =>
-          current.flatMap {
-            case v: Variant if v.caseNameValue == name => Chunk(v.value)
-            case _                                     => Chunk.empty
-          }
-
+          current.collect { case v: Variant if v.caseNameValue == name => v.value }
         case DynamicOptic.Node.AtIndex(i) =>
-          current.flatMap {
-            case s: Sequence if i >= 0 && i < s.elements.length => Chunk(s.elements(i))
-            case _                                              => Chunk.empty
-          }
-
+          current.collect { case s: Sequence if i >= 0 && i < s.elements.length => s.elements(i) }
         case DynamicOptic.Node.AtMapKey(key) =>
           current.flatMap {
-            case m: Map => m.entries.collect { case (k, v) if k == key => v }
+            case m: Map => m.entries.collect { case kv if kv._1 == key => kv._2 }
             case _      => Chunk.empty
           }
-
         case DynamicOptic.Node.AtIndices(indices) =>
           current.flatMap {
             case s: Sequence =>
-              Chunk.from(indices.flatMap(i => if (i >= 0 && i < s.elements.length) Some(s.elements(i)) else None))
+              Chunk.from(indices).collect { case i if i >= 0 && i < s.elements.length => s.elements(i) }
             case _ => Chunk.empty
           }
-
         case DynamicOptic.Node.AtMapKeys(keys) =>
           current.flatMap {
-            case m: Map => Chunk.from(keys.flatMap(key => m.entries.collect { case (k, v) if k == key => v }))
+            case m: Map => Chunk.from(keys).flatMap(key => m.entries.collect { case kv if kv._1 == key => kv._2 })
             case _      => Chunk.empty
           }
-
         case DynamicOptic.Node.Elements =>
           current.flatMap {
             case s: Sequence => s.elements
             case _           => Chunk.empty
           }
-
         case DynamicOptic.Node.MapKeys =>
           current.flatMap {
             case m: Map => m.entries.map(_._1)
             case _      => Chunk.empty
           }
-
         case DynamicOptic.Node.MapValues =>
           current.flatMap {
             case m: Map => m.entries.map(_._2)
             case _      => Chunk.empty
           }
-
-        case DynamicOptic.Node.Wrapped =>
-          current
+        case DynamicOptic.Node.Wrapped => current
       }
       idx += 1
     }
-
     if (current.isEmpty) DynamicValueSelection.fail(SchemaError.message(s"Path not found", path))
     else DynamicValueSelection.succeedMany(current)
   }
@@ -883,160 +872,157 @@ object DynamicValue {
     dv: DynamicValue,
     path: DynamicOptic,
     f: DynamicValue => DynamicValue
-  ): Option[DynamicValue] = {
-    val nodes = path.nodes
-    if (nodes.isEmpty) return Some(f(dv))
+  ): Option[DynamicValue] = modifyAtPath(dv, path.nodes, 0, f)
 
-    modifyAtPathImpl(dv, nodes, 0, f)
-  }
-
-  private def modifyAtPathImpl(
+  private def modifyAtPath(
     dv: DynamicValue,
     nodes: IndexedSeq[DynamicOptic.Node],
-    idx: Int,
+    index: Int,
     f: DynamicValue => DynamicValue
   ): Option[DynamicValue] = {
-    if (idx >= nodes.length) return Some(f(dv))
-
-    nodes(idx) match {
+    if (index >= nodes.length) return new Some(f(dv))
+    nodes(index) match {
       case DynamicOptic.Node.Field(name) =>
         dv match {
           case r: Record =>
             var found     = false
-            val newFields = r.fields.map { case (n, v) =>
-              if (n == name) {
+            val newFields = r.fields.map { kv =>
+              if (kv._1 == name) {
                 found = true
-                modifyAtPathImpl(v, nodes, idx + 1, f) match {
-                  case Some(nv) => (n, nv)
-                  case None     => (n, v)
+                modifyAtPath(kv._2, nodes, index + 1, f) match {
+                  case Some(nv) => (kv._1, nv)
+                  case _        => kv
                 }
-              } else (n, v)
+              } else kv
             }
-            if (found) Some(Record(newFields)) else None
+            if (found) new Some(new Record(newFields))
+            else None
           case _ => None
         }
-
       case DynamicOptic.Node.Case(name) =>
         dv match {
           case v: Variant if v.caseNameValue == name =>
-            modifyAtPathImpl(v.value, nodes, idx + 1, f).map(nv => Variant(v.caseNameValue, nv))
-          case _ => None
-        }
-
-      case DynamicOptic.Node.AtIndex(i) =>
-        dv match {
-          case s: Sequence if i >= 0 && i < s.elements.length =>
-            modifyAtPathImpl(s.elements(i), nodes, idx + 1, f).map { nv =>
-              Sequence(s.elements.updated(i, nv))
+            modifyAtPath(v.value, nodes, index + 1, f) match {
+              case Some(nv) => new Some(Variant(v.caseNameValue, nv))
+              case _        => None
             }
           case _ => None
         }
-
+      case DynamicOptic.Node.AtIndex(i) =>
+        dv match {
+          case s: Sequence if i >= 0 && i < s.elements.length =>
+            modifyAtPath(s.elements(i), nodes, index + 1, f) match {
+              case Some(nv) => new Some(new Sequence(s.elements.updated(i, nv)))
+              case _        => None
+            }
+          case _ => None
+        }
       case DynamicOptic.Node.AtMapKey(key) =>
         dv match {
           case m: Map =>
             var found      = false
-            val newEntries = m.entries.map { case (k, v) =>
-              if (k == key) {
+            val newEntries = m.entries.map { kv =>
+              if (kv._1 == key) {
                 found = true
-                modifyAtPathImpl(v, nodes, idx + 1, f) match {
-                  case Some(nv) => (k, nv)
-                  case None     => (k, v)
+                modifyAtPath(kv._2, nodes, index + 1, f) match {
+                  case Some(nv) => (kv._1, nv)
+                  case _        => kv
                 }
-              } else (k, v)
+              } else kv
             }
-            if (found) Some(Map(newEntries)) else None
+            if (found) new Some(new Map(newEntries)) else None
           case _ => None
         }
-
       case DynamicOptic.Node.AtIndices(indices) =>
         dv match {
           case s: Sequence =>
             val indicesSet = indices.toSet
             var found      = false
-            val newElems   = s.elements.zipWithIndex.map { case (e, i) =>
-              if (indicesSet.contains(i)) {
-                modifyAtPathImpl(e, nodes, idx + 1, f) match {
-                  case Some(nv) =>
-                    found = true
-                    nv
-                  case None => e
-                }
-              } else e
+            val newElems   = s.elements.map {
+              var idx = -1
+              e =>
+                idx += 1
+                if (indicesSet.contains(idx)) {
+                  modifyAtPath(e, nodes, index + 1, f) match {
+                    case Some(nv) =>
+                      found = true
+                      nv
+                    case _ => e
+                  }
+                } else e
             }
-            if (found) Some(Sequence(newElems)) else None
+            if (found) new Some(new Sequence(newElems))
+            else None
           case _ => None
         }
-
       case DynamicOptic.Node.AtMapKeys(keys) =>
         dv match {
           case m: Map =>
             val keysSet    = keys.toSet
             var found      = false
-            val newEntries = m.entries.map { case (k, v) =>
-              if (keysSet.contains(k)) {
-                modifyAtPathImpl(v, nodes, idx + 1, f) match {
+            val newEntries = m.entries.map { kv =>
+              if (keysSet.contains(kv._1)) {
+                modifyAtPath(kv._2, nodes, index + 1, f) match {
                   case Some(nv) =>
                     found = true
-                    (k, nv)
-                  case None => (k, v)
+                    (kv._1, nv)
+                  case _ => kv
                 }
-              } else (k, v)
+              } else kv
             }
-            if (found) Some(Map(newEntries)) else None
+            if (found) new Some(new Map(newEntries))
+            else None
           case _ => None
         }
-
       case DynamicOptic.Node.Elements =>
         dv match {
           case s: Sequence =>
             var found    = false
             val newElems = s.elements.map { e =>
-              modifyAtPathImpl(e, nodes, idx + 1, f) match {
+              modifyAtPath(e, nodes, index + 1, f) match {
                 case Some(nv) =>
                   found = true
                   nv
-                case None => e
+                case _ => e
               }
             }
-            if (found) Some(Sequence(newElems)) else None
+            if (found) new Some(new Sequence(newElems))
+            else None
           case _ => None
         }
-
       case DynamicOptic.Node.MapKeys =>
         dv match {
           case m: Map =>
             var found      = false
-            val newEntries = m.entries.map { case (k, v) =>
-              modifyAtPathImpl(k, nodes, idx + 1, f) match {
+            val newEntries = m.entries.map { kv =>
+              modifyAtPath(kv._1, nodes, index + 1, f) match {
                 case Some(nk) =>
                   found = true
-                  (nk, v)
-                case None => (k, v)
+                  (nk, kv._2)
+                case _ => kv
               }
             }
-            if (found) Some(Map(newEntries)) else None
+            if (found) new Some(new Map(newEntries))
+            else None
           case _ => None
         }
-
       case DynamicOptic.Node.MapValues =>
         dv match {
           case m: Map =>
             var found      = false
-            val newEntries = m.entries.map { case (k, v) =>
-              modifyAtPathImpl(v, nodes, idx + 1, f) match {
+            val newEntries = m.entries.map { kv =>
+              modifyAtPath(kv._2, nodes, index + 1, f) match {
                 case Some(nv) =>
                   found = true
-                  (k, nv)
-                case None => (k, v)
+                  (kv._1, nv)
+                case _ => kv
               }
             }
-            if (found) Some(Map(newEntries)) else None
+            if (found) new Some(new Map(newEntries))
+            else None
           case _ => None
         }
-
-      case DynamicOptic.Node.Wrapped =>
-        modifyAtPathImpl(dv, nodes, idx + 1, f)
+      case DynamicOptic.Node.Wrapped => modifyAtPath(dv, nodes, index + 1, f)
     }
   }
 
@@ -1047,12 +1033,12 @@ object DynamicValue {
   ): Either[SchemaError, DynamicValue] = {
     val nodes = path.nodes
     if (nodes.isEmpty) {
-      if (pf.isDefinedAt(dv)) Right(pf(dv))
-      else Left(SchemaError.message("Partial function not defined at root", path))
+      if (pf.isDefinedAt(dv)) new Right(pf(dv))
+      else new Left(SchemaError.message("Partial function not defined at root", path))
     } else {
       modifyAtPath(dv, path, v => if (pf.isDefinedAt(v)) pf(v) else v) match {
-        case Some(result) => Right(result)
-        case None         => Left(SchemaError.message("Path not found", path))
+        case Some(result) => new Right(result)
+        case _            => new Left(SchemaError.message("Path not found", path))
       }
     }
   }
@@ -1061,208 +1047,217 @@ object DynamicValue {
   // Delete Implementation
   // ─────────────────────────────────────────────────────────────────────────
 
-  private[schema] def deleteAtPath(dv: DynamicValue, path: DynamicOptic): Option[DynamicValue] = {
-    val nodes = path.nodes
-    if (nodes.isEmpty) return None
+  private[schema] def deleteAtPath(dv: DynamicValue, path: DynamicOptic): Option[DynamicValue] =
+    deleteAtPath(dv, path.nodes, 0)
 
-    deleteAtPathImpl(dv, nodes, 0)
-  }
-
-  private def deleteAtPathImpl(
+  private def deleteAtPath(
     dv: DynamicValue,
     nodes: IndexedSeq[DynamicOptic.Node],
-    idx: Int
+    index: Int
   ): Option[DynamicValue] = {
-    if (idx >= nodes.length) return None
-
-    val isLast = idx == nodes.length - 1
-
-    nodes(idx) match {
+    if (index >= nodes.length) return None
+    val isLast = index == nodes.length - 1
+    nodes(index) match {
       case DynamicOptic.Node.Field(name) =>
         dv match {
           case r: Record =>
             if (isLast) {
               val newFields = r.fields.filterNot(_._1 == name)
-              if (newFields.length < r.fields.length) Some(Record(newFields)) else None
+              if (newFields.length < r.fields.length) new Some(new Record(newFields))
+              else None
             } else {
               var found     = false
-              val newFields = r.fields.map { case (n, v) =>
-                if (n == name) {
-                  deleteAtPathImpl(v, nodes, idx + 1) match {
+              val newFields = r.fields.map { kv =>
+                if (kv._1 == name) {
+                  deleteAtPath(kv._2, nodes, index + 1) match {
                     case Some(nv) =>
                       found = true
-                      (n, nv)
-                    case None => (n, v)
+                      (kv._1, nv)
+                    case _ => kv
                   }
-                } else (n, v)
+                } else kv
               }
-              if (found) Some(Record(newFields)) else None
+              if (found) new Some(new Record(newFields))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.Case(name) =>
         dv match {
           case v: Variant if v.caseNameValue == name =>
-            if (isLast) Some(Record.empty)
-            else deleteAtPathImpl(v.value, nodes, idx + 1).map(nv => Variant(v.caseNameValue, nv))
-          case _ => None
-        }
-
-      case DynamicOptic.Node.AtIndex(i) =>
-        dv match {
-          case s: Sequence if i >= 0 && i < s.elements.length =>
-            if (isLast) {
-              val newElems = s.elements.patch(i, Chunk.empty, 1)
-              Some(Sequence(newElems))
-            } else {
-              deleteAtPathImpl(s.elements(i), nodes, idx + 1).map { nv =>
-                Sequence(s.elements.updated(i, nv))
+            if (isLast) new Some(Record.empty)
+            else {
+              deleteAtPath(v.value, nodes, index + 1) match {
+                case Some(nv) => new Some(new Variant(v.caseNameValue, nv))
+                case _        => None
               }
             }
           case _ => None
         }
-
+      case DynamicOptic.Node.AtIndex(i) =>
+        dv match {
+          case s: Sequence if i >= 0 && i < s.elements.length =>
+            if (isLast) new Some(new Sequence(s.elements.patch(i, Chunk.empty, 1)))
+            else {
+              deleteAtPath(s.elements(i), nodes, index + 1) match {
+                case Some(nv) => new Some(new Sequence(s.elements.updated(i, nv)))
+                case _        => None
+              }
+            }
+          case _ => None
+        }
       case DynamicOptic.Node.AtMapKey(key) =>
         dv match {
           case m: Map =>
             if (isLast) {
               val newEntries = m.entries.filterNot(_._1 == key)
-              if (newEntries.length < m.entries.length) Some(Map(newEntries)) else None
+              if (newEntries.length < m.entries.length) new Some(new Map(newEntries))
+              else None
             } else {
               var found      = false
-              val newEntries = m.entries.map { case (k, v) =>
-                if (k == key) {
-                  deleteAtPathImpl(v, nodes, idx + 1) match {
+              val newEntries = m.entries.map { kv =>
+                if (kv._1 == key) {
+                  deleteAtPath(kv._2, nodes, index + 1) match {
                     case Some(nv) =>
                       found = true
-                      (k, nv)
-                    case None => (k, v)
+                      (kv._1, nv)
+                    case _ => kv
                   }
-                } else (k, v)
+                } else kv
               }
-              if (found) Some(Map(newEntries)) else None
+              if (found) new Some(new Map(newEntries))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.AtIndices(indices) =>
         dv match {
           case s: Sequence =>
             if (isLast) {
               val indicesSet = indices.toSet
-              val newElems   = s.elements.zipWithIndex.filterNot { case (_, i) => indicesSet.contains(i) }.map(_._1)
-              if (newElems.length < s.elements.length) Some(Sequence(newElems)) else None
+              val newElems   = s.elements
+                .foldLeft(ChunkBuilder.make[DynamicValue](indicesSet.size)) {
+                  var idx = -1
+                  (acc, dv) =>
+                    idx += 1
+                    if (!indicesSet.contains(idx)) acc.addOne(dv)
+                    else acc
+                }
+                .result()
+              if (newElems.length < s.elements.length) new Some(new Sequence(newElems))
+              else None
             } else {
               val indicesSet = indices.toSet
               var found      = false
-              val newElems   = s.elements.zipWithIndex.map { case (e, i) =>
-                if (indicesSet.contains(i)) {
-                  deleteAtPathImpl(e, nodes, idx + 1) match {
-                    case Some(nv) =>
-                      found = true
-                      nv
-                    case None => e
-                  }
-                } else e
+              val newElems   = s.elements.map {
+                var idx = -1
+                e =>
+                  idx += 1
+                  if (indicesSet.contains(idx)) {
+                    deleteAtPath(e, nodes, index + 1) match {
+                      case Some(nv) =>
+                        found = true
+                        nv
+                      case _ => e
+                    }
+                  } else e
               }
-              if (found) Some(Sequence(newElems)) else None
+              if (found) new Some(new Sequence(newElems))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.AtMapKeys(keys) =>
         dv match {
           case m: Map =>
             if (isLast) {
               val keysSet    = keys.toSet
-              val newEntries = m.entries.filterNot { case (k, _) => keysSet.contains(k) }
-              if (newEntries.length < m.entries.length) Some(Map(newEntries)) else None
+              val newEntries = m.entries.filterNot(kv => keysSet.contains(kv._1))
+              if (newEntries.length < m.entries.length) new Some(new Map(newEntries))
+              else None
             } else {
               val keysSet    = keys.toSet
               var found      = false
-              val newEntries = m.entries.map { case (k, v) =>
-                if (keysSet.contains(k)) {
-                  deleteAtPathImpl(v, nodes, idx + 1) match {
+              val newEntries = m.entries.map { kv =>
+                if (keysSet.contains(kv._1)) {
+                  deleteAtPath(kv._2, nodes, index + 1) match {
                     case Some(nv) =>
                       found = true
-                      (k, nv)
-                    case None => (k, v)
+                      (kv._1, nv)
+                    case _ => kv
                   }
-                } else (k, v)
+                } else kv
               }
-              if (found) Some(Map(newEntries)) else None
+              if (found) new Some(new Map(newEntries))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.Elements =>
         dv match {
           case s: Sequence =>
-            if (isLast) Some(Sequence.empty)
+            if (isLast) new Some(Sequence.empty)
             else {
               var found    = false
-              val newElems = s.elements.flatMap { e =>
-                deleteAtPathImpl(e, nodes, idx + 1) match {
+              val newElems = s.elements.map { e =>
+                deleteAtPath(e, nodes, index + 1) match {
                   case Some(nv) =>
                     found = true
-                    Chunk(nv)
-                  case None => Chunk(e)
+                    nv
+                  case _ => e
                 }
               }
-              if (found) Some(Sequence(newElems)) else None
+              if (found) new Some(new Sequence(newElems))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.MapKeys =>
         dv match {
           case m: Map =>
-            if (isLast) Some(Map.empty)
+            if (isLast) new Some(Map.empty)
             else {
               var found      = false
-              val newEntries = m.entries.flatMap { case (k, v) =>
-                deleteAtPathImpl(k, nodes, idx + 1) match {
+              val newEntries = m.entries.map { kv =>
+                deleteAtPath(kv._1, nodes, index + 1) match {
                   case Some(nk) =>
                     found = true
-                    Chunk((nk, v))
-                  case None => Chunk((k, v))
+                    (nk, kv._2)
+                  case _ => kv
                 }
               }
-              if (found) Some(Map(newEntries)) else None
+              if (found) new Some(new Map(newEntries))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.MapValues =>
         dv match {
           case m: Map =>
-            if (isLast) Some(Map.empty)
+            if (isLast) new Some(Map.empty)
             else {
               var found      = false
-              val newEntries = m.entries.flatMap { case (k, v) =>
-                deleteAtPathImpl(v, nodes, idx + 1) match {
+              val newEntries = m.entries.map { kv =>
+                deleteAtPath(kv._2, nodes, index + 1) match {
                   case Some(nv) =>
                     found = true
-                    Chunk((k, nv))
-                  case None => Chunk((k, v))
+                    (kv._1, nv)
+                  case _ => kv
                 }
               }
-              if (found) Some(Map(newEntries)) else None
+              if (found) new Some(new Map(newEntries))
+              else None
             }
           case _ => None
         }
-
-      case DynamicOptic.Node.Wrapped =>
-        deleteAtPathImpl(dv, nodes, idx + 1)
+      case DynamicOptic.Node.Wrapped => deleteAtPath(dv, nodes, index + 1)
     }
   }
 
   private[schema] def deleteAtPathOrFail(
     dv: DynamicValue,
     path: DynamicOptic
-  ): Either[SchemaError, DynamicValue] =
-    deleteAtPath(dv, path).toRight(SchemaError.message("Path not found", path))
+  ): Either[SchemaError, DynamicValue] = deleteAtPath(dv, path).toRight(SchemaError.message("Path not found", path))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Insert Implementation
@@ -1271,91 +1266,91 @@ object DynamicValue {
   private[schema] def insertAtPath(dv: DynamicValue, path: DynamicOptic, value: DynamicValue): Option[DynamicValue] = {
     val nodes = path.nodes
     if (nodes.isEmpty) return None
-
-    insertAtPathImpl(dv, nodes, 0, value)
+    insertAtPath(dv, nodes, 0, value)
   }
 
-  private def insertAtPathImpl(
+  private def insertAtPath(
     dv: DynamicValue,
     nodes: IndexedSeq[DynamicOptic.Node],
-    idx: Int,
+    index: Int,
     value: DynamicValue
   ): Option[DynamicValue] = {
-    if (idx >= nodes.length) return None
-
-    val isLast = idx == nodes.length - 1
-
-    nodes(idx) match {
+    if (index >= nodes.length) return None
+    val isLast = index == nodes.length - 1
+    nodes(index) match {
       case DynamicOptic.Node.Field(name) =>
         dv match {
           case r: Record =>
             if (isLast) {
               if (r.fields.exists(_._1 == name)) None
-              else Some(Record(r.fields :+ (name, value)))
+              else new Some(new Record(r.fields :+ (name, value)))
             } else {
               var found     = false
-              val newFields = r.fields.map { case (n, v) =>
-                if (n == name) {
-                  insertAtPathImpl(v, nodes, idx + 1, value) match {
+              val newFields = r.fields.map { kv =>
+                if (kv._1 == name) {
+                  insertAtPath(kv._2, nodes, index + 1, value) match {
                     case Some(nv) =>
                       found = true
-                      (n, nv)
-                    case None => (n, v)
+                      (kv._1, nv)
+                    case _ => kv
                   }
-                } else (n, v)
+                } else kv
               }
-              if (found) Some(Record(newFields)) else None
+              if (found) new Some(new Record(newFields))
+              else None
             }
           case _ => None
         }
-
       case DynamicOptic.Node.Case(name) =>
         dv match {
           case v: Variant if v.caseNameValue == name =>
             if (isLast) None
-            else insertAtPathImpl(v.value, nodes, idx + 1, value).map(nv => Variant(v.caseNameValue, nv))
+            else
+              insertAtPath(v.value, nodes, index + 1, value) match {
+                case Some(nv) => new Some(new Variant(v.caseNameValue, nv))
+                case _        => None
+              }
           case _ => None
         }
-
       case DynamicOptic.Node.AtIndex(i) =>
         dv match {
           case s: Sequence =>
+            val elements = s.elements
             if (isLast) {
-              if (i >= 0 && i <= s.elements.length) {
-                val (before, after) = s.elements.splitAt(i)
-                Some(Sequence(before ++ Chunk(value) ++ after))
+              if (i >= 0 && i <= elements.length) {
+                new Some(new Sequence(elements.take(i) ++ (value +: elements.drop(i))))
               } else None
-            } else if (i >= 0 && i < s.elements.length) {
-              insertAtPathImpl(s.elements(i), nodes, idx + 1, value).map { nv =>
-                Sequence(s.elements.updated(i, nv))
+            } else if (i >= 0 && i < elements.length) {
+              insertAtPath(elements(i), nodes, index + 1, value) match {
+                case Some(nv) => new Some(new Sequence(elements.updated(i, nv)))
+                case _        => None
               }
             } else None
           case _ => None
         }
-
       case DynamicOptic.Node.AtMapKey(key) =>
         dv match {
           case m: Map =>
             if (isLast) {
               if (m.entries.exists(_._1 == key)) None
-              else Some(Map(m.entries :+ (key, value)))
+              else new Some(new Map(m.entries :+ (key, value)))
             } else {
               var found      = false
-              val newEntries = m.entries.map { case (k, v) =>
-                if (k == key) {
-                  insertAtPathImpl(v, nodes, idx + 1, value) match {
+              val newEntries = m.entries.map { kv =>
+                if (kv._1 == key) {
+                  insertAtPath(kv._2, nodes, index + 1, value) match {
                     case Some(nv) =>
                       found = true
-                      (k, nv)
-                    case None => (k, v)
+                      (kv._1, nv)
+                    case _ => kv
                   }
-                } else (k, v)
+                } else kv
               }
-              if (found) Some(Map(newEntries)) else None
+              if (found) new Some(new Map(newEntries))
+              else None
             }
           case _ => None
         }
-
       case _ => None
     }
   }
@@ -1377,28 +1372,29 @@ object DynamicValue {
     left: DynamicValue,
     right: DynamicValue,
     strategy: DynamicValueMergeStrategy
-  ): DynamicValue =
-    mergeImpl(DynamicOptic.root, left, right, strategy)
+  ): DynamicValue = merge(DynamicOptic.root, left, right, strategy)
 
-  private def mergeImpl(
+  private def merge(
     path: DynamicOptic,
     left: DynamicValue,
     right: DynamicValue,
     s: DynamicValueMergeStrategy
   ): DynamicValue =
     (left, right) match {
-      case (lr: Record, rr: Record) if s.recurse(path, DynamicValueType.Record) =>
-        mergeRecords(path, lr, rr, s)
-      case (ls: Sequence, rs: Sequence) if s.recurse(path, DynamicValueType.Sequence) =>
-        mergeSequences(path, ls, rs, s)
-      case (lm: Map, rm: Map) if s.recurse(path, DynamicValueType.Map) =>
-        mergeMaps(path, lm, rm, s)
-      case (lv: Variant, rv: Variant) if s.recurse(path, DynamicValueType.Variant) =>
-        if (lv.caseNameValue == rv.caseNameValue)
-          Variant(lv.caseNameValue, mergeImpl(path.caseOf(lv.caseNameValue), lv.value, rv.value, s))
+      case (lr: Record, rr: Record) =>
+        if (s.recurse(path, DynamicValueType.Record)) mergeRecords(path, lr, rr, s)
         else s(path, left, right)
-      case _ =>
-        s(path, left, right)
+      case (ls: Sequence, rs: Sequence) =>
+        if (s.recurse(path, DynamicValueType.Sequence)) mergeSequences(path, ls, rs, s)
+        else s(path, left, right)
+      case (lm: Map, rm: Map) =>
+        if (s.recurse(path, DynamicValueType.Map)) mergeMaps(path, lm, rm, s)
+        else s(path, left, right)
+      case (lv: Variant, rv: Variant) =>
+        if (s.recurse(path, DynamicValueType.Variant) && lv.caseNameValue == rv.caseNameValue) {
+          new Variant(lv.caseNameValue, merge(path.caseOf(lv.caseNameValue), lv.value, rv.value, s))
+        } else s(path, left, right)
+      case _ => s(path, left, right)
     }
 
   private def mergeRecords(
@@ -1411,13 +1407,15 @@ object DynamicValue {
     val rightMap = right.fields.toMap
     val allKeys  = (left.fields.map(_._1) ++ right.fields.map(_._1)).distinct
     Record(Chunk.from(allKeys.map { key =>
-      val childPath = path.field(key)
-      (leftMap.get(key), rightMap.get(key)) match {
-        case (Some(lv), Some(rv)) => (key, mergeImpl(childPath, lv, rv, s))
-        case (Some(lv), None)     => (key, lv)
-        case (None, Some(rv))     => (key, rv)
-        case (None, None)         => throw new IllegalStateException("Key should exist in at least one map")
-      }
+      (
+        key,
+        (leftMap.get(key), rightMap.get(key)) match {
+          case (Some(lv), Some(rv)) => merge(path.field(key), lv, rv, s)
+          case (Some(lv), _)        => lv
+          case (_, Some(rv))        => rv
+          case _                    => throw new IllegalStateException("Key should exist in at least one map")
+        }
+      )
     }))
   }
 
@@ -1429,12 +1427,11 @@ object DynamicValue {
   ): Sequence = {
     val maxLen = Math.max(left.elements.length, right.elements.length)
     Sequence(Chunk.from((0 until maxLen).map { i =>
-      val childPath = path.at(i)
       (left.elements.lift(i), right.elements.lift(i)) match {
-        case (Some(lv), Some(rv)) => mergeImpl(childPath, lv, rv, s)
-        case (Some(lv), None)     => lv
-        case (None, Some(rv))     => rv
-        case (None, None)         => throw new IllegalStateException("Index should exist in at least one sequence")
+        case (Some(lv), Some(rv)) => merge(path.at(i), lv, rv, s)
+        case (Some(lv), _)        => lv
+        case (_, Some(rv))        => rv
+        case _                    => throw new IllegalStateException("Index should exist in at least one sequence")
       }
     }))
   }
@@ -1448,14 +1445,17 @@ object DynamicValue {
     val leftMap  = left.entries.toMap
     val rightMap = right.entries.toMap
     val allKeys  = (left.entries.map(_._1) ++ right.entries.map(_._1)).distinct
-    Map(Chunk.from(allKeys.map { key =>
-      val childPath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(key))
-      (leftMap.get(key), rightMap.get(key)) match {
-        case (Some(lv), Some(rv)) => (key, mergeImpl(childPath, lv, rv, s))
-        case (Some(lv), None)     => (key, lv)
-        case (None, Some(rv))     => (key, rv)
-        case (None, None)         => throw new IllegalStateException("Key should exist in at least one map")
-      }
+    new Map(Chunk.from(allKeys.map { key =>
+      (
+        key,
+        (leftMap.get(key), rightMap.get(key)) match {
+          case (Some(lv), Some(rv)) =>
+            merge(new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(key)), lv, rv, s)
+          case (Some(lv), _) => lv
+          case (_, Some(rv)) => rv
+          case _             => throw new IllegalStateException("Key should exist in at least one map")
+        }
+      )
     }))
   }
 
@@ -1463,244 +1463,232 @@ object DynamicValue {
   // Normalization Implementation
   // ─────────────────────────────────────────────────────────────────────────
 
-  private[schema] def sortFieldsImpl(dv: DynamicValue): DynamicValue = dv match {
-    case r: Record   => Record(r.fields.sortBy(_._1).map { case (k, v) => (k, sortFieldsImpl(v)) })
-    case s: Sequence => Sequence(s.elements.map(sortFieldsImpl))
-    case m: Map      => Map(m.entries.map { case (k, v) => (sortFieldsImpl(k), sortFieldsImpl(v)) })
-    case v: Variant  => Variant(v.caseNameValue, sortFieldsImpl(v.value))
+  private[schema] def sortFields(dv: DynamicValue): DynamicValue = dv match {
+    case r: Record   => new Record(r.fields.sortBy(_._1).map(kv => (kv._1, sortFields(kv._2))))
+    case s: Sequence => new Sequence(s.elements.map(sortFields))
+    case m: Map      => new Map(m.entries.map(kv => (sortFields(kv._1), sortFields(kv._2))))
+    case v: Variant  => new Variant(v.caseNameValue, sortFields(v.value))
     case other       => other
   }
 
-  private[schema] def sortMapKeysImpl(dv: DynamicValue): DynamicValue = dv match {
-    case r: Record   => Record(r.fields.map { case (k, v) => (k, sortMapKeysImpl(v)) })
-    case s: Sequence => Sequence(s.elements.map(sortMapKeysImpl))
-    case m: Map      => Map(m.entries.sortBy(_._1).map { case (k, v) => (sortMapKeysImpl(k), sortMapKeysImpl(v)) })
-    case v: Variant  => Variant(v.caseNameValue, sortMapKeysImpl(v.value))
+  private[schema] def sortMapKeys(dv: DynamicValue): DynamicValue = dv match {
+    case r: Record   => new Record(r.fields.map(kv => (kv._1, sortMapKeys(kv._2))))
+    case s: Sequence => new Sequence(s.elements.map(sortMapKeys))
+    case m: Map      => new Map(m.entries.sortBy(_._1).map(kv => (sortMapKeys(kv._1), sortMapKeys(kv._2))))
+    case v: Variant  => new Variant(v.caseNameValue, sortMapKeys(v.value))
     case other       => other
   }
 
-  private[schema] def dropNullsImpl(dv: DynamicValue): DynamicValue = dv match {
-    case r: Record   => Record(r.fields.filterNot(_._2 == Null).map { case (k, v) => (k, dropNullsImpl(v)) })
-    case s: Sequence => Sequence(s.elements.filterNot(_ == Null).map(dropNullsImpl))
+  private[schema] def dropNulls(dv: DynamicValue): DynamicValue = dv match {
+    case r: Record   => new Record(r.fields.collect { case kv if kv._2 ne Null => (kv._1, dropNulls(kv._2)) })
+    case s: Sequence => new Sequence(s.elements.collect { case e if e ne Null => dropNulls(e) })
     case m: Map      =>
-      Map(m.entries.filterNot { case (k, v) => k == Null || v == Null }.map { case (k, v) =>
-        (dropNullsImpl(k), dropNullsImpl(v))
-      })
-    case v: Variant if v.value != Null => Variant(v.caseNameValue, dropNullsImpl(v.value))
+      new Map(m.entries.collect { case (k, v) if (k ne Null) && (v ne Null) => (dropNulls(k), dropNulls(v)) })
+    case v: Variant if v.value ne Null => new Variant(v.caseNameValue, dropNulls(v.value))
     case other                         => other
   }
 
-  private[schema] def dropUnitsImpl(dv: DynamicValue): DynamicValue = {
-    val isUnit: DynamicValue => Boolean = {
-      case Primitive(PrimitiveValue.Unit) => true
-      case _                              => false
-    }
+  private[schema] def dropUnits(dv: DynamicValue): DynamicValue =
     dv match {
-      case r: Record   => Record(r.fields.filterNot(kv => isUnit(kv._2)).map { case (k, v) => (k, dropUnitsImpl(v)) })
-      case s: Sequence => Sequence(s.elements.filterNot(isUnit).map(dropUnitsImpl))
+      case r: Record   => new Record(r.fields.collect { case (k, v) if isNotUnit(v) => (k, dropUnits(v)) })
+      case s: Sequence => new Sequence(s.elements.collect { case e if isNotUnit(e) => dropUnits(e) })
       case m: Map      =>
-        Map(m.entries.filterNot { case (k, v) => isUnit(k) || isUnit(v) }.map { case (k, v) =>
-          (dropUnitsImpl(k), dropUnitsImpl(v))
-        })
-      case v: Variant if !isUnit(v.value) => Variant(v.caseNameValue, dropUnitsImpl(v.value))
-      case other                          => other
+        new Map(m.entries.collect { case (k, v) if isNotUnit(k) && isNotUnit(v) => (dropUnits(k), dropUnits(v)) })
+      case v: Variant if isNotUnit(v.value) => new Variant(v.caseNameValue, dropUnits(v.value))
+      case other                            => other
     }
+
+  private[this] def isNotUnit(dv: DynamicValue): Boolean = dv match {
+    case Primitive(PrimitiveValue.Unit) => false
+    case _                              => true
   }
 
-  private[schema] def dropEmptyImpl(dv: DynamicValue): DynamicValue = {
-    val isEmpty: DynamicValue => Boolean = {
-      case r: Record   => r.fields.isEmpty
-      case s: Sequence => s.elements.isEmpty
-      case m: Map      => m.entries.isEmpty
-      case _           => false
-    }
+  private[schema] def dropEmpty(dv: DynamicValue): DynamicValue =
     dv match {
-      case r: Record   => Record(r.fields.filterNot(kv => isEmpty(kv._2)).map { case (k, v) => (k, dropEmptyImpl(v)) })
-      case s: Sequence => Sequence(s.elements.filterNot(isEmpty).map(dropEmptyImpl))
+      case r: Record   => new Record(r.fields.collect { case (k, v) if isNotEmpty(v) => (k, dropEmpty(v)) })
+      case s: Sequence => new Sequence(s.elements.collect { case e if isNotEmpty(e) => dropEmpty(e) })
       case m: Map      =>
-        Map(m.entries.filterNot { case (k, v) => isEmpty(k) || isEmpty(v) }.map { case (k, v) =>
-          (dropEmptyImpl(k), dropEmptyImpl(v))
-        })
-      case v: Variant if !isEmpty(v.value) => Variant(v.caseNameValue, dropEmptyImpl(v.value))
-      case other                           => other
+        new Map(m.entries.collect { case (k, v) if isNotEmpty(k) && isNotEmpty(v) => (dropEmpty(k), dropEmpty(v)) })
+      case v: Variant if isNotEmpty(v.value) => new Variant(v.caseNameValue, dropEmpty(v.value))
+      case other                             => other
     }
-  }
 
+  private[this] def isNotEmpty(dv: DynamicValue): Boolean = dv match {
+    case r: Record   => r.fields.nonEmpty
+    case s: Sequence => s.elements.nonEmpty
+    case m: Map      => m.entries.nonEmpty
+    case _           => true
+  }
   // ─────────────────────────────────────────────────────────────────────────
   // Transformation Implementation
   // ─────────────────────────────────────────────────────────────────────────
 
-  private[schema] def transformUpImpl(
+  private[schema] def transformUp(
     dv: DynamicValue,
     path: DynamicOptic,
     f: (DynamicOptic, DynamicValue) => DynamicValue
   ): DynamicValue = {
     val transformed = dv match {
-      case r: Record =>
-        Record(r.fields.map { case (k, v) =>
-          val childPath = path.field(k)
-          (k, transformUpImpl(v, childPath, f))
-        })
+      case r: Record   => new Record(r.fields.map { case (k, v) => (k, transformUp(v, path.field(k), f)) })
       case s: Sequence =>
-        Sequence(s.elements.zipWithIndex.map { case (e, i) =>
-          val childPath = path.at(i)
-          transformUpImpl(e, childPath, f)
+        new Sequence(s.elements.map {
+          var idx = -1
+          e =>
+            idx += 1
+            transformUp(e, path.at(idx), f)
         })
       case m: Map =>
-        Map(m.entries.map { case (k, v) =>
+        new Map(m.entries.map { case (k, v) =>
           val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          (transformUpImpl(k, keyPath, f), transformUpImpl(v, valuePath, f))
+          val valuePath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+          (transformUp(k, keyPath, f), transformUp(v, valuePath, f))
         })
-      case v: Variant =>
-        val childPath = path.caseOf(v.caseNameValue)
-        Variant(v.caseNameValue, transformUpImpl(v.value, childPath, f))
-      case other => other
+      case v: Variant => new Variant(v.caseNameValue, transformUp(v.value, path.caseOf(v.caseNameValue), f))
+      case other      => other
     }
     f(path, transformed)
   }
 
-  private[schema] def transformDownImpl(
+  private[schema] def transformDown(
     dv: DynamicValue,
     path: DynamicOptic,
     f: (DynamicOptic, DynamicValue) => DynamicValue
   ): DynamicValue = {
     val transformed = f(path, dv)
     transformed match {
-      case r: Record =>
-        Record(r.fields.map { case (k, v) =>
-          val childPath = path.field(k)
-          (k, transformDownImpl(v, childPath, f))
-        })
+      case r: Record   => new Record(r.fields.map { case (k, v) => (k, transformDown(v, path.field(k), f)) })
       case s: Sequence =>
-        Sequence(s.elements.zipWithIndex.map { case (e, i) =>
-          val childPath = path.at(i)
-          transformDownImpl(e, childPath, f)
+        new Sequence(s.elements.map {
+          var idx = -1
+          e =>
+            idx += 1
+            transformDown(e, path.at(idx), f)
         })
       case m: Map =>
-        Map(m.entries.map { case (k, v) =>
+        new Map(m.entries.map { case (k, v) =>
           val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          (transformDownImpl(k, keyPath, f), transformDownImpl(v, valuePath, f))
+          val valuePath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+          (transformDown(k, keyPath, f), transformDown(v, valuePath, f))
         })
-      case v: Variant =>
-        val childPath = path.caseOf(v.caseNameValue)
-        Variant(v.caseNameValue, transformDownImpl(v.value, childPath, f))
-      case other => other
+      case v: Variant => new Variant(v.caseNameValue, transformDown(v.value, path.caseOf(v.caseNameValue), f))
+      case other      => other
     }
   }
 
-  private[schema] def transformFieldsImpl(
+  private[schema] def transformFields(
     dv: DynamicValue,
     path: DynamicOptic,
     f: (DynamicOptic, String) => String
   ): DynamicValue = dv match {
     case r: Record =>
-      Record(r.fields.map { case (k, v) =>
-        val newKey    = f(path, k)
-        val childPath = path.field(newKey)
-        (newKey, transformFieldsImpl(v, childPath, f))
+      new Record(r.fields.map { kv =>
+        val newKey = f(path, kv._1)
+        (newKey, transformFields(kv._2, path.field(newKey), f))
       })
     case s: Sequence =>
-      Sequence(s.elements.zipWithIndex.map { case (e, i) =>
-        transformFieldsImpl(e, path.at(i), f)
+      new Sequence(s.elements.map {
+        var idx = -1
+        e =>
+          idx += 1
+          transformFields(e, path.at(idx), f)
       })
     case m: Map =>
-      Map(m.entries.map { case (k, v) =>
-        (transformFieldsImpl(k, path, f), transformFieldsImpl(v, path, f))
+      new Map(m.entries.map { kv =>
+        (transformFields(kv._1, path, f), transformFields(kv._2, path, f))
       })
-    case v: Variant =>
-      Variant(v.caseNameValue, transformFieldsImpl(v.value, path.caseOf(v.caseNameValue), f))
-    case other => other
+    case v: Variant => Variant(v.caseNameValue, transformFields(v.value, path.caseOf(v.caseNameValue), f))
+    case other      => other
   }
 
-  private[schema] def transformMapKeysImpl(
+  private[schema] def transformMapKeys(
     dv: DynamicValue,
     path: DynamicOptic,
     f: (DynamicOptic, DynamicValue) => DynamicValue
   ): DynamicValue = dv match {
-    case r: Record =>
-      Record(r.fields.map { case (k, v) =>
-        (k, transformMapKeysImpl(v, path.field(k), f))
-      })
+    case r: Record   => new Record(r.fields.map { case (k, v) => (k, transformMapKeys(v, path.field(k), f)) })
     case s: Sequence =>
-      Sequence(s.elements.zipWithIndex.map { case (e, i) =>
-        transformMapKeysImpl(e, path.at(i), f)
+      new Sequence(s.elements.map {
+        var idx = -1
+        e =>
+          idx += 1
+          transformMapKeys(e, path.at(idx), f)
       })
     case m: Map =>
-      Map(m.entries.map { case (k, v) =>
-        val keyPath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-        (f(keyPath, k), transformMapKeysImpl(v, path, f))
+      new Map(m.entries.map { kv =>
+        (f(new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), kv._1), transformMapKeys(kv._2, path, f))
       })
-    case v: Variant =>
-      Variant(v.caseNameValue, transformMapKeysImpl(v.value, path.caseOf(v.caseNameValue), f))
-    case other => other
+    case v: Variant => new Variant(v.caseNameValue, transformMapKeys(v.value, path.caseOf(v.caseNameValue), f))
+    case other      => other
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Prune/Retain/Partition Implementation
   // ─────────────────────────────────────────────────────────────────────────
 
-  private[schema] def pruneImpl(
+  private[schema] def prune(
     dv: DynamicValue,
     path: DynamicOptic,
     p: (DynamicOptic, DynamicValue) => Boolean
   ): DynamicValue = dv match {
     case r: Record =>
-      Record(r.fields.flatMap { case (k, v) =>
+      new Record(r.fields.flatMap { case (k, v) =>
         val childPath = path.field(k)
         if (p(childPath, v)) None
-        else Some((k, pruneImpl(v, childPath, p)))
+        else new Some((k, prune(v, childPath, p)))
       })
     case s: Sequence =>
-      Sequence(s.elements.zipWithIndex.flatMap { case (e, i) =>
-        val childPath = path.at(i)
-        if (p(childPath, e)) None
-        else Some(pruneImpl(e, childPath, p))
+      new Sequence(s.elements.flatMap {
+        var idx = -1
+        e =>
+          idx += 1
+          val childPath = path.at(idx)
+          if (p(childPath, e)) None
+          else new Some(prune(e, childPath, p))
       })
     case m: Map =>
-      Map(m.entries.flatMap { case (k, v) =>
-        val childPath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
+      new Map(m.entries.flatMap { case (k, v) =>
+        val childPath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
         if (p(childPath, v)) None
-        else Some((pruneImpl(k, path, p), pruneImpl(v, childPath, p)))
+        else new Some((prune(k, path, p), prune(v, childPath, p)))
       })
-    case v: Variant =>
-      val childPath = path.caseOf(v.caseNameValue)
-      Variant(v.caseNameValue, pruneImpl(v.value, childPath, p))
-    case other => other
+    case v: Variant => new Variant(v.caseNameValue, prune(v.value, path.caseOf(v.caseNameValue), p))
+    case other      => other
   }
 
-  private[schema] def retainImpl(
+  private[schema] def retain(
     dv: DynamicValue,
     path: DynamicOptic,
     p: (DynamicOptic, DynamicValue) => Boolean
   ): DynamicValue = {
     def retainRec(current: DynamicValue, currentPath: DynamicOptic): DynamicValue = current match {
       case r: Record =>
-        Record(r.fields.flatMap { case (k, v) =>
+        new Record(r.fields.flatMap { case (k, v) =>
           val childPath = currentPath.field(k)
           val retained  = retainRec(v, childPath)
-          if (p(childPath, v) || hasContent(retained)) Some((k, retained))
+          if (p(childPath, v) || hasContent(retained)) new Some((k, retained))
           else None
         })
       case s: Sequence =>
-        Sequence(s.elements.zipWithIndex.flatMap { case (e, i) =>
-          val childPath = currentPath.at(i)
-          val retained  = retainRec(e, childPath)
-          if (p(childPath, e) || hasContent(retained)) Some(retained)
-          else None
+        new Sequence(s.elements.flatMap {
+          var idx = -1
+          e =>
+            idx += 1
+            val childPath = currentPath.at(idx)
+            val retained  = retainRec(e, childPath)
+            if (p(childPath, e) || hasContent(retained)) new Some(retained)
+            else None
         })
       case m: Map =>
-        Map(m.entries.flatMap { case (k, v) =>
+        new Map(m.entries.flatMap { case (k, v) =>
           val childPath = new DynamicOptic(currentPath.nodes :+ DynamicOptic.Node.AtMapKey(k))
           val retained  = retainRec(v, childPath)
-          if (p(childPath, v) || hasContent(retained)) Some((k, retained))
+          if (p(childPath, v) || hasContent(retained)) new Some((k, retained))
           else None
         })
       case v: Variant =>
         val childPath = currentPath.caseOf(v.caseNameValue)
         val retained  = retainRec(v.value, childPath)
-        if (p(childPath, v.value) || hasContent(retained)) Variant(v.caseNameValue, retained)
+        if (p(childPath, v.value) || hasContent(retained)) new Variant(v.caseNameValue, retained)
         else current
       case other =>
         if (p(currentPath, other)) other
@@ -1718,56 +1706,54 @@ object DynamicValue {
     case _           => true
   }
 
-  private[schema] def projectImpl(dv: DynamicValue, paths: Seq[DynamicOptic]): DynamicValue = {
+  private[schema] def project(dv: DynamicValue, paths: Seq[DynamicOptic]): DynamicValue = {
     val pathSet = paths.toSet
-    retainImpl(
+    retain(
       dv,
       DynamicOptic.root,
       (path, _) => pathSet.exists(p => path.nodes.startsWith(p.nodes) || p.nodes.startsWith(path.nodes))
     )
   }
 
-  private[schema] def partitionImpl(
+  private[schema] def partition(
     dv: DynamicValue,
     path: DynamicOptic,
     p: (DynamicOptic, DynamicValue) => Boolean
-  ): (DynamicValue, DynamicValue) =
-    (retainImpl(dv, path, p), pruneImpl(dv, path, p))
+  ): (DynamicValue, DynamicValue) = (retain(dv, path, p), prune(dv, path, p))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fold Implementation
   // ─────────────────────────────────────────────────────────────────────────
 
-  private[schema] def foldUpImpl[B](
+  private[schema] def foldUp[B](
     dv: DynamicValue,
     path: DynamicOptic,
     z: B,
     f: (DynamicOptic, DynamicValue, B) => B
   ): B = {
     val childAcc = dv match {
-      case r: Record =>
-        r.fields.foldLeft(z) { case (acc, (k, v)) =>
-          foldUpImpl(v, path.field(k), acc, f)
-        }
+      case r: Record   => r.fields.foldLeft(z)((acc, kv) => foldUp(kv._2, path.field(kv._1), acc, f))
       case s: Sequence =>
-        s.elements.zipWithIndex.foldLeft(z) { case (acc, (e, i)) =>
-          foldUpImpl(e, path.at(i), acc, f)
+        s.elements.foldLeft(z) {
+          var idx = -1
+          (acc, e) =>
+            idx += 1
+            foldUp(e, path.at(idx), acc, f)
         }
       case m: Map =>
         m.entries.foldLeft(z) { case (acc, (k, v)) =>
           val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
           val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          val acc1      = foldUpImpl(k, keyPath, acc, f)
-          foldUpImpl(v, valuePath, acc1, f)
+          val acc1      = foldUp(k, keyPath, acc, f)
+          foldUp(v, valuePath, acc1, f)
         }
-      case v: Variant =>
-        foldUpImpl(v.value, path.caseOf(v.caseNameValue), z, f)
-      case _ => z
+      case v: Variant => foldUp(v.value, path.caseOf(v.caseNameValue), z, f)
+      case _          => z
     }
     f(path, dv, childAcc)
   }
 
-  private[schema] def foldDownImpl[B](
+  private[schema] def foldDown[B](
     dv: DynamicValue,
     path: DynamicOptic,
     z: B,
@@ -1775,28 +1761,26 @@ object DynamicValue {
   ): B = {
     val acc = f(path, dv, z)
     dv match {
-      case r: Record =>
-        r.fields.foldLeft(acc) { case (a, (k, v)) =>
-          foldDownImpl(v, path.field(k), a, f)
-        }
+      case r: Record   => r.fields.foldLeft(acc)((a, kv) => foldDown(kv._2, path.field(kv._1), a, f))
       case s: Sequence =>
-        s.elements.zipWithIndex.foldLeft(acc) { case (a, (e, i)) =>
-          foldDownImpl(e, path.at(i), a, f)
+        s.elements.foldLeft(acc) {
+          var idx = -1
+          (a, e) =>
+            idx += 1
+            foldDown(e, path.at(idx), a, f)
         }
       case m: Map =>
-        m.entries.foldLeft(acc) { case (a, (k, v)) =>
+        m.entries.foldLeft(acc) { (a, kv) =>
           val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          val a1        = foldDownImpl(k, keyPath, a, f)
-          foldDownImpl(v, valuePath, a1, f)
+          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(kv._1))
+          foldDown(kv._2, valuePath, foldDown(kv._1, keyPath, a, f), f)
         }
-      case v: Variant =>
-        foldDownImpl(v.value, path.caseOf(v.caseNameValue), acc, f)
-      case _ => acc
+      case v: Variant => foldDown(v.value, path.caseOf(v.caseNameValue), acc, f)
+      case _          => acc
     }
   }
 
-  private[schema] def foldUpOrFailImpl[B](
+  private[schema] def foldUpOrFail[B](
     dv: DynamicValue,
     path: DynamicOptic,
     z: B,
@@ -1804,29 +1788,28 @@ object DynamicValue {
   ): Either[SchemaError, B] = {
     val childResult = dv match {
       case r: Record =>
-        r.fields.foldLeft[Either[SchemaError, B]](Right(z)) { case (accE, (k, v)) =>
-          accE.flatMap(acc => foldUpOrFailImpl(v, path.field(k), acc, f))
+        r.fields.foldLeft[Either[SchemaError, B]](new Right(z)) { case (accE, (k, v)) =>
+          accE.flatMap(acc => foldUpOrFail(v, path.field(k), acc, f))
         }
       case s: Sequence =>
-        s.elements.zipWithIndex.foldLeft[Either[SchemaError, B]](Right(z)) { case (accE, (e, i)) =>
-          accE.flatMap(acc => foldUpOrFailImpl(e, path.at(i), acc, f))
+        s.elements.zipWithIndex.foldLeft[Either[SchemaError, B]](new Right(z)) { case (accE, (e, i)) =>
+          accE.flatMap(acc => foldUpOrFail(e, path.at(i), acc, f))
         }
       case m: Map =>
-        m.entries.foldLeft[Either[SchemaError, B]](Right(z)) { case (accE, (k, v)) =>
+        m.entries.foldLeft[Either[SchemaError, B]](new Right(z)) { case (accE, (k, v)) =>
           accE.flatMap { acc =>
             val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
             val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-            foldUpOrFailImpl(k, keyPath, acc, f).flatMap(a1 => foldUpOrFailImpl(v, valuePath, a1, f))
+            foldUpOrFail(k, keyPath, acc, f).flatMap(a1 => foldUpOrFail(v, valuePath, a1, f))
           }
         }
-      case v: Variant =>
-        foldUpOrFailImpl(v.value, path.caseOf(v.caseNameValue), z, f)
-      case _ => Right(z)
+      case v: Variant => foldUpOrFail(v.value, path.caseOf(v.caseNameValue), z, f)
+      case _          => new Right(z)
     }
     childResult.flatMap(childAcc => f(path, dv, childAcc))
   }
 
-  private[schema] def foldDownOrFailImpl[B](
+  private[schema] def foldDownOrFail[B](
     dv: DynamicValue,
     path: DynamicOptic,
     z: B,
@@ -1835,45 +1818,39 @@ object DynamicValue {
     f(path, dv, z).flatMap { acc =>
       dv match {
         case r: Record =>
-          r.fields.foldLeft[Either[SchemaError, B]](Right(acc)) { case (aE, (k, v)) =>
-            aE.flatMap(a => foldDownOrFailImpl(v, path.field(k), a, f))
+          r.fields.foldLeft[Either[SchemaError, B]](new Right(acc)) { case (aE, (k, v)) =>
+            aE.flatMap(a => foldDownOrFail(v, path.field(k), a, f))
           }
         case s: Sequence =>
-          s.elements.zipWithIndex.foldLeft[Either[SchemaError, B]](Right(acc)) { case (aE, (e, i)) =>
-            aE.flatMap(a => foldDownOrFailImpl(e, path.at(i), a, f))
+          s.elements.zipWithIndex.foldLeft[Either[SchemaError, B]](new Right(acc)) { case (aE, (e, i)) =>
+            aE.flatMap(a => foldDownOrFail(e, path.at(i), a, f))
           }
         case m: Map =>
-          m.entries.foldLeft[Either[SchemaError, B]](Right(acc)) { case (aE, (k, v)) =>
+          m.entries.foldLeft[Either[SchemaError, B]](new Right(acc)) { case (aE, (k, v)) =>
             aE.flatMap { a =>
               val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
               val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-              foldDownOrFailImpl(k, keyPath, a, f).flatMap(a1 => foldDownOrFailImpl(v, valuePath, a1, f))
+              foldDownOrFail(k, keyPath, a, f).flatMap(a1 => foldDownOrFail(v, valuePath, a1, f))
             }
           }
-        case v: Variant =>
-          foldDownOrFailImpl(v.value, path.caseOf(v.caseNameValue), acc, f)
-        case _ => Right(acc)
+        case v: Variant => foldDownOrFail(v.value, path.caseOf(v.caseNameValue), acc, f)
+        case _          => new Right(acc)
       }
     }
 
-  private[schema] def toKVImpl(dv: DynamicValue, path: DynamicOptic): Chunk[(DynamicOptic, DynamicValue)] = dv match {
-    case r: Record =>
-      r.fields.flatMap { case (k, v) =>
-        toKVImpl(v, path.field(k))
-      }
+  private[schema] def toKV(dv: DynamicValue, path: DynamicOptic): Chunk[(DynamicOptic, DynamicValue)] = dv match {
+    case r: Record   => r.fields.flatMap(kv => toKV(kv._2, path.field(kv._1)))
     case s: Sequence =>
-      s.elements.zipWithIndex.flatMap { case (e, i) =>
-        toKVImpl(e, path.at(i))
+      s.elements.flatMap {
+        var idx = -1
+        e =>
+          idx += 1
+          toKV(e, path.at(idx))
       }
     case m: Map =>
-      m.entries.flatMap { case (k, v) =>
-        val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-        toKVImpl(v, valuePath)
-      }
-    case v: Variant =>
-      toKVImpl(v.value, path.caseOf(v.caseNameValue))
-    case other =>
-      Chunk((path, other))
+      m.entries.flatMap(kv => toKV(kv._2, new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(kv._1))))
+    case v: Variant => toKV(v.value, path.caseOf(v.caseNameValue))
+    case other      => Chunk.single((path, other))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1881,30 +1858,21 @@ object DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   def fromKV(kvs: Seq[(DynamicOptic, DynamicValue)]): Either[SchemaError, DynamicValue] =
-    if (kvs.isEmpty) Right(Record.empty)
+    if (kvs.isEmpty) new Right(Record.empty)
     else {
-      try {
-        Right(fromKVUnsafe(kvs))
-      } catch {
-        case e: SchemaError => Left(e)
+      try new Right(fromKVUnsafe(kvs))
+      catch {
+        case e: SchemaError => new Left(e)
       }
     }
 
   def fromKVUnsafe(kvs: Seq[(DynamicOptic, DynamicValue)]): DynamicValue = {
-    if (kvs.isEmpty) return Record.empty
-
     var result: DynamicValue = Record.empty
-    kvs.foreach { case (path, value) =>
-      result = upsertAtPathCreatingParents(result, path, value)
-    }
+    kvs.foreach(kv => result = upsertAtPathCreatingParents(result, kv._1, kv._2))
     result
   }
 
-  private def upsertAtPathCreatingParents(
-    dv: DynamicValue,
-    path: DynamicOptic,
-    value: DynamicValue
-  ): DynamicValue = {
+  private def upsertAtPathCreatingParents(dv: DynamicValue, path: DynamicOptic, value: DynamicValue): DynamicValue = {
     val nodes = path.nodes
     if (nodes.isEmpty) return value
 
@@ -1918,77 +1886,121 @@ object DynamicValue {
 
     def go(current: DynamicValue, idx: Int): DynamicValue = {
       if (idx >= nodes.length) return value
-
       val node   = nodes(idx)
       val isLast = idx == nodes.length - 1
-
       node match {
-        case DynamicOptic.Node.Field(name) =>
-          current match {
+        case f: DynamicOptic.Node.Field =>
+          val name = f.name
+          new Record(current match {
             case r: Record =>
               val fieldIdx = r.fields.indexWhere(_._1 == name)
               if (fieldIdx >= 0) {
-                val (_, v) = r.fields(fieldIdx)
-                val newV   = if (isLast) value else go(v, idx + 1)
-                Record(r.fields.updated(fieldIdx, (name, newV)))
+                val v = r.fields(fieldIdx)._2
+                r.fields.updated(
+                  fieldIdx,
+                  (
+                    name, {
+                      if (isLast) value
+                      else go(v, idx + 1)
+                    }
+                  )
+                )
               } else {
-                val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-                Record(r.fields :+ (name, newV))
+                r.fields :+ (
+                  name, {
+                    if (isLast) value
+                    else go(createContainer(nodes(idx + 1)), idx + 1)
+                  }
+                )
               }
             case _ =>
-              val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-              Record(Chunk((name, newV)))
-          }
-
-        case DynamicOptic.Node.AtIndex(index) =>
-          current match {
+              Chunk.single(
+                (
+                  name, {
+                    if (isLast) value
+                    else go(createContainer(nodes(idx + 1)), idx + 1)
+                  }
+                )
+              )
+          })
+        case ai: DynamicOptic.Node.AtIndex =>
+          val index = ai.index
+          new Sequence(current match {
             case s: Sequence =>
               if (index >= 0 && index < s.elements.length) {
-                val newV = if (isLast) value else go(s.elements(index), idx + 1)
-                Sequence(s.elements.updated(index, newV))
+                s.elements.updated(
+                  index,
+                  if (isLast) value
+                  else go(s.elements(index), idx + 1)
+                )
               } else if (index == s.elements.length) {
-                val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-                Sequence(s.elements :+ newV)
+                s.elements :+ {
+                  if (isLast) value
+                  else go(createContainer(nodes(idx + 1)), idx + 1)
+                }
               } else {
-                val padding = Chunk.fill(index - s.elements.length)(Null: DynamicValue)
-                val newV    = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-                Sequence(s.elements ++ padding :+ newV)
+                s.elements ++ Chunk.fill(index - s.elements.length)(Null: DynamicValue) :+ {
+                  if (isLast) value
+                  else go(createContainer(nodes(idx + 1)), idx + 1)
+                }
               }
             case _ =>
               val padding = Chunk.fill(index)(Null: DynamicValue)
-              val newV    = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-              Sequence(padding :+ newV)
-          }
-
-        case DynamicOptic.Node.AtMapKey(key) =>
-          current match {
+              padding :+ {
+                if (isLast) value
+                else go(createContainer(nodes(idx + 1)), idx + 1)
+              }
+          })
+        case amt: DynamicOptic.Node.AtMapKey =>
+          val key = amt.key
+          new Map(current match {
             case m: Map =>
               val keyIdx = m.entries.indexWhere(_._1 == key)
               if (keyIdx >= 0) {
                 val (k, v) = m.entries(keyIdx)
-                val newV   = if (isLast) value else go(v, idx + 1)
-                Map(m.entries.updated(keyIdx, (k, newV)))
+                m.entries.updated(
+                  keyIdx,
+                  (
+                    k, {
+                      if (isLast) value
+                      else go(v, idx + 1)
+                    }
+                  )
+                )
               } else {
-                val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-                Map(m.entries :+ (key, newV))
+                m.entries :+ (
+                  key, {
+                    if (isLast) value
+                    else go(createContainer(nodes(idx + 1)), idx + 1)
+                  }
+                )
               }
             case _ =>
-              val newV = if (isLast) value else go(createContainer(nodes(idx + 1)), idx + 1)
-              Map(Chunk((key, newV)))
-          }
-
-        case DynamicOptic.Node.Case(caseName) =>
-          current match {
-            case v: Variant if v.caseNameValue == caseName =>
-              val newInner = if (isLast) value else go(v.value, idx + 1)
-              Variant(caseName, newInner)
-            case _ =>
-              val newInner = if (isLast) value else go(Record.empty, idx + 1)
-              Variant(caseName, newInner)
-          }
-
-        case _ =>
-          go(current, idx + 1)
+              Chunk.single(
+                (
+                  key, {
+                    if (isLast) value
+                    else go(createContainer(nodes(idx + 1)), idx + 1)
+                  }
+                )
+              )
+          })
+        case c: DynamicOptic.Node.Case =>
+          val caseName = c.name
+          new Variant(
+            caseName, {
+              if (isLast) value
+              else
+                go(
+                  current match {
+                    case v: Variant if v.caseNameValue == caseName => v.value
+                    case _                                         => Record.empty
+                  },
+                  idx + 1
+                )
+            }
+          )
+        case _ => go(current, idx + 1)
       }
     }
 
@@ -1999,41 +2011,36 @@ object DynamicValue {
   // Query Implementation
   // ─────────────────────────────────────────────────────────────────────────
 
-  private[schema] def queryImpl(
+  private[schema] def query(
     dv: DynamicValue,
     path: DynamicOptic,
     p: (DynamicOptic, DynamicValue) => Boolean
-  ): DynamicValueSelection = {
-    val results = queryCollect(dv, path, p)
-    DynamicValueSelection.succeedMany(results)
-  }
+  ): DynamicValueSelection = DynamicValueSelection.succeedMany(queryCollect(dv, path, p))
 
   private def queryCollect(
     dv: DynamicValue,
     path: DynamicOptic,
     p: (DynamicOptic, DynamicValue) => Boolean
   ): Chunk[DynamicValue] = {
-    val current = if (p(path, dv)) Chunk(dv) else Chunk.empty
-
+    val current =
+      if (p(path, dv)) Chunk.single(dv)
+      else Chunk.empty
     val children = dv match {
-      case r: Record =>
-        r.fields.flatMap { case (k, v) =>
-          queryCollect(v, path.field(k), p)
-        }
+      case r: Record   => r.fields.flatMap(kv => queryCollect(kv._2, path.field(kv._1), p))
       case s: Sequence =>
-        s.elements.zipWithIndex.flatMap { case (e, i) =>
-          queryCollect(e, path.at(i), p)
+        s.elements.flatMap {
+          var idx = -1
+          e =>
+            idx += 1
+            queryCollect(e, path.at(idx), p)
         }
       case m: Map =>
-        m.entries.flatMap { case (k, v) =>
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          queryCollect(v, valuePath, p)
+        m.entries.flatMap { kv =>
+          queryCollect(kv._2, new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(kv._1)), p)
         }
-      case v: Variant =>
-        queryCollect(v.value, path.caseOf(v.caseNameValue), p)
-      case _ => Chunk.empty
+      case v: Variant => queryCollect(v.value, path.caseOf(v.caseNameValue), p)
+      case _          => Chunk.empty
     }
-
     current ++ children
   }
 
@@ -2054,116 +2061,129 @@ object DynamicValue {
    * @return
    *   EJSON string representation
    */
-  private def toEjson(value: DynamicValue, indent: Int): String = {
-    val indentStr = "  " * indent
-
+  private def toEjson(value: DynamicValue, indent: Int, sb: java.lang.StringBuilder): Unit =
     value match {
-      case Primitive(pv) =>
-        primitiveToEjson(pv)
-
-      case Record(fields) =>
-        if (fields.isEmpty) {
-          "{}"
-        } else {
-          val sb = new StringBuilder
+      case p: Primitive => primitiveToEjson(p.value, sb)
+      case r: Record    =>
+        val fields = r.fields
+        if (fields.isEmpty) sb.append("{}")
+        else {
           sb.append("{\n")
-          fields.zipWithIndex.foreach { case ((name, value), idx) =>
-            sb.append(indentStr).append("  ").append(escapeFieldName(name)).append(": ")
-            sb.append(toEjson(value, indent + 1))
-            if (idx < fields.length - 1) sb.append(",")
-            sb.append("\n")
+          fields.foreach {
+            val len = fields.length
+            var idx = 0
+            nv =>
+              indentStr(sb, indent + 1)
+              escapeFieldName(nv._1, sb)
+              sb.append(": ")
+              toEjson(nv._2, indent + 1, sb)
+              idx += 1
+              if (idx < len) sb.append(',')
+              sb.append('\n')
           }
-          sb.append(indentStr).append("}")
-          sb.toString
+          indentStr(sb, indent).append('}')
         }
-
-      case Variant(caseName, value) =>
+      case v: Variant =>
         // Variants use postfix @ metadata: { ... } @ {tag: "CaseName"}
-        val valueEjson = toEjson(value, indent)
-        s"$valueEjson @ {tag: ${quote(caseName)}}"
-
-      case Sequence(elements) =>
-        if (elements.isEmpty) {
-          "[]"
-        } else if (elements.length == 1 && elements(0).isInstanceOf[Primitive]) {
+        toEjson(v.value, indent, sb)
+        sb.append(" @ {tag: ")
+        quote(v.caseNameValue, sb)
+        sb.append('}')
+      case s: Sequence =>
+        val elements = s.elements
+        if (elements.isEmpty) sb.append("[]")
+        else if (elements.length == 1 && elements(0).isInstanceOf[Primitive]) {
           // Only inline single-element sequences if the element is a primitive
-          "[" + toEjson(elements(0), indent) + "]"
+          sb.append('[')
+          toEjson(elements(0), indent, sb)
+          sb.append(']')
         } else {
-          val sb = new StringBuilder
           sb.append("[\n")
-          elements.zipWithIndex.foreach { case (elem, idx) =>
-            sb.append(indentStr).append("  ")
-            sb.append(toEjson(elem, indent + 1))
-            if (idx < elements.length - 1) sb.append(",")
-            sb.append("\n")
+          elements.foreach {
+            val len = elements.length
+            var idx = 0
+            elem =>
+              indentStr(sb, indent + 1)
+              toEjson(elem, indent + 1, sb)
+              idx += 1
+              if (idx < len) sb.append(',')
+              sb.append('\n')
           }
-          sb.append(indentStr).append("]")
-          sb.toString
+          indentStr(sb, indent).append(']')
         }
-
-      case Map(entries) =>
-        if (entries.isEmpty) {
-          "{}"
-        } else {
-          val sb = new StringBuilder
+      case m: Map =>
+        val entries = m.entries
+        if (entries.isEmpty) sb.append("{}")
+        else {
           sb.append("{\n")
-          entries.zipWithIndex.foreach { case ((key, value), idx) =>
-            sb.append(indentStr).append("  ")
-            // For string keys in maps, we quote them. For non-string keys, we don't quote them.
-            key match {
-              case Primitive(PrimitiveValue.String(str)) =>
-                sb.append(quote(str))
-              case _ =>
-                sb.append(toEjson(key, indent + 1))
-            }
-            sb.append(": ")
-            sb.append(toEjson(value, indent + 1))
-            if (idx < entries.length - 1) sb.append(",")
-            sb.append("\n")
+          entries.foreach {
+            val len = entries.length
+            var idx = 0
+            kv =>
+              indentStr(sb, indent + 1)
+              val key = kv._1
+              key match { // For string keys in maps, we quote them. For non-string keys, we don't quote them.
+                case Primitive(PrimitiveValue.String(str)) => quote(str, sb)
+                case _                                     => toEjson(key, indent + 1, sb)
+              }
+              sb.append(": ")
+              toEjson(kv._2, indent + 1, sb)
+              idx += 1
+              if (idx < len) sb.append(',')
+              sb.append('\n')
           }
-          sb.append(indentStr).append("}")
-          sb.toString
+          indentStr(sb, indent).append('}')
         }
-
-      case Null => "null"
+      case _ => sb.append("null")
     }
+
+  private[this] def indentStr(sb: java.lang.StringBuilder, indent: Int): java.lang.StringBuilder = {
+    var idx = 0
+    while (idx < indent) {
+      sb.append(' ').append(' ')
+      idx += 1
+    }
+    sb
   }
 
   /**
    * Convert a PrimitiveValue to EJSON format. Most primitives render as their
    * JSON equivalent. Some primitives need @ metadata for type information.
    */
-  private def primitiveToEjson(pv: PrimitiveValue): String = pv match {
-    case PrimitiveValue.Unit                  => "null"
-    case PrimitiveValue.Boolean(value)        => value.toString
-    case PrimitiveValue.Byte(value)           => value.toString
-    case PrimitiveValue.Short(value)          => value.toString
-    case PrimitiveValue.Int(value)            => value.toString
-    case PrimitiveValue.Long(value)           => value.toString
-    case PrimitiveValue.Float(value)          => value.toString
-    case PrimitiveValue.Double(value)         => value.toString
-    case PrimitiveValue.Char(value)           => quote(value.toString)
-    case PrimitiveValue.String(value)         => quote(value)
-    case PrimitiveValue.BigInt(value)         => value.toString
-    case PrimitiveValue.BigDecimal(value)     => value.toString
-    case PrimitiveValue.DayOfWeek(value)      => quote(value.toString)
-    case PrimitiveValue.Month(value)          => quote(value.toString)
-    case PrimitiveValue.Instant(value)        => s"${value.toEpochMilli} @ {type: ${quote("instant")}}"
-    case PrimitiveValue.LocalDate(value)      => s"${quote(value.toString)} @ {type: ${quote("localDate")}}"
-    case PrimitiveValue.LocalDateTime(value)  => quote(value.toString)
-    case PrimitiveValue.LocalTime(value)      => quote(value.toString)
-    case PrimitiveValue.OffsetDateTime(value) => quote(value.toString)
-    case PrimitiveValue.OffsetTime(value)     => quote(value.toString)
-    case PrimitiveValue.Year(value)           => value.getValue.toString
-    case PrimitiveValue.YearMonth(value)      => quote(value.toString)
-    case PrimitiveValue.ZoneOffset(value)     => quote(value.toString)
-    case PrimitiveValue.ZonedDateTime(value)  => quote(value.toString)
-    case PrimitiveValue.MonthDay(value)       => quote(value.toString)
-    case PrimitiveValue.Period(value)         => s"${quote(value.toString)} @ {type: ${quote("period")}}"
-    case PrimitiveValue.Duration(value)       => s"${quote(value.toString)} @ {type: ${quote("duration")}}"
-    case PrimitiveValue.ZoneId(value)         => quote(value.toString)
-    case PrimitiveValue.Currency(value)       => quote(value.getCurrencyCode)
-    case PrimitiveValue.UUID(value)           => quote(value.toString)
+  private def primitiveToEjson(pv: PrimitiveValue, sb: java.lang.StringBuilder): Unit = pv match {
+    case v: PrimitiveValue.Boolean    => sb.append(v.value)
+    case v: PrimitiveValue.Byte       => sb.append(v.value)
+    case v: PrimitiveValue.Short      => sb.append(v.value)
+    case v: PrimitiveValue.Int        => sb.append(v.value)
+    case v: PrimitiveValue.Long       => sb.append(v.value)
+    case v: PrimitiveValue.Float      => sb.append(JsonBinaryCodec.floatCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Double     => sb.append(JsonBinaryCodec.doubleCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Char       => quote(v.value.toString, sb)
+    case v: PrimitiveValue.String     => quote(v.value, sb)
+    case v: PrimitiveValue.BigInt     => sb.append(JsonBinaryCodec.bigIntCodec.encodeToString(v.value))
+    case v: PrimitiveValue.BigDecimal => sb.append(JsonBinaryCodec.bigDecimalCodec.encodeToString(v.value))
+    case v: PrimitiveValue.DayOfWeek  => sb.append(JsonBinaryCodec.dayOfWeekCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Month      => sb.append(JsonBinaryCodec.monthCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Instant    => sb.append(v.value.toEpochMilli).append(" @ {type: \"instant\"}")
+    case v: PrimitiveValue.LocalDate  =>
+      sb.append(JsonBinaryCodec.localDateCodec.encodeToString(v.value)).append(" @ {type: \"localDate\"}")
+    case v: PrimitiveValue.LocalDateTime  => sb.append(JsonBinaryCodec.localDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.LocalTime      => sb.append(JsonBinaryCodec.localTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetDateTime => sb.append(JsonBinaryCodec.offsetDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetTime     => sb.append(JsonBinaryCodec.offsetTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Year           => sb.append(v.value.getValue)
+    case v: PrimitiveValue.YearMonth      => sb.append(JsonBinaryCodec.yearMonthCodec.encodeToString(v.value))
+    case v: PrimitiveValue.ZoneOffset     => sb.append(JsonBinaryCodec.zoneOffsetCodec.encodeToString(v.value))
+    case v: PrimitiveValue.ZonedDateTime  => sb.append(JsonBinaryCodec.zonedDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.MonthDay       => sb.append(JsonBinaryCodec.monthDayCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Period         =>
+      sb.append(JsonBinaryCodec.periodCodec.encodeToString(v.value)).append(" @ {type: \"period\"}")
+    case v: PrimitiveValue.Duration =>
+      sb.append(JsonBinaryCodec.durationCodec.encodeToString(v.value)).append(" @ {type: \"duration\"}")
+    case v: PrimitiveValue.ZoneId    => sb.append(JsonBinaryCodec.zoneIdCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Currency  => sb.append(JsonBinaryCodec.currencyCodec.encodeToString(v.value))
+    case v: PrimitiveValue.UUID      => sb.append(JsonBinaryCodec.uuidCodec.encodeToString(v.value))
+    case _: PrimitiveValue.Unit.type => sb.append("null")
   }
 
   /**
@@ -2171,12 +2191,9 @@ object DynamicValue {
    * as-is; invalid identifiers are wrapped in backticks, with backticks doubled
    * for escaping.
    */
-  private def escapeFieldName(name: String): String =
-    if (isValidIdentifier(name)) name
-    else {
-      val escaped = name.replace("`", "``")
-      s"`$escaped`"
-    }
+  private[this] def escapeFieldName(name: String, sb: java.lang.StringBuilder): Unit =
+    if (isValidIdentifier(name)) sb.append(name)
+    else sb.append('`').append(name.replace("`", "``")).append('`')
 
   /**
    * Check if a string is a valid Scala identifier. A valid identifier:
@@ -2185,18 +2202,16 @@ object DynamicValue {
    *   - Cannot be a Scala keyword
    *   - Cannot contain $ (discouraged in user-written code)
    */
-  private def isValidIdentifier(s: String): Boolean = {
+  private[this] def isValidIdentifier(s: String): Boolean = {
     if (s.isEmpty) return false
     if (scalaKeywords.contains(s)) return false
-
     val first = s.charAt(0)
     if (!Character.isLetter(first) && first != '_') return false
-
-    var i = 1
-    while (i < s.length) {
-      val c = s.charAt(i)
+    var idx = 1
+    while (idx < s.length) {
+      val c = s.charAt(idx)
       if (!Character.isLetterOrDigit(c) && c != '_') return false
-      i += 1
+      idx += 1
     }
     true
   }
@@ -2204,7 +2219,7 @@ object DynamicValue {
   /**
    * Scala keywords that cannot be used as identifiers without backticks.
    */
-  private val scalaKeywords: Set[String] = Set(
+  private[this] val scalaKeywords: Set[String] = Set(
     "abstract",
     "case",
     "catch",
@@ -2260,12 +2275,11 @@ object DynamicValue {
   /**
    * Quote a string for JSON/EJSON output, escaping special characters.
    */
-  private def quote(s: String): String = {
-    val sb = new StringBuilder
+  private[this] def quote(s: String, sb: java.lang.StringBuilder): Unit = {
     sb.append('"')
-    var i = 0
-    while (i < s.length) {
-      s.charAt(i) match {
+    var idx = 0
+    while (idx < s.length) {
+      s.charAt(idx) match {
         case '"'  => sb.append("\\\"")
         case '\\' => sb.append("\\\\")
         case '\b' => sb.append("\\b")
@@ -2274,16 +2288,11 @@ object DynamicValue {
         case '\r' => sb.append("\\r")
         case '\t' => sb.append("\\t")
         case c    =>
-          if (c < ' ') {
-            sb.append("\\u")
-            sb.append(String.format("%04x", Integer.valueOf(c.toInt)))
-          } else {
-            sb.append(c)
-          }
+          if (c >= ' ') sb.append(c)
+          else sb.append("\\u").append(String.format("%04x", Integer.valueOf(c.toInt)))
       }
-      i += 1
+      idx += 1
     }
     sb.append('"')
-    sb.toString
   }
 }

@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.immutable.ArraySeq
@@ -76,118 +77,148 @@ sealed trait Optic[S, A] { self =>
   }
 
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that, schema), SchemaExpr.RelationalOperator.Equal)
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Literal(that, schema),
+      SchemaExpr.RelationalOperator.Equal
+    )
 
   final def ===(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.Equal)
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Optic(that),
+      SchemaExpr.RelationalOperator.Equal
+    )
 
   final def >(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.GreaterThan)
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Optic(that),
+      SchemaExpr.RelationalOperator.GreaterThan
+    )
 
-  final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+  final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, schema),
     SchemaExpr.RelationalOperator.GreaterThan
   )
 
-  final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Optic(that),
+  final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Optic(that),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
-  final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+  final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, schema),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
   final def <(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.LessThan)
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Optic(that),
+      SchemaExpr.RelationalOperator.LessThan
+    )
 
-  final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+  final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, schema),
     SchemaExpr.RelationalOperator.LessThan
   )
 
   final def <=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.LessThanOrEqual)
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Optic(that),
+      SchemaExpr.RelationalOperator.LessThanOrEqual
+    )
 
-  final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, schema),
+  final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, schema),
     SchemaExpr.RelationalOperator.LessThanOrEqual
   )
 
   final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.NotEqual)
-
-  final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
-    SchemaExpr.Relational(
-      SchemaExpr.Optic(this),
-      SchemaExpr.Literal(that, schema),
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Optic(that),
       SchemaExpr.RelationalOperator.NotEqual
     )
 
-  final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
-    SchemaExpr.Optic(this.asEquivalent[Boolean]),
-    SchemaExpr.Optic(that.asEquivalent[Boolean]),
+  final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
+    new SchemaExpr.Relational(
+      new SchemaExpr.Optic(this),
+      new SchemaExpr.Literal(that, schema),
+      SchemaExpr.RelationalOperator.NotEqual
+    )
+
+  final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = new SchemaExpr.Logical(
+    new SchemaExpr.Optic(this.asEquivalent[Boolean]),
+    new SchemaExpr.Optic(that.asEquivalent[Boolean]),
     SchemaExpr.LogicalOperator.And
   )
 
   final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    SchemaExpr.Logical(
-      SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      SchemaExpr.Literal(that, Schema[Boolean]),
+    new SchemaExpr.Logical(
+      new SchemaExpr.Optic(this.asEquivalent[Boolean]),
+      new SchemaExpr.Literal(that, Schema[Boolean]),
       SchemaExpr.LogicalOperator.And
     )
 
-  final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
-    SchemaExpr.Optic(this.asEquivalent[Boolean]),
-    SchemaExpr.Optic(that.asEquivalent[Boolean]),
+  final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = new SchemaExpr.Logical(
+    new SchemaExpr.Optic(this.asEquivalent[Boolean]),
+    new SchemaExpr.Optic(that.asEquivalent[Boolean]),
     SchemaExpr.LogicalOperator.Or
   )
 
   final def ||(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    SchemaExpr.Logical(
-      SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      SchemaExpr.Literal(that, Schema[Boolean]),
+    new SchemaExpr.Logical(
+      new SchemaExpr.Optic(this.asEquivalent[Boolean]),
+      new SchemaExpr.Literal(that, Schema[Boolean]),
       SchemaExpr.LogicalOperator.Or
     )
 
   final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    SchemaExpr.Not(SchemaExpr.Optic(this.asEquivalent[Boolean]))
+    new SchemaExpr.Not(new SchemaExpr.Optic(this.asEquivalent[Boolean]))
 
   final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
-    SchemaExpr.StringConcat(SchemaExpr.Optic(this.asEquivalent[String]), SchemaExpr.Literal(that, Schema[String]))
+    new SchemaExpr.StringConcat(
+      new SchemaExpr.Optic(this.asEquivalent[String]),
+      new SchemaExpr.Literal(that, Schema[String])
+    )
 
   final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
-    SchemaExpr.StringRegexMatch(SchemaExpr.Literal(that, Schema[String]), SchemaExpr.Optic(this.asEquivalent[String]))
+    new SchemaExpr.StringRegexMatch(
+      new SchemaExpr.Literal(that, Schema[String]),
+      new SchemaExpr.Optic(this.asEquivalent[String])
+    )
 
-  final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, isNumeric.schema),
+  final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = new SchemaExpr.Arithmetic(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Add,
     isNumeric
   )
 
-  final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, isNumeric.schema),
+  final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = new SchemaExpr.Arithmetic(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Subtract,
     isNumeric
   )
 
-  final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
-    SchemaExpr.Optic(this),
-    SchemaExpr.Literal(that, isNumeric.schema),
+  final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = new SchemaExpr.Arithmetic(
+    new SchemaExpr.Optic(this),
+    new SchemaExpr.Literal(that, isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Multiply,
     isNumeric
   )
 
   final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
-    SchemaExpr.StringLength(SchemaExpr.Optic(this.asEquivalent[String]))
+    new SchemaExpr.StringLength(new SchemaExpr.Optic(this.asEquivalent[String]))
 
   final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
 }
@@ -325,8 +356,9 @@ object Lens {
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
     override def toString: String = {
-      val path = focusTerms.map(term => s".${term.name}").mkString
-      s"Lens(_$path)"
+      val sb = new java.lang.StringBuilder("Lens(_")
+      focusTerms.foreach(term => sb.append('.').append(term.name))
+      sb.append(')').toString
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -511,8 +543,9 @@ object Prism {
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
 
     override def toString: String = {
-      val path = focusTerms.map(term => s".when[${term.name}]").mkString
-      s"Prism(_$path)"
+      val sb = new java.lang.StringBuilder("Prism(_")
+      focusTerms.foreach(term => sb.append(".when[").append(term.name).append(']'))
+      sb.append(')').toString
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -1081,7 +1114,7 @@ object Optional {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
-      val nodes = Vector.newBuilder[DynamicOptic.Node]
+      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
       var idx   = 0
       while (idx < len) {
@@ -1107,7 +1140,7 @@ object Optional {
 
     override def toString: String = {
       if (bindings eq null) init()
-      val sb  = new StringBuilder
+      val sb  = new java.lang.StringBuilder("Optional(_")
       val len = bindings.length
       var idx = 0
       while (idx < len) {
@@ -1125,7 +1158,7 @@ object Optional {
         }
         idx += 1
       }
-      s"Optional(_${sb.toString})"
+      sb.append(')').toString
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -2446,7 +2479,7 @@ object Traversal {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
-      val nodes = Vector.newBuilder[DynamicOptic.Node]
+      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
       var idx   = 0
       while (idx < len) {
@@ -2481,7 +2514,7 @@ object Traversal {
 
     override def toString: String = {
       if (bindings eq null) init()
-      val sb  = new StringBuilder
+      val sb  = new java.lang.StringBuilder("Traversal(_")
       val len = bindings.length
       var idx = 0
       while (idx < len) {
@@ -2509,7 +2542,7 @@ object Traversal {
         }
         idx += 1
       }
-      s"Traversal(_${sb.toString})"
+      sb.append(')').toString
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^

@@ -70,7 +70,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       test("toString includes name and index") {
         // Basic type param without variance shows just name@index
         assertTrue(
-          TypeParam("X", 5).toString == "X@5"
+          TypeParam("X", 5).toString == "X"
         )
       },
       test("variance is reflected in toString") {
@@ -78,17 +78,17 @@ object TypeIdSpec extends ZIOSpecDefault {
         val contravariant = TypeParam("A", 0, Variance.Contravariant)
         val invariant     = TypeParam("A", 0, Variance.Invariant)
         assertTrue(
-          covariant.toString == "+A@0",
-          contravariant.toString == "-A@0",
-          invariant.toString == "A@0"
+          covariant.toString == "+A",
+          contravariant.toString == "-A",
+          invariant.toString == "A"
         )
       },
       test("higher-kinded params show arity") {
         val hk1 = TypeParam.higherKinded("F", 0, 1)
         val hk2 = TypeParam.higherKinded("G", 0, 2)
         assertTrue(
-          hk1.toString == "F[1]@0",
-          hk2.toString == "G[2]@0"
+          hk1.toString == "F[_]",
+          hk2.toString == "G[_, _]"
         )
       }
     ),
@@ -212,6 +212,217 @@ object TypeIdSpec extends ZIOSpecDefault {
         val result = TypeRepr.union(types)
         assertTrue(
           result == TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+        )
+      }
+    ),
+    suite("TypeIdPrinter")(
+      test("renders CharConst with special character escaping") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('a')) == "'a'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\n')) == "'\\n'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\t')) == "'\\t'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\r')) == "'\\r'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\\')) == "'\\\\'",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('\'')) == "'\\''",
+          TypeIdPrinter.render(TypeRepr.Constant.CharConst('x')) == "'x'"
+        )
+      },
+      test("renders StringConst with special character escaping") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("hello")) == "\"hello\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("line1\nline2")) == "\"line1\\nline2\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("tab\there")) == "\"tab\\there\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("return\rhere")) == "\"return\\rhere\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("back\\slash")) == "\"back\\\\slash\"",
+          TypeIdPrinter.render(TypeRepr.Constant.StringConst("say \"hello\"")) == "\"say \\\"hello\\\"\""
+        )
+      },
+      test("renders other constants correctly") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.IntConst(42)) == "42",
+          TypeIdPrinter.render(TypeRepr.Constant.LongConst(100L)) == "100L",
+          TypeIdPrinter.render(TypeRepr.Constant.FloatConst(4.5f)) == "4.5f",
+          TypeIdPrinter.render(TypeRepr.Constant.DoubleConst(2.718)) == "2.718",
+          TypeIdPrinter.render(TypeRepr.Constant.BooleanConst(true)) == "true",
+          TypeIdPrinter.render(TypeRepr.Constant.BooleanConst(false)) == "false",
+          TypeIdPrinter.render(TypeRepr.Constant.NullConst) == "null",
+          TypeIdPrinter.render(TypeRepr.Constant.UnitConst) == "()"
+        )
+      },
+      test("renders ClassOfConst") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Constant.ClassOfConst(TypeRepr.Ref(TypeId.string))) == "classOf[String]"
+        )
+      },
+      test("renders special types") {
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.AnyType) == "Any",
+          TypeIdPrinter.render(TypeRepr.NothingType) == "Nothing",
+          TypeIdPrinter.render(TypeRepr.NullType) == "Null",
+          TypeIdPrinter.render(TypeRepr.UnitType) == "Unit",
+          TypeIdPrinter.render(TypeRepr.AnyKindType) == "AnyKind"
+        )
+      },
+      test("renders Ref and Applied types") {
+        val listInt = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.int)))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Ref(TypeId.int)) == "Int",
+          TypeIdPrinter.render(listInt) == "List[Int]"
+        )
+      },
+      test("renders Applied with nested generics without formal type params") {
+        val vectorString       = TypeRepr.Applied(TypeRepr.Ref(TypeId.vector), List(TypeRepr.Ref(TypeId.string)))
+        val optionVectorString = TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(vectorString))
+        assertTrue(
+          TypeIdPrinter.render(vectorString) == "Vector[String]",
+          TypeIdPrinter.render(optionVectorString) == "Option[Vector[String]]"
+        )
+      },
+      test("renders intersection and union types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Intersection(List(intRef, stringRef))) == "Int & String",
+          TypeIdPrinter.render(TypeRepr.Union(List(intRef, stringRef))) == "Int | String"
+        )
+      },
+      test("renders ParamRef") {
+        val paramRef = TypeRepr.ParamRef(TypeParam.A)
+        assertTrue(TypeIdPrinter.render(paramRef) == "A")
+      },
+      test("renders Function types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Function(Nil, intRef)) == "() => Int",
+          TypeIdPrinter.render(TypeRepr.Function(List(intRef), stringRef)) == "Int => String",
+          TypeIdPrinter.render(TypeRepr.Function(List(intRef, stringRef), intRef)) == "(Int, String) => Int"
+        )
+      },
+      test("renders ContextFunction types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.ContextFunction(List(intRef), stringRef)) == "Int ?=> String",
+          TypeIdPrinter.render(TypeRepr.ContextFunction(List(intRef, stringRef), intRef)) == "(Int, String) ?=> Int"
+        )
+      },
+      test("renders ByName and Repeated types") {
+        val intRef = TypeRepr.Ref(TypeId.int)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.ByName(intRef)) == "=> Int",
+          TypeIdPrinter.render(TypeRepr.Repeated(intRef)) == "Int*"
+        )
+      },
+      test("renders Wildcard types") {
+        val intRef = TypeRepr.Ref(TypeId.int)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds.Unbounded)) == "?",
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds.upper(intRef))) == "? <: Int",
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds.lower(intRef))) == "? >: Int",
+          TypeIdPrinter.render(TypeRepr.Wildcard(TypeBounds(intRef, intRef))) == "? >: Int <: Int"
+        )
+      },
+      test("renders Tuple types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        assertTrue(
+          TypeIdPrinter.render(
+            TypeRepr.Tuple(List(TupleElement(None, intRef), TupleElement(None, stringRef)))
+          ) == "(Int, String)",
+          TypeIdPrinter.render(
+            TypeRepr.Tuple(List(TupleElement(Some("x"), intRef), TupleElement(Some("y"), stringRef)))
+          ) == "(x: Int, y: String)"
+        )
+      },
+      test("renders TypeLambda") {
+        val paramA   = TypeParam("A", 0)
+        val paramRef = TypeRepr.ParamRef(paramA)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.TypeLambda(List(paramA), paramRef)) == "[A] =>> A"
+        )
+      },
+      test("renders Singleton and ThisType") {
+        val path = TermPath(List(TermPath.Term("foo"), TermPath.Term("bar")))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Singleton(path)) == "foo.bar.type",
+          TypeIdPrinter.render(TypeRepr.ThisType(Owner.Root / "com" / "example")) == "this.type"
+        )
+      },
+      test("renders TypeProjection and TypeSelect") {
+        val intRef = TypeRepr.Ref(TypeId.int)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.TypeProjection(intRef, "Inner")) == "Int#Inner",
+          TypeIdPrinter.render(TypeRepr.TypeSelect(intRef, "Inner")) == "Int.Inner"
+        )
+      },
+      test("renders Annotated types") {
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val annotation = Annotation(TypeId.nominal[Deprecated]("deprecated", Owner.scala), List.empty)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Annotated(intRef, List(annotation))) == "Int @deprecated"
+        )
+      },
+      test("renders Structural types") {
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val stringRef = TypeRepr.Ref(TypeId.string)
+        val valMember = Member.Val("x", intRef, isVar = false)
+        val varMember = Member.Val("y", stringRef, isVar = true)
+        val defMember = Member.Def("foo", Nil, List(List(Param("a", intRef))), stringRef)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(valMember))) == "{ val x: Int }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(varMember))) == "{ var y: String }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(defMember))) == "{ def foo(a: Int): String }",
+          TypeIdPrinter.render(TypeRepr.Structural(List(intRef), List(valMember))) == "Int { val x: Int }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, Nil)) == ""
+        )
+      },
+      test("renders TypeMember in structural types") {
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val typeMember = Member.TypeMember("T", Nil, None, None)
+        val typeAlias  = Member.TypeMember("T", Nil, Some(intRef), Some(intRef))
+        val typeBounds = Member.TypeMember("T", Nil, Some(intRef), Some(TypeRepr.AnyType))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeMember))) == "{ type T }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeAlias))) == "{ type T = Int }",
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeBounds))) == "{ type T >: Int <: Any }"
+        )
+      },
+      test("renders TypeId with full name for java.util types") {
+        val uuidId = TypeId.nominal[java.util.UUID]("UUID", Owner.Root / "java" / "util")
+        assertTrue(
+          TypeIdPrinter.render(uuidId).contains("java.util.UUID")
+        )
+      },
+      test("renders TypeParam with higher-kinded arity") {
+        val hk1 = TypeParam.higherKinded("F", 0, 1)
+        val hk2 = TypeParam.higherKinded("G", 0, 2)
+        assertTrue(
+          TypeIdPrinter.render(hk1) == "F[_]",
+          TypeIdPrinter.render(hk2) == "G[_, _]"
+        )
+      },
+      test("renders TypeMember with type parameters") {
+        val paramA     = TypeParam("A", 0)
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val typeMember = Member.TypeMember("F", List(paramA), None, Some(intRef))
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeMember))) == "{ type F[A] <: Int }"
+        )
+      },
+      test("renders Def with type parameters") {
+        val paramA    = TypeParam("A", 0)
+        val intRef    = TypeRepr.Ref(TypeId.int)
+        val defMember = Member.Def("foo", List(paramA), Nil, intRef)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(defMember))) == "{ def foo[A]: Int }"
+        )
+      },
+      test("renders TypeMember with lower bound only") {
+        val intRef     = TypeRepr.Ref(TypeId.int)
+        val typeMember = Member.TypeMember("T", Nil, Some(intRef), None)
+        assertTrue(
+          TypeIdPrinter.render(TypeRepr.Structural(Nil, List(typeMember))) == "{ type T >: Int }"
         )
       }
     ),
@@ -391,7 +602,7 @@ object TypeIdSpec extends ZIOSpecDefault {
             Owner.Root / "test",
             Nil,
             Nil,
-            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(listInt))
+            TypeDefKind.Trait(isSealed = false, bases = List(listInt))
           )
           assertTrue(TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.list, Set.empty))
         },
@@ -402,7 +613,7 @@ object TypeIdSpec extends ZIOSpecDefault {
             Owner.Root / "test",
             Nil,
             Nil,
-            TypeDefKind.Trait(isSealed = false, knownSubtypes = Nil, bases = List(stringParent))
+            TypeDefKind.Trait(isSealed = false, bases = List(stringParent))
           )
           assertTrue(!TypeIdOps.checkParents(childTypeId.defKind.baseTypes, TypeId.int, Set.empty))
         }
@@ -484,6 +695,78 @@ object TypeIdSpec extends ZIOSpecDefault {
           val intersection1 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
           val intersection2 = TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
           assertTrue(TypeIdOps.typeReprHash(intersection1) == TypeIdOps.typeReprHash(intersection2))
+        }
+      ),
+      suite("Ref(applied) vs Applied(Ref(unapplied), args) consistency")(
+        test("equality: Ref(applied) equals Applied(Ref(unapplied), args)") {
+          val refForm = TypeRepr.Ref(
+            TypeId.applied[Vector[Int]](TypeId.vector, TypeRepr.Ref(TypeId.int))
+          )
+          val appliedForm = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          assertTrue(TypeIdOps.typeReprEqual(refForm, appliedForm))
+        },
+        test("equality: Applied(Ref(unapplied), args) equals Ref(applied)") {
+          val appliedForm = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          val refForm = TypeRepr.Ref(
+            TypeId.applied[Vector[Int]](TypeId.vector, TypeRepr.Ref(TypeId.int))
+          )
+          assertTrue(TypeIdOps.typeReprEqual(appliedForm, refForm))
+        },
+        test("hash: Ref(applied) and Applied(Ref(unapplied), args) produce same hash") {
+          val refForm = TypeRepr.Ref(
+            TypeId.applied[Vector[Int]](TypeId.vector, TypeRepr.Ref(TypeId.int))
+          )
+          val appliedForm = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.int))
+          )
+          assertTrue(TypeIdOps.typeReprHash(refForm) == TypeIdOps.typeReprHash(appliedForm))
+        },
+        test("Ref(Tuple2[A, B]) equals Tuple(List(TupleElement(A), TupleElement(B)))") {
+          val tuple2Id = TypeId.nominal[Tuple2[Int, String]](
+            "Tuple2",
+            Owner.fromPackagePath("scala"),
+            List(TypeParam("_1", 0), TypeParam("_2", 1)),
+            List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)),
+            TypeDefKind.Unknown,
+            None,
+            Nil
+          )
+          val refForm   = TypeRepr.Ref(tuple2Id)
+          val tupleForm = TypeRepr.Tuple(
+            List(
+              TupleElement(None, TypeRepr.Ref(TypeId.int)),
+              TupleElement(None, TypeRepr.Ref(TypeId.string))
+            )
+          )
+          assertTrue(
+            TypeIdOps.typeReprEqual(refForm, tupleForm),
+            TypeIdOps.typeReprEqual(tupleForm, refForm),
+            TypeIdOps.typeReprHash(refForm) == TypeIdOps.typeReprHash(tupleForm)
+          )
+        },
+        test("nested: Option[Vector[String]] is consistent across representations") {
+          val vectorStringRef = TypeRepr.Ref(
+            TypeId.applied[Vector[String]](TypeId.vector, TypeRepr.Ref(TypeId.string))
+          )
+          val vectorStringApplied = TypeRepr.Applied(
+            TypeRepr.Ref(TypeId.vector),
+            List(TypeRepr.Ref(TypeId.string))
+          )
+          val optionViaRef     = TypeId.applied[Option[Vector[String]]](TypeId.option, vectorStringRef)
+          val optionViaApplied = TypeId.applied[Option[Vector[String]]](TypeId.option, vectorStringApplied)
+          assertTrue(
+            TypeId.structurallyEqual(optionViaRef, optionViaApplied),
+            optionViaRef.hashCode() == optionViaApplied.hashCode(),
+            optionViaRef.toString == "Option[Vector[String]]",
+            optionViaApplied.toString == "Option[Vector[String]]"
+          )
         }
       )
     ),

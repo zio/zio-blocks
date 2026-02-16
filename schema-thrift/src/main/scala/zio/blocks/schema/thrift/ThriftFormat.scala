@@ -2,6 +2,7 @@ package zio.blocks.schema.thrift
 
 import org.apache.thrift.protocol._
 import scala.reflect.ClassTag
+import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema.codec.BinaryFormat
@@ -574,8 +575,7 @@ object ThriftFormat
                     case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
                   }
 
-                def encode(value: A, protocol: TProtocol): Unit =
-                  wrappedCodec.encode(unwrap(value), protocol)
+                def encode(value: A, protocol: TProtocol): Unit = wrappedCodec.encode(unwrap(value), protocol)
               }
             } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else {
@@ -588,65 +588,66 @@ object ThriftFormat
         private[this] val dynamicValueCodec = new ThriftBinaryCodec[DynamicValue]() {
           def decodeUnsafe(protocol: TProtocol): DynamicValue = decodeError("Cannot decode DynamicValue without schema")
 
-          def encode(value: DynamicValue, protocol: TProtocol): Unit =
-            value match {
-              case DynamicValue.Primitive(pv) =>
-                pv match {
-                  case PrimitiveValue.String(v)         => ThriftBinaryCodec.stringCodec.encode(v, protocol)
-                  case PrimitiveValue.Int(v)            => ThriftBinaryCodec.intCodec.encode(v, protocol)
-                  case PrimitiveValue.Long(v)           => ThriftBinaryCodec.longCodec.encode(v, protocol)
-                  case PrimitiveValue.Boolean(v)        => ThriftBinaryCodec.booleanCodec.encode(v, protocol)
-                  case PrimitiveValue.Double(v)         => ThriftBinaryCodec.doubleCodec.encode(v, protocol)
-                  case PrimitiveValue.Float(v)          => ThriftBinaryCodec.floatCodec.encode(v, protocol)
-                  case PrimitiveValue.Short(v)          => ThriftBinaryCodec.shortCodec.encode(v, protocol)
-                  case PrimitiveValue.Byte(v)           => ThriftBinaryCodec.byteCodec.encode(v, protocol)
-                  case PrimitiveValue.Char(v)           => ThriftBinaryCodec.charCodec.encode(v, protocol)
-                  case PrimitiveValue.BigInt(v)         => ThriftBinaryCodec.bigIntCodec.encode(v, protocol)
-                  case PrimitiveValue.BigDecimal(v)     => ThriftBinaryCodec.bigDecimalCodec.encode(v, protocol)
-                  case PrimitiveValue.Unit              => ThriftBinaryCodec.unitCodec.encode((), protocol)
-                  case PrimitiveValue.UUID(v)           => ThriftBinaryCodec.uuidCodec.encode(v, protocol)
-                  case PrimitiveValue.Instant(v)        => ThriftBinaryCodec.instantCodec.encode(v, protocol)
-                  case PrimitiveValue.LocalDate(v)      => ThriftBinaryCodec.localDateCodec.encode(v, protocol)
-                  case PrimitiveValue.LocalTime(v)      => ThriftBinaryCodec.localTimeCodec.encode(v, protocol)
-                  case PrimitiveValue.LocalDateTime(v)  => ThriftBinaryCodec.localDateTimeCodec.encode(v, protocol)
-                  case PrimitiveValue.OffsetTime(v)     => ThriftBinaryCodec.offsetTimeCodec.encode(v, protocol)
-                  case PrimitiveValue.OffsetDateTime(v) => ThriftBinaryCodec.offsetDateTimeCodec.encode(v, protocol)
-                  case PrimitiveValue.ZonedDateTime(v)  => ThriftBinaryCodec.zonedDateTimeCodec.encode(v, protocol)
-                  case PrimitiveValue.ZoneId(v)         => ThriftBinaryCodec.zoneIdCodec.encode(v, protocol)
-                  case PrimitiveValue.ZoneOffset(v)     => ThriftBinaryCodec.zoneOffsetCodec.encode(v, protocol)
-                  case PrimitiveValue.DayOfWeek(v)      => ThriftBinaryCodec.dayOfWeekCodec.encode(v, protocol)
-                  case PrimitiveValue.Month(v)          => ThriftBinaryCodec.monthCodec.encode(v, protocol)
-                  case PrimitiveValue.MonthDay(v)       => ThriftBinaryCodec.monthDayCodec.encode(v, protocol)
-                  case PrimitiveValue.Year(v)           => ThriftBinaryCodec.yearCodec.encode(v, protocol)
-                  case PrimitiveValue.YearMonth(v)      => ThriftBinaryCodec.yearMonthCodec.encode(v, protocol)
-                  case PrimitiveValue.Period(v)         => ThriftBinaryCodec.periodCodec.encode(v, protocol)
-                  case PrimitiveValue.Duration(v)       => ThriftBinaryCodec.durationCodec.encode(v, protocol)
-                  case PrimitiveValue.Currency(v)       => ThriftBinaryCodec.currencyCodec.encode(v, protocol)
-                }
-              case DynamicValue.Record(fields) =>
-                var idx = 0
-                fields.foreach { case (name, dv) =>
-                  protocol.writeFieldBegin(new TField(name, TType.STRUCT, (idx + 1).toShort))
-                  encode(dv, protocol)
-                  idx += 1
-                }
-                protocol.writeFieldStop()
-              case DynamicValue.Variant(caseName, dv) =>
-                protocol.writeFieldBegin(new TField(caseName, TType.STRUCT, 1))
+          def encode(value: DynamicValue, protocol: TProtocol): Unit = value match {
+            case pv: DynamicValue.Primitive =>
+              pv.value match {
+                case v: PrimitiveValue.String         => ThriftBinaryCodec.stringCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Int            => ThriftBinaryCodec.intCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Long           => ThriftBinaryCodec.longCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Boolean        => ThriftBinaryCodec.booleanCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Double         => ThriftBinaryCodec.doubleCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Float          => ThriftBinaryCodec.floatCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Short          => ThriftBinaryCodec.shortCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Byte           => ThriftBinaryCodec.byteCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Char           => ThriftBinaryCodec.charCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.BigInt         => ThriftBinaryCodec.bigIntCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.BigDecimal     => ThriftBinaryCodec.bigDecimalCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.UUID           => ThriftBinaryCodec.uuidCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Instant        => ThriftBinaryCodec.instantCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.LocalDate      => ThriftBinaryCodec.localDateCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.LocalTime      => ThriftBinaryCodec.localTimeCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.LocalDateTime  => ThriftBinaryCodec.localDateTimeCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.OffsetTime     => ThriftBinaryCodec.offsetTimeCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.OffsetDateTime => ThriftBinaryCodec.offsetDateTimeCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.ZonedDateTime  => ThriftBinaryCodec.zonedDateTimeCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.ZoneId         => ThriftBinaryCodec.zoneIdCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.ZoneOffset     => ThriftBinaryCodec.zoneOffsetCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.DayOfWeek      => ThriftBinaryCodec.dayOfWeekCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Month          => ThriftBinaryCodec.monthCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.MonthDay       => ThriftBinaryCodec.monthDayCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Year           => ThriftBinaryCodec.yearCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.YearMonth      => ThriftBinaryCodec.yearMonthCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Period         => ThriftBinaryCodec.periodCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Duration       => ThriftBinaryCodec.durationCodec.encode(v.value, protocol)
+                case v: PrimitiveValue.Currency       => ThriftBinaryCodec.currencyCodec.encode(v.value, protocol)
+                case _: PrimitiveValue.Unit.type      => ThriftBinaryCodec.unitCodec.encode((), protocol)
+              }
+            case r: DynamicValue.Record =>
+              val fields = r.fields
+              var idx    = 0
+              fields.foreach { case (name, dv) =>
+                protocol.writeFieldBegin(new TField(name, TType.STRUCT, (idx + 1).toShort))
                 encode(dv, protocol)
-                protocol.writeFieldStop()
-              case DynamicValue.Sequence(elements) =>
-                protocol.writeListBegin(new TList(TType.STRUCT, elements.size))
-                elements.foreach(encode(_, protocol))
-              case DynamicValue.Map(entries) =>
-                protocol.writeMapBegin(new TMap(TType.STRUCT, TType.STRUCT, entries.size))
-                entries.foreach { case (k, v) =>
-                  encode(k, protocol)
-                  encode(v, protocol)
-                }
-              case DynamicValue.Null =>
-                ThriftBinaryCodec.unitCodec.encode((), protocol)
-            }
+                idx += 1
+              }
+              protocol.writeFieldStop()
+            case v: DynamicValue.Variant =>
+              protocol.writeFieldBegin(new TField(v.caseNameValue, TType.STRUCT, 1))
+              encode(v.value, protocol)
+              protocol.writeFieldStop()
+            case s: DynamicValue.Sequence =>
+              val elements = s.elements
+              protocol.writeListBegin(new TList(TType.STRUCT, elements.size))
+              elements.foreach(encode(_, protocol))
+            case m: DynamicValue.Map =>
+              val entries = m.entries
+              protocol.writeMapBegin(new TMap(TType.STRUCT, TType.STRUCT, entries.size))
+              entries.foreach { case (k, v) =>
+                encode(k, protocol)
+                encode(v, protocol)
+              }
+            case _: DynamicValue.Null.type => ThriftBinaryCodec.unitCodec.encode((), protocol)
+          }
         }
       }
     )

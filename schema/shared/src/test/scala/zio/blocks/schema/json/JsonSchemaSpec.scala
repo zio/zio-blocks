@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.test._
 
@@ -182,7 +182,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     ),
     suite("enum and const")(
       test("enum constraint") {
-        val schema = JsonSchema.enumOf(::(Json.String("red"), List(Json.String("green"), Json.String("blue"))))
+        val schema = JsonSchema.enumOf(NonEmptyChunk(Json.String("red"), Json.String("green"), Json.String("blue")))
         assertTrue(
           schema.conforms(Json.String("red")),
           schema.conforms(Json.String("green")),
@@ -256,12 +256,12 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("withNullable on union already with Null returns unchanged") {
         val schema =
-          JsonSchema.Object(`type` = Some(SchemaType.Union(new ::(JsonSchemaType.Null, JsonSchemaType.String :: Nil))))
+          JsonSchema.Object(`type` = Some(SchemaType.Union(NonEmptyChunk(JsonSchemaType.Null, JsonSchemaType.String))))
         assertTrue(schema.withNullable == schema)
       },
       test("withNullable on union without Null adds Null") {
         val schema = JsonSchema.Object(`type` =
-          Some(SchemaType.Union(new ::(JsonSchemaType.String, JsonSchemaType.Integer :: Nil)))
+          Some(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Integer)))
         )
         val result = schema.withNullable
         assertTrue(result match {
@@ -306,7 +306,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     suite("Type unions")(
       test("union type accepts any of the types") {
         val schema = JsonSchema.Object(
-          `type` = Some(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number))))
+          `type` = Some(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Number)))
         )
         assertTrue(
           schema.conforms(Json.String("hello")),
@@ -360,7 +360,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("prefixItems constraint") {
-        val schema = JsonSchema.array(prefixItems = Some(::(JsonSchema.string(), List(JsonSchema.integer()))))
+        val schema = JsonSchema.array(prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())))
         assertTrue(
           schema.conforms(Json.Array(Json.String("a"), Json.Number(1))),
           schema.conforms(Json.Array(Json.String("a"), Json.Number(1), Json.Boolean(true))),
@@ -430,10 +430,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("oneOf accepts exactly one match") {
         val schema = JsonSchema.Object(
           oneOf = Some(
-            ::(
-              JsonSchema.obj(required = Some(Set("a"))),
-              List(JsonSchema.obj(required = Some(Set("b"))))
-            )
+            NonEmptyChunk(JsonSchema.obj(required = Some(Set("a"))), JsonSchema.obj(required = Some(Set("b"))))
           )
         )
         assertTrue(
@@ -812,9 +809,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("properties from allOf subschemas are evaluated") {
         val schema = JsonSchema.Object(
           allOf = Some(
-            ::(
+            NonEmptyChunk(
               JsonSchema.obj(properties = Some(ChunkMap("foo" -> JsonSchema.string()))),
-              List(JsonSchema.obj(properties = Some(ChunkMap("bar" -> JsonSchema.integer()))))
+              JsonSchema.obj(properties = Some(ChunkMap("bar" -> JsonSchema.integer())))
             )
           ),
           unevaluatedProperties = Some(JsonSchema.False)
@@ -827,9 +824,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("properties from anyOf valid subschemas are evaluated") {
         val schema = JsonSchema.Object(
           anyOf = Some(
-            ::(
+            NonEmptyChunk(
               JsonSchema.obj(properties = Some(ChunkMap("foo" -> JsonSchema.string()))),
-              List(JsonSchema.obj(properties = Some(ChunkMap("bar" -> JsonSchema.integer()))))
+              JsonSchema.obj(properties = Some(ChunkMap("bar" -> JsonSchema.integer())))
             )
           ),
           unevaluatedProperties = Some(JsonSchema.False)
@@ -843,14 +840,12 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       test("properties from oneOf valid subschema are evaluated") {
         val schema = JsonSchema.Object(
           oneOf = Some(
-            ::(
+            NonEmptyChunk(
               JsonSchema.obj(properties =
                 Some(ChunkMap("type" -> JsonSchema.constOf(Json.String("a")), "a" -> JsonSchema.string()))
               ),
-              List(
-                JsonSchema.obj(properties =
-                  Some(ChunkMap("type" -> JsonSchema.constOf(Json.String("b")), "b" -> JsonSchema.integer()))
-                )
+              JsonSchema.obj(properties =
+                Some(ChunkMap("type" -> JsonSchema.constOf(Json.String("b")), "b" -> JsonSchema.integer()))
               )
             )
           ),
@@ -894,7 +889,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     suite("unevaluatedItems")(
       test("rejects unevaluated items when schema is False") {
         val schema = JsonSchema.array(
-          prefixItems = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
           unevaluatedItems = Some(JsonSchema.False)
         )
         assertTrue(
@@ -904,7 +899,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("validates unevaluated items against schema") {
         val schema = JsonSchema.array(
-          prefixItems = Some(::(JsonSchema.string(), Nil)),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.string())),
           unevaluatedItems = Some(JsonSchema.integer())
         )
         assertTrue(
@@ -915,7 +910,7 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("items keyword evaluates all remaining items") {
         val schema = JsonSchema.array(
-          prefixItems = Some(::(JsonSchema.string(), Nil)),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.string())),
           items = Some(JsonSchema.number()),
           unevaluatedItems = Some(JsonSchema.False)
         )
@@ -928,9 +923,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         val schema = JsonSchema.Object(
           `type` = Some(SchemaType.Single(JsonSchemaType.Array)),
           allOf = Some(
-            ::(
-              JsonSchema.array(prefixItems = Some(::(JsonSchema.string(), Nil))),
-              List(JsonSchema.array(prefixItems = Some(::(JsonSchema.True, List(JsonSchema.integer())))))
+            NonEmptyChunk(
+              JsonSchema.array(prefixItems = Some(NonEmptyChunk(JsonSchema.string()))),
+              JsonSchema.array(prefixItems = Some(NonEmptyChunk(JsonSchema.True, JsonSchema.integer())))
             )
           ),
           unevaluatedItems = Some(JsonSchema.False)
