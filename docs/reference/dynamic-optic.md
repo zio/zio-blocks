@@ -25,6 +25,10 @@ val result = data.get(path).one
 // Right(DynamicValue.Primitive(PrimitiveValue.String("Alice")))
 ```
 
+:::tip
+For a practical example of extracting column names from `DynamicOptic` paths to generate SQL, see the [Query DSL Part 2: SQL Generation](../guides/query-dsl-sql.md) guide.
+:::
+
 ## Motivation
 
 Most of the time you work with typed `Optic[S, A]` values — they are statically verified and provide type-safe

@@ -36,6 +36,7 @@ const sidebars = {
       label: "Guides",
       items: [
         "guides/query-dsl-reified-optics",
+        "guides/query-dsl-sql",
       ]
     }
   ]

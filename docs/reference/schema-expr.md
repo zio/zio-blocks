@@ -18,6 +18,10 @@ sealed trait SchemaExpr[A, +B] {
 }
 ```
 
+:::tip
+For practical walkthroughs of building with `SchemaExpr`, see [Query DSL Part 1: Expressions](../guides/query-dsl-reified-optics.md) and [Part 2: SQL Generation](../guides/query-dsl-sql.md).
+:::
+
 ## Motivation
 
 When working with schema-described data, we often need to express computations over that data — comparisons, arithmetic, string operations — in a way that can be both **evaluated at runtime** and **inspected as data**. This is essential for:

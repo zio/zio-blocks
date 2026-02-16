@@ -572,4 +572,5 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Guides
 
-- [Writing a Query DSL with Reified Optics](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
+- [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
+- [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
