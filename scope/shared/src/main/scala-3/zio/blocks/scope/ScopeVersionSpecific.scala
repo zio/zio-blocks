@@ -4,7 +4,7 @@ package zio.blocks.scope
  * Scala 3 version-specific methods for Scope.
  *
  * Provides the `scoped` method using Scala 3's dependent function types, the
- * macro-enforced `use` for safe resource access, and the `leak` macro for
+ * macro-enforced `$` for safe resource access, and the `leak` macro for
  * escaping the scoped type system with a warning.
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
@@ -18,7 +18,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   Scope.global.scoped { scope =>
    *     import scope._
    *     val db: $[Database] = allocate(Resource(new Database))
-   *     scope.use(db)(_.query("SELECT 1")).get
+   *     (scope $ db)(_.query("SELECT 1")).get
    *   }
    *   }}}
    *
@@ -77,12 +77,12 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @example
    *   {{{
    *   // Allowed:
-   *   scope.use(db)(_.query("SELECT 1"))
-   *   scope.use(db)(db => db.query("a") + db.query("b"))
+   *   (scope $ db)(_.query("SELECT 1"))
+   *   (scope $ db)(db => db.query("a") + db.query("b"))
    *
    *   // Rejected at compile time:
-   *   scope.use(db)(db => store(db))       // param as argument
-   *   scope.use(db)(db => () => db.query()) // captured in closure
+   *   (scope $ db)(db => store(db))       // param as argument
+   *   (scope $ db)(db => () => db.query()) // captured in closure
    *   }}}
    *
    * @param sa
@@ -96,7 +96,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @return
    *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
    */
-  transparent inline def use[A, B](sa: $[A])(inline f: A => B): $[B] = {
+  infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): $[B] = {
     UseMacros.check[A, B](f)
     if (self.isClosed) null.asInstanceOf[$[B]]
     else {

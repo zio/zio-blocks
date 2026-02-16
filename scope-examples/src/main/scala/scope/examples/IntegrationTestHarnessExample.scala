@@ -109,9 +109,9 @@ object IntegrationTestHarnessExample {
       val harness: $[(TestFixture, AppUnderTest)] = allocate(testHarnessResource)
       println()
 
-      // Run test scenarios - access the tuple via use
+      // Run test scenarios - access the tuple via $
       println("Running test scenarios:")
-      scope.use(harness) { h =>
+      (scope $ harness) { h =>
         println(s"  GET user:1 -> ${h._2.handleRequest("user:1")}")
         println(s"  GET user:2 -> ${h._2.handleRequest("user:2")}")
         println(s"  GET user:3 -> ${h._2.handleRequest("user:3")}")

@@ -9,13 +9,13 @@ import zio.blocks.scope.internal.Finalizers
  *
  * If a scope reference escapes to another thread (e.g. via a `Future`) and the
  * original scope closes while the other thread still holds a reference, all
- * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
- * that return a default-valued `$[B]` (`null` for reference types, `0` for
- * numeric types, `false` for `Boolean`, etc.). This prevents the escaped thread
- * from interacting with already-released resources, but callers should be aware
- * that these default values may appear if scopes are used across thread
- * boundaries incorrectly. `defer` on a closed scope is silently ignored, and
- * `scoped` creates a born-closed child.
+ * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that return
+ * a default-valued `$[B]` (`null` for reference types, `0` for numeric types,
+ * `false` for `Boolean`, etc.). This prevents the escaped thread from
+ * interacting with already-released resources, but callers should be aware that
+ * these default values may appear if scopes are used across thread boundaries
+ * incorrectly. `defer` on a closed scope is silently ignored, and `scoped`
+ * creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
@@ -80,25 +80,6 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   protected def $unwrap[A](sa: $[A]): A
 
   /**
-   * Wraps a raw value into a scoped value (zero-cost).
-   *
-   * If this scope is closed, returns a default-valued `$[A]` instead (`null`
-   * for reference types, zero/false for value types). Callers should generally
-   * use `allocate` for resources and this method for plain values that don't
-   * require finalization.
-   *
-   * @param a
-   *   the value to wrap
-   * @tparam A
-   *   the value type
-   * @return
-   *   the scoped value, or a default-valued scoped value if the scope is closed
-   */
-  def $[A](a: A): $[A] =
-    if (isClosed) $wrap(null.asInstanceOf[A])
-    else $wrap(a)
-
-  /**
    * Lowers a parent-scoped value into this scope.
    *
    * This is safe because a parent scope always outlives its children: the
@@ -125,10 +106,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Thread-safe check for whether this scope has been closed.
    *
    * Once a scope is closed its finalizers have already run and all subsequent
-   * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
-   * that return default-valued scoped values (`null` for reference types,
-   * zero/false for value types). [[Scope.global]] returns `false` until JVM
-   * shutdown.
+   * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that
+   * return default-valued scoped values (`null` for reference types, zero/false
+   * for value types). [[Scope.global]] returns `false` until JVM shutdown.
    *
    * @return
    *   `true` if this scope's finalizers have already been executed
@@ -226,7 +206,8 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
       handle.cancel()
       fins.runAll()
     }
-    $(Scope.OpenScope(childScope, closeFn))
+    if (isClosed) $wrap(null.asInstanceOf[Scope.OpenScope])
+    else $wrap(Scope.OpenScope(childScope, closeFn))
   }
 
   /**
@@ -245,7 +226,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
      *
      * Only available when `A` has an [[Unscoped]] instance, ensuring only pure
      * data (not resources) can be extracted. This is sound because the
-     * macro-enforced `use` prevents creating `$[A]` values where `A: Unscoped`
+     * macro-enforced `$` prevents creating `$[A]` values where `A: Unscoped`
      * but the value secretly holds a resource reference.
      *
      * @param ev

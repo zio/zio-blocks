@@ -92,9 +92,9 @@ object TransactionBoundaryExample {
         connScope.scoped { txScope =>
           import txScope._
           val c: $[DbConnection]   = lower(conn)
-          val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-001")).get)
-          val rows                 = txScope.use(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
-          txScope.use(tx)(_.commit())
+          val tx: $[DbTransaction] = allocate((txScope $ c)(_.beginTransaction("tx-001")).get)
+          val rows                 = (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
+          (txScope $ tx)(_.commit())
           TxResult(success = true, affectedRows = rows)
         }
       println(s"  Result: $result1\n")
@@ -105,10 +105,10 @@ object TransactionBoundaryExample {
         connScope.scoped { txScope =>
           import txScope._
           val c: $[DbConnection]   = lower(conn)
-          val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-002")).get)
-          val rows1                = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
-          val rows2                = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")).get
-          txScope.use(tx)(_.commit())
+          val tx: $[DbTransaction] = allocate((txScope $ c)(_.beginTransaction("tx-002")).get)
+          val rows1                = (txScope $ tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
+          val rows2                = (txScope $ tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")).get
+          (txScope $ tx)(_.commit())
           TxResult(success = true, affectedRows = rows1 + rows2)
         }
       println(s"  Result: $result2\n")
@@ -119,8 +119,8 @@ object TransactionBoundaryExample {
         connScope.scoped { txScope =>
           import txScope._
           val c: $[DbConnection]   = lower(conn)
-          val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-003")).get)
-          txScope.use(tx)(_.execute("DELETE FROM audit_log"))
+          val tx: $[DbTransaction] = allocate((txScope $ c)(_.beginTransaction("tx-003")).get)
+          (txScope $ tx)(_.execute("DELETE FROM audit_log"))
           println("    [App] Not committing - scope exit will trigger auto-rollback...")
           TxResult(success = false, affectedRows = 0)
         }

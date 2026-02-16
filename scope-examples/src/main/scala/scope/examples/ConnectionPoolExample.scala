@@ -102,8 +102,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val c: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
-      val result                 = workScope.use(c)(_.execute("SELECT * FROM service_a_table")).get
+      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val result                 = (workScope $ c)(_.execute("SELECT * FROM service_a_table")).get
       println(s"  [ServiceA] Got: $result")
     }
     println()
@@ -112,8 +112,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val c: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
-      val result                 = workScope.use(c)(_.execute("SELECT * FROM service_b_table")).get
+      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val result                 = (workScope $ c)(_.execute("SELECT * FROM service_b_table")).get
       println(s"  [ServiceB] Got: $result")
     }
     println()
@@ -122,13 +122,13 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val a: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
-      val b: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
-      val aId                    = workScope.use(a)(_.id).get
-      val bId                    = workScope.use(b)(_.id).get
+      val a: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val b: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val aId                    = (workScope $ a)(_.id).get
+      val bId                    = (workScope $ b)(_.id).get
       println(s"  [Parallel] Using connections $aId and $bId")
-      workScope.use(a)(_.execute("UPDATE table_a SET x = 1"))
-      workScope.use(b)(_.execute("UPDATE table_b SET y = 2"))
+      (workScope $ a)(_.execute("UPDATE table_a SET x = 1"))
+      (workScope $ b)(_.execute("UPDATE table_b SET y = 2"))
       ()
     }
     println()

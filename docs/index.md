@@ -210,11 +210,11 @@ Scope.global.scoped { scope =>
   val db: $[Database] = allocate(Resource(openDatabase()))
 
   // Methods are hidden - can't call db.query() directly
-  // Must use scope.use to access:
-  val result = scope.use(db)(_.query("SELECT 1"))
+  // Must use scope $ to access:
+  val result: String = (scope $ db)(_.query("SELECT 1")).get
 
   // Trying to return `db` would be a compile error!
-  result  // Only pure data escapes
+  result  // Only pure data (String) escapes
 }
 // db.close() called automatically
 ```
@@ -250,8 +250,8 @@ Scope.global.scoped { scope =>
   // Allocate returns scope.$[Database] (scoped value)
   val db: $[Database] = allocate(Resource(new Database))
 
-  // Access via scope.use - result (String) escapes, db does not
-  val result = scope.use(db)(_.query("SELECT * FROM users"))
+  // Access via scope $ - result (String) escapes, db does not
+  val result: String = (scope $ db)(_.query("SELECT * FROM users")).get
 
   println(result)
 }
@@ -280,7 +280,7 @@ Scope.global.scoped { scope =>
 
   val service = allocate(serviceResource)
 
-  scope.use(service)(_.createUser("Alice"))
+  (scope $ service)(_.createUser("Alice")).get
 }
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
@@ -296,17 +296,11 @@ Scope.global.scoped { connScope =>
   // Transaction lives in child scope - cleaned up before connection
   val result: String = scoped { txScope =>
     import txScope._
-
-    // For-comprehension: flatMap unwraps $[Connection] to Connection,
-    // so c.beginTransaction() returns a raw Resource[Transaction]
-    for {
-      c  <- lower(conn)
-      tx <- allocate(c.beginTransaction())
-    } yield {
-      tx.execute("INSERT INTO users VALUES (1, 'Alice')")
-      tx.commit()
-      "success"
-    }
+    val c  = lower(conn)
+    val tx = allocate((txScope $ c)(_.beginTransaction()).get)
+    (txScope $ tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
+    (txScope $ tx)(_.commit())
+    "success"
   }
   // Transaction closed here, connection still open
 

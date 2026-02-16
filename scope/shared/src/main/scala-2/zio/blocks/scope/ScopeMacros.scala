@@ -39,7 +39,7 @@ private[scope] object ScopeMacros {
   }
 
   /**
-   * Scala 2 macro implementation for Scope.use.
+   * Scala 2 macro implementation for Scope.$.
    *
    * Validates that the lambda parameter is only used in method-receiver
    * position, then expands to the unwrap-call-rewrap pattern.
@@ -70,7 +70,7 @@ private[scope] object ScopeMacros {
       case _ =>
         c.abort(
           f.pos,
-          "use requires a lambda literal: use(x)(a => a.method()). " +
+          "$ requires a lambda literal: (scope $ x)(a => a.method()). " +
             "Method references and variables are not supported."
         )
     }

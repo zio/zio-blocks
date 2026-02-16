@@ -19,7 +19,7 @@ package zio.blocks.scope
  *   }
  *
  *   // Resources stay scoped
- *   val body: $[InputStream] = scope.use(request)(_.body)  // InputStream stays scoped
+ *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped
  *   }}}
  */
 trait Unscoped[A]

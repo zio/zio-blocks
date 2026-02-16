@@ -5,7 +5,7 @@ import scala.language.experimental.macros
 /**
  * Scala 2 version-specific methods for Scope.
  *
- * Provides the `scoped` method, the macro-enforced `use` for safe resource
+ * Provides the `scoped` method, the macro-enforced `$` for safe resource
  * access, and the `leak` macro for escaping the scoped type system with a
  * warning.
  */
@@ -79,7 +79,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @return
    *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
    */
-  def use[A, B](sa: $[A])(f: A => B): $[B] = macro ScopeMacros.useImpl
+  def $[A, B](sa: $[A])(f: A => B): $[B] = macro ScopeMacros.useImpl
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

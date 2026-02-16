@@ -7,7 +7,7 @@
 If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
 
 - **Compile-time prevention of scope leaks**
-- **Zero-cost opaque type** (`$[A]` is the scoped type, equal to `A` at runtime)
+- **Zero-cost opaque type** (`$[A]` is the scoped type, equal to `A` at runtime; there is no `$[A]` constructor method — values become scoped through `allocate`)
 - **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
 - **Eager allocation** (all scope operations execute immediately; `Resource` is a lazy *description* that becomes eager when passed to `allocate`)
 
@@ -56,8 +56,8 @@ Scope.global.scoped { scope =>
 
   val db: $[Database] = allocate(Resource(new Database))
 
-  // scope.use applies a function to the scoped value, returning a scoped result
-  val result: String = scope.use(db)(_.query("SELECT 1")).get
+  // scope $ db applies a function to the scoped value, returning a scoped result
+  val result: String = (scope $ db)(_.query("SELECT 1")).get
   println(result)
 }
 ```
@@ -67,7 +67,7 @@ Key things to notice:
 - `allocate(...)` returns a **scoped** value of type `$[Database]` (the path-dependent type of the enclosing scope)
 - `$[A] = A` at runtime — zero-cost opaque type, no boxing
 - All operations are **eager** — values are computed immediately, no lazy thunks
-- `scope.use(value)(f)` is macro-enforced to prevent capturing scoped values; returns `$[B]`
+- `(scope $ value)(f)` is macro-enforced to prevent capturing scoped values; returns `$[B]`
 - `.get` on `$[A]` extracts the underlying value when `A` has an `Unscoped` instance
 - When the `scoped { ... }` block exits, finalizers run **LIFO** and errors are handled safely
 - The `scoped` method requires `Unscoped[A]` evidence on the return type
@@ -128,7 +128,7 @@ object Scope {
 - **Key effect:** methods on `A` are hidden at the type level; you can't call `a.method` directly
 - **All operations are eager:** `allocate(resource)` acquires the resource **immediately** and returns a scoped value
 - **Access paths:**
-  - `scope.use(a)(f)` — macro-enforced access; returns `$[B]`
+  - `(scope $ a)(f)` — macro-enforced access; returns `$[B]`
   - `.get` on `$[A]` when `A: Unscoped` — extracts the underlying value
 
 #### `ScopedOps`: `.get` on `$[A]`
@@ -140,14 +140,14 @@ Scope.global.scoped { scope =>
   import scope._
 
   val db: $[Database] = allocate(Resource.from[Database])
-  val result: String = scope.use(db)(_.query("SELECT 1")).get
-  val count: Int = scope.use(db)(_.rowCount).get
+  val result: String = (scope $ db)(_.query("SELECT 1")).get
+  val count: Int = (scope $ db)(_.rowCount).get
 }
 ```
 
 - `.get` requires `Unscoped[A]` evidence, ensuring only pure data can be extracted
 - Resources (`$[Database]`, `$[Socket]`) cannot be `.get`-ed — they don't have `Unscoped` instances
-- `Resource[A]` has an `Unscoped` instance (it's a lazy description, not a live resource), enabling patterns like `allocate(scope.use(db)(_.beginTransaction()).get)`
+- `Resource[A]` has an `Unscoped` instance (it's a lazy description, not a live resource), enabling patterns like `allocate((scope $ db)(_.beginTransaction()).get)`
 
 ---
 
@@ -198,6 +198,7 @@ The `Unscoped[A]` typeclass marks types as pure data that don't hold resources. 
 - Primitives: `Int`, `Long`, `Boolean`, `Double`, etc.
 - `String`, `Unit`, `Nothing`
 - Collections of Unscoped types
+- `Resource[A]` (lazy descriptions, not live resources)
 
 **Custom Unscoped types:**
 ```scala
@@ -259,7 +260,7 @@ Scope.global.scoped { parent =>
 
     // Use lower() to access parent-scoped value in child scope
     val db: $[Database] = lower(parentDb)
-    child.use(db)(_.query("SELECT 1"))
+    (child $ db)(_.query("SELECT 1"))
 
     "done"
   }
@@ -347,7 +348,7 @@ Compile-time safety is verified in tests, e.g.:
 
 Each scope defines its own `$[A]` opaque type. Even though `$[A] = A` at runtime, the compiler treats each scope's `$[A]` as distinct. A child's `$[Database]` is a different type than the parent's `$[Database]`.
 
-Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access routes are `scope.use(value)(f)` (macro-enforced to prevent capture) and `.get` (requires `Unscoped[A]` evidence).
+Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access routes are `(scope $ value)(f)` (macro-enforced to prevent capture) and `.get` (requires `Unscoped[A]` evidence).
 
 ---
 
@@ -368,9 +369,9 @@ Scope.global.scoped { scope =>
 
   val h: $[FileHandle] = allocate(Resource(new FileHandle("data.txt")))
 
-  // scope.use applies function to scoped value, returns $[String]
-  val contents: $[String] = scope.use(h)(_.readAll())
-  println(contents)  // $[String] = String at runtime
+  // scope $ h applies function to scoped value, returns $[String]
+  val contents: String = (scope $ h)(_.readAll()).get
+  println(contents)
 }
 ```
 
@@ -391,12 +392,12 @@ Scope.global.scoped { parent =>
 
     // Use lower() to access parent-scoped values in child scope:
     val db: $[Database] = lower(parentDb)
-    println(child.use(db)(_.query("SELECT 1")))
+    println((child $ db)(_.query("SELECT 1")).get)
 
     val childDb: $[Database] = allocate(Resource(new Database))
 
     // You can use childDb *inside* the child:
-    println(child.use(childDb)(_.query("SELECT 2")))
+    println((child $ childDb)(_.query("SELECT 2")).get)
 
     // But you cannot return childDb to the parent:
     // $[Database] has no Unscoped instance — compile error
@@ -406,7 +407,7 @@ Scope.global.scoped { parent =>
   }
 
   // parentDb is still usable here:
-  println(parent.use(parentDb)(_.query("SELECT 3")))
+  println((parent $ parentDb)(_.query("SELECT 3")).get)
 }
 ```
 
@@ -414,7 +415,7 @@ Scope.global.scoped { parent =>
 
 ### Chaining resource acquisition
 
-When a method returns `Resource[A]`, you can chain `use` + `.get` + `allocate` to acquire nested resources without `leak()`:
+When a method returns `Resource[A]`, you can chain `$` + `.get` + `allocate` to acquire nested resources without `leak()`:
 
 ```scala
 import zio.blocks.scope._
@@ -434,11 +435,11 @@ Scope.global.scoped { scope =>
 
   val pool: $[Pool] = allocate(Resource.from[Pool])
 
-  // use extracts Pool, .lease() returns Resource[Connection],
+  // $ extracts Pool, .lease() returns Resource[Connection],
   // .get extracts the Resource (Unscoped), allocate acquires it
-  val conn: $[Connection] = allocate(scope.use(pool)(_.lease()).get)
+  val conn: $[Connection] = allocate((scope $ pool)(_.lease()).get)
 
-  val result: String = scope.use(conn)(_.query("SELECT 1")).get
+  val result: String = (scope $ conn)(_.query("SELECT 1")).get
   println(result)
 }
 // Output: result: SELECT 1
@@ -532,7 +533,7 @@ class RequestHandler(config: Config)(implicit scope: Scope) {
     scope.scoped { child =>
       import child._
       val conn = allocate(Resource(new Connection(config)))
-      child.use(conn)(_.query(request))
+      (child $ conn)(_.query(request)).get
     }
   }
 }
@@ -543,7 +544,8 @@ val resource = Resource.from[RequestHandler](Wire(Config("jdbc://localhost")))
 Scope.global.scoped { scope =>
   import scope._
   val handler = allocate(resource)
-  scope.use(handler)(_.handle("SELECT 1"))
+  val result: String = (scope $ handler)(_.handle("SELECT 1")).get
+  println(result)
 }
 ```
 
@@ -621,9 +623,9 @@ Scope.global.scoped { scope =>
 
   val cfg: $[Config] = allocate(w.toResource(deps))
 
-  val debug: $[Boolean] = scope.use(cfg)(_.debug)
+  val debug: Boolean = (scope $ cfg)(_.debug).get
 
-  println(debug)  // $[Boolean] = Boolean at runtime
+  println(debug)
 }
 ```
 
@@ -670,7 +672,7 @@ val serviceResource: Resource[Service] =
 Scope.global.scoped { scope =>
   import scope._
   val svc: $[Service] = allocate(serviceResource)
-  scope.use(svc)(_.run())
+  (scope $ svc)(_.run())
 }
 // Output: running with [jdbc:postgresql://localhost/db] SELECT 1
 // Then: service closed, database closed (LIFO order)
@@ -714,7 +716,7 @@ val appResource: Resource[App] =
 Scope.global.scoped { scope =>
   import scope._
   val app: $[App] = allocate(appResource)
-  scope.use(app)(_.run())
+  (scope $ app)(_.run())
 }
 ```
 
@@ -937,13 +939,11 @@ sealed abstract class Scope extends Finalizer {
   // Create a non-lexical child scope (usable from any thread)
   def open(): $[Scope.OpenScope]
 
-  // Macro-enforced access: validates lambda param is only used as receiver
-  // Scala 3: transparent inline def use[A, B](sa: $[A])(inline f: A => B): $[B]
-  // Scala 2: def use[A, B](sa: $[A])(f: A => B): $[B]  // whitebox macro
-  def use[A, B](sa: $[A])(f: A => B): $[B]
-
-  // Construct a scoped value from a raw value
-  def $[A](a: A): $[A]
+  // Macro-enforced access (infix): validates lambda param is only used as receiver
+  // Scala 3: transparent inline def $[A, B](sa: $[A])(inline f: A => B): $[B]
+  // Scala 2: def $[A, B](sa: $[A])(f: A => B): $[B]  // whitebox macro
+  // Usage: (scope $ value)(f)
+  def $[A, B](sa: $[A])(f: A => B): $[B]
 
   // Lower parent-scoped value into this scope
   def lower[A](value: parent.$[A]): $[A]
@@ -1030,9 +1030,9 @@ case class OpenScope private[scope] (
 - Use `Scope.global.scoped { scope => import scope._; ... }` to create a safe region.
 - For simple resources: `allocate(Resource(value))` or `allocate(Resource.acquireRelease(...)(...))`
 - For dependency injection: `allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- `scope.use(value)(f)` is macro-enforced to work with scoped values — all operations are eager.
+- `(scope $ value)(f)` is macro-enforced to work with scoped values — all operations are eager.
 - `.get` on `$[A]` extracts pure data when `A: Unscoped` — use for results like `String`, `Int`, etc.
-- `Resource[A]` has an `Unscoped` instance, enabling chained acquisition: `allocate(scope.use(pool)(_.lease()).get)`.
+- `Resource[A]` has an `Unscoped` instance, enabling chained acquisition: `allocate((scope $ pool)(_.lease()).get)`.
 - `$[A] = A` at runtime — zero-cost opaque type.
 - The `scoped` method requires `Unscoped[A]` evidence on the return type.
 - Use `lower(parentValue)` to access parent-scoped values in child scopes.

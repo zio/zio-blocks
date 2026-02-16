@@ -19,7 +19,7 @@ private[scope] object UseMacros {
       case Some(result) => result
       case None         =>
         report.errorAndAbort(
-          "use requires a lambda literal: use(x)(a => a.method()). " +
+          "$ requires a lambda literal: (scope $ x)(a => a.method()). " +
             "Method references and variables are not supported.",
           f.asTerm.pos
         )
