@@ -2,7 +2,8 @@ package zio.blocks.openapi
 
 import scala.collection.immutable.ListMap
 
-import zio.blocks.docs.{Doc, Parser}
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonDecoder, JsonEncoder}
 import zio.test._
@@ -10,7 +11,7 @@ import zio.test._
 object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   import OpenAPICodec._
 
-  private def doc(s: String): Doc = Parser.parse(s).toOption.get
+  private def doc(s: String): Doc = Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
 
   private def hasField(json: Json, key: String): Boolean =
     json.fields.exists(_._1 == key)

@@ -1,12 +1,13 @@
 package zio.blocks.openapi
 
-import zio.blocks.docs.{Doc, Parser}
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
 
 object SecuritySpec extends SchemaBaseSpec {
-  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
+  private def doc(s: String): Doc      = Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("Security Types")(
     suite("APIKeyLocation")(
       test("Query location can be constructed") {

@@ -3,7 +3,32 @@ package zio.blocks.openapi
 import scala.collection.immutable.ListMap
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.docs.{Doc, Paragraph, Parser, Renderer, Text}
+import zio.blocks.docs.{
+  Autolink,
+  Block,
+  BulletList,
+  BlockQuote,
+  Code,
+  Doc,
+  Emphasis,
+  HardBreak,
+  Heading,
+  HtmlInline,
+  Image,
+  Inline,
+  ListItem,
+  OrderedList,
+  Paragraph,
+  Parser,
+  Renderer,
+  SoftBreak,
+  Strikethrough,
+  Strong,
+  Table,
+  TableRow,
+  Text
+}
+import zio.blocks.docs.{Link => MdLink}
 import zio.blocks.schema.SchemaError
 import zio.blocks.schema.json.{Json, JsonDecoder, JsonEncoder}
 
@@ -107,6 +132,67 @@ object OpenAPICodec {
     jObj.value.collect { case (k, v) if k.startsWith("x-") => (k, v) }.toMap
 
   // ---------------------------------------------------------------------------
+  // Doc normalization helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Normalize a Doc by converting all top-level inline types to their Inline.*
+   * equivalents.
+   *
+   * This is necessary because Parser.parse() creates top-level Text, Code, etc.
+   * instances, but DocsSchemas expects Inline.Text, Inline.Code, etc.
+   */
+  private def normalizeDoc(doc: Doc): Doc =
+    Doc(doc.blocks.map(normalizeBlock), doc.metadata)
+
+  private def normalizeBlock(block: Block): Block = block match {
+    case Paragraph(content)               => Paragraph(normalizeInlines(content))
+    case Heading(level, content)          => Heading(level, normalizeInlines(content))
+    case BlockQuote(content)              => BlockQuote(content.map(normalizeBlock))
+    case BulletList(items, tight)         => BulletList(items.map(normalizeListItem), tight)
+    case OrderedList(start, items, tight) => OrderedList(start, items.map(normalizeListItem), tight)
+    case ListItem(content, checked)       => ListItem(content.map(normalizeBlock), checked)
+    case Table(header, alignments, rows)  => Table(normalizeTableRow(header), alignments, rows.map(normalizeTableRow))
+    case other                            => other // CodeBlock, ThematicBreak, HtmlBlock unchanged
+  }
+
+  private def normalizeListItem(item: ListItem): ListItem =
+    ListItem(item.content.map(normalizeBlock), item.checked)
+
+  private def normalizeTableRow(row: TableRow): TableRow =
+    TableRow(row.cells.map(normalizeInlines))
+
+  private def normalizeInlines(inlines: Chunk[Inline]): Chunk[Inline] =
+    inlines.map(normalizeInline)
+
+  private def normalizeInline(inline: Inline): Inline = inline match {
+    // Convert top-level types to Inline.* types
+    case t: Text           => Inline.Text(t.value)
+    case c: Code           => Inline.Code(c.value)
+    case e: Emphasis       => Inline.Emphasis(normalizeInlines(e.content))
+    case s: Strong         => Inline.Strong(normalizeInlines(s.content))
+    case st: Strikethrough => Inline.Strikethrough(normalizeInlines(st.content))
+    case l: MdLink         => Inline.Link(normalizeInlines(l.text), l.url, l.title)
+    case i: Image          => Inline.Image(i.alt, i.url, i.title)
+    case h: HtmlInline     => Inline.HtmlInline(h.content)
+    case SoftBreak         => Inline.SoftBreak
+    case HardBreak         => Inline.HardBreak
+    case a: Autolink       => Inline.Autolink(a.url, a.isEmail)
+    // Inline.* types are already correct, pass through
+    case it: Inline.Text           => it
+    case ic: Inline.Code           => ic
+    case ie: Inline.Emphasis       => Inline.Emphasis(normalizeInlines(ie.content))
+    case is: Inline.Strong         => Inline.Strong(normalizeInlines(is.content))
+    case ist: Inline.Strikethrough => Inline.Strikethrough(normalizeInlines(ist.content))
+    case il: Inline.Link           => Inline.Link(normalizeInlines(il.text), il.url, il.title)
+    case ii: Inline.Image          => ii
+    case ih: Inline.HtmlInline     => ih
+    case Inline.SoftBreak          => Inline.SoftBreak
+    case Inline.HardBreak          => Inline.HardBreak
+    case ia: Inline.Autolink       => ia
+  }
+
+  // ---------------------------------------------------------------------------
   // Doc
   // ---------------------------------------------------------------------------
 
@@ -118,8 +204,8 @@ object OpenAPICodec {
     json match {
       case str: Json.String =>
         Parser.parse(str.value) match {
-          case Right(doc) => Right(doc)
-          case Left(_)    => Right(Doc(Chunk(Paragraph(Chunk(Text(str.value))))))
+          case Right(doc) => Right(normalizeDoc(doc))
+          case Left(_)    => Right(Doc(Chunk(Paragraph(Chunk(Inline.Text(str.value))))))
         }
       case _ => Left(SchemaError("Expected String for Doc"))
     }
