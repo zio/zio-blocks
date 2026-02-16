@@ -40,6 +40,11 @@ abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val d
 
   type DecodeInput  = ByteBuffer
   type EncodeOutput = ByteBuffer
+
+  implicit final def derivable: Derivable[this.type, TC] =
+    new Derivable[this.type, TC] {
+      def deriver(d: BinaryFormat.this.type): Deriver[TC] = BinaryFormat.this.deriver
+    }
 }
 
 /**
@@ -58,4 +63,9 @@ abstract class TextFormat[TC[A] <: TextCodec[A]](val mimeType: String, val deriv
 
   type DecodeInput  = CharBuffer
   type EncodeOutput = CharBuffer
+
+  implicit final def derivable: Derivable[this.type, TC] =
+    new Derivable[this.type, TC] {
+      def deriver(d: TextFormat.this.type): Deriver[TC] = TextFormat.this.deriver
+    }
 }

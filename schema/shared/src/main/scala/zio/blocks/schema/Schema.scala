@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
-import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.schema.derive.{Derivable, Deriver, DerivationBuilder}
 import zio.blocks.typeid.TypeId
 import zio.blocks.schema.json.{Json, JsonFormat, JsonSchema, JsonSchemaToReflect}
 import zio.blocks.schema.patch.{Patch, PatchMode}
@@ -20,7 +20,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   private[schema] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => derive(format))
+      .computeIfAbsent(format, _ => deriving(format.deriver).derive)
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
@@ -31,9 +31,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
 
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
-  def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
-
-  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
+  def derive[D, TC[_]](d: D)(implicit ev: Derivable[D, TC]): TC[A] = deriving(ev.deriver(d)).derive
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
     new DerivationBuilder[TC, A](this, deriver, Chunk.empty, Chunk.empty)
@@ -85,7 +83,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
   def toDynamicSchema: DynamicSchema = new DynamicSchema(reflect.noBinding)
 
   /** Derives a JSON Schema from this Schema. */
-  def toJsonSchema: JsonSchema = derive(JsonFormat).toJsonSchema
+  def toJsonSchema: JsonSchema = deriving(JsonFormat.deriver).derive.toJsonSchema
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(x => new Schema(x))
