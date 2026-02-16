@@ -60,7 +60,7 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
  *
  * Key concepts:
  *   - `allocate` returns `$[A]` (scoped value)
- *   - `(scope $ scopedValue)(f)` applies a function to the underlying value
+ *   - `$(scopedValue)(f)` applies a function to the underlying value
  *   - `$` auto-unwraps to pure data when the return type is `Unscoped`
  *   - Operations are eager (zero-cost wrapper)
  */
@@ -78,21 +78,21 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     // Fetch and parse users
     println("--- Fetching: users ---")
-    val users: ParsedData = (scope $ client) { c =>
+    val users: ParsedData = $(client) { c =>
       val response = c.get("/users")
       JsonParser.parse(response.body)
     }
 
     // Fetch and parse orders
     println("\n--- Fetching: orders ---")
-    val orders: ParsedData = (scope $ client) { c =>
+    val orders: ParsedData = $(client) { c =>
       val response = c.get("/orders")
       JsonParser.parse(response.body)
     }
 
     // Post analytics event
     println("\n--- Posting: analytics ---")
-    val analytics: ParsedData = (scope $ client) { c =>
+    val analytics: ParsedData = $(client) { c =>
       val response = c.post("/analytics", """{"event":"fetch_complete"}""")
       JsonParser.parse(response.body)
     }

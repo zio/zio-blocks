@@ -101,7 +101,7 @@ object LegacyProtocolHandler {
     // WARNING: leak() bypasses compile-time safety — use only for third-party interop.
     // This intentionally escapes the scoped type and will emit a compiler warning.
     @nowarn("msg=.*leaked.*|.*leak.*")
-    val rawSocket: ManagedSocket = scope.leak(scopedSocket)
+    val rawSocket: ManagedSocket = leak(scopedSocket)
 
     println("Passing raw socket to legacy protocol handler:")
     LegacyProtocolHandler.handleConnection(rawSocket)
