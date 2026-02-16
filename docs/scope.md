@@ -51,7 +51,7 @@ final class Database extends AutoCloseable:
         Resource.fromAutoCloseable(new Database).allocate
 
       // Safe access: the lambda parameter can only be used as a receiver
-      (scope $ db)(_.query("SELECT 1"))
+      $(db)(_.query("SELECT 1"))
     }
 
   println(out)
@@ -61,7 +61,7 @@ Key points:
 
 - `allocate(...)` returns a **scoped value**: `scope.$[Database]` (or `$[Database]` after `import scope.*`).
 - You **cannot** call `db.query(...)` directly on `$[Database]`.
-- You use the **infix** access operator: `(scope $ db)(...)`.
+- You use the `$` access operator: `$(db)(...)` (or `(scope $ db)(...)` without the import).
 - The `scoped` block returns a plain `String` because `String: Unscoped`.
 - Finalizers run when the block exits, in **LIFO** order.
 
