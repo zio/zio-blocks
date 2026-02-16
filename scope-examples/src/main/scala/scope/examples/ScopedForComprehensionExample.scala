@@ -1,6 +1,5 @@
 package scope.examples
 
-import scala.annotation.nowarn
 import zio.blocks.scope._
 
 /**
@@ -10,6 +9,7 @@ import zio.blocks.scope._
  *   - `allocate` returns `$[A]` (a scoped value)
  *   - `scope.use(x)(f)` safely accesses scoped values with macro enforcement
  *   - `.get` extracts pure data from `$[A]` when `A: Unscoped`
+ *   - `Resource[A]: Unscoped` enables extracting resources from scoped values
  *   - Operations are eager (zero-cost wrapper)
  *   - All resources are cleaned up in LIFO order when the scope exits
  */
@@ -19,9 +19,9 @@ class Pool extends AutoCloseable {
   println("  [Pool] Created")
   var closed = false
 
-  def lease(): Connection = {
+  def lease(): Resource[Connection] = {
     require(!closed, "Pool is closed")
-    new Connection(this)
+    Resource.fromAutoCloseable(new Connection(this))
   }
 
   def close(): Unit = {
@@ -50,7 +50,6 @@ class Connection(val pool: Pool) extends AutoCloseable {
 /** Query result - a pure data type that can escape the scope. */
 case class QueryData(value: String) extends Unscoped[QueryData]
 
-@nowarn("msg=.*leaked.*|.*leak.*")
 @main def scopedForComprehensionExample(): Unit = {
   println("=== Scoped Resource Access Example ===\n")
 
@@ -58,9 +57,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   Scope.global.scoped { scope =>
     import scope._
     val pool: $[Pool] = allocate(Resource.from[Pool])
-    // Interop: Pool.lease() requires the raw Pool; use leak() as an explicit escape hatch
-    val rawPool             = scope.leak(pool)
-    val conn: $[Connection] = allocate(Resource(rawPool.lease()))
+    // use(pool)(_.lease()) returns $[Resource[Connection]]; .get extracts Resource[Connection]
+    val conn: $[Connection] = allocate(scope.use(pool)(_.lease()).get)
     val result              = scope.use(conn)(_.query("SELECT * FROM users")).get
     println(s"\n  Result: ${result.value.toUpperCase}")
     // Scope exits: Connection closed, then Pool closed (LIFO)
@@ -70,9 +68,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   Scope.global.scoped { scope =>
     import scope._
     val pool: $[Pool] = allocate(Resource.from[Pool])
-    // Interop: Pool.lease() requires the raw Pool; use leak() as an explicit escape hatch
-    val rawPool             = scope.leak(pool)
-    val conn: $[Connection] = allocate(Resource(rawPool.lease()))
+    // use(pool)(_.lease()) returns $[Resource[Connection]]; .get extracts Resource[Connection]
+    val conn: $[Connection] = allocate(scope.use(pool)(_.lease()).get)
     val prefix              = "PREFIX: "
     val result              = scope.use(conn)(_.query("SELECT name FROM employees")).get
     println(s"\n  Result: $prefix${result.value}")
@@ -89,9 +86,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
       import inner._
       println("  [inner] Acquiring connection from parent's pool")
       val p: $[Pool] = lower(pool)
-      // Interop: Pool.lease() requires the raw Pool; use leak() as an explicit escape hatch
-      val rawPool             = inner.leak(p)
-      val conn: $[Connection] = allocate(Resource(rawPool.lease()))
+      // use(p)(_.lease()) returns $[Resource[Connection]]; .get extracts Resource[Connection]
+      val conn: $[Connection] = allocate(inner.use(p)(_.lease()).get)
       val result              = inner.use(conn)(_.query("SELECT 1")).get
       println(s"  [inner] Result: ${result.value}")
       // inner scope exits: Connection released

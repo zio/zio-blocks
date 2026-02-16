@@ -1,6 +1,5 @@
 package scope.examples
 
-import scala.annotation.nowarn
 import zio.blocks.scope._
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -86,7 +85,6 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     }
 }
 
-@nowarn("msg=.*leaked.*|.*leak.*")
 @main def connectionPoolExample(): Unit = {
   println("=== Connection Pool with Resource-based Acquire ===\n")
 
@@ -103,10 +101,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>
       import workScope._
-      val p: $[ConnectionPool] = lower(pool)
-      // Interop: ConnectionPool.acquire requires the raw pool; use leak() as an explicit escape hatch
-      val rawPool                = workScope.leak(p)
-      val c: $[PooledConnection] = allocate(rawPool.acquire)
+      val p: $[ConnectionPool]   = lower(pool)
+      val c: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
       val result                 = workScope.use(c)(_.execute("SELECT * FROM service_a_table")).get
       println(s"  [ServiceA] Got: $result")
     }
@@ -115,10 +111,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- ServiceB doing work ---")
     appScope.scoped { workScope =>
       import workScope._
-      val p: $[ConnectionPool] = lower(pool)
-      // Interop: ConnectionPool.acquire requires the raw pool; use leak() as an explicit escape hatch
-      val rawPool                = workScope.leak(p)
-      val c: $[PooledConnection] = allocate(rawPool.acquire)
+      val p: $[ConnectionPool]   = lower(pool)
+      val c: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
       val result                 = workScope.use(c)(_.execute("SELECT * FROM service_b_table")).get
       println(s"  [ServiceB] Got: $result")
     }
@@ -127,11 +121,9 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     println("--- Multiple connections in same scope ---")
     appScope.scoped { workScope =>
       import workScope._
-      val p: $[ConnectionPool] = lower(pool)
-      // Interop: ConnectionPool.acquire requires the raw pool; use leak() as an explicit escape hatch
-      val rawPool                = workScope.leak(p)
-      val a: $[PooledConnection] = allocate(rawPool.acquire)
-      val b: $[PooledConnection] = allocate(rawPool.acquire)
+      val p: $[ConnectionPool]   = lower(pool)
+      val a: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
+      val b: $[PooledConnection] = allocate(workScope.use(p)(_.acquire).get)
       val aId                    = workScope.use(a)(_.id).get
       val bId                    = workScope.use(b)(_.id).get
       println(s"  [Parallel] Using connections $aId and $bId")

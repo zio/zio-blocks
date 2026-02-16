@@ -114,4 +114,7 @@ object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // zio-blocks types
   implicit def unscopedChunk[A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] =
     new Unscoped[zio.blocks.chunk.Chunk[A]] {}
+
+  // Resource descriptions (lazy, not live resources)
+  implicit def unscopedResource[A]: Unscoped[Resource[A]] = new Unscoped[Resource[A]] {}
 }

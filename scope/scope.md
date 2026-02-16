@@ -117,6 +117,9 @@ Key observations:
 - No `for`/`yield` needed — plain imperative style
 - Every resource interaction goes through `use`, which enforces safety
 - `.get` extracts pure data (`Int`, `String`, etc.) from `$[A]`
+- `Resource[A]` has an `Unscoped` instance — it's a lazy description, not a live resource
+- `allocate(use(conn)(_.beginTransaction("tx-001")).get)` chains naturally: `use` returns
+  `$[Resource[DbTransaction]]`, `.get` extracts the `Resource`, `allocate` acquires it
 - Resources (`$[DbConnection]`, `$[DbTransaction]`) can never be `.get`-ed
 - The return value is plain `TxResult` (which has `Unscoped`), no unwrapping at boundary
 
@@ -161,6 +164,41 @@ Scope.global.scoped { scope =>
   result
 }
 ```
+
+## `Unscoped[Resource[A]]` — Resource Descriptions as Pure Data
+
+`Resource[A]` has an `Unscoped` instance because it is a **lazy description** of how
+to acquire and release a resource — not a live resource itself. This means:
+
+- `use(conn)(_.beginTransaction("tx-001"))` returns `$[Resource[DbTransaction]]`
+- `.get` extracts the `Resource[DbTransaction]` from the scoped wrapper
+- `allocate(...)` acquires the resource and registers its finalizer
+
+This enables a natural pattern for methods that return `Resource[A]`:
+
+```scala
+Scope.global.scoped { scope =>
+  import scope._
+  val conn: $[DbConnection] = allocate(Resource.fromAutoCloseable(new DbConnection("db-001")))
+
+  scope.scoped { txScope =>
+    import txScope._
+    val c: $[DbConnection]   = lower(conn)
+    val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-001")).get)
+    // use the transaction...
+    txScope.use(tx)(_.commit())
+    TxResult(success = true)
+  }
+}
+```
+
+Without `Unscoped[Resource[A]]`, this pattern would require `leak()` to extract the
+raw connection before calling `beginTransaction`. With it, the entire flow stays
+within the type-safe `use` + `.get` + `allocate` pipeline.
+
+Note: `Unscoped[Resource[A]]` does **not** require `A: Unscoped`. A `Resource[Socket]`
+is still just a description — extracting it from `$` doesn't give you a live socket,
+only a recipe for creating one (which still requires `allocate` in a scope).
 
 ## Safety Analysis
 

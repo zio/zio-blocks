@@ -1,6 +1,5 @@
 package scope.examples
 
-import scala.annotation.nowarn
 import zio.blocks.scope._
 
 /**
@@ -77,7 +76,6 @@ object TransactionBoundaryExample {
   /** Result of transaction operations. */
   case class TxResult(success: Boolean, affectedRows: Int) derives Unscoped
 
-  @nowarn("msg=.*leaked.*|.*leak.*")
   @main def runTransactionBoundaryExample(): Unit = {
     println("=== Transaction Boundary Example ===\n")
     println("Demonstrating Resource-returning beginTransaction method\n")
@@ -93,11 +91,9 @@ object TransactionBoundaryExample {
       val result1: TxResult =
         connScope.scoped { txScope =>
           import txScope._
-          val c: $[DbConnection] = lower(conn)
-          // Interop: beginTransaction requires the raw DbConnection; use leak() as an explicit escape hatch
-          val rawConn: DbConnection = txScope.leak(c)
-          val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-001"))
-          val rows                  = txScope.use(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
+          val c: $[DbConnection]   = lower(conn)
+          val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-001")).get)
+          val rows                 = txScope.use(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')")).get
           txScope.use(tx)(_.commit())
           TxResult(success = true, affectedRows = rows)
         }
@@ -108,12 +104,10 @@ object TransactionBoundaryExample {
       val result2: TxResult =
         connScope.scoped { txScope =>
           import txScope._
-          val c: $[DbConnection] = lower(conn)
-          // Interop: beginTransaction requires the raw DbConnection; use leak() as an explicit escape hatch
-          val rawConn: DbConnection = txScope.leak(c)
-          val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-002"))
-          val rows1                 = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
-          val rows2                 = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")).get
+          val c: $[DbConnection]   = lower(conn)
+          val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-002")).get)
+          val rows1                = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1")).get
+          val rows2                = txScope.use(tx)(_.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2")).get
           txScope.use(tx)(_.commit())
           TxResult(success = true, affectedRows = rows1 + rows2)
         }
@@ -124,10 +118,8 @@ object TransactionBoundaryExample {
       val result3: TxResult =
         connScope.scoped { txScope =>
           import txScope._
-          val c: $[DbConnection] = lower(conn)
-          // Interop: beginTransaction requires the raw DbConnection; use leak() as an explicit escape hatch
-          val rawConn: DbConnection = txScope.leak(c)
-          val tx: $[DbTransaction]  = allocate(rawConn.beginTransaction("tx-003"))
+          val c: $[DbConnection]   = lower(conn)
+          val tx: $[DbTransaction] = allocate(txScope.use(c)(_.beginTransaction("tx-003")).get)
           txScope.use(tx)(_.execute("DELETE FROM audit_log"))
           println("    [App] Not committing - scope exit will trigger auto-rollback...")
           TxResult(success = false, affectedRows = 0)
