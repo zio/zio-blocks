@@ -18,7 +18,14 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
     opaque type Email       = String
     opaque type Age         = Int
     opaque type SafeList[A] = List[A]
+    opaque type Id[+A]      = Int
+    object Id {
+      def apply[A](value: Int): Id[A] = value
+    }
   }
+
+  trait Foo
+  type FooId = OpaqueTypes.Id[Foo]
 
   object TypeAliases {
     type IntToString = Int => String
@@ -33,6 +40,55 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
   type RefinedTrait          = SimpleTrait { def extra: Boolean }
 
   def spec = suite("Scala 3 TypeId Derivation")(
+    suite("Tuples")(
+      test("*: cons syntax derives same TypeId as parenthesized tuple") {
+        val fromParens = TypeId.of[(Int, String)]
+        val fromCons   = TypeId.of[Int *: String *: EmptyTuple]
+        assertTrue(
+          fromParens == fromCons,
+          fromParens.hashCode() == fromCons.hashCode()
+        )
+      },
+      test("tuple with > 22 elements derives consistently") {
+        val fromParens = TypeId.of[
+          (
+            Int,
+            String,
+            Boolean,
+            Double,
+            Float,
+            Long,
+            Short,
+            Byte,
+            Char,
+            Int,
+            String,
+            Boolean,
+            Double,
+            Float,
+            Long,
+            Short,
+            Byte,
+            Char,
+            Int,
+            String,
+            Boolean,
+            Double,
+            Float
+          )
+        ]
+        val fromCons = TypeId.of[
+          Int *: String *: Boolean *: Double *: Float *: Long *: Short *: Byte *: Char *: Int *: String *: Boolean *:
+            Double *: Float *: Long *: Short *: Byte *: Char *: Int *: String *: Boolean *: Double *: Float *:
+            EmptyTuple
+        ]
+
+        assertTrue(
+          fromParens == fromCons,
+          fromParens.hashCode() == fromCons.hashCode()
+        )
+      }
+    ),
     suite("Opaque Types")(
       test("opaque types are detected correctly") {
         val emailId = TypeId.of[OpaqueTypes.Email]
@@ -66,56 +122,6 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
       }
     ),
     suite("Enums")(
-      test("enum TypeDefKind includes enum cases") {
-        enum Status {
-          case Pending
-          case Active
-          case Completed
-        }
-        val statusId = TypeId.of[Status]
-
-        assertTrue(
-          statusId.isEnum,
-          statusId.defKind match {
-            case TypeDefKind.Enum(cases, _) =>
-              cases.length == 3 &&
-              cases.exists(_.name == "Pending") &&
-              cases.exists(_.name == "Active") &&
-              cases.exists(_.name == "Completed")
-            case _ => false
-          },
-          statusId.enumCases.length == 3
-        )
-      },
-      test("enum with parameterized cases has correct EnumCaseInfo") {
-        enum Result[+T] {
-          case Success(value: T)
-          case Failure(error: String)
-        }
-        val resultId = TypeId.of[Result[Any]]
-
-        assertTrue(
-          resultId.isEnum,
-          resultId.defKind match {
-            case TypeDefKind.Enum(cases, _) =>
-              cases.length == 2 &&
-              cases.exists(c => c.name == "Success" && !c.isObjectCase && c.params.nonEmpty) &&
-              cases.exists(c => c.name == "Failure" && !c.isObjectCase && c.params.exists(_.name == "error"))
-            case _ => false
-          }
-        )
-      },
-      test("enum object cases are marked as isObjectCase") {
-        enum Direction {
-          case North, South, East, West
-        }
-        val dirId = TypeId.of[Direction]
-
-        assertTrue(
-          dirId.isEnum,
-          dirId.enumCases.forall(_.isObjectCase)
-        )
-      },
       test("enum case is subtype of parent enum") {
         enum Status { case Pending, Active }
 
@@ -705,6 +711,90 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           case _ => (false, false)
         }
         assertTrue(hasSimpleTrait, hasExtraMember)
+      }
+    ),
+    suite("Opaque Type Alias Consistency (Issue #1018)")(
+      test("FooId TypeId equals Id[Foo] TypeId directly") {
+        val fooIdType = TypeId.of[FooId]
+        val idFooType = TypeId.of[OpaqueTypes.Id[Foo]]
+
+        assertTrue(
+          fooIdType == idFooType,
+          TypeId.structurallyEqual(fooIdType, idFooType)
+        )
+      },
+      test("FooId and Id[Foo] have consistent hashCodes") {
+        val fooIdType = TypeId.of[FooId]
+        val idFooType = TypeId.of[OpaqueTypes.Id[Foo]]
+
+        assertTrue(
+          fooIdType.hashCode() == idFooType.hashCode()
+        )
+      },
+      test("List[FooId] equals List[Id[Foo]]") {
+        val listFooId = TypeId.of[List[FooId]]
+        val listIdFoo = TypeId.of[List[OpaqueTypes.Id[Foo]]]
+
+        assertTrue(
+          listFooId == listIdFoo,
+          TypeId.structurallyEqual(listFooId, listIdFoo)
+        )
+      },
+      test("List[FooId] and List[Id[Foo]] have consistent hashCodes") {
+        val listFooId = TypeId.of[List[FooId]]
+        val listIdFoo = TypeId.of[List[OpaqueTypes.Id[Foo]]]
+
+        assertTrue(
+          listFooId.hashCode() == listIdFoo.hashCode()
+        )
+      },
+      test("opaque type alias works in Map lookup") {
+        val fooIdType = TypeId.of[FooId]
+        val idFooType = TypeId.of[OpaqueTypes.Id[Foo]]
+
+        val map = Map[TypeId[_], String](fooIdType -> "found")
+
+        assertTrue(
+          map.get(idFooType).contains("found")
+        )
+      },
+      test("opaque type alias works in Set membership") {
+        val fooIdType = TypeId.of[FooId]
+        val idFooType = TypeId.of[OpaqueTypes.Id[Foo]]
+
+        val set: Set[TypeId[_]] = Set(fooIdType)
+
+        assertTrue(
+          set.contains(idFooType)
+        )
+      },
+      test("applied opaque alias in List works in Map lookup") {
+        val listFooId = TypeId.of[List[FooId]]
+        val listIdFoo = TypeId.of[List[OpaqueTypes.Id[Foo]]]
+
+        val map = Map[TypeId[_], String](listFooId -> "found")
+
+        assertTrue(
+          map.get(listIdFoo).contains("found")
+        )
+      },
+      test("Option[FooId] equals Option[Id[Foo]]") {
+        val optFooId = TypeId.of[Option[FooId]]
+        val optIdFoo = TypeId.of[Option[OpaqueTypes.Id[Foo]]]
+
+        assertTrue(
+          optFooId == optIdFoo,
+          optFooId.hashCode() == optIdFoo.hashCode()
+        )
+      },
+      test("nested containers List[Option[FooId]] have consistent hashCodes") {
+        val nested1 = TypeId.of[List[Option[FooId]]]
+        val nested2 = TypeId.of[List[Option[OpaqueTypes.Id[Foo]]]]
+
+        assertTrue(
+          nested1 == nested2,
+          nested1.hashCode() == nested2.hashCode()
+        )
       }
     )
   )

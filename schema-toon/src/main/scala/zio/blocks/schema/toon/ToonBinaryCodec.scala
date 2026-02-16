@@ -3,6 +3,7 @@ package zio.blocks.schema.toon
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
+import zio.blocks.schema.json.JsonWriter
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
@@ -806,13 +807,15 @@ object ToonBinaryCodec {
         case null       => unitValue
         case b: Boolean => if (b) trueValue else falseValue
         case l: Long    =>
-          val intVal = l.toInt
-          if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
-          else DynamicValue.Primitive(PrimitiveValue.Long(l))
-        case d: Double  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
-        case bi: BigInt => DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
-        case s: String  => DynamicValue.Primitive(PrimitiveValue.String(s))
-        case _          => DynamicValue.Primitive(PrimitiveValue.String(rawString))
+          new DynamicValue.Primitive({
+            val intVal = l.toInt
+            if (l == intVal) new PrimitiveValue.Int(intVal)
+            else new PrimitiveValue.Long(l)
+          })
+        case d: Double  => new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(JsonWriter.toBigDecimal(d)))
+        case bi: BigInt => new DynamicValue.Primitive(new PrimitiveValue.BigInt(bi))
+        case s: String  => new DynamicValue.Primitive(new PrimitiveValue.String(s))
+        case _          => new DynamicValue.Primitive(new PrimitiveValue.String(rawString))
       }
 
     private def parseLengthAndDelimiter(bracketContent: String): (Int, Delimiter) =
@@ -911,20 +914,25 @@ object ToonBinaryCodec {
         case l: Long =>
           in.advanceLine()
           val intVal = l.toInt
-          if (l == intVal) DynamicValue.Primitive(PrimitiveValue.Int(intVal))
-          else DynamicValue.Primitive(PrimitiveValue.Long(l))
+          new DynamicValue.Primitive({
+            if (l == intVal) new PrimitiveValue.Int(intVal)
+            else new PrimitiveValue.Long(l)
+          })
         case d: Double =>
           in.advanceLine()
-          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(d)))
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(JsonWriter.toBigDecimal(d)))
         case bi: BigInt =>
           in.advanceLine()
-          DynamicValue.Primitive(PrimitiveValue.BigInt(bi))
+          new DynamicValue.Primitive(new PrimitiveValue.BigInt(bi))
         case s: String =>
           if (content.indexOf(':') >= 0) decodeRecordFields(in)
-          else { in.advanceLine(); DynamicValue.Primitive(PrimitiveValue.String(s)) }
+          else {
+            in.advanceLine()
+            new DynamicValue.Primitive(new PrimitiveValue.String(s))
+          }
         case _ =>
           in.advanceLine()
-          DynamicValue.Primitive(PrimitiveValue.String(content))
+          new DynamicValue.Primitive(new PrimitiveValue.String(content))
       }
     }
 

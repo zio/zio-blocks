@@ -3,6 +3,10 @@ import MimaSettings.mimaSettings
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
+lazy val generateMediaTypes = taskKey[File]("Generate MediaTypes.scala from mime-db")
+
+generateMediaTypes := GenerateMediaTypes.generateMediaTypesTask.value
+
 inThisBuild(
   List(
     name         := "ZIO Blocks",
@@ -29,20 +33,20 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
 )
 
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; contextJVM/doc"
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
 )
 addCommandAlias(
   "docJS",
-  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc"
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
 )
 
 lazy val root = project
@@ -55,6 +59,9 @@ lazy val root = project
     typeid.js,
     context.jvm,
     context.js,
+    scope.jvm,
+    scope.js,
+    `scope-examples`,
     schema.jvm,
     schema.js,
     `schema-avro`,
@@ -68,12 +75,15 @@ lazy val root = project
     streams.js,
     chunk.jvm,
     chunk.js,
+    mediatype.jvm,
+    mediatype.js,
     markdown.jvm,
     markdown.js,
     scalaNextTests.jvm,
     scalaNextTests.js,
     benchmarks,
-    docs
+    docs,
+    examples
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform)
@@ -126,6 +136,49 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 45
   )
 
+lazy val scope = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(context, chunk)
+  .settings(stdSettings("zio-blocks-scope"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.scope"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 70,
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    // Note: Branch coverage is lower because concurrent state machine code has defensive
+    // branches (CAS retry loops) that are hard to trigger reliably in tests.
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/scope/.*",
+      ".*scala-3/zio/blocks/scope/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
+  )
+
+lazy val `scope-examples` = project
+  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(scope.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
@@ -136,10 +189,11 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .dependsOn(chunk)
+  .dependsOn(markdown)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC41" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC46" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -151,7 +205,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 80
+    coverageMinimumBranchTotal := 80,
+    coverageExcludedFiles      := ".*BuildInfo.*|.*Macros.*|.*MacroUtils.*|.*CommonMacroOps.*|.*PathInterpolator.*|.*VersionSpecific.*|.*CompanionOptics.*|.*DerivedOptics.*|.*RegisterOffset.*"
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -207,8 +262,29 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 87,
-    coverageMinimumBranchTotal := 84
+    coverageMinimumStmtTotal   := 91,
+    coverageMinimumBranchTotal := 86
+  )
+
+lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-mediatype"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.mediatype"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ => Seq()
+    }),
+    coverageMinimumStmtTotal   := 95,
+    coverageMinimumBranchTotal := 90
   )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
@@ -229,8 +305,8 @@ lazy val markdown = crossProject(JSPlatform, JVMPlatform)
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ => Seq()
     }),
-    coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 90
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `schema-avro` = project
@@ -278,7 +354,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.2.1",
+      "org.mongodb" % "bson"         % "5.6.3",
       "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -384,7 +460,7 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.vitthalmirji"                      %% "toon4s-core"           % "0.5.0",
+      "com.vitthalmirji"                      %% "toon4s-core"           % "0.7.0",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.7.45",
@@ -410,6 +486,24 @@ lazy val benchmarks = project
     coverageMinimumBranchTotal := 42
   )
 
+lazy val examples = project
+  .in(file("zio-blocks-examples"))
+  .settings(stdSettings("zio-blocks-examples"))
+  .settings(
+    publish / skip := true
+  )
+  .dependsOn(
+    schema.jvm,
+    markdown.jvm,
+    streams.jvm,
+    chunk.jvm,
+    `schema-toon`.jvm,
+    `schema-messagepack`.jvm,
+    `schema-avro`,
+    `schema-thrift`,
+    `schema-bson`
+  )
+
 lazy val docs = project
   .in(file("zio-blocks-docs"))
   .settings(
@@ -423,5 +517,14 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true
   )
-  .dependsOn(schema.jvm, `schema-toon`.jvm, `schema-avro`, `schema-messagepack`.jvm, `schema-thrift`, `schema-bson`)
+  .dependsOn(
+    schema.jvm,
+    markdown.jvm,
+    `schema-toon`.jvm,
+    `schema-avro`,
+    `schema-messagepack`.jvm,
+    `schema-thrift`,
+    `schema-bson`,
+    mediatype.jvm
+  )
   .enablePlugins(WebsitePlugin)

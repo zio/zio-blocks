@@ -13,9 +13,9 @@ object JsonGen {
   val genBoolean: Gen[Any, Json] = Gen.boolean.map(Json.Boolean(_))
 
   val genNumber: Gen[Any, Json] = Gen.oneOf(
-    Gen.const(Json.Number("0")),
-    Gen.int.map(i => Json.Number(i.toString)),
-    Gen.long.map(l => Json.Number(l.toString))
+    Gen.const(Json.Number(0)),
+    Gen.int.map(i => Json.Number(i)),
+    Gen.long.map(l => Json.Number(l))
   )
 
   val genString: Gen[Any, Json] = Gen.oneOf(
@@ -152,9 +152,9 @@ object JsonGen {
                  } yield (k, v)
                }
     } yield {
-      val fields1 = ((key, Json.Number(n1.toString)) :: extra).distinctBy(_._1)
+      val fields1 = ((key, Json.Number(n1)) :: extra).distinctBy(_._1)
       val fields2 = fields1.map {
-        case (k, _) if k == key => (k, Json.Number(n2.toString))
+        case (k, _) if k == key => (k, Json.Number(n2))
         case other              => other
       }
       (Json.Object(Chunk.from(fields1)), Json.Object(Chunk.from(fields2)))

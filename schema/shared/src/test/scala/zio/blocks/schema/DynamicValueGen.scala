@@ -18,7 +18,7 @@ object DynamicValueGen {
       Gen.float.map(PrimitiveValue.Float.apply),
       Gen.long.map(PrimitiveValue.Long.apply),
       Gen.short.map(PrimitiveValue.Short.apply),
-      Gen.char.filter(x => x >= ' ' && x <= 0xd800 || x >= 0xdfff).map(PrimitiveValue.Char.apply),
+      Gen.char.filter(x => x >= ' ' && (x < 0xd800 || x > 0xdfff)).map(PrimitiveValue.Char.apply),
       Gen.bigInt(BigInt(0), BigInt(1000000000)).map(PrimitiveValue.BigInt.apply),
       Gen.bigDecimal(BigDecimal(0), BigDecimal(1000000000)).map(PrimitiveValue.BigDecimal.apply),
       genDayOfWeek.map(PrimitiveValue.DayOfWeek.apply),

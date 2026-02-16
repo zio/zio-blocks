@@ -1,5 +1,6 @@
 package zio.blocks.schema.derive
 
+import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId

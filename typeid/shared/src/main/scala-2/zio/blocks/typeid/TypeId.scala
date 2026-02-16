@@ -61,8 +61,8 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
   final def isSealed: Boolean = defKind match {
-    case TypeDefKind.Trait(isSealed, _, _) => isSealed
-    case _                                 => false
+    case TypeDefKind.Trait(isSealed, _) => isSealed
+    case _                              => false
   }
 
   final def isCaseClass: Boolean = defKind match {
@@ -97,16 +97,6 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
       case _         => ClassTag.AnyRef
     }
     else ClassTag.AnyRef
-  }
-
-  final def enumCases: List[EnumCaseInfo] = defKind match {
-    case TypeDefKind.Enum(cases, _) => cases
-    case _                          => Nil
-  }
-
-  final def knownSubtypes: List[TypeRepr] = defKind match {
-    case TypeDefKind.Trait(_, subtypes, _) => subtypes
-    case _                                 => Nil
   }
 
   final def isTuple: Boolean = {
@@ -160,14 +150,7 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
 
   override def hashCode(): Int = TypeId.structuralHash(this)
 
-  override def toString: String = {
-    val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr  =
-      if (aliasedTo.isDefined) "alias"
-      else if (representation.isDefined) "opaque"
-      else "nominal"
-    s"TypeId.$kindStr($fullName$paramStr)"
-  }
+  override def toString: String = TypeIdPrinter.render(this)
 }
 
 trait TypeIdLowPriority {
@@ -199,6 +182,12 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     representation: Option[TypeRepr],
     annotations: List[Annotation]
   ): TypeId[A] = Impl[A](name, owner, typeParams, typeArgs, defKind, selfType, aliasedTo, representation, annotations)
+
+  def nominal[A](
+    name: String,
+    owner: Owner,
+    kind: TypeDefKind
+  ): TypeId[A] = Impl[A](name, owner, Nil, Nil, kind, None, None, None, Nil)
 
   def nominal[A](
     name: String,
@@ -300,18 +289,18 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   }
 
   object Sealed {
-    def unapply(id: TypeId[_]): Option[(String, List[TypeRepr])] =
+    def unapply(id: TypeId[_]): Option[String] =
       id.defKind match {
-        case TypeDefKind.Trait(true, subtypes, _) => Some((id.name, subtypes))
-        case _                                    => None
+        case TypeDefKind.Trait(true, _) => Some(id.name)
+        case _                          => None
       }
   }
 
   object Enum {
-    def unapply(id: TypeId[_]): Option[(String, Owner, List[EnumCaseInfo])] =
+    def unapply(id: TypeId[_]): Option[(String, Owner)] =
       id.defKind match {
-        case TypeDefKind.Enum(cases, _) => Some((id.name, id.owner, cases))
-        case _                          => None
+        case TypeDefKind.Enum(_) => Some((id.name, id.owner))
+        case _                   => None
       }
   }
 

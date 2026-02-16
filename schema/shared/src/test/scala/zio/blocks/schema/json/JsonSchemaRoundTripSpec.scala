@@ -1,9 +1,8 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.test._
-
 import java.net.URI
 
 object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
@@ -114,7 +113,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       test("array with all constraints round-trips") {
         val schema = JsonSchema.array(
           items = Some(JsonSchema.string()),
-          prefixItems = Some(::(JsonSchema.integer(), List(JsonSchema.boolean))),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.integer(), JsonSchema.boolean)),
           minItems = Some(NonNegativeInt.unsafe(1)),
           maxItems = Some(NonNegativeInt.unsafe(10)),
           uniqueItems = Some(true),
@@ -143,7 +142,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         assertTrue(roundtrip == Right(schema))
       },
       test("enum schema round-trips") {
-        val schema    = JsonSchema.enumOf(::(Json.String("a"), List(Json.String("b"), Json.Number(1))))
+        val schema    = JsonSchema.enumOf(NonEmptyChunk(Json.String("a"), Json.String("b"), Json.Number(1)))
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
         assertTrue(roundtrip == Right(schema))
@@ -156,7 +155,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("allOf schema round-trips") {
         val schema = JsonSchema.Object(
-          allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))))))
+          allOf =
+            Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1)))))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -164,7 +164,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("anyOf schema round-trips") {
         val schema = JsonSchema.Object(
-          anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer())))
+          anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer()))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -172,7 +172,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("oneOf schema round-trips") {
         val schema = JsonSchema.Object(
-          oneOf = Some(::(JsonSchema.string(), List(JsonSchema.integer())))
+          oneOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer()))
         )
         val json      = schema.toJson
         val roundtrip = JsonSchema.fromJson(json)
@@ -313,6 +313,14 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           $dynamicAnchor = Some(Anchor("dynamicAnchor")),
           $ref = Some(UriReference("#/$defs/base")),
           $dynamicRef = Some(UriReference("#dynamicAnchor")),
+          $vocabulary = Some(
+            ChunkMap(
+              new URI("https://json-schema.org/draft/2020-12/vocab/core")       -> true,
+              new URI("https://json-schema.org/draft/2020-12/vocab/applicator") -> true,
+              new URI("https://json-schema.org/draft/2020-12/vocab/validation") -> true,
+              new URI("https://json-schema.org/draft/2020-12/vocab/meta-data")  -> false
+            )
+          ),
           $defs = Some(ChunkMap("base" -> JsonSchema.string())),
           $comment = Some("This is a comment")
         )
@@ -326,6 +334,16 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           fieldMap.get("$dynamicAnchor").contains(Json.String("dynamicAnchor")),
           fieldMap.get("$ref").contains(Json.String("#/$defs/base")),
           fieldMap.get("$dynamicRef").contains(Json.String("#dynamicAnchor")),
+          fieldMap
+            .get("$vocabulary")
+            .contains(
+              Json.Object(
+                "https://json-schema.org/draft/2020-12/vocab/core"       -> Json.Boolean(true),
+                "https://json-schema.org/draft/2020-12/vocab/applicator" -> Json.Boolean(true),
+                "https://json-schema.org/draft/2020-12/vocab/validation" -> Json.Boolean(true),
+                "https://json-schema.org/draft/2020-12/vocab/meta-data"  -> Json.Boolean(false)
+              )
+            ),
           fieldMap.get("$defs").isDefined,
           fieldMap.get("$comment").contains(Json.String("This is a comment"))
         )
@@ -337,7 +355,9 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("type keyword serializes union as array") {
         val schema =
-          JsonSchema.Object(`type` = Some(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Number)))))
+          JsonSchema.Object(`type` =
+            Some(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Number)))
+          )
         val json = schema.toJson
         assertTrue(
           json
@@ -360,15 +380,15 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minimum").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(0))),
-          fieldMap.get("maximum").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(100))),
+          fieldMap.get("minimum").exists(_.asInstanceOf[Json.Number].value == BigDecimal(0)),
+          fieldMap.get("maximum").exists(_.asInstanceOf[Json.Number].value == BigDecimal(100)),
           fieldMap
             .get("exclusiveMinimum")
-            .exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(-1))),
+            .exists(_.asInstanceOf[Json.Number].value == BigDecimal(-1)),
           fieldMap
             .get("exclusiveMaximum")
-            .exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(101))),
-          fieldMap.get("multipleOf").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal("0.5")))
+            .exists(_.asInstanceOf[Json.Number].value == BigDecimal(101)),
+          fieldMap.get("multipleOf").exists(_.asInstanceOf[Json.Number].value == BigDecimal("0.5"))
         )
       },
       test("string keywords serialize correctly") {
@@ -382,8 +402,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minLength").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(5))),
-          fieldMap.get("maxLength").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(100))),
+          fieldMap.get("minLength").exists(_.asInstanceOf[Json.Number].value == BigDecimal(5)),
+          fieldMap.get("maxLength").exists(_.asInstanceOf[Json.Number].value == BigDecimal(100)),
           fieldMap.get("pattern").contains(Json.String("^[a-z]+$")),
           fieldMap.get("format").contains(Json.String("email"))
         )
@@ -395,7 +415,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           uniqueItems = Some(true),
           minContains = Some(NonNegativeInt.unsafe(2)),
           maxContains = Some(NonNegativeInt.unsafe(5)),
-          prefixItems = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
+          prefixItems = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
           items = Some(JsonSchema.boolean),
           contains = Some(JsonSchema.number()),
           unevaluatedItems = Some(JsonSchema.False)
@@ -404,11 +424,11 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minItems").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(1))),
-          fieldMap.get("maxItems").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(10))),
+          fieldMap.get("minItems").exists(_.asInstanceOf[Json.Number].value == BigDecimal(1)),
+          fieldMap.get("maxItems").exists(_.asInstanceOf[Json.Number].value == BigDecimal(10)),
           fieldMap.get("uniqueItems").contains(Json.Boolean(true)),
-          fieldMap.get("minContains").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(2))),
-          fieldMap.get("maxContains").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(5))),
+          fieldMap.get("minContains").exists(_.asInstanceOf[Json.Number].value == BigDecimal(2)),
+          fieldMap.get("maxContains").exists(_.asInstanceOf[Json.Number].value == BigDecimal(5)),
           fieldMap.get("prefixItems").isDefined,
           fieldMap.get("items").isDefined,
           fieldMap.get("contains").isDefined,
@@ -432,8 +452,8 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
 
         assertTrue(
-          fieldMap.get("minProperties").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(1))),
-          fieldMap.get("maxProperties").exists(_.asInstanceOf[Json.Number].toBigDecimalOption.contains(BigDecimal(10))),
+          fieldMap.get("minProperties").exists(_.asInstanceOf[Json.Number].value == BigDecimal(1)),
+          fieldMap.get("maxProperties").exists(_.asInstanceOf[Json.Number].value == BigDecimal(10)),
           fieldMap.get("required").isDefined,
           fieldMap.get("properties").isDefined,
           fieldMap.get("patternProperties").isDefined,
@@ -446,9 +466,10 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
       },
       test("composition keywords serialize correctly") {
         val schema = JsonSchema.Object(
-          allOf = Some(::(JsonSchema.string(), List(JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1)))))),
-          anyOf = Some(::(JsonSchema.string(), List(JsonSchema.integer()))),
-          oneOf = Some(::(JsonSchema.boolean, List(JsonSchema.nullSchema))),
+          allOf =
+            Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.string(minLength = Some(NonNegativeInt.unsafe(1))))),
+          anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.integer())),
+          oneOf = Some(NonEmptyChunk(JsonSchema.boolean, JsonSchema.nullSchema)),
           not = Some(JsonSchema.array())
         )
         val json     = schema.toJson
@@ -499,7 +520,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           deprecated = Some(true),
           readOnly = Some(true),
           writeOnly = Some(false),
-          examples = Some(::(Json.String("example1"), List(Json.String("example2"))))
+          examples = Some(NonEmptyChunk(Json.String("example1"), Json.String("example2")))
         )
         val json     = schema.toJson
         val fieldMap = json.asInstanceOf[Json.Object].value.toMap
@@ -535,7 +556,7 @@ object JsonSchemaRoundTripSpec extends SchemaBaseSpec {
           result.isRight,
           result.exists {
             case s: JsonSchema.Object =>
-              s.`type`.contains(SchemaType.Union(::(JsonSchemaType.String, List(JsonSchemaType.Null))))
+              s.`type`.contains(SchemaType.Union(NonEmptyChunk(JsonSchemaType.String, JsonSchemaType.Null)))
             case _ => false
           }
         )

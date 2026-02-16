@@ -1,10 +1,11 @@
 package zio.blocks.schema.binding
 
-import scala.annotation.unchecked.uncheckedVariance
-
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import scala.annotation.unchecked.uncheckedVariance
+import java.time._
+import java.util.{Currency, UUID}
 
 /**
  * A binding is used to attach non-serializable Scala functions, such as
@@ -47,41 +48,41 @@ object Binding extends BindingCompanionVersionSpecific {
 
     val bigDecimal: Primitive[BigDecimal] = new Primitive[BigDecimal]()
 
-    val dayOfWeek: Primitive[java.time.DayOfWeek] = new Primitive[java.time.DayOfWeek]()
+    val dayOfWeek: Primitive[DayOfWeek] = new Primitive[DayOfWeek]()
 
-    val duration: Primitive[java.time.Duration] = new Primitive[java.time.Duration]()
+    val duration: Primitive[Duration] = new Primitive[Duration]()
 
-    val instant: Primitive[java.time.Instant] = new Primitive[java.time.Instant]()
+    val instant: Primitive[Instant] = new Primitive[Instant]()
 
-    val localDate: Primitive[java.time.LocalDate] = new Primitive[java.time.LocalDate]()
+    val localDate: Primitive[LocalDate] = new Primitive[LocalDate]()
 
-    val localDateTime: Primitive[java.time.LocalDateTime] = new Primitive[java.time.LocalDateTime]()
+    val localDateTime: Primitive[LocalDateTime] = new Primitive[LocalDateTime]()
 
-    val localTime: Primitive[java.time.LocalTime] = new Primitive[java.time.LocalTime]()
+    val localTime: Primitive[LocalTime] = new Primitive[LocalTime]()
 
-    val month: Primitive[java.time.Month] = new Primitive[java.time.Month]()
+    val month: Primitive[Month] = new Primitive[Month]()
 
-    val monthDay: Primitive[java.time.MonthDay] = new Primitive[java.time.MonthDay]()
+    val monthDay: Primitive[MonthDay] = new Primitive[MonthDay]()
 
-    val offsetDateTime: Primitive[java.time.OffsetDateTime] = new Primitive[java.time.OffsetDateTime]()
+    val offsetDateTime: Primitive[OffsetDateTime] = new Primitive[OffsetDateTime]()
 
-    val offsetTime: Primitive[java.time.OffsetTime] = new Primitive[java.time.OffsetTime]()
+    val offsetTime: Primitive[OffsetTime] = new Primitive[OffsetTime]()
 
-    val period: Primitive[java.time.Period] = new Primitive[java.time.Period]()
+    val period: Primitive[Period] = new Primitive[Period]()
 
-    val year: Primitive[java.time.Year] = new Primitive[java.time.Year]()
+    val year: Primitive[Year] = new Primitive[Year]()
 
-    val yearMonth: Primitive[java.time.YearMonth] = new Primitive[java.time.YearMonth]()
+    val yearMonth: Primitive[YearMonth] = new Primitive[YearMonth]()
 
-    val zoneId: Primitive[java.time.ZoneId] = new Primitive[java.time.ZoneId]()
+    val zoneId: Primitive[ZoneId] = new Primitive[ZoneId]()
 
-    val zoneOffset: Primitive[java.time.ZoneOffset] = new Primitive[java.time.ZoneOffset]()
+    val zoneOffset: Primitive[ZoneOffset] = new Primitive[ZoneOffset]()
 
-    val zonedDateTime: Primitive[java.time.ZonedDateTime] = new Primitive[java.time.ZonedDateTime]()
+    val zonedDateTime: Primitive[ZonedDateTime] = new Primitive[ZonedDateTime]()
 
-    val currency: Primitive[java.util.Currency] = new Primitive[java.util.Currency]()
+    val currency: Primitive[Currency] = new Primitive[Currency]()
 
-    val uuid: Primitive[java.util.UUID] = new Primitive[java.util.UUID]()
+    val uuid: Primitive[UUID] = new Primitive[UUID]()
   }
 
   final case class Record[A](
@@ -489,8 +490,8 @@ object Binding extends BindingCompanionVersionSpecific {
       matchers = Matchers(
         new Matcher[None.type] {
           override def downcastOrNull(any: Any): None.type = any match {
-            case None => None
-            case _    => null.asInstanceOf[None.type]
+            case _: None.type => None
+            case _            => null.asInstanceOf[None.type]
           }
         },
         new Matcher[Some[A]] {

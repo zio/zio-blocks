@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.test._
 
@@ -9,28 +9,16 @@ object JsonCheckSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonCheckSpec")(
     suite("Method signatures")(
       test("check returns Option[SchemaError]") {
-        val json: Json                  = Json.String("hello")
-        val schema: JsonSchema          = JsonSchema.string()
-        val result: Option[SchemaError] = json.check(schema)
-        assertTrue(result.isEmpty)
+        assertTrue(Json.String("hello").check(JsonSchema.string()).isEmpty)
       },
       test("conforms returns Boolean") {
-        val json: Json         = Json.String("hello")
-        val schema: JsonSchema = JsonSchema.string()
-        val result: Boolean    = json.conforms(schema)
-        assertTrue(result)
+        assertTrue(Json.String("hello").conforms(JsonSchema.string()))
       },
       test("check returns Some(error) for invalid JSON") {
-        val json   = Json.Number(42)
-        val schema = JsonSchema.string()
-        val result = json.check(schema)
-        assertTrue(result.isDefined)
+        assertTrue(Json.Number(42).check(JsonSchema.string()).isDefined)
       },
       test("conforms returns false for invalid JSON") {
-        val json   = Json.Number(42)
-        val schema = JsonSchema.string()
-        val result = json.conforms(schema)
-        assertTrue(!result)
+        assertTrue(!Json.Number(42).conforms(JsonSchema.string()))
       }
     ),
     suite("Delegation to JsonSchema.check")(
@@ -170,7 +158,7 @@ object JsonCheckSpec extends SchemaBaseSpec {
       },
       test("enum validation") {
         val schema = JsonSchema.Object(
-          `enum` = Some(::(Json.String("red"), List(Json.String("green"), Json.String("blue"))))
+          `enum` = Some(NonEmptyChunk(Json.String("red"), Json.String("green"), Json.String("blue")))
         )
         assertTrue(
           Json.String("red").conforms(schema),
@@ -188,63 +176,57 @@ object JsonCheckSpec extends SchemaBaseSpec {
     ),
     suite("Nested validation via Json methods")(
       test("nested object validation") {
-        val addressSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("city" -> JsonSchema.string())),
-          required = Some(Set("city"))
-        )
         val schema = JsonSchema.obj(
-          properties = Some(ChunkMap("address" -> addressSchema)),
+          properties = Some(
+            ChunkMap(
+              "address" -> JsonSchema.obj(
+                properties = Some(ChunkMap("city" -> JsonSchema.string())),
+                required = Some(Set("city"))
+              )
+            )
+          ),
           required = Some(Set("address"))
         )
-        val valid   = Json.Object("address" -> Json.Object("city" -> Json.String("NYC")))
-        val invalid = Json.Object("address" -> Json.Object("city" -> Json.Number(123)))
+        val json1 = Json.Object("address" -> Json.Object("city" -> Json.String("NYC")))
+        val json2 = Json.Object("address" -> Json.Object("city" -> Json.Number(123)))
         assertTrue(
-          valid.conforms(schema),
-          !invalid.conforms(schema)
+          json1.conforms(schema),
+          !json2.conforms(schema)
         )
       },
       test("array items validation") {
-        val itemSchema = JsonSchema.obj(
-          properties = Some(ChunkMap("id" -> JsonSchema.integer())),
-          required = Some(Set("id"))
+        val schema = JsonSchema.array(items =
+          Some(
+            JsonSchema.obj(
+              properties = Some(ChunkMap("id" -> JsonSchema.integer())),
+              required = Some(Set("id"))
+            )
+          )
         )
-        val schema  = JsonSchema.array(items = Some(itemSchema))
-        val valid   = Json.Array(Json.Object("id" -> Json.Number(1)), Json.Object("id" -> Json.Number(2)))
-        val invalid = Json.Array(Json.Object("id" -> Json.String("not-int")))
+        val json1 = Json.Array(Json.Object("id" -> Json.Number(1)), Json.Object("id" -> Json.Number(2)))
+        val json2 = Json.Array(Json.Object("id" -> Json.String("not-int")))
         assertTrue(
-          valid.conforms(schema),
-          !invalid.conforms(schema)
+          json1.conforms(schema),
+          !json2.conforms(schema)
         )
       }
     ),
     suite("Error information from check")(
       test("check provides error details for type mismatch") {
-        val json   = Json.Number(42)
-        val schema = JsonSchema.string()
-        val error  = json.check(schema)
-        assertTrue(
-          error.isDefined,
-          error.exists(_.message.nonEmpty)
-        )
+        assertTrue(Json.Number(42).check(JsonSchema.string()).exists(_.message.nonEmpty))
       },
       test("check provides error details for missing required field") {
         val schema = JsonSchema.obj(
           properties = Some(ChunkMap("name" -> JsonSchema.string())),
           required = Some(Set("name"))
         )
-        val error = Json.Object().check(schema)
         assertTrue(
-          error.isDefined,
-          error.exists(e => e.message.contains("name") || e.message.contains("required"))
+          Json.Object().check(schema).exists(e => e.message.contains("name") || e.message.contains("required"))
         )
       },
       test("check provides error details for constraint violation") {
         val schema = JsonSchema.string(minLength = NonNegativeInt(5))
-        val error  = Json.String("ab").check(schema)
-        assertTrue(
-          error.isDefined,
-          error.exists(_.message.nonEmpty)
-        )
+        assertTrue(Json.String("ab").check(schema).exists(_.message.nonEmpty))
       }
     ),
     suite("Boolean schemas via Json methods")(

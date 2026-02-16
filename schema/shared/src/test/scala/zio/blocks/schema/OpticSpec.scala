@@ -2402,6 +2402,13 @@ object OpticSpec extends SchemaBaseSpec {
         assert((Collections.abi + BigInt(1)).eval(Array(BigInt(1))))(isRight(equalTo(Seq(BigInt(2))))) &&
         assert((Collections.abd + BigDecimal(1)).eval(Array(BigDecimal(1))))(isRight(equalTo(Seq(BigDecimal(2))))) &&
         assert(Case5.as.matches("a").eval(Case5(Set(), Array("a", "b"))))(isRight(equalTo(Seq(true, false)))) &&
+        assert(Case5.as.matches("[a-z]+").eval(Case5(Set(), Array("hello", "123"))))(
+          isRight(equalTo(Seq(true, false)))
+        ) &&
+        assert(Case5.as.matches("\\d+").eval(Case5(Set(), Array("abc", "42"))))(isRight(equalTo(Seq(false, true)))) &&
+        assert(Case5.as.matches("he.*").eval(Case5(Set(), Array("hello", "world"))))(
+          isRight(equalTo(Seq(true, false)))
+        ) &&
         assert(Case5.as.concat("x").eval(Case5(Set(), Array("a", "b"))))(isRight(equalTo(Seq("ax", "bx")))) &&
         assert(Case5.as.length.eval(Case5(Set(), Array("a", "b"))))(isRight(equalTo(Seq(1, 1)))) &&
         assert(Case5.as.length.eval(Case5(Set(), emptyArray)))(
@@ -2435,6 +2442,26 @@ object OpticSpec extends SchemaBaseSpec {
               Seq(
                 DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
                 DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+              )
+            )
+          )
+        ) &&
+        assert(Case5.as.matches("[a-z]+").evalDynamic(Case5(Set(), Array("hello", "123"))))(
+          isRight(
+            equalTo(
+              Seq(
+                DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+                DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+              )
+            )
+          )
+        ) &&
+        assert(Case5.as.matches("\\d+").evalDynamic(Case5(Set(), Array("abc", "42"))))(
+          isRight(
+            equalTo(
+              Seq(
+                DynamicValue.Primitive(PrimitiveValue.Boolean(false)),
+                DynamicValue.Primitive(PrimitiveValue.Boolean(true))
               )
             )
           )

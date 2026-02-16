@@ -296,8 +296,7 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       case b: Binding.Primitive[A] @unchecked  => updated(keyForProper(typeId), Entry.Primitive(b))
       case b: Binding.Wrapper[A, _] @unchecked =>
         updated(keyForProper(typeId), Entry.Wrapper(b.asInstanceOf[Binding.Wrapper[Any, Any]]))
-      case b: Binding.Dynamic =>
-        updated(keyForProper(typeId), Entry.Dynamic(b))
+      case b: Binding.Dynamic   => updated(keyForProper(typeId), Entry.Dynamic(b))
       case _: Binding.Seq[_, _] =>
         throw new IllegalArgumentException("Use bind[C[_]](Binding.Seq[C, Nothing]) for sequence bindings")
       case _: Binding.Map[_, _, _] =>
@@ -351,24 +350,16 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       updated(keyForConstructor(typeId), new Entry.Map(binding.asInstanceOf[Binding.Map[M, Nothing, Nothing]]))
 
     def resolveRecord[A](implicit typeId: TypeId[A]): Option[Binding.Record[A]] =
-      entries.get(keyForProper(typeId)).collect { case Entry.Record(b) =>
-        b.asInstanceOf[Binding.Record[A]]
-      }
+      entries.get(keyForProper(typeId)).collect { case Entry.Record(b) => b.asInstanceOf[Binding.Record[A]] }
 
     def resolveVariant[A](implicit typeId: TypeId[A]): Option[Binding.Variant[A]] =
-      entries.get(keyForProper(typeId)).collect { case Entry.Variant(b) =>
-        b.asInstanceOf[Binding.Variant[A]]
-      }
+      entries.get(keyForProper(typeId)).collect { case Entry.Variant(b) => b.asInstanceOf[Binding.Variant[A]] }
 
     def resolvePrimitive[A](implicit typeId: TypeId[A]): Option[Binding.Primitive[A]] =
-      entries.get(keyForProper(typeId)).collect { case Entry.Primitive(b) =>
-        b.asInstanceOf[Binding.Primitive[A]]
-      }
+      entries.get(keyForProper(typeId)).collect { case Entry.Primitive(b) => b.asInstanceOf[Binding.Primitive[A]] }
 
     def resolveWrapper[A](implicit typeId: TypeId[A]): Option[Binding.Wrapper[A, _]] =
-      entries.get(keyForProper(typeId)).collect { case Entry.Wrapper(b) =>
-        b.asInstanceOf[Binding.Wrapper[A, _]]
-      }
+      entries.get(keyForProper(typeId)).collect { case Entry.Wrapper(b) => b.asInstanceOf[Binding.Wrapper[A, _]] }
 
     def resolveDynamic(implicit typeId: TypeId[DynamicValue]): Option[Binding.Dynamic] =
       entries.get(keyForProper(typeId)).collect { case Entry.Dynamic(b) => b }
@@ -379,9 +370,7 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       }
 
     def resolveSeqFor[C[_], A](typeId: TypeId[C[A]]): Option[Binding.Seq[C, A]] =
-      entries.get(keyForConstructor(typeId)).collect { case e: Entry.Seq =>
-        e.binding.asInstanceOf[Binding.Seq[C, A]]
-      }
+      entries.get(keyForConstructor(typeId)).collect { case e: Entry.Seq => e.binding.asInstanceOf[Binding.Seq[C, A]] }
 
     def resolveMap[X](implicit typeId: TypeId[X], u: UnapplyMap[X]): Option[Binding.Map[u.M, u.K, u.V]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Map =>
@@ -403,8 +392,7 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      * @return
      *   true if a binding exists, false otherwise
      */
-    def contains[A](implicit typeId: TypeId[A]): Boolean =
-      entries.contains(keyForProper(typeId))
+    def contains[A](implicit typeId: TypeId[A]): Boolean = entries.contains(keyForProper(typeId))
 
     /**
      * Checks if the registry contains a sequence binding for the given type
@@ -453,8 +441,7 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      */
     def nonEmpty: Boolean = entries.nonEmpty
 
-    private def updated(key: TypeId[_], entry: Entry): Registry =
-      new Registry(entries.updated(key, entry))
+    private[this] def updated(key: TypeId[_], entry: Entry): Registry = new Registry(entries.updated(key, entry))
 
     override def equals(obj: Any): Boolean = obj match {
       case that: Registry => this.entries == that.entries

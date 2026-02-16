@@ -2,6 +2,7 @@ package zio.blocks.schema.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
+import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._

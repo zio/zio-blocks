@@ -1046,46 +1046,6 @@ trait TypeIdSchemas {
     )
 
   // ============================================================================
-  // EnumCaseInfo
-  // ============================================================================
-
-  implicit lazy val enumCaseInfoSchema: Schema[EnumCaseInfo] =
-    Schema[DynamicValue].transform(
-      {
-        case DynamicValue.Record(fields) =>
-          val fieldMap = fields.toMap
-          (for {
-            name <- fieldMap
-                      .get("name")
-                      .toRight(SchemaError.missingField(Nil, "name"))
-                      .flatMap(Schema[String].fromDynamicValue)
-            ordinal <- fieldMap
-                         .get("ordinal")
-                         .toRight(SchemaError.missingField(Nil, "ordinal"))
-                         .flatMap(Schema[Int].fromDynamicValue)
-            params <- fieldMap
-                        .get("params")
-                        .toRight(SchemaError.missingField(Nil, "params"))
-                        .flatMap(Schema[List[EnumCaseParam]].fromDynamicValue)
-            isObjectCase <- fieldMap
-                              .get("isObjectCase")
-                              .toRight(SchemaError.missingField(Nil, "isObjectCase"))
-                              .flatMap(Schema[Boolean].fromDynamicValue)
-          } yield EnumCaseInfo(name, ordinal, params, isObjectCase)).fold(throw _, identity)
-        case _ => throw SchemaError.expectationMismatch(Nil, "Expected a record")
-      },
-      info =>
-        DynamicValue.Record(
-          Chunk(
-            ("name", Schema[String].toDynamicValue(info.name)),
-            ("ordinal", Schema[Int].toDynamicValue(info.ordinal)),
-            ("params", Schema[List[EnumCaseParam]].toDynamicValue(info.params)),
-            ("isObjectCase", Schema[Boolean].toDynamicValue(info.isObjectCase))
-          )
-        )
-    )
-
-  // ============================================================================
   // AnnotationArg (recursive sum type)
   // ============================================================================
 
@@ -1298,15 +1258,11 @@ trait TypeIdSchemas {
                               .get("isSealed")
                               .toRight(SchemaError.missingField(Nil, "isSealed"))
                               .flatMap(Schema[Boolean].fromDynamicValue)
-                knownSubtypes <- fieldMap
-                                   .get("knownSubtypes")
-                                   .toRight(SchemaError.missingField(Nil, "knownSubtypes"))
-                                   .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
                 bases <- fieldMap
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Trait(isSealed, knownSubtypes, bases)).fold(throw _, identity)
+              } yield TypeDefKind.Trait(isSealed, bases)).fold(throw _, identity)
 
             case Some("Object") =>
               (for {
@@ -1318,15 +1274,11 @@ trait TypeIdSchemas {
 
             case Some("Enum") =>
               (for {
-                cases <- fieldMap
-                           .get("cases")
-                           .toRight(SchemaError.missingField(Nil, "cases"))
-                           .flatMap(Schema[List[EnumCaseInfo]].fromDynamicValue)
                 bases <- fieldMap
                            .get("bases")
                            .toRight(SchemaError.missingField(Nil, "bases"))
                            .flatMap(Schema[List[TypeRepr]].fromDynamicValue)
-              } yield TypeDefKind.Enum(cases, bases)).fold(throw _, identity)
+              } yield TypeDefKind.Enum(bases)).fold(throw _, identity)
 
             case Some("EnumCase") =>
               (for {
@@ -1380,12 +1332,11 @@ trait TypeIdSchemas {
               )
             )
 
-          case TypeDefKind.Trait(isSealed, knownSubtypes, bases) =>
+          case TypeDefKind.Trait(isSealed, bases) =>
             DynamicValue.Record(
               Chunk(
                 ("type", DynamicValue.Primitive(PrimitiveValue.String("Trait"))),
                 ("isSealed", Schema[Boolean].toDynamicValue(isSealed)),
-                ("knownSubtypes", Schema[List[TypeRepr]].toDynamicValue(knownSubtypes)),
                 ("bases", Schema[List[TypeRepr]].toDynamicValue(bases))
               )
             )
@@ -1398,11 +1349,10 @@ trait TypeIdSchemas {
               )
             )
 
-          case TypeDefKind.Enum(cases, bases) =>
+          case TypeDefKind.Enum(bases) =>
             DynamicValue.Record(
               Chunk(
                 ("type", DynamicValue.Primitive(PrimitiveValue.String("Enum"))),
-                ("cases", Schema[List[EnumCaseInfo]].toDynamicValue(cases)),
                 ("bases", Schema[List[TypeRepr]].toDynamicValue(bases))
               )
             )

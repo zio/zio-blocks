@@ -1,11 +1,12 @@
 package zio.blocks.schema
 
+import zio.blocks.docs.Doc
 import zio.blocks.schema.binding._
 
 final case class Term[F[_, _], S, A](
   name: String,
   value: Reflect[F, A],
-  doc: Doc = Doc.Empty,
+  doc: Doc = Doc.empty,
   modifiers: Seq[Modifier.Term] = Nil
 ) extends Reflectable[A] {
   require(value ne null)

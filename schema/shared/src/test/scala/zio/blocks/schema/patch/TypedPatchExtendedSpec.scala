@@ -73,7 +73,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       test("navigates into matching variant case") {
         val path  = Vector(DynamicOptic.Node.Case("Dog"), DynamicOptic.Node.Field("name"))
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Max")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(dogVariant, PatchMode.Strict)
 
@@ -86,23 +86,23 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         }
       },
       test("fails when case doesn't match in Strict mode") {
-        val path  = Vector(DynamicOptic.Node.Case("Dog"), DynamicOptic.Node.Field("name"))
+        val path  = Chunk(DynamicOptic.Node.Case("Dog"), DynamicOptic.Node.Field("name"))
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Max")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(catVariant, PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("skips operation when case doesn't match in Lenient mode") {
-        val path  = Vector(DynamicOptic.Node.Case("Dog"), DynamicOptic.Node.Field("name"))
+        val path  = Chunk(DynamicOptic.Node.Case("Dog"), DynamicOptic.Node.Field("name"))
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Max")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(catVariant, PatchMode.Lenient)
         assertTrue(result == Right(catVariant))
       },
       test("can replace entire variant content") {
-        val path          = Vector(DynamicOptic.Node.Case("Dog"))
+        val path          = Chunk(DynamicOptic.Node.Case("Dog"))
         val newDogContent = DynamicValue.Record(
           Chunk(
             "name"  -> stringPrimitive("Buddy"),
@@ -110,7 +110,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(newDogContent))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(dogVariant, PatchMode.Strict)
 
@@ -132,14 +132,14 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
 
-        val path = Vector(
+        val path = Chunk(
           DynamicOptic.Node.Case("Container"),
           DynamicOptic.Node.Field("animal"),
           DynamicOptic.Node.Case("Dog"),
           DynamicOptic.Node.Field("name")
         )
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Max")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(nestedVariant, PatchMode.Strict)
         assertTrue(result.isRight)
@@ -147,10 +147,10 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
     ),
     suite("DynamicOptic.Node.Elements")(
       test("applies operation to all elements") {
-        val path = Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
+        val path = Chunk(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
         val op   =
           DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Anonymous")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(personSequence, PatchMode.Strict)
 
@@ -171,10 +171,10 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       },
       test("fails on empty sequence in Strict mode") {
         val emptySequence = DynamicValue.Sequence(Chunk.empty)
-        val path          = Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
+        val path          = Chunk(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
         val op            =
           DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Anonymous")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(emptySequence, PatchMode.Strict)
         result match {
@@ -188,7 +188,7 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         val path =
           DynamicOptic.root.field("members").elements.field("name")
         val op    = DynamicPatch.DynamicPatchOp(path, DynamicPatch.Operation.Set(stringPrimitive("Anonymous")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(teamRecord, PatchMode.Strict)
 
@@ -211,12 +211,12 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         }
       },
       test("elements with numeric delta") {
-        val path = Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("age"))
+        val path = Chunk(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("age"))
         val op   = DynamicPatch.DynamicPatchOp(
           DynamicOptic(path),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
         )
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(personSequence, PatchMode.Strict)
 
@@ -244,10 +244,10 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
 
-        val path = Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
+        val path = Chunk(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
         val op   =
           DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Anonymous")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(mixedSequence, PatchMode.Strict)
         assertTrue(result.isLeft)
@@ -260,10 +260,10 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
 
-        val path = Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
+        val path = Chunk(DynamicOptic.Node.Elements, DynamicOptic.Node.Field("name"))
         val op   =
           DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Anonymous")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(mixedSequence, PatchMode.Lenient)
 
@@ -281,9 +281,9 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
         // Simulate a wrapped value (wrappers are transparent in DynamicValue)
         val wrappedValue = intPrimitive(42)
 
-        val path  = Vector(DynamicOptic.Node.Wrapped)
+        val path  = Chunk(DynamicOptic.Node.Wrapped)
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(intPrimitive(100)))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(wrappedValue, PatchMode.Strict)
         assertTrue(result == Right(intPrimitive(100)))
@@ -291,12 +291,12 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
       test("wrapped with delta operation") {
         val wrappedValue = intPrimitive(42)
 
-        val path = Vector(DynamicOptic.Node.Wrapped)
+        val path = Chunk(DynamicOptic.Node.Wrapped)
         val op   = DynamicPatch.DynamicPatchOp(
           DynamicOptic(path),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(8))
         )
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(wrappedValue, PatchMode.Strict)
         assertTrue(result == Right(intPrimitive(50)))
@@ -309,9 +309,9 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
 
-        val path  = Vector(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Wrapped)
+        val path  = Chunk(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Wrapped)
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(intPrimitive(100)))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(record, PatchMode.Strict)
 
@@ -356,14 +356,14 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
 
-        val path = Vector(
+        val path = Chunk(
           DynamicOptic.Node.Case("ItemList"),
           DynamicOptic.Node.Field("items"),
           DynamicOptic.Node.Elements,
           DynamicOptic.Node.Field("name")
         )
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Updated")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         val result = patch(listVariant, PatchMode.Strict)
         assertTrue(result.isRight)
@@ -376,14 +376,14 @@ object DynamicOpticNodeExtensionsSpec extends SchemaBaseSpec {
           )
         )
 
-        val path = Vector(
+        val path = Chunk(
           DynamicOptic.Node.Field("animals"),
           DynamicOptic.Node.Elements,
           DynamicOptic.Node.Case("Dog"),
           DynamicOptic.Node.Field("name")
         )
         val op    = DynamicPatch.DynamicPatchOp(DynamicOptic(path), DynamicPatch.Operation.Set(stringPrimitive("Max")))
-        val patch = DynamicPatch(Vector(op))
+        val patch = DynamicPatch(Chunk(op))
 
         // This should update dogs and skip cats
         val result = patch(animalList, PatchMode.Lenient)

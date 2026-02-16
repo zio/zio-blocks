@@ -25,14 +25,11 @@ object ChunkSpec extends ChunkBaseSpec {
 
   val intGen: Gen[Any, Int] = Gen.int(-10, 10)
 
-  def toBoolFn[R, A]: Gen[R, A => Boolean] =
-    Gen.function(Gen.boolean)
+  def toBoolFn[R, A]: Gen[R, A => Boolean] = Gen.function(Gen.boolean)
 
-  def tinyChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
-    genChunkBounded(0, 3)(a)
+  def tinyChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] = genChunkBounded(0, 3)(a)
 
-  def smallChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
-    Gen.small(n => genChunkN(n)(a))
+  def smallChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] = Gen.small(n => genChunkN(n)(a))
 
   def chunkWithIndex[R, A](a: Gen[R, A]): Gen[R, (Chunk[A], Int)] =
     for {
@@ -223,7 +220,16 @@ object ChunkSpec extends ChunkBaseSpec {
       check(smallChunks(Gen.int))(c => assert(roundTrip(c))(equalTo(c))) &&
       check(smallChunks(Gen.double))(c => assert(roundTrip(c))(equalTo(c))) &&
       check(smallChunks(Gen.long))(c => assert(roundTrip(c))(equalTo(c))) &&
-      check(smallChunks(Gen.string))(c => assert(roundTrip(c))(equalTo(c)))
+      check(smallChunks(Gen.string), smallChunks(Gen.string)) { (c1, c2) =>
+        val c3 = c1 ++ c2
+        val c4 = c1.prepended(c2)
+        val c5 = c1.slice(c1.length / 2, c1.length - 1)
+        assert(roundTrip(c1))(equalTo(c1)) &&
+        assert(roundTrip(c2))(equalTo(c2)) &&
+        assert(roundTrip(c3))(equalTo(c3)) &&
+        assert(roundTrip(c4))(equalTo(c4)) &&
+        assert(roundTrip(c5))(equalTo(c5))
+      }
     },
     test("fill") {
       val smallInt = Gen.int(-10, 10)
@@ -240,19 +246,30 @@ object ChunkSpec extends ChunkBaseSpec {
       }
     },
     test("splitWhere") {
-      assert(Chunk(1, 2, 3, 4).splitWhere(_ == 2))(equalTo((Chunk(1), Chunk(2, 3, 4))))
+      assert(Chunk(1, 2, 3, 4).splitWhere(_ == 2))(equalTo((Chunk(1), Chunk(2, 3, 4)))) &&
+      assert(Chunk(1, 2, 3, 4).splitWhere(_ => false))(equalTo((Chunk(1, 2, 3, 4), Chunk.empty)))
+    },
+    test("span") {
+      assert(Chunk(1, 2, 3, 4).span(_ != 2))(equalTo((Chunk(1), Chunk(2, 3, 4)))) &&
+      assert(Chunk(1, 2, 3, 4).span(_ => true))(equalTo((Chunk(1, 2, 3, 4), Chunk.empty)))
     },
     test("length") {
       check(genChunk(intGen))(chunk => assert(chunk.length)(equalTo(chunk.toList.length)))
     },
     test("equals") {
       check(genChunk(intGen), genChunk(intGen)) { (c1, c2) =>
-        assert(c1.equals(c2))(equalTo(c1.toList.equals(c2.toList)))
+        assert(c1.equals(c2))(equalTo(c1.toList.equals(c2.toList))) &&
+        assert(c1.equals(c2.toVector))(equalTo(c1.toVector.equals(c2))) &&
+        assert(c1.equals(c2.toList))(equalTo(c1.toList.equals(c2))) &&
+        assertTrue(!c1.equals("c1"))
       } &&
       assert(Chunk(1, 2, 3, 4, 5))(Assertion.not(equalTo(Chunk(1, 2, 3, 4, 5, 6))))
     },
     test("materialize") {
-      check(genChunk(intGen))(c => assert(c.materialize.toList)(equalTo(c.toList)))
+      check(genChunk(intGen), genChunk(intGen))((c1, c2) => assert((c1 ++ c2).materialize)(equalTo(c1 ++ c2)))
+    },
+    test("nonEmptyOrElse") {
+      check(genChunk(intGen))(c => assert(c.nonEmptyOrElse(0)(_.length))(equalTo(c.length)))
     },
     test("foldLeft") {
       check(Gen.alphaNumericString, Gen.function2(Gen.alphaNumericString), smallChunks(Gen.alphaNumericString)) {
@@ -310,6 +327,7 @@ object ChunkSpec extends ChunkBaseSpec {
       val f6  = (x: Int) => if (x > 0) x else x.toString
       val f7  = (x: Double) => if ((java.lang.Double.doubleToLongBits(x) & 1) == 0) x else x.toString
       val f8  = (x: Long) => if (x > 0) x else x.toString
+      val f9  = (x: String) => if (x.length == 1) x.charAt(0) else x
       check(smallChunks(Gen.boolean), fn1)((c, f) => assert(c.map(f).toList)(equalTo(c.toList.map(f)))) &&
       check(smallChunks(Gen.byte), fn2)((c, f) => assert(c.map(f).toList)(equalTo(c.toList.map(f)))) &&
       check(smallChunks(Gen.char), fn3)((c, f) => assert(c.map(f).toList)(equalTo(c.toList.map(f)))) &&
@@ -326,7 +344,8 @@ object ChunkSpec extends ChunkBaseSpec {
       check(smallChunks(Gen.float))(c => assert(c.map(f5).toList)(equalTo(c.toList.map(f5)))) &&
       check(smallChunks(Gen.int))(c => assert(c.map(f6).toList)(equalTo(c.toList.map(f6)))) &&
       check(smallChunks(Gen.double))(c => assert(c.map(f7).toList)(equalTo(c.toList.map(f7)))) &&
-      check(smallChunks(Gen.long))(c => assert(c.map(f8).toList)(equalTo(c.toList.map(f8))))
+      check(smallChunks(Gen.long))(c => assert(c.map(f8).toList)(equalTo(c.toList.map(f8)))) &&
+      check(smallChunks(Gen.string))(c => assert(c.map(f9).toList)(equalTo(c.toList.map(f9))))
     },
     test("mapAccum") {
       assert(Chunk(1, 1, 1).mapAccum(0)((s, el) => (s + el, s + el)))(equalTo((3, Chunk(1, 2, 3))))
@@ -394,7 +413,7 @@ object ChunkSpec extends ChunkBaseSpec {
     },
     test("dropRight chunk") {
       check(genChunk(intGen), genChunk(intGen), intGen) { (chunk1, chunk2, n) =>
-        val chunk = chunk1 ++ chunk2
+        val chunk = chunk1.slice(0, n + 2) ++ chunk2.slice(0, n + 2)
         assert(chunk.dropRight(n).toList)(equalTo(chunk.toList.dropRight(n)))
       }
     },
@@ -406,12 +425,13 @@ object ChunkSpec extends ChunkBaseSpec {
     },
     test("takeRight chunk") {
       check(genChunk(intGen), genChunk(intGen), intGen) { (chunk1, chunk2, n) =>
-        val chunk = chunk1 ++ chunk2
+        val chunk = chunk1.slice(0, n + 2) ++ chunk2.slice(0, n + 2)
         assert(chunk.takeRight(n).toList)(equalTo(chunk.toList.takeRight(n)))
       }
     },
     test("dropWhile chunk") {
-      check(genChunk(intGen), toBoolFn[Any, Int]) { (c, p) =>
+      check(genChunk(intGen), genChunk(intGen), toBoolFn[Any, Int]) { (c1, c2, p) =>
+        val c = c1 ++ c2
         assert(c.dropWhile(p).toList)(equalTo(c.toList.dropWhile(p)))
       }
     },
@@ -421,31 +441,31 @@ object ChunkSpec extends ChunkBaseSpec {
       }
     },
     test("takeWhile chunk") {
-      check(genChunk(Gen.boolean), toBoolFn[Any, Boolean]) { (c, p) =>
+      check(smallChunks(Gen.boolean), toBoolFn[Any, Boolean]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.byte), toBoolFn[Any, Byte]) { (c, p) =>
+      check(smallChunks(Gen.byte), toBoolFn[Any, Byte]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.short), toBoolFn[Any, Short]) { (c, p) =>
+      check(smallChunks(Gen.short), toBoolFn[Any, Short]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.char), toBoolFn[Any, Char]) { (c, p) =>
+      check(smallChunks(Gen.char), toBoolFn[Any, Char]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(intGen), toBoolFn[Any, Int]) { (c, p) =>
+      check(smallChunks(intGen), toBoolFn[Any, Int]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.float), toBoolFn[Any, Float]) { (c, p) =>
+      check(smallChunks(Gen.float), toBoolFn[Any, Float]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.long), toBoolFn[Any, Long]) { (c, p) =>
+      check(smallChunks(Gen.long), toBoolFn[Any, Long]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.double), toBoolFn[Any, Double]) { (c, p) =>
+      check(smallChunks(Gen.double), toBoolFn[Any, Double]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       } &&
-      check(genChunk(Gen.string), toBoolFn[Any, String]) { (c, p) =>
+      check(smallChunks(Gen.string), toBoolFn[Any, String]) { (c, p) =>
         assert(c.takeWhile(p).toList)(equalTo(c.toList.takeWhile(p)))
       }
     },
@@ -474,21 +494,22 @@ object ChunkSpec extends ChunkBaseSpec {
       assert(Chunk.fromIterable(v).toArray.toVector)(equalTo(v))
     },
     test("collect") {
-      check(genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c, pf) =>
+      check(genChunk(intGen), genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c1, c2, pf) =>
+        val c = c1 ++ c2
         assert(c.collect(pf).toList)(equalTo(c.toList.collect(pf)))
-      } &&
-      assert(Chunk.empty[Nothing].collect { case _ => 1 })(isEmpty)
+      }
     },
     test("collectWhile") {
-      check(genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c, pf) =>
+      check(genChunk(intGen), genChunk(intGen), Gen.partialFunction[Any, Int, Int](intGen)) { (c1, c2, pf) =>
+        val c = c1 ++ c2
         assert(c.collectWhile(pf).toList)(equalTo(c.toList.takeWhile(pf.isDefinedAt).map(pf.apply)))
-      } &&
-      assert(Chunk.empty[Nothing].collectWhile { case _ => 1 })(isEmpty)
+      }
     },
     test("foreach") {
-      check(genChunk(intGen)) { c =>
-        var sum = 0
-        c.foreach(sum += _)
+      check(smallChunks(intGen), smallChunks(intGen)) { (c1, c2) =>
+        val c   = c1 ++ c2
+        var sum = c.headOption.getOrElse(0)
+        c.drop(1).foreach(sum += _)
         assert(sum)(equalTo(c.sum))
       }
     },
@@ -577,7 +598,8 @@ object ChunkSpec extends ChunkBaseSpec {
     test("zipAllWith") {
       assert(Chunk(1, 2, 3).zipAllWith(Chunk(3, 2, 1))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 4))) &&
       assert(Chunk(1, 2, 3).zipAllWith(Chunk(3, 2))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 0))) &&
-      assert(Chunk(1, 2).zipAllWith(Chunk(3, 2, 1))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 0)))
+      assert(Chunk(1, 2).zipAllWith(Chunk(3, 2, 1))(_ => 0, _ => 0)(_ + _))(equalTo(Chunk(4, 4, 0))) &&
+      assert(Chunk.empty[Int].zipAllWith(Chunk.empty[Int])(_ => 0, _ => 0)(_ + _))(equalTo(Chunk.empty[Int]))
     },
     test("zipWithIndex") {
       val (ch1, ch2) = Chunk("a", "b", "c", "d").splitAt(2)
@@ -738,32 +760,6 @@ object ChunkSpec extends ChunkBaseSpec {
         })(equalTo(Some(())))
       }
     ),
-    suite("updated")(
-      test("updates the chunk at the specified index") {
-        check(genChunkN(10)(Gen.int), Gen.listOf(Gen.int(0, 9)), Gen.listOf(Gen.int)) { (chunk, indices, values) =>
-          val actual =
-            indices.zip(values).foldLeft(chunk) { case (chunk, (index, value)) => chunk.updated(index, value) }
-          val expected =
-            indices.zip(values).foldLeft(chunk.toList) { case (chunk, (index, value)) => chunk.updated(index, value) }
-          assert(actual.toList)(equalTo(expected))
-        }
-      },
-      test("fails if the chunk does not contain the specified index") {
-        assert(Chunk(1, 2, 3).updated(3, 4))(throwsA[IndexOutOfBoundsException])
-      },
-      test("apply") {
-        val chunk = Chunk.fill(256)(1).foldLeft(Chunk(0)) { case (as, a) =>
-          as.updated(0, as(0) + a)
-        }
-        assertTrue(chunk(0) == 256)
-      },
-      test("buffer size") {
-        val chunk = Chunk.fill(257)(1).zipWithIndex.foldLeft(Chunk.fill(256)(0)) { case (as, (a, i)) =>
-          as.updated(i % 256, as(i % 256) + a)
-        }
-        assertTrue(chunk.sum == 257)
-      }
-    ),
     test("toArray works correctly with concatenated bit chunks") {
       check(genChunk(Gen.byte), genChunk(Gen.byte)) { (left, right) =>
         val actual   = Chunk.fromArray((left.asBitsByte ++ right.asBitsByte).toArray)
@@ -828,7 +824,34 @@ object ChunkSpec extends ChunkBaseSpec {
         }
       }
     ),
+    suite("Updated")(
+      test("updates the chunk at the specified index") {
+        check(genChunkN(10)(Gen.int), Gen.listOf(Gen.int(0, 9)), Gen.listOf(Gen.int)) { (chunk, indices, values) =>
+          val actual =
+            indices.zip(values).foldLeft(chunk) { case (chunk, (index, value)) => chunk.updated(index, value) }
+          val expected =
+            indices.zip(values).foldLeft(chunk.toList) { case (chunk, (index, value)) => chunk.updated(index, value) }
+          assert(actual.toList)(equalTo(expected))
+        }
+      },
+      test("fails if the chunk does not contain the specified index") {
+        assert(Chunk(1, 2, 3).updated(3, 4))(throwsA[IndexOutOfBoundsException])
+      },
+      test("apply") {
+        val chunk = Chunk.fill(256)(1).foldLeft(Chunk(0)) { case (as, a) =>
+          as.updated(0, as(0) + a)
+        }
+        assertTrue(chunk(0) == 256)
+      },
+      test("buffer size") {
+        val chunk = Chunk.fill(257)(1).zipWithIndex.foldLeft(Chunk.fill(256)(0)) { case (as, (a, i)) =>
+          as.updated(i % 256, as(i % 256) + a)
+        }
+        assertTrue(chunk.sum == 257)
+      }
+    ),
     test("sorted") {
+      check(genChunk(Gen.boolean))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
       check(genChunk(Gen.byte))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
       check(genChunk(Gen.char))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
       check(genChunk(Gen.double))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
@@ -836,11 +859,43 @@ object ChunkSpec extends ChunkBaseSpec {
       check(genChunk(Gen.int))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
       check(genChunk(Gen.long))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
       check(genChunk(Gen.short))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
-      check(genChunk(Gen.string))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted))
+      check(genChunk(Gen.string))(chunk => assertTrue(chunk.sorted.toVector == chunk.toVector.sorted)) &&
+      check(genChunk(Gen.boolean)) { chunk =>
+        assertTrue(chunk.sorted(Ordering.Boolean.reverse).toVector == chunk.toVector.sorted(Ordering.Boolean.reverse))
+      } &&
+      check(genChunk(Gen.byte)) { chunk =>
+        assertTrue(chunk.sorted(Ordering.Byte.reverse).toVector == chunk.toVector.sorted(Ordering.Byte.reverse))
+      } &&
+      check(genChunk(Gen.char)) { chunk =>
+        assertTrue(chunk.sorted(Ordering.Char.reverse).toVector == chunk.toVector.sorted(Ordering.Char.reverse))
+      } &&
+      check(genChunk(Gen.double)) { chunk =>
+        assertTrue(
+          chunk.sorted(Ordering.Double.TotalOrdering.reverse).toVector == chunk.toVector.sorted(
+            Ordering.Double.TotalOrdering.reverse
+          )
+        )
+      } &&
+      check(genChunk(Gen.float)) { chunk =>
+        assertTrue(
+          chunk.sorted(Ordering.Float.TotalOrdering.reverse).toVector == chunk.toVector.sorted(
+            Ordering.Float.TotalOrdering.reverse
+          )
+        )
+      } &&
+      check(genChunk(Gen.int)) { chunk =>
+        assertTrue(chunk.sorted(Ordering.Int.reverse).toVector == chunk.toVector.sorted(Ordering.Int.reverse))
+      } &&
+      check(genChunk(Gen.long)) { chunk =>
+        assertTrue(chunk.sorted(Ordering.Long.reverse).toVector == chunk.toVector.sorted(Ordering.Long.reverse))
+      } &&
+      check(genChunk(Gen.short)) { chunk =>
+        assertTrue(chunk.sorted(Ordering.Short.reverse).toVector == chunk.toVector.sorted(Ordering.Short.reverse))
+      }
     },
     suite("combinators on chunks with different underlying primitives")(
       test("concat on small chunks") {
-        assertTrue((Chunk(1) ++ Chunk(2L)).materialize == Chunk(1L, 2L))
+        assertTrue(Chunk(1) ++ Chunk(2L) == Chunk(1L, 2L))
       },
       test("concat on large chunks") {
         val arr1 = Array.fill(1000)(1)
@@ -853,14 +908,22 @@ object ChunkSpec extends ChunkBaseSpec {
         assertTrue(Chunk.fromArray(arr1).flatMap(_ => Chunk.fromArray(arr2)) == Chunk.fill(10000)(1L))
       }
     ),
-    suite("fromIterable array")(
-      test("objects") {
-        assert(Chunk.fromIterable(Array("a")).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$AnyRefArray")) &&
-        assert(Chunk.fromIterable(Array(1)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$IntArray")) &&
-        assert(Chunk.fromIterable(Array(1L)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$LongArray")) &&
-        assert(Chunk.fromIterable(Array(1.0f)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$FloatArray")) &&
-        assert(Chunk.fromIterable(Array(1.0)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$DoubleArray")) &&
-        assert(Chunk.fromIterable(Array(1, "a")).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$AnyRefArray"))
+    suite("from")(
+      test("singleton") {
+        assert(Chunk.from(Array("a")).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$Singleton")) &&
+        assert(Chunk.from(Array(1)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$Singleton")) &&
+        assert(Chunk.from(Array(1L)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$Singleton")) &&
+        assert(Chunk.from(Array(1.0f)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$Singleton")) &&
+        assert(Chunk.from(Array(1.0)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$Singleton")) &&
+        assert(Chunk.from(Array(1)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$Singleton"))
+      },
+      test("array based") {
+        assert(Chunk.from(Array("a", "b")).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$AnyRefArray")) &&
+        assert(Chunk.from(Array(1, 2)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$IntArray")) &&
+        assert(Chunk.from(Array(1L, 2L)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$LongArray")) &&
+        assert(Chunk.from(Array(1.0f, 2.0f)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$FloatArray")) &&
+        assert(Chunk.from(Array(1.0, 2.0)).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$DoubleArray")) &&
+        assert(Chunk.from(Array(1, "a")).getClass.toString)(equalTo("class zio.blocks.chunk.Chunk$AnyRefArray"))
       }
     )
   )
