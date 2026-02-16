@@ -544,6 +544,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Optics & Navigation
 
 - [Optics](docs/./reference/optics.md) - Lenses, prisms, and traversals
+- [SchemaExpr](docs/./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](docs/./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](docs/./reference/dynamic-value.md) - Schema-less dynamic values
 

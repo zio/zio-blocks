@@ -103,6 +103,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Batch edits; keep sbt runs scoped to one project
 - Update AGENTS.md if you find errors or gaps
 - Document new data types in `docs/`; update existing docs when behavior changes
+- **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client generateReadme` to regenerate `README.md`.
 
 ### Ask First
 - Adding dependencies (even test-only)
