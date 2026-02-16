@@ -1,13 +1,13 @@
 package zio.blocks.openapi
 
-import zio.blocks.docs.{Doc, Parser}
+import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonSchema, JsonSchemaType, SchemaType}
-import zio.blocks.chunk.ChunkMap
+import zio.blocks.chunk.{Chunk, ChunkMap, NonEmptyChunk}
 import zio.test._
 
 object SchemaObjectSpec extends SchemaBaseSpec {
-  private def doc(s: String): Doc      = Parser.parse(s).toOption.get
+  private def doc(s: String): Doc      = Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
   def spec: Spec[TestEnvironment, Any] = suite("SchemaObject")(
     suite("construction")(
       test("can be created from JsonSchema via fromJsonSchema") {
@@ -334,9 +334,9 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         val schemaObj = SchemaObject.fromJsonSchema(
           JsonSchema.Object(
             allOf = Some(
-              new ::(
+              NonEmptyChunk(
                 JsonSchema.obj(properties = Some(ChunkMap.from(Map("name" -> JsonSchema.string())))),
-                List(JsonSchema.obj(properties = Some(ChunkMap.from(Map("age" -> JsonSchema.integer())))))
+                JsonSchema.obj(properties = Some(ChunkMap.from(Map("age" -> JsonSchema.integer()))))
               )
             )
           )
