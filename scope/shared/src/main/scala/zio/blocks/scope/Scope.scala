@@ -19,8 +19,6 @@ import zio.blocks.scope.internal.Finalizers
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
-  implicit val thisScope: this.type = this
-
   /**
    * Opaque scoped-value wrapper, unique to each scope instance.
    *
@@ -260,10 +258,24 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
      * becomes a new scoped value. Equivalent to `self.allocate(\$unwrap(sr))`.
      *
      * @return
-     *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if
-     *   the scope is already closed
+     *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if the
+     *   scope is already closed
      */
     def allocate: $[A] = self.allocate($unwrap(sr))
+  }
+
+  /**
+   * Enrichment for bare `Resource[A]` values.
+   *
+   * Provides `.allocate` as syntax sugar for `scope.allocate(resource)`,
+   * enabling uniform `resource.allocate` syntax whether the resource is raw or
+   * scoped.
+   *
+   * @tparam A
+   *   the resource value type
+   */
+  implicit class ResourceOps[A](private val r: Resource[A]) {
+    def allocate: $[A] = self.allocate(r)
   }
 }
 

@@ -9,6 +9,8 @@ package zio.blocks.scope
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
 
+  implicit val thisScope: this.type = this
+
   /**
    * Create a child scope. The block receives a child scope and returns a plain
    * value of type `A`, which must have an [[Unscoped]] instance.

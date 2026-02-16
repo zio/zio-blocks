@@ -323,8 +323,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => println(a))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("capturing in nested lambda is rejected") {
         assertZIO(typeCheck("""
@@ -340,8 +341,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => () => a.query("test"))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("storing param in var is rejected") {
         assertZIO(typeCheck("""
@@ -359,8 +361,9 @@ object ScopeSpec extends ZIOSpecDefault {
             var someVar: Any = null
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => { someVar = a; 42 })
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("returning param directly (identity) is rejected") {
         assertZIO(typeCheck("""
@@ -376,8 +379,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => a)
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("tuple construction with param is rejected") {
         assertZIO(typeCheck("""
@@ -393,8 +397,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => (a, 1))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("constructor argument with param is rejected") {
         assertZIO(typeCheck("""
@@ -412,8 +417,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => new Wrapper(a))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("match expression where param could escape via pattern binding is rejected") {
         assertZIO(typeCheck("""
@@ -429,8 +435,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(d => d match { case x => x })
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("if-expression where param is branch result is rejected") {
         assertZIO(typeCheck("""
@@ -446,8 +453,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(d => if (true) d else null)
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       }
     ),
     suite("use macro allows safe patterns")(
@@ -515,8 +523,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db = allocate(Resource.from[Database])
             db.query("test")
+            ()
           }
-        """))(isLeft(containsString("Recursive value") || containsString("is not a member")))
+        """))(isLeft(containsString("is not a member") || containsString("Recursive value")))
       },
       test("closure cannot be returned from scoped block") {
         assertZIO(typeCheck("""
@@ -526,7 +535,7 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             () => "captured"
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unscoped")))
       },
       test("resourceful value cannot escape scoped block") {
         assertZIO(typeCheck("""
@@ -543,7 +552,7 @@ object ScopeSpec extends ZIOSpecDefault {
             val db = allocate(Resource.from[Database])
             db
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unscoped") || containsString("type mismatch")))
       }
     ),
     suite("Unscoped constraint")(
@@ -639,7 +648,7 @@ object ScopeSpec extends ZIOSpecDefault {
             r.get
             ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unscoped")))
       },
       test("get does not compile for non-Unscoped types") {
         assertZIO(typeCheck("""
@@ -655,7 +664,7 @@ object ScopeSpec extends ZIOSpecDefault {
             r.get
             ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unscoped")))
       }
     ),
     suite("closed scope defense")(
@@ -725,19 +734,6 @@ object ScopeSpec extends ZIOSpecDefault {
       },
       test("global scope isClosed is always false") {
         assertTrue(!Scope.global.isClosed)
-      }
-    ),
-    suite("implicit scope (experiment)")(
-      test("helper function can allocate into caller's scope via implicit") {
-        def makeDb(implicit s: Scope): s.$[Database] =
-          s.allocate(Resource.from[Database])
-
-        val result: String = Scope.global.scoped { scope =>
-          import scope._
-          val db: $[Database] = makeDb
-          (scope $ db)(_.query("implicit scope")).get
-        }
-        assertTrue(result == "result: implicit scope")
       }
     )
   )

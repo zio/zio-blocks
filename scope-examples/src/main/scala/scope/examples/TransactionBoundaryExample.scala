@@ -83,7 +83,7 @@ object TransactionBoundaryExample {
     Scope.global.scoped { connScope =>
       import connScope._
       // Allocate the connection in the outer scope
-      val conn: $[DbConnection] = allocate(Resource.fromAutoCloseable(new DbConnection("db-001")))
+      val conn: $[DbConnection] = Resource.fromAutoCloseable(new DbConnection("db-001")).allocate
       println()
 
       // Transaction 1: Successful insert

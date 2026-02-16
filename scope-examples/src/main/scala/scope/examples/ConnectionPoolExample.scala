@@ -96,7 +96,7 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
   Scope.global.scoped { appScope =>
     import appScope._
     println("[App] Allocating pool\n")
-    val pool: $[ConnectionPool] = allocate(poolResource)
+    val pool: $[ConnectionPool] = poolResource.allocate
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>

@@ -57,7 +57,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   println("--- Pattern 1: Chaining allocates with $ + .get ---")
   Scope.global.scoped { scope =>
     import scope._
-    val pool: $[Pool] = allocate(Resource.from[Pool])
+    val pool: $[Pool] = Resource.from[Pool].allocate
     // (scope $ pool)(_.lease()) returns $[Resource[Connection]]; .allocate acquires it
     val conn: $[Connection] = (scope $ pool)(_.lease()).allocate
     val result              = (scope $ conn)(_.query("SELECT * FROM users")).get
@@ -68,7 +68,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   println("\n--- Pattern 2: Mixing allocates with pure computations ---")
   Scope.global.scoped { scope =>
     import scope._
-    val pool: $[Pool] = allocate(Resource.from[Pool])
+    val pool: $[Pool] = Resource.from[Pool].allocate
     // (scope $ pool)(_.lease()) returns $[Resource[Connection]]; .allocate acquires it
     val conn: $[Connection] = (scope $ pool)(_.lease()).allocate
     val prefix              = "PREFIX: "
@@ -80,7 +80,7 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   Scope.global.scoped { outer =>
     import outer._
     println("\n  [outer] Creating pool")
-    val pool: $[Pool] = allocate(Resource.from[Pool])
+    val pool: $[Pool] = Resource.from[Pool].allocate
 
     // Child scope for a unit of work
     outer.scoped { inner =>
