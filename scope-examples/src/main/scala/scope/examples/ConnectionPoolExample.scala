@@ -102,7 +102,7 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val c: $[PooledConnection] = (workScope $ p)(_.acquire).allocate
       val result                 = (workScope $ c)(_.execute("SELECT * FROM service_a_table")).get
       println(s"  [ServiceA] Got: $result")
     }
@@ -112,7 +112,7 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val c: $[PooledConnection] = (workScope $ p)(_.acquire).allocate
       val result                 = (workScope $ c)(_.execute("SELECT * FROM service_b_table")).get
       println(s"  [ServiceB] Got: $result")
     }
@@ -122,8 +122,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val a: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
-      val b: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val a: $[PooledConnection] = (workScope $ p)(_.acquire).allocate
+      val b: $[PooledConnection] = (workScope $ p)(_.acquire).allocate
       val aId                    = (workScope $ a)(_.id).get
       val bId                    = (workScope $ b)(_.id).get
       println(s"  [Parallel] Using connections $aId and $bId")

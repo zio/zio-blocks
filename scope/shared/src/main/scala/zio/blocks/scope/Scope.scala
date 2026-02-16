@@ -236,6 +236,21 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
      */
     def get(implicit ev: Unscoped[A]): A = $unwrap(sa)
   }
+
+  /**
+   * Enrichment for `$[Resource[A]]` scoped values.
+   *
+   * Provides `allocate` for acquiring a resource that is itself scoped, without
+   * needing to extract the `Resource` from `$` via `.get`. This is sound
+   * because the `Resource` never leaves the scope wrapper; only its *result*
+   * becomes scoped.
+   *
+   * @tparam A
+   *   the underlying resource value type
+   */
+  implicit class ScopedResourceOps[A](private val sr: $[Resource[A]]) {
+    def allocate: $[A] = self.allocate($unwrap(sr))
+  }
 }
 
 /**

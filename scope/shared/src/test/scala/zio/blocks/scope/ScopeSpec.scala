@@ -602,23 +602,7 @@ object ScopeSpec extends ZIOSpecDefault {
         }
         assertTrue(nVal == 42, sVal == "hello")
       },
-      test("get works for Resource[A] (lazy description, not live resource)") {
-        class MyResource extends AutoCloseable {
-          var closed                 = false
-          def value: String          = "acquired"
-          override def close(): Unit = closed = true
-        }
-
-        val result: String = Scope.global.scoped { scope =>
-          import scope._
-          val res: $[Resource[MyResource]]    = allocate(Resource(Resource.fromAutoCloseable(new MyResource)))
-          val extracted: Resource[MyResource] = res.get
-          val r: $[MyResource]                = allocate(extracted)
-          scope.$(r)(_.value).get
-        }
-        assertTrue(result == "acquired")
-      },
-      test("allocate((scope $ x)(_.resourceMethod).get) pattern works") {
+      test("ScopedResourceOps.allocate works for $[Resource[A]]") {
         class Outer extends AutoCloseable {
           def makeInner: Resource[Inner] = Resource.fromAutoCloseable(new Inner)
           def close(): Unit              = ()
@@ -632,10 +616,21 @@ object ScopeSpec extends ZIOSpecDefault {
         val result: String = Scope.global.scoped { scope =>
           import scope._
           val outer: $[Outer] = allocate(Resource.fromAutoCloseable(new Outer))
-          val inner: $[Inner] = allocate(scope.$(outer)(_.makeInner).get)
+          val inner: $[Inner] = (scope $ outer)(_.makeInner).allocate
           scope.$(inner)(_.value).get
         }
         assertTrue(result == "inner")
+      },
+      test("Resource[A] cannot be .get-ed (not Unscoped)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+          Scope.global.scoped { scope =>
+            import scope._
+            val r: $[Resource[Int]] = allocate(Resource(Resource(42)))
+            r.get
+            ()
+          }
+        """))(isLeft)
       },
       test("get does not compile for non-Unscoped types") {
         assertZIO(typeCheck("""

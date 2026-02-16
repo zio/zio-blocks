@@ -147,7 +147,7 @@ Scope.global.scoped { scope =>
 
 - `.get` requires `Unscoped[A]` evidence, ensuring only pure data can be extracted
 - Resources (`$[Database]`, `$[Socket]`) cannot be `.get`-ed — they don't have `Unscoped` instances
-- `Resource[A]` has an `Unscoped` instance (it's a lazy description, not a live resource), enabling patterns like `allocate((scope $ db)(_.beginTransaction()).get)`
+- `ScopedResourceOps` adds `.allocate` on `$[Resource[A]]`, enabling chained acquisition: `(scope $ db)(_.beginTransaction()).allocate`
 
 ---
 
@@ -198,7 +198,6 @@ The `Unscoped[A]` typeclass marks types as pure data that don't hold resources. 
 - Primitives: `Int`, `Long`, `Boolean`, `Double`, etc.
 - `String`, `Unit`, `Nothing`
 - Collections of Unscoped types
-- `Resource[A]` (lazy descriptions, not live resources)
 
 **Custom Unscoped types:**
 ```scala
@@ -415,7 +414,7 @@ Scope.global.scoped { parent =>
 
 ### Chaining resource acquisition
 
-When a method returns `Resource[A]`, you can chain `$` + `.get` + `allocate` to acquire nested resources without `leak()`:
+When a method returns `Resource[A]`, use the `ScopedResourceOps` `.allocate` extension to acquire nested resources without `leak()`:
 
 ```scala
 import zio.blocks.scope._
@@ -435,9 +434,9 @@ Scope.global.scoped { scope =>
 
   val pool: $[Pool] = allocate(Resource.from[Pool])
 
-  // $ extracts Pool, .lease() returns Resource[Connection],
-  // .get extracts the Resource (Unscoped), allocate acquires it
-  val conn: $[Connection] = allocate((scope $ pool)(_.lease()).get)
+  // (scope $ pool)(_.lease()) returns $[Resource[Connection]];
+  // .allocate acquires it in the current scope, returning $[Connection]
+  val conn: $[Connection] = (scope $ pool)(_.lease()).allocate
 
   val result: String = (scope $ conn)(_.query("SELECT 1")).get
   println(result)
@@ -446,9 +445,9 @@ Scope.global.scoped { scope =>
 // Then: connection closed, pool closed (LIFO)
 ```
 
-This works because `Resource[A]` has an `Unscoped` instance — it's a lazy description,
-not a live resource. Extracting it with `.get` doesn't leak anything; the actual
-resource is only acquired when `allocate` is called.
+This works because `ScopedResourceOps` unwraps the `Resource` from `$` and allocates it
+in the current scope in a single step. The `Resource` never escapes the scope wrapper —
+only its acquired result becomes a new scoped value.
 
 ---
 
@@ -960,6 +959,10 @@ sealed abstract class Scope extends Finalizer {
   implicit class ScopedOps[A](sa: $[A]) {
     def get(implicit ev: Unscoped[A]): A  // extract pure data from $[A]
   }
+
+  implicit class ScopedResourceOps[A](sr: $[Resource[A]]) {
+    def allocate: $[A]  // acquire a scoped Resource without extracting it
+  }
 }
 ```
 
@@ -1032,7 +1035,7 @@ case class OpenScope private[scope] (
 - For dependency injection: `allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
 - `(scope $ value)(f)` is macro-enforced to work with scoped values — all operations are eager.
 - `.get` on `$[A]` extracts pure data when `A: Unscoped` — use for results like `String`, `Int`, etc.
-- `Resource[A]` has an `Unscoped` instance, enabling chained acquisition: `allocate((scope $ pool)(_.lease()).get)`.
+- `ScopedResourceOps` adds `.allocate` on `$[Resource[A]]` for chained acquisition: `(scope $ pool)(_.lease()).allocate`.
 - `$[A] = A` at runtime — zero-cost opaque type.
 - The `scoped` method requires `Unscoped[A]` evidence on the return type.
 - Use `lower(parentValue)` to access parent-scoped values in child scopes.
