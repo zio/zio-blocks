@@ -80,15 +80,34 @@ Before we build the interpreter, let's understand the structure we are interpret
 
 ```
 SchemaExpr[A, B]
-├── Literal[S, A](value, schema)          -- a constant value
-├── Optic[A, B](optic)                    -- a field reference
-├── Relational[A, B](left, right, op)     -- comparison (=, <>, <, >, <=, >=)
-├── Logical[A](left, right, op)           -- boolean (AND, OR)
-├── Not[A](expr)                          -- boolean negation
-├── Arithmetic[S, A](left, right, op, n)  -- numeric (+, -, *)
-├── StringConcat[A](left, right)          -- string concatenation
-├── StringRegexMatch[A](regex, string)    -- regex matching
-└── StringLength[A](string)               -- string length
+├── Literal[S, A](value, schema)                              -- a constant value
+├── Optic[A, B](optic)                                        -- a field reference
+├── StringRegexMatch[A](regex, string)                       -- regex pattern matching
+├── StringLength[A](string)                                  -- string length calculation
+├── UnaryOp[A, B]                                            -- abstract trait for unary operations
+│   └── Not[A](expr)                                         -- boolean negation
+└── BinaryOp[A, B, C]                                        -- abstract trait for binary operations
+    ├── Relational[A, B](left, right, operator)              -- comparison operations
+    ├── Logical[A](left, right, operator)                    -- boolean operations
+    ├── Arithmetic[S, A](left, right, operator, isNumeric)   -- numeric operations
+    └── StringConcat[A](left, right)                         -- string concatenation
+
+RelationalOperator
+├── LessThan
+├── GreaterThan
+├── LessThanOrEqual
+├── GreaterThanOrEqual
+├── Equal
+└── NotEqual
+
+LogicalOperator
+├── And
+└── Or
+
+ArithmeticOperator
+├── Add
+├── Subtract
+└── Multiply
 ```
 
 Each case carries enough information to produce SQL: `Optic` nodes carry field paths, `Literal` nodes carry values, and operator nodes carry the operation type. Our interpreter walks this tree and emits SQL fragments.
