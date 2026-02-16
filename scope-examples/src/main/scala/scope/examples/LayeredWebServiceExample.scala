@@ -97,8 +97,8 @@ class UserController(repo: UserRepository) extends AutoCloseable {
     val controller: $[UserController] = allocate(controllerResource)
 
     println("\n=== Handling requests ===")
-    println(s"  GET /users/1  → ${scope.use(controller)(_.getUser(1))}")
-    println(s"  POST /users   → ${scope.use(controller)(_.createUser("Bob", "bob@example.com"))}")
+    println(s"  GET /users/1  → ${scope.$(controller)(_.getUser(1)).get}")
+    println(s"  POST /users   → ${scope.$(controller)(_.createUser("Bob", "bob@example.com")).get}")
 
     println("\n=== Scope closing (LIFO cleanup: controller → database) ===")
   }

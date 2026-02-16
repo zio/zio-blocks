@@ -28,7 +28,7 @@ object ScopeCompileTimeSafetyScala3Spec extends ZIOSpecDefault {
       val result: TxResult = Scope.global.scoped { scope =>
         import scope._
         val data: $[Int] = allocate(Resource(42))
-        data.map(n => TxResult(n))
+        TxResult(data.get)
       }
       assertTrue(result.value == 42)
     }

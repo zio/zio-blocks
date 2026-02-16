@@ -99,43 +99,37 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     val pool: $[ConnectionPool] = allocate(poolResource)
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
-    scoped { workScope =>
+    appScope.scoped { workScope =>
       import workScope._
-      for {
-        p <- lower(pool)
-        c <- allocate(p.acquire)
-      } yield {
-        val result = c.execute("SELECT * FROM service_a_table")
-        println(s"  [ServiceA] Got: $result")
-      }
+      val p: $[ConnectionPool]   = lower(pool)
+      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val result                 = (workScope $ c)(_.execute("SELECT * FROM service_a_table")).get
+      println(s"  [ServiceA] Got: $result")
     }
     println()
 
     println("--- ServiceB doing work ---")
-    scoped { workScope =>
+    appScope.scoped { workScope =>
       import workScope._
-      for {
-        p <- lower(pool)
-        c <- allocate(p.acquire)
-      } yield {
-        val result = c.execute("SELECT * FROM service_b_table")
-        println(s"  [ServiceB] Got: $result")
-      }
+      val p: $[ConnectionPool]   = lower(pool)
+      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val result                 = (workScope $ c)(_.execute("SELECT * FROM service_b_table")).get
+      println(s"  [ServiceB] Got: $result")
     }
     println()
 
     println("--- Multiple connections in same scope ---")
-    scoped { workScope =>
+    appScope.scoped { workScope =>
       import workScope._
-      for {
-        p <- lower(pool)
-        a <- allocate(p.acquire)
-        b <- allocate(p.acquire)
-      } yield {
-        println(s"  [Parallel] Using connections ${a.id} and ${b.id}")
-        a.execute("UPDATE table_a SET x = 1")
-        b.execute("UPDATE table_b SET y = 2")
-      }
+      val p: $[ConnectionPool]   = lower(pool)
+      val a: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val b: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
+      val aId                    = (workScope $ a)(_.id).get
+      val bId                    = (workScope $ b)(_.id).get
+      println(s"  [Parallel] Using connections $aId and $bId")
+      (workScope $ a)(_.execute("UPDATE table_a SET x = 1"))
+      (workScope $ b)(_.execute("UPDATE table_b SET y = 2"))
+      ()
     }
     println()
 

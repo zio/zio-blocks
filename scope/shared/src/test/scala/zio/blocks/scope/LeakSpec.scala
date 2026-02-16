@@ -29,7 +29,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak unwraps $[A] to A for Int") {
       val result: Int = Scope.global.scoped { scope =>
         import scope._
-        val n: $[Int]   = $(42)
+        val n: $[Int]   = allocate(Resource(42))
         val leaked: Int = scope.leak(n)
         leaked
       }
@@ -66,7 +66,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak works with Boolean") {
       val result: Boolean = Scope.global.scoped { scope =>
         import scope._
-        val b: $[Boolean]   = $(true)
+        val b: $[Boolean]   = allocate(Resource(true))
         val leaked: Boolean = scope.leak(b)
         leaked
       }
@@ -75,7 +75,7 @@ object LeakSpec extends ZIOSpecDefault {
     test("leak works with Option") {
       val result: Option[Int] = Scope.global.scoped { scope =>
         import scope._
-        val opt: $[Option[Int]] = $(Some(99))
+        val opt: $[Option[Int]] = allocate(Resource(Some(99)))
         val leaked: Option[Int] = scope.leak(opt)
         leaked
       }

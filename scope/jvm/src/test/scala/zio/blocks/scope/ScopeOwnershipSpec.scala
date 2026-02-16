@@ -28,8 +28,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         val latch  = new CountDownLatch(1)
         val t      = new Thread(() => {
           try {
-            Scope.global.scoped { scope =>
-              scope.$(42)
+            Scope.global.scoped { _ =>
+              42
             }
           } catch {
             case e: Throwable => result.set(Some(e))
@@ -46,7 +46,6 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         var ownerResult = false
         Scope.global.scoped { scope =>
           ownerResult = scope.isOwner
-          scope.$(())
         }
         assertTrue(ownerResult)
       }
@@ -62,7 +61,6 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           })
           t.start()
           latch.await()
-          scope.$(())
         }
         assertTrue(!result.get())
       }
@@ -71,11 +69,9 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
       ZIO.succeed {
         var innerRan = false
         Scope.global.scoped { parent =>
-          parent.scoped { child =>
+          parent.scoped { _ =>
             innerRan = true
-            child.$(())
           }
-          parent.$(())
         }
         assertTrue(innerRan)
       }
@@ -87,8 +83,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         Scope.global.scoped { scope =>
           val t = new Thread(() => {
             try {
-              scope.scoped { inner =>
-                inner.$(42)
+              scope.scoped { _ =>
+                42
               }
             } catch {
               case e: Throwable => result.set(Some(e))
@@ -97,7 +93,6 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           })
           t.start()
           latch.await()
-          scope.$(())
         }
         assertTrue(
           result.get().exists(_.isInstanceOf[IllegalStateException]),
@@ -114,15 +109,11 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
             depth += 1
             s2.scoped { s3 =>
               depth += 1
-              s3.scoped { s4 =>
+              s3.scoped { _ =>
                 depth += 1
-                s4.$(())
               }
-              s3.$(())
             }
-            s2.$(())
           }
-          s1.$(())
         }
         assertTrue(depth == 4)
       }
@@ -135,8 +126,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           s1.scoped { s2 =>
             val t = new Thread(() => {
               try {
-                s2.scoped { s3 =>
-                  s3.$(())
+                s2.scoped { _ =>
+                  ()
                 }
               } catch {
                 case e: Throwable => result.set(Some(e))
@@ -145,9 +136,7 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
             })
             t.start()
             latch.await()
-            s2.$(())
           }
-          s1.$(())
         }
         assertTrue(
           result.get().exists(_.isInstanceOf[IllegalStateException])
@@ -164,8 +153,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         val t1 = new Thread(() => {
           barrier.await()
           try {
-            Scope.global.scoped { scope =>
-              scope.$(1)
+            Scope.global.scoped { _ =>
+              1
             }
           } catch {
             case e: Throwable => result1.set(Some(e))
@@ -176,8 +165,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         val t2 = new Thread(() => {
           barrier.await()
           try {
-            Scope.global.scoped { scope =>
-              scope.$(2)
+            Scope.global.scoped { _ =>
+              2
             }
           } catch {
             case e: Throwable => result2.set(Some(e))
@@ -199,8 +188,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           val t = new Thread(
             () => {
               try {
-                scope.scoped { inner =>
-                  inner.$(())
+                scope.scoped { _ =>
+                  ()
                 }
               } catch {
                 case e: Throwable => result.set(Some(e))
@@ -211,7 +200,6 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           )
           t.start()
           latch.await()
-          scope.$(())
         }
         val msg = result.get().map(_.getMessage).getOrElse("")
         assertTrue(
@@ -233,8 +221,8 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         val latch  = new CountDownLatch(1)
         val t      = new Thread(() => {
           try {
-            child.scoped { inner =>
-              inner.$(42)
+            child.scoped { _ =>
+              42
             }
           } catch {
             case e: Throwable => result.set(Some(e))
@@ -270,16 +258,14 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
         val value  = new AtomicReference[Int](0)
         val latch  = new CountDownLatch(1)
 
-        // Create an unowned child scope (simulating what DI does)
         val fins  = new zio.blocks.scope.internal.Finalizers
         val owner = PlatformScope.captureOwner()
         val child = new Scope.Child[Scope.global.type](Scope.global, fins, owner, unowned = true)
 
         val t = new Thread(() => {
           try {
-            child.scoped { inner =>
+            child.scoped { _ =>
               value.set(42)
-              inner.$(())
             }
           } catch {
             case e: Throwable => result.set(Some(e))
@@ -308,9 +294,9 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           val t = new Thread(() => {
             barrier.await()
             try {
-              child.scoped { inner =>
+              child.scoped { _ =>
                 counter.incrementAndGet()
-                inner.$(())
+                ()
               }
             } catch {
               case e: Throwable =>
@@ -330,8 +316,6 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
       ZIO.succeed {
         var cleanupRan = false
 
-        // Run 10 cycles of create-and-destroy shared resources
-        // If handle.cancel() doesn't work, global finalizers would grow
         (1 to 10).foreach { _ =>
           val resource = Resource.shared[String] { scope =>
             scope.defer { cleanupRan = true }
@@ -342,8 +326,6 @@ object ScopeOwnershipSpec extends ZIOSpecDefault {
           }
         }
 
-        // If we got here without OOM or issues, handles are being cleaned up.
-        // Also verify cleanup actually ran.
         assertTrue(cleanupRan)
       }
     }

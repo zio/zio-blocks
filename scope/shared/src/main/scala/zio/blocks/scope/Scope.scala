@@ -1,6 +1,5 @@
 package zio.blocks.scope
 
-import scala.language.implicitConversions
 import zio.blocks.scope.internal.Finalizers
 
 /**
@@ -10,13 +9,13 @@ import zio.blocks.scope.internal.Finalizers
  *
  * If a scope reference escapes to another thread (e.g. via a `Future`) and the
  * original scope closes while the other thread still holds a reference, all
- * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
- * that return a default-valued `$[B]` (`null` for reference types, `0` for
- * numeric types, `false` for `Boolean`, etc.). This prevents the escaped thread
- * from interacting with already-released resources, but callers should be aware
- * that these default values may appear if scopes are used across thread
- * boundaries incorrectly. `defer` on a closed scope is silently ignored, and
- * `scoped` creates a born-closed child.
+ * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that return
+ * a default-valued `$[B]` (`null` for reference types, `0` for numeric types,
+ * `false` for `Boolean`, etc.). This prevents the escaped thread from
+ * interacting with already-released resources, but callers should be aware that
+ * these default values may appear if scopes are used across thread boundaries
+ * incorrectly. `defer` on a closed scope is silently ignored, and `scoped`
+ * creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
@@ -81,30 +80,6 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   protected def $unwrap[A](sa: $[A]): A
 
   /**
-   * Wraps a raw value into a scoped value (zero-cost).
-   *
-   * If this scope is closed, returns a default-valued `$[A]` instead (`null`
-   * for reference types, zero/false for value types). Callers should generally
-   * use `allocate` for resources and this method for plain values that don't
-   * require finalization.
-   *
-   * @param a
-   *   the value to wrap
-   * @tparam A
-   *   the value type
-   * @return
-   *   the scoped value, or a default-valued scoped value if the scope is closed
-   */
-  def $[A](a: A): $[A] =
-    if (isClosed) $wrap(null.asInstanceOf[A])
-    else $wrap(a)
-
-  /**
-   * Force evaluation of a scoped value. Package-private - UNSOUND if exposed.
-   */
-  private[scope] def $run[A](sa: $[A]): A = $unwrap(sa)
-
-  /**
    * Lowers a parent-scoped value into this scope.
    *
    * This is safe because a parent scope always outlives its children: the
@@ -131,10 +106,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Thread-safe check for whether this scope has been closed.
    *
    * Once a scope is closed its finalizers have already run and all subsequent
-   * scope operations (`$`, `use`, `map`, `flatMap`, `allocate`) become no-ops
-   * that return default-valued scoped values (`null` for reference types,
-   * zero/false for value types). [[Scope.global]] returns `false` until JVM
-   * shutdown.
+   * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that
+   * return default-valued scoped values (`null` for reference types, zero/false
+   * for value types). [[Scope.global]] returns `false` until JVM shutdown.
    *
    * @return
    *   `true` if this scope's finalizers have already been executed
@@ -232,230 +206,36 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
       handle.cancel()
       fins.runAll()
     }
-    $(Scope.OpenScope(childScope, closeFn))
+    if (isClosed) $wrap(null.asInstanceOf[Scope.OpenScope])
+    else $wrap(Scope.OpenScope(childScope, closeFn))
   }
 
   /**
-   * Unwraps a scoped value, applies a function, and re-wraps the result.
+   * Enrichment for `$[A]` scoped values.
    *
-   * This is the fundamental combinator for working with scoped values. The
-   * value is unwrapped from `$[A]`, passed to `f`, and the result is wrapped
-   * back into `$[B]`. If this scope is closed, the function is not called and a
-   * default-valued `$[B]` is returned.
-   *
-   * @param scoped
-   *   the scoped value to unwrap
-   * @param f
-   *   the function to apply to the unwrapped value
-   * @tparam A
-   *   the input value type
-   * @tparam B
-   *   the output value type
-   * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
-   */
-  def use[A, B](scoped: $[A])(f: A => B): $[B] =
-    if (isClosed) $wrap(null.asInstanceOf[B])
-    else $wrap(f($unwrap(scoped)))
-
-  /**
-   * Arity-2 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
-   *
-   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
-   * is returned.
-   *
-   * @param s1
-   *   the first scoped value
-   * @param s2
-   *   the second scoped value
-   * @param f
-   *   the function to apply to the unwrapped values
-   * @tparam A1
-   *   the first input type
-   * @tparam A2
-   *   the second input type
-   * @tparam B
-   *   the result type
-   * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
-   */
-  def use[A1, A2, B](s1: $[A1], s2: $[A2])(f: (A1, A2) => B): $[B] =
-    if (isClosed) $wrap(null.asInstanceOf[B])
-    else $wrap(f($unwrap(s1), $unwrap(s2)))
-
-  /**
-   * Arity-3 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
-   *
-   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
-   * is returned.
-   *
-   * @param s1
-   *   the first scoped value
-   * @param s2
-   *   the second scoped value
-   * @param s3
-   *   the third scoped value
-   * @param f
-   *   the function to apply to the unwrapped values
-   * @tparam A1
-   *   the first input type
-   * @tparam A2
-   *   the second input type
-   * @tparam A3
-   *   the third input type
-   * @tparam B
-   *   the result type
-   * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
-   */
-  def use[A1, A2, A3, B](s1: $[A1], s2: $[A2], s3: $[A3])(f: (A1, A2, A3) => B): $[B] =
-    if (isClosed) $wrap(null.asInstanceOf[B])
-    else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3)))
-
-  /**
-   * Arity-4 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
-   *
-   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
-   * is returned.
-   *
-   * @param s1
-   *   the first scoped value
-   * @param s2
-   *   the second scoped value
-   * @param s3
-   *   the third scoped value
-   * @param s4
-   *   the fourth scoped value
-   * @param f
-   *   the function to apply to the unwrapped values
-   * @tparam A1
-   *   the first input type
-   * @tparam A2
-   *   the second input type
-   * @tparam A3
-   *   the third input type
-   * @tparam A4
-   *   the fourth input type
-   * @tparam B
-   *   the result type
-   * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
-   */
-  def use[A1, A2, A3, A4, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4])(
-    f: (A1, A2, A3, A4) => B
-  ): $[B] =
-    if (isClosed) $wrap(null.asInstanceOf[B])
-    else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4)))
-
-  /**
-   * Arity-5 variant of [[use[A,B](scoped:Scope\.this\.\$[A])(f:A=>B)* use]].
-   *
-   * If this scope is closed, `f` is not evaluated and a default-valued `$[B]`
-   * is returned.
-   *
-   * @param s1
-   *   the first scoped value
-   * @param s2
-   *   the second scoped value
-   * @param s3
-   *   the third scoped value
-   * @param s4
-   *   the fourth scoped value
-   * @param s5
-   *   the fifth scoped value
-   * @param f
-   *   the function to apply to the unwrapped values
-   * @tparam A1
-   *   the first input type
-   * @tparam A2
-   *   the second input type
-   * @tparam A3
-   *   the third input type
-   * @tparam A4
-   *   the fourth input type
-   * @tparam A5
-   *   the fifth input type
-   * @tparam B
-   *   the result type
-   * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
-   */
-  def use[A1, A2, A3, A4, A5, B](s1: $[A1], s2: $[A2], s3: $[A3], s4: $[A4], s5: $[A5])(
-    f: (A1, A2, A3, A4, A5) => B
-  ): $[B] =
-    if (isClosed) $wrap(null.asInstanceOf[B])
-    else $wrap(f($unwrap(s1), $unwrap(s2), $unwrap(s3), $unwrap(s4), $unwrap(s5)))
-
-  /**
-   * Enrichment for `$[A]` values enabling for-comprehension syntax.
-   *
-   * Provides `map` and `flatMap` so that scoped values can be composed with
-   * `for`/`yield`. All operations are guarded against closed scopes: if the
-   * scope is closed, the function is not called and a default-valued result is
-   * returned.
+   * Provides `get` for extracting pure-data values from `$[A]` when the type
+   * has an [[Unscoped]] instance.
    *
    * @tparam A
    *   the underlying value type
-   *
-   * @example
-   *   {{{
-   *   scope.scoped { s =>
-   *     import s._
-   *     val name: $[String] = $("Alice")
-   *     val greeting: $[String] = for {
-   *       n <- name
-   *     } yield "Hello, " + n + "!"
-   *   }
-   *   }}}
    */
   implicit class ScopedOps[A](private val sa: $[A]) {
 
     /**
-     * Transforms the value inside a `$[A]` by applying `f`.
+     * Extracts the underlying value from a `$[A]`.
      *
-     * @param f
-     *   the transformation function
-     * @tparam B
-     *   the result type
-     * @return
-     *   the transformed value as `$[B]`, or a default-valued `$[B]` if closed
-     */
-    def map[B](f: A => B): $[B] =
-      if (isClosed) $wrap(null.asInstanceOf[B])
-      else $wrap(f($unwrap(sa)))
-
-    /**
-     * Sequences a scoped computation that itself produces a `$[B]`.
+     * Only available when `A` has an [[Unscoped]] instance, ensuring only pure
+     * data (not resources) can be extracted. This is sound because the
+     * macro-enforced `$` prevents creating `$[A]` values where `A: Unscoped`
+     * but the value secretly holds a resource reference.
      *
-     * @param f
-     *   a function returning a scoped value
-     * @tparam B
-     *   the result type
+     * @param ev
+     *   evidence that `A` is safe to extract (pure data, not a resource)
      * @return
-     *   the resulting `$[B]`, or a default-valued `$[B]` if closed
+     *   the underlying value of type `A`
      */
-    def flatMap[B](f: A => $[B]): $[B] =
-      if (isClosed) $wrap(null.asInstanceOf[B])
-      else f($unwrap(sa))
+    def get(implicit ev: Unscoped[A]): A = $unwrap(sa)
   }
-
-  /**
-   * Implicit conversion that auto-wraps [[Unscoped]] values into `$[A]`.
-   *
-   * This allows plain values of types that have an `Unscoped` instance (e.g.
-   * `Int`, `String`, primitives) to be returned directly from scoped blocks
-   * without explicit wrapping.
-   *
-   * @param a
-   *   the value to wrap
-   * @param ev
-   *   evidence that `A` is an unscoped type
-   * @tparam A
-   *   the value type
-   * @return
-   *   the value wrapped as `$[A]`
-   */
-  implicit def wrapUnscoped[A](a: A)(implicit ev: Unscoped[A]): $[A] = $(a)
 }
 
 /**

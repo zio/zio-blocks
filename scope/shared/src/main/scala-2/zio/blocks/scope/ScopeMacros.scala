@@ -39,125 +39,207 @@ private[scope] object ScopeMacros {
   }
 
   /**
-   * Production Scope.scoped macro implementation for Scala 2.
+   * Scala 2 macro implementation for Scope.$.
    *
-   * This macro enables ergonomic `scoped { child => ... }` syntax in Scala 2
-   * where SAM conversion fails for path-dependent return types.
-   *
-   * The macro:
-   *   1. Accepts a lambda with Any return type (enables SAM conversion)
-   *   2. Type-checks the lambda body to extract the actual return type
-   *   3. Validates scope ownership (child.$[A] must belong to the child scope)
-   *   4. Validates Unscoped[A] evidence
-   *   5. Generates properly typed code with full finalizer handling
+   * Validates that the lambda parameter is only used in method-receiver
+   * position, then expands to the unwrap-call-rewrap pattern.
    */
-  def scopedImpl(c: whitebox.Context)(f: c.Tree): c.Tree = {
+  def useImpl(c: whitebox.Context)(sa: c.Tree)(f: c.Tree): c.Tree = {
     import c.universe._
 
     val self = c.prefix.tree
 
-    // Type-check f to get its type
-    val fTyped = c.typecheck(f)
+    // Extract the underlying type A from $[A] by looking at sa's type
+    val saTyped   = c.typecheck(sa)
+    val saType    = saTyped.tpe.widen
+    val inputType = saType match {
+      case TypeRef(_, sym, List(arg)) if sym.name.toString == "$" => arg
+      case _                                                      => saType
+    }
 
-    // Extract the return type from the lambda body directly
-    val (bodyType: Type, lambdaParamName: Option[TermName]) = fTyped match {
+    // Type-check f with the correct parameter type
+    val expectedFnType = appliedType(typeOf[Function1[_, _]].typeConstructor, List(inputType, WildcardType))
+    val fTyped         = c.typecheck(f, pt = expectedFnType)
+
+    // Extract the lambda parameter symbol and body
+    val (paramSymbol, body) = fTyped match {
       case Function(List(param), body) =>
-        (body.tpe.widen, Some(param.name))
+        (param.symbol, body)
       case Block(_, Function(List(param), body)) =>
-        (body.tpe.widen, Some(param.name))
+        (param.symbol, body)
       case _ =>
         c.abort(
-          c.enclosingPosition,
-          "In Scala 2, scoped blocks must be lambda literals: `.scoped { child => ... }`. " +
-            "Passing a variable or method reference is not supported."
+          f.pos,
+          "$ requires a lambda literal: (scope $ x)(a => a.method()). " +
+            "Method references and variables are not supported."
         )
     }
 
-    // Extract underlying type from child.$[T] -> T
-    // Also validate that the $ belongs to the lambda parameter (the child scope)
-    val underlyingType = bodyType match {
-      case TypeRef(pre, sym, args) if sym.name.toString == "$" && args.nonEmpty =>
-        val underlying = args.head
+    // Validate that the parameter is only used in receiver position
+    validateBody(c)(body, paramSymbol)
 
-        // Check if prefix matches lambda parameter
-        val prefixName = pre match {
-          case SingleType(_, termName) => Some(termName.name)
-          case _                       => None
-        }
+    val returnType = body.tpe.widen
 
-        // Validate ownership: prefix must be the lambda parameter
-        (prefixName, lambdaParamName) match {
-          case (Some(pn), Some(lpn)) if pn != lpn =>
-            c.abort(
-              c.enclosingPosition,
-              s"Scope mismatch: returning $bodyType but expected ${lpn}.$$[...]. " +
-                s"Cannot return a value from scope '$pn' inside scope '$lpn'."
-            )
-          case _ => // OK
-        }
-
-        underlying
-      case _ =>
-        bodyType
-    }
-
-    // Validate Unscoped[underlyingType] if not Any
-    if (!(underlyingType =:= typeOf[Any])) {
-      val unscopedType     = appliedType(typeOf[Unscoped[_]].typeConstructor, underlyingType)
-      val unscopedInstance = c.inferImplicitValue(unscopedType)
-
-      if (unscopedInstance == EmptyTree) {
-        c.abort(
-          c.enclosingPosition,
-          s"Cannot return $bodyType from scoped block: no Unscoped[$underlyingType] instance found. " +
-            s"Only types with Unscoped evidence can escape scope boundaries."
-        )
-      }
-    }
-
-    // Generate production code with full finalizer handling.
-    // If the parent scope is already closed, create a born-closed child
-    // so that operations inside the block become no-ops.
+    // Expand to: if (isClosed) null.asInstanceOf[B].asInstanceOf[$[B]]
+    //            else f(sa.asInstanceOf[A]).asInstanceOf[$[B]]
+    // We use asInstanceOf because $[A] = A at runtime
     q"""
-      val parent = $self
-      if (!parent.isOwner) {
-        val current = _root_.zio.blocks.scope.PlatformScope.currentThreadName()
-        val ownerInfo =
-          if ((parent: _root_.zio.blocks.scope.Scope).isInstanceOf[_root_.zio.blocks.scope.Scope.Child[_]])
-            " (owner: '" + _root_.zio.blocks.scope.PlatformScope.ownerName(
-              parent.asInstanceOf[_root_.zio.blocks.scope.Scope.Child[_]].owner
-            ) + "')"
-          else ""
-        throw new IllegalStateException(
-          "Cannot create child scope: current thread '" + current + "' does not own this scope" + ownerInfo
-        )
-      }
-      val fins = if (parent.isClosed) _root_.zio.blocks.scope.internal.Finalizers.closed
-                 else new _root_.zio.blocks.scope.internal.Finalizers
-      val child = new _root_.zio.blocks.scope.Scope.Child[parent.type](
-        parent,
-        fins,
-        _root_.zio.blocks.scope.PlatformScope.captureOwner()
-      )
-      var primary: Throwable = null
-      var unwrapped: $underlyingType = null.asInstanceOf[$underlyingType]
-      try {
-        val rawResult: Any = $f(child)
-        unwrapped = rawResult.asInstanceOf[$underlyingType]
-      } catch {
-        case t: Throwable =>
-          primary = t
-          throw t
-      } finally {
-        val finalization = fins.runAll()
-        if (primary != null) {
-          finalization.suppress(primary)
-        } else {
-          finalization.orThrow()
-        }
-      }
-      unwrapped
+      if ($self.isClosed) null.asInstanceOf[$returnType].asInstanceOf[$self.$$[$returnType]]
+      else $fTyped($sa.asInstanceOf[$inputType]).asInstanceOf[$self.$$[$returnType]]
     """
+  }
+
+  private def validateBody(c: whitebox.Context)(tree: c.Tree, paramSym: c.Symbol): Unit = {
+    import c.universe._
+
+    def isParamRef(t: Tree): Boolean = t match {
+      case Ident(_) => t.symbol == paramSym
+      case _        => false
+    }
+
+    def isBoxingConversion(fn: Tree): Boolean = {
+      val sym = fn.symbol
+      if (sym == null || sym == NoSymbol) return false
+      val name        = sym.name.toString
+      val boxingNames = Set(
+        "boolean2Boolean",
+        "Boolean2boolean",
+        "byte2Byte",
+        "Byte2byte",
+        "short2Short",
+        "Short2short",
+        "char2Character",
+        "Character2char",
+        "int2Integer",
+        "Integer2int",
+        "long2Long",
+        "Long2long",
+        "float2Float",
+        "Float2float",
+        "double2Double",
+        "Double2double",
+        "unbox",
+        "box"
+      )
+      boxingNames.contains(name) && {
+        val ownerName = sym.owner.fullName
+        ownerName.startsWith("scala.Predef") ||
+        ownerName.startsWith("scala.") ||
+        ownerName.startsWith("java.lang.")
+      }
+    }
+
+    def check(t: Tree): Unit = t match {
+      // param.method(args) or param.field — param is a receiver of Select
+      case Select(qualifier, _) if isParamRef(qualifier) =>
+        // This is fine — param is used as receiver
+        ()
+
+      // A bare reference to the param
+      case ident @ Ident(_) if ident.symbol == paramSym =>
+        c.abort(
+          ident.pos,
+          "Unsafe use of scoped value: the lambda parameter must only be used as a method receiver " +
+            "(e.g., x.method()). It cannot be returned, stored, passed as an argument, or captured."
+        )
+
+      // Function application — check args for param usage
+      case Apply(fn, args) =>
+        if (args.length == 1 && isParamRef(args.head) && isBoxingConversion(fn)) {
+          // Compiler-inserted boxing conversion — treat as valid receiver usage
+          ()
+        } else {
+          check(fn)
+          args.foreach { arg =>
+            if (isParamRef(arg)) {
+              c.abort(
+                arg.pos,
+                "Unsafe use of scoped value: the lambda parameter cannot be passed as an argument to a function or method."
+              )
+            }
+            check(arg)
+          }
+        }
+
+      case TypeApply(fn, _) =>
+        check(fn)
+
+      // Select on non-param — recurse into qualifier
+      case Select(qualifier, _) =>
+        check(qualifier)
+
+      // Block
+      case Block(stmts, expr) =>
+        stmts.foreach(check)
+        check(expr)
+
+      // ValDef — check if param is assigned
+      case ValDef(_, _, _, rhs) =>
+        if (isParamRef(rhs)) {
+          c.abort(
+            rhs.pos,
+            "Unsafe use of scoped value: the lambda parameter cannot be bound to a val or var."
+          )
+        }
+        check(rhs)
+
+      // Assignment
+      case Assign(_, rhs) =>
+        if (isParamRef(rhs)) {
+          c.abort(
+            rhs.pos,
+            "Unsafe use of scoped value: the lambda parameter cannot be assigned to a variable."
+          )
+        }
+        check(rhs)
+
+      // If expression
+      case If(cond, thenp, elsep) =>
+        check(cond)
+        check(thenp)
+        check(elsep)
+
+      // Match
+      case Match(scrutinee, cases) =>
+        check(scrutinee)
+        cases.foreach { case CaseDef(_, guard, body) =>
+          if (guard != EmptyTree) check(guard)
+          check(body)
+        }
+
+      // Nested lambda — param captured in closure
+      case Function(_, body) =>
+        checkNoCapture(c)(body, paramSym)
+
+      case Typed(expr, _) =>
+        check(expr)
+
+      // Tuple constructor or new — check args
+      case New(_) => ()
+
+      case _: Literal => ()
+      case _: Ident   => () // non-param idents fine
+      case _: This    => ()
+
+      case tree =>
+        tree.children.foreach(check)
+    }
+
+    check(tree)
+  }
+
+  private def checkNoCapture(c: whitebox.Context)(tree: c.Tree, paramSym: c.Symbol): Unit = {
+    import c.universe._
+
+    tree match {
+      case ident @ Ident(_) if ident.symbol == paramSym =>
+        c.abort(
+          ident.pos,
+          "Unsafe use of scoped value: the lambda parameter cannot be captured in a nested lambda or closure."
+        )
+      case _ =>
+        tree.children.foreach(checkNoCapture(c)(_, paramSym))
+    }
   }
 
   private sealed trait WireKind

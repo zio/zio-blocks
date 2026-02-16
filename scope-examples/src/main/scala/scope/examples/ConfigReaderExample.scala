@@ -91,9 +91,8 @@ class SecretStore extends AutoCloseable {
     import scope._
     val reader: $[ConfigReader] = allocate(Resource(new ConfigReader))
 
-    // scope.use(reader)(f) returns $[ConfigData], which is unwrapped
-    // to raw ConfigData because ConfigData derives Unscoped
-    scope.use(reader)(_.readConfig("/etc/app/config.json"))
+    // (scope $ reader)(f) returns $[ConfigData]; .get extracts the pure data
+    (scope $ reader)(_.readConfig("/etc/app/config.json")).get
   }
 
   println("Escaped config (used outside scope):")
@@ -106,10 +105,11 @@ class SecretStore extends AutoCloseable {
     import scope._
     val secrets: $[SecretStore] = allocate(Resource(new SecretStore))
 
-    scope.use(secrets) { s =>
+    (scope $ secrets) { s =>
       val dbPassword = s.getSecret("database.password")
       println(s"  Retrieved secret: $dbPassword")
     }
+    ()
   }
   println("\n=== Example Complete ===")
 }

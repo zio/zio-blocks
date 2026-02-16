@@ -19,7 +19,7 @@ package zio.blocks.scope
  *   }
  *
  *   // Resources stay scoped
- *   val body: $[InputStream] = scope.use(request)(_.body)  // InputStream stays scoped
+ *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped
  *   }}}
  */
 trait Unscoped[A]
@@ -114,5 +114,7 @@ object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // zio-blocks types
   implicit def unscopedChunk[A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] =
     new Unscoped[zio.blocks.chunk.Chunk[A]] {}
-  implicit val unscopedDeferHandle: Unscoped[DeferHandle] = new Unscoped[DeferHandle] {}
+
+  // Resource descriptions (lazy, not live resources)
+  implicit def unscopedResource[A]: Unscoped[Resource[A]] = new Unscoped[Resource[A]] {}
 }

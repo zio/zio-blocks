@@ -3,18 +3,15 @@ package scope.examples
 import zio.blocks.scope._
 
 /**
- * Demonstrates the `$[A]` scoped type with for-comprehension chaining.
+ * Demonstrates the `$[A]` scoped type with `$` + `.get` for resource access.
  *
  * This example showcases the key design of ZIO Blocks Scope:
  *   - `allocate` returns `$[A]` (a scoped value)
- *   - Multiple allocates can be chained in for-comprehensions
+ *   - `(scope $ x)(f)` safely accesses scoped values with macro enforcement
+ *   - `.get` extracts pure data from `$[A]` when `A: Unscoped`
+ *   - `Resource[A]: Unscoped` enables extracting resources from scoped values
  *   - Operations are eager (zero-cost wrapper)
  *   - All resources are cleaned up in LIFO order when the scope exits
- *
- * The for-comprehension pattern is especially useful when:
- *   - Resources depend on each other (connection depends on pool)
- *   - You want declarative resource composition
- *   - You need to combine resource acquisition with pure computations
  */
 
 /** A connection pool that produces connections. */
@@ -22,9 +19,9 @@ class Pool extends AutoCloseable {
   println("  [Pool] Created")
   var closed = false
 
-  def lease(): Connection = {
+  def lease(): Resource[Connection] = {
     require(!closed, "Pool is closed")
-    new Connection(this)
+    Resource.fromAutoCloseable(new Connection(this))
   }
 
   def close(): Unit = {
@@ -54,52 +51,45 @@ class Connection(val pool: Pool) extends AutoCloseable {
 case class QueryData(value: String) extends Unscoped[QueryData]
 
 @main def scopedForComprehensionExample(): Unit = {
-  println("=== Scoped For-Comprehension Example ===\n")
+  println("=== Scoped Resource Access Example ===\n")
 
-  println("--- Pattern 1: Chaining allocates in for-comprehension ---")
+  println("--- Pattern 1: Chaining allocates with $ + .get ---")
   Scope.global.scoped { scope =>
     import scope._
-    // Build a for-comprehension that chains resource allocations
-    val result: $[String] = for {
-      pool <- allocate(Resource.from[Pool])
-      conn <- allocate(Resource(pool.lease()))
-    } yield conn.query("SELECT * FROM users").value.toUpperCase
-
-    // Access the result
-    println(s"\n  Result: ${scope.use(result)(identity)}")
+    val pool: $[Pool] = allocate(Resource.from[Pool])
+    // (scope $ pool)(_.lease()) returns $[Resource[Connection]]; .get extracts Resource[Connection]
+    val conn: $[Connection] = allocate((scope $ pool)(_.lease()).get)
+    val result              = (scope $ conn)(_.query("SELECT * FROM users")).get
+    println(s"\n  Result: ${result.value.toUpperCase}")
     // Scope exits: Connection closed, then Pool closed (LIFO)
   }
 
   println("\n--- Pattern 2: Mixing allocates with pure computations ---")
   Scope.global.scoped { scope =>
     import scope._
-    val result: $[String] = for {
-      pool   <- allocate(Resource.from[Pool])
-      conn   <- allocate(Resource(pool.lease()))
-      prefix <- $("PREFIX: ")
-    } yield prefix + conn.query("SELECT name FROM employees").value
-
-    println(s"\n  Result: ${scope.use(result)(identity)}")
+    val pool: $[Pool] = allocate(Resource.from[Pool])
+    // (scope $ pool)(_.lease()) returns $[Resource[Connection]]; .get extracts Resource[Connection]
+    val conn: $[Connection] = allocate((scope $ pool)(_.lease()).get)
+    val prefix              = "PREFIX: "
+    val result              = (scope $ conn)(_.query("SELECT name FROM employees")).get
+    println(s"\n  Result: $prefix${result.value}")
   }
 
-  println("\n--- Pattern 3: Nested scopes with for-comprehensions ---")
+  println("\n--- Pattern 3: Nested scopes ---")
   Scope.global.scoped { outer =>
     import outer._
     println("\n  [outer] Creating pool")
     val pool: $[Pool] = allocate(Resource.from[Pool])
 
     // Child scope for a unit of work
-    scoped { inner =>
+    outer.scoped { inner =>
       import inner._
       println("  [inner] Acquiring connection from parent's pool")
-      val result: $[String] = for {
-        // Access parent-scoped pool via lower
-        p    <- lower(pool)
-        conn <- allocate(Resource(p.lease()))
-      } yield conn.query("SELECT 1").value
-
-      val output = inner.use(result)(identity)
-      println(s"  [inner] Result: $output")
+      val p: $[Pool] = lower(pool)
+      // (inner $ p)(_.lease()) returns $[Resource[Connection]]; .get extracts Resource[Connection]
+      val conn: $[Connection] = allocate((inner $ p)(_.lease()).get)
+      val result              = (inner $ conn)(_.query("SELECT 1")).get
+      println(s"  [inner] Result: ${result.value}")
       // inner scope exits: Connection released
     }
     println("  [outer] After inner scope - connection released, pool still alive")
@@ -110,7 +100,8 @@ case class QueryData(value: String) extends Unscoped[QueryData]
   println("\nKey insights:")
   println("  - $[A] is the scoped value type (zero-cost wrapper)")
   println("  - allocate returns $[A]")
-  println("  - flatMap chains scoped computations")
+  println("  - (scope $ x)(f) safely accesses scoped values")
+  println("  - .get extracts pure data from $[A]")
   println("  - Operations are eager")
   println("  - Resources cleaned up in LIFO order on scope exit")
 }
