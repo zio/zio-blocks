@@ -21,7 +21,7 @@ class ByteArrayAccess {
     }
 
     static long getLong(byte[] buf, int pos) {
-        return (long) VH_LONG.get(buf, pos);
+        return VH_LONG.get(buf, pos);
     }
 
     static void setInt(byte[] buf, int pos, int value) {
@@ -29,7 +29,7 @@ class ByteArrayAccess {
     }
 
     static int getInt(byte[] buf, int pos) {
-        return (int) VH_INT.get(buf, pos);
+        return VH_INT.get(buf, pos);
     }
 
     static void setShort(byte[] buf, int pos, short value) {
