@@ -16,6 +16,7 @@ object ScopeSpec extends ZIOSpecDefault {
   class Database extends AutoCloseable {
     var closed                     = false
     def query(sql: String): String = s"result: $sql"
+    def status(): String           = if (closed) "closed" else "open"
     def close(): Unit              = closed = true
   }
 
@@ -489,6 +490,14 @@ object ScopeSpec extends ZIOSpecDefault {
           scope.$(db)(_.closed).get
         }
         assertTrue(captured == false)
+      },
+      test("arity-0 method call is allowed") {
+        val captured: String = Scope.global.scoped { scope =>
+          import scope._
+          val db: $[Database] = allocate(Resource.from[Database])
+          scope.$(db)(_.status()).get
+        }
+        assertTrue(captured == "open")
       }
     ),
     suite("compile-time safety")(
