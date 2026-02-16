@@ -1,6 +1,7 @@
 package zio.blocks.schema.xml
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.BinaryFormat
