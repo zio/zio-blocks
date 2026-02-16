@@ -57,8 +57,8 @@ Scope.global.scoped { scope =>
   val db: $[Database] = allocate(Resource(new Database))
 
   // scope.use applies a function to the scoped value, returning a scoped result
-  val result: $[String] = scope.use(db)(_.query("SELECT 1"))
-  println(result)  // $[String] = String at runtime, prints directly
+  val result: String = scope.use(db)(_.query("SELECT 1")).get
+  println(result)
 }
 ```
 
@@ -67,7 +67,8 @@ Key things to notice:
 - `allocate(...)` returns a **scoped** value of type `$[Database]` (the path-dependent type of the enclosing scope)
 - `$[A] = A` at runtime — zero-cost opaque type, no boxing
 - All operations are **eager** — values are computed immediately, no lazy thunks
-- Use `scope.use(value)(f)` to work with scoped values; returns `$[B]`
+- `scope.use(value)(f)` is macro-enforced to prevent capturing scoped values; returns `$[B]`
+- `.get` on `$[A]` extracts the underlying value when `A` has an `Unscoped` instance
 - When the `scoped { ... }` block exits, finalizers run **LIFO** and errors are handled safely
 - The `scoped` method requires `Unscoped[A]` evidence on the return type
 
@@ -127,38 +128,26 @@ object Scope {
 - **Key effect:** methods on `A` are hidden at the type level; you can't call `a.method` directly
 - **All operations are eager:** `allocate(resource)` acquires the resource **immediately** and returns a scoped value
 - **Access paths:**
-  - `scope.use(a)(f)` to apply a function and get `$[B]`
+  - `scope.use(a)(f)` — macro-enforced access; returns `$[B]`
+  - `.get` on `$[A]` when `A: Unscoped` — extracts the underlying value
 
-#### `ScopedOps`: `map` and `flatMap` on `$[A]`
+#### `ScopedOps`: `.get` on `$[A]`
 
-`Scope` provides an implicit class `ScopedOps[A]` that adds `map` and `flatMap` to `$[A]` values, enabling for-comprehension syntax:
+`Scope` provides an implicit class `ScopedOps[A]` that adds `.get` to `$[A]` values when `A` has an `Unscoped` instance:
 
 ```scala
 Scope.global.scoped { scope =>
   import scope._
 
-  val x: $[Int] = $(42)
-  val y: $[String] = x.map(_.toString)
-  val z: $[String] = x.flatMap(v => $(s"value: $v"))
+  val db: $[Database] = allocate(Resource.from[Database])
+  val result: String = scope.use(db)(_.query("SELECT 1")).get
+  val count: Int = scope.use(db)(_.rowCount).get
 }
 ```
 
-- `sa.map(f: A => B): $[B]` — applies `f` to the unwrapped value, re-wraps the result
-- `sa.flatMap(f: A => $[B]): $[B]` — applies `f` to the unwrapped value (where `f` returns a scoped value)
-- All operations are **eager** (zero-cost)
-
-#### Scala 2 note
-
-In Scala 2, the `scoped` method must be called with a lambda literal. Passing a variable or method reference is not supported due to macro limitations:
-
-```scala
-// ✅ OK: lambda literal
-Scope.global.scoped { scope => ... }
-
-// ❌ ERROR in Scala 2 (works in Scala 3):
-val f: Scope.Child[_] => Any = scope => ...
-Scope.global.scoped(f)
-```
+- `.get` requires `Unscoped[A]` evidence, ensuring only pure data can be extracted
+- Resources (`$[Database]`, `$[Socket]`) cannot be `.get`-ed — they don't have `Unscoped` instances
+- `Resource[A]` has an `Unscoped` instance (it's a lazy description, not a live resource), enabling patterns like `allocate(scope.use(db)(_.beginTransaction()).get)`
 
 ---
 
@@ -358,7 +347,7 @@ Compile-time safety is verified in tests, e.g.:
 
 Each scope defines its own `$[A]` opaque type. Even though `$[A] = A` at runtime, the compiler treats each scope's `$[A]` as distinct. A child's `$[Database]` is a different type than the parent's `$[Database]`.
 
-Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. Access routes are `scope.use(value)(f)` and the `ScopedOps` methods (`map`, `flatMap`) for for-comprehensions.
+Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access routes are `scope.use(value)(f)` (macro-enforced to prevent capture) and `.get` (requires `Unscoped[A]` evidence).
 
 ---
 
@@ -425,13 +414,13 @@ Scope.global.scoped { parent =>
 
 ### Chaining resource acquisition
 
-Since `$[A]` supports `map` and `flatMap` via `ScopedOps`, you can chain resource acquisitions in for-comprehensions:
+When a method returns `Resource[A]`, you can chain `use` + `.get` + `allocate` to acquire nested resources without `leak()`:
 
 ```scala
 import zio.blocks.scope._
 
 class Pool extends AutoCloseable {
-  def lease(): Connection = new Connection
+  def lease(): Resource[Connection] = Resource.fromAutoCloseable(new Connection)
   def close(): Unit = println("pool closed")
 }
 
@@ -443,18 +432,22 @@ class Connection extends AutoCloseable {
 Scope.global.scoped { scope =>
   import scope._
 
-  // Chain allocations in a for-comprehension:
-  // flatMap unwraps $[Pool] to Pool, so pool.lease() returns a raw Connection
-  val result: $[String] = for {
-    pool <- allocate(Resource.from[Pool])
-    conn <- allocate(Resource(pool.lease()))
-  } yield conn.query("SELECT 1")
+  val pool: $[Pool] = allocate(Resource.from[Pool])
 
+  // use extracts Pool, .lease() returns Resource[Connection],
+  // .get extracts the Resource (Unscoped), allocate acquires it
+  val conn: $[Connection] = allocate(scope.use(pool)(_.lease()).get)
+
+  val result: String = scope.use(conn)(_.query("SELECT 1")).get
   println(result)
 }
 // Output: result: SELECT 1
 // Then: connection closed, pool closed (LIFO)
 ```
+
+This works because `Resource[A]` has an `Unscoped` instance — it's a lazy description,
+not a live resource. Extracting it with `.get` doesn't leak anything; the actual
+resource is only acquired when `allocate` is called.
 
 ---
 
@@ -944,8 +937,10 @@ sealed abstract class Scope extends Finalizer {
   // Create a non-lexical child scope (usable from any thread)
   def open(): $[Scope.OpenScope]
 
-  // Apply function to scoped value, returns scoped result
-  def use[A, B](scoped: $[A])(f: A => B): $[B]
+  // Macro-enforced access: validates lambda param is only used as receiver
+  // Scala 3: transparent inline def use[A, B](sa: $[A])(inline f: A => B): $[B]
+  // Scala 2: def use[A, B](sa: $[A])(f: A => B): $[B]  // whitebox macro
+  def use[A, B](sa: $[A])(f: A => B): $[B]
 
   // Construct a scoped value from a raw value
   def $[A](a: A): $[A]
@@ -954,23 +949,17 @@ sealed abstract class Scope extends Finalizer {
   def lower[A](value: parent.$[A]): $[A]
 
   // Escape hatch: unwrap scoped value (emits compiler warning)
-  // Scala 3:
-  inline def leak[A](inline sa: $[A]): A  // macro — emits warning
-  // Scala 2:
-  def leak[A](sa: $[A]): A               // macro — emits warning
+  // Scala 3: inline def leak[A](inline sa: $[A]): A
+  // Scala 2: def leak[A](sa: $[A]): A  // macro
+  def leak[A](sa: $[A]): A
 
   // Creates a child scope - requires Unscoped evidence on return type
-  // Scala 3:
-  def scoped[A](f: (child: Scope.Child[self.type]) => child.$[A])(using Unscoped[A]): A
-  // Scala 2 (macro rewrites the types; declared signature is untyped):
-  def scoped(f: Scope.Child[self.type] => Any): Any  // macro
+  // Same signature in both Scala 2 and 3:
+  def scoped[A](f: Scope.Child[self.type] => A)(implicit ev: Unscoped[A]): A
 
   implicit class ScopedOps[A](sa: $[A]) {
-    def map[B](f: A => B): $[B]
-    def flatMap[B](f: A => $[B]): $[B]
+    def get(implicit ev: Unscoped[A]): A  // extract pure data from $[A]
   }
-
-  implicit def wrapUnscoped[A: Unscoped](a: A): $[A]
 }
 ```
 
@@ -1041,7 +1030,9 @@ case class OpenScope private[scope] (
 - Use `Scope.global.scoped { scope => import scope._; ... }` to create a safe region.
 - For simple resources: `allocate(Resource(value))` or `allocate(Resource.acquireRelease(...)(...))`
 - For dependency injection: `allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- Use `scope.use(value)(f)` to work with scoped values — all operations are eager.
+- `scope.use(value)(f)` is macro-enforced to work with scoped values — all operations are eager.
+- `.get` on `$[A]` extracts pure data when `A: Unscoped` — use for results like `String`, `Int`, etc.
+- `Resource[A]` has an `Unscoped` instance, enabling chained acquisition: `allocate(scope.use(pool)(_.lease()).get)`.
 - `$[A] = A` at runtime — zero-cost opaque type.
 - The `scoped` method requires `Unscoped[A]` evidence on the return type.
 - Use `lower(parentValue)` to access parent-scoped values in child scopes.
