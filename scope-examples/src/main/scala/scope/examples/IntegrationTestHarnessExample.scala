@@ -111,7 +111,7 @@ object IntegrationTestHarnessExample {
 
       // Run test scenarios - access the tuple via $
       println("Running test scenarios:")
-      (scope $ harness) { h =>
+      $(harness) { h =>
         println(s"  GET user:1 -> ${h._2.handleRequest("user:1")}")
         println(s"  GET user:2 -> ${h._2.handleRequest("user:2")}")
         println(s"  GET user:3 -> ${h._2.handleRequest("user:3")}")

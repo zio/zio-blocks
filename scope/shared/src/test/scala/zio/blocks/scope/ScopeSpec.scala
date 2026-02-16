@@ -16,6 +16,7 @@ object ScopeSpec extends ZIOSpecDefault {
   class Database extends AutoCloseable {
     var closed                     = false
     def query(sql: String): String = s"result: $sql"
+    def status(): String           = if (closed) "closed" else "open"
     def close(): Unit              = closed = true
   }
 
@@ -106,7 +107,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val isDb: Boolean = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.isInstanceOf[Database]).get
+          $(db)(_.isInstanceOf[Database])
         }
         assertTrue(isDb)
       },
@@ -116,7 +117,7 @@ object ScopeSpec extends ZIOSpecDefault {
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
           defer { closed = true }
-          scope.$(db)(d => !d.closed).get
+          $(db)(d => !d.closed)
         }
         assertTrue(beforeClose, closed)
       }
@@ -126,7 +127,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("SELECT 1")).get
+          $(db)(_.query("SELECT 1"))
         }
         assertTrue(captured == "result: SELECT 1")
       },
@@ -141,10 +142,29 @@ object ScopeSpec extends ZIOSpecDefault {
         val beforeClose: Boolean = Scope.global.scoped { scope =>
           import scope._
           val resource: $[TestCloseable] = allocate(new TestCloseable)
-          val captured: String           = scope.$(resource)(_.value).get
+          val captured: String           = $(resource)(_.value)
           captured == "test" && !closed
         }
         assertTrue(beforeClose, closed)
+      },
+      test("ScopedResourceOps.allocate works for $[Resource[A]]") {
+        class Outer extends AutoCloseable {
+          def makeInner: Resource[Inner] = Resource.fromAutoCloseable(new Inner)
+          def close(): Unit              = ()
+        }
+
+        class Inner extends AutoCloseable {
+          def value: String = "inner"
+          def close(): Unit = ()
+        }
+
+        val result: String = Scope.global.scoped { scope =>
+          import scope._
+          val outer: $[Outer] = allocate(Resource.fromAutoCloseable(new Outer))
+          val inner: $[Inner] = $(outer)(_.makeInner).allocate
+          $(inner)(_.value)
+        }
+        assertTrue(result == "inner")
       }
     ),
     suite("$ operator")(
@@ -152,15 +172,15 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: Boolean = Scope.global.scoped { scope =>
           import scope._
           val config: $[Config] = allocate(Resource(Config(true)))
-          scope.$(config)(_.debug).get
+          $(config)(_.debug)
         }
         assertTrue(captured == true)
       },
-      test("$ always returns scoped value") {
+      test("$ auto-unwraps Unscoped results") {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("test")).get
+          $(db)(_.query("test"))
         }
         assertTrue(captured == "result: test")
       },
@@ -168,7 +188,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("test").toUpperCase).get
+          $(db)(_.query("test").toUpperCase)
         }
         assertTrue(captured == "RESULT: TEST")
       },
@@ -176,7 +196,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(d => d.query("a") + " " + d.query("b")).get
+          $(db)(d => d.query("a") + " " + d.query("b"))
         }
         assertTrue(captured == "result: a result: b")
       }
@@ -192,7 +212,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val executed: Boolean = Scope.global.scoped { scope =>
           import scope._
           val resource: $[TrackedResource] = allocate(Resource(new TrackedResource))
-          scope.$(resource)(_.doWork()).get
+          $(resource)(_.doWork())
         }
         assertTrue(executed)
       }
@@ -203,9 +223,8 @@ object ScopeSpec extends ZIOSpecDefault {
           val db: outer.$[Database] = outer.allocate(Resource.from[Database])
 
           val result: String = outer.scoped { inner =>
-            import inner._
             val innerDb: inner.$[Database] = inner.lower(db)
-            inner.$(innerDb)(_.query("child")).get
+            (inner $ innerDb)(_.query("child"))
           }
           result
         }
@@ -322,8 +341,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => println(a))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("capturing in nested lambda is rejected") {
         assertZIO(typeCheck("""
@@ -339,8 +359,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => () => a.query("test"))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("storing param in var is rejected") {
         assertZIO(typeCheck("""
@@ -358,8 +379,9 @@ object ScopeSpec extends ZIOSpecDefault {
             var someVar: Any = null
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => { someVar = a; 42 })
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("returning param directly (identity) is rejected") {
         assertZIO(typeCheck("""
@@ -375,8 +397,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => a)
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("tuple construction with param is rejected") {
         assertZIO(typeCheck("""
@@ -392,8 +415,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => (a, 1))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("constructor argument with param is rejected") {
         assertZIO(typeCheck("""
@@ -411,8 +435,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(a => new Wrapper(a))
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("match expression where param could escape via pattern binding is rejected") {
         assertZIO(typeCheck("""
@@ -428,8 +453,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(d => d match { case x => x })
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       },
       test("if-expression where param is branch result is rejected") {
         assertZIO(typeCheck("""
@@ -445,8 +471,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db: $[Database] = allocate(Resource.from[Database])
             scope.$(db)(d => if (true) d else null)
+            ()
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
       }
     ),
     suite("use macro allows safe patterns")(
@@ -454,7 +481,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("SELECT 1")).get
+          $(db)(_.query("SELECT 1"))
         }
         assertTrue(captured == "result: SELECT 1")
       },
@@ -462,7 +489,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("test").toUpperCase).get
+          $(db)(_.query("test").toUpperCase)
         }
         assertTrue(captured == "RESULT: TEST")
       },
@@ -470,7 +497,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(a => a.query("a") + " " + a.query("b")).get
+          $(db)(a => a.query("a") + " " + a.query("b"))
         }
         assertTrue(captured == "result: a result: b")
       },
@@ -478,7 +505,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.query("raw arg")).get
+          $(db)(_.query("raw arg"))
         }
         assertTrue(captured == "result: raw arg")
       },
@@ -486,9 +513,17 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: Boolean = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource.from[Database])
-          scope.$(db)(_.closed).get
+          $(db)(_.closed)
         }
         assertTrue(captured == false)
+      },
+      test("arity-0 method call is allowed") {
+        val captured: String = Scope.global.scoped { scope =>
+          import scope._
+          val db: $[Database] = allocate(Resource.from[Database])
+          $(db)(_.status())
+        }
+        assertTrue(captured == "open")
       }
     ),
     suite("compile-time safety")(
@@ -506,8 +541,9 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             val db = allocate(Resource.from[Database])
             db.query("test")
+            ()
           }
-        """))(isLeft(containsString("Recursive value") || containsString("is not a member")))
+        """))(isLeft(containsString("is not a member") || containsString("Recursive value")))
       },
       test("closure cannot be returned from scoped block") {
         assertZIO(typeCheck("""
@@ -517,7 +553,7 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             () => "captured"
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unscoped")))
       },
       test("resourceful value cannot escape scoped block") {
         assertZIO(typeCheck("""
@@ -534,7 +570,7 @@ object ScopeSpec extends ZIOSpecDefault {
             val db = allocate(Resource.from[Database])
             db
           }
-        """))(isLeft)
+        """))(isLeft(containsString("Unscoped") || containsString("type mismatch")))
       }
     ),
     suite("Unscoped constraint")(
@@ -561,7 +597,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val result: Config = Scope.global.scoped { scope =>
           import scope._
           val data: $[Boolean] = allocate(Resource(true))
-          Config(scope.$(data)(_.booleanValue()).get)
+          Config($(data)(_.booleanValue()))
         }
         assertTrue(result.debug)
       }
@@ -571,7 +607,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: String = Scope.global.scoped { scope =>
           import scope._
           val resource: $[CloseableResource] = allocate(Resource(new CloseableResource("hello")))
-          scope.$(resource)(_.name).get
+          $(resource)(_.name)
         }
         assertTrue(captured == "hello")
       },
@@ -579,7 +615,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val captured: Option[String] = Scope.global.scoped { scope =>
           import scope._
           val db: $[Database] = allocate(Resource(new Database))
-          scope.$(db)(d => Option(d.query("SELECT 1"))).get
+          $(db)(d => Option(d.query("SELECT 1")))
         }
         assertTrue(captured.contains("result: SELECT 1"))
       },
@@ -590,68 +626,6 @@ object ScopeSpec extends ZIOSpecDefault {
           100
         }
         assertTrue(result == 100)
-      }
-    ),
-    suite(".get")(
-      test("get works for Unscoped types") {
-        val (nVal, sVal) = Scope.global.scoped { scope =>
-          import scope._
-          val n: $[Int]    = allocate(Resource(42))
-          val s: $[String] = allocate(Resource("hello"))
-          (n.get, s.get)
-        }
-        assertTrue(nVal == 42, sVal == "hello")
-      },
-      test("get works for Resource[A] (lazy description, not live resource)") {
-        class MyResource extends AutoCloseable {
-          var closed                 = false
-          def value: String          = "acquired"
-          override def close(): Unit = closed = true
-        }
-
-        val result: String = Scope.global.scoped { scope =>
-          import scope._
-          val res: $[Resource[MyResource]]    = allocate(Resource(Resource.fromAutoCloseable(new MyResource)))
-          val extracted: Resource[MyResource] = res.get
-          val r: $[MyResource]                = allocate(extracted)
-          scope.$(r)(_.value).get
-        }
-        assertTrue(result == "acquired")
-      },
-      test("allocate((scope $ x)(_.resourceMethod).get) pattern works") {
-        class Outer extends AutoCloseable {
-          def makeInner: Resource[Inner] = Resource.fromAutoCloseable(new Inner)
-          def close(): Unit              = ()
-        }
-
-        class Inner extends AutoCloseable {
-          def value: String = "inner"
-          def close(): Unit = ()
-        }
-
-        val result: String = Scope.global.scoped { scope =>
-          import scope._
-          val outer: $[Outer] = allocate(Resource.fromAutoCloseable(new Outer))
-          val inner: $[Inner] = allocate(scope.$(outer)(_.makeInner).get)
-          scope.$(inner)(_.value).get
-        }
-        assertTrue(result == "inner")
-      },
-      test("get does not compile for non-Unscoped types") {
-        assertZIO(typeCheck("""
-          import zio.blocks.scope._
-
-          class MyResource extends AutoCloseable {
-            def close(): Unit = ()
-          }
-
-          Scope.global.scoped { scope =>
-            import scope._
-            val r: $[MyResource] = allocate(Resource(new MyResource))
-            r.get
-            ()
-          }
-        """))(isLeft)
       }
     ),
     suite("closed scope defense")(
@@ -679,7 +653,7 @@ object ScopeSpec extends ZIOSpecDefault {
         val wrapped = child.allocate(Resource(new CloseableResource("test")))
         child.close()
         var fnRan  = false
-        val result = child.$(wrapped) { v =>
+        val result = (child $ wrapped) { v =>
           fnRan = true
           v.name
         }
