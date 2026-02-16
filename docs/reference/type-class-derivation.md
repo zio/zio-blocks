@@ -107,7 +107,7 @@ trait Deriver[TC[_]] {
   def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: Binding.Record[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -194,7 +194,7 @@ object DeriveShow extends Deriver[Show] {
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Primitive, A],
+    binding: Binding.Primitive[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -213,7 +213,7 @@ object DeriveShow extends Deriver[Show] {
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: Binding.Record[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -255,7 +255,7 @@ object DeriveShow extends Deriver[Show] {
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Variant, A],
+    binding: Binding.Variant[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -289,7 +289,7 @@ object DeriveShow extends Deriver[Show] {
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
+    binding: Binding.Seq[C, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
@@ -315,7 +315,7 @@ object DeriveShow extends Deriver[Show] {
     key: Reflect[F, K],
     value: Reflect[F, V],
     typeId: TypeId[M[K, V]],
-    binding: Binding[BindingType.Map[M], M[K, V]],
+    binding: Binding.Map[M, K, V],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
@@ -341,7 +341,7 @@ object DeriveShow extends Deriver[Show] {
   }
 
   override def deriveDynamic[F[_, _]](
-    binding: Binding[BindingType.Dynamic, DynamicValue],
+    binding: Binding.Dynamic,
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
@@ -380,7 +380,7 @@ object DeriveShow extends Deriver[Show] {
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Wrapper[A, B], A],
+    binding: Binding.Wrapper[A, B],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -423,7 +423,7 @@ import zio.blocks.docs.Doc
 def derivePrimitive[A](
   primitiveType: PrimitiveType[A],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Primitive, A],
+  binding: Binding.Primitive[A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -456,7 +456,7 @@ import DeriveShow._
 def deriveRecord[F[_, _], A](
   fields: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Record, A],
+  binding: Binding.Record[A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -524,7 +524,7 @@ When the derivation process encounters a variant type (e.g., a sealed trait with
 def deriveVariant[F[_, _], A](
   cases: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Variant, A],
+  binding: Binding.Variant[A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -568,7 +568,7 @@ When the derivation process encounters a sequence type (e.g., `List[A]`), it cal
 def deriveSequence[F[_, _], C[_], A](
   element: Reflect[F, A],
   typeId: TypeId[C[A]],
-  binding: Binding[BindingType.Seq[C], C[A]],
+  binding: Binding.Seq[C, A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[C[A]],
@@ -602,7 +602,7 @@ def deriveMap[F[_, _], M[_, _], K, V](
   key: Reflect[F, K],
   value: Reflect[F, V],
   typeId: TypeId[M[K, V]],
-  binding: Binding[BindingType.Map[M], M[K, V]],
+  binding: Binding.Map[M, K, V],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[M[K, V]],
@@ -632,11 +632,11 @@ The derivation process for maps is similar to sequences, but we have two child i
 
 ### Dynamic Derivation
 
-When the derivation process encounters a dynamic type (e.g., `DynamicValue`), it calls the `deriveDynamic` method of the `Deriver`. This method receives a `Binding[BindingType.Dynamic, DynamicValue]` representing the dynamic type, along with other metadata such as documentation, modifiers, default values, and examples:
+When the derivation process encounters a dynamic type (e.g., `DynamicValue`), it calls the `deriveDynamic` method of the `Deriver`. This method receives a `Binding.Dynamic` representing the dynamic type, along with other metadata such as documentation, modifiers, default values, and examples:
 
 ```scala mdoc:compile-only
 def deriveDynamic[F[_, _]](
-  binding: Binding[BindingType.Dynamic, DynamicValue],
+  binding: Binding.Dynamic,
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[DynamicValue],
@@ -679,7 +679,7 @@ When the derivation process encounters a wrapper type (e.g., a value class, opaq
 def deriveWrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Wrapper[A, B], A],
+  binding: Binding.Wrapper[A, B],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -859,7 +859,7 @@ object DeriveGen extends Deriver[Gen] {
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Primitive, A],
+    binding: Binding.Primitive[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -897,7 +897,7 @@ object DeriveGen extends Deriver[Gen] {
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: Binding.Record[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -941,7 +941,7 @@ object DeriveGen extends Deriver[Gen] {
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Variant, A],
+    binding: Binding.Variant[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -974,7 +974,7 @@ object DeriveGen extends Deriver[Gen] {
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
+    binding: Binding.Seq[C, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
@@ -1017,7 +1017,7 @@ object DeriveGen extends Deriver[Gen] {
     key: Reflect[F, K],
     value: Reflect[F, V],
     typeId: TypeId[M[K, V]],
-    binding: Binding[BindingType.Map[M], M[K, V]],
+    binding: Binding.Map[M, K, V],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
@@ -1053,7 +1053,7 @@ object DeriveGen extends Deriver[Gen] {
    * content.
    */
   override def deriveDynamic[F[_, _]](
-    binding: Binding[BindingType.Dynamic, DynamicValue],
+    binding: Binding.Dynamic,
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
@@ -1108,7 +1108,7 @@ object DeriveGen extends Deriver[Gen] {
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Wrapper[A, B], A],
+    binding: Binding.Wrapper[A, B],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -1137,7 +1137,7 @@ The `derivePrimitive` method is responsible for deriving a `Gen` instance for pr
 def derivePrimitive[A](
   primitiveType: PrimitiveType[A],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Primitive, A],
+  binding: Binding.Primitive[A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -1171,7 +1171,7 @@ The `deriveRecord` method is responsible for deriving a `Gen` instance for recor
 def deriveRecord[F[_, _], A](
   fields: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Record, A],
+  binding: Binding.Record[A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -1217,7 +1217,7 @@ The `deriveVariant` method is responsible for deriving a `Gen` instance for vari
 def deriveVariant[F[_, _], A](
   cases: IndexedSeq[Term[F, A, ?]],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Variant, A],
+  binding: Binding.Variant[A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],
@@ -1252,7 +1252,7 @@ The `deriveSequence` method is responsible for deriving a `Gen` instance for seq
 def deriveSequence[F[_, _], C[_], A](
   element: Reflect[F, A],
   typeId: TypeId[C[A]],
-  binding: Binding[BindingType.Seq[C], C[A]],
+  binding: Binding.Seq[C, A],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[C[A]],
@@ -1297,7 +1297,7 @@ def deriveMap[F[_, _], M[_, _], K, V](
   key: Reflect[F, K],
   value: Reflect[F, V],
   typeId: TypeId[M[K, V]],
-  binding: Binding[BindingType.Map[M], M[K, V]],
+  binding: Binding.Map[M, K, V],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[M[K, V]],
@@ -1336,7 +1336,7 @@ The `deriveDynamic` method is responsible for deriving a `Gen` instance for dyna
 
 ```scala mdoc:silent
 def deriveDynamic[F[_, _]](
-  binding: Binding[BindingType.Dynamic, DynamicValue],
+  binding: Binding.Dynamic,
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[DynamicValue],
@@ -1399,7 +1399,7 @@ The `deriveWrapper` method is responsible for deriving a `Gen` instance for wrap
 def deriveWrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
   typeId: TypeId[A],
-  binding: Binding[BindingType.Wrapper[A, B], A],
+  binding: Binding.Wrapper[A, B],
   doc: Doc,
   modifiers: Seq[Modifier.Reflect],
   defaultValue: Option[A],

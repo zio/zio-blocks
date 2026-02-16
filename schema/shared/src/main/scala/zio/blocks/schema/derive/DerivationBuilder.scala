@@ -251,7 +251,7 @@ final case class DerivationBuilder[TC[_], A](
                 .deriveRecord(
                   updatedFields,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.record(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   defaultValue,
@@ -316,7 +316,7 @@ final case class DerivationBuilder[TC[_], A](
                 .deriveVariant(
                   updatedCases,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.variant(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   defaultValue,
@@ -363,7 +363,7 @@ final case class DerivationBuilder[TC[_], A](
                 .deriveSequence(
                   element,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.seq(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   defaultValue,
@@ -413,7 +413,7 @@ final case class DerivationBuilder[TC[_], A](
                   key,
                   value,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.map(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   defaultValue,
@@ -444,7 +444,7 @@ final case class DerivationBuilder[TC[_], A](
             val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
               .getOrElse(
                 deriver.deriveDynamic[G](
-                  metadata,
+                  Binding.bindingHasBinding.dynamic(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue,
@@ -478,7 +478,7 @@ final case class DerivationBuilder[TC[_], A](
                 .derivePrimitive(
                   primitiveType,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.primitive(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   defaultValue,
@@ -525,7 +525,7 @@ final case class DerivationBuilder[TC[_], A](
                 deriver.deriveWrapper(
                   wrapped,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.wrapper(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   defaultValue,
