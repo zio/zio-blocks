@@ -16,8 +16,7 @@ import zio.blocks.scope.internal.Finalizers
  * escaped thread from interacting with already-released resources, but callers
  * should be aware that these default values may appear if scopes are used
  * across thread boundaries incorrectly. `defer` on a closed scope is silently
- * ignored, and `scoped`
- * creates a born-closed child.
+ * ignored, and `scoped` creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
