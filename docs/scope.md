@@ -7,7 +7,7 @@
 If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
 
 - **Compile-time prevention of scope leaks**
-- **Zero-cost opaque type** (`$[A]` is the scoped type, equal to `A` at runtime; there is no `$[A]` constructor method — values become scoped through `allocate`)
+- **Zero-cost opaque type** (`$[A]` is the scoped type, equal to `A` at runtime. In child scopes, values become scoped via `allocate` and transformed via `(scope $ v)(f)`. In `Scope.global`, `$[A]` is just `A`)
 - **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
 - **Eager allocation** (all scope operations execute immediately; `Resource` is a lazy *description* that becomes eager when passed to `allocate`)
 
@@ -141,7 +141,7 @@ Scope.global.scoped { scope =>
 
   val db: $[Database] = allocate(Resource.from[Database])
   val result: String = (scope $ db)(_.query("SELECT 1")).get
-  val count: Int = (scope $ db)(_.rowCount).get
+  val len: Int = (scope $ db)(_.query("SELECT 1").length).get
 }
 ```
 
@@ -194,7 +194,7 @@ Common constructors:
 
 The `Unscoped[A]` typeclass marks types as pure data that don't hold resources. The `scoped` method requires `Unscoped[A]` evidence on the return type to ensure only safe values can exit a scope.
 
-**Built-in Unscoped types:**
+**Built-in Unscoped types include:**
 - Primitives: `Int`, `Long`, `Boolean`, `Double`, etc.
 - `String`, `Unit`, `Nothing`
 - Collections of Unscoped types
