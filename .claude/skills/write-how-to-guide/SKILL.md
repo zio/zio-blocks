@@ -68,33 +68,40 @@ Search for realistic usage patterns:
 
 Before proceeding to writing, you must be able to answer every one of these questions. Write the answers down (internally) as they will directly inform the guide structure:
 
+**About the problem:**
+
+1. What specific problem does this guide solve? State it concretely, not abstractly.
+2. What happens if the reader does NOT have this solution? (boilerplate, runtime errors, maintenance burden, etc.)
+3. How would the reader attempt to solve this without ZIO Blocks? Can you show a "before" code example?
+4. Is this a common pain point that many developers face, or a niche scenario? (This affects how much you need to motivate the problem.)
+
 **About the goal:**
 
-1. What concrete thing will the reader have built/accomplished by the end of this guide?
-2. What is the minimal set of types and operations needed to achieve this goal?
-3. What are the key decision points where the reader must choose between approaches?
-4. What are the common mistakes or pitfalls a reader might hit?
+5. What concrete thing will the reader have built/accomplished by the end of this guide?
+6. What is the minimal set of types and operations needed to achieve this goal?
+7. What are the key decision points where the reader must choose between approaches?
+8. What are the common mistakes or pitfalls a reader might hit?
 
 **About the types involved:**
 
-5. For each core type: What is it, in one sentence? What role does it play in achieving the goal?
-6. What is the dependency/composition order? (e.g., "First define a Schema, then derive a Codec, then use a Format")
-7. Which factory methods and constructors will the reader actually use?
-8. What type class instances are derived automatically vs. must be created manually?
+9. For each core type: What is it, in one sentence? What role does it play in achieving the goal?
+10. What is the dependency/composition order? (e.g., "First define a Schema, then derive a Codec, then use a Format")
+11. Which factory methods and constructors will the reader actually use?
+12. What type class instances are derived automatically vs. must be created manually?
 
 **About the narrative arc:**
 
-9. What is the simplest possible starting point? (The "hello world" for this goal)
-10. What layers of complexity can be added incrementally? (e.g., start with a flat record, then add nesting, then add collections, then add custom types)
-11. Where should you pause to show intermediate results? (e.g., print output, show JSON, demonstrate validation)
-12. What is the natural ending point — the "complete" version?
+13. What is the simplest possible starting point? (The "hello world" for this goal)
+14. What layers of complexity can be added incrementally? (e.g., start with a flat record, then add nesting, then add collections, then add custom types)
+15. Where should you pause to show intermediate results? (e.g., print output, show JSON, demonstrate validation)
+16. What is the natural ending point — the "complete" version?
 
 **About the ecosystem:**
 
-13. What imports does the reader need?
-14. What sbt dependencies are required?
-15. Are there Scala 2 vs. Scala 3 differences the reader should know about?
-16. Does this integrate with other ZIO libraries (ZIO HTTP, ZIO Streams, etc.)?
+17. What imports does the reader need?
+18. What sbt dependencies are required?
+19. Are there Scala 2 vs. Scala 3 differences the reader should know about?
+20. Does this integrate with other ZIO libraries (ZIO HTTP, ZIO Streams, etc.)?
 
 ---
 
@@ -106,12 +113,13 @@ Based on your research answers, design the guide's section structure before writ
 
 ```
 1. Introduction (what we're building and why)
-2. Prerequisites (dependencies, imports, assumed knowledge)
-3. The Core Model (define the domain types we'll work with)
-4. Step-by-step sections (each building toward the goal)
+2. The Problem (what problem we're solving, why it matters, example of the pain)
+3. Prerequisites (dependencies, imports, assumed knowledge)
+4. The Core Model (define the domain types we'll work with)
+5. Step-by-step sections (each building toward the goal)
    - Each section: brief explanation → code → result/output
-5. Putting It Together (the complete working example)
-6. Going Further (optional: variations, advanced techniques, links)
+6. Putting It Together (the complete working example)
+7. Going Further (optional: variations, advanced techniques, links)
 ```
 
 ### Section Design Rules
@@ -168,6 +176,42 @@ you will have [tangible result] that [does something useful].
 We'll take an incremental approach: starting with [simple version], then adding
 [feature], [feature], and [feature] until we have a complete [thing].
 ```
+
+#### The Problem
+
+Immediately after the introduction, include a dedicated section that clearly states the problem this guide solves. This section has three parts:
+
+1. **State the problem concretely.** Describe the specific pain point, challenge, or gap that motivates this guide. Be precise — "serializing data is hard" is too vague; "you need to serialize a deeply nested case class hierarchy to JSON without writing boilerplate encoders for each type" is concrete.
+
+2. **Explain why it matters.** Connect the problem to real consequences the reader cares about: wasted time, runtime errors, maintenance burden, boilerplate explosion, fragile code, etc. Help the reader feel the weight of the problem so the solution feels earned.
+
+3. **Show examples of the problem.** When possible, include a short code example (or a description of a scenario) that makes the problem tangible. Show what the reader's code looks like *without* the solution — verbose, error-prone, or brittle. This creates a clear "before/after" contrast with the rest of the guide.
+
+**Pattern:**
+```
+## The Problem
+
+[1-2 sentences naming the specific problem.]
+
+[1-2 sentences explaining why this matters — what goes wrong if you don't solve it.]
+
+For example, consider [a realistic scenario]:
+
+​```scala
+// Without ZIO Blocks, you might write something like this:
+// [show the painful/boilerplate/fragile approach]
+​```
+
+This approach [breaks down when X / doesn't scale because Y / is error-prone because Z].
+
+In this guide, we'll solve this by [brief preview of the ZIO Blocks approach].
+```
+
+**Guidelines for this section:**
+- Keep it to 1-2 short paragraphs plus an optional code example. Do not over-explain.
+- The code example should be plain `scala` (no mdoc) since it shows non-ZIO-Blocks code or pseudocode.
+- If the problem is architectural or conceptual (not easily shown in code), use a concrete scenario description instead of a code example. For instance: "Imagine you have 40 case classes representing your API schema and you need to keep JSON codecs, database mappings, and OpenAPI specs in sync."
+- The problem section naturally sets up the rest of the guide. The reader should finish this section thinking "yes, I have this exact problem" and be motivated to read on.
 
 #### Prerequisites
 
@@ -324,6 +368,9 @@ After writing, verify every item on this checklist:
 
 ### Content Quality
 - [ ] The guide has a clear, stated goal in the introduction
+- [ ] The guide has a "Problem" section that concretely states what problem is being solved
+- [ ] The problem section explains why the problem matters (real consequences)
+- [ ] The problem section includes an example of the pain (code or concrete scenario)
 - [ ] A reader who follows every step will have a working result at the end
 - [ ] Every section introduces exactly one new concept or capability
 - [ ] No section is pure prose without a code example

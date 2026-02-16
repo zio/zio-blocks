@@ -30,6 +30,13 @@ const sidebars = {
          "reference/syntax",
          "reference/media-type",
       ]
+    },
+    {
+      type: "category",
+      label: "Guides",
+      items: [
+        "guides/query-dsl-reified-optics",
+      ]
     }
   ]
 };
