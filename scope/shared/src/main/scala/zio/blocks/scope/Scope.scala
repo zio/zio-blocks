@@ -248,7 +248,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * @tparam A
    *   the resource value type
    */
-  implicit class ResourceOps[A](private val r: Resource[A]) {
+  implicit class ResourceOps[A](private val r: Resource[A]) extends AnyVal {
     def allocate: $[A] = self.allocate(r)
   }
 }
