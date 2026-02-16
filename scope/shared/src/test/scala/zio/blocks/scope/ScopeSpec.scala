@@ -726,6 +726,19 @@ object ScopeSpec extends ZIOSpecDefault {
       test("global scope isClosed is always false") {
         assertTrue(!Scope.global.isClosed)
       }
+    ),
+    suite("implicit scope (experiment)")(
+      test("helper function can allocate into caller's scope via implicit") {
+        def makeDb(implicit s: Scope): s.$[Database] =
+          s.allocate(Resource.from[Database])
+
+        val result: String = Scope.global.scoped { scope =>
+          import scope._
+          val db: $[Database] = makeDb
+          (scope $ db)(_.query("implicit scope")).get
+        }
+        assertTrue(result == "result: implicit scope")
+      }
     )
   )
 }
