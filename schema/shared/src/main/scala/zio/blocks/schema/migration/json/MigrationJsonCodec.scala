@@ -56,20 +56,24 @@ object MigrationJsonCodec {
   }
 
   private def jsonToDynamicValue(json: Json): DynamicValue = json match {
-    case s: Json.String  => DynamicValue.Primitive(PrimitiveValue.String(s.value))
-    case n: Json.Number  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(n.value)))
+    case s: Json.String => DynamicValue.Primitive(PrimitiveValue.String(s.value))
+    // [FIX] Extract underlying java.math.BigDecimal for PrimitiveValue
+    case n: Json.Number  => DynamicValue.Primitive(PrimitiveValue.BigDecimal(n.value.bigDecimal))
     case b: Json.Boolean => DynamicValue.Primitive(PrimitiveValue.Boolean(b.value))
     case _               => DynamicValue.Primitive(PrimitiveValue.Unit)
   }
 
   private def dynamicValueToJson(dv: DynamicValue): Json = dv match {
-    case DynamicValue.Primitive(PrimitiveValue.String(s))      => new Json.String(s)
-    case DynamicValue.Primitive(PrimitiveValue.Int(i))         => new Json.Number(i.toString)
-    case DynamicValue.Primitive(PrimitiveValue.Long(l))        => new Json.Number(l.toString)
-    case DynamicValue.Primitive(PrimitiveValue.Double(d))      => new Json.Number(d.toString)
-    case DynamicValue.Primitive(PrimitiveValue.Boolean(b))     => Json.Boolean(b)
-    case DynamicValue.Primitive(PrimitiveValue.BigDecimal(bd)) => new Json.Number(bd.toString)
-    case _                                                     => Json.Null
+    case DynamicValue.Primitive(PrimitiveValue.String(s))  => new Json.String(s)
+    case DynamicValue.Primitive(PrimitiveValue.Int(i))     => new Json.Number(BigDecimal(i))
+    case DynamicValue.Primitive(PrimitiveValue.Long(l))    => new Json.Number(BigDecimal(l))
+    case DynamicValue.Primitive(PrimitiveValue.Double(d))  => new Json.Number(BigDecimal(d))
+    case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => Json.Boolean(b)
+
+    // [FIX] 'bd' is already scala.math.BigDecimal, so passing it directly without BigDecimal(bd) wrapper
+    case DynamicValue.Primitive(PrimitiveValue.BigDecimal(bd)) => new Json.Number(bd)
+
+    case _ => Json.Null
   }
 
   // =================================================================================

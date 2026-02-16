@@ -163,7 +163,8 @@ object MigrationMasterSpec extends ZIOSpecDefault {
       )
       val errType = actionDecoder.decode(badType)
 
-      val badOptic = new Json.Number("123")
+      // [FIX] Changed String("123") to BigDecimal("123")
+      val badOptic = new Json.Number(BigDecimal("123"))
       val errOptic = nodeDecoder.decode(badOptic)
 
       assert(errExpr)(isLeft(anything)) &&
