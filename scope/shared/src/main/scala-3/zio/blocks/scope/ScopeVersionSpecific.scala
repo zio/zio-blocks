@@ -9,6 +9,8 @@ package zio.blocks.scope
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
 
+  implicit val thisScope: this.type = this
+
   /**
    * Create a child scope. The block receives a child scope and returns a plain
    * value of type `A`, which must have an [[Unscoped]] instance.
@@ -18,7 +20,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   Scope.global.scoped { scope =>
    *     import scope._
    *     val db: $[Database] = allocate(Resource(new Database))
-   *     (scope $ db)(_.query("SELECT 1")).get
+   *     (scope $ db)(_.query("SELECT 1"))
    *   }
    *   }}}
    *
@@ -69,9 +71,11 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to a scoped value.
    *
-   * Unwraps the scoped value, applies the function, and re-wraps the result.
-   * The macro verifies at compile time that the lambda parameter is only used
-   * in method-receiver position (e.g., `x.method()`), preventing resource leaks
+   * Unwraps the scoped value, applies the function, and returns the result. If
+   * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
+   * (auto-unwrapped). Otherwise, the result is re-wrapped as `$[B]`. The macro
+   * verifies at compile time that the lambda parameter is only used in
+   * method-receiver position (e.g., `x.method()`), preventing resource leaks
    * through capture, storage, or passing as an argument.
    *
    * @example
@@ -94,15 +98,25 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @tparam B
    *   the output value type
    * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
+   *   otherwise as `$[B]`; returns a default value if the scope is closed
    */
-  infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): $[B] = {
+  infix transparent inline def $[A, B](sa: $[A])(inline f: A => B) = {
     UseMacros.check[A, B](f)
-    if (self.isClosed) null.asInstanceOf[$[B]]
-    else {
-      val unwrapped = sa.asInstanceOf[A]
-      val result    = f(unwrapped)
-      result.asInstanceOf[$[B]]
+    scala.compiletime.summonFrom {
+      case _: Unscoped[B] =>
+        if (self.isClosed) null.asInstanceOf[B]
+        else {
+          val unwrapped = sa.asInstanceOf[A]
+          f(unwrapped)
+        }
+      case _ =>
+        if (self.isClosed) null.asInstanceOf[$[B]]
+        else {
+          val unwrapped = sa.asInstanceOf[A]
+          val result    = f(unwrapped)
+          result.asInstanceOf[$[B]]
+        }
     }
   }
 

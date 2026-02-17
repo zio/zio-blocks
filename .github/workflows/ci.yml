@@ -36,7 +36,7 @@ jobs:
       - name: Setup SBT
         uses: sbt/setup-sbt@v1
       - name: Cache Dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Check website build process
         run: sbt docs/clean docs/buildWebsite
 
@@ -186,7 +186,7 @@ jobs:
       - name: Setup SBT
         uses: sbt/setup-sbt@v1
       - name: Cache Dependencies
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
       - name: Setup NodeJs
         uses: actions/setup-node@v6
         with:

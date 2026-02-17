@@ -10,12 +10,13 @@ import zio.blocks.scope.internal.Finalizers
  * If a scope reference escapes to another thread (e.g. via a `Future`) and the
  * original scope closes while the other thread still holds a reference, all
  * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that return
- * a default-valued `$[B]` (`null` for reference types, `0` for numeric types,
- * `false` for `Boolean`, etc.). This prevents the escaped thread from
- * interacting with already-released resources, but callers should be aware that
- * these default values may appear if scopes are used across thread boundaries
- * incorrectly. `defer` on a closed scope is silently ignored, and `scoped`
- * creates a born-closed child.
+ * default values (`null` for reference types, `0` for numeric types, `false`
+ * for `Boolean`, etc.). For `$`, if `B` has an `Unscoped` instance the default
+ * is a plain `B`; otherwise it is a default-valued `$[B]`. This prevents the
+ * escaped thread from interacting with already-released resources, but callers
+ * should be aware that these default values may appear if scopes are used
+ * across thread boundaries incorrectly. `defer` on a closed scope is silently
+ * ignored, and `scoped` creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
@@ -107,8 +108,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *
    * Once a scope is closed its finalizers have already run and all subsequent
    * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that
-   * return default-valued scoped values (`null` for reference types, zero/false
-   * for value types). [[Scope.global]] returns `false` until JVM shutdown.
+   * return default values (`null` for reference types, zero/false for value
+   * types). For `$`, auto-unwrapped types return a plain default `B`.
+   * [[Scope.global]] returns `false` until JVM shutdown.
    *
    * @return
    *   `true` if this scope's finalizers have already been executed
@@ -211,30 +213,43 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   }
 
   /**
-   * Enrichment for `$[A]` scoped values.
+   * Enrichment for `$[Resource[A]]` scoped values.
    *
-   * Provides `get` for extracting pure-data values from `$[A]` when the type
-   * has an [[Unscoped]] instance.
+   * Provides `allocate` for acquiring a resource that is itself scoped. The
+   * `Resource` never leaves the scope wrapper; only its *result* becomes
+   * scoped.
    *
    * @tparam A
-   *   the underlying value type
+   *   the underlying resource value type
    */
-  implicit class ScopedOps[A](private val sa: $[A]) {
+  implicit class ScopedResourceOps[A](private val sr: $[Resource[A]]) {
 
     /**
-     * Extracts the underlying value from a `$[A]`.
+     * Allocates the scoped [[Resource]] within this scope, returning the
+     * acquired value as `$[A]`.
      *
-     * Only available when `A` has an [[Unscoped]] instance, ensuring only pure
-     * data (not resources) can be extracted. This is sound because the
-     * macro-enforced `$` prevents creating `$[A]` values where `A: Unscoped`
-     * but the value secretly holds a resource reference.
+     * The [[Resource]] is never extracted from `$`; only its acquired *result*
+     * becomes a new scoped value. Equivalent to `self.allocate(\$unwrap(sr))`.
      *
-     * @param ev
-     *   evidence that `A` is safe to extract (pure data, not a resource)
      * @return
-     *   the underlying value of type `A`
+     *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if the
+     *   scope is already closed
      */
-    def get(implicit ev: Unscoped[A]): A = $unwrap(sa)
+    def allocate: $[A] = self.allocate($unwrap(sr))
+  }
+
+  /**
+   * Enrichment for bare `Resource[A]` values.
+   *
+   * Provides `.allocate` as syntax sugar for `scope.allocate(resource)`,
+   * enabling uniform `resource.allocate` syntax whether the resource is raw or
+   * scoped.
+   *
+   * @tparam A
+   *   the resource value type
+   */
+  implicit class ResourceOps[A](private val r: Resource[A]) { // not AnyVal: nested in Scope
+    def allocate: $[A] = self.allocate(r)
   }
 }
 

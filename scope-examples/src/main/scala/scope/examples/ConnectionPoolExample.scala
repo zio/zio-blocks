@@ -96,14 +96,14 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
   Scope.global.scoped { appScope =>
     import appScope._
     println("[App] Allocating pool\n")
-    val pool: $[ConnectionPool] = allocate(poolResource)
+    val pool: $[ConnectionPool] = poolResource.allocate
 
     println("--- ServiceA doing work (connection scoped to this block) ---")
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
-      val result                 = (workScope $ c)(_.execute("SELECT * FROM service_a_table")).get
+      val c: $[PooledConnection] = $(p)(_.acquire).allocate
+      val result                 = $(c)(_.execute("SELECT * FROM service_a_table"))
       println(s"  [ServiceA] Got: $result")
     }
     println()
@@ -112,8 +112,8 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val c: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
-      val result                 = (workScope $ c)(_.execute("SELECT * FROM service_b_table")).get
+      val c: $[PooledConnection] = $(p)(_.acquire).allocate
+      val result                 = $(c)(_.execute("SELECT * FROM service_b_table"))
       println(s"  [ServiceB] Got: $result")
     }
     println()
@@ -122,13 +122,13 @@ final class ConnectionPool(config: PoolConfig) extends AutoCloseable {
     appScope.scoped { workScope =>
       import workScope._
       val p: $[ConnectionPool]   = lower(pool)
-      val a: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
-      val b: $[PooledConnection] = allocate((workScope $ p)(_.acquire).get)
-      val aId                    = (workScope $ a)(_.id).get
-      val bId                    = (workScope $ b)(_.id).get
+      val a: $[PooledConnection] = $(p)(_.acquire).allocate
+      val b: $[PooledConnection] = $(p)(_.acquire).allocate
+      val aId                    = $(a)(_.id)
+      val bId                    = $(b)(_.id)
       println(s"  [Parallel] Using connections $aId and $bId")
-      (workScope $ a)(_.execute("UPDATE table_a SET x = 1"))
-      (workScope $ b)(_.execute("UPDATE table_b SET y = 2"))
+      $(a)(_.execute("UPDATE table_a SET x = 1"))
+      $(b)(_.execute("UPDATE table_b SET y = 2"))
       ()
     }
     println()

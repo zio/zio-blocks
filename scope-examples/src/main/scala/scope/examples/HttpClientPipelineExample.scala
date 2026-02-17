@@ -5,8 +5,8 @@ import zio.blocks.scope._
 /**
  * HTTP Client Pipeline Example
  *
- * Demonstrates using scoped values with the `$` operator and `.get` for safe
- * resource access. Operations are eager with the new opaque type API.
+ * Demonstrates using scoped values with the `$` operator for safe resource
+ * access. Operations are eager with the new opaque type API.
  */
 
 /** API configuration containing base URL and authentication credentials. */
@@ -56,12 +56,12 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 }
 
 /**
- * Demonstrates using scoped values with the `$` operator and `.get`.
+ * Demonstrates using scoped values with the `$` operator.
  *
  * Key concepts:
  *   - `allocate` returns `$[A]` (scoped value)
- *   - `(scope $ scopedValue)(f)` applies a function to the underlying value
- *   - `.get` extracts pure data from `$[A]` when `A: Unscoped`
+ *   - `$(scopedValue)(f)` applies a function to the underlying value
+ *   - `$` auto-unwraps to pure data when the return type is `Unscoped`
  *   - Operations are eager (zero-cost wrapper)
  */
 @main def httpClientPipelineExample(): Unit = {
@@ -78,24 +78,24 @@ final class HttpClient(config: ApiConfig) extends AutoCloseable {
 
     // Fetch and parse users
     println("--- Fetching: users ---")
-    val users: ParsedData = (scope $ client) { c =>
+    val users: ParsedData = $(client) { c =>
       val response = c.get("/users")
       JsonParser.parse(response.body)
-    }.get
+    }
 
     // Fetch and parse orders
     println("\n--- Fetching: orders ---")
-    val orders: ParsedData = (scope $ client) { c =>
+    val orders: ParsedData = $(client) { c =>
       val response = c.get("/orders")
       JsonParser.parse(response.body)
-    }.get
+    }
 
     // Post analytics event
     println("\n--- Posting: analytics ---")
-    val analytics: ParsedData = (scope $ client) { c =>
+    val analytics: ParsedData = $(client) { c =>
       val response = c.post("/analytics", """{"event":"fetch_complete"}""")
       JsonParser.parse(response.body)
-    }.get
+    }
 
     // Step 3: Access all results
     println(s"\n=== Users Result ===")

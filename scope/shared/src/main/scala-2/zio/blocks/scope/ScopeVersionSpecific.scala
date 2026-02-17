@@ -63,10 +63,11 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to a scoped value.
    *
-   * Unwraps the scoped value, applies the function, and re-wraps the result.
-   * The macro verifies at compile time that the lambda parameter is only used
-   * in method-receiver position (e.g., `x.method()`), preventing resource
-   * leaks.
+   * Unwraps the scoped value, applies the function, and returns the result. If
+   * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
+   * (auto-unwrapped). Otherwise, the result is re-wrapped as `$[B]`. The macro
+   * verifies at compile time that the lambda parameter is only used in
+   * method-receiver position (e.g., `x.method()`), preventing resource leaks.
    *
    * @param sa
    *   the scoped value to access
@@ -77,9 +78,10 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @tparam B
    *   the output value type
    * @return
-   *   the result wrapped as `$[B]`, or a default-valued `$[B]` if closed
+   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
+   *   otherwise as `$[B]`; returns a default value if the scope is closed
    */
-  def $[A, B](sa: $[A])(f: A => B): $[B] = macro ScopeMacros.useImpl
+  def $[A, B](sa: $[A])(f: A => B): Any = macro ScopeMacros.useImpl
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

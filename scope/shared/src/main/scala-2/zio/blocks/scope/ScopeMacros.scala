@@ -80,13 +80,23 @@ private[scope] object ScopeMacros {
 
     val returnType = body.tpe.widen
 
-    // Expand to: if (isClosed) null.asInstanceOf[B].asInstanceOf[$[B]]
-    //            else f(sa.asInstanceOf[A]).asInstanceOf[$[B]]
-    // We use asInstanceOf because $[A] = A at runtime
-    q"""
-      if ($self.isClosed) null.asInstanceOf[$returnType].asInstanceOf[$self.$$[$returnType]]
-      else $fTyped($sa.asInstanceOf[$inputType]).asInstanceOf[$self.$$[$returnType]]
-    """
+    // Check if B has an Unscoped instance — if so, auto-unwrap the result
+    val unscopedTpe = appliedType(typeOf[Unscoped[_]].typeConstructor, List(returnType))
+    val hasUnscoped = c.inferImplicitValue(unscopedTpe, silent = true) != EmptyTree
+
+    if (hasUnscoped) {
+      // B is Unscoped — return B directly (auto-unwrap)
+      q"""
+        if ($self.isClosed) null.asInstanceOf[$returnType]
+        else $fTyped($sa.asInstanceOf[$inputType])
+      """
+    } else {
+      // B is not Unscoped — return $[B]
+      q"""
+        if ($self.isClosed) null.asInstanceOf[$returnType].asInstanceOf[$self.$$[$returnType]]
+        else $fTyped($sa.asInstanceOf[$inputType]).asInstanceOf[$self.$$[$returnType]]
+      """
+    }
   }
 
   private def validateBody(c: whitebox.Context)(tree: c.Tree, paramSym: c.Symbol): Unit = {

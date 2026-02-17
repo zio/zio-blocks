@@ -25,7 +25,7 @@ import zio.blocks.scope._
 
     // Interop: passing the database to external code requires the raw value;
     // use leak() as an explicit escape hatch (emits a compiler warning)
-    val leaked: Database = scope.leak(db)
+    val leaked: Database = leak(db)
 
     println(s"Leaked database query: ${leaked.query("SELECT 1")}")
   }

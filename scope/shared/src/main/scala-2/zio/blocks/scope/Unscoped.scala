@@ -12,14 +12,14 @@ package zio.blocks.scope
  *
  * @example
  *   {{{
- *   // Primitives escape freely
+ *   // Primitives escape freely (auto-unwrapped by $)
  *   Scope.global.scoped { s =>
  *     import s._
- *     use(stream)(_.read()) // returns s.$[Int], unwrapped to Int at the boundary
+ *     (s $ stream)(_.read()) // returns Int directly since Int: Unscoped
  *   }
  *
  *   // Resources stay scoped
- *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped
+ *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped (no Unscoped instance)
  *   }}}
  */
 trait Unscoped[A]
@@ -115,6 +115,4 @@ object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   implicit def unscopedChunk[A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] =
     new Unscoped[zio.blocks.chunk.Chunk[A]] {}
 
-  // Resource descriptions (lazy, not live resources)
-  implicit def unscopedResource[A]: Unscoped[Resource[A]] = new Unscoped[Resource[A]] {}
 }

@@ -1,378 +1,466 @@
-# ZIO Blocks — Scope (compile-time safe resource management)
+# ZIO Blocks — Scope (`zio.blocks.scope`)
 
-`zio.blocks.scope` provides **compile-time verified resource safety** for synchronous code by tagging values with an unnameable, type-level **scope identity**. Values allocated in a scope can only be used when you hold a compatible `Scope`, and values allocated in a *child* scope cannot be returned to the parent in a usable form.
+`zio.blocks.scope` is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
 
-**Structured scopes.** Scopes follow the structured-concurrency philosophy: child scopes are nested within parent scopes, resources are tied to the lifetime of the scope that allocated them, and cleanup happens deterministically when the scope exits (finalizers run LIFO). This "nesting = lifetime" structure provides clear ownership boundaries in addition to compile-time leak prevention.
+At runtime the model stays simple:
 
-If you've used `try/finally`, `Using`, or ZIO `Scope`, this library lives in the same problem space, but it focuses on:
+- **Allocate eagerly** (no lazy thunks)
+- **Register finalizers**
+- **Run finalizers deterministically** when a scope closes (**LIFO** order)
+- Collect finalizer failures into a `Finalization` (and throw/suppress appropriately)
 
-- **Compile-time prevention of scope leaks**
-- **Zero-cost opaque type** (`$[A]` is the scoped type, equal to `A` at runtime. In child scopes, values become scoped via `allocate` and transformed via `(scope $ v)(f)`. In `Scope.global`, `$[A]` is just `A`)
-- **Simple, synchronous lifecycle management** (finalizers run LIFO on scope close)
-- **Eager allocation** (all scope operations execute immediately; `Resource` is a lazy *description* that becomes eager when passed to `allocate`)
+## Why Scope?
 
----
+Most resource bugs in Scala are "escape" bugs:
 
-## Table of contents
+- storing a connection/stream in a field and using it after it was closed
+- capturing a resource in a closure that outlives a scope
+- passing a resource to code that might retain it
+- mixing values from different lifetimes ("which scope owns this?")
 
-- [Quick start](#quick-start)
-- [Core concepts](#core-concepts)
-  - [1) `Scope`](#1-scope)
-  - [2) Scoped values: `$[+A]`](#2-scoped-values-a)
-  - [3) `Resource[A]`: acquisition + finalization](#3-resourcea-acquisition--finalization)
-  - [4) `Unscoped`: marking pure data types](#4-unscoped-marking-pure-data-types)
-  - [5) `lower`: accessing parent-scoped values](#5-lower-accessing-parent-scoped-values)
-  - [6) `Wire[-In, +Out]`: dependency recipes](#6-wire-in-out-dependency-recipes)
-- [Safety model (why leaking is prevented)](#safety-model-why-leaking-is-prevented)
-- [Usage examples](#usage-examples)
-  - [Allocating and using a resource](#allocating-and-using-a-resource)
-  - [Nested scopes (child can use parent, not vice versa)](#nested-scopes-child-can-use-parent-not-vice-versa)
-  - [Chaining resource acquisition](#chaining-resource-acquisition)
-  - [Registering cleanup manually with `defer`](#registering-cleanup-manually-with-defer)
-  - [Classes with `Finalizer` parameters](#classes-with-finalizer-parameters)
-  - [Classes with `Scope` parameters (scope injection)](#classes-with-scope-parameters-scope-injection)
-  - [Non-lexical scopes with `open()`](#non-lexical-scopes-with-open)
-  - [Dependency injection with `Wire` + `Context`](#dependency-injection-with-wire--context)
-  - [Dependency injection with `Resource.from[T](wires*)`](#dependency-injection-with-resourcefromtwires)
-  - [Injecting traits via subtype wires](#injecting-traits-via-subtype-wires)
-  - [Interop escape hatch: `leak`](#interop-escape-hatch-leak)
-- [Common compile errors](#common-compile-errors)
-- [API reference (selected)](#api-reference-selected)
+Scope addresses these with a *tight* design:
+
+| Feature | `zio.blocks.scope` |
+|---|---|
+| Compile-time leak prevention | ✓ (`scope.$[A]` + `$` macro + `Unscoped` boundary) |
+| Runtime overhead | ~0 (scoped values erase to `A`) |
+| Allocation model | Eager (allocation happens at `allocate`) |
+| Finalization | Deterministic, LIFO, errors collected |
+| Structured lifetime | Parent/child scopes, `lower` for explicit lifetime widening |
+| Escape hatch | `leak` (warns) |
+
+If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same problem space—but optimized for **synchronous code** with **compile-time boundaries**.
 
 ---
 
-## Quick start
+## Quick start (Scala 3)
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-final class Database extends AutoCloseable {
+final class Database extends AutoCloseable:
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
-}
 
-Scope.global.scoped { scope =>
-  import scope._
+@main def quickStart(): Unit =
+  val out: String =
+    Scope.global.scoped { scope =>
+      import scope.*
 
-  val db: $[Database] = allocate(Resource(new Database))
+      val db: $[Database] =
+        Resource.fromAutoCloseable(new Database).allocate
 
-  // scope $ db applies a function to the scoped value, returning a scoped result
-  val result: String = (scope $ db)(_.query("SELECT 1")).get
-  println(result)
-}
+      // Safe access: the lambda parameter can only be used as a receiver
+      $(db)(_.query("SELECT 1"))
+    }
+
+  println(out)
 ```
 
-Key things to notice:
+Key points:
 
-- `allocate(...)` returns a **scoped** value of type `$[Database]` (the path-dependent type of the enclosing scope)
-- `$[A] = A` at runtime — zero-cost opaque type, no boxing
-- All operations are **eager** — values are computed immediately, no lazy thunks
-- `(scope $ value)(f)` is macro-enforced to prevent capturing scoped values; returns `$[B]`
-- `.get` on `$[A]` extracts the underlying value when `A` has an `Unscoped` instance
-- When the `scoped { ... }` block exits, finalizers run **LIFO** and errors are handled safely
-- The `scoped` method requires `Unscoped[A]` evidence on the return type
+- `allocate(...)` returns a **scoped value**: `scope.$[Database]` (or `$[Database]` after `import scope.*`).
+- You **cannot** call `db.query(...)` directly on `$[Database]`.
+- You use the `$` access operator: `$(db)(...)` (or `(scope $ db)(...)` without the import).
+- The `scoped` block returns a plain `String` because `String: Unscoped`.
+- Finalizers run when the block exits, in **LIFO** order.
 
 ---
 
-## Core concepts
+## Core mental model
 
-### 1) `Scope`
+### 1) `Scope`: finalizers + type identity
 
-`Scope` is a `sealed abstract class` with **no** type parameters. It manages finalizers and ties values to a *type-level identity* via abstract type members.
+`Scope` is a finalizer registry plus a unique type identity:
 
-- **`type $[+A]`** — a path-dependent opaque type that tags values to this scope. Covariant in `A`. Equal to `A` at runtime (zero-cost).
-- **`type Parent <: Scope`** — the parent scope's type.
-- **`val parent: Parent`** — reference to the parent scope.
+- `type $[+A]` — a scope-tagged, path-dependent type (erases to `A` at runtime)
+- `type Parent <: Scope` / `val parent: Parent` — the scope hierarchy
 
-Each scope instance exposes its own `$[+A]`, so a parent's `$[Database]` is a different type than a child's `$[Database]`, even though both equal `Database` at runtime.
-
-```scala
-type $[+A]  // = A at runtime (zero-cost)
-```
-
-So in code you'll typically write:
+Every scope instance defines a **different** `$` type, so values from different scopes don't accidentally mix.
 
 ```scala
 Scope.global.scoped { scope =>
-  import scope._
-  val x: $[Something] = ???  // or scope.$[Something]
+  import scope.*
+  val x: $[Int] = 1 // ok (in global, $[A] = A)
 }
 ```
-
-Child scopes are represented by `Scope.Child[P <: Scope]`, a `final class` nested in the `Scope` companion object.
 
 #### Global scope
 
-`Scope.global` is the root of the scope hierarchy:
+`Scope.global` is the root:
 
-```scala
-object Scope {
-  object global extends Scope {
-    type $[+A]  = A
-    type Parent = global.type
-    val parent: Parent = this
-  }
-}
-```
-
-- The global scope is intended to live for the lifetime of the process.
-- On the JVM, its finalizers run on shutdown via a shutdown hook. On Scala.js, no shutdown hook is available, so global finalizers do not run automatically.
+- In the global scope: `type $[+A] = A` (identity)
+- On the JVM: global finalizers run on shutdown via a shutdown hook
+- On Scala.js: there is no shutdown hook, so global finalizers are **not** run automatically
 
 ---
 
-### 2) Scoped values: `$[+A]`
+### 2) Scoped values: `scope.$[A]` / `$[A]`
 
-`$[+A]` (or `scope.$[A]` in type annotations) is a path-dependent opaque type representing a value of type `A` that is locked to a specific scope. It is covariant in `A`.
+A value of type `scope.$[A]` means:
 
-- **Runtime representation:** `$[A] = A` — zero-cost opaque type, no boxing or wrapping
-- **Key effect:** methods on `A` are hidden at the type level; you can't call `a.method` directly
-- **All operations are eager:** `allocate(resource)` acquires the resource **immediately** and returns a scoped value
-- **Access paths:**
-  - `(scope $ a)(f)` — macro-enforced access; returns `$[B]`
-  - `.get` on `$[A]` when `A: Unscoped` — extracts the underlying value
+> "This is an `A`, but it is only valid while `scope` is alive."
 
-#### `ScopedOps`: `.get` on `$[A]`
+Properties:
 
-`Scope` provides an implicit class `ScopedOps[A]` that adds `.get` to `$[A]` values when `A` has an `Unscoped` instance:
+- **Zero-cost**: `$[A]` is just `A` at runtime (casts/identity)
+- **Incompatible across scopes**: `outer.$[A]` is not `inner.$[A]`
+- **Methods are hidden** at the type level; you must use `$` to access
+
+#### Access operator: `(scope $ value)(f)`
+
+The intended way to use a scoped value is:
+
+```scala
+(scope $ scopedValue)(a => a.method(...))
+```
+
+This is enforced by a macro that checks the lambda uses its parameter only in **receiver position**.
+
+Allowed:
+
+```scala
+(scope $ db)(_.query("SELECT 1"))
+(scope $ db)(d => d.query("a") + d.query("b"))
+(scope $ db)(_.query("x").toUpperCase)
+(scope $ db)(_.field) // field access is allowed
+```
+
+Rejected at compile time:
+
+```scala
+(scope $ db)(d => store(d))            // parameter used as an argument
+(scope $ db)(d => () => d.query("x"))  // captured in a nested lambda
+(scope $ db)(d => d)                   // returning the parameter
+(scope $ db)(d => { val x = d; 1 })    // binding/storing the parameter itself
+```
+
+##### "Auto-unwrap" rule (`Unscoped`)
+
+`$` *auto-unwraps* when the result type is known to be safe data:
+
+- if `B: Unscoped` → `(scope $ sa)(f)` returns **`B`**
+- otherwise → it returns **`scope.$[B]`**
 
 ```scala
 Scope.global.scoped { scope =>
-  import scope._
+  import scope.*
 
-  val db: $[Database] = allocate(Resource.from[Database])
-  val result: String = (scope $ db)(_.query("SELECT 1")).get
-  val len: Int = (scope $ db)(_.query("SELECT 1").length).get
+  val db: $[Database] = Resource.from[Database].allocate
+
+  val s: String = $(db)(_.query("SELECT 1"))      // String is Unscoped => unwrapped
+  val n: Int    = $(db)(_.query("x").length)      // Int is Unscoped => unwrapped
 }
 ```
-
-- `.get` requires `Unscoped[A]` evidence, ensuring only pure data can be extracted
-- Resources (`$[Database]`, `$[Socket]`) cannot be `.get`-ed — they don't have `Unscoped` instances
-- `Resource[A]` has an `Unscoped` instance (it's a lazy description, not a live resource), enabling patterns like `allocate((scope $ db)(_.beginTransaction()).get)`
 
 ---
 
 ### 3) `Resource[A]`: acquisition + finalization
 
-`Resource[A]` describes how to **acquire** an `A` and how to **release** it when a scope closes. It is intentionally lazy: you *describe what to do*, and allocation happens only through:
+A `Resource[A]` is a **lazy description** of how to acquire a value and register cleanup in a scope. Nothing happens until you call `scope.allocate(resource)` (or `.allocate` syntax).
 
-```scala
-allocate(resource)
-```
+#### Constructors
 
-Common constructors:
+From the source:
 
-- `Resource(a)`
-  - Wraps a by-name value; if it's `AutoCloseable`, `close()` is registered automatically.
-- `Resource.acquireRelease(acquire)(release)`
-  - Explicit lifecycle.
-- `Resource.fromAutoCloseable(thunk)`
-  - A type-safe helper for `AutoCloseable`.
-- `Resource.from[T](wires*)` (macro)
-  - The primary entry point for dependency injection.
-  - Resolves `T` and all its dependencies into a single `Resource[T]`.
-  - Auto-creates missing wires using `Wire.shared` for concrete classes.
-  - Requires explicit wires for: primitives, functions, collections, and abstract types.
-  - If `T` or any dependency is `AutoCloseable`, registers `close()` automatically.
+- `Resource(value: => A)`
+  Wraps a by-name value; if it's `AutoCloseable`, `close()` is registered automatically (runtime check).
+- `Resource.fromAutoCloseable(thunk: => A <: AutoCloseable)`
+  Type-safe helper that registers `close()`.
+- `Resource.acquireRelease(acquire: => A)(release: A => Unit)`
+- `Resource.shared(f: Scope => A)`
+  **Memoized + reference-counted**, thread-safe.
+- `Resource.unique(f: Scope => A)`
+  Fresh instance per allocation.
+- `Resource.from[T]` and `Resource.from[T](wires*)` (macros)
+  Constructor-based dependency injection (covered below).
 
-#### Resource "sharing" vs "uniqueness"
+#### Composition
 
-`Resource` has two important internal flavors:
+`Resource` composes with:
 
-- `Resource.Unique[A]`
-  - Produces a **fresh** instance every time you allocate it (typical for `Resource(...)`, `acquireRelease`, etc.).
-- `Resource.Shared[A]`
-  - Produces a **shared** instance per `Resource.Shared` value, with **reference counting**:
-    - the first allocation initializes the value using a child scope parented to `Scope.global`
-    - each allocating scope registers a decrement finalizer
-    - when the reference count reaches zero, the shared scope is closed (running its finalizers)
+- `map`
+- `flatMap`
+- `zip`
 
-**Important clarification:** sharing is **not** "memoized within a Wire graph" or "within a scope" by magic. Sharing happens **within the specific `Resource.Shared` instance** you reuse.
+Finalizers remain tied to the allocation scope; in composed resources, finalizers still run LIFO.
+
+#### Sharing vs uniqueness (important)
+
+There are two distinct ideas:
+
+1. **Uniqueness**: "each allocation yields a fresh instance"
+   - Use `Resource.unique(...)`, or most ordinary `Resource(...)` / `acquireRelease(...)` resources.
+   - Each `allocate` runs the acquisition again and registers an independent finalizer.
+
+2. **Sharing**: "reusing the same instance across multiple allocations"
+   - Use `Resource.shared(...)` (or wires/resources that convert to shared).
+   - Sharing is tied to **reusing the same `Resource.Shared` value**, not "magic caching inside a scope".
+   - The first allocation initializes via an `OpenScope` parented to `Scope.global`; subsequent allocations increment a reference count. When the last referencing scope closes, the shared scope is closed.
 
 ---
 
-### 4) `Unscoped`: marking pure data types
+### 4) `Unscoped[A]`: types that may escape a scope
 
-The `Unscoped[A]` typeclass marks types as pure data that don't hold resources. The `scoped` method requires `Unscoped[A]` evidence on the return type to ensure only safe values can exit a scope.
+`Unscoped[A]` is a marker typeclass for *pure data*. It's used in two places:
 
-**Built-in Unscoped types include:**
-- Primitives: `Int`, `Long`, `Boolean`, `Double`, etc.
-- `String`, `Unit`, `Nothing`
-- Collections of Unscoped types
-- `Resource[A]` (lazy descriptions, not live resources)
+1. `Scope.scoped` requires `Unscoped[A]` for the block's result type
+   ⇒ prevents returning resources, closures, or scoped values.
+2. `$` auto-unwraps results of type `B` when `B: Unscoped`.
 
-**Custom Unscoped types:**
+Built-in instances include primitives, `String`, many collections/containers, time values, `java.util.UUID`, and `zio.blocks.chunk.Chunk` (when element types are unscoped).
+
+#### Deriving / defining your own instances
+
+Scala 3 (derivation via `Unscoped.derived`):
+
 ```scala
-// Scala 3:
-case class Config(debug: Boolean)
-object Config {
-  given Unscoped[Config] = Unscoped.derived
-}
+import zio.blocks.scope.*
 
-// Scala 2:
-case class Config(debug: Boolean)
+final case class Config(debug: Boolean)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
+```
+
+Scala 2.13:
+
+```scala
+import zio.blocks.scope.*
+
+final case class Config(debug: Boolean)
 object Config {
   implicit val unscopedConfig: Unscoped[Config] = Unscoped.derived[Config]
 }
 ```
 
-**Allowed return types from `scoped`:**
-
-- **`Unscoped` types**: Pure data that can safely exit
-- **`Nothing`**: For blocks that throw
-
-**Rejected return types (no Unscoped instance):**
-
-- **Closures**: `() => A` could capture the child scope
-- **Scoped values**: `$[A]` would be use-after-close
-- **The scope itself**: Would allow operations after close
+#### Scope boundary example
 
 ```scala
+import zio.blocks.scope.*
+
 Scope.global.scoped { parent =>
-  import parent._
+  import parent.*
 
-  // ✅ OK: String is Unscoped
-  val result: String = scoped { child =>
-    "hello"
-  }
+  val ok: String =
+    parent.scoped { child =>
+      "hello" // String is Unscoped
+    }
 
-  // ❌ COMPILE ERROR: $[Database] has no Unscoped instance
-  // val escaped = scoped { child =>
-  //   import child._
-  //   allocate(Resource(new Database))  // $[Database] can't escape
-  // }
+  // Does not compile: returning a resourceful value from a scoped block
+  // val leaked: Database =
+  //   parent.scoped { child =>
+  //     import child.*
+  //     Resource.fromAutoCloseable(new Database).allocate
+  //   }
+
+  ok
 }
 ```
 
 ---
 
-### 5) `lower`: accessing parent-scoped values
+### 5) `lower`: using a parent-scoped value in a child scope
 
-When working in a child scope, you may need to access values allocated in a parent scope. Use `lower(parentValue)` to "lower" a parent-scoped value into the child scope:
+Because each scope has its own `$[A]` type, a child cannot directly use a parent's `$[A]`. Use `lower` to retag a parent-scoped value into the child:
 
 ```scala
-Scope.global.scoped { parent =>
-  import parent._
+import zio.blocks.scope.*
 
-  val parentDb: $[Database] = allocate(Resource(new Database))
+Scope.global.scoped { outer =>
+  import outer.*
 
-  scoped { child =>
-    import child._
+  val db: $[Database] = Resource.fromAutoCloseable(new Database).allocate
 
-    // Use lower() to access parent-scoped value in child scope
-    val db: $[Database] = lower(parentDb)
-    (child $ db)(_.query("SELECT 1"))
-
-    "done"
+  outer.scoped { inner =>
+    import inner.*
+    val innerDb: $[Database] = lower(db)
+    $(innerDb)(_.query("child"))
   }
 }
 ```
 
-The `lower` operation is necessary because each scope has its own `$[A]` opaque type. A parent's `$[A]` is a different type than a child's `$[A]`, even though both equal `A` at runtime.
+This is safe because **parents always outlive children** (child finalizers run before the parent closes).
 
 ---
 
-### 6) `Wire[-In, +Out]`: dependency recipes
+### 6) `defer`: manual finalizers (+ cancellation)
 
-`Wire` is a recipe for constructing services. It describes **how** to build a service given its dependencies, but does not resolve those dependencies itself.
+Use `defer` to register cleanup. It returns a `DeferHandle` you can cancel.
 
-- `In` is the required dependencies (provided as a `Context[In]`)
-- `Out` is the produced service
+```scala
+import zio.blocks.scope.*
 
-There are two wire flavors:
+Scope.global.scoped { scope =>
+  import scope.*
 
-- `Wire.Shared`: produces a shared (memoized) instance
-- `Wire.Unique`: produces a fresh instance each time
+  val in = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
 
-**Important clarification:** `Wire` itself is just a recipe. The sharing/uniqueness behavior is realized when the wire is used inside `Resource.from`, which composes `Resource.Shared` or `Resource.Unique` instances accordingly. Sharing is **per `Resource.Shared` instance**, not per-scope or per-graph: if `wire.toResource(ctx)` is called twice, you get two independent ref-counted singletons that don't share with each other. Inside `Resource.from`, each wire produces exactly one `Resource`, so diamond dependencies correctly share a single instance.
+  val h: DeferHandle =
+    defer(in.close())
 
-#### Creating wires
+  val first = in.read()
+  println(first)
 
-There are exactly **3 DI macro entry points**:
+  // If you already cleaned up manually:
+  // h.cancel() // thread-safe, idempotent
+}
+```
 
-| Macro | Purpose |
-|-------|---------|
-| `Wire.shared[T]` | Create a shared wire from `T`'s constructor |
-| `Wire.unique[T]` | Create a unique wire from `T`'s constructor |
-| `Resource.from[T](wires*)` | Wire up `T` and all dependencies into a `Resource` |
+There is also a **package-level** helper that only requires a `Finalizer`:
 
-For wrapping pre-existing values:
+```scala
+import zio.blocks.scope.*
 
-- `Wire(value)` — wraps a value; if `AutoCloseable`, registers `close()` automatically
+Scope.global.scoped { scope =>
+  import scope.*
+  given Finalizer = scope
 
-#### How `Resource.from[T](wires*)` works
+  defer(println("cleanup")) // uses the package-level helper
+}
+```
 
-1. **Collect wires**: Uses explicit wires when provided, otherwise auto-creates with `Wire.shared`
-2. **Validate**: Checks for cycles, unmakeable types, duplicate providers
-3. **Topological sort**: Orders dependencies so leaves are allocated first
-4. **Generate composition**: Produces a `Resource[T]` via flatMap chains
+---
 
-Key insight: **Compose Resources, don't accumulate values.** Each wire becomes a `Resource`, and they are composed via `flatMap`. This correctly preserves:
+### 7) `open()`: non-lexical, explicitly-managed child scopes
 
-- **Sharing**: Same `Resource.Shared` instance → same value (even in diamond patterns)
-- **Uniqueness**: `Resource.Unique` → fresh value per injection site
+`scoped` ties lifetime to a block. `open()` creates a child scope you close explicitly.
 
-#### Subtype resolution
+- The child scope is **unowned** (can be used from any thread)
+- Still **linked to the parent**: parent closing will also close the child
+- You must call `close()` on the handle to detach + finalize now
 
-When `Resource.from` needs a dependency of type `Service`, it will accept a wire whose output is a subtype (e.g., `Wire.shared[LiveService]` where `LiveService extends Service`). This enables trait injection without extra boilerplate.
+From `Scope.global` the returned type is `Scope.OpenScope` directly (because global `$[A] = A`):
 
-If the same concrete wire satisfies multiple types (e.g., `Service` and `LiveService`), only **one instance** is created and reused for both.
+```scala
+import zio.blocks.scope.*
+
+val os: Scope.OpenScope = Scope.global.open()
+
+val db = os.scope.allocate(Resource.fromAutoCloseable(new Database))
+
+// ... use db ...
+
+os.close().orThrow()
+```
+
+Inside a child scope, `open()` returns `$[Scope.OpenScope]`. Prefer using it safely via `$`:
+
+```scala
+import zio.blocks.scope.*
+
+Scope.global.scoped { parent =>
+  import parent.*
+
+  val os: $[Scope.OpenScope] = open()
+
+  $(os) { h =>
+    val child = h.scope
+    val db    = child.allocate(Resource.fromAutoCloseable(new Database))
+
+    // ...
+    h.close().orThrow()
+  }
+}
+```
+
+---
+
+### 8) Escape hatch: `leak`
+
+Sometimes you must hand a raw value to code that cannot work with `$[A]`. Use `leak`:
+
+```scala
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val db: $[Database] = Resource.fromAutoCloseable(new Database).allocate
+
+  val raw: Database = leak(db) // emits a compiler warning
+  // thirdParty(raw)
+}
+```
+
+`leak` bypasses compile-time guarantees—use only for unavoidable interop. If the type is genuinely pure data, prefer adding `Unscoped` so you don't need to leak.
 
 ---
 
 ## Safety model (why leaking is prevented)
 
-**Pragmatic safety.** The type-level tagging prevents *accidental* scope misuse in normal code, but it is not a security boundary. A determined developer can bypass it via `leak` (which emits a compiler warning), unsafe casts (`asInstanceOf`), or storing scoped references in mutable state (`var`). The guarantees are "good enough" to catch mistakes in regular usage, not protection against intentional circumvention.
+Scope's safety comes from *three reinforcing layers*.
 
-The library prevents scope leaks via two reinforcing mechanisms:
+### 1) Type barrier: scope-specific `$[A]`
 
-### A) Existential child tags (fresh, unnameable types)
+Every scope has a distinct `$[A]` type. You cannot accidentally use values across scopes without an explicit conversion (`lower` for parent → child).
 
-Child scopes are created with:
+### 2) Controlled access: `$` macro restricts lambda usage
+
+The `$` operator only allows using the unwrapped value as a **method/field receiver**. This prevents:
+
+- returning the resource
+- storing it in a local val/var
+- passing it as an argument
+- capturing it in a closure
+
+Also note: `$` requires a **lambda literal**. Method references / variables are rejected:
 
 ```scala
-Scope.global.scoped { scope =>
-  import scope._
-  scoped { child =>
-    import child._
-    // allocate in child
-  }
-}
+// does not compile:
+val f: Database => String = _.query("x")
+(scope $ db)(f) // "$ requires a lambda literal ..."
 ```
 
-The child scope has a fresh, unnameable `$[A]` type (created per invocation). You can allocate in the child, but you can't return those values to the parent in a usable form because the parent cannot name (or satisfy) the child's `$[A]` type.
+### 3) Scope boundary rule: `scoped` requires `Unscoped[A]`
 
-Compile-time safety is verified in tests, e.g.:
-`ScopeCompileTimeSafetyScala3Spec`.
+A `scoped { ... }` block can only return pure data (or `Nothing`). Resources and closures cannot escape.
 
-### B) Opaque types prevent escape
+**Pragmatic safety.** The type-level tagging prevents *accidental* scope misuse in normal code, but it is not a security boundary. A determined developer can bypass it via `leak` (which emits a compiler warning), unsafe casts (`asInstanceOf`), or storing scoped references in mutable state (`var`).
 
-Each scope defines its own `$[A]` opaque type. Even though `$[A] = A` at runtime, the compiler treats each scope's `$[A]` as distinct. A child's `$[Database]` is a different type than the parent's `$[Database]`.
+### Closed-scope defense (runtime)
 
-Additionally, the opaque type hides `A`'s methods at the type level — you can't call `db.query(...)` directly on a `$[Database]`. The only access routes are `(scope $ value)(f)` (macro-enforced to prevent capture) and `.get` (requires `Unscoped[A]` evidence).
+If a scope escapes and is used after closing, operations become **no-ops returning default values**:
+
+- `$`, `allocate`, `open`, `lower` return defaults (`null`, `0`, `false`, …)
+- `$` does not run the lambda when closed
+- `defer` on a closed scope is ignored
+- `scoped` creates a born-closed child if the parent is already closed
+
+This prevents post-close interaction with released resources, but can produce surprising default values if scopes are misused across threads.
+
+### Thread ownership rule (JVM)
+
+- Scopes created by `scoped` are **owned** by the entering thread.
+- Calling `scoped` on a scope you don't own throws `IllegalStateException`.
+- `open()` creates an **unowned** child scope (`isOwner == true` from any thread).
+
+(Scala.js uses a trivial ownership model; `isOwner` is effectively always true.)
 
 ---
 
-## Usage examples
+## Usage examples (patterns)
 
 ### Allocating and using a resource
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-final class FileHandle(path: String) extends AutoCloseable {
+final class FileHandle(path: String) extends AutoCloseable:
   def readAll(): String = s"contents of $path"
   def close(): Unit = println(s"closed $path")
-}
 
-Scope.global.scoped { scope =>
-  import scope._
+@main def fileExample(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
 
-  val h: $[FileHandle] = allocate(Resource(new FileHandle("data.txt")))
+    val h: $[FileHandle] =
+      Resource(new FileHandle("data.txt")).allocate
 
-  // scope $ h applies function to scoped value, returns $[String]
-  val contents: String = (scope $ h)(_.readAll()).get
-  println(contents)
-}
+    val contents: String =
+      $(h)(_.readAll())
+
+    println(contents)
+  }
 ```
 
 ---
@@ -380,404 +468,385 @@ Scope.global.scoped { scope =>
 ### Nested scopes (child can use parent, not vice versa)
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-Scope.global.scoped { parent =>
-  import parent._
+final class Database extends AutoCloseable:
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 
-  val parentDb: $[Database] = allocate(Resource(new Database))
+@main def nested(): Unit =
+  Scope.global.scoped { parent =>
+    import parent.*
 
-  scoped { child =>
-    import child._
+    val parentDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
 
-    // Use lower() to access parent-scoped values in child scope:
-    val db: $[Database] = lower(parentDb)
-    println((child $ db)(_.query("SELECT 1")).get)
+    val done: String =
+      parent.scoped { child =>
+        import child.*
 
-    val childDb: $[Database] = allocate(Resource(new Database))
+        val db: $[Database] = lower(parentDb)
+        println($(db)(_.query("SELECT 1")))
 
-    // You can use childDb *inside* the child:
-    println((child $ childDb)(_.query("SELECT 2")).get)
+        val childDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
+        println($(childDb)(_.query("SELECT 2")))
 
-    // But you cannot return childDb to the parent:
-    // $[Database] has no Unscoped instance — compile error
+        // childDb cannot be returned to the parent (not Unscoped)
+        "done"
+      }
 
-    // Return an Unscoped value
-    "done"
+    println($(parentDb)(_.query("SELECT 3")))
+    done
   }
-
-  // parentDb is still usable here:
-  println((parent $ parentDb)(_.query("SELECT 3")).get)
-}
 ```
+
+Finalizers run **child first, then parent**.
 
 ---
 
-### Chaining resource acquisition
+### Chaining resource acquisition (`$[Resource[A]]` + `.allocate`)
 
-When a method returns `Resource[A]`, you can chain `$` + `.get` + `allocate` to acquire nested resources without `leak()`:
+If a method returns `Resource[A]`, `$` returns a **scoped** `Resource[A]` (because `Resource[A]` is not `Unscoped`). Allocate it without leaking:
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-class Pool extends AutoCloseable {
-  def lease(): Resource[Connection] = Resource.fromAutoCloseable(new Connection)
+final class Pool extends AutoCloseable:
+  def lease(): Resource[Conn] = Resource.fromAutoCloseable(new Conn)
   def close(): Unit = println("pool closed")
-}
 
-class Connection extends AutoCloseable {
+final class Conn extends AutoCloseable:
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("connection closed")
-}
 
-Scope.global.scoped { scope =>
-  import scope._
+@main def chaining(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
 
-  val pool: $[Pool] = allocate(Resource.from[Pool])
+    val pool: $[Pool] = Resource.fromAutoCloseable(new Pool).allocate
 
-  // $ extracts Pool, .lease() returns Resource[Connection],
-  // .get extracts the Resource (Unscoped), allocate acquires it
-  val conn: $[Connection] = allocate((scope $ pool)(_.lease()).get)
+    // $(pool)(_.lease()) : $[Resource[Conn]]
+    val conn: $[Conn] =
+      $(pool)(_.lease()).allocate
 
-  val result: String = (scope $ conn)(_.query("SELECT 1")).get
-  println(result)
-}
-// Output: result: SELECT 1
-// Then: connection closed, pool closed (LIFO)
+    val result: String =
+      $(conn)(_.query("SELECT 1"))
+
+    println(result)
+  }
 ```
 
-This works because `Resource[A]` has an `Unscoped` instance — it's a lazy description,
-not a live resource. Extracting it with `.get` doesn't leak anything; the actual
-resource is only acquired when `allocate` is called.
+This `.allocate` comes from `Scope.ScopedResourceOps` (an extension on `$[Resource[A]]`).
 
 ---
 
-### Registering cleanup manually with `defer`
+### Allocating a bare `Resource[A]` with `.allocate`
 
-Use `defer` when you already have a value and just need to register cleanup. `defer` returns a `DeferHandle` that can be used to cancel the finalizer before the scope closes.
-
-```scala
-import zio.blocks.scope._
-
-Scope.global.scoped { scope =>
-  import scope._
-
-  val handle = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
-
-  val deferHandle: DeferHandle = defer { handle.close() }
-
-  val firstByte = handle.read()
-  println(firstByte)
-
-  // Optionally cancel the finalizer if you've already cleaned up:
-  // deferHandle.cancel()
-}
-```
-
-There is also a package-level helper `defer` that only requires a `Finalizer`:
+A plain `Resource[A]` also has `.allocate` as syntax sugar for `scope.allocate(resource)`:
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
 Scope.global.scoped { scope =>
-  import scope._
-  given Finalizer = scope
+  import scope.*
 
-  defer { println("cleanup") }
+  val db: $[Database] =
+    Resource.fromAutoCloseable(new Database).allocate
+
+  $(db)(_.query("SELECT 1"))
 }
 ```
 
 ---
 
-### Classes with `Finalizer` parameters
+### Classes with `Finalizer` parameters (cleanup-only capability)
 
-If your class only needs to register cleanup logic, accept a `Finalizer` parameter. The wire and resource macros automatically inject the `Finalizer` when constructing such classes.
+If a class only needs cleanup registration, accept a `Finalizer`. DI macros inject it automatically.
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-class ConnectionPool(config: Config)(implicit finalizer: Finalizer) {
-  private val pool = createPool(config)
-  finalizer.defer { pool.shutdown() }  // or: defer { ... } with import zio.blocks.scope._
-  
-  def getConnection(): Connection = pool.acquire()
-}
+final case class Config(url: String)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
 
-// The macro sees the implicit Finalizer and injects it automatically:
-val resource = Resource.from[ConnectionPool](Wire(Config("jdbc://localhost")))
+final class ConnectionPool(config: Config)(using Finalizer):
+  private val pool = s"pool(${config.url})"
+  defer(println(s"shutdown $pool"))
 
-Scope.global.scoped { scope =>
-  import scope._
-  val pool = allocate(resource)
-  // pool.shutdown() will be called when scope closes
-}
+val poolResource: Resource[ConnectionPool] =
+  Resource.from[ConnectionPool](
+    Wire(Config("jdbc://localhost"))
+  )
+
+@main def finalizerInjection(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
+    val pool: $[ConnectionPool] = poolResource.allocate
+    ()
+  }
 ```
 
-When to use `Finalizer` instead of `Scope`:
-- `Finalizer` is the minimal interface—it only has `defer`
-- Use it when your class only needs to register cleanup actions
-- Since `Scope extends Finalizer`, a `Scope` is always passed at runtime; declaring `Finalizer` simply narrows the visible API
+When to prefer `Finalizer` over `Scope`:
+
+- you only need `defer`
+- you want to expose minimal power to the class
 
 ---
 
 ### Classes with `Scope` parameters (scope injection)
 
-If your class needs full scope capabilities—creating child scopes, allocating sub-resources, or managing per-request lifetimes—accept a `Scope` parameter instead of `Finalizer`. The macros automatically inject the `Scope` when constructing such classes.
+If a class needs to allocate resources or create child scopes, accept a `Scope`:
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-class RequestHandler(config: Config)(implicit scope: Scope) {
-  // Create child scopes for per-request resource management:
-  def handle(request: String): String = {
+final case class Config(url: String)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
+
+final class Connection(config: Config) extends AutoCloseable:
+  def query(sql: String): String = s"[${config.url}] $sql"
+  def close(): Unit = println("connection closed")
+
+final class RequestHandler(config: Config)(using scope: Scope):
+  def handle(sql: String): String =
     scope.scoped { child =>
-      import child._
-      val conn = allocate(Resource(new Connection(config)))
-      (child $ conn)(_.query(request)).get
+      import child.*
+      val conn: $[Connection] = Resource.fromAutoCloseable(new Connection(config)).allocate
+      $(conn)(_.query(sql))
     }
+
+val handlerResource: Resource[RequestHandler] =
+  Resource.from[RequestHandler](
+    Wire(Config("jdbc://localhost"))
+  )
+
+@main def scopeInjection(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
+    val handler: $[RequestHandler] = handlerResource.allocate
+    val out: String = $(handler)(_.handle("SELECT 1"))
+    println(out)
   }
-}
-
-// The macro sees the implicit Scope and injects it automatically:
-val resource = Resource.from[RequestHandler](Wire(Config("jdbc://localhost")))
-
-Scope.global.scoped { scope =>
-  import scope._
-  val handler = allocate(resource)
-  val result: String = (scope $ handler)(_.handle("SELECT 1")).get
-  println(result)
-}
 ```
 
-The `Scope` parameter can appear in any parameter list position—value, implicit, or using (Scala 3). The macros detect `Scope` parameters the same way they detect `Finalizer` parameters.
-
-When to use `Scope` instead of `Finalizer`:
-- The class needs to create child scopes (via `scoped` or `open()`)
-- The class needs to allocate sub-resources (via `allocate`)
-- The class manages per-request or per-operation lifetimes
+The `Scope`/`Finalizer` parameter can appear in any parameter list position; it's recognized specially by the derivation macros.
 
 ---
 
-### Non-lexical scopes with `open()`
+## Dependency injection (DI) with `Wire` + `Resource.from`
 
-The `scoped` method creates a lexically-scoped child that closes when the block exits. For cases where you need a scope whose lifetime isn't tied to a block—such as class-level resource management or resources shared across method calls—use `open()`:
+Scope includes a small constructor-based DI layer built on top of `zio.blocks.context.Context`.
 
-```scala
-import zio.blocks.scope._
+### `Wire[-In, +Out]`: a dependency recipe
 
-// From Scope.global, open() returns OpenScope directly ($[A] = A for global):
-val os: Scope.OpenScope = Scope.global.open()
+A `Wire` is a recipe for constructing `Out` from a `Context[In]` (and a `Scope` for finalization):
 
-// Use the child scope to allocate resources:
-val db = os.scope.allocate(Resource(new Database))
+- `Wire.Shared` → converts to `Resource.shared` (ref-counted sharing)
+- `Wire.Unique` → converts to `Resource.unique` (fresh instance)
 
-// ... use db across multiple method calls or threads ...
-
-// Explicitly close when done (runs finalizers, returns Finalization):
-os.close()
-```
-
-Within a child scope, `open()` returns `$[OpenScope]`, so you need to unwrap it:
+#### Manual wire + Context
 
 ```scala
-Scope.global.scoped { scope =>
-  import scope._
-
-  val os: $[Scope.OpenScope] = scope.open()
-  val openScope: Scope.OpenScope = leak(os)  // unwrap the scoped wrapper
-
-  val db = openScope.scope.allocate(Resource(new Database))
-  // ...
-  openScope.close()
-}
-```
-
-`OpenScope` is a case class with two fields:
-- `scope: Scope` — the child scope for allocating resources and registering finalizers
-- `close: () => Finalization` — explicitly closes the scope and runs its finalizers
-
-Key properties of `open()`:
-- The child scope is **unowned**: `isOwner` always returns `true`, so it can be used from any thread
-- The child is still **parent-linked**: if the parent scope closes before `close()` is called, the child's finalizers still run (the parent registered a safety finalizer)
-- Calling `close()` cancels the parent's safety finalizer to avoid double-finalization
-- You must keep the `OpenScope` handle and call `close()` when done to release resources deterministically
-
----
-
-### Dependency injection with `Wire` + `Context`
-
-For manual wiring (when you already have dependencies assembled), use `wire.toResource(ctx)`:
-
-```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 import zio.blocks.context.Context
 
 final case class Config(debug: Boolean)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
 
-// Wire.shared[Config] infers the constructor deps (here: Boolean → Config):
-val w: Wire.Shared[Boolean, Config] = Wire.shared[Config]
-val deps: Context[Boolean] = Context[Boolean](true)
+val w: Wire.Shared[Boolean, Config] =
+  Wire.shared[Config] // Boolean => Config
 
-Scope.global.scoped { scope =>
-  import scope._
+val deps: Context[Boolean] =
+  Context(true)
 
-  val cfg: $[Config] = allocate(w.toResource(deps))
+@main def wireAndContext(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
 
-  val debug: Boolean = (scope $ cfg)(_.debug).get
+    val cfg: $[Config] =
+      allocate(w.toResource(deps))
 
-  println(debug)
-}
+    val debug: Boolean =
+      $(cfg)(_.debug)
+
+    println(debug)
+  }
 ```
 
-Sharing vs uniqueness at the wire level:
+#### Sharing vs uniqueness at the wire level
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-val ws = Wire.shared[Config] // shared recipe; sharing happens via Resource.Shared when allocated
-val wu = Wire.unique[Config] // unique recipe; each allocation is fresh
+val ws = Wire.shared[Config] // shared recipe
+val wu = Wire.unique[Config] // unique recipe
 ```
+
+The difference is realized when converting to resources (`toResource`) and allocating.
 
 ---
 
-### Dependency injection with `Resource.from[T](wires*)`
+### `Resource.from[T](wires*)`: derive a whole object graph
 
-`Resource.from[T](wires*)` is the **primary entry point** for dependency injection. It resolves `T` and all its dependencies into a single `Resource[T]`.
+`Resource.from[T](wires*)` is the primary entry point for DI. It:
+
+- uses provided wires as overrides
+- auto-creates missing wires for **concrete classes** (defaulting to shared)
+- rejects unmakeable/abstract types unless you provide a wire
+- detects cycles, duplicate providers, and subtype conflicts
+- generates a composed `Resource[T]` via `flatMap` chains (preserving sharing/uniqueness)
+
+Example:
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
 final case class Config(url: String)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
 
-final class Logger {
+final class Logger:
   def info(msg: String): Unit = println(msg)
-}
 
-final class Database(cfg: Config) extends AutoCloseable {
+final class Database(cfg: Config) extends AutoCloseable:
   def query(sql: String): String = s"[${cfg.url}] $sql"
   def close(): Unit = println("database closed")
-}
 
-final class Service(db: Database, logger: Logger) extends AutoCloseable {
+final class Service(db: Database, logger: Logger) extends AutoCloseable:
   def run(): Unit = logger.info(s"running with ${db.query("SELECT 1")}")
   def close(): Unit = println("service closed")
-}
 
-// Only provide leaf values (primitives, configs) - the rest is auto-wired:
 val serviceResource: Resource[Service] =
   Resource.from[Service](
-    Wire(Config("jdbc:postgresql://localhost/db"))
+    Wire(Config("jdbc:postgresql://localhost/db")) // leaf value
   )
 
-Scope.global.scoped { scope =>
-  import scope._
-  val svc: $[Service] = allocate(serviceResource)
-  (scope $ svc)(_.run())
-}
-// Output: running with [jdbc:postgresql://localhost/db] SELECT 1
-// Then: service closed, database closed (LIFO order)
+@main def di(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
+    val svc: $[Service] = serviceResource.allocate
+    $(svc)(_.run())
+  }
 ```
 
-**What you must provide:**
-- Leaf values: primitives, configs, pre-existing instances via `Wire(value)`
-- Abstract types: traits/abstract classes via `Wire.shared[ConcreteImpl]`
-- Overrides: when you want `unique` instead of the default `shared`
+#### Injecting traits via subtype wires
 
-**What is auto-created:**
-- Concrete classes with accessible primary constructors (default: `Wire.shared`)
-
----
-
-### Injecting traits via subtype wires
-
-When a dependency is a trait or abstract class, provide a wire for a concrete implementation:
+When a dependency is abstract, provide a wire for a concrete implementation:
 
 ```scala
-import zio.blocks.scope._
+import zio.blocks.scope.*
 
-trait Logger {
+trait Logger:
   def info(msg: String): Unit
-}
 
-final class ConsoleLogger extends Logger {
+final class ConsoleLogger extends Logger:
   def info(msg: String): Unit = println(msg)
-}
 
-final class App(logger: Logger) {
+final class App(logger: Logger):
   def run(): Unit = logger.info("Hello!")
-}
 
-// Wire.shared[ConsoleLogger] satisfies the Logger dependency via subtyping:
 val appResource: Resource[App] =
   Resource.from[App](
-    Wire.shared[ConsoleLogger]
+    Wire.shared[ConsoleLogger] // satisfies Logger via subtyping
   )
 
-Scope.global.scoped { scope =>
-  import scope._
-  val app: $[App] = allocate(appResource)
-  (scope $ app)(_.run())
-}
+@main def traitInjection(): Unit =
+  Scope.global.scoped { scope =>
+    import scope.*
+    val app: $[App] = appResource.allocate
+    $(app)(_.run())
+  }
 ```
 
-**Single instance for diamond patterns:**
+#### Diamond patterns share a single instance (when appropriate)
 
 ```scala
+import zio.blocks.scope.*
+
 trait Service
-class LiveService extends Service
-class NeedsService(s: Service)
-class NeedsLive(l: LiveService)
-class App(a: NeedsService, b: NeedsLive)
+final class LiveService extends Service
+final class NeedsService(s: Service)
+final class NeedsLive(l: LiveService)
+final class App(a: NeedsService, b: NeedsLive)
 
-// One LiveService instance satisfies both Service and LiveService dependencies:
-val appResource = Resource.from[App](
-  Wire.shared[LiveService]
-)
-// count of LiveService instantiations: 1
+val appResource: Resource[App] =
+  Resource.from[App](
+    Wire.shared[LiveService]
+  )
+// LiveService instantiations: 1
 ```
 
 ---
 
-### Interop escape hatch: `leak`
+## Common compile errors (and what they mean)
 
-Sometimes you must hand a raw value to code that cannot work with `$[A]` types.
+This module produces two kinds of compile-time feedback:
 
-```scala
-import zio.blocks.scope._
+- **Plain macro aborts** for unsafe `$` usage
+- **ASCII-rendered** errors/warnings for DI derivation + leak warnings (via `internal.ErrorMessages`)
 
-Scope.global.scoped { scope =>
-  import scope._
-  val db: $[Database] = allocate(Resource(new Database))
+### Unsafe use inside `$`
 
-  val raw: Database = leak(db) // emits a compiler warning
-  // thirdParty(raw)
-}
-```
-
-**Warning:** leaking bypasses compile-time guarantees. The value may be used after its scope closes. Use only when unavoidable.
-
----
-
-## Common compile errors
-
-The scope macros produce beautiful, actionable compile-time error messages with ASCII diagrams and helpful hints:
-
-### Not a class (Wire.shared/unique on trait or abstract class)
+Typical messages include:
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+Unsafe use of scoped value: the lambda parameter cannot be passed as an argument to a function or method.
+```
+
+Other variants:
+
+- `Unsafe use of scoped value: the lambda parameter cannot be captured in a nested lambda or closure.`
+- `Unsafe use of scoped value: the lambda parameter must only be used as a method receiver ...`
+- `$ requires a lambda literal: (scope $ x)(a => a.method()). Method references and variables are not supported.`
+
+### Not a class (`Wire.shared/unique` on a trait / abstract)
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot derive Wire for MyTrait: not a class.
 
   Hint: Use Wire.Shared / Wire.Unique directly.
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
+```
+
+### No primary constructor
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  MyType has no primary constructor.
+
+  Hint: Use Wire.Shared / Wire.Unique directly
+        with a custom construction strategy.
+
+───────────────────────────────────────────────────────────────────────────────
+```
+
+### `Resource.from[T]` used when `T` has dependencies
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Resource.from[MyService] cannot be derived.
+
+  MyService has dependencies that must be provided:
+    • Config
+    • Logger
+
+  Hint: Use Resource.from[MyService](wire1, wire2, ...)
+        to provide wires for all dependencies.
+
+───────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Unmakeable type (primitives, functions, collections)
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot auto-create String
 
@@ -794,13 +863,13 @@ The scope macros produce beautiful, actionable compile-time error messages with 
       ...
     )
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
-### Abstract type (trait or abstract class)
+### Abstract type (trait / abstract class dependency)
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot auto-create Logger
 
@@ -816,13 +885,13 @@ The scope macros produce beautiful, actionable compile-time error messages with 
       ...
     )
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Duplicate providers (ambiguous wires)
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Multiple providers for Service
 
@@ -832,13 +901,13 @@ The scope macros produce beautiful, actionable compile-time error messages with 
 
   Hint: Remove duplicate wires or use distinct wrapper types.
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Dependency cycle
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Dependency cycle detected
 
@@ -854,13 +923,13 @@ The scope macros produce beautiful, actionable compile-time error messages with 
     • Using lazy initialization
     • Restructuring dependencies
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Subtype conflict (related dependency types)
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Dependency type conflict in MyService
 
@@ -873,16 +942,16 @@ The scope macros produce beautiful, actionable compile-time error messages with 
   To fix this, wrap one or both types in a distinct wrapper:
 
     case class WrappedInputStream(value: InputStream)
-    or
+  or
     opaque type WrappedInputStream = InputStream
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
-### Duplicate parameter types in constructor
+### Duplicate parameter types in a constructor
 
 ```
-── Scope Error ──────────────────────────────────────────────────────────────
+── Scope Error ────────────────────────────────────────────────────────────────
 
   Constructor of App has multiple parameters of type String
 
@@ -891,158 +960,240 @@ The scope macros produce beautiful, actionable compile-time error messages with 
   Fix: Wrap one parameter in an opaque type to distinguish them:
 
     opaque type FirstString = String
-    or
+  or
     case class FirstString(value: String)
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
 ### Leak warning
 
-When using `leak(value)` to escape the scoped type system:
-
 ```
-── Scope Warning ────────────────────────────────────────────────────────────
+── Scope Warning ───────────────────────────────────────────────────────────────
 
   leak(db)
        ^
        |
 
-  Warning: db is being leaked from scope MyScope.
+  Warning: db is being leaked from scope zio.blocks.scope.Scope.Child[...].
   This may result in undefined behavior.
 
   Hint:
      If you know this data type is not resourceful, then add an Unscoped
      instance for it so you do not need to leak it.
 
-────────────────────────────────────────────────────────────────────────────
+───────────────────────────────────────────────────────────────────────────────
 ```
 
 ---
 
-## API reference (selected)
+## API reference (from source)
+
+Examples below use Scala 3 syntax. Scala 2.13 has equivalent APIs, but macro signatures differ slightly (notably `$`'s return type encoding).
 
 ### `Scope`
 
-Core methods (Scala 3 `using` vs Scala 2 `implicit` differs, but the shapes are the same):
-
 ```scala
-sealed abstract class Scope extends Finalizer {
-  type $[+A]         // = A at runtime (zero-cost)
-  type Parent <: Scope
-  val parent: Parent
-
-  def allocate[A](resource: Resource[A]): $[A]
-  def allocate[A <: AutoCloseable](value: => A): $[A]
-  def defer(f: => Unit): DeferHandle
-
-  // Create a non-lexical child scope (usable from any thread)
-  def open(): $[Scope.OpenScope]
-
-  // Macro-enforced access (infix): validates lambda param is only used as receiver
-  // Scala 3: transparent inline def $[A, B](sa: $[A])(inline f: A => B): $[B]
-  // Scala 2: def $[A, B](sa: $[A])(f: A => B): $[B]  // whitebox macro
-  // Usage: (scope $ value)(f)
-  def $[A, B](sa: $[A])(f: A => B): $[B]
-
-  // Lower parent-scoped value into this scope
-  def lower[A](value: parent.$[A]): $[A]
-
-  // Escape hatch: unwrap scoped value (emits compiler warning)
-  // Scala 3: inline def leak[A](inline sa: $[A]): A
-  // Scala 2: def leak[A](sa: $[A]): A  // macro
-  def leak[A](sa: $[A]): A
-
-  // Creates a child scope - requires Unscoped evidence on return type
-  // Same signature in both Scala 2 and 3:
-  def scoped[A](f: Scope.Child[self.type] => A)(implicit ev: Unscoped[A]): A
-
-  implicit class ScopedOps[A](sa: $[A]) {
-    def get(implicit ev: Unscoped[A]): A  // extract pure data from $[A]
-  }
-}
+sealed abstract class Scope extends Finalizer with ScopeVersionSpecific
 ```
 
-### `Resource`
+Associated types and hierarchy:
+
+- `type $[+A]`
+- `type Parent <: Scope`
+- `val parent: Parent`
+- `def isClosed: Boolean`
+- `def isOwner: Boolean`
+
+Core operations:
 
 ```scala
-sealed trait Resource[+A]
+def scoped[A](f: (child: Scope.Child[this.type]) => A)(using Unscoped[A]): A
 
-object Resource {
-  def apply[A](value: => A): Resource[A]
-  def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
-  def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
+def allocate[A](resource: Resource[A]): $[A]
+def allocate[A <: AutoCloseable](value: => A): $[A]
 
-  // Macro - DI entry point:
-  def from[T]: Resource[T]                      // zero-dep classes
-  def from[T](wires: Wire[?, ?]*): Resource[T]  // with dependency wires
+infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
 
-  // Low-level constructors (also used by generated code):
-  def shared[A](f: Scope => A): Resource[A]
-  def unique[A](f: Scope => A): Resource[A]
-}
+def lower[A](value: parent.$[A]): $[A]
+
+override def defer(f: => Unit): DeferHandle
+
+def open(): $[Scope.OpenScope]
+
+inline def leak[A](inline sa: $[A]): A
 ```
 
-### `Wire`
+Notes:
+
+- `$` requires a **lambda literal** and enforces safe receiver-only usage.
+- `$` returns `B` if `Unscoped[B]` exists; otherwise returns `$[B]`.
+- If the scope is closed, `$` / `allocate` / `open` / `lower` return default values and perform no work.
+
+Syntax enrichments available after `import scope.*` inside a scope:
 
 ```scala
-sealed trait Wire[-In, +Out] {
-  def isShared: Boolean
-  def shared: Wire.Shared[In, Out]
-  def unique: Wire.Unique[In, Out]
-  def toResource(deps: zio.blocks.context.Context[In]): Resource[Out]
-}
+implicit class ScopedResourceOps[A](sr: $[Resource[A]]):
+  def allocate: $[A]
 
-object Wire {
-  // Macro entry points:
-  def shared[T]: Wire.Shared[?, T]  // derive from T's constructor
-  def unique[T]: Wire.Unique[?, T]  // derive from T's constructor
-  
-  // Wrap pre-existing value (auto-finalizes if AutoCloseable):
-  def apply[T](value: T): Wire.Shared[Any, T]
-  
-  final case class Shared[-In, +Out] extends Wire[In, Out]
-  final case class Unique[-In, +Out] extends Wire[In, Out]
-}
+implicit class ResourceOps[A](r: Resource[A]):
+  def allocate: $[A]
 ```
 
-### `DeferHandle`
+---
+
+### `Scope.global`
 
 ```scala
-abstract class DeferHandle {
-  def cancel(): Unit  // Remove the finalizer so it won't run at scope close
-}
+object Scope:
+  object global extends Scope
 ```
+
+Properties:
+
+- `type $[+A] = A` (identity)
+- `isOwner` always returns `true`
+- JVM: finalizers run at shutdown via a shutdown hook
+- Scala.js: shutdown hook is not available
+
+---
 
 ### `Scope.OpenScope`
 
 ```scala
-case class OpenScope private[scope] (
-  scope: Scope,               // the child scope (unowned, usable from any thread)
-  close: () => Finalization    // explicitly close the scope and run its finalizers
-)
+case class OpenScope(scope: Scope, close: () => Finalization)
+```
+
+- `scope`: the child scope
+- `close()`: detaches from parent, runs child finalizers (LIFO), returns `Finalization`
+
+---
+
+### `Finalizer`
+
+```scala
+trait Finalizer:
+  def defer(f: => Unit): DeferHandle
+```
+
+A minimal capability interface for registering cleanup.
+
+Also available as a package-level helper:
+
+```scala
+def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
 ```
 
 ---
 
-## Mental model recap
+### `DeferHandle`
 
-- Use `Scope.global.scoped { scope => import scope._; ... }` to create a safe region.
-- For simple resources: `allocate(Resource(value))` or `allocate(Resource.acquireRelease(...)(...))`
-- For dependency injection: `allocate(Resource.from[App](Wire(config), ...))` — auto-wires concrete classes, you provide leaves and overrides.
-- `(scope $ value)(f)` is macro-enforced to work with scoped values — all operations are eager.
-- `.get` on `$[A]` extracts pure data when `A: Unscoped` — use for results like `String`, `Int`, etc.
-- `Resource[A]` has an `Unscoped` instance, enabling chained acquisition: `allocate((scope $ pool)(_.lease()).get)`.
-- `$[A] = A` at runtime — zero-cost opaque type.
-- The `scoped` method requires `Unscoped[A]` evidence on the return type.
-- Use `lower(parentValue)` to access parent-scoped values in child scopes.
-- Use `scope.open()` for non-lexical child scopes (class-level, cross-thread); keep the `OpenScope` handle and call `close()` when done.
-- Classes can accept `Scope` (full capabilities) or `Finalizer` (only `defer`) as DI-injected parameters.
-- `defer` returns a `DeferHandle` for O(1) cancellation of registered finalizers.
-- Return `Unscoped` types from child scopes to extract raw values.
-- If it doesn't typecheck, it would have been unsafe at runtime.
+```scala
+abstract class DeferHandle:
+  def cancel(): Unit
+```
 
-**The 3 DI macro entry points:**
-- `Wire.shared[T]` — shared wire from constructor
-- `Wire.unique[T]` — unique wire from constructor
-- `Resource.from[T](wires*)` — wire up T and all dependencies
+- `cancel()` is thread-safe and idempotent
+- cancellation is O(1) (true removal from a concurrent map)
+
+---
+
+### `Finalization`
+
+```scala
+final class Finalization(val errors: zio.blocks.chunk.Chunk[Throwable]):
+  def isEmpty: Boolean
+  def nonEmpty: Boolean
+  def orThrow(): Unit
+  def suppress(initial: Throwable): Throwable
+
+object Finalization:
+  val empty: Finalization
+  def apply(errors: Chunk[Throwable]): Finalization
+```
+
+---
+
+### `Resource[+A]`
+
+```scala
+sealed trait Resource[+A]:
+  def map[B](f: A => B): Resource[B]
+  def flatMap[B](f: A => Resource[B]): Resource[B]
+  def zip[B](that: Resource[B]): Resource[(A, B)]
+```
+
+Companion constructors:
+
+```scala
+object Resource:
+  def apply[A](value: => A): Resource[A]
+  def fromAutoCloseable[A <: AutoCloseable](thunk: => A): Resource[A]
+  def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
+  def shared[A](f: Scope => A): Resource[A]
+  def unique[A](f: Scope => A): Resource[A]
+
+  inline def from[T]: Resource[T]
+  inline def from[T](inline wires: Wire[?, ?]*): Resource[T]
+```
+
+Notes:
+
+- `Resource.from[T]` (no args) only works when `T` has **no non-scope dependencies** (constructor params may include `Scope`/`Finalizer`).
+- Use `Resource.from[T](wires*)` to provide/override dependencies and derive the full graph.
+
+---
+
+### `Wire[-In, +Out]`
+
+```scala
+sealed trait Wire[-In, +Out]:
+  def isShared: Boolean
+  def isUnique: Boolean = !isShared
+
+  def shared: Wire.Shared[In, Out]
+  def unique: Wire.Unique[In, Out]
+
+  def toResource(deps: zio.blocks.context.Context[In]): Resource[Out]
+```
+
+Wires:
+
+```scala
+object Wire:
+  final case class Shared[-In, +Out](makeFn: (Scope, Context[In]) => Out) extends Wire[In, Out]
+  final case class Unique[-In, +Out](makeFn: (Scope, Context[In]) => Out) extends Wire[In, Out]
+
+  def apply[T](t: T): Wire.Shared[Any, T]
+
+  transparent inline def shared[T]: Wire.Shared[?, T]
+  transparent inline def unique[T]: Wire.Unique[?, T]
+```
+
+Notes:
+
+- `Wire(t)` wraps a pre-existing value; if it's `AutoCloseable`, `close()` is registered automatically when used.
+
+---
+
+### `Unscoped[A]`
+
+```scala
+trait Unscoped[A]
+
+object Unscoped:
+  inline given derived[A](using scala.deriving.Mirror.Of[A]): Unscoped[A]
+  // plus many built-in givens (primitives, collections, time, UUID, Chunk, ...)
+```
+
+---
+
+## Practical guidance (summary)
+
+- Allocate in a scope: `resource.allocate` (inside `Scope.global.scoped { scope => import scope.* ... }`)
+- Use scoped values only through: `(scope $ value)(...)`
+- Return only `Unscoped` data from `scoped` blocks
+- Use `lower` to use parent values inside a child
+- If `$` returns `$[Resource[A]]`, call `.allocate` on it (scoped resource chaining)
+- Use `open()` for explicitly-managed, cross-thread capable scopes
+- Use `leak` only when interop forces it; prefer `Unscoped` for pure data
