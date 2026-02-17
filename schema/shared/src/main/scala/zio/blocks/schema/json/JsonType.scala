@@ -37,26 +37,31 @@ object JsonType {
     override final type Unwrap = Unit
     val typeIndex = 0
   }
+
   case object Boolean extends JsonType {
     override final type Type   = Json.Boolean
     override final type Unwrap = scala.Boolean
     val typeIndex = 1
   }
+
   case object Number extends JsonType {
     override final type Type   = Json.Number
     override final type Unwrap = BigDecimal
     val typeIndex = 2
   }
+
   case object String extends JsonType {
     override final type Type   = Json.String
     override final type Unwrap = java.lang.String
     val typeIndex = 3
   }
+
   case object Array extends JsonType {
     override final type Type   = Json.Array
     override final type Unwrap = Chunk[Json]
     val typeIndex = 4
   }
+
   case object Object extends JsonType {
     override final type Type   = Json.Object
     override final type Unwrap = Chunk[(java.lang.String, Json)]

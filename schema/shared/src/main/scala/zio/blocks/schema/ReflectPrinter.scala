@@ -49,7 +49,7 @@ private[schema] object ReflectPrinter {
       if (shouldKeepNamespace) typeId.fullName
       else typeId.name
     if (typeId.typeArgs.isEmpty) baseName
-    else baseName + "[" + typeId.typeArgs.map(sdlTypeRepr).mkString(", ") + "]"
+    else typeId.typeArgs.map(sdlTypeRepr).mkString(baseName + "[", ", ", "]")
   }
 
   private[this] def sdlTypeRepr(repr: TypeRepr): String = repr match {
@@ -100,8 +100,8 @@ private[schema] object ReflectPrinter {
       val sb = new java.lang.StringBuilder
       sb.append("record ").append(sdlTypeName(record.typeId)).append(" {\n")
       val newVisited = visited + record
-      record.fields.foreachElem { field =>
-        val fieldStr = printTerm(field, indent = 2, newVisited)
+      record.fields.foreach { field =>
+        val fieldStr = printTerm(field, indent = 1, newVisited)
         sb.append(fieldStr).append('\n')
       }
       sb.append('}')
@@ -120,8 +120,8 @@ private[schema] object ReflectPrinter {
       val sb = new java.lang.StringBuilder
       sb.append("variant ").append(sdlTypeName(variant.typeId)).append(" {\n")
       val newVisited = visited + variant
-      variant.cases.foreachElem { case_ =>
-        val caseStr = printVariantCase(case_, indent = 2, newVisited)
+      variant.cases.foreach { case_ =>
+        val caseStr = printVariantCase(case_, indent = 1, newVisited)
         sb.append(caseStr).append('\n')
       }
       sb.append('}')
@@ -140,7 +140,14 @@ private[schema] object ReflectPrinter {
     if (needsMultilineForElement(seq.element)) {
       val sb = new java.lang.StringBuilder
       sb.append("sequence ").append(seq.typeId.name).append("[\n")
-      sb.append(elementStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
+      elementStr.linesIterator.foreach {
+        var isFirst = true
+        line =>
+          if (isFirst) isFirst = false
+          else sb.append("\n")
+          indentString(sb, 1)
+          sb.append(line)
+      }
       sb.append("\n]")
       sb.toString
     } else s"sequence ${seq.typeId.name}[$elementStr]"
@@ -160,12 +167,32 @@ private[schema] object ReflectPrinter {
       val sb = new java.lang.StringBuilder
       sb.append("map ").append(map.typeId.name).append("[\n")
       if (needsMultilineForElement(map.key)) {
-        sb.append(keyStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
-      } else sb.append(indentString(2)).append(keyStr)
+        keyStr.linesIterator.foreach {
+          var isFirst = true
+          line =>
+            if (isFirst) isFirst = false
+            else sb.append("\n")
+            indentString(sb, 1)
+            sb.append(line)
+        }
+      } else {
+        indentString(sb, 1)
+        sb.append(keyStr)
+      }
       sb.append(",\n")
       if (needsMultilineForElement(map.value)) {
-        sb.append(valueStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
-      } else sb.append(indentString(2)).append(valueStr)
+        valueStr.linesIterator.foreach {
+          var isFirst = true
+          line =>
+            if (isFirst) isFirst = false
+            else sb.append("\n")
+            indentString(sb, 1)
+            sb.append(line)
+        }
+      } else {
+        indentString(sb, 1)
+        sb.append(valueStr)
+      }
       sb.append("\n]").toString
     } else s"map ${map.typeId.name}[$keyStr, $valueStr]"
   }
@@ -182,7 +209,14 @@ private[schema] object ReflectPrinter {
     if (needsMultilineForElement(wrapper.wrapped)) {
       val sb = new java.lang.StringBuilder
       sb.append("wrapper ").append(sdlTypeName(wrapper.typeId)).append("(\n")
-      sb.append(wrappedStr.linesIterator.map(line => indentString(2) + line).mkString("\n"))
+      wrappedStr.linesIterator.foreach {
+        var isFirst = true
+        line =>
+          if (isFirst) isFirst = false
+          else sb.append("\n")
+          indentString(sb, 1)
+          sb.append(line)
+      }
       sb.append("\n)")
       sb.toString
     } else s"wrapper ${sdlTypeName(wrapper.typeId)}($wrappedStr)"
@@ -195,46 +229,48 @@ private[schema] object ReflectPrinter {
 
   private[this] def printTerm[F[_, _], S, A](term: Term[F, S, A], indent: Int, visited: IdentitySet): String = {
     val typeStr = printReflect(term.value, indent, isInline = false, visited)
+    val sb      = new java.lang.StringBuilder
+    indentString(sb, indent)
+    sb.append(term.name).append(": ")
     if (needsMultiline(term.value)) {
-      val indentStr = indentString(indent)
-      val lines     = typeStr.linesIterator.toList
-      if (lines.length == 1) s"$indentStr${term.name}: ${lines.head}"
-      else {
-        // Multi-line field: indent the type
-        val typeIndented = lines.mkString("\n")
-        s"$indentStr${term.name}: $typeIndented"
-      }
-    } else s"${indentString(indent)}${term.name}: $typeStr"
+      sb.append(typeStr.linesIterator.toList.mkString("\n"))
+    } else sb.append(typeStr)
+    sb.toString
   }
 
-  private[this] def printVariantCase[F[_, _], S, A](case_ : Term[F, S, A], indent: Int, visited: IdentitySet): String =
+  private[this] def printVariantCase[F[_, _], S, A](
+    case_ : Term[F, S, A],
+    indent: Int,
+    visited: IdentitySet
+  ): String = {
+    val sb = new java.lang.StringBuilder
+    indentString(sb, indent)
+    sb.append("| ").append(case_.name)
     case_.value.asRecord match {
       case Some(record) if record.fields.isEmpty =>
-        // Simple enum case with no payload
-        s"${indentString(indent)}| ${case_.name}"
+      // Simple enum case with no payload
       case Some(record) if record.fields.length == 1 && !needsMultiline(record.fields(0).value) =>
         // Single-field case that fits on one line
         val field        = record.fields(0)
         val fieldTypeStr = printReflect(field.value, 0, isInline = true, visited)
-        s"${indentString(indent)}| ${case_.name}(${field.name}: $fieldTypeStr)"
+        sb.append("(").append(field.name).append(": ").append(fieldTypeStr).append(")")
       case Some(record) =>
         // Multi-field case or complex single field
-        val sb = new java.lang.StringBuilder
-        sb.append(indentString(indent)).append("| ").append(case_.name).append("(\n")
-        record.fields.foreachElem { field =>
-          val fieldStr = printTerm(field, indent + 4, visited)
-          // Remove the indent from fieldStr since printTermImpl adds it
-          val trimmed = fieldStr.stripPrefix(indentString(indent + 4))
-          sb.append(indentString(indent + 4)).append(trimmed)
+        sb.append("(\n")
+        record.fields.foreach { field =>
+          sb.append(printTerm(field, indent + 2, visited))
           if (field != record.fields.last) sb.append(',')
           sb.append('\n')
         }
-        sb.append(indentString(indent + 2)).append(")").toString
+        indentString(sb, indent + 1)
+        sb.append(")")
       case _ =>
         // Non-record case (shouldn't happen in normal schemas, but handle it)
-        val typeStr = printReflect(case_.value, indent + 2, isInline = true, visited)
-        s"${indentString(indent)}| ${case_.name}($typeStr)"
+        val typeStr = printReflect(case_.value, indent + 1, isInline = true, visited)
+        sb.append("(").append(typeStr).append(")")
     }
+    sb.toString
+  }
 
   @tailrec
   private[this] def printReflect[F[_, _], A](
@@ -256,9 +292,16 @@ private[schema] object ReflectPrinter {
         } else {
           val recordStr = printRecord(r, visited)
           if (indent > 0) {
-            recordStr.linesIterator
-              .map(line => if (line.trim.isEmpty) line else indentString(indent) + line)
-              .mkString("\n")
+            val sb = new java.lang.StringBuilder
+            recordStr.linesIterator.foreach {
+              var isFirst = true
+              line =>
+                if (isFirst) isFirst = false
+                else sb.append('\n')
+                indentString(sb, indent)
+                sb.append(line)
+            }
+            sb.toString
           } else recordStr
         }
       case v: Reflect.Variant[F, A] =>
@@ -268,20 +311,45 @@ private[schema] object ReflectPrinter {
         } else {
           val variantStr = printVariant(v, visited)
           if (indent > 0) {
-            variantStr.linesIterator
-              .map(line => if (line.trim.isEmpty) line else indentString(indent) + line)
-              .mkString("\n")
+            val sb = new java.lang.StringBuilder
+            variantStr.linesIterator.foreach {
+              var isFirst = true
+              line =>
+                if (isFirst) isFirst = false
+                else sb.append('\n')
+                indentString(sb, indent)
+                sb.append(line)
+            }
+            sb.toString
           } else variantStr
         }
       case s: Reflect.Sequence[F, _, _] @unchecked =>
         val seqStr = printSequence(s.asInstanceOf[Reflect.Sequence[F, Any, List]], visited)
         if (indent > 0 && seqStr.contains("\n")) {
-          seqStr.linesIterator.map(line => if (line.trim.isEmpty) line else indentString(indent) + line).mkString("\n")
+          val sb = new java.lang.StringBuilder
+          seqStr.linesIterator.foreach {
+            var isFirst = true
+            line =>
+              if (isFirst) isFirst = false
+              else sb.append('\n')
+              indentString(sb, indent)
+              sb.append(line)
+          }
+          sb.toString
         } else seqStr
       case m: Reflect.Map[F, _, _, _] @unchecked =>
         val mapStr = printMap(m.asInstanceOf[Reflect.Map[F, Any, Any, collection.immutable.Map]], visited)
         if (indent > 0 && mapStr.contains("\n")) {
-          mapStr.linesIterator.map(line => if (line.trim.isEmpty) line else indentString(indent) + line).mkString("\n")
+          val sb = new java.lang.StringBuilder
+          mapStr.linesIterator.foreach {
+            var isFirst = true
+            line =>
+              if (isFirst) isFirst = false
+              else sb.append('\n')
+              indentString(sb, indent)
+              sb.append(line)
+          }
+          sb.toString
         } else mapStr
       case w: Reflect.Wrapper[F, A, _] =>
         printWrapper(w.asInstanceOf[Reflect.Wrapper[F, A, Any]], visited)
@@ -317,19 +385,11 @@ private[schema] object ReflectPrinter {
     case w: Reflect.Wrapper[_, _, _]  => needsMultilineForElement(w.wrapped)
   }
 
-  private[this] def indentString(spaces: Int): String = " " * spaces
-
-  // Extension to make foreach work on IndexedSeq
-  private implicit class IndexedSeqOps[A](seq: IndexedSeq[A]) {
-    def foreachElem(f: A => Unit): Unit = {
-      val len = seq.length
-      var idx = 0
-      while (idx < len) {
-        f(seq(idx))
-        idx += 1
-      }
+  private[this] def indentString(sb: java.lang.StringBuilder, indent: Int): Unit = {
+    var n = indent
+    while (n > 0) {
+      sb.append(' ').append(' ')
+      n -= 1
     }
-
-    def last: A = seq(seq.length - 1)
   }
 }
