@@ -31,7 +31,7 @@ object PatchToStringSpec extends ZIOSpecDefault {
     val scores: Lens[Person, List[Int]]             = optic(_.scores)
   }
 
-  def spec = suite("Patch toString")(
+  def spec = suite("PatchToStringSpec")(
     test("renders simple set operation") {
       val patch = Patch.set(Person.name, "John")
       assertTrue(

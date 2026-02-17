@@ -324,9 +324,20 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result.get(1).one == Right(Json.Number(99)))
         },
         test("setOrFail fails for non-existent path") {
-          val json   = Json.Object("a" -> Json.Number(1))
-          val result = json.setOrFail(DynamicOptic.root.field("b"), Json.Number(2))
-          assertTrue(result.isLeft)
+          val json1   = Json.Object("a" -> Json.Number(1))
+          val json2   = Json.Array(Json.Number(1))
+          val result1 = json1.setOrFail(DynamicOptic.root.field("b"), Json.Number(2))
+          val result2 = json2.setOrFail(DynamicOptic.root.field("b"), Json.Number(2))
+          val result3 = json1.setOrFail(DynamicOptic.root.at(0), Json.Number(2))
+          val result4 = json2.setOrFail(DynamicOptic.root.at(100), Json.Number(2))
+          val result5 = json1.setOrFail(DynamicOptic.root.elements, Json.Number(2))
+          val result6 = json2.setOrFail(DynamicOptic.root.mapValues, Json.Number(2))
+          assertTrue(result1.isLeft) &&
+          assertTrue(result2.isLeft) &&
+          assertTrue(result3.isLeft) &&
+          assertTrue(result4.isLeft) &&
+          assertTrue(result5.isLeft) &&
+          assertTrue(result6.isLeft)
         },
         test("delete removes field from object") {
           val json   = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
@@ -370,10 +381,17 @@ object JsonSpec extends SchemaBaseSpec {
           val result = json.insert(DynamicOptic.root.field("a"), Json.Number(99))
           assertTrue(result.get("a").one == Right(Json.Number(1))) // Original value unchanged
         },
-        test("insertOrFail fails if field already exists") {
-          val json   = Json.Object("a" -> Json.Number(1))
-          val result = json.insertOrFail(DynamicOptic.root.field("a"), Json.Number(99))
-          assertTrue(result.isLeft)
+        test("insertOrFail fails if insertion is not possible") {
+          val json1   = Json.Object("a" -> Json.Number(1))
+          val json2   = Json.Array(Json.Number(1))
+          val result1 = json1.insertOrFail(DynamicOptic.root.field("a"), Json.Number(99))
+          val result2 = json1.insertOrFail(DynamicOptic.root.at(0), Json.Number(99))
+          val result3 = json2.insertOrFail(DynamicOptic.root.field("a"), Json.Number(99))
+          val result4 = json2.insertOrFail(DynamicOptic.root.at(10), Json.Number(99))
+          assertTrue(result1.isLeft) &&
+          assertTrue(result2.isLeft) &&
+          assertTrue(result3.isLeft) &&
+          assertTrue(result4.isLeft)
         },
         test("insert at array index shifts elements") {
           val json    = Json.Array(Json.Number(1), Json.Number(3))
@@ -606,7 +624,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("transformUp applies function bottom-up") {
           val json = Json.Object(
             "a" -> Json.Object("b" -> Json.Number(1)),
-            "c" -> Json.Number(2)
+            "c" -> Json.Array(Json.Number(2))
           )
           val result = json.transformUp { (_, j) =>
             j match {
@@ -616,18 +634,18 @@ object JsonSpec extends SchemaBaseSpec {
           }
           assertTrue(
             result.get("a").get("b").as[BigDecimal] == Right(BigDecimal(2)),
-            result.get("c").as[BigDecimal] == Right(BigDecimal(4))
+            result.get("c").get(DynamicOptic.root.at(0)).as[BigDecimal] == Right(BigDecimal(4))
           )
         },
         test("transformDown applies function top-down") {
-          val json   = Json.Object("x" -> Json.Number(10))
+          val json   = Json.Object("x" -> Json.Number(10), "y" -> Json.Array(Json.Number(20)))
           var result = Chunk.empty[String]
           json.transformDown { (path, j) =>
             result = result :+ path.toString
             j
           }
           // Root should be visited before children (root path renders as ".")
-          assertTrue(result.head == ".", result.contains(".x"))
+          assertTrue(result == Chunk(".", ".x", ".y", ".y[0]"))
         },
         test("transformKeys renames object keys") {
           val json   = Json.Object("old_name" -> Json.Number(1), "another_key" -> Json.Number(2))
@@ -733,7 +751,7 @@ object JsonSpec extends SchemaBaseSpec {
         test("foldUp accumulates bottom-up") {
           val json = Json.Object(
             "a" -> Json.Number(1),
-            "b" -> Json.Object("c" -> Json.Number(2), "d" -> Json.Number(3))
+            "b" -> Json.Object("c" -> Json.Number(2), "d" -> Json.Array(Json.Number(3)))
           )
           val result = json.foldUp(BigDecimal(0)) { (_, j, acc) =>
             j match {
@@ -744,11 +762,12 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result == BigDecimal(6))
         },
         test("foldDown accumulates top-down") {
-          val json = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
-          // Collect paths in order
-          val result = json.foldDown(Chunk.empty[String])((path, _, acc) => acc :+ path.toString)
-          // Root visited first, then elements (root path renders as ".")
-          assertTrue(result.head == ".", result.length == 4) // root + 3 elements
+          val json1   = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
+          val json2   = Json.Object("a" -> Json.Number(2), "b" -> Json.Number(3))
+          val result1 = json1.foldDown(Chunk.empty[String])((path, _, acc) => acc :+ path.toString)
+          val result2 = json2.foldDown(Chunk.empty[String])((path, _, acc) => acc :+ path.toString)
+          assertTrue(result1.head == ".", result1.length == 4) &&
+          assertTrue(result2.head == ".", result2.length == 3)
         },
         test("foldUpOrFail stops on error") {
           val json   = Json.Array(Json.Number(1), Json.String("oops"), Json.Number(3))
@@ -792,11 +811,16 @@ object JsonSpec extends SchemaBaseSpec {
           val result = json.select.query(JsonType.String)
           assertTrue(result.isEmpty)
         },
-        test("toKV converts to path-value pairs") {
+        test("toKV converts JSON object to path-value pairs") {
           val json = Json.Object(
             "a" -> Json.Number(1),
             "b" -> Json.Object("c" -> Json.Number(2))
           )
+          val result = json.toKV
+          assertTrue(result.length == 2, result.exists(_._2 == Json.Number(1)), result.exists(_._2 == Json.Number(2)))
+        },
+        test("toKV converts JSON array to path-value pairs") {
+          val json   = Json.Array(Json.Number(1), Json.Object("c" -> Json.Number(2)))
           val result = json.toKV
           assertTrue(result.length == 2, result.exists(_._2 == Json.Number(1)), result.exists(_._2 == Json.Number(2)))
         },
@@ -1022,12 +1046,50 @@ object JsonSpec extends SchemaBaseSpec {
             "b" -> Json.Array()
           )
           val result = json.normalize
-          assertTrue(result.fields.length == 1, result.fields.head._1 == "z")
+          assertTrue(result == json.sortKeys.dropNulls.dropEmpty)
         },
         test("dropNulls works on arrays") {
           val json   = Json.Array(Json.Number(1), Json.Null, Json.Number(2), Json.Null)
           val result = json.dropNulls
           assertTrue(result.elements == Chunk(Json.Number(1), Json.Number(2)))
+        },
+        test("normalize works on arrays") {
+          val json = Json.Array(
+            Json.Object(
+              "z" -> Json.Number(1),
+              "a" -> Json.Null,
+              "m" -> Json.Object(),
+              "b" -> Json.Array()
+            ),
+            Json.Array(),
+            Json.Number(2),
+            Json.Null
+          )
+          val result = json.normalize
+          assertTrue(result.toString == """[
+                                          |  {
+                                          |    "z": 1
+                                          |  },
+                                          |  2
+                                          |]""".stripMargin)
+        },
+        test("sortKeys works on arrays") {
+          val json = Json.Array(
+            Json.Object(
+              "z" -> Json.Number(1),
+              "a" -> Json.Number(2)
+            ),
+            Json.Number(2),
+            Json.Array()
+          )
+          val result = json.normalize
+          assertTrue(result.toString == """[
+                                          |  {
+                                          |    "a": 2,
+                                          |    "z": 1
+                                          |  },
+                                          |  2
+                                          |]""".stripMargin)
         },
         test("dropEmpty works recursively") {
           val json = Json.Object(

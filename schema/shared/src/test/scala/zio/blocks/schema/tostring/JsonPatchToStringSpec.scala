@@ -7,7 +7,7 @@ import zio.test._
 
 object JsonPatchToStringSpec extends ZIOSpecDefault {
 
-  def spec = suite("JsonPatch toString")(
+  def spec = suite("JsonPatchToStringSpec")(
     test("renders empty patch") {
       val patch = JsonPatch.empty
       assertTrue(patch.toString == "JsonPatch {}")

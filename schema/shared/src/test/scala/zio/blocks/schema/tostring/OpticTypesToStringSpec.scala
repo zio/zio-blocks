@@ -3,7 +3,7 @@ package zio.blocks.schema.tostring
 import zio.blocks.schema._
 import zio.test._
 
-object OpticTypesSpec extends ZIOSpecDefault {
+object OpticTypesToStringSpec extends ZIOSpecDefault {
 
   case class Address(street: String, city: String)
   case class Person(name: String, age: Int, address: Address)
@@ -27,7 +27,7 @@ object OpticTypesSpec extends ZIOSpecDefault {
   implicit val successStringSchema: Schema[Success[String]] = Schema.derived
   implicit def resultSchema[A: Schema]: Schema[Result[A]]   = Schema.derived
 
-  def spec = suite("Optic Types toString")(
+  def spec = suite("OpticTypesToStringSpec")(
     suite("Lens")(
       test("renders simple field access") {
         val personRecord = Schema[Person].reflect.asRecord.get

@@ -5,9 +5,9 @@ import zio.blocks.schema.binding.Binding
 import zio.blocks.typeid.TypeId
 import zio.test._
 
-object ReflectSpec extends ZIOSpecDefault {
+object ReflectToStringSpec extends ZIOSpecDefault {
 
-  def spec = suite("Reflect toString")(
+  def spec = suite("ReflectToStringSpec")(
     suite("Primitive types")(
       test("renders String") {
         val schema = Schema.string
@@ -86,7 +86,7 @@ object ReflectSpec extends ZIOSpecDefault {
           """record PersonWithAddress {
             |  name: String
             |  age: Int
-            |  address:   record Address {
+            |  address: record Address {
             |    street: String
             |    city: String
             |    zip: String
@@ -132,7 +132,7 @@ object ReflectSpec extends ZIOSpecDefault {
             |      cvv: String
             |    )
             |  | BankTransfer(
-            |      account:       record BankAccount {
+            |      account: record BankAccount {
             |        routing: String
             |        number: String
             |      }
@@ -238,7 +238,7 @@ object ReflectSpec extends ZIOSpecDefault {
 
         val expected =
           """record ValidatedEmail {
-            |  parts:   record EmailParts {
+            |  parts: record EmailParts {
             |    local: String
             |    domain: String
             |  }
@@ -254,7 +254,7 @@ object ReflectSpec extends ZIOSpecDefault {
         // Current output (as nested records):
         val expected =
           """record OrderId {
-            |  uuid:   record UUID {
+            |  uuid: record UUID {
             |    value: String
             |  }
             |}""".stripMargin
@@ -269,9 +269,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val expected =
           """record Tree {
             |  value: Int
-            |  children:   sequence List[
-            |    deferred => Tree
-            |  ]
+            |  children: sequence List[deferred => Tree]
             |}""".stripMargin
         assertTrue(treeSchema.reflect.toString == expected)
       },
@@ -282,7 +280,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val expected =
           """record Node {
             |  id: Int
-            |  edges:   sequence List[
+            |  edges: sequence List[
             |    record Edge {
             |      label: String
             |      target: deferred => Node
@@ -305,10 +303,10 @@ object ReflectSpec extends ZIOSpecDefault {
         val expected =
           """record Customer {
             |  name: String
-            |  email:   record Email {
+            |  email: record Email {
             |    value: String
             |  }
-            |  address:   record Address {
+            |  address: record Address {
             |    street: String
             |    city: String
             |    zip: String
@@ -342,8 +340,8 @@ object ReflectSpec extends ZIOSpecDefault {
 
         val expected =
           """record Level1 {
-            |  nested:   record Level2 {
-            |    nested:   record Level3 {
+            |  nested: record Level2 {
+            |    nested: record Level3 {
             |      value: Int
             |    }
             |  }

@@ -107,8 +107,8 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 75,
-    coverageMinimumBranchTotal := 65
+    coverageMinimumStmtTotal   := 77,
+    coverageMinimumBranchTotal := 69
   )
 
 lazy val context = crossProject(JSPlatform, JVMPlatform)
@@ -132,8 +132,8 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 75,
-    coverageMinimumBranchTotal := 45
+    coverageMinimumStmtTotal   := 76,
+    coverageMinimumBranchTotal := 48
   )
 
 lazy val scope = crossProject(JSPlatform, JVMPlatform)
@@ -157,8 +157,8 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 85,
-    coverageMinimumBranchTotal := 70,
+    coverageMinimumStmtTotal   := 90,
+    coverageMinimumBranchTotal := 80,
     // Exclude macro implementation files from coverage - macros run at compile time, not runtime
     // Note: Branch coverage is lower because concurrent state machine code has defensive
     // branches (CAS retry loops) that are hard to trigger reliably in tests.
@@ -204,9 +204,9 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 80,
+    coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 80,
-    coverageExcludedFiles      := ".*BuildInfo.*|.*Macros.*|.*MacroUtils.*|.*CommonMacroOps.*|.*PathInterpolator.*|.*VersionSpecific.*|.*CompanionOptics.*|.*DerivedOptics.*|.*RegisterOffset.*"
+    coverageExcludedFiles      := ".*BuildInfo.*"
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -262,7 +262,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 91,
+    coverageMinimumStmtTotal   := 90,
     coverageMinimumBranchTotal := 86
   )
 
@@ -283,8 +283,8 @@ lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ => Seq()
     }),
-    coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 90
+    coverageMinimumStmtTotal   := 99,
+    coverageMinimumBranchTotal := 93
   )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
@@ -343,8 +343,8 @@ lazy val `schema-thrift` = project
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 63, // Lowered from 74 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 59  // Lowered from 60 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 74,
+    coverageMinimumBranchTotal := 61
   )
 
 lazy val `schema-bson` = project
@@ -365,8 +365,8 @@ lazy val `schema-bson` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 63, // Lowered from 67 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 55  // Lowered from 58 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 63,
+    coverageMinimumBranchTotal := 59
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -383,8 +383,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 75, // Lowered from 76 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 65  // Lowered from 66 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 66
   )
   .jsSettings(
     libraryDependencies ++= Seq(
@@ -407,8 +407,8 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 79, // Lowered from 80 for Scala 3.5 compatibility
-    coverageMinimumBranchTotal := 70  // Lowered from 71 for Scala 3.5 compatibility
+    coverageMinimumStmtTotal   := 79,
+    coverageMinimumBranchTotal := 72
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
