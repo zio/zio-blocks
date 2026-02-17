@@ -4,7 +4,8 @@ import zio.blocks.schema._
 import zio.blocks.typeid.TypeId
 
 /**
- * An override that attaches a [[Modifier]] to a schema node during derivation.
+ * An override that attaches a [[zio.blocks.schema.Modifier Modifier]] to a
+ * schema node during derivation.
  *
  * Unlike [[InstanceOverride]], modifier overrides are additive: when multiple
  * overrides match the same node, their modifiers are combined (optic-matched
@@ -13,8 +14,8 @@ import zio.blocks.typeid.TypeId
 sealed trait ModifierOverride
 
 /**
- * Attaches a [[Modifier.Reflect]] to the schema node at an exact path in the
- * schema tree.
+ * Attaches a [[zio.blocks.schema.Modifier.Reflect Modifier.Reflect]] to the
+ * schema node at an exact path in the schema tree.
  *
  * Created via `DerivationBuilder.modifier(optic, modifier)` when the modifier
  * is a `Modifier.Reflect`.
@@ -22,17 +23,18 @@ sealed trait ModifierOverride
 case class ModifierReflectOverrideByOptic(optic: DynamicOptic, modifier: Modifier.Reflect) extends ModifierOverride
 
 /**
- * Attaches a [[Modifier.Reflect]] to every schema node whose type matches the
- * given [[TypeId]].
+ * Attaches a [[zio.blocks.schema.Modifier.Reflect Modifier.Reflect]] to every
+ * schema node whose type matches the given [[zio.blocks.typeid.TypeId TypeId]].
  *
  * Created via `DerivationBuilder.modifier(typeId, modifier)`.
  */
 case class ModifierReflectOverrideByType[A](typeId: TypeId[A], modifier: Modifier.Reflect) extends ModifierOverride
 
 /**
- * Attaches a [[Modifier.Term]] to a specific term (field or case) within every
- * schema node whose type matches the given [[TypeId]]. The `termName`
- * identifies which field or case within the matched node receives the modifier.
+ * Attaches a [[zio.blocks.schema.Modifier.Term Modifier.Term]] to a specific
+ * term (field or case) within every schema node whose type matches the given
+ * [[zio.blocks.typeid.TypeId TypeId]]. The `termName` identifies which field or
+ * case within the matched node receives the modifier.
  *
  * Created internally by `DerivationBuilder` — there is no direct factory method
  * for this variant.
@@ -41,9 +43,9 @@ case class ModifierTermOverrideByType[A](typeId: TypeId[A], termName: String, mo
     extends ModifierOverride
 
 /**
- * Attaches a [[Modifier.Term]] to a specific term (field or case) within the
- * schema node at an exact path. The `termName` identifies which field or case
- * within the matched node receives the modifier.
+ * Attaches a [[zio.blocks.schema.Modifier.Term Modifier.Term]] to a specific
+ * term (field or case) within the schema node at an exact path. The `termName`
+ * identifies which field or case within the matched node receives the modifier.
  *
  * Created via `DerivationBuilder.modifier(optic, modifier)` when the modifier
  * is a `Modifier.Term`. The optic's last node is extracted as the term name,

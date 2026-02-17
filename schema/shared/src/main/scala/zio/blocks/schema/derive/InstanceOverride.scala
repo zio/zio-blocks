@@ -20,7 +20,7 @@ sealed trait InstanceOverride
  * the schema tree.
  *
  * This is the most precise override: it targets one specific location
- * identified by a [[DynamicOptic]]. Created via
+ * identified by a [[zio.blocks.schema.DynamicOptic DynamicOptic]]. Created via
  * `DerivationBuilder.instance(optic, instance)`.
  */
 case class InstanceOverrideByOptic[TC[_], A](optic: DynamicOptic, instance: Lazy[TC[A]]) extends InstanceOverride
