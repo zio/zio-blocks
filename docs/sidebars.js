@@ -37,6 +37,7 @@ const sidebars = {
       items: [
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
+        "guides/query-dsl-extending",
       ]
     }
   ]

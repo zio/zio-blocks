@@ -461,6 +461,8 @@ catalog.foreach { p =>
 
 ## Going Further
 
+- **[Part 2: SQL Generation](./query-dsl-sql.md)** -- Translating query expressions to SQL
+- **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** -- Adding custom operators (IN, BETWEEN, aggregates) beyond SchemaExpr
 - **[Optics Reference](../reference/optics.md)** -- Full API coverage of Lens, Prism, Optional, and Traversal
 - **[DynamicOptic Reference](../reference/dynamic-optic.md)** -- Runtime optic paths for programmatic query construction
 - **[Schema Reference](../reference/schema.md)** -- Schema derivation and type-level metadata

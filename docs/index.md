@@ -574,3 +574,4 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
+- [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond SchemaExpr

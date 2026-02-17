@@ -19,7 +19,7 @@ sealed trait SchemaExpr[A, +B] {
 ```
 
 :::tip
-For practical walkthroughs of building with `SchemaExpr`, see [Query DSL Part 1: Expressions](../guides/query-dsl-reified-optics.md) and [Part 2: SQL Generation](../guides/query-dsl-sql.md).
+For practical walkthroughs of building with `SchemaExpr`, see [Query DSL Part 1: Expressions](../guides/query-dsl-reified-optics.md), [Part 2: SQL Generation](../guides/query-dsl-sql.md), and [Part 3: Extending the Expression Language](../guides/query-dsl-extending.md).
 :::
 
 ## Motivation
