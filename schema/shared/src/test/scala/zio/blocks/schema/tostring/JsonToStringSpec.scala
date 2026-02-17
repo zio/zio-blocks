@@ -4,7 +4,7 @@ import zio.blocks.schema.json.{Json, JsonType, WriterConfig}
 import zio.test._
 
 object JsonToStringSpec extends ZIOSpecDefault {
-  def spec = suite("Json toString")(
+  def spec = suite("JsonToStringSpec")(
     suite("Primitives")(
       test("renders boolean true") {
         assertTrue(Json.True.toString == "true")

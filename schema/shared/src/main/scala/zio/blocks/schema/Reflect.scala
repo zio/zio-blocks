@@ -936,7 +936,7 @@ object Reflect {
 
     override def isDynamic: Boolean = true
 
-    override def toString: String = ReflectPrinter.sdlTypeName(typeId)
+    override def toString: String = ReflectPrinter.printDynamic(this)
   }
 
   object Dynamic {

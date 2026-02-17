@@ -19,12 +19,17 @@ final case class TermPath(segments: List[TermPath.Segment]) {
   /**
    * Returns the path as a dot-separated string.
    */
-  def asString: String = segments.map(_.name).mkString(".")
+  def asString: String = segments
+    .foldLeft(new java.lang.StringBuilder) { (sb, s) =>
+      if (sb.length > 0) sb.append('.')
+      sb.append(s.name)
+    }
+    .toString
 
   /**
    * Appends a term segment to this path.
    */
-  def /(name: String): TermPath = TermPath(segments :+ TermPath.Term(name))
+  def /(name: String): TermPath = new TermPath(segments :+ new TermPath.Term(name))
 
   /**
    * Returns true if this is an empty path.

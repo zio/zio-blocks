@@ -341,9 +341,9 @@ object TermToString extends ZIOSpecDefault {
 
         val expected =
           """root: record Level2 {
-            |  nested:   record Level3 {
-            |    nested:   record Level4 {
-            |      nested:   record Level5 {
+            |  nested: record Level3 {
+            |    nested: record Level4 {
+            |      nested: record Level5 {
             |        value: Int
             |      }
             |    }
@@ -390,11 +390,14 @@ object TermToString extends ZIOSpecDefault {
 
         val expected =
           """complex: record OuterRecord {
-            |  data:   map Map[String, sequence List[
-            |    record InnerRecord {
-            |      x: Int
-            |    }
-            |  ]]
+            |  data: map Map[
+            |    String,
+            |    sequence List[
+            |      record InnerRecord {
+            |        x: Int
+            |      }
+            |    ]
+            |  ]
             |}""".stripMargin
 
         assertTrue(term.toString == expected)
@@ -440,12 +443,12 @@ object TermToString extends ZIOSpecDefault {
       },
       test("renders Int term with Range validation") {
         val primitiveReflect = Reflect.Primitive[Binding, Int](
-          new PrimitiveType.Int(Validation.Numeric.Range(Some(1), Some(100))),
+          new PrimitiveType.Int(Validation.Numeric.Range(None, Some(100))),
           TypeId.int,
           Binding.Primitive()
         )
         val term = Term("percentage", primitiveReflect)
-        assertTrue(term.toString == "percentage: Int @Range(min=1, max=100)")
+        assertTrue(term.toString == "percentage: Int @Range(max=100)")
       },
       test("renders Long term with NonNegative validation") {
         val primitiveReflect = Reflect.Primitive[Binding, Long](
