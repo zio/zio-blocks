@@ -832,7 +832,7 @@ object DynamicPatch {
           constructor = new Constructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Insert =
-              StringOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[String])
+              new StringOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(ints = 1, objects = 1)
@@ -855,7 +855,7 @@ object DynamicPatch {
           constructor = new Constructor[StringOp.Delete] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Delete =
-              StringOp.Delete(
+              new StringOp.Delete(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset))
               )
@@ -881,7 +881,7 @@ object DynamicPatch {
           constructor = new Constructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Append =
-              StringOp.Append(in.getObject(offset).asInstanceOf[String])
+              new StringOp.Append(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -906,7 +906,7 @@ object DynamicPatch {
           constructor = new Constructor[StringOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Modify =
-              StringOp.Modify(
+              new StringOp.Modify(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset)),
                 in.getObject(offset).asInstanceOf[String]
@@ -983,7 +983,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.IntDelta] {
             def usedRegisters: RegisterOffset                                          = RegisterOffset(ints = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.IntDelta =
-              PrimitiveOp.IntDelta(in.getInt(offset))
+              new PrimitiveOp.IntDelta(in.getInt(offset))
           },
           deconstructor = new Deconstructor[PrimitiveOp.IntDelta] {
             def usedRegisters: RegisterOffset                                                       = RegisterOffset(ints = 1)
@@ -1004,7 +1004,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.LongDelta] {
             def usedRegisters: RegisterOffset                                           = RegisterOffset(longs = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.LongDelta =
-              PrimitiveOp.LongDelta(in.getLong(offset))
+              new PrimitiveOp.LongDelta(in.getLong(offset))
           },
           deconstructor = new Deconstructor[PrimitiveOp.LongDelta] {
             def usedRegisters: RegisterOffset                                                        = RegisterOffset(longs = 1)
@@ -1025,7 +1025,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.DoubleDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(doubles = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.DoubleDelta =
-              PrimitiveOp.DoubleDelta(in.getDouble(offset))
+              new PrimitiveOp.DoubleDelta(in.getDouble(offset))
           },
           deconstructor = new Deconstructor[PrimitiveOp.DoubleDelta] {
             def usedRegisters: RegisterOffset                                                          = RegisterOffset(doubles = 1)
@@ -1046,7 +1046,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.FloatDelta] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(floats = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.FloatDelta =
-              PrimitiveOp.FloatDelta(in.getFloat(offset))
+              new PrimitiveOp.FloatDelta(in.getFloat(offset))
           },
           deconstructor = new Deconstructor[PrimitiveOp.FloatDelta] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(floats = 1)
@@ -1067,7 +1067,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.ShortDelta] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(shorts = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.ShortDelta =
-              PrimitiveOp.ShortDelta(in.getShort(offset))
+              new PrimitiveOp.ShortDelta(in.getShort(offset))
           },
           deconstructor = new Deconstructor[PrimitiveOp.ShortDelta] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(shorts = 1)
@@ -1088,7 +1088,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.ByteDelta] {
             def usedRegisters: RegisterOffset                                           = RegisterOffset(bytes = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.ByteDelta =
-              PrimitiveOp.ByteDelta(in.getByte(offset))
+              new PrimitiveOp.ByteDelta(in.getByte(offset))
           },
           deconstructor = new Deconstructor[PrimitiveOp.ByteDelta] {
             def usedRegisters: RegisterOffset                                                        = RegisterOffset(bytes = 1)
@@ -1109,7 +1109,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.BigIntDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.BigIntDelta =
-              PrimitiveOp.BigIntDelta(in.getObject(offset).asInstanceOf[BigInt])
+              new PrimitiveOp.BigIntDelta(in.getObject(offset).asInstanceOf[BigInt])
           },
           deconstructor = new Deconstructor[PrimitiveOp.BigIntDelta] {
             def usedRegisters: RegisterOffset                                                          = RegisterOffset(objects = 1)
@@ -1130,7 +1130,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.BigDecimalDelta] {
             def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.BigDecimalDelta =
-              PrimitiveOp.BigDecimalDelta(in.getObject(offset).asInstanceOf[BigDecimal])
+              new PrimitiveOp.BigDecimalDelta(in.getObject(offset).asInstanceOf[BigDecimal])
           },
           deconstructor = new Deconstructor[PrimitiveOp.BigDecimalDelta] {
             def usedRegisters: RegisterOffset                                                              = RegisterOffset(objects = 1)
@@ -1151,7 +1151,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.StringEdit =
-              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
+              new PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
           },
           deconstructor = new Deconstructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1172,7 +1172,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.InstantDelta] {
             def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.InstantDelta =
-              PrimitiveOp.InstantDelta(in.getObject(offset).asInstanceOf[java.time.Duration])
+              new PrimitiveOp.InstantDelta(in.getObject(offset).asInstanceOf[java.time.Duration])
           },
           deconstructor = new Deconstructor[PrimitiveOp.InstantDelta] {
             def usedRegisters: RegisterOffset                                                           = RegisterOffset(objects = 1)
@@ -1193,7 +1193,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.DurationDelta] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.DurationDelta =
-              PrimitiveOp.DurationDelta(in.getObject(offset).asInstanceOf[java.time.Duration])
+              new PrimitiveOp.DurationDelta(in.getObject(offset).asInstanceOf[java.time.Duration])
           },
           deconstructor = new Deconstructor[PrimitiveOp.DurationDelta] {
             def usedRegisters: RegisterOffset                                                            = RegisterOffset(objects = 1)
@@ -1214,7 +1214,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.LocalDateDelta] {
             def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.LocalDateDelta =
-              PrimitiveOp.LocalDateDelta(in.getObject(offset).asInstanceOf[java.time.Period])
+              new PrimitiveOp.LocalDateDelta(in.getObject(offset).asInstanceOf[java.time.Period])
           },
           deconstructor = new Deconstructor[PrimitiveOp.LocalDateDelta] {
             def usedRegisters: RegisterOffset                                                             = RegisterOffset(objects = 1)
@@ -1238,7 +1238,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.LocalDateTimeDelta] {
             def usedRegisters: RegisterOffset                                                    = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.LocalDateTimeDelta =
-              PrimitiveOp.LocalDateTimeDelta(
+              new PrimitiveOp.LocalDateTimeDelta(
                 in.getObject(offset).asInstanceOf[java.time.Period],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[java.time.Duration]
               )
@@ -1264,7 +1264,7 @@ object DynamicPatch {
           constructor = new Constructor[PrimitiveOp.PeriodDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.PeriodDelta =
-              PrimitiveOp.PeriodDelta(in.getObject(offset).asInstanceOf[java.time.Period])
+              new PrimitiveOp.PeriodDelta(in.getObject(offset).asInstanceOf[java.time.Period])
           },
           deconstructor = new Deconstructor[PrimitiveOp.PeriodDelta] {
             def usedRegisters: RegisterOffset                                                          = RegisterOffset(objects = 1)
@@ -1414,7 +1414,7 @@ object DynamicPatch {
           constructor = new Constructor[SeqOp.Insert] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): SeqOp.Insert =
-              SeqOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[DynamicValue]])
+              new SeqOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[DynamicValue]])
           },
           deconstructor = new Deconstructor[SeqOp.Insert] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(ints = 1, objects = 1)
@@ -1437,7 +1437,7 @@ object DynamicPatch {
           constructor = new Constructor[SeqOp.Append] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): SeqOp.Append =
-              SeqOp.Append(in.getObject(offset).asInstanceOf[Chunk[DynamicValue]])
+              new SeqOp.Append(in.getObject(offset).asInstanceOf[Chunk[DynamicValue]])
           },
           deconstructor = new Deconstructor[SeqOp.Append] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -1458,7 +1458,7 @@ object DynamicPatch {
           constructor = new Constructor[SeqOp.Delete] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 2)
             def construct(in: Registers, offset: RegisterOffset): SeqOp.Delete =
-              SeqOp.Delete(in.getInt(offset), in.getInt(RegisterOffset.incrementFloatsAndInts(offset)))
+              new SeqOp.Delete(in.getInt(offset), in.getInt(RegisterOffset.incrementFloatsAndInts(offset)))
           },
           deconstructor = new Deconstructor[SeqOp.Delete] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(ints = 2)
@@ -1484,7 +1484,7 @@ object DynamicPatch {
           constructor = new Constructor[SeqOp.Modify] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): SeqOp.Modify =
-              SeqOp.Modify(in.getInt(offset), in.getObject(offset).asInstanceOf[Operation])
+              new SeqOp.Modify(in.getInt(offset), in.getObject(offset).asInstanceOf[Operation])
           },
           deconstructor = new Deconstructor[SeqOp.Modify] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(ints = 1, objects = 1)
@@ -1582,7 +1582,7 @@ object DynamicPatch {
           constructor = new Constructor[MapOp.Remove] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): MapOp.Remove =
-              MapOp.Remove(in.getObject(offset).asInstanceOf[DynamicValue])
+              new MapOp.Remove(in.getObject(offset).asInstanceOf[DynamicValue])
           },
           deconstructor = new Deconstructor[MapOp.Remove] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -1606,7 +1606,7 @@ object DynamicPatch {
           constructor = new Constructor[MapOp.Modify] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): MapOp.Modify =
-              MapOp.Modify(
+              new MapOp.Modify(
                 in.getObject(offset).asInstanceOf[DynamicValue],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[DynamicPatch]
               )
@@ -1673,7 +1673,7 @@ object DynamicPatch {
           constructor = new Constructor[Operation.Set] {
             def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.Set =
-              Operation.Set(in.getObject(offset).asInstanceOf[DynamicValue])
+              new Operation.Set(in.getObject(offset).asInstanceOf[DynamicValue])
           },
           deconstructor = new Deconstructor[Operation.Set] {
             def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -1694,7 +1694,7 @@ object DynamicPatch {
           constructor = new Constructor[Operation.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.PrimitiveDelta =
-              Operation.PrimitiveDelta(in.getObject(offset).asInstanceOf[PrimitiveOp])
+              new Operation.PrimitiveDelta(in.getObject(offset).asInstanceOf[PrimitiveOp])
           },
           deconstructor = new Deconstructor[Operation.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                                           = RegisterOffset(objects = 1)
@@ -1715,7 +1715,7 @@ object DynamicPatch {
           constructor = new Constructor[Operation.SequenceEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.SequenceEdit =
-              Operation.SequenceEdit(in.getObject(offset).asInstanceOf[Chunk[SeqOp]])
+              new Operation.SequenceEdit(in.getObject(offset).asInstanceOf[Chunk[SeqOp]])
           },
           deconstructor = new Deconstructor[Operation.SequenceEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1736,7 +1736,7 @@ object DynamicPatch {
           constructor = new Constructor[Operation.MapEdit] {
             def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.MapEdit =
-              Operation.MapEdit(in.getObject(offset).asInstanceOf[Chunk[MapOp]])
+              new Operation.MapEdit(in.getObject(offset).asInstanceOf[Chunk[MapOp]])
           },
           deconstructor = new Deconstructor[Operation.MapEdit] {
             def usedRegisters: RegisterOffset                                                    = RegisterOffset(objects = 1)
@@ -1757,7 +1757,7 @@ object DynamicPatch {
           constructor = new Constructor[Operation.Patch] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Operation.Patch =
-              Operation.Patch(in.getObject(offset).asInstanceOf[DynamicPatch])
+              new Operation.Patch(in.getObject(offset).asInstanceOf[DynamicPatch])
           },
           deconstructor = new Deconstructor[Operation.Patch] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -1838,7 +1838,7 @@ object DynamicPatch {
           constructor = new Constructor[DynamicPatchOp] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): DynamicPatchOp =
-              DynamicPatchOp(
+              new DynamicPatchOp(
                 in.getObject(offset).asInstanceOf[DynamicOptic],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Operation]
               )
@@ -1864,7 +1864,7 @@ object DynamicPatch {
           constructor = new Constructor[DynamicPatch] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): DynamicPatch =
-              DynamicPatch(in.getObject(offset).asInstanceOf[Chunk[DynamicPatchOp]])
+              new DynamicPatch(in.getObject(offset).asInstanceOf[Chunk[DynamicPatchOp]])
           },
           deconstructor = new Deconstructor[DynamicPatch] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)

@@ -439,8 +439,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Boolean] {
           def usedRegisters: RegisterOffset                             = RegisterOffset(booleans = 1)
-          def construct(in: Registers, offset: RegisterOffset): Boolean =
-            Boolean(in.getBoolean(offset))
+          def construct(in: Registers, offset: RegisterOffset): Boolean = new Boolean(in.getBoolean(offset))
         },
         deconstructor = new Deconstructor[Boolean] {
           def usedRegisters: RegisterOffset                                                = RegisterOffset(booleans = 1)
@@ -459,8 +458,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Byte] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(bytes = 1)
-          def construct(in: Registers, offset: RegisterOffset): Byte =
-            Byte(in.getByte(offset))
+          def construct(in: Registers, offset: RegisterOffset): Byte = new Byte(in.getByte(offset))
         },
         deconstructor = new Deconstructor[Byte] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(bytes = 1)
@@ -479,8 +477,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Short] {
           def usedRegisters: RegisterOffset                           = RegisterOffset(shorts = 1)
-          def construct(in: Registers, offset: RegisterOffset): Short =
-            Short(in.getShort(offset))
+          def construct(in: Registers, offset: RegisterOffset): Short = new Short(in.getShort(offset))
         },
         deconstructor = new Deconstructor[Short] {
           def usedRegisters: RegisterOffset                                              = RegisterOffset(shorts = 1)
@@ -499,8 +496,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Int] {
           def usedRegisters: RegisterOffset                         = RegisterOffset(ints = 1)
-          def construct(in: Registers, offset: RegisterOffset): Int =
-            Int(in.getInt(offset))
+          def construct(in: Registers, offset: RegisterOffset): Int = new Int(in.getInt(offset))
         },
         deconstructor = new Deconstructor[Int] {
           def usedRegisters: RegisterOffset                                            = RegisterOffset(ints = 1)
@@ -519,8 +515,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Long] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(longs = 1)
-          def construct(in: Registers, offset: RegisterOffset): Long =
-            Long(in.getLong(offset))
+          def construct(in: Registers, offset: RegisterOffset): Long = new Long(in.getLong(offset))
         },
         deconstructor = new Deconstructor[Long] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(longs = 1)
@@ -539,8 +534,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Float] {
           def usedRegisters: RegisterOffset                           = RegisterOffset(floats = 1)
-          def construct(in: Registers, offset: RegisterOffset): Float =
-            Float(in.getFloat(offset))
+          def construct(in: Registers, offset: RegisterOffset): Float = new Float(in.getFloat(offset))
         },
         deconstructor = new Deconstructor[Float] {
           def usedRegisters: RegisterOffset                                              = RegisterOffset(floats = 1)
@@ -559,8 +553,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Double] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(doubles = 1)
-          def construct(in: Registers, offset: RegisterOffset): Double =
-            Double(in.getDouble(offset))
+          def construct(in: Registers, offset: RegisterOffset): Double = new Double(in.getDouble(offset))
         },
         deconstructor = new Deconstructor[Double] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(doubles = 1)
@@ -579,8 +572,7 @@ object PrimitiveValue {
       recordBinding = new Binding.Record(
         constructor = new Constructor[Char] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(chars = 1)
-          def construct(in: Registers, offset: RegisterOffset): Char =
-            Char(in.getChar(offset))
+          def construct(in: Registers, offset: RegisterOffset): Char = new Char(in.getChar(offset))
         },
         deconstructor = new Deconstructor[Char] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(chars = 1)
@@ -600,7 +592,7 @@ object PrimitiveValue {
         constructor = new Constructor[String] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): String =
-            String(in.getObject(offset).asInstanceOf[java.lang.String])
+            new String(in.getObject(offset).asInstanceOf[java.lang.String])
         },
         deconstructor = new Deconstructor[String] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -620,7 +612,7 @@ object PrimitiveValue {
         constructor = new Constructor[BigInt] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): BigInt =
-            BigInt(in.getObject(offset).asInstanceOf[scala.BigInt])
+            new BigInt(in.getObject(offset).asInstanceOf[scala.BigInt])
         },
         deconstructor = new Deconstructor[BigInt] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -640,7 +632,7 @@ object PrimitiveValue {
         constructor = new Constructor[BigDecimal] {
           def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): BigDecimal =
-            BigDecimal(in.getObject(offset).asInstanceOf[scala.BigDecimal])
+            new BigDecimal(in.getObject(offset).asInstanceOf[scala.BigDecimal])
         },
         deconstructor = new Deconstructor[BigDecimal] {
           def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
@@ -660,7 +652,7 @@ object PrimitiveValue {
         constructor = new Constructor[DayOfWeek] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): DayOfWeek =
-            DayOfWeek(in.getObject(offset).asInstanceOf[java.time.DayOfWeek])
+            new DayOfWeek(in.getObject(offset).asInstanceOf[java.time.DayOfWeek])
         },
         deconstructor = new Deconstructor[DayOfWeek] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -680,7 +672,7 @@ object PrimitiveValue {
         constructor = new Constructor[Duration] {
           def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Duration =
-            Duration(in.getObject(offset).asInstanceOf[java.time.Duration])
+            new Duration(in.getObject(offset).asInstanceOf[java.time.Duration])
         },
         deconstructor = new Deconstructor[Duration] {
           def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -700,7 +692,7 @@ object PrimitiveValue {
         constructor = new Constructor[Instant] {
           def usedRegisters: RegisterOffset                             = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Instant =
-            Instant(in.getObject(offset).asInstanceOf[java.time.Instant])
+            new Instant(in.getObject(offset).asInstanceOf[java.time.Instant])
         },
         deconstructor = new Deconstructor[Instant] {
           def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -720,7 +712,7 @@ object PrimitiveValue {
         constructor = new Constructor[LocalDate] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): LocalDate =
-            LocalDate(in.getObject(offset).asInstanceOf[java.time.LocalDate])
+            new LocalDate(in.getObject(offset).asInstanceOf[java.time.LocalDate])
         },
         deconstructor = new Deconstructor[LocalDate] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -740,7 +732,7 @@ object PrimitiveValue {
         constructor = new Constructor[LocalDateTime] {
           def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): LocalDateTime =
-            LocalDateTime(in.getObject(offset).asInstanceOf[java.time.LocalDateTime])
+            new LocalDateTime(in.getObject(offset).asInstanceOf[java.time.LocalDateTime])
         },
         deconstructor = new Deconstructor[LocalDateTime] {
           def usedRegisters: RegisterOffset                                                      = RegisterOffset(objects = 1)
@@ -760,7 +752,7 @@ object PrimitiveValue {
         constructor = new Constructor[LocalTime] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): LocalTime =
-            LocalTime(in.getObject(offset).asInstanceOf[java.time.LocalTime])
+            new LocalTime(in.getObject(offset).asInstanceOf[java.time.LocalTime])
         },
         deconstructor = new Deconstructor[LocalTime] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -780,7 +772,7 @@ object PrimitiveValue {
         constructor = new Constructor[Month] {
           def usedRegisters: RegisterOffset                           = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Month =
-            Month(in.getObject(offset).asInstanceOf[java.time.Month])
+            new Month(in.getObject(offset).asInstanceOf[java.time.Month])
         },
         deconstructor = new Deconstructor[Month] {
           def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
@@ -800,7 +792,7 @@ object PrimitiveValue {
         constructor = new Constructor[MonthDay] {
           def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): MonthDay =
-            MonthDay(in.getObject(offset).asInstanceOf[java.time.MonthDay])
+            new MonthDay(in.getObject(offset).asInstanceOf[java.time.MonthDay])
         },
         deconstructor = new Deconstructor[MonthDay] {
           def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -820,7 +812,7 @@ object PrimitiveValue {
         constructor = new Constructor[OffsetDateTime] {
           def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): OffsetDateTime =
-            OffsetDateTime(in.getObject(offset).asInstanceOf[java.time.OffsetDateTime])
+            new OffsetDateTime(in.getObject(offset).asInstanceOf[java.time.OffsetDateTime])
         },
         deconstructor = new Deconstructor[OffsetDateTime] {
           def usedRegisters: RegisterOffset                                                       = RegisterOffset(objects = 1)
@@ -840,7 +832,7 @@ object PrimitiveValue {
         constructor = new Constructor[OffsetTime] {
           def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): OffsetTime =
-            OffsetTime(in.getObject(offset).asInstanceOf[java.time.OffsetTime])
+            new OffsetTime(in.getObject(offset).asInstanceOf[java.time.OffsetTime])
         },
         deconstructor = new Deconstructor[OffsetTime] {
           def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
@@ -860,7 +852,7 @@ object PrimitiveValue {
         constructor = new Constructor[Period] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Period =
-            Period(in.getObject(offset).asInstanceOf[java.time.Period])
+            new Period(in.getObject(offset).asInstanceOf[java.time.Period])
         },
         deconstructor = new Deconstructor[Period] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -880,7 +872,7 @@ object PrimitiveValue {
         constructor = new Constructor[Year] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Year =
-            Year(in.getObject(offset).asInstanceOf[java.time.Year])
+            new Year(in.getObject(offset).asInstanceOf[java.time.Year])
         },
         deconstructor = new Deconstructor[Year] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
@@ -900,7 +892,7 @@ object PrimitiveValue {
         constructor = new Constructor[YearMonth] {
           def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): YearMonth =
-            YearMonth(in.getObject(offset).asInstanceOf[java.time.YearMonth])
+            new YearMonth(in.getObject(offset).asInstanceOf[java.time.YearMonth])
         },
         deconstructor = new Deconstructor[YearMonth] {
           def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -920,7 +912,7 @@ object PrimitiveValue {
         constructor = new Constructor[ZoneId] {
           def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): ZoneId =
-            ZoneId(in.getObject(offset).asInstanceOf[java.time.ZoneId])
+            new ZoneId(in.getObject(offset).asInstanceOf[java.time.ZoneId])
         },
         deconstructor = new Deconstructor[ZoneId] {
           def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -940,7 +932,7 @@ object PrimitiveValue {
         constructor = new Constructor[ZoneOffset] {
           def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): ZoneOffset =
-            ZoneOffset(in.getObject(offset).asInstanceOf[java.time.ZoneOffset])
+            new ZoneOffset(in.getObject(offset).asInstanceOf[java.time.ZoneOffset])
         },
         deconstructor = new Deconstructor[ZoneOffset] {
           def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 1)
@@ -960,7 +952,7 @@ object PrimitiveValue {
         constructor = new Constructor[ZonedDateTime] {
           def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): ZonedDateTime =
-            ZonedDateTime(in.getObject(offset).asInstanceOf[java.time.ZonedDateTime])
+            new ZonedDateTime(in.getObject(offset).asInstanceOf[java.time.ZonedDateTime])
         },
         deconstructor = new Deconstructor[ZonedDateTime] {
           def usedRegisters: RegisterOffset                                                      = RegisterOffset(objects = 1)
@@ -980,7 +972,7 @@ object PrimitiveValue {
         constructor = new Constructor[Currency] {
           def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Currency =
-            Currency(in.getObject(offset).asInstanceOf[java.util.Currency])
+            new Currency(in.getObject(offset).asInstanceOf[java.util.Currency])
         },
         deconstructor = new Deconstructor[Currency] {
           def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
@@ -1000,7 +992,7 @@ object PrimitiveValue {
         constructor = new Constructor[UUID] {
           def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): UUID =
-            UUID(in.getObject(offset).asInstanceOf[java.util.UUID])
+            new UUID(in.getObject(offset).asInstanceOf[java.util.UUID])
         },
         deconstructor = new Deconstructor[UUID] {
           def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)

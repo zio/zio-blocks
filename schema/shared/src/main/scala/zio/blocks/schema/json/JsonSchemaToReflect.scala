@@ -19,26 +19,41 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[json] sealed trait Shape
+
   private[json] object Shape {
     sealed trait PrimKind
+
     object PrimKind {
-      case object String  extends PrimKind
+      case object String extends PrimKind
+
       case object Integer extends PrimKind
-      case object Number  extends PrimKind
+
+      case object Number extends PrimKind
+
       case object Boolean extends PrimKind
-      case object Null    extends PrimKind
+
+      case object Null extends PrimKind
     }
 
-    case class Primitive(kind: PrimKind, schema: JsonSchema.Object)                                 extends Shape
+    case class Primitive(kind: PrimKind, schema: JsonSchema.Object) extends Shape
+
     case class Record(fields: ChunkMap[String, JsonSchema], required: Set[String], closed: Boolean) extends Shape
-    case class MapShape(values: JsonSchema)                                                         extends Shape
-    case class Sequence(items: JsonSchema)                                                          extends Shape
-    case class Tuple(prefixItems: Chunk[JsonSchema])                                                extends Shape
-    case class Enum(cases: Chunk[String])                                                           extends Shape
-    case class KeyVariant(cases: ChunkMap[String, JsonSchema])                                      extends Shape
-    case class FieldVariant(discriminator: String, cases: ChunkMap[String, JsonSchema])             extends Shape
-    case class OptionOf(inner: JsonSchema)                                                          extends Shape
-    case object Dynamic                                                                             extends Shape
+
+    case class MapShape(values: JsonSchema) extends Shape
+
+    case class Sequence(items: JsonSchema) extends Shape
+
+    case class Tuple(prefixItems: Chunk[JsonSchema]) extends Shape
+
+    case class Enum(cases: Chunk[String]) extends Shape
+
+    case class KeyVariant(cases: ChunkMap[String, JsonSchema]) extends Shape
+
+    case class FieldVariant(discriminator: String, cases: ChunkMap[String, JsonSchema]) extends Shape
+
+    case class OptionOf(inner: JsonSchema) extends Shape
+
+    case object Dynamic extends Shape
   }
 
   def toReflect(jsonSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
@@ -47,9 +62,9 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[json] def analyze(schema: JsonSchema): Shape = schema match {
-    case JsonSchema.True        => Shape.Dynamic
-    case JsonSchema.False       => Shape.Dynamic
-    case obj: JsonSchema.Object =>
+    case _: JsonSchema.True.type  => Shape.Dynamic
+    case _: JsonSchema.False.type => Shape.Dynamic
+    case obj: JsonSchema.Object   =>
       analyzeEnum(obj)
         .orElse(analyzeOption(obj))
         .orElse(analyzeVariant(obj))
@@ -188,12 +203,12 @@ private[schema] object JsonSchemaToReflect {
           new Some(
             new Shape.Primitive(
               jst match {
-                case JsonSchemaType.String  => Shape.PrimKind.String
-                case JsonSchemaType.Integer => Shape.PrimKind.Integer
-                case JsonSchemaType.Number  => Shape.PrimKind.Number
-                case JsonSchemaType.Boolean => Shape.PrimKind.Boolean
-                case JsonSchemaType.Null    => Shape.PrimKind.Null
-                case _                      => return None
+                case _: JsonSchemaType.String.type  => Shape.PrimKind.String
+                case _: JsonSchemaType.Integer.type => Shape.PrimKind.Integer
+                case _: JsonSchemaType.Number.type  => Shape.PrimKind.Number
+                case _: JsonSchemaType.Boolean.type => Shape.PrimKind.Boolean
+                case _: JsonSchemaType.Null.type    => Shape.PrimKind.Null
+                case _                              => return None
               },
               obj
             )
@@ -204,25 +219,25 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[this] def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = shape match {
-    case Shape.Primitive(kind, schemaObj)       => buildPrimitive(kind, schemaObj)
-    case Shape.Record(fields, required, closed) => buildRecord(fields, required, closed, extractTitle(originalSchema))
-    case Shape.MapShape(values)                 => buildMap(values)
-    case Shape.Sequence(items)                  => buildSequence(items)
-    case Shape.Tuple(prefixItems)               => buildTuple(prefixItems)
-    case Shape.Enum(cases)                      => buildEnum(cases, extractTitle(originalSchema))
-    case Shape.KeyVariant(cases)                => buildKeyVariant(cases, extractTitle(originalSchema))
-    case Shape.FieldVariant(disc, cases)        => buildFieldVariant(disc, cases, extractTitle(originalSchema))
-    case Shape.OptionOf(inner)                  => toReflect(inner)
-    case Shape.Dynamic                          => Reflect.dynamic[Binding]
+    case p: Shape.Primitive     => buildPrimitive(p.kind, p.schema)
+    case r: Shape.Record        => buildRecord(r.fields, r.required, r.closed, extractTitle(originalSchema))
+    case ms: Shape.MapShape     => buildMap(ms.values)
+    case s: Shape.Sequence      => buildSequence(s.items)
+    case t: Shape.Tuple         => buildTuple(t.prefixItems)
+    case e: Shape.Enum          => buildEnum(e.cases, extractTitle(originalSchema))
+    case kv: Shape.KeyVariant   => buildKeyVariant(kv.cases, extractTitle(originalSchema))
+    case fv: Shape.FieldVariant => buildFieldVariant(fv.discriminator, fv.cases, extractTitle(originalSchema))
+    case oo: Shape.OptionOf     => toReflect(oo.inner)
+    case _                      => Reflect.dynamic[Binding]
   }
 
   private[this] def buildPrimitive(kind: Shape.PrimKind, schemaObj: JsonSchema.Object): Reflect[Binding, DynamicValue] =
     wrapPrimitive((kind match {
-      case Shape.PrimKind.String  => new PrimitiveType.String(buildStringValidation(schemaObj))
-      case Shape.PrimKind.Integer => new PrimitiveType.BigInt(buildBigIntValidation(schemaObj))
-      case Shape.PrimKind.Number  => new PrimitiveType.BigDecimal(buildBigDecimalValidation(schemaObj))
-      case Shape.PrimKind.Boolean => new PrimitiveType.Boolean(Validation.None)
-      case Shape.PrimKind.Null    => return Reflect.dynamic[Binding]
+      case _: Shape.PrimKind.String.type  => new PrimitiveType.String(buildStringValidation(schemaObj))
+      case _: Shape.PrimKind.Integer.type => new PrimitiveType.BigInt(buildBigIntValidation(schemaObj))
+      case _: Shape.PrimKind.Number.type  => new PrimitiveType.BigDecimal(buildBigDecimalValidation(schemaObj))
+      case _: Shape.PrimKind.Boolean.type => new PrimitiveType.Boolean(Validation.None)
+      case _                              => return Reflect.dynamic[Binding]
     }).asInstanceOf[PrimitiveType[?]])
 
   private[this] def buildStringValidation(obj: JsonSchema.Object): Validation[String] =
@@ -265,7 +280,7 @@ private[schema] object JsonSchemaToReflect {
               case _: PrimitiveType.BigInt     => BigInt(0)
               case _: PrimitiveType.BigDecimal => BigDecimal(0)
               case _: PrimitiveType.Boolean    => false
-              case PrimitiveType.Unit          => ()
+              case _: PrimitiveType.Unit.type  => ()
               case _                           => null.asInstanceOf[A]
             }
         }
@@ -404,7 +419,7 @@ private[schema] object JsonSchemaToReflect {
       val emptyRecordBinding = new Binding.Record[DynamicValue](
         constructor = new Constructor[DynamicValue] {
           def usedRegisters: RegisterOffset                                  = 0L
-          def construct(in: Registers, offset: RegisterOffset): DynamicValue = DynamicValue.Record(Chunk.empty)
+          def construct(in: Registers, offset: RegisterOffset): DynamicValue = new DynamicValue.Record(Chunk.empty)
         },
         deconstructor = new Deconstructor[DynamicValue] {
           def usedRegisters: RegisterOffset                                               = 0L

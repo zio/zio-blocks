@@ -266,7 +266,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Text] {
           def usedRegisters: RegisterOffset                                 = 1
           def construct(in: Registers, offset: RegisterOffset): Inline.Text =
-            Inline.Text(in.getObject(offset).asInstanceOf[String])
+            new Inline.Text(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Inline.Text] {
           def usedRegisters: RegisterOffset                                              = 1
@@ -286,7 +286,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Code] {
           def usedRegisters: RegisterOffset                                 = 1
           def construct(in: Registers, offset: RegisterOffset): Inline.Code =
-            Inline.Code(in.getObject(offset).asInstanceOf[String])
+            new Inline.Code(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Inline.Code] {
           def usedRegisters: RegisterOffset                                              = 1
@@ -306,7 +306,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.HtmlInline] {
           def usedRegisters: RegisterOffset                                       = 1
           def construct(in: Registers, offset: RegisterOffset): Inline.HtmlInline =
-            Inline.HtmlInline(in.getObject(offset).asInstanceOf[String])
+            new Inline.HtmlInline(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Inline.HtmlInline] {
           def usedRegisters: RegisterOffset                                                    = 1
@@ -354,7 +354,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Autolink] {
           def usedRegisters: RegisterOffset                                     = RegisterOffset.add(1L, 0x100000000L)
           def construct(in: Registers, offset: RegisterOffset): Inline.Autolink =
-            Inline.Autolink(
+            new Inline.Autolink(
               in.getObject(offset).asInstanceOf[String],
               in.getBoolean(offset)
             )
@@ -384,7 +384,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Image] {
           def usedRegisters: RegisterOffset                                  = 3
           def construct(in: Registers, offset: RegisterOffset): Inline.Image =
-            Inline.Image(
+            new Inline.Image(
               in.getObject(offset).asInstanceOf[String],
               in.getObject(offset + 1).asInstanceOf[String],
               in.getObject(offset + 2).asInstanceOf[Option[String]]
@@ -418,7 +418,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Emphasis] {
           def usedRegisters: RegisterOffset                                     = 1
           def construct(in: Registers, offset: RegisterOffset): Inline.Emphasis =
-            Inline.Emphasis(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Inline.Emphasis(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Inline.Emphasis] {
           def usedRegisters: RegisterOffset                                                  = 1
@@ -441,7 +441,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Strong] {
           def usedRegisters: RegisterOffset                                   = 1
           def construct(in: Registers, offset: RegisterOffset): Inline.Strong =
-            Inline.Strong(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Inline.Strong(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Inline.Strong] {
           def usedRegisters: RegisterOffset                                                = 1
@@ -464,7 +464,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Strikethrough] {
           def usedRegisters: RegisterOffset                                          = 1
           def construct(in: Registers, offset: RegisterOffset): Inline.Strikethrough =
-            Inline.Strikethrough(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Inline.Strikethrough(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Inline.Strikethrough] {
           def usedRegisters: RegisterOffset                                                       = 1
@@ -489,7 +489,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Inline.Link] {
           def usedRegisters: RegisterOffset                                 = 3
           def construct(in: Registers, offset: RegisterOffset): Inline.Link =
-            Inline.Link(
+            new Inline.Link(
               in.getObject(offset).asInstanceOf[Chunk[Inline]],
               in.getObject(offset + 1).asInstanceOf[String],
               in.getObject(offset + 2).asInstanceOf[Option[String]]
@@ -651,7 +651,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Text] {
           def usedRegisters: RegisterOffset                          = 1
           def construct(in: Registers, offset: RegisterOffset): Text =
-            Text(in.getObject(offset).asInstanceOf[String])
+            new Text(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Text] {
           def usedRegisters: RegisterOffset                                       = 1
@@ -671,7 +671,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Code] {
           def usedRegisters: RegisterOffset                          = 1
           def construct(in: Registers, offset: RegisterOffset): Code =
-            Code(in.getObject(offset).asInstanceOf[String])
+            new Code(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Code] {
           def usedRegisters: RegisterOffset                                       = 1
@@ -693,7 +693,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Emphasis] {
           def usedRegisters: RegisterOffset                              = 1
           def construct(in: Registers, offset: RegisterOffset): Emphasis =
-            Emphasis(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Emphasis(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Emphasis] {
           def usedRegisters: RegisterOffset                                           = 1
@@ -715,7 +715,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Strong] {
           def usedRegisters: RegisterOffset                            = 1
           def construct(in: Registers, offset: RegisterOffset): Strong =
-            Strong(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Strong(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Strong] {
           def usedRegisters: RegisterOffset                                         = 1
@@ -737,7 +737,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Strikethrough] {
           def usedRegisters: RegisterOffset                                   = 1
           def construct(in: Registers, offset: RegisterOffset): Strikethrough =
-            Strikethrough(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Strikethrough(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Strikethrough] {
           def usedRegisters: RegisterOffset                                                = 1
@@ -761,7 +761,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Link] {
           def usedRegisters: RegisterOffset                          = 3
           def construct(in: Registers, offset: RegisterOffset): Link =
-            Link(
+            new Link(
               in.getObject(offset).asInstanceOf[Chunk[Inline]],
               in.getObject(offset + 1).asInstanceOf[String],
               in.getObject(offset + 2).asInstanceOf[Option[String]]
@@ -792,7 +792,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Image] {
           def usedRegisters: RegisterOffset                           = 3
           def construct(in: Registers, offset: RegisterOffset): Image =
-            Image(
+            new Image(
               in.getObject(offset).asInstanceOf[String],
               in.getObject(offset + 1).asInstanceOf[String],
               in.getObject(offset + 2).asInstanceOf[Option[String]]
@@ -819,7 +819,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[HtmlInline] {
           def usedRegisters: RegisterOffset                                = 1
           def construct(in: Registers, offset: RegisterOffset): HtmlInline =
-            HtmlInline(in.getObject(offset).asInstanceOf[String])
+            new HtmlInline(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[HtmlInline] {
           def usedRegisters: RegisterOffset                                             = 1
@@ -866,7 +866,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Autolink] {
           def usedRegisters: RegisterOffset                              = RegisterOffset.add(1L, 0x100000000L)
           def construct(in: Registers, offset: RegisterOffset): Autolink =
-            Autolink(
+            new Autolink(
               in.getObject(offset).asInstanceOf[String],
               in.getBoolean(offset)
             )
@@ -898,7 +898,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[TableRow] {
           def usedRegisters: RegisterOffset                              = 1
           def construct(in: Registers, offset: RegisterOffset): TableRow =
-            TableRow(in.getObject(offset).asInstanceOf[Chunk[Chunk[Inline]]])
+            new TableRow(in.getObject(offset).asInstanceOf[Chunk[Chunk[Inline]]])
         },
         deconstructor = new Deconstructor[TableRow] {
           def usedRegisters: RegisterOffset                                           = 1
@@ -922,7 +922,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[ListItem] {
           def usedRegisters: RegisterOffset                              = 2
           def construct(in: Registers, offset: RegisterOffset): ListItem =
-            ListItem(
+            new ListItem(
               in.getObject(offset).asInstanceOf[Chunk[Block]],
               in.getObject(offset + 1).asInstanceOf[Option[Boolean]]
             )
@@ -954,7 +954,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Paragraph] {
           def usedRegisters: RegisterOffset                               = 1
           def construct(in: Registers, offset: RegisterOffset): Paragraph =
-            Paragraph(in.getObject(offset).asInstanceOf[Chunk[Inline]])
+            new Paragraph(in.getObject(offset).asInstanceOf[Chunk[Inline]])
         },
         deconstructor = new Deconstructor[Paragraph] {
           def usedRegisters: RegisterOffset                                            = 1
@@ -978,7 +978,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Heading] {
           def usedRegisters: RegisterOffset                             = 2
           def construct(in: Registers, offset: RegisterOffset): Heading =
-            Heading(
+            new Heading(
               in.getObject(offset).asInstanceOf[HeadingLevel],
               in.getObject(offset + 1).asInstanceOf[Chunk[Inline]]
             )
@@ -1007,7 +1007,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[CodeBlock] {
           def usedRegisters: RegisterOffset                               = 2
           def construct(in: Registers, offset: RegisterOffset): CodeBlock =
-            CodeBlock(
+            new CodeBlock(
               in.getObject(offset).asInstanceOf[Option[String]],
               in.getObject(offset + 1).asInstanceOf[String]
             )
@@ -1048,7 +1048,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[BlockQuote] {
           def usedRegisters: RegisterOffset                                = 1
           def construct(in: Registers, offset: RegisterOffset): BlockQuote =
-            BlockQuote(in.getObject(offset).asInstanceOf[Chunk[Block]])
+            new BlockQuote(in.getObject(offset).asInstanceOf[Chunk[Block]])
         },
         deconstructor = new Deconstructor[BlockQuote] {
           def usedRegisters: RegisterOffset                                             = 1
@@ -1072,7 +1072,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[BulletList] {
           def usedRegisters: RegisterOffset                                = RegisterOffset.add(1L, 0x100000000L)
           def construct(in: Registers, offset: RegisterOffset): BulletList =
-            BulletList(
+            new BulletList(
               in.getObject(offset).asInstanceOf[Chunk[ListItem]],
               in.getBoolean(offset)
             )
@@ -1103,7 +1103,7 @@ private[schema] trait DocsSchemas {
           // 1 int (4 bytes) + 1 object + 1 boolean (1 byte) = 5 bytes + 1 object
           def usedRegisters: RegisterOffset                                 = RegisterOffset.add(RegisterOffset.add(0x400000000L, 1L), 0x100000000L)
           def construct(in: Registers, offset: RegisterOffset): OrderedList =
-            OrderedList(
+            new OrderedList(
               in.getInt(offset),
               in.getObject(offset).asInstanceOf[Chunk[ListItem]],
               in.getBoolean(RegisterOffset.add(offset, 0x400000000L))
@@ -1131,7 +1131,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[HtmlBlock] {
           def usedRegisters: RegisterOffset                               = 1
           def construct(in: Registers, offset: RegisterOffset): HtmlBlock =
-            HtmlBlock(in.getObject(offset).asInstanceOf[String])
+            new HtmlBlock(in.getObject(offset).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[HtmlBlock] {
           def usedRegisters: RegisterOffset                                            = 1
@@ -1156,7 +1156,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Table] {
           def usedRegisters: RegisterOffset                           = 3
           def construct(in: Registers, offset: RegisterOffset): Table =
-            Table(
+            new Table(
               in.getObject(offset).asInstanceOf[TableRow],
               in.getObject(offset + 1).asInstanceOf[Chunk[Alignment]],
               in.getObject(offset + 2).asInstanceOf[Chunk[TableRow]]
@@ -1292,7 +1292,7 @@ private[schema] trait DocsSchemas {
         constructor = new Constructor[Doc] {
           def usedRegisters: RegisterOffset                         = 2
           def construct(in: Registers, offset: RegisterOffset): Doc =
-            Doc(
+            new Doc(
               in.getObject(offset).asInstanceOf[Chunk[Block]],
               in.getObject(offset + 1).asInstanceOf[Map[String, String]]
             )

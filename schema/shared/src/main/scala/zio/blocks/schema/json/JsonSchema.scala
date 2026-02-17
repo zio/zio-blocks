@@ -190,7 +190,10 @@ private[json] object FormatValidator {
     else new Some(s"String '$value' is not a valid date-time (RFC 3339)")
 
   private[this] def validateDateTimeSemantics(value: String): Option[String] =
-    validateDateSemantics(value).orElse(validateTimeSemantics(value.substring(11)))
+    validateDateSemantics(value) match {
+      case None => validateTimeSemantics(value.substring(11))
+      case err  => err
+    }
 
   private[this] def validateDate(value: String): Option[String] =
     if (datePattern.matcher(value).matches()) validateDateSemantics(value)
@@ -302,9 +305,9 @@ private[json] object FormatValidator {
 final case class ValidationOptions(validateFormats: scala.Boolean = true)
 
 object ValidationOptions {
-  val default: ValidationOptions         = ValidationOptions()
-  val annotationOnly: ValidationOptions  = ValidationOptions(validateFormats = false)
-  val formatAssertion: ValidationOptions = ValidationOptions(validateFormats = true)
+  val default: ValidationOptions         = new ValidationOptions()
+  val annotationOnly: ValidationOptions  = new ValidationOptions(validateFormats = false)
+  val formatAssertion: ValidationOptions = new ValidationOptions(validateFormats = true)
 }
 
 /**
