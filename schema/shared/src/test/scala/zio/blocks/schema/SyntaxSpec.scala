@@ -147,6 +147,18 @@ object SyntaxSpec extends SchemaBaseSpec {
         assertTrue(result == Right("hello"))
       }
     ),
+    suite("Json.asUnsafe[A]")(
+      test("decodes Json AST to typed value") {
+        val json   = Json.Object("name" -> Json.String("Jack"), "age" -> Json.Number(70))
+        val result = json.asUnsafe[Person](JsonDecoder.fromSchema[Person])
+        assertTrue(result == Person("Jack", 70))
+      },
+      test("throws error for mismatched structure") {
+        val json   = Json.Object("wrong" -> Json.String("field"))
+        val result = scala.util.Try(json.asUnsafe[Person](JsonDecoder.fromSchema[Person]))
+        assertTrue(result.isFailure)
+      }
+    ),
     suite("applyPatch")(
       test("applies patch to value") {
         val p1     = Person("Kate", 25)

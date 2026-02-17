@@ -2829,7 +2829,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     protected[chunk] def toArray[A1 >: Nothing](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit = ()
   }
 
-  private sealed abstract class Arr[A] extends Chunk[A] with Serializable { self =>
+  private[blocks] sealed abstract class Arr[A] extends Chunk[A] with Serializable { self =>
     def array: Array[A]
 
     implicit val classTag: ClassTag[A] = ClassTag(array.getClass.getComponentType)
@@ -2842,7 +2842,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       Array.copy(array, srcPos, dest, destPos, length)
   }
 
-  private final class AnyRefArray[A <: AnyRef](arr: Array[A], offset: Int, override val length: Int)
+  private[blocks] final class AnyRefArray[A <: AnyRef](arr: Array[A], val offset: Int, override val length: Int)
       extends Arr[A]
       with ChunkIterator[A] { self =>
     override def array: Array[A] = arr
@@ -2929,7 +2929,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class ByteArray(arr: Array[Byte], offset: Int, override val length: Int)
+  private[blocks] final class ByteArray(arr: Array[Byte], val offset: Int, override val length: Int)
       extends Arr[Byte]
       with ChunkIterator[Byte] { self =>
     override def array: Array[Byte] = arr
@@ -3012,7 +3012,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class CharArray(arr: Array[Char], offset: Int, override val length: Int)
+  private[blocks] final class CharArray(arr: Array[Char], val offset: Int, override val length: Int)
       extends Arr[Char]
       with ChunkIterator[Char] { self =>
     override def array: Array[Char] = arr
@@ -3095,7 +3095,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class IntArray(arr: Array[Int], offset: Int, override val length: Int)
+  private[blocks] final class IntArray(arr: Array[Int], val offset: Int, override val length: Int)
       extends Arr[Int]
       with ChunkIterator[Int] { self =>
     override def array: Array[Int] = arr
@@ -3178,7 +3178,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class LongArray(arr: Array[Long], offset: Int, override val length: Int)
+  private[blocks] final class LongArray(arr: Array[Long], val offset: Int, override val length: Int)
       extends Arr[Long]
       with ChunkIterator[Long] { self =>
     override def array: Array[Long] = arr
@@ -3261,7 +3261,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class DoubleArray(arr: Array[Double], offset: Int, override val length: Int)
+  private[blocks] final class DoubleArray(arr: Array[Double], val offset: Int, override val length: Int)
       extends Arr[Double]
       with ChunkIterator[Double] { self =>
     override def array: Array[Double] = arr
@@ -3344,7 +3344,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class FloatArray(arr: Array[Float], offset: Int, override val length: Int)
+  private[blocks] final class FloatArray(arr: Array[Float], val offset: Int, override val length: Int)
       extends Arr[Float]
       with ChunkIterator[Float] { self =>
     override def array: Array[Float] = arr
@@ -3427,7 +3427,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class ShortArray(arr: Array[Short], offset: Int, override val length: Int)
+  private[blocks] final class ShortArray(arr: Array[Short], val offset: Int, override val length: Int)
       extends Arr[Short]
       with ChunkIterator[Short] { self =>
     override def array: Array[Short] = arr
@@ -3510,7 +3510,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
-  private final class BooleanArray(arr: Array[Boolean], offset: Int, val length: Int)
+  private[blocks] final class BooleanArray(arr: Array[Boolean], val offset: Int, val length: Int)
       extends Arr[Boolean]
       with ChunkIterator[Boolean] { self =>
     override def array: Array[Boolean] = arr

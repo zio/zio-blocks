@@ -621,7 +621,7 @@ val schemaJson = userSchema.toJson.print
 
 ## Cross-Platform Support
 
-`JsonSchema` works across all platforms:
+`JsonSchema` works across 2 platforms:
 
 - **JVM** - Full functionality
 - **Scala.js** - Browser and Node.js

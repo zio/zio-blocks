@@ -971,9 +971,9 @@ error.errors.head.source // DynamicOptic path to error location
 
 ## Cross-Platform Support
 
-The `Json` type works across all platforms:
+The `Json` type works across 2 platforms:
 
 - **JVM** - Full functionality
 - **Scala.js** - Browser and Node.js
 
-String interpolators use compile-time validation that works on all platforms.
+String interpolators use compile-time validation that works on both platforms too.

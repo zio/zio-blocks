@@ -47,20 +47,28 @@ object JsonSpec extends SchemaBaseSpec {
           val _: Option[Json.Number]    = numResult
           val _: Option[Json.Boolean]   = boolResult
           val _: Option[Json.Null.type] = nullResult
-          assert(objResult.isDefined)(equalTo(true)) &&
-          assert(arrResult.isDefined)(equalTo(true)) &&
-          assert(strResult.isDefined)(equalTo(true)) &&
-          assert(numResult.isDefined)(equalTo(true)) &&
-          assert(boolResult.isDefined)(equalTo(true)) &&
-          assert(nullResult.isDefined)(equalTo(true))
+          assertTrue(
+            objResult.isDefined,
+            arrResult.isDefined,
+            strResult.isDefined,
+            numResult.isDefined,
+            boolResult.isDefined,
+            nullResult.isDefined
+          )
         },
         test("as returns None when type does not match") {
-          val obj: Json = Json.Object.empty
-          assert(obj.as(JsonType.Array).isEmpty)(equalTo(true)) &&
-          assert(obj.as(JsonType.String).isEmpty)(equalTo(true)) &&
-          assert(obj.as(JsonType.Number).isEmpty)(equalTo(true)) &&
-          assert(obj.as(JsonType.Boolean).isEmpty)(equalTo(true)) &&
-          assert(obj.as(JsonType.Null).isEmpty)(equalTo(true))
+          assertTrue(
+            Json.Null.as(JsonType.Number).isEmpty,
+            Json.Boolean(true).as(JsonType.Number).isEmpty,
+            Json.String("x").as(JsonType.Number).isEmpty,
+            Json.Number(0).as(JsonType.String).isEmpty,
+            Json.Array.empty.as(JsonType.String).isEmpty,
+            Json.Object.empty.as(JsonType.Array).isEmpty,
+            Json.Object.empty.as(JsonType.String).isEmpty,
+            Json.Object.empty.as(JsonType.Number).isEmpty,
+            Json.Object.empty.as(JsonType.Boolean).isEmpty,
+            Json.Object.empty.as(JsonType.Null).isEmpty
+          )
         },
         test("unwrap returns Some with correct inner value when type matches") {
           val obj: Json                        = Json.Object("a" -> Json.Number(1))
@@ -89,12 +97,18 @@ object JsonSpec extends SchemaBaseSpec {
           assert(nullUnwrap)(equalTo(Some(())))
         },
         test("unwrap returns None when type does not match") {
-          val obj: Json = Json.Object.empty
-          assert(obj.unwrap(JsonType.Array).isEmpty)(equalTo(true)) &&
-          assert(obj.unwrap(JsonType.String).isEmpty)(equalTo(true)) &&
-          assert(obj.unwrap(JsonType.Number).isEmpty)(equalTo(true)) &&
-          assert(obj.unwrap(JsonType.Boolean).isEmpty)(equalTo(true)) &&
-          assert(obj.unwrap(JsonType.Null).isEmpty)(equalTo(true))
+          assertTrue(
+            Json.Null.unwrap(JsonType.Number).isEmpty,
+            Json.Boolean(true).unwrap(JsonType.Number).isEmpty,
+            Json.String("x").unwrap(JsonType.Number).isEmpty,
+            Json.Number(0).unwrap(JsonType.String).isEmpty,
+            Json.Array.empty.unwrap(JsonType.String).isEmpty,
+            Json.Object.empty.unwrap(JsonType.Array).isEmpty,
+            Json.Object.empty.unwrap(JsonType.String).isEmpty,
+            Json.Object.empty.unwrap(JsonType.Number).isEmpty,
+            Json.Object.empty.unwrap(JsonType.Boolean).isEmpty,
+            Json.Object.empty.unwrap(JsonType.Null).isEmpty
+          )
         },
         test("JsonType.apply works as a predicate function") {
           val obj: Json  = Json.Object.empty
@@ -262,6 +276,15 @@ object JsonSpec extends SchemaBaseSpec {
         test("elements returns non-empty Seq for arrays") {
           val json = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
           assertTrue(json.elements.nonEmpty, json.elements.length == 3)
+        },
+        test("elements returns empty Seq for non-arrays") {
+          assertTrue(
+            Json.Object().elements.isEmpty,
+            Json.String("test").elements.isEmpty,
+            Json.Number(42).elements.isEmpty,
+            Json.Boolean(true).elements.isEmpty,
+            Json.Null.elements.isEmpty
+          )
         }
       ),
       suite("navigation")(
@@ -442,15 +465,116 @@ object JsonSpec extends SchemaBaseSpec {
             case _ => assertTrue(false)
           }
         },
-        test("dropNulls removes null values") {
-          val json   = Json.Object("a" -> Json.Number(1), "b" -> Json.Null, "c" -> Json.Number(3))
+        test("dropNulls removes null values recursively") {
+          val json = Json.Object(
+            "a" -> Json.Number(1),
+            "b" -> Json.Null,
+            "c" -> Json.Object(
+              "x" -> Json.Number(3),
+              "y" -> Json.Null
+            )
+          )
           val result = json.dropNulls
-          assertTrue(result.fields.length == 2, result.get("b").isFailure)
+          assertTrue(
+            result == Json.Object(
+              "a" -> Json.Number(1),
+              "c" -> Json.Object(
+                "x" -> Json.Number(3)
+              )
+            )
+          )
         },
         test("dropEmpty removes empty objects and arrays") {
-          val json   = Json.Object("a" -> Json.Number(1), "b" -> Json.Object(), "c" -> Json.Array())
+          val json = Json.Object(
+            "a" -> Json.Number(1),
+            "b" -> Json.Object(),
+            "c" -> Json.Array(),
+            "d" -> Json.Object(
+              "x" -> Json.Number(3),
+              "y" -> Json.Object(),
+              "z" -> Json.Array()
+            )
+          )
           val result = json.dropEmpty
-          assertTrue(result.fields.length == 1, result.get("a").isSuccess)
+          assertTrue(
+            result == Json.Object(
+              "a" -> Json.Number(1),
+              "d" -> Json.Object(
+                "x" -> Json.Number(3)
+              )
+            )
+          )
+        },
+        test("normalize applies sortKeys, dropNulls, and dropEmpty") {
+          val json = Json.Object(
+            "z" -> Json.Number(1),
+            "a" -> Json.Null,
+            "m" -> Json.Object(),
+            "b" -> Json.Array(),
+            "j" -> Json.Object(
+              "w" -> Json.Number(1),
+              "v" -> Json.Null,
+              "o" -> Json.Object(),
+              "p" -> Json.Array()
+            )
+          )
+          val result = json.normalize
+          assertTrue(result == json.sortKeys.dropNulls.dropEmpty)
+        },
+        test("dropNulls works on arrays") {
+          val json   = Json.Array(Json.Number(1), Json.Null, Json.Number(2), Json.Null)
+          val result = json.dropNulls
+          assertTrue(result.elements == Chunk(Json.Number(1), Json.Number(2)))
+        },
+        test("normalize works on arrays") {
+          val json = Json.Array(
+            Json.Object(
+              "z" -> Json.Number(1),
+              "a" -> Json.Null,
+              "m" -> Json.Object(),
+              "b" -> Json.Array()
+            ),
+            Json.Array(),
+            Json.Number(2),
+            Json.Null
+          )
+          val result = json.normalize
+          assertTrue(
+            result == Json.Array(
+              Json.Object(
+                "z" -> Json.Number(1)
+              ),
+              Json.Number(2)
+            )
+          )
+        },
+        test("sortKeys works on arrays") {
+          val json = Json.Array(
+            Json.Object(
+              "z" -> Json.Number(1),
+              "a" -> Json.Number(2)
+            ),
+            Json.Number(2),
+            Json.Array()
+          )
+          val result = json.sortKeys
+          assertTrue(
+            result == Json.Array(
+              Json.Object(
+                "a" -> Json.Number(2),
+                "z" -> Json.Number(1)
+              ),
+              Json.Number(2),
+              Json.Array()
+            )
+          )
+        },
+        test("dropEmpty works recursively") {
+          val json = Json.Object(
+            "a" -> Json.Object("b" -> Json.Array(Json.Object()))
+          )
+          val result = json.dropEmpty
+          assertTrue(result == Json.Object())
         }
       ),
       suite("merging")(
@@ -587,7 +711,8 @@ object JsonSpec extends SchemaBaseSpec {
             Json.Boolean(true).compare(Json.Number(1)) < 0,
             Json.Number(1).compare(Json.String("a")) < 0,
             Json.String("a").compare(Json.Array()) < 0,
-            Json.Array().compare(Json.Object()) < 0
+            Json.Array().compare(Json.Object()) < 0,
+            Json.Object().compare(Json.Null) > 0
           )
         }
       ),
@@ -1035,68 +1160,57 @@ object JsonSpec extends SchemaBaseSpec {
         test("parse from bytes works") {
           val result = Json.parse("""{"name":"Alice"}""".getBytes("UTF-8"))
           assertTrue(result.isRight, result.toOption.get.get("name").as[String] == Right("Alice"))
-        }
-      ),
-      suite("normalization")(
-        test("normalize applies sortKeys, dropNulls, and dropEmpty") {
-          val json = Json.Object(
-            "z" -> Json.Number(1),
-            "a" -> Json.Null,
-            "m" -> Json.Object(),
-            "b" -> Json.Array()
-          )
-          val result = json.normalize
-          assertTrue(result == json.sortKeys.dropNulls.dropEmpty)
         },
-        test("dropNulls works on arrays") {
-          val json   = Json.Array(Json.Number(1), Json.Null, Json.Number(2), Json.Null)
-          val result = json.dropNulls
-          assertTrue(result.elements == Chunk(Json.Number(1), Json.Number(2)))
+        test("parse from bytes with config works") {
+          val result = Json.parse("""{"name":"Alice"},""".getBytes("UTF-8"), ReaderConfig.withCheckForEndOfInput(false))
+          assertTrue(result.isRight, result.toOption.get.get("name").as[String] == Right("Alice"))
         },
-        test("normalize works on arrays") {
-          val json = Json.Array(
-            Json.Object(
-              "z" -> Json.Number(1),
-              "a" -> Json.Null,
-              "m" -> Json.Object(),
-              "b" -> Json.Array()
-            ),
-            Json.Array(),
-            Json.Number(2),
-            Json.Null
-          )
-          val result = json.normalize
-          assertTrue(result.toString == """[
-                                          |  {
-                                          |    "z": 1
-                                          |  },
-                                          |  2
-                                          |]""".stripMargin)
+        test("printTo writes to ByteBuffer") {
+          val json   = Json.Object("a" -> Json.Number(1))
+          val result = java.nio.ByteBuffer.allocate(1024)
+          json.printTo(result)
+          result.flip()
+          val bytes = new Array[Byte](result.remaining())
+          result.get(bytes)
+          assertTrue(new String(bytes, "UTF-8") == """{"a":1}""")
         },
-        test("sortKeys works on arrays") {
-          val json = Json.Array(
-            Json.Object(
-              "z" -> Json.Number(1),
-              "a" -> Json.Number(2)
-            ),
-            Json.Number(2),
-            Json.Array()
-          )
-          val result = json.normalize
-          assertTrue(result.toString == """[
-                                          |  {
-                                          |    "a": 2,
-                                          |    "z": 1
-                                          |  },
-                                          |  2
-                                          |]""".stripMargin)
+        test("parse from ByteBuffer works") {
+          val result = Json.parse(java.nio.ByteBuffer.wrap("""{"name":"Alice"}""".getBytes("UTF-8")))
+          assertTrue(result.isRight, result.toOption.get.get("name").as[String] == Right("Alice"))
         },
-        test("dropEmpty works recursively") {
-          val json = Json.Object(
-            "a" -> Json.Object("b" -> Json.Array())
+        test("parse from ByteBuffer with config works") {
+          val result = Json.parse(
+            java.nio.ByteBuffer.wrap("""{"name":"Alice"},""".getBytes("UTF-8")),
+            ReaderConfig.withCheckForEndOfInput(false)
           )
-          val result = json.dropEmpty
-          assertTrue(result.get("a").isFailure)
+          assertTrue(result.isRight, result.toOption.get.get("name").as[String] == Right("Alice"))
+        },
+        test("printTo with config writes to ByteBuffer") {
+          val json   = Json.Object("a" -> Json.Number(1))
+          val result = java.nio.ByteBuffer.allocate(1024)
+          json.printTo(result, WriterConfig.withIndentionStep2)
+          result.flip()
+          val bytes = new Array[Byte](result.remaining())
+          result.get(bytes)
+          assertTrue(
+            new String(bytes, "UTF-8") ==
+              """{
+                |  "a": 1
+                |}""".stripMargin
+          )
+        },
+        test("parse from CharSequence works") {
+          val result = Json.parse(new java.lang.StringBuilder("""{"name":"Alice"}"""))
+          assertTrue(result.isRight, result.toOption.get.get("name").as[String] == Right("Alice"))
+        },
+        test("parse from CharSequence with config works") {
+          val result =
+            Json.parse(new java.lang.StringBuilder("""{"name":"Alice"},"""), ReaderConfig.withCheckForEndOfInput(false))
+          assertTrue(result.isRight, result.toOption.get.get("name").as[String] == Right("Alice"))
+        },
+        test("unsafe parse from string works") {
+          val result = Json.parseUnsafe("""{"name":"Alice"}""")
+          assertTrue(result.get("name").as[String] == Right("Alice"))
         }
       ),
       suite("DynamicOptic advanced operations")(
@@ -1228,29 +1342,6 @@ object JsonSpec extends SchemaBaseSpec {
           val json   = Json.Object("a" -> Json.Number(1))
           val result = json.insertOrFail(DynamicOptic.root.field("nonexistent").field("child"), Json.Number(99))
           assertTrue(result.isLeft)
-        },
-        test("printTo writes to ByteBuffer") {
-          val json   = Json.Object("a" -> Json.Number(1))
-          val result = java.nio.ByteBuffer.allocate(1024)
-          json.printTo(result)
-          result.flip()
-          val bytes = new Array[Byte](result.remaining())
-          result.get(bytes)
-          assertTrue(new String(bytes, "UTF-8") == """{"a":1}""")
-        },
-        test("printTo with config writes to ByteBuffer") {
-          val json   = Json.Object("a" -> Json.Number(1))
-          val result = java.nio.ByteBuffer.allocate(1024)
-          json.printTo(result, WriterConfig.withIndentionStep2)
-          result.flip()
-          val bytes = new Array[Byte](result.remaining())
-          result.get(bytes)
-          assertTrue(
-            new String(bytes, "UTF-8") ==
-              """{
-                |  "a": 1
-                |}""".stripMargin
-          )
         }
       ),
       suite("Json parse error branches")(
@@ -1995,17 +2086,6 @@ object JsonSpec extends SchemaBaseSpec {
           val error = SchemaError("test message").atField("users").atIndex(0)
           assertTrue(error.getMessage.contains("users") && error.getMessage.contains("0"))
         },
-        test("parseUnsafe throws SchemaError directly") {
-          val result =
-            try {
-              Json.parseUnsafe("invalid json")
-              None
-            } catch {
-              case e: SchemaError => Some(e)
-              case _: Throwable   => None
-            }
-          assertTrue(result.isDefined)
-        },
         test("JsonSelection.oneUnsafe throws SchemaError directly") {
           val result =
             try {
@@ -2052,12 +2132,16 @@ object JsonSpec extends SchemaBaseSpec {
         test("printChunk produces valid Chunk[Byte]") {
           val json   = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
           val result = json.printChunk
-          assertTrue(result.length > 0)
+          assertTrue(result == Chunk.fromArray("""{"name":"Alice","age":30}""".getBytes("UTF-8")))
         },
         test("parse from Chunk[Byte] works correctly") {
-          val json   = Json.Object("key" -> Json.String("value"))
-          val result = Json.parse(json.printChunk)
-          assertTrue(result == Right(json))
+          val json    = Json.Object("key" -> Json.String("value"))
+          val result1 = Json.parse(json.printChunk)
+          val result2 = Json.parse(Chunk.single[Byte]('0'))
+          assertTrue(
+            result1 == Right(json),
+            result2 == Right(Json.Number(0))
+          )
         },
         test("roundtrip printChunk and parse(Chunk) preserves data") {
           val json = Json.Object(
@@ -2077,9 +2161,13 @@ object JsonSpec extends SchemaBaseSpec {
           assertTrue(result == Right(json))
         },
         test("parse from Chunk[Byte] with custom ReaderConfig") {
-          val json   = Json.Object("a" -> Json.Number(1))
-          val result = Json.parse(json.printChunk ++ Chunk.single[Byte](0), ReaderConfig.withCheckForEndOfInput(false))
-          assertTrue(result == Right(json))
+          val json    = Json.Object("a" -> Json.Number(1))
+          val result1 = Json.parse(json.printChunk ++ Chunk.single[Byte](0), ReaderConfig.withCheckForEndOfInput(false))
+          val result2 = Json.parse(json.printChunk, ReaderConfig.withCheckForEndOfInput(false))
+          assertTrue(
+            result1 == Right(json),
+            result2 == Right(json)
+          )
         }
       ),
       suite("MergeStrategy.Custom")(
