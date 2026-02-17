@@ -47,8 +47,8 @@ object CompleteExtendedDSL extends App {
   }
 
   def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-    case SchemaExpr.Optic(optic)      => columnName(optic)
-    case SchemaExpr.Literal(value, _) => sqlLiteral(value)
+    case SchemaExpr.Optic(optic)                => columnName(optic)
+    case SchemaExpr.Literal(value, _)           => sqlLiteral(value)
     case SchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case SchemaExpr.RelationalOperator.Equal              => "="
@@ -65,7 +65,7 @@ object CompleteExtendedDSL extends App {
         case SchemaExpr.LogicalOperator.Or  => "OR"
       }
       s"(${toSql(left)} $sqlOp ${toSql(right)})"
-    case SchemaExpr.Not(inner)                      => s"NOT (${toSql(inner)})"
+    case SchemaExpr.Not(inner)                     => s"NOT (${toSql(inner)})"
     case SchemaExpr.Arithmetic(left, right, op, _) =>
       val sqlOp = op match {
         case SchemaExpr.ArithmeticOperator.Add      => "+"
@@ -84,17 +84,17 @@ object CompleteExtendedDSL extends App {
 
   object Expr {
     final case class Wrapped[S, A](expr: SchemaExpr[S, A]) extends Expr[S, A]
-    final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
-    final case class Lit[S, A](value: A) extends Expr[S, A]
+    final case class Column[S, A](optic: Optic[S, A])      extends Expr[S, A]
+    final case class Lit[S, A](value: A)                   extends Expr[S, A]
 
-    final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
+    final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
     final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
-    final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
-    final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
+    final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
+    final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
 
     final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-    final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-    final case class Not[S](expr: Expr[S, Boolean]) extends Expr[S, Boolean]
+    final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean])  extends Expr[S, Boolean]
+    final case class Not[S](expr: Expr[S, Boolean])                          extends Expr[S, Boolean]
 
     final case class Agg[S, A](function: AggFunction, expr: Expr[S, A]) extends Expr[S, A]
     final case class CaseWhen[S, A](
@@ -103,20 +103,20 @@ object CompleteExtendedDSL extends App {
     ) extends Expr[S, A]
 
     def wrap[S, A](expr: SchemaExpr[S, A]): Expr[S, A] = Wrapped(expr)
-    def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
-    def lit[S, A](value: A): Expr[S, A] = Lit(value)
-    def count[S, A](expr: Expr[S, A]): Expr[S, A] = Agg(AggFunction.Count, expr)
-    def sum[S, A](expr: Expr[S, A]): Expr[S, A] = Agg(AggFunction.Sum, expr)
-    def avg[S, A](expr: Expr[S, A]): Expr[S, A] = Agg(AggFunction.Avg, expr)
-    def min[S, A](expr: Expr[S, A]): Expr[S, A] = Agg(AggFunction.Min, expr)
-    def max[S, A](expr: Expr[S, A]): Expr[S, A] = Agg(AggFunction.Max, expr)
+    def col[S, A](optic: Optic[S, A]): Expr[S, A]      = Column(optic)
+    def lit[S, A](value: A): Expr[S, A]                = Lit(value)
+    def count[S, A](expr: Expr[S, A]): Expr[S, A]      = Agg(AggFunction.Count, expr)
+    def sum[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunction.Sum, expr)
+    def avg[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunction.Avg, expr)
+    def min[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunction.Min, expr)
+    def max[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunction.Max, expr)
 
     def caseWhen[S, A](branches: (Expr[S, Boolean], Expr[S, A])*): CaseWhenBuilder[S, A] =
       CaseWhenBuilder(branches.toList)
 
     case class CaseWhenBuilder[S, A](branches: List[(Expr[S, Boolean], Expr[S, A])]) {
       def otherwise(value: Expr[S, A]): Expr[S, A] = CaseWhen(branches, Some(value))
-      def end: Expr[S, A] = CaseWhen(branches, None)
+      def end: Expr[S, A]                          = CaseWhen(branches, None)
     }
   }
 
@@ -132,10 +132,10 @@ object CompleteExtendedDSL extends App {
   // --- Extension methods ---
 
   extension [S, A](optic: Optic[S, A]) {
-    def in(values: A*): Expr[S, Boolean] = Expr.In(Expr.col(optic), values.toList)
+    def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
     def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
-    def isNull: Expr[S, Boolean] = Expr.IsNull(Expr.col(optic))
-    def isNotNull: Expr[S, Boolean] = Expr.Not(Expr.IsNull(Expr.col(optic)))
+    def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
+    def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
   }
 
   extension [S](optic: Optic[S, String]) {
@@ -145,7 +145,7 @@ object CompleteExtendedDSL extends App {
   extension [S](expr: Expr[S, Boolean]) {
     def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(expr, other)
     def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(expr, other)
-    def unary_! : Expr[S, Boolean] = Expr.Not(expr)
+    def unary_! : Expr[S, Boolean]                    = Expr.Not(expr)
   }
 
   extension [S, A](expr: SchemaExpr[S, A]) {
@@ -156,18 +156,18 @@ object CompleteExtendedDSL extends App {
 
   def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
     case Expr.Wrapped(schemaExpr) => toSql(schemaExpr)
-    case Expr.Column(optic)      => columnName(optic)
-    case Expr.Lit(value)         => sqlLiteral(value)
-    case Expr.In(e, values)      =>
+    case Expr.Column(optic)       => columnName(optic)
+    case Expr.Lit(value)          => sqlLiteral(value)
+    case Expr.In(e, values)       =>
       s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v)).mkString(", ")})"
     case Expr.Between(e, low, high) =>
       s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low)} AND ${sqlLiteral(high)})"
-    case Expr.IsNull(e)          => s"${exprToSql(e)} IS NULL"
-    case Expr.Like(e, pattern)   => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
-    case Expr.And(l, r)          => s"(${exprToSql(l)} AND ${exprToSql(r)})"
-    case Expr.Or(l, r)           => s"(${exprToSql(l)} OR ${exprToSql(r)})"
-    case Expr.Not(e)             => s"NOT (${exprToSql(e)})"
-    case Expr.Agg(func, e)      =>
+    case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
+    case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
+    case Expr.And(l, r)        => s"(${exprToSql(l)} AND ${exprToSql(r)})"
+    case Expr.Or(l, r)         => s"(${exprToSql(l)} OR ${exprToSql(r)})"
+    case Expr.Not(e)           => s"NOT (${exprToSql(e)})"
+    case Expr.Agg(func, e)     =>
       val name = func match {
         case AggFunction.Count => "COUNT"
         case AggFunction.Sum   => "SUM"
@@ -191,9 +191,9 @@ object CompleteExtendedDSL extends App {
 
   // 1. SQL-specific predicates
   val q1 = Product.category.in("Electronics", "Books") &&
-           Product.price.between(10.0, 500.0) &&
-           (Product.rating >= 4).toExpr &&
-           Product.name.like("M%")
+    Product.price.between(10.0, 500.0) &&
+    (Product.rating >= 4).toExpr &&
+    Product.name.like("M%")
 
   println("1. Advanced WHERE clause:")
   println(s"   SELECT * FROM products WHERE ${exprToSql(q1)}")
@@ -209,20 +209,25 @@ object CompleteExtendedDSL extends App {
   println()
 
   // 3. CASE WHEN
-  val tier = Expr.caseWhen[Product, String](
-    (Product.price > 100.0).toExpr -> Expr.lit[Product, String]("expensive"),
-    (Product.price > 10.0).toExpr  -> Expr.lit[Product, String]("moderate")
-  ).otherwise(Expr.lit[Product, String]("cheap"))
+  val tier = Expr
+    .caseWhen[Product, String](
+      (Product.price > 100.0).toExpr -> Expr.lit[Product, String]("expensive"),
+      (Product.price > 10.0).toExpr  -> Expr.lit[Product, String]("moderate")
+    )
+    .otherwise(Expr.lit[Product, String]("cheap"))
 
   println("3. CASE WHEN computed column:")
   println(s"   SELECT name, price, ${exprToSql(tier)} AS tier FROM products")
   println()
 
   // 4. Complex composed query
-  val stockStatus = Expr.caseWhen[Product, String](
-    (Product.inStock === true).toExpr -> Expr.lit[Product, String]("available")
-  ).otherwise(Expr.lit[Product, String]("out of stock"))
+  val stockStatus = Expr
+    .caseWhen[Product, String](
+      (Product.inStock === true).toExpr -> Expr.lit[Product, String]("available")
+    )
+    .otherwise(Expr.lit[Product, String]("out of stock"))
 
   println("4. Multiple computed columns:")
   println(s"   SELECT name, price, ${exprToSql(tier)} AS tier, ${exprToSql(stockStatus)} AS status FROM products")
+
 }

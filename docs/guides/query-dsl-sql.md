@@ -649,6 +649,7 @@ println(toSql(Product.price * 0.9))
 
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
 - **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** -- Adding custom operators (IN, BETWEEN, aggregates) beyond SchemaExpr
+- **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing
 - **[SchemaExpr Reference](../reference/schema-expr.md)** -- Full API coverage of expression types
 - **[Optics Reference](../reference/optics.md)** -- Lens, Prism, Optional, and Traversal
 - **[DynamicOptic Reference](../reference/dynamic-optic.md)** -- Runtime optic paths for programmatic field extraction

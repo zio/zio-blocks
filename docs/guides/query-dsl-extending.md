@@ -642,6 +642,7 @@ println(s"SELECT name, price, ${exprToSql(tier)} AS tier FROM products")
 
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
 - **[Part 2: SQL Generation](./query-dsl-sql.md)** -- Translating built-in expressions to SQL
+- **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing
 - **[SchemaExpr Reference](../reference/schema-expr.md)** -- Full API coverage of expression types
 - **[Optics Reference](../reference/optics.md)** -- Lens, Prism, Optional, and Traversal
 
