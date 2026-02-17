@@ -62,6 +62,10 @@ final case class DerivationBuilder[TC[_], A](
       allInstanceOverrides.collect { case InstanceOverrideByOptic(optic, instance) => (optic, instance) }.toMap
     val instanceByTypeMap =
       allInstanceOverrides.collect { case InstanceOverrideByType(typeId, instance) => (typeId, instance) }.toMap
+    val instanceByTypeAndTermNameMap =
+      allInstanceOverrides.collect { case InstanceOverrideByTypeAndTermName(typeId, termName, instance) =>
+        ((typeId, termName), instance)
+      }.toMap
     val modifierReflectByOpticMap =
       allModifierOverrides.foldLeft[Map[DynamicOptic, Chunk[Modifier.Reflect]]](Map.empty) {
         case (acc, ModifierReflectOverrideByOptic(optic, modifier)) =>
@@ -104,10 +108,22 @@ final case class DerivationBuilder[TC[_], A](
       }
 
     def getCustomInstance[A0](path: DynamicOptic, typeId: TypeId[A0]): Option[Lazy[TC[A0]]] =
-      // first try to find an instance by optic (more precise)
+      // first try to find an instance by optic (most precise)
       instanceByOpticMap
         .get(path)
-        // then try to find an instance by type name (more general)
+        .orElse {
+          // then try to find an instance by type + term name (medium precision)
+          if (path.nodes.nonEmpty) {
+            path.nodes.last match {
+              case DynamicOptic.Node.Field(name) =>
+                instanceByTypeAndTermNameMap.get((typeId.asInstanceOf[TypeId[Any]], name))
+              case DynamicOptic.Node.Case(name) =>
+                instanceByTypeAndTermNameMap.get((typeId.asInstanceOf[TypeId[Any]], name))
+              case _ => None
+            }
+          } else None
+        }
+        // then try to find an instance by type name (most general)
         .orElse(instanceByTypeMap.get(typeId.asInstanceOf[TypeId[Any]]))
         .map(_.asInstanceOf[Lazy[TC[A0]]])
 
