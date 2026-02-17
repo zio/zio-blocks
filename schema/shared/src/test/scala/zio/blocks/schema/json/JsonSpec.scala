@@ -332,12 +332,7 @@ object JsonSpec extends SchemaBaseSpec {
           val result4 = json2.setOrFail(DynamicOptic.root.at(100), Json.Number(2))
           val result5 = json1.setOrFail(DynamicOptic.root.elements, Json.Number(2))
           val result6 = json2.setOrFail(DynamicOptic.root.mapValues, Json.Number(2))
-          assertTrue(result1.isLeft) &&
-          assertTrue(result2.isLeft) &&
-          assertTrue(result3.isLeft) &&
-          assertTrue(result4.isLeft) &&
-          assertTrue(result5.isLeft) &&
-          assertTrue(result6.isLeft)
+          assertTrue(result1.isLeft, result2.isLeft, result3.isLeft, result4.isLeft, result5.isLeft, result6.isLeft)
         },
         test("delete removes field from object") {
           val json   = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
@@ -388,10 +383,7 @@ object JsonSpec extends SchemaBaseSpec {
           val result2 = json1.insertOrFail(DynamicOptic.root.at(0), Json.Number(99))
           val result3 = json2.insertOrFail(DynamicOptic.root.field("a"), Json.Number(99))
           val result4 = json2.insertOrFail(DynamicOptic.root.at(10), Json.Number(99))
-          assertTrue(result1.isLeft) &&
-          assertTrue(result2.isLeft) &&
-          assertTrue(result3.isLeft) &&
-          assertTrue(result4.isLeft)
+          assertTrue(result1.isLeft, result2.isLeft, result3.isLeft, result4.isLeft)
         },
         test("insert at array index shifts elements") {
           val json    = Json.Array(Json.Number(1), Json.Number(3))
@@ -531,7 +523,7 @@ object JsonSpec extends SchemaBaseSpec {
         }
       ),
       suite("parsing and encoding")(
-        test("parse valid JSON string") {
+        test("parse valid JSON object") {
           val result = Json.parse("""{"name": "Alice", "age": 30}""")
           assertTrue(
             result.isRight,
@@ -539,9 +531,17 @@ object JsonSpec extends SchemaBaseSpec {
             result.toOption.get.get("age").as[BigDecimal] == Right(BigDecimal(30))
           )
         },
+        test("cannot parse invalid JSON object") {
+          val result = Json.parse("""{"name": "Alice", "age": 30]""")
+          assertTrue(result.isLeft)
+        },
         test("parse JSON array") {
           val result = Json.parse("""[1, 2, 3]""")
           assertTrue(result.isRight, result.toOption.get.elements.length == 3)
+        },
+        test("cannot parse invalid JSON array") {
+          val result = Json.parse("""[1, 2, 3}""")
+          assertTrue(result.isLeft)
         },
         test("parse JSON primitives") {
           assertTrue(
