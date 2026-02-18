@@ -3,7 +3,7 @@ package object querydslextended {
   import zio.blocks.schema._
 
   // ---------------------------------------------------------------------------
-  // Extension methods — single definition, no duplication
+  // Extension methods
   // ---------------------------------------------------------------------------
 
   implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
@@ -45,7 +45,7 @@ package object querydslextended {
     dv match {
       case p: DynamicValue.Primitive => p.value match {
         case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
-        case _: PrimitiveValue.Boolean => if (value.asInstanceOf[Boolean]) "TRUE" else "FALSE"
+        case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
         case _                         => value.toString
       }
       case _ => value.toString

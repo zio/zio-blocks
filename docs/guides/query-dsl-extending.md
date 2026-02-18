@@ -172,58 +172,44 @@ object Expr {
   }
 
   // --- Translation from SchemaExpr ---
-  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = se match {
-    case SchemaExpr.Optic(optic)      => Column(optic.asInstanceOf[Optic[S, A]])
-    case SchemaExpr.Literal(value, s) => Lit(value.asInstanceOf[A], s.asInstanceOf[Schema[A]])
+  // Each branch is internally type-safe; the single final cast is needed because
+  // SchemaExpr's covariant +B prevents Scala 3 GADT narrowing of A.
+  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
+    val result: Expr[S, _] = se match {
+      case SchemaExpr.Optic(optic)      => Column(optic)
+      case SchemaExpr.Literal(value, s) => Lit(value, s)
 
-    case SchemaExpr.Relational(l, r, op) =>
-      val relOp = op match {
-        case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
-        case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
-        case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
-        case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
-        case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
-        case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+      case SchemaExpr.Relational(l, r, op) =>
+        val relOp = op match {
+          case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
+          case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
+          case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
+          case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
+          case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
+          case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+        }
+        Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
+
+      case SchemaExpr.Logical(l, r, op) => op match {
+        case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
+        case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
       }
-      Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
-        .asInstanceOf[Expr[S, A]]
 
-    case SchemaExpr.Logical(l, r, op) =>
-      val expr = op match {
-        case SchemaExpr.LogicalOperator.And =>
-          And(fromSchemaExpr(l).asInstanceOf[Expr[S, Boolean]],
-              fromSchemaExpr(r).asInstanceOf[Expr[S, Boolean]])
-        case SchemaExpr.LogicalOperator.Or =>
-          Or(fromSchemaExpr(l).asInstanceOf[Expr[S, Boolean]],
-             fromSchemaExpr(r).asInstanceOf[Expr[S, Boolean]])
-      }
-      expr.asInstanceOf[Expr[S, A]]
+      case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
 
-    case SchemaExpr.Not(inner) =>
-      Not(fromSchemaExpr(inner).asInstanceOf[Expr[S, Boolean]])
-        .asInstanceOf[Expr[S, A]]
+      case SchemaExpr.Arithmetic(l, r, op, _) =>
+        val arithOp = op match {
+          case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
+          case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
+          case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
+        }
+        Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
 
-    case SchemaExpr.Arithmetic(l, r, op, _) =>
-      val arithOp = op match {
-        case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
-        case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
-        case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
-      }
-      Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
-
-    case SchemaExpr.StringConcat(l, r) =>
-      StringConcat(fromSchemaExpr(l).asInstanceOf[Expr[S, String]],
-                   fromSchemaExpr(r).asInstanceOf[Expr[S, String]])
-        .asInstanceOf[Expr[S, A]]
-
-    case SchemaExpr.StringRegexMatch(regex, string) =>
-      StringRegexMatch(fromSchemaExpr(regex).asInstanceOf[Expr[S, String]],
-                       fromSchemaExpr(string).asInstanceOf[Expr[S, String]])
-        .asInstanceOf[Expr[S, A]]
-
-    case SchemaExpr.StringLength(string) =>
-      StringLength(fromSchemaExpr(string).asInstanceOf[Expr[S, String]])
-        .asInstanceOf[Expr[S, A]]
+      case SchemaExpr.StringConcat(l, r)              => StringConcat(fromSchemaExpr(l), fromSchemaExpr(r))
+      case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
+      case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
+    }
+    result.asInstanceOf[Expr[S, A]]
   }
 }
 
@@ -258,7 +244,7 @@ The design has several advantages over a simple wrapper approach:
 - **`fromSchemaExpr`** — one-way translation recursively converts every `SchemaExpr` node into its `Expr` equivalent, mapping operators along the way.
 
 :::info
-The `asInstanceOf` casts in `fromSchemaExpr` are needed because `SchemaExpr[S, +A]` is covariant in `A`. When pattern matching on e.g. `SchemaExpr.Relational`, the compiler only knows the children have type `SchemaExpr[S, _ <: A]`, not `SchemaExpr[S, A]`. The casts are safe because the node types guarantee the actual types align.
+The single `asInstanceOf` at the end of `fromSchemaExpr` is needed because `SchemaExpr[S, +A]` is covariant in `A`. Covariance prevents Scala's GADT narrowing from proving that, for example, `Expr[S, Boolean]` is `Expr[S, A]` when matching a `Relational` branch. Each branch is internally type-safe; only the final widening from `Expr[S, _]` back to `Expr[S, A]` requires a cast.
 :::
 
 ## Extension Methods
@@ -313,7 +299,7 @@ def sqlLiteral[A](value: A, schema: Schema[A]): String = {
   dv match {
     case p: DynamicValue.Primitive => p.value match {
       case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
-      case _: PrimitiveValue.Boolean => if (value.asInstanceOf[Boolean]) "TRUE" else "FALSE"
+      case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
       case _                         => value.toString
     }
     case _ => value.toString
@@ -586,46 +572,37 @@ object Expr {
     def end: Expr[S, A] = CaseWhen(branches, None)
   }
 
-  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = se match {
-    case SchemaExpr.Optic(optic)      => Column(optic.asInstanceOf[Optic[S, A]])
-    case SchemaExpr.Literal(value, s) => Lit(value.asInstanceOf[A], s.asInstanceOf[Schema[A]])
-    case SchemaExpr.Relational(l, r, op) =>
-      val relOp = op match {
-        case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
-        case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
-        case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
-        case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
-        case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
-        case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
+    val result: Expr[S, _] = se match {
+      case SchemaExpr.Optic(optic)      => Column(optic)
+      case SchemaExpr.Literal(value, s) => Lit(value, s)
+      case SchemaExpr.Relational(l, r, op) =>
+        val relOp = op match {
+          case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
+          case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
+          case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
+          case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
+          case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
+          case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+        }
+        Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
+      case SchemaExpr.Logical(l, r, op) => op match {
+        case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
+        case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
       }
-      Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp).asInstanceOf[Expr[S, A]]
-    case SchemaExpr.Logical(l, r, op) =>
-      val expr = op match {
-        case SchemaExpr.LogicalOperator.And =>
-          And(fromSchemaExpr(l).asInstanceOf[Expr[S, Boolean]],
-              fromSchemaExpr(r).asInstanceOf[Expr[S, Boolean]])
-        case SchemaExpr.LogicalOperator.Or =>
-          Or(fromSchemaExpr(l).asInstanceOf[Expr[S, Boolean]],
-             fromSchemaExpr(r).asInstanceOf[Expr[S, Boolean]])
-      }
-      expr.asInstanceOf[Expr[S, A]]
-    case SchemaExpr.Not(inner) =>
-      Not(fromSchemaExpr(inner).asInstanceOf[Expr[S, Boolean]]).asInstanceOf[Expr[S, A]]
-    case SchemaExpr.Arithmetic(l, r, op, _) =>
-      val arithOp = op match {
-        case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
-        case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
-        case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
-      }
-      Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
-    case SchemaExpr.StringConcat(l, r) =>
-      StringConcat(fromSchemaExpr(l).asInstanceOf[Expr[S, String]],
-                   fromSchemaExpr(r).asInstanceOf[Expr[S, String]]).asInstanceOf[Expr[S, A]]
-    case SchemaExpr.StringRegexMatch(regex, string) =>
-      StringRegexMatch(fromSchemaExpr(regex).asInstanceOf[Expr[S, String]],
-                       fromSchemaExpr(string).asInstanceOf[Expr[S, String]]).asInstanceOf[Expr[S, A]]
-    case SchemaExpr.StringLength(string) =>
-      StringLength(fromSchemaExpr(string).asInstanceOf[Expr[S, String]]).asInstanceOf[Expr[S, A]]
+      case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
+      case SchemaExpr.Arithmetic(l, r, op, _) =>
+        val arithOp = op match {
+          case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
+          case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
+          case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
+        }
+        Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
+      case SchemaExpr.StringConcat(l, r)              => StringConcat(fromSchemaExpr(l), fromSchemaExpr(r))
+      case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
+      case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
+    }
+    result.asInstanceOf[Expr[S, A]]
   }
 }
 
@@ -678,7 +655,7 @@ def sqlLiteral[A](value: A, schema: Schema[A]): String = {
   dv match {
     case p: DynamicValue.Primitive => p.value match {
       case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
-      case _: PrimitiveValue.Boolean => if (value.asInstanceOf[Boolean]) "TRUE" else "FALSE"
+      case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
       case _                         => value.toString
     }
     case _ => value.toString
