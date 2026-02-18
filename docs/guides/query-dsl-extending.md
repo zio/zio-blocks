@@ -215,12 +215,21 @@ object Expr {
 
 // --- Operators ---
 
-enum RelOp {
-  case Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual
+sealed trait RelOp
+object RelOp {
+  case object Equal              extends RelOp
+  case object NotEqual           extends RelOp
+  case object LessThan           extends RelOp
+  case object LessThanOrEqual    extends RelOp
+  case object GreaterThan        extends RelOp
+  case object GreaterThanOrEqual extends RelOp
 }
 
-enum ArithOp {
-  case Add, Subtract, Multiply
+sealed trait ArithOp
+object ArithOp {
+  case object Add      extends ArithOp
+  case object Subtract extends ArithOp
+  case object Multiply extends ArithOp
 }
 
 // Typed aggregate functions — the phantom types encode input→output
@@ -249,38 +258,38 @@ The single `asInstanceOf` at the end of `fromSchemaExpr` is needed because `Sche
 
 ## Extension Methods
 
-To make the new operations feel natural, we define extension methods on `Optic`, `Expr`, and `SchemaExpr`. The bridge extensions on `SchemaExpr` auto-translate at the boundary via `fromSchemaExpr`, so `SchemaExpr` and `Expr` values compose seamlessly with `&&` and `||`:
+To make the new operations feel natural, we define implicit classes on `Optic`, `Expr`, and `SchemaExpr`. The bridge implicit class on `SchemaExpr` auto-translates at the boundary via `fromSchemaExpr`, so `SchemaExpr` and `Expr` values compose seamlessly with `&&` and `||`:
 
 ```scala mdoc:silent
-extension [S, A](optic: Optic[S, A]) {
+implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
   def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
   def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
 
-extension [S](optic: Optic[S, String]) {
+implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
   def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
 }
 
 // Boolean combinators — accept both Expr and SchemaExpr on the right
-extension [S](self: Expr[S, Boolean]) {
-  def &&(other: Expr[S, Boolean]): Expr[S, Boolean]       = Expr.And(self, other)
-  def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean]  = Expr.And(self, Expr.fromSchemaExpr(other))
-  def ||(other: Expr[S, Boolean]): Expr[S, Boolean]       = Expr.Or(self, other)
-  def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean]  = Expr.Or(self, Expr.fromSchemaExpr(other))
-  def unary_! : Expr[S, Boolean]                           = Expr.Not(self)
+implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
+  def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
+  def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
+  def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
+  def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.fromSchemaExpr(other))
+  def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
 }
 
 // Bridge: SchemaExpr on the left, Expr on the right
-extension [S](self: SchemaExpr[S, Boolean]) {
+implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
   def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
 }
 ```
 
-The bridge extensions are the key to ergonomic composition. When you write `Product.category.in("Electronics") && (Product.rating >= 4)`, the `&&` on `Expr[S, Boolean]` sees a `SchemaExpr[S, Boolean]` on the right and auto-translates it. Similarly, `(Product.rating >= 4) && Product.category.in("Electronics")` uses the `SchemaExpr` bridge to translate the left side. No explicit `.toExpr` is needed in most cases.
+The bridge implicit classes are the key to ergonomic composition. When you write `Product.category.in("Electronics") && (Product.rating >= 4)`, the `&&` on `Expr[S, Boolean]` sees a `SchemaExpr[S, Boolean]` on the right and auto-translates it. Similarly, `(Product.rating >= 4) && Product.category.in("Electronics")` uses the `SchemaExpr` bridge to translate the left side. No explicit `.toExpr` is needed in most cases.
 
 :::tip
 The `.toExpr` method is still available for cases where you need to explicitly lift a `SchemaExpr[S, Boolean]` — for example, when building `CASE WHEN` branch conditions.
@@ -358,7 +367,7 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
 
   // CASE WHEN
   case Expr.CaseWhen(branches, otherwise) =>
-    val cases = branches.map { (cond, value) =>
+    val cases = branches.map { case (cond, value) =>
       s"WHEN ${exprToSql(cond)} THEN ${exprToSql(value)}"
     }.mkString(" ")
     val elseClause = otherwise.map(e => s" ELSE ${exprToSql(e)}").getOrElse("")
@@ -388,7 +397,7 @@ Each extension method on `Optic` returns an `Expr` node. The interpreter handles
 
 ## Composing with SchemaExpr
 
-The bridge extensions handle the translation automatically. You can freely mix `SchemaExpr` predicates (from `===`, `>`, etc.) with `Expr` predicates (from `.in`, `.between`, etc.) using `&&` and `||`:
+The bridge implicit classes handle the translation automatically. You can freely mix `SchemaExpr` predicates (from `===`, `>`, etc.) with `Expr` predicates (from `.in`, `.between`, etc.) using `&&` and `||`:
 
 ```scala mdoc:silent
 // SchemaExpr values from built-in operators
@@ -409,7 +418,7 @@ exprToSql(combined)
 
 The `&&` between `priceRange` (an `Expr`) and `highRated` (a `SchemaExpr`) triggers the overloaded `&&` that accepts `SchemaExpr` on the right. It calls `fromSchemaExpr` internally, so no explicit `.toExpr` is needed.
 
-You can also start from a `SchemaExpr` on the left — the bridge extension handles it:
+You can also start from a `SchemaExpr` on the left — the bridge implicit class handles it:
 
 ```scala mdoc:silent
 val query: Expr[Product, Boolean] =
@@ -606,8 +615,22 @@ object Expr {
   }
 }
 
-enum RelOp   { case Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual }
-enum ArithOp { case Add, Subtract, Multiply }
+sealed trait RelOp
+object RelOp {
+  case object Equal              extends RelOp
+  case object NotEqual           extends RelOp
+  case object LessThan           extends RelOp
+  case object LessThanOrEqual    extends RelOp
+  case object GreaterThan        extends RelOp
+  case object GreaterThanOrEqual extends RelOp
+}
+
+sealed trait ArithOp
+object ArithOp {
+  case object Add      extends ArithOp
+  case object Subtract extends ArithOp
+  case object Multiply extends ArithOp
+}
 
 sealed trait AggFunction[A, B] { def name: String }
 object AggFunction {
@@ -620,18 +643,18 @@ object AggFunction {
 
 // --- Extension methods with bridge ---
 
-extension [S, A](optic: Optic[S, A]) {
+implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
   def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
   def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
 
-extension [S](optic: Optic[S, String]) {
+implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
   def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
 }
 
-extension [S](self: Expr[S, Boolean]) {
+implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
   def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
@@ -639,7 +662,7 @@ extension [S](self: Expr[S, Boolean]) {
   def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
 }
 
-extension [S](self: SchemaExpr[S, Boolean]) {
+implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
   def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
@@ -698,7 +721,7 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
   case Expr.Agg(func, e)     => s"${func.name}(${exprToSql(e)})"
   case Expr.CaseWhen(branches, otherwise) =>
-    val cases = branches.map { (cond, value) =>
+    val cases = branches.map { case (cond, value) =>
       s"WHEN ${exprToSql(cond)} THEN ${exprToSql(value)}"
     }.mkString(" ")
     val elseClause = otherwise.map(e => s" ELSE ${exprToSql(e)}").getOrElse("")

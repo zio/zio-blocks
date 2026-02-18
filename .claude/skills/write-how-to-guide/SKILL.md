@@ -263,6 +263,10 @@ If relevant, end with:
 - Variations or extensions the reader might try
 - Links to other guides that build on this one
 
+### Scala Version
+
+All code in the guide and companion example files **must use Scala 2.13.x syntax**. When in doubt, check the companion example files — they are the source of truth for syntax style.
+
 ### Writing Style Rules
 
 Follow these rules precisely:
