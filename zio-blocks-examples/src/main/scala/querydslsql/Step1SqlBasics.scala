@@ -35,7 +35,7 @@ object Step1SqlBasics extends App {
 
   // --- Column Name Extraction ---
 
-  def columnName(optic: Optic[?, ?]): String =
+  def columnName(optic: Optic[_, _]): String =
     optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
   println("=== Column Name Extraction ===")
