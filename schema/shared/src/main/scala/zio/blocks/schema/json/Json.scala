@@ -1056,8 +1056,8 @@ object Json {
     val rightLen    = rightFields.length
     val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen)
     val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen)
-    var merged      = new scala.Array[(java.lang.String, Json)](leftLen + rightLen)
     val rightDedup  = new scala.Array[(java.lang.String, Json)](rightLen)
+    var merged      = new scala.Array[(java.lang.String, Json)](leftLen + rightLen)
     var idx         = 0
     leftFields.foreach { kv =>
       val key = kv._1
@@ -1095,26 +1095,26 @@ object Json {
   }
 
   private[this] def mergeByIndex(path: DynamicOptic, left: Array, right: Array, s: MergeStrategy): Array = {
-    val leftVal  = left.value
-    val rightVal = right.value
-    val leftLen  = leftVal.length
-    val rightLen = rightVal.length
-    val arr      = new scala.Array[Json](Math.max(leftLen, rightLen))
-    val minLen   = Math.min(leftLen, rightLen)
-    var idx      = 0
+    val leftElements  = left.value
+    val rightElements = right.value
+    val leftLen       = leftElements.length
+    val rightLen      = rightElements.length
+    val merged        = new scala.Array[Json](Math.max(leftLen, rightLen))
+    val minLen        = Math.min(leftLen, rightLen)
+    var idx           = 0
     while (idx < minLen) {
-      arr(idx) = merge(path.at(idx), leftVal(idx), rightVal(idx), s)
+      merged(idx) = merge(path.at(idx), leftElements(idx), rightElements(idx), s)
       idx += 1
     }
     while (idx < leftLen) {
-      arr(idx) = leftVal(idx)
+      merged(idx) = leftElements(idx)
       idx += 1
     }
     while (idx < rightLen) {
-      arr(idx) = rightVal(idx)
+      merged(idx) = rightElements(idx)
       idx += 1
     }
-    new Array(Chunk.fromArray(arr))
+    new Array(Chunk.fromArray(merged))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
