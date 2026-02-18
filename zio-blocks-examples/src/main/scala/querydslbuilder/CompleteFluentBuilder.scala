@@ -1,4 +1,4 @@
-package querydslbuilder
+package querydslbuilder.complete
 
 import zio.blocks.schema._
 
@@ -10,7 +10,7 @@ import zio.blocks.schema._
  * table references, and SQL rendering. Uses the independent Expr ADT with
  * fromSchemaExpr translation — no Wrapped case or dual interpreter.
  *
- * Run with: sbt "examples/runMain querydslbuilder.CompleteFluentBuilder"
+ * Run with: sbt "examples/runMain querydslbuilder.complete.CompleteFluentBuilder"
  */
 object CompleteFluentBuilder extends App {
 
@@ -67,9 +67,9 @@ object CompleteFluentBuilder extends App {
 
     // One-way translation from SchemaExpr
     def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-      val result: Expr[S, _] = se match {
+      val result = se match {
         case SchemaExpr.Optic(optic)         => Column(optic)
-        case SchemaExpr.Literal(value, s)    => Lit(value, s)
+        case l: SchemaExpr.Literal[_, _]     => Lit(l.value, l.schema)
         case SchemaExpr.Relational(l, r, op) =>
           val relOp = op match {
             case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
@@ -182,6 +182,8 @@ object CompleteFluentBuilder extends App {
   }
 
   // --- Extension methods with bridge ---
+  // (Self-contained — the package object defines similar implicits for the
+  //  package-level Expr, but this object uses its own local Expr ADT.)
 
   implicit final class OpticOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
     def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
@@ -327,11 +329,11 @@ object CompleteFluentBuilder extends App {
   val u = update(Product.table)
     .set(Product.price, 9.99)
     .where(
-      Product.category === "Books" &&
-        Product.rating >= 4 &&
-        Product.inStock === true &&
-        Product.price.between(10.0, 30.0) &&
-        Product.name.like("M%")
+      Product.price.between(10.0, 30.0) &&
+        Product.name.like("M%") &&
+        (Product.category === "Books") &&
+        (Product.rating >= 4) &&
+        (Product.inStock === true)
     )
 
   println("2. UPDATE:")
@@ -352,7 +354,7 @@ object CompleteFluentBuilder extends App {
 
   // 4. DELETE
   val d = deleteFrom(Product.table)
-    .where(Product.inStock === false && Product.price.between(0.0, 1.0))
+    .where(Product.price.between(0.0, 1.0) && (Product.inStock === false))
 
   println("4. DELETE:")
   println(s"   ${renderDelete(d)}")

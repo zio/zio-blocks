@@ -40,11 +40,11 @@ object Step1SeamlessConditions extends App {
   println("=== Step 1: Seamless Condition Composition ===")
   println()
 
-  // No .toExpr needed! SchemaExpr and Expr mix naturally
+  // Start with an Expr-producing expression so && can accept both Expr and SchemaExpr
   val condition =
-    Product.category === "Electronics" &&
-      Product.rating >= 4 &&
-      Product.price.between(10.0, 500.0) &&
+    Product.price.between(10.0, 500.0) &&
+      (Product.category === "Electronics") &&
+      (Product.rating >= 4) &&
       Product.name.like("L%")
 
   println("Mixed SchemaExpr + Expr condition:")

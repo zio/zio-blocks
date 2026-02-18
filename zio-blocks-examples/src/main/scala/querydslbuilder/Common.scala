@@ -42,9 +42,9 @@ object Expr {
 
   // --- Translation from SchemaExpr (one-way, not embedding) ---
   def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-    val result: Expr[S, _] = se match {
+    val result = se match {
       case SchemaExpr.Optic(optic)      => Column(optic)
-      case SchemaExpr.Literal(value, s) => Lit(value, s)
+      case l: SchemaExpr.Literal[_, _]  => Lit(l.value, l.schema)
 
       case SchemaExpr.Relational(l, r, op) =>
         val relOp = op match {

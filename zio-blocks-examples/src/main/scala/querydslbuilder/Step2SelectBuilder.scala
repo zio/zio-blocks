@@ -53,9 +53,9 @@ object Step2SelectBuilder extends App {
   val advancedSelect = select(Product.table)
     .columns(Product.name, Product.price, Product.category)
     .where(
-      Product.category === "Electronics" &&
-        Product.rating >= 4 &&
-        Product.price.between(10.0, 500.0)
+      Product.price.between(10.0, 500.0) &&
+        (Product.category === "Electronics") &&
+        (Product.rating >= 4)
     )
     .orderBy(Product.price, SortOrder.Desc)
     .limit(10)

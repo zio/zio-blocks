@@ -1,4 +1,4 @@
-package querydslextended
+package querydslextended.complete
 
 import zio.blocks.schema._
 
@@ -9,7 +9,7 @@ import zio.blocks.schema._
  * expression language. This design translates SchemaExpr into Expr via
  * fromSchemaExpr.
  *
- * Run with: sbt "examples/runMain querydslextended.CompleteExtendedDSL"
+ * Run with: sbt "examples/runMain querydslextended.complete.CompleteExtendedDSL"
  */
 object CompleteExtendedDSL extends App {
 
@@ -86,9 +86,9 @@ object CompleteExtendedDSL extends App {
 
     // One-way translation from SchemaExpr
     def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-      val result: Expr[S, _] = se match {
+      val result = se match {
         case SchemaExpr.Optic(optic)         => Column(optic)
-        case SchemaExpr.Literal(value, s)    => Lit(value, s)
+        case l: SchemaExpr.Literal[_, _]     => Lit(l.value, l.schema)
         case SchemaExpr.Relational(l, r, op) =>
           val relOp = op match {
             case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
