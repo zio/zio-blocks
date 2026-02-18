@@ -255,19 +255,19 @@ The design has several advantages over a simple wrapper approach:
 To make the new operations feel natural, we define implicit classes on `Optic`, `Expr`, and `SchemaExpr`. The bridge implicit class on `SchemaExpr` auto-translates at the boundary via `fromSchemaExpr`, so `SchemaExpr` and `Expr` values compose seamlessly with `&&` and `||`:
 
 ```scala mdoc:silent
-implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
+implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
   def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
   def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
 
-implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
+implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) {
   def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
 }
 
 // Boolean combinators — accept both Expr and SchemaExpr on the right
-implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
+implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
   def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
@@ -276,7 +276,7 @@ implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) exten
 }
 
 // Bridge: SchemaExpr on the left, Expr on the right
-implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
+implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
   def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
@@ -637,18 +637,18 @@ object AggFunction {
 
 // --- Extension methods with bridge ---
 
-implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
+implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
   def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
   def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
 
-implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
+implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) {
   def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
 }
 
-implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
+implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
   def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
@@ -656,7 +656,7 @@ implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) exten
   def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
 }
 
-implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
+implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
   def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
