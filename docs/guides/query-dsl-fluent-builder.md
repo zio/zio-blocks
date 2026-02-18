@@ -61,7 +61,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 ## Domain Setup
 
-We carry forward the product catalog domain, the Part 2 SQL interpreter, and the Part 3 extended expression ADT. The key additions in Part 4 are bridge extension methods and statement builder types.
+We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods and statement builder types. The `Expr` ADT used here is the same independent design from Part 3.
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -92,146 +92,199 @@ object Product extends CompanionOptics[Product] {
   val rating: Lens[Product, Int]      = optic(_.rating)
 }
 
-// --- Part 2 SQL helpers ---
+// --- Expr ADT (from Part 3) ---
 
-def columnName(optic: zio.blocks.schema.Optic[?, ?]): String =
+sealed trait Expr[S, A]
+
+object Expr {
+  final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
+  final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
+
+  final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
+  final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
+  final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
+  final case class Not[S](expr: Expr[S, Boolean]) extends Expr[S, Boolean]
+  final case class Arithmetic[S, A](left: Expr[S, A], right: Expr[S, A], op: ArithOp) extends Expr[S, A]
+  final case class StringConcat[S](left: Expr[S, String], right: Expr[S, String]) extends Expr[S, String]
+  final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
+  final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
+
+  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
+  final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
+
+  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
+  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
+
+  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
+    val result: Expr[S, _] = se match {
+      case SchemaExpr.Optic(optic)      => Column(optic)
+      case SchemaExpr.Literal(value, s) => Lit(value, s)
+      case SchemaExpr.Relational(l, r, op) =>
+        val relOp = op match {
+          case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
+          case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
+          case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
+          case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
+          case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
+          case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+        }
+        Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
+      case SchemaExpr.Logical(l, r, op) => op match {
+        case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
+        case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
+      }
+      case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
+      case SchemaExpr.Arithmetic(l, r, op, _) =>
+        val arithOp = op match {
+          case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
+          case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
+          case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
+        }
+        Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
+      case SchemaExpr.StringConcat(l, r)              => StringConcat(fromSchemaExpr(l), fromSchemaExpr(r))
+      case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
+      case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
+    }
+    result.asInstanceOf[Expr[S, A]]
+  }
+}
+
+sealed trait RelOp
+object RelOp {
+  case object Equal              extends RelOp
+  case object NotEqual           extends RelOp
+  case object LessThan           extends RelOp
+  case object LessThanOrEqual    extends RelOp
+  case object GreaterThan        extends RelOp
+  case object GreaterThanOrEqual extends RelOp
+}
+
+sealed trait ArithOp
+object ArithOp {
+  case object Add      extends ArithOp
+  case object Subtract extends ArithOp
+  case object Multiply extends ArithOp
+}
+
+// --- SQL helpers ---
+
+def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
   optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
-def sqlLiteral(value: Any): String = value match {
+def sqlLiteral[A](value: A, schema: Schema[A]): String = {
+  val dv = schema.toDynamicValue(value)
+  dv match {
+    case p: DynamicValue.Primitive => p.value match {
+      case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
+      case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
+      case _                         => value.toString
+    }
+    case _ => value.toString
+  }
+}
+
+def sqlLiteralUntyped(value: Any): String = value match {
   case s: String  => s"'${s.replace("'", "''")}'"
   case b: Boolean => if (b) "TRUE" else "FALSE"
   case n: Number  => n.toString
   case other      => other.toString
 }
 
-def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-  case SchemaExpr.Optic(optic)      => columnName(optic)
-  case SchemaExpr.Literal(value, _) => sqlLiteral(value)
-  case SchemaExpr.Relational(left, right, op) =>
-    val sqlOp = op match {
-      case SchemaExpr.RelationalOperator.Equal              => "="
-      case SchemaExpr.RelationalOperator.NotEqual           => "<>"
-      case SchemaExpr.RelationalOperator.LessThan           => "<"
-      case SchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-      case SchemaExpr.RelationalOperator.GreaterThan        => ">"
-      case SchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
-    }
-    s"(${toSql(left)} $sqlOp ${toSql(right)})"
-  case SchemaExpr.Logical(left, right, op) =>
-    val sqlOp = op match {
-      case SchemaExpr.LogicalOperator.And => "AND"
-      case SchemaExpr.LogicalOperator.Or  => "OR"
-    }
-    s"(${toSql(left)} $sqlOp ${toSql(right)})"
-  case SchemaExpr.Not(inner)                      => s"NOT (${toSql(inner)})"
-  case SchemaExpr.Arithmetic(left, right, op, _) =>
-    val sqlOp = op match {
-      case SchemaExpr.ArithmeticOperator.Add      => "+"
-      case SchemaExpr.ArithmeticOperator.Subtract => "-"
-      case SchemaExpr.ArithmeticOperator.Multiply => "*"
-    }
-    s"(${toSql(left)} $sqlOp ${toSql(right)})"
-  case SchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSql(left)}, ${toSql(right)})"
-  case SchemaExpr.StringRegexMatch(regex, string) => s"(${toSql(string)} LIKE ${toSql(regex)})"
-  case SchemaExpr.StringLength(string)            => s"LENGTH(${toSql(string)})"
-}
-
-// --- Part 3 Extended Expression ADT ---
-
-sealed trait Expr[S, A]
-
-object Expr {
-  final case class Wrapped[S, A](expr: SchemaExpr[S, A]) extends Expr[S, A]
-  final case class Column[S, A](optic: Optic[S, A])      extends Expr[S, A]
-  final case class Lit[S, A](value: A)                   extends Expr[S, A]
-
-  final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
-  final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
-  final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
-
-  final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-  final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean])  extends Expr[S, Boolean]
-  final case class Not[S](expr: Expr[S, Boolean])                          extends Expr[S, Boolean]
-
-  def wrap[S, A](expr: SchemaExpr[S, A]): Expr[S, A] = Wrapped(expr)
-  def col[S, A](optic: Optic[S, A]): Expr[S, A]      = Column(optic)
-  def lit[S, A](value: A): Expr[S, A]                = Lit(value)
-}
-
 // --- Optic extension methods ---
 
-extension [S, A](optic: Optic[S, A]) {
+implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
   def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
   def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
 
-extension [S](optic: Optic[S, String]) {
+implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
   def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
 }
 
 // --- Boolean combinators with bridge extensions ---
 
-extension [S](self: Expr[S, Boolean]) {
+implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
-  def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.Wrapped(other))
+  def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
-  def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.Wrapped(other))
-  def unary_! : Expr[S, Boolean]                         = Expr.Not(self)
+  def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.fromSchemaExpr(other))
+  def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
 }
 
-extension [S](self: SchemaExpr[S, Boolean]) {
-  def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.Wrapped(self), other)
-  def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.Wrapped(self), other)
+implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
+  def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
+  def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
+  def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
 }
 
-extension [S, A](expr: SchemaExpr[S, A]) {
-  def toExpr: Expr[S, A] = Expr.Wrapped(expr)
-}
-
-// --- Extended SQL interpreter ---
+// --- Single unified SQL interpreter ---
 
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
-  case Expr.Wrapped(schemaExpr) => toSql(schemaExpr)
-  case Expr.Column(optic)       => columnName(optic)
-  case Expr.Lit(value)          => sqlLiteral(value)
-  case Expr.In(e, values)       =>
-    s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v)).mkString(", ")})"
-  case Expr.Between(e, low, high) =>
-    s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low)} AND ${sqlLiteral(high)})"
+  case Expr.Column(optic)      => columnName(optic)
+  case Expr.Lit(value, schema) => sqlLiteral(value, schema)
+  case Expr.Relational(left, right, op) =>
+    val sqlOp = op match {
+      case RelOp.Equal              => "="
+      case RelOp.NotEqual           => "<>"
+      case RelOp.LessThan           => "<"
+      case RelOp.LessThanOrEqual    => "<="
+      case RelOp.GreaterThan        => ">"
+      case RelOp.GreaterThanOrEqual => ">="
+    }
+    s"(${exprToSql(left)} $sqlOp ${exprToSql(right)})"
+  case Expr.And(l, r) => s"(${exprToSql(l)} AND ${exprToSql(r)})"
+  case Expr.Or(l, r)  => s"(${exprToSql(l)} OR ${exprToSql(r)})"
+  case Expr.Not(e)    => s"NOT (${exprToSql(e)})"
+  case Expr.Arithmetic(left, right, op) =>
+    val sqlOp = op match {
+      case ArithOp.Add      => "+"
+      case ArithOp.Subtract => "-"
+      case ArithOp.Multiply => "*"
+    }
+    s"(${exprToSql(left)} $sqlOp ${exprToSql(right)})"
+  case Expr.StringConcat(l, r)         => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
+  case Expr.StringRegexMatch(regex, s) => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
+  case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
+  case Expr.In(e, values)              =>
+    s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
+  case Expr.Between(e, low, high)      =>
+    s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
   case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
-  case Expr.And(l, r)        => s"(${exprToSql(l)} AND ${exprToSql(r)})"
-  case Expr.Or(l, r)         => s"(${exprToSql(l)} OR ${exprToSql(r)})"
-  case Expr.Not(e)           => s"NOT (${exprToSql(e)})"
 }
 ```
 
 ## Seamless Condition Composition
 
-In Part 3, composing `SchemaExpr` and `Expr` values required explicit `.toExpr` calls because `SchemaExpr.&&` is a direct method that only accepts other `SchemaExpr` values. Part 4 adds **bridge extension methods** that handle the cross-type case automatically:
+In Part 3, composing `SchemaExpr` and `Expr` values required explicit `.toExpr` calls because `SchemaExpr.&&` is a direct method that only accepts other `SchemaExpr` values. Part 4 adds **bridge implicit classes** that handle the cross-type case automatically:
 
 ```scala
 // When SchemaExpr.&& receives an Expr argument, the direct method
-// doesn't match (Expr is not SchemaExpr), so this extension kicks in:
-extension [S](self: SchemaExpr[S, Boolean]) {
+// doesn't match (Expr is not SchemaExpr), so this implicit class kicks in:
+implicit final class SchemaExprBooleanBridge[S](
+  private val self: SchemaExpr[S, Boolean]
+) extends AnyVal {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = ...
 }
 
 // And vice versa — Expr.&& can accept SchemaExpr directly:
-extension [S](self: Expr[S, Boolean]) {
+implicit final class ExprBooleanOps[S](
+  private val self: Expr[S, Boolean]
+) extends AnyVal {
   def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = ...
 }
 ```
 
-Scala 3's method resolution makes this work:
+Scala's implicit conversion resolution makes this work:
 
 1. **`SchemaExpr && SchemaExpr`** — the built-in direct method matches, returns `SchemaExpr`
-2. **`SchemaExpr && Expr`** — the direct method doesn't match, the bridge extension kicks in, returns `Expr`
-3. **`Expr && SchemaExpr`** — the bridge overload on `Expr` matches, returns `Expr`
-4. **`Expr && Expr`** — the standard `Expr.&&` extension matches, returns `Expr`
+2. **`SchemaExpr && Expr`** — the direct method doesn't match, the bridge implicit class kicks in, returns `Expr`
+3. **`Expr && SchemaExpr`** — the bridge overload on `ExprBooleanOps` matches, returns `Expr`
+4. **`Expr && Expr`** — the standard `ExprBooleanOps.&&` overload matches, returns `Expr`
 
 The result type automatically widens to `Expr` whenever an `Expr` value enters the chain. No `.toExpr` needed:
 
@@ -280,13 +333,13 @@ case class SelectStmt[S](
   orderByList: List[(String, SortOrder)] = Nil,
   limitCount: Option[Int] = None
 ) {
-  def columns(optics: Optic[S, ?]*): SelectStmt[S] =
+  def columns(optics: Optic[S, _]*): SelectStmt[S] =
     copy(columnList = optics.map(columnName).toList)
   def where(cond: Expr[S, Boolean]): SelectStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): SelectStmt[S] =
-    copy(whereExpr = Some(Expr.Wrapped(cond)))
-  def orderBy(optic: Optic[S, ?], order: SortOrder = SortOrder.Asc): SelectStmt[S] =
+    copy(whereExpr = Some(Expr.fromSchemaExpr(cond)))
+  def orderBy(optic: Optic[S, _], order: SortOrder = SortOrder.Asc): SelectStmt[S] =
     copy(orderByList = orderByList :+ (columnName(optic), order))
   def limit(n: Int): SelectStmt[S] =
     copy(limitCount = Some(n))
@@ -298,7 +351,7 @@ def renderSelect[S](stmt: SelectStmt[S]): String = {
   val cols = stmt.columnList.mkString(", ")
   val where = stmt.whereExpr.map(c => s" WHERE ${exprToSql(c)}").getOrElse("")
   val orderBy = if (stmt.orderByList.isEmpty) "" else {
-    val orders = stmt.orderByList.map { (col, order) =>
+    val orders = stmt.orderByList.map { case (col, order) =>
       val dir = order match { case SortOrder.Asc => "ASC"; case SortOrder.Desc => "DESC" }
       s"$col $dir"
     }.mkString(", ")
@@ -309,7 +362,7 @@ def renderSelect[S](stmt: SelectStmt[S]): String = {
 }
 ```
 
-Each builder method returns a new `SelectStmt` with the updated field. The `.where()` method is overloaded to accept both `Expr` and `SchemaExpr`, so pure `SchemaExpr` chains and mixed chains both work:
+Each builder method returns a new `SelectStmt` with the updated field. The `.where()` method is overloaded to accept both `Expr` and `SchemaExpr` — `SchemaExpr` values are translated via `fromSchemaExpr`, so pure `SchemaExpr` chains and mixed chains both work:
 
 ```scala mdoc
 // Pure SchemaExpr conditions
@@ -346,11 +399,11 @@ case class UpdateStmt[S](
   whereExpr: Option[Expr[S, Boolean]] = None
 ) {
   def set[A](optic: Optic[S, A], value: A): UpdateStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value)))
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
   def where(cond: Expr[S, Boolean]): UpdateStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): UpdateStmt[S] =
-    copy(whereExpr = Some(Expr.Wrapped(cond)))
+    copy(whereExpr = Some(Expr.fromSchemaExpr(cond)))
 }
 
 def update[S](table: Table[S]): UpdateStmt[S] = UpdateStmt(table)
@@ -362,7 +415,7 @@ def renderUpdate[S](stmt: UpdateStmt[S]): String = {
 }
 ```
 
-The `.set()` method uses the optic to extract the column name and `sqlLiteral` to render the value. The type parameter `A` on `set[A](optic: Optic[S, A], value: A)` ensures you cannot assign a `String` to a `Double` field.
+The `.set()` method uses the optic to extract the column name and `sqlLiteralUntyped` to render the value. The type parameter `A` on `set[A](optic: Optic[S, A], value: A)` ensures you cannot assign a `String` to a `Double` field.
 
 ```scala mdoc
 val basicUpdate =
@@ -401,7 +454,7 @@ case class InsertStmt[S](
   assignments: List[Assignment] = Nil
 ) {
   def set[A](optic: Optic[S, A], value: A): InsertStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value)))
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
 }
 
 def insertInto[S](table: Table[S]): InsertStmt[S] = InsertStmt(table)
@@ -423,7 +476,7 @@ case class DeleteStmt[S](
   def where(cond: Expr[S, Boolean]): DeleteStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): DeleteStmt[S] =
-    copy(whereExpr = Some(Expr.Wrapped(cond)))
+    copy(whereExpr = Some(Expr.fromSchemaExpr(cond)))
 }
 
 def deleteFrom[S](table: Table[S]): DeleteStmt[S] = DeleteStmt(table)
@@ -490,118 +543,165 @@ object Product extends CompanionOptics[Product] {
   val rating: Lens[Product, Int]      = optic(_.rating)
 }
 
-// --- SQL helpers ---
-
-def columnName(optic: zio.blocks.schema.Optic[?, ?]): String =
-  optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
-
-def sqlLiteral(value: Any): String = value match {
-  case s: String  => s"'${s.replace("'", "''")}'"
-  case b: Boolean => if (b) "TRUE" else "FALSE"
-  case n: Number  => n.toString
-  case other      => other.toString
-}
-
-def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-  case SchemaExpr.Optic(optic)      => columnName(optic)
-  case SchemaExpr.Literal(value, _) => sqlLiteral(value)
-  case SchemaExpr.Relational(left, right, op) =>
-    val sqlOp = op match {
-      case SchemaExpr.RelationalOperator.Equal              => "="
-      case SchemaExpr.RelationalOperator.NotEqual           => "<>"
-      case SchemaExpr.RelationalOperator.LessThan           => "<"
-      case SchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-      case SchemaExpr.RelationalOperator.GreaterThan        => ">"
-      case SchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
-    }
-    s"(${toSql(left)} $sqlOp ${toSql(right)})"
-  case SchemaExpr.Logical(left, right, op) =>
-    val sqlOp = op match {
-      case SchemaExpr.LogicalOperator.And => "AND"
-      case SchemaExpr.LogicalOperator.Or  => "OR"
-    }
-    s"(${toSql(left)} $sqlOp ${toSql(right)})"
-  case SchemaExpr.Not(inner)                      => s"NOT (${toSql(inner)})"
-  case SchemaExpr.Arithmetic(left, right, op, _) =>
-    val sqlOp = op match {
-      case SchemaExpr.ArithmeticOperator.Add      => "+"
-      case SchemaExpr.ArithmeticOperator.Subtract => "-"
-      case SchemaExpr.ArithmeticOperator.Multiply => "*"
-    }
-    s"(${toSql(left)} $sqlOp ${toSql(right)})"
-  case SchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSql(left)}, ${toSql(right)})"
-  case SchemaExpr.StringRegexMatch(regex, string) => s"(${toSql(string)} LIKE ${toSql(regex)})"
-  case SchemaExpr.StringLength(string)            => s"LENGTH(${toSql(string)})"
-}
-
-// --- Extended Expression ADT ---
+// --- Expr ADT ---
 
 sealed trait Expr[S, A]
 
 object Expr {
-  final case class Wrapped[S, A](expr: SchemaExpr[S, A]) extends Expr[S, A]
-  final case class Column[S, A](optic: Optic[S, A])      extends Expr[S, A]
-  final case class Lit[S, A](value: A)                   extends Expr[S, A]
+  final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
+  final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
 
-  final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
-  final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
-  final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
-
+  final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
   final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-  final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean])  extends Expr[S, Boolean]
-  final case class Not[S](expr: Expr[S, Boolean])                          extends Expr[S, Boolean]
+  final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
+  final case class Not[S](expr: Expr[S, Boolean]) extends Expr[S, Boolean]
+  final case class Arithmetic[S, A](left: Expr[S, A], right: Expr[S, A], op: ArithOp) extends Expr[S, A]
+  final case class StringConcat[S](left: Expr[S, String], right: Expr[S, String]) extends Expr[S, String]
+  final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
+  final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
 
-  def wrap[S, A](expr: SchemaExpr[S, A]): Expr[S, A] = Wrapped(expr)
-  def col[S, A](optic: Optic[S, A]): Expr[S, A]      = Column(optic)
-  def lit[S, A](value: A): Expr[S, A]                = Lit(value)
+  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
+  final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
+
+  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
+  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
+
+  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
+    val result: Expr[S, _] = se match {
+      case SchemaExpr.Optic(optic)      => Column(optic)
+      case SchemaExpr.Literal(value, s) => Lit(value, s)
+      case SchemaExpr.Relational(l, r, op) =>
+        val relOp = op match {
+          case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
+          case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
+          case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
+          case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
+          case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
+          case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+        }
+        Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
+      case SchemaExpr.Logical(l, r, op) => op match {
+        case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
+        case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
+      }
+      case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
+      case SchemaExpr.Arithmetic(l, r, op, _) =>
+        val arithOp = op match {
+          case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
+          case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
+          case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
+        }
+        Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
+      case SchemaExpr.StringConcat(l, r)              => StringConcat(fromSchemaExpr(l), fromSchemaExpr(r))
+      case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
+      case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
+    }
+    result.asInstanceOf[Expr[S, A]]
+  }
+}
+
+sealed trait RelOp
+object RelOp {
+  case object Equal              extends RelOp
+  case object NotEqual           extends RelOp
+  case object LessThan           extends RelOp
+  case object LessThanOrEqual    extends RelOp
+  case object GreaterThan        extends RelOp
+  case object GreaterThanOrEqual extends RelOp
+}
+
+sealed trait ArithOp
+object ArithOp {
+  case object Add      extends ArithOp
+  case object Subtract extends ArithOp
+  case object Multiply extends ArithOp
 }
 
 // --- Extension methods with bridge ---
 
-extension [S, A](optic: Optic[S, A]) {
+implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
   def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
   def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
 
-extension [S](optic: Optic[S, String]) {
+implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
   def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
 }
 
-extension [S](self: Expr[S, Boolean]) {
+implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
   def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
-  def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.Wrapped(other))
+  def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
   def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
-  def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.Wrapped(other))
-  def unary_! : Expr[S, Boolean]                         = Expr.Not(self)
+  def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.fromSchemaExpr(other))
+  def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
 }
 
-extension [S](self: SchemaExpr[S, Boolean]) {
-  def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.Wrapped(self), other)
-  def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.Wrapped(self), other)
+implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
+  def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
+  def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
+  def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
 }
 
-extension [S, A](expr: SchemaExpr[S, A]) {
-  def toExpr: Expr[S, A] = Expr.Wrapped(expr)
+// --- SQL rendering ---
+
+def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
+  optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
+
+def sqlLiteral[A](value: A, schema: Schema[A]): String = {
+  val dv = schema.toDynamicValue(value)
+  dv match {
+    case p: DynamicValue.Primitive => p.value match {
+      case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
+      case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
+      case _                         => value.toString
+    }
+    case _ => value.toString
+  }
 }
 
-// --- Extended SQL interpreter ---
+def sqlLiteralUntyped(value: Any): String = value match {
+  case s: String  => s"'${s.replace("'", "''")}'"
+  case b: Boolean => if (b) "TRUE" else "FALSE"
+  case n: Number  => n.toString
+  case other      => other.toString
+}
 
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
-  case Expr.Wrapped(schemaExpr)     => toSql(schemaExpr)
-  case Expr.Column(optic)           => columnName(optic)
-  case Expr.Lit(value)              => sqlLiteral(value)
-  case Expr.In(e, values)           =>
-    s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v)).mkString(", ")})"
-  case Expr.Between(e, low, high)   =>
-    s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low)} AND ${sqlLiteral(high)})"
-  case Expr.IsNull(e)               => s"${exprToSql(e)} IS NULL"
-  case Expr.Like(e, pattern)        => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
-  case Expr.And(l, r)               => s"(${exprToSql(l)} AND ${exprToSql(r)})"
-  case Expr.Or(l, r)                => s"(${exprToSql(l)} OR ${exprToSql(r)})"
-  case Expr.Not(e)                  => s"NOT (${exprToSql(e)})"
+  case Expr.Column(optic)      => columnName(optic)
+  case Expr.Lit(value, schema) => sqlLiteral(value, schema)
+  case Expr.Relational(left, right, op) =>
+    val sqlOp = op match {
+      case RelOp.Equal              => "="
+      case RelOp.NotEqual           => "<>"
+      case RelOp.LessThan           => "<"
+      case RelOp.LessThanOrEqual    => "<="
+      case RelOp.GreaterThan        => ">"
+      case RelOp.GreaterThanOrEqual => ">="
+    }
+    s"(${exprToSql(left)} $sqlOp ${exprToSql(right)})"
+  case Expr.And(l, r) => s"(${exprToSql(l)} AND ${exprToSql(r)})"
+  case Expr.Or(l, r)  => s"(${exprToSql(l)} OR ${exprToSql(r)})"
+  case Expr.Not(e)    => s"NOT (${exprToSql(e)})"
+  case Expr.Arithmetic(left, right, op) =>
+    val sqlOp = op match {
+      case ArithOp.Add      => "+"
+      case ArithOp.Subtract => "-"
+      case ArithOp.Multiply => "*"
+    }
+    s"(${exprToSql(left)} $sqlOp ${exprToSql(right)})"
+  case Expr.StringConcat(l, r)         => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
+  case Expr.StringRegexMatch(regex, s) => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
+  case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
+  case Expr.In(e, values)              =>
+    s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
+  case Expr.Between(e, low, high)      =>
+    s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
+  case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
+  case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
 }
 
 // --- Statement builders ---
@@ -621,13 +721,13 @@ case class SelectStmt[S](
   orderByList: List[(String, SortOrder)] = Nil,
   limitCount: Option[Int] = None
 ) {
-  def columns(optics: Optic[S, ?]*): SelectStmt[S] =
+  def columns(optics: Optic[S, _]*): SelectStmt[S] =
     copy(columnList = optics.map(columnName).toList)
   def where(cond: Expr[S, Boolean]): SelectStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): SelectStmt[S] =
-    copy(whereExpr = Some(Expr.Wrapped(cond)))
-  def orderBy(optic: Optic[S, ?], order: SortOrder = SortOrder.Asc): SelectStmt[S] =
+    copy(whereExpr = Some(Expr.fromSchemaExpr(cond)))
+  def orderBy(optic: Optic[S, _], order: SortOrder = SortOrder.Asc): SelectStmt[S] =
     copy(orderByList = orderByList :+ (columnName(optic), order))
   def limit(n: Int): SelectStmt[S] =
     copy(limitCount = Some(n))
@@ -639,11 +739,11 @@ case class UpdateStmt[S](
   whereExpr: Option[Expr[S, Boolean]] = None
 ) {
   def set[A](optic: Optic[S, A], value: A): UpdateStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value)))
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
   def where(cond: Expr[S, Boolean]): UpdateStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): UpdateStmt[S] =
-    copy(whereExpr = Some(Expr.Wrapped(cond)))
+    copy(whereExpr = Some(Expr.fromSchemaExpr(cond)))
 }
 
 case class InsertStmt[S](
@@ -651,7 +751,7 @@ case class InsertStmt[S](
   assignments: List[Assignment] = Nil
 ) {
   def set[A](optic: Optic[S, A], value: A): InsertStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value)))
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
 }
 
 case class DeleteStmt[S](
@@ -661,7 +761,7 @@ case class DeleteStmt[S](
   def where(cond: Expr[S, Boolean]): DeleteStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): DeleteStmt[S] =
-    copy(whereExpr = Some(Expr.Wrapped(cond)))
+    copy(whereExpr = Some(Expr.fromSchemaExpr(cond)))
 }
 
 def select[S](table: Table[S]): SelectStmt[S]       = SelectStmt(table)
@@ -675,7 +775,7 @@ def renderSelect[S](stmt: SelectStmt[S]): String = {
   val cols = stmt.columnList.mkString(", ")
   val where = stmt.whereExpr.map(c => s" WHERE ${exprToSql(c)}").getOrElse("")
   val orderBy = if (stmt.orderByList.isEmpty) "" else {
-    val orders = stmt.orderByList.map { (col, order) =>
+    val orders = stmt.orderByList.map { case (col, order) =>
       val dir = order match { case SortOrder.Asc => "ASC"; case SortOrder.Desc => "DESC" }
       s"$col $dir"
     }.mkString(", ")
