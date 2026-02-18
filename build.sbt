@@ -262,7 +262,7 @@ lazy val `schema-iron` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "io.github.iltotore" %% "iron" % "2.6.0",
+      "io.github.iltotore" %% "iron" % "3.3.0",
       "dev.zio"           %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt" % "2.1.24" % Test
     ),
