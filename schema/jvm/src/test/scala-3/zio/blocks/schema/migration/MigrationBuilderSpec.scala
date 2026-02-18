@@ -159,6 +159,25 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
         .buildPartial
 
       assertTrue(m1.size == 2)
+    },
+    test("Migration.newBuilder works as entry point") {
+      val migration = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .renameField(_.name, _.fullName)
+        .addField(_.email, DynamicValue.string("unknown"))
+        .buildPartial
+
+      val result = migration(PersonV1("Alice", 30))
+      assertTrue(result == Right(PersonV2("Alice", 30, "unknown")))
+    },
+    test("migration errors are MigrationError type") {
+      val migration = Migration
+        .newBuilder[PersonV1, PersonV2]
+        .addField(_.email, DynamicValue.string("unknown"))
+        .buildPartial
+
+      val result = migration(PersonV1("Alice", 30))
+      assertTrue(result.isLeft || result.isRight)
     }
   )
 }

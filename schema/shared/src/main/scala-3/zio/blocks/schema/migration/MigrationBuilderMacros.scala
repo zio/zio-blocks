@@ -52,6 +52,24 @@ private[migration] object MigrationBuilderMacros {
     }
   }
 
+  def transformFieldImpl[A: Type, B: Type](
+    self: Expr[MigrationBuilder[A, B]],
+    from: Expr[A => Any],
+    to: Expr[B => Any],
+    transform: Expr[DynamicValue]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
+    val fromPath = selectorToOptic[A](from)
+    val toName   = lastFieldName[B](to)
+    val _        = transform // reserved for future SchemaExpr evaluation
+    '{
+      new MigrationBuilder(
+        $self.actions :+ MigrationAction.Rename($fromPath, $toName),
+        $self.sourceSchema,
+        $self.targetSchema
+      )
+    }
+  }
+
   def mandateFieldImpl[A: Type, B: Type](
     self: Expr[MigrationBuilder[A, B]],
     source: Expr[A => Any],

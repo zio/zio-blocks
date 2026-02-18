@@ -50,6 +50,24 @@ private[migration] object MigrationBuilderMacros {
     """)
   }
 
+  def transformFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
+    from: c.Expr[A => Any],
+    to: c.Expr[B => Any],
+    transform: c.Expr[zio.blocks.schema.DynamicValue]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+    val fromPath = selectorToOptic(c)(from.tree)
+    val toName   = lastFieldName(c)(to.tree)
+    val _        = transform // reserved for future SchemaExpr evaluation
+    c.Expr[MigrationBuilder[A, B]](q"""
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Rename($fromPath, $toName),
+        ${c.prefix}.sourceSchema,
+        ${c.prefix}.targetSchema
+      )
+    """)
+  }
+
   def mandateFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
     source: c.Expr[A => Any],
     default: c.Expr[zio.blocks.schema.DynamicValue]
@@ -81,13 +99,13 @@ private[migration] object MigrationBuilderMacros {
 
   def changeFieldTypeImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
     source: c.Expr[A => Any],
-    newDefault: c.Expr[zio.blocks.schema.DynamicValue]
+    converter: c.Expr[zio.blocks.schema.DynamicValue]
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
     val path = selectorToOptic(c)(source.tree)
     c.Expr[MigrationBuilder[A, B]](q"""
       new _root_.zio.blocks.schema.migration.MigrationBuilder(
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ChangeType($path, $newDefault),
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ChangeType($path, $converter),
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema
       )
