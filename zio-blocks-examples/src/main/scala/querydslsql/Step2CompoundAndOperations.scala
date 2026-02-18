@@ -34,7 +34,7 @@ object Step2CompoundAndOperations extends App {
 
   // --- SQL Helpers (same as Step 1) ---
 
-  def columnName(optic: zio.blocks.schema.Optic[?, ?]): String =
+  def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
     optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
   def sqlLiteral(value: Any): String = value match {
