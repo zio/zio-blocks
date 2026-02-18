@@ -18,9 +18,9 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
   /**
    * Apply this migration to a [[DynamicValue]], returning the transformed value
-   * or an error.
+   * or a [[MigrationError]].
    */
-  def apply(value: DynamicValue): Either[SchemaError, DynamicValue] = {
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
     var current = value
     var idx     = 0
     val len     = actions.length
@@ -71,43 +71,44 @@ object DynamicMigration {
   private[migration] def applyAction(
     dv: DynamicValue,
     action: MigrationAction
-  ): Either[SchemaError, DynamicValue] = action match {
+  ): Either[MigrationError, DynamicValue] = action match {
 
-    case MigrationAction.AddField(at, defaultValue) =>
-      dv.insertOrFail(at, defaultValue)
+    case MigrationAction.AddField(at, default) =>
+      dv.insertOrFail(at, default).left.map(e => new MigrationError(e.message, at))
 
     case MigrationAction.DropField(at, _) =>
-      dv.deleteOrFail(at)
+      dv.deleteOrFail(at).left.map(e => new MigrationError(e.message, at))
 
     case MigrationAction.Rename(at, to) =>
       val nodes = at.nodes
       if (nodes.isEmpty)
-        Left(SchemaError(s"Rename requires a non-empty path"))
+        Left(new MigrationError("Rename requires a non-empty path"))
       else {
         val parentPath = new DynamicOptic(nodes.dropRight(1))
-        for {
+        (for {
           oldValue <- dv.get(at).one
           deleted  <- dv.deleteOrFail(at)
           result   <- deleted.insertOrFail(parentPath.field(to), oldValue)
-        } yield result
+        } yield result).left.map(e => new MigrationError(e.message, at))
       }
 
     case MigrationAction.TransformValue(at, newValue) =>
-      dv.modifyOrFail(at) { case _ => newValue }
+      dv.modifyOrFail(at) { case _ => newValue }.left.map(e => new MigrationError(e.message, at))
 
-    case MigrationAction.Mandate(at, defaultValue) =>
+    case MigrationAction.Mandate(at, default) =>
       dv.modifyOrFail(at) {
-        case DynamicValue.Null                   => defaultValue
-        case DynamicValue.Variant("None", _)     => defaultValue
+        case DynamicValue.Null                   => default
+        case DynamicValue.Variant("None", _)     => default
         case DynamicValue.Variant("Some", inner) => inner
         case other                               => other
-      }
+      }.left
+        .map(e => new MigrationError(e.message, at))
 
     case MigrationAction.Optionalize(_) =>
       new Right(dv)
 
-    case MigrationAction.ChangeType(at, newDefaultValue) =>
-      dv.modifyOrFail(at) { case _ => newDefaultValue }
+    case MigrationAction.ChangeType(at, converter) =>
+      dv.modifyOrFail(at) { case _ => converter }.left.map(e => new MigrationError(e.message, at))
 
     case MigrationAction.RenameCase(at, from, to) =>
       if (at.nodes.isEmpty) {
@@ -121,7 +122,8 @@ object DynamicMigration {
         dv.modifyOrFail(at) {
           case DynamicValue.Variant(name, value) if name == from =>
             DynamicValue.Variant(to, value)
-        }
+        }.left
+          .map(e => new MigrationError(e.message, at))
       }
 
     case MigrationAction.TransformCase(at, nestedActions) =>
@@ -146,8 +148,23 @@ object DynamicMigration {
               case Left(err)          => throw err
             }
         }
-        try dv.modifyOrFail(at)(pf)
-        catch { case e: SchemaError => Left(e) }
+        try dv.modifyOrFail(at)(pf).left.map(e => new MigrationError(e.message, at))
+        catch { case e: MigrationError => Left(e) }
       }
+
+    case MigrationAction.Join(at, _, _) =>
+      Left(new MigrationError("Join requires SchemaExpr evaluation (not yet supported)", at))
+
+    case MigrationAction.Split(at, _, _) =>
+      Left(new MigrationError("Split requires SchemaExpr evaluation (not yet supported)", at))
+
+    case MigrationAction.TransformElements(at, _) =>
+      Left(new MigrationError("TransformElements requires SchemaExpr evaluation (not yet supported)", at))
+
+    case MigrationAction.TransformKeys(at, _) =>
+      Left(new MigrationError("TransformKeys requires SchemaExpr evaluation (not yet supported)", at))
+
+    case MigrationAction.TransformValues(at, _) =>
+      Left(new MigrationError("TransformValues requires SchemaExpr evaluation (not yet supported)", at))
   }
 }

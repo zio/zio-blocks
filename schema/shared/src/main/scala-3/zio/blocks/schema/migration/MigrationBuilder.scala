@@ -3,6 +3,11 @@ package zio.blocks.schema.migration
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
+/**
+ * Type-safe builder for constructing [[Migration]]s. Selector expressions like
+ * `_.field.nested` are converted to [[DynamicOptic]] paths at compile time via
+ * macros.
+ */
 final class MigrationBuilder[A, B](
   val actions: Chunk[MigrationAction],
   val sourceSchema: Schema[A],
@@ -29,6 +34,13 @@ final class MigrationBuilder[A, B](
   ): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacros.renameFieldImpl[A, B]('{ this }, 'from, 'to) }
 
+  inline def transformField(
+    inline from: A => Any,
+    inline to: B => Any,
+    transform: DynamicValue
+  ): MigrationBuilder[A, B] =
+    ${ MigrationBuilderMacros.transformFieldImpl[A, B]('{ this }, 'from, 'to, 'transform) }
+
   inline def mandateField(
     inline source: A => Any,
     default: DynamicValue
@@ -42,9 +54,9 @@ final class MigrationBuilder[A, B](
 
   inline def changeFieldType(
     inline source: A => Any,
-    newDefault: DynamicValue
+    converter: DynamicValue
   ): MigrationBuilder[A, B] =
-    ${ MigrationBuilderMacros.changeFieldTypeImpl[A, B]('{ this }, 'source, 'newDefault) }
+    ${ MigrationBuilderMacros.changeFieldTypeImpl[A, B]('{ this }, 'source, 'converter) }
 
   // ── Enum Operations ───────────────────────────────────────────────
 
@@ -67,13 +79,38 @@ final class MigrationBuilder[A, B](
     )
   }
 
+  // ── Collection / Map Operations ───────────────────────────────────
+
+  def transformElements(at: DynamicOptic, transform: DynamicValue): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      actions :+ MigrationAction.TransformElements(at, transform),
+      sourceSchema,
+      targetSchema
+    )
+
+  def transformKeys(at: DynamicOptic, transform: DynamicValue): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      actions :+ MigrationAction.TransformKeys(at, transform),
+      sourceSchema,
+      targetSchema
+    )
+
+  def transformValues(at: DynamicOptic, transform: DynamicValue): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      actions :+ MigrationAction.TransformValues(at, transform),
+      sourceSchema,
+      targetSchema
+    )
+
   // ── Build ─────────────────────────────────────────────────────────
 
+  /** Build migration with full validation. */
   def build: Migration[A, B] =
-    Migration(DynamicMigration(actions), sourceSchema, targetSchema)
+    new Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
 
+  /** Build migration without full validation. */
   def buildPartial: Migration[A, B] =
-    Migration(DynamicMigration(actions), sourceSchema, targetSchema)
+    new Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
 }
 
 object MigrationBuilder {
@@ -84,6 +121,7 @@ object MigrationBuilder {
   ): MigrationBuilder[A, B] =
     new MigrationBuilder(Chunk.empty, sourceSchema, targetSchema)
 
+  /** Builder for nested contexts (inside `transformCase`). */
   final class Nested private[migration] (
     private[migration] val actions: Chunk[MigrationAction]
   ) {
@@ -103,9 +141,7 @@ object MigrationBuilder {
     def optionalize(fieldName: String): Nested =
       new Nested(actions :+ MigrationAction.Optionalize(DynamicOptic.root.field(fieldName)))
 
-    def transformCase(caseName: String)(
-      f: Nested => Nested
-    ): Nested = {
+    def transformCase(caseName: String)(f: Nested => Nested): Nested = {
       val inner     = f(Nested.empty)
       val caseOptic = DynamicOptic.root.caseOf(caseName)
       new Nested(actions :+ MigrationAction.TransformCase(caseOptic, inner.actions))

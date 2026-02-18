@@ -22,9 +22,9 @@ final case class Migration[A, B](
 ) {
 
   /** Apply this migration, converting a value of type `A` to type `B`. */
-  def apply(value: A): Either[SchemaError, B] =
+  def apply(value: A): Either[MigrationError, B] =
     dynamicMigration(sourceSchema.toDynamicValue(value))
-      .flatMap(targetSchema.fromDynamicValue)
+      .flatMap(dv => targetSchema.fromDynamicValue(dv).left.map(e => new MigrationError(e.message)))
 
   /** Compose two migrations sequentially. */
   def ++[C](that: Migration[B, C]): Migration[A, C] =
@@ -49,4 +49,11 @@ object Migration {
   /** Identity migration that passes values through unchanged. */
   def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     new Migration(DynamicMigration.empty, schema, schema)
+
+  /** Creates a new migration builder for transforming type `A` to type `B`. */
+  def newBuilder[A, B](implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder(Chunk.empty, sourceSchema, targetSchema)
 }

@@ -426,7 +426,11 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           MigrationAction.AddField(DynamicOptic.root.field("name"), stringVal("Bob"))
         )
       )
-      assertTrue(m(original).isLeft)
+      val result = m(original)
+      assertTrue(
+        result.isLeft,
+        result.left.exists(_.isInstanceOf[MigrationError])
+      )
     },
     test("DropField fails when field does not exist") {
       val original = record("name" -> stringVal("Alice"))
@@ -445,6 +449,19 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         )
       )
       assertTrue(m(original).isLeft)
+    },
+    test("error includes path information") {
+      val original = record("name" -> stringVal("Alice"))
+      val m        = DynamicMigration(
+        Chunk(
+          MigrationAction.DropField(DynamicOptic.root.field("missing"), intVal(0))
+        )
+      )
+      val result = m(original)
+      assertTrue(
+        result.isLeft,
+        result.left.exists(_.path == DynamicOptic.root.field("missing"))
+      )
     }
   )
 }
