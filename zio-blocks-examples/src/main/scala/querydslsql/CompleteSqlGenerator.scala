@@ -47,8 +47,8 @@ object CompleteSqlGenerator extends App {
   }
 
   def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-    case SchemaExpr.Optic(optic)                    => columnName(optic)
-    case SchemaExpr.Literal(value, _)               => sqlLiteral(value)
+    case SchemaExpr.Optic(optic)                => columnName(optic)
+    case SchemaExpr.Literal(value, _)           => sqlLiteral(value)
     case SchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case SchemaExpr.RelationalOperator.Equal              => "="
@@ -65,7 +65,7 @@ object CompleteSqlGenerator extends App {
         case SchemaExpr.LogicalOperator.Or  => "OR"
       }
       s"(${toSql(left)} $sqlOp ${toSql(right)})"
-    case SchemaExpr.Not(inner)                      => s"NOT (${toSql(inner)})"
+    case SchemaExpr.Not(inner)                     => s"NOT (${toSql(inner)})"
     case SchemaExpr.Arithmetic(left, right, op, _) =>
       val sqlOp = op match {
         case SchemaExpr.ArithmeticOperator.Add      => "+"
@@ -83,10 +83,10 @@ object CompleteSqlGenerator extends App {
   case class SqlQuery(sql: String, params: List[Any])
 
   def toParameterized[A, B](expr: SchemaExpr[A, B]): SqlQuery = expr match {
-    case SchemaExpr.Optic(optic)      => SqlQuery(columnName(optic), Nil)
-    case SchemaExpr.Literal(value, _) => SqlQuery("?", List(value))
+    case SchemaExpr.Optic(optic)                => SqlQuery(columnName(optic), Nil)
+    case SchemaExpr.Literal(value, _)           => SqlQuery("?", List(value))
     case SchemaExpr.Relational(left, right, op) =>
-      val l = toParameterized(left); val r = toParameterized(right)
+      val l     = toParameterized(left); val r = toParameterized(right)
       val sqlOp = op match {
         case SchemaExpr.RelationalOperator.Equal              => "="
         case SchemaExpr.RelationalOperator.NotEqual           => "<>"
@@ -97,7 +97,7 @@ object CompleteSqlGenerator extends App {
       }
       SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
     case SchemaExpr.Logical(left, right, op) =>
-      val l = toParameterized(left); val r = toParameterized(right)
+      val l     = toParameterized(left); val r = toParameterized(right)
       val sqlOp = op match {
         case SchemaExpr.LogicalOperator.And => "AND"
         case SchemaExpr.LogicalOperator.Or  => "OR"
@@ -107,7 +107,7 @@ object CompleteSqlGenerator extends App {
       val i = toParameterized(inner)
       SqlQuery(s"NOT (${i.sql})", i.params)
     case SchemaExpr.Arithmetic(left, right, op, _) =>
-      val l = toParameterized(left); val r = toParameterized(right)
+      val l     = toParameterized(left); val r = toParameterized(right)
       val sqlOp = op match {
         case SchemaExpr.ArithmeticOperator.Add      => "+"
         case SchemaExpr.ArithmeticOperator.Subtract => "-"
@@ -134,9 +134,9 @@ object CompleteSqlGenerator extends App {
 
   val query =
     (Product.category === "Electronics") &&
-    (Product.inStock === true) &&
-    (Product.price < 500.0) &&
-    (Product.rating >= 4)
+      (Product.inStock === true) &&
+      (Product.price < 500.0) &&
+      (Product.rating >= 4)
 
   println("=== Complete SQL Generator Example ===")
   println()

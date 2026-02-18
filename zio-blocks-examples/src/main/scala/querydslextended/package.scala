@@ -19,9 +19,9 @@ package object querydslextended {
 
   // Boolean combinators — work with both Expr and SchemaExpr (via bridge)
   implicit final class ExprBooleanOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
-    def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
+    def &&(other: Expr[S, Boolean]): Expr[S, Boolean]       = Expr.And(self, other)
     def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
-    def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
+    def ||(other: Expr[S, Boolean]): Expr[S, Boolean]       = Expr.Or(self, other)
     def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.fromSchemaExpr(other))
     def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
   }
@@ -30,7 +30,7 @@ package object querydslextended {
   implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
     def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
     def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
-    def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
+    def toExpr: Expr[S, Boolean]                      = Expr.fromSchemaExpr(self)
   }
 
   // ---------------------------------------------------------------------------
@@ -43,11 +43,12 @@ package object querydslextended {
   def sqlLiteral[A](value: A, schema: Schema[A]): String = {
     val dv = schema.toDynamicValue(value)
     dv match {
-      case p: DynamicValue.Primitive => p.value match {
-        case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
-        case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
-        case _                         => value.toString
-      }
+      case p: DynamicValue.Primitive =>
+        p.value match {
+          case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
+          case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
+          case _                         => value.toString
+        }
       case _ => value.toString
     }
   }
@@ -91,17 +92,17 @@ package object querydslextended {
       }
       s"(${exprToSql(left)} $sqlOp ${exprToSql(right)})"
 
-    case Expr.StringConcat(l, r)          => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
-    case Expr.StringRegexMatch(regex, s)  => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
-    case Expr.StringLength(s)             => s"LENGTH(${exprToSql(s)})"
+    case Expr.StringConcat(l, r)         => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
+    case Expr.StringRegexMatch(regex, s) => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
+    case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
 
     // SQL-specific
     case Expr.In(e, values) =>
       s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
     case Expr.Between(e, low, high) =>
       s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
-    case Expr.IsNull(e)          => s"${exprToSql(e)} IS NULL"
-    case Expr.Like(e, pattern)   => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
+    case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
+    case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
 
     // Aggregates
     case Expr.Agg(func, e) => s"${func.name}(${exprToSql(e)})"

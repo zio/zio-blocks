@@ -5,9 +5,9 @@ import zio.blocks.schema._
 /**
  * Query DSL Part 4 — Step 3: UPDATE, INSERT, and DELETE Builders
  *
- * Demonstrates the fluent UPDATE builder with .set() and .where(),
- * the INSERT builder with .set(), and the DELETE builder with .where().
- * All builders use the Expr ADT with fromSchemaExpr translation.
+ * Demonstrates the fluent UPDATE builder with .set() and .where(), the INSERT
+ * builder with .set(), and the DELETE builder with .where(). All builders use
+ * the Expr ADT with fromSchemaExpr translation.
  *
  * Run with: sbt "examples/runMain querydslbuilder.Step3UpdateInsertDelete"
  */
@@ -85,7 +85,7 @@ object Step3UpdateInsertDelete extends App {
   val del = deleteFrom(Product.table)
     .where(
       Product.inStock === false &&
-      Product.price.between(0.0, 1.0)
+        Product.price.between(0.0, 1.0)
     )
 
   println("4. DELETE with mixed conditions:")

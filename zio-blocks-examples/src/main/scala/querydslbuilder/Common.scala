@@ -11,7 +11,7 @@ sealed trait Expr[S, A]
 object Expr {
 
   // --- Core nodes (superset of SchemaExpr's nodes) ---
-  final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
+  final case class Column[S, A](optic: Optic[S, A])       extends Expr[S, A]
   final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
 
   // Relational
@@ -19,25 +19,25 @@ object Expr {
 
   // Logical
   final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-  final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-  final case class Not[S](expr: Expr[S, Boolean]) extends Expr[S, Boolean]
+  final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean])  extends Expr[S, Boolean]
+  final case class Not[S](expr: Expr[S, Boolean])                          extends Expr[S, Boolean]
 
   // Arithmetic
   final case class Arithmetic[S, A](left: Expr[S, A], right: Expr[S, A], op: ArithOp) extends Expr[S, A]
 
   // String
-  final case class StringConcat[S](left: Expr[S, String], right: Expr[S, String]) extends Expr[S, String]
+  final case class StringConcat[S](left: Expr[S, String], right: Expr[S, String])       extends Expr[S, String]
   final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
-  final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
+  final case class StringLength[S](string: Expr[S, String])                             extends Expr[S, Int]
 
   // --- SQL-specific extensions (no SchemaExpr equivalents) ---
-  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
   final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
-  final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
-  final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
+  final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
+  final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
 
   // --- Factory methods ---
-  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
+  def col[S, A](optic: Optic[S, A]): Expr[S, A]                   = Column(optic)
   def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
 
   // --- Translation from SchemaExpr (one-way, not embedding) ---
@@ -57,10 +57,11 @@ object Expr {
         }
         Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
 
-      case SchemaExpr.Logical(l, r, op) => op match {
-        case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
-        case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
-      }
+      case SchemaExpr.Logical(l, r, op) =>
+        op match {
+          case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
+          case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
+        }
 
       case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
 

@@ -32,8 +32,8 @@ object Step4NestedSql extends App {
   // --- Table-Qualified Column Names ---
 
   def qualifiedColumnName(optic: zio.blocks.schema.Optic[?, ?]): String = {
-    val fields = optic.toDynamic.nodes.collect {
-      case f: DynamicOptic.Node.Field => f.name
+    val fields = optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field =>
+      f.name
     }
     if (fields.length <= 1) fields.mkString
     else s"${fields.init.mkString("_")}.${fields.last}"
@@ -59,8 +59,8 @@ object Step4NestedSql extends App {
   }
 
   def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-    case SchemaExpr.Optic(optic)      => columnName(optic)
-    case SchemaExpr.Literal(value, _) => sqlLiteral(value)
+    case SchemaExpr.Optic(optic)                => columnName(optic)
+    case SchemaExpr.Literal(value, _)           => sqlLiteral(value)
     case SchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case SchemaExpr.RelationalOperator.Equal              => "="
@@ -77,8 +77,8 @@ object Step4NestedSql extends App {
         case SchemaExpr.LogicalOperator.Or  => "OR"
       }
       s"(${toSql(left)} $sqlOp ${toSql(right)})"
-    case SchemaExpr.Not(inner)                      => s"NOT (${toSql(inner)})"
-    case SchemaExpr.Arithmetic(left, right, op, _)  =>
+    case SchemaExpr.Not(inner)                     => s"NOT (${toSql(inner)})"
+    case SchemaExpr.Arithmetic(left, right, op, _) =>
       val sqlOp = op match {
         case SchemaExpr.ArithmeticOperator.Add      => "+"
         case SchemaExpr.ArithmeticOperator.Subtract => "-"

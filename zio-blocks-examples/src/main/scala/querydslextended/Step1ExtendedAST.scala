@@ -6,12 +6,13 @@ import zio.blocks.schema._
  * Query DSL Part 3 — Step 1: The Independent Expr AST
  *
  * Demonstrates the independent Expr[S, A] expression language that translates
- * from SchemaExpr (via Expr.fromSchemaExpr) instead of wrapping it. The Expr ADT
- * is a superset: it includes all SchemaExpr node types plus SQL-specific
+ * from SchemaExpr (via Expr.fromSchemaExpr) instead of wrapping it. The Expr
+ * ADT is a superset: it includes all SchemaExpr node types plus SQL-specific
  * extensions (IN, BETWEEN, IS NULL, LIKE), with a single unified interpreter.
  *
- * Key design: SchemaExpr values are *translated into* Expr, not *embedded within* it.
- * This eliminates the dual-interpreter problem and the need for explicit `.toExpr` calls.
+ * Key design: SchemaExpr values are *translated into* Expr, not *embedded
+ * within* it. This eliminates the dual-interpreter problem and the need for
+ * explicit `.toExpr` calls.
  *
  * Run with: sbt "examples/runMain querydslextended.Step1ExtendedAST"
  */
@@ -60,7 +61,7 @@ object Step1ExtendedAST extends App {
 
   // Translation from SchemaExpr — one-way conversion, not embedding
   val schemaExpr: SchemaExpr[Product, Boolean] = Product.rating >= 4
-  val translated: Expr[Product, Boolean] = Expr.fromSchemaExpr(schemaExpr)
+  val translated: Expr[Product, Boolean]       = Expr.fromSchemaExpr(schemaExpr)
   println(s"SchemaExpr:  $schemaExpr")
   println(s"Translated:  $translated")
   println()
@@ -68,7 +69,7 @@ object Step1ExtendedAST extends App {
   // Seamless composition — bridge extensions auto-translate at the boundary
   val combined =
     Product.category.in("Electronics") &&
-    Product.price.between(10.0, 500.0) &&
-    (Product.rating >= 4)  // bridge extension handles SchemaExpr && Expr
+      Product.price.between(10.0, 500.0) &&
+      (Product.rating >= 4) // bridge extension handles SchemaExpr && Expr
   println(s"Combined expression: $combined")
 }

@@ -5,8 +5,8 @@ import zio.blocks.schema._
 /**
  * Query DSL SQL Generation — Part 2, Step 2: Compound Queries and Operations
  *
- * Demonstrates translating compound boolean queries (AND, OR, NOT),
- * arithmetic expressions, and string operations to SQL.
+ * Demonstrates translating compound boolean queries (AND, OR, NOT), arithmetic
+ * expressions, and string operations to SQL.
  *
  * Run with: sbt "examples/runMain querydslsql.Step2CompoundAndOperations"
  */
@@ -45,8 +45,8 @@ object Step2CompoundAndOperations extends App {
   }
 
   def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-    case SchemaExpr.Optic(optic)      => columnName(optic)
-    case SchemaExpr.Literal(value, _) => sqlLiteral(value)
+    case SchemaExpr.Optic(optic)                => columnName(optic)
+    case SchemaExpr.Literal(value, _)           => sqlLiteral(value)
     case SchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case SchemaExpr.RelationalOperator.Equal              => "="
@@ -63,8 +63,8 @@ object Step2CompoundAndOperations extends App {
         case SchemaExpr.LogicalOperator.Or  => "OR"
       }
       s"(${toSql(left)} $sqlOp ${toSql(right)})"
-    case SchemaExpr.Not(inner)                      => s"NOT (${toSql(inner)})"
-    case SchemaExpr.Arithmetic(left, right, op, _)  =>
+    case SchemaExpr.Not(inner)                     => s"NOT (${toSql(inner)})"
+    case SchemaExpr.Arithmetic(left, right, op, _) =>
       val sqlOp = op match {
         case SchemaExpr.ArithmeticOperator.Add      => "+"
         case SchemaExpr.ArithmeticOperator.Subtract => "-"
@@ -88,7 +88,7 @@ object Step2CompoundAndOperations extends App {
 
   val complexQuery =
     ((Product.category === "Electronics") && (Product.price < 500.0)) ||
-    ((Product.category === "Office") && (Product.rating >= 4))
+      ((Product.category === "Office") && (Product.rating >= 4))
 
   println("=== Compound Queries ===")
   println()
@@ -101,7 +101,7 @@ object Step2CompoundAndOperations extends App {
   // --- Arithmetic in SQL ---
 
   val discountedPrice = Product.price * 0.9
-  val priceWithTax = Product.price * 1.08
+  val priceWithTax    = Product.price * 1.08
 
   println("=== Arithmetic in SQL ===")
   println()
@@ -113,7 +113,7 @@ object Step2CompoundAndOperations extends App {
 
   val startsWithL = Product.name.matches("L%")
   val labeledName = Product.name.concat(" [SALE]")
-  val nameLength = Product.name.length
+  val nameLength  = Product.name.length
 
   println("=== String Operations in SQL ===")
   println()

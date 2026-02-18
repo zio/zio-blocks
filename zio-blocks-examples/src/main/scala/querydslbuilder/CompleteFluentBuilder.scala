@@ -42,34 +42,34 @@ object CompleteFluentBuilder extends App {
 
   object Expr {
     // Core nodes
-    final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
+    final case class Column[S, A](optic: Optic[S, A])       extends Expr[S, A]
     final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
 
     // Relational, logical, arithmetic, string
-    final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
-    final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-    final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
-    final case class Not[S](expr: Expr[S, Boolean]) extends Expr[S, Boolean]
-    final case class Arithmetic[S, A](left: Expr[S, A], right: Expr[S, A], op: ArithOp) extends Expr[S, A]
-    final case class StringConcat[S](left: Expr[S, String], right: Expr[S, String]) extends Expr[S, String]
+    final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp)     extends Expr[S, Boolean]
+    final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean])              extends Expr[S, Boolean]
+    final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean])               extends Expr[S, Boolean]
+    final case class Not[S](expr: Expr[S, Boolean])                                       extends Expr[S, Boolean]
+    final case class Arithmetic[S, A](left: Expr[S, A], right: Expr[S, A], op: ArithOp)   extends Expr[S, A]
+    final case class StringConcat[S](left: Expr[S, String], right: Expr[S, String])       extends Expr[S, String]
     final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
-    final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
+    final case class StringLength[S](string: Expr[S, String])                             extends Expr[S, Int]
 
     // SQL-specific extensions
-    final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
+    final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
     final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
-    final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
-    final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
+    final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
+    final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
 
     // Factory methods
-    def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
+    def col[S, A](optic: Optic[S, A]): Expr[S, A]                   = Column(optic)
     def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
 
     // One-way translation from SchemaExpr
     def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
       val result: Expr[S, _] = se match {
-        case SchemaExpr.Optic(optic)      => Column(optic)
-        case SchemaExpr.Literal(value, s) => Lit(value, s)
+        case SchemaExpr.Optic(optic)         => Column(optic)
+        case SchemaExpr.Literal(value, s)    => Lit(value, s)
         case SchemaExpr.Relational(l, r, op) =>
           val relOp = op match {
             case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
@@ -80,11 +80,12 @@ object CompleteFluentBuilder extends App {
             case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
           }
           Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
-        case SchemaExpr.Logical(l, r, op) => op match {
-          case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
-          case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
-        }
-        case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
+        case SchemaExpr.Logical(l, r, op) =>
+          op match {
+            case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
+            case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
+          }
+        case SchemaExpr.Not(inner)              => Not(fromSchemaExpr(inner))
         case SchemaExpr.Arithmetic(l, r, op, _) =>
           val arithOp = op match {
             case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
@@ -93,8 +94,9 @@ object CompleteFluentBuilder extends App {
           }
           Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
         case SchemaExpr.StringConcat(l, r)              => StringConcat(fromSchemaExpr(l), fromSchemaExpr(r))
-        case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
-        case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
+        case SchemaExpr.StringRegexMatch(regex, string) =>
+          StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
+        case SchemaExpr.StringLength(string) => StringLength(fromSchemaExpr(string))
       }
       result.asInstanceOf[Expr[S, A]]
     }
@@ -193,9 +195,9 @@ object CompleteFluentBuilder extends App {
   }
 
   implicit final class ExprBoolOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
-    def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
+    def &&(other: Expr[S, Boolean]): Expr[S, Boolean]       = Expr.And(self, other)
     def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
-    def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
+    def ||(other: Expr[S, Boolean]): Expr[S, Boolean]       = Expr.Or(self, other)
     def ||(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.Or(self, Expr.fromSchemaExpr(other))
     def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
   }
@@ -203,7 +205,7 @@ object CompleteFluentBuilder extends App {
   implicit final class SchemaExprBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
     def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
     def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
-    def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
+    def toExpr: Expr[S, Boolean]                      = Expr.fromSchemaExpr(self)
   }
 
   // --- SQL rendering ---
@@ -221,23 +223,24 @@ object CompleteFluentBuilder extends App {
   def sqlLiteral[A](value: A, schema: Schema[A]): String = {
     val dv = schema.toDynamicValue(value)
     dv match {
-      case p: DynamicValue.Primitive => p.value match {
-        case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
-        case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
-        case _                         => value.toString
-      }
+      case p: DynamicValue.Primitive =>
+        p.value match {
+          case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
+          case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
+          case _                         => value.toString
+        }
       case _ => value.toString
     }
   }
 
   // Single unified interpreter
   def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
-    case Expr.Column(optic)      => columnName(optic)
-    case Expr.Lit(value, schema) => sqlLiteral(value, schema)
+    case Expr.Column(optic)               => columnName(optic)
+    case Expr.Lit(value, schema)          => sqlLiteral(value, schema)
     case Expr.Relational(left, right, op) =>
       val sqlOp = op match {
-        case RelOp.Equal => "="; case RelOp.NotEqual => "<>"
-        case RelOp.LessThan => "<"; case RelOp.LessThanOrEqual => "<="
+        case RelOp.Equal       => "="; case RelOp.NotEqual           => "<>"
+        case RelOp.LessThan    => "<"; case RelOp.LessThanOrEqual    => "<="
         case RelOp.GreaterThan => ">"; case RelOp.GreaterThanOrEqual => ">="
       }
       s"(${exprToSql(left)} $sqlOp ${exprToSql(right)})"
@@ -262,27 +265,29 @@ object CompleteFluentBuilder extends App {
 
   // --- Statement helpers ---
 
-  def select[S](table: Table[S]): SelectStmt[S]       = SelectStmt(table)
-  def update[S](table: Table[S]): UpdateStmt[S]       = UpdateStmt(table)
-  def insertInto[S](table: Table[S]): InsertStmt[S]   = InsertStmt(table)
-  def deleteFrom[S](table: Table[S]): DeleteStmt[S]   = DeleteStmt(table)
+  def select[S](table: Table[S]): SelectStmt[S]     = SelectStmt(table)
+  def update[S](table: Table[S]): UpdateStmt[S]     = UpdateStmt(table)
+  def insertInto[S](table: Table[S]): InsertStmt[S] = InsertStmt(table)
+  def deleteFrom[S](table: Table[S]): DeleteStmt[S] = DeleteStmt(table)
 
   def renderSelect[S](stmt: SelectStmt[S]): String = {
-    val cols = stmt.columnList.mkString(", ")
-    val where = stmt.whereExpr.map(c => s" WHERE ${exprToSql(c)}").getOrElse("")
-    val orderBy = if (stmt.orderByList.isEmpty) "" else {
-      val orders = stmt.orderByList.map { case (col, order) =>
-        val dir = order match { case SortOrder.Asc => "ASC"; case SortOrder.Desc => "DESC" }
-        s"$col $dir"
-      }.mkString(", ")
-      s" ORDER BY $orders"
-    }
+    val cols    = stmt.columnList.mkString(", ")
+    val where   = stmt.whereExpr.map(c => s" WHERE ${exprToSql(c)}").getOrElse("")
+    val orderBy =
+      if (stmt.orderByList.isEmpty) ""
+      else {
+        val orders = stmt.orderByList.map { case (col, order) =>
+          val dir = order match { case SortOrder.Asc => "ASC"; case SortOrder.Desc => "DESC" }
+          s"$col $dir"
+        }.mkString(", ")
+        s" ORDER BY $orders"
+      }
     val limit = stmt.limitCount.map(n => s" LIMIT $n").getOrElse("")
     s"SELECT $cols FROM ${stmt.table.name}$where$orderBy$limit"
   }
 
   def renderUpdate[S](stmt: UpdateStmt[S]): String = {
-    val sets = stmt.assignments.map(a => s"${a.column} = ${a.value}").mkString(", ")
+    val sets  = stmt.assignments.map(a => s"${a.column} = ${a.value}").mkString(", ")
     val where = stmt.whereExpr.map(c => s" WHERE ${exprToSql(c)}").getOrElse("")
     s"UPDATE ${stmt.table.name} SET $sets$where"
   }
@@ -308,8 +313,8 @@ object CompleteFluentBuilder extends App {
     .columns(Product.name, Product.price, Product.category)
     .where(
       Product.category.in("Electronics", "Books") &&
-      Product.price.between(10.0, 500.0) &&
-      (Product.rating >= 4).toExpr
+        Product.price.between(10.0, 500.0) &&
+        (Product.rating >= 4).toExpr
     )
     .orderBy(Product.price, SortOrder.Desc)
     .limit(20)

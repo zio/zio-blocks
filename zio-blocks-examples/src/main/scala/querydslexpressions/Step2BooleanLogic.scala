@@ -5,8 +5,8 @@ import zio.blocks.schema._
 /**
  * Query DSL with Reified Optics — Part 1, Step 2: Boolean Logic
  *
- * Demonstrates combining queries with && (and), || (or), and ! (not)
- * to build complex compound predicates.
+ * Demonstrates combining queries with && (and), || (or), and ! (not) to build
+ * complex compound predicates.
  *
  * Run with: sbt "examples/runMain querydslexpressions.Step2BooleanLogic"
  */
@@ -49,13 +49,13 @@ object Step2BooleanLogic extends App {
   // Complex compound query
   val complexQuery: SchemaExpr[Product, Boolean] =
     ((Product.category === "Electronics") && (Product.price < 500.0)) ||
-    ((Product.category === "Office") && (Product.rating >= 4))
+      ((Product.category === "Office") && (Product.rating >= 4))
 
   // --- Evaluate ---
 
-  val laptop = Product("Laptop", 999.99, "Electronics", true, 5)
-  val mouse  = Product("Mouse", 29.99, "Electronics", true, 4)
-  val pen    = Product("Pen", 2.50, "Office", true, 3)
+  val laptop   = Product("Laptop", 999.99, "Electronics", true, 5)
+  val mouse    = Product("Mouse", 29.99, "Electronics", true, 4)
+  val pen      = Product("Pen", 2.50, "Office", true, 3)
   val notebook = Product("Notebook", 5.99, "Office", true, 4)
 
   println("=== Boolean Logic ===")

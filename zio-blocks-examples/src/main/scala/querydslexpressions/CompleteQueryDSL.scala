@@ -64,10 +64,10 @@ object CompleteQueryDSL extends App {
 
   val query =
     (Product.category === "Electronics") &&
-    (Product.inStock === true) &&
-    (Product.price < 500.0) &&
-    (Product.city === "Berlin") &&
-    (Product.rating >= 4)
+      (Product.inStock === true) &&
+      (Product.price < 500.0) &&
+      (Product.city === "Berlin") &&
+      (Product.rating >= 4)
 
   println("=== Complete Query DSL Example ===")
   println()
@@ -80,7 +80,7 @@ object CompleteQueryDSL extends App {
   // --- String operations ---
 
   val searchQuery = Product.name.matches(".*top$")
-  val matches = filter(catalog, searchQuery)
+  val matches     = filter(catalog, searchQuery)
   println(s"Name matches '.*top$$': ${matches.map(_.name)}")
   println()
 

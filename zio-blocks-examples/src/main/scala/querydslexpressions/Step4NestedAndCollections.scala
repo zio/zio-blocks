@@ -3,12 +3,14 @@ package querydslexpressions
 import zio.blocks.schema._
 
 /**
- * Query DSL with Reified Optics — Part 1, Step 4: Nested Structures and Collections
+ * Query DSL with Reified Optics — Part 1, Step 4: Nested Structures and
+ * Collections
  *
- * Demonstrates querying through nested case classes using composed lenses,
- * and querying across collection elements using traversals.
+ * Demonstrates querying through nested case classes using composed lenses, and
+ * querying across collection elements using traversals.
  *
- * Run with: sbt "examples/runMain querydslexpressions.Step4NestedAndCollections"
+ * Run with: sbt "examples/runMain
+ * querydslexpressions.Step4NestedAndCollections"
  */
 object Step4NestedAndCollections extends App {
 
@@ -52,18 +54,21 @@ object Step4NestedAndCollections extends App {
   object Order extends CompanionOptics[Order] {
     implicit val schema: Schema[Order] = Schema.derived
 
-    val id: Lens[Order, String]              = optic(_.id)
-    val allPrices: Traversal[Order, Double]  = optic(_.items.each.price)
-    val allSkus: Traversal[Order, String]    = optic(_.items.each.sku)
+    val id: Lens[Order, String]             = optic(_.id)
+    val allPrices: Traversal[Order, Double] = optic(_.items.each.price)
+    val allSkus: Traversal[Order, String]   = optic(_.items.each.sku)
   }
 
   // --- Querying Through Collections ---
 
-  val order = Order("ORD-1", List(
-    LineItem("SKU-A", 29.99, 2),
-    LineItem("SKU-B", 149.99, 1),
-    LineItem("SKU-C", 9.99, 5)
-  ))
+  val order = Order(
+    "ORD-1",
+    List(
+      LineItem("SKU-A", 29.99, 2),
+      LineItem("SKU-B", 149.99, 1),
+      LineItem("SKU-C", 9.99, 5)
+    )
+  )
 
   val hasExpensiveItem: SchemaExpr[Order, Boolean] =
     Order.allPrices > 100.0

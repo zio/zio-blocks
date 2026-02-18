@@ -49,7 +49,7 @@ object Step2SqlPredicates extends App {
 
   // Translate a SchemaExpr into Expr, then render with the same interpreter
   val schemaExpr: SchemaExpr[Product, Boolean] = Product.rating >= 4
-  val asExpr = Expr.fromSchemaExpr(schemaExpr)
+  val asExpr                                   = Expr.fromSchemaExpr(schemaExpr)
   println(s"SchemaExpr translated to SQL: ${exprToSql(asExpr)}")
   println()
 
@@ -59,9 +59,9 @@ object Step2SqlPredicates extends App {
   // Bridge extensions auto-translate SchemaExpr at the boundary — no .toExpr needed
   val combined =
     Product.category.in("Electronics", "Books") &&
-    Product.price.between(10.0, 500.0) &&
-    (Product.rating >= 4) &&
-    Product.name.like("M%")
+      Product.price.between(10.0, 500.0) &&
+      (Product.rating >= 4) &&
+      Product.name.like("M%")
 
   println(s"SELECT * FROM products WHERE ${exprToSql(combined)}")
 }

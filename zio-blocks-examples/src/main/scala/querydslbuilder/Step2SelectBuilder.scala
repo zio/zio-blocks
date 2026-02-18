@@ -5,9 +5,9 @@ import zio.blocks.schema._
 /**
  * Query DSL Part 4 — Step 2: The SELECT Builder
  *
- * Demonstrates the fluent SELECT builder with .columns(), .where(),
- * .orderBy(), and .limit() methods. The single unified exprToSql interpreter
- * handles all expression types — no dual-interpreter delegation needed.
+ * Demonstrates the fluent SELECT builder with .columns(), .where(), .orderBy(),
+ * and .limit() methods. The single unified exprToSql interpreter handles all
+ * expression types — no dual-interpreter delegation needed.
  *
  * Run with: sbt "examples/runMain querydslbuilder.Step2SelectBuilder"
  */
@@ -54,8 +54,8 @@ object Step2SelectBuilder extends App {
     .columns(Product.name, Product.price, Product.category)
     .where(
       Product.category === "Electronics" &&
-      Product.rating >= 4 &&
-      Product.price.between(10.0, 500.0)
+        Product.rating >= 4 &&
+        Product.price.between(10.0, 500.0)
     )
     .orderBy(Product.price, SortOrder.Desc)
     .limit(10)

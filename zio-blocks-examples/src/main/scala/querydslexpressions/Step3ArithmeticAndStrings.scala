@@ -3,12 +3,14 @@ package querydslexpressions
 import zio.blocks.schema._
 
 /**
- * Query DSL with Reified Optics — Part 1, Step 3: Arithmetic and String Operations
+ * Query DSL with Reified Optics — Part 1, Step 3: Arithmetic and String
+ * Operations
  *
  * Demonstrates arithmetic expressions (+, -, *) on numeric fields, string
  * operations (matches, concat, length), and dynamic evaluation.
  *
- * Run with: sbt "examples/runMain querydslexpressions.Step3ArithmeticAndStrings"
+ * Run with: sbt "examples/runMain
+ * querydslexpressions.Step3ArithmeticAndStrings"
  */
 object Step3ArithmeticAndStrings extends App {
 
