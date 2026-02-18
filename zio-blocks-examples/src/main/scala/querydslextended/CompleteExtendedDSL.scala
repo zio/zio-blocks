@@ -6,12 +6,7 @@ import zio.blocks.schema._
  * Query DSL Part 3 — Complete Example
  *
  * A complete, self-contained example demonstrating the independent Expr expression
- * language. Unlike the wrapper approach (where Expr embeds SchemaExpr via a Wrapped
- * node), this design translates SchemaExpr into Expr via fromSchemaExpr, yielding:
- *   - A single unified interpreter (no delegation to a second toSql)
- *   - No duplicated Lit/Column nodes alongside SchemaExpr's Literal/Optic
- *   - Type-safe aggregates (COUNT → Long, SUM/AVG → Double, MIN/MAX preserve type)
- *   - Seamless composition via bridge extensions (no manual .toExpr in most cases)
+ * language. This design translates SchemaExpr into Expr via fromSchemaExpr.
  *
  * Run with: sbt "examples/runMain querydslextended.CompleteExtendedDSL"
  */
@@ -42,11 +37,11 @@ object CompleteExtendedDSL extends App {
   sealed trait Expr[S, A]
 
   object Expr {
-    // Core nodes (superset of SchemaExpr's Optic and Literal)
+    // Core nodes
     final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
     final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
 
-    // Relational, logical, arithmetic, string — mirrors SchemaExpr structure
+    // Relational, logical, arithmetic, string
     final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
     final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
     final case class Or[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
@@ -63,7 +58,7 @@ object CompleteExtendedDSL extends App {
     final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
     // Type-safe aggregates
-    final case class Agg[S, A, B](function: AggFunction[A, B], expr: Expr[S, A]) extends Expr[S, B]
+    final case class Agg[S, A, B](function: AggFunc[A, B], expr: Expr[S, A]) extends Expr[S, B]
 
     // Conditional
     final case class CaseWhen[S, A](
@@ -74,11 +69,11 @@ object CompleteExtendedDSL extends App {
     // Factory methods
     def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
     def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
-    def count[S, A](expr: Expr[S, A]): Expr[S, Long]  = Agg(AggFunction.Count(), expr)
-    def sum[S](expr: Expr[S, Double]): Expr[S, Double] = Agg(AggFunction.Sum, expr)
-    def avg[S](expr: Expr[S, Double]): Expr[S, Double] = Agg(AggFunction.Avg, expr)
-    def min[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunction.Min(), expr)
-    def max[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunction.Max(), expr)
+    def count[S, A](expr: Expr[S, A]): Expr[S, Long]  = Agg(AggFunc.Count(), expr)
+    def sum[S](expr: Expr[S, Double]): Expr[S, Double] = Agg(AggFunc.Sum, expr)
+    def avg[S](expr: Expr[S, Double]): Expr[S, Double] = Agg(AggFunc.Avg, expr)
+    def min[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunc.Min(), expr)
+    def max[S, A](expr: Expr[S, A]): Expr[S, A]        = Agg(AggFunc.Max(), expr)
 
     def caseWhen[S, A](branches: (Expr[S, Boolean], Expr[S, A])*): CaseWhenBuilder[S, A] =
       CaseWhenBuilder(branches.toList)
@@ -88,7 +83,7 @@ object CompleteExtendedDSL extends App {
       def end: Expr[S, A] = CaseWhen(branches, None)
     }
 
-    // One-way translation from SchemaExpr — not embedding
+    // One-way translation from SchemaExpr
     def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = se match {
       case SchemaExpr.Optic(optic)      => Column(optic.asInstanceOf[Optic[S, A]])
       case SchemaExpr.Literal(value, s) => Lit(value.asInstanceOf[A], s.asInstanceOf[Schema[A]])
@@ -126,32 +121,47 @@ object CompleteExtendedDSL extends App {
     }
   }
 
-  enum RelOp   { case Equal, NotEqual, LessThan, LessThanOrEqual, GreaterThan, GreaterThanOrEqual }
-  enum ArithOp { case Add, Subtract, Multiply }
+  sealed trait RelOp
+  object RelOp {
+    case object Equal              extends RelOp
+    case object NotEqual           extends RelOp
+    case object LessThan           extends RelOp
+    case object LessThanOrEqual    extends RelOp
+    case object GreaterThan        extends RelOp
+    case object GreaterThanOrEqual extends RelOp
+  }
 
-  sealed trait AggFunction[A, B] { def name: String }
-  object AggFunction {
-    case class Count[A]() extends AggFunction[A, Long]          { val name = "COUNT" }
-    case object Sum        extends AggFunction[Double, Double]    { val name = "SUM" }
-    case object Avg        extends AggFunction[Double, Double]    { val name = "AVG" }
-    case class Min[A]()   extends AggFunction[A, A]              { val name = "MIN" }
-    case class Max[A]()   extends AggFunction[A, A]              { val name = "MAX" }
+  sealed trait ArithOp
+  object ArithOp {
+    case object Add      extends ArithOp
+    case object Subtract extends ArithOp
+    case object Multiply extends ArithOp
+  }
+
+  // Named AggFunc to avoid clash with package-level AggFunction
+  sealed trait AggFunc[A, B] { def name: String }
+  object AggFunc {
+    case class Count[A]() extends AggFunc[A, Long]          { val name = "COUNT" }
+    case object Sum        extends AggFunc[Double, Double]    { val name = "SUM" }
+    case object Avg        extends AggFunc[Double, Double]    { val name = "AVG" }
+    case class Min[A]()   extends AggFunc[A, A]              { val name = "MIN" }
+    case class Max[A]()   extends AggFunc[A, A]              { val name = "MAX" }
   }
 
   // --- Extension methods with bridge ---
 
-  extension [S, A](optic: Optic[S, A]) {
+  implicit final class OpticOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
     def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
     def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
     def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
     def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
   }
 
-  extension [S](optic: Optic[S, String]) {
+  implicit final class StringOpticOps[S](private val optic: Optic[S, String]) extends AnyVal {
     def like(pattern: String): Expr[S, Boolean] = Expr.Like(Expr.col(optic), pattern)
   }
 
-  extension [S](self: Expr[S, Boolean]) {
+  implicit final class ExprBoolOps[S](private val self: Expr[S, Boolean]) extends AnyVal {
     def &&(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.And(self, other)
     def &&(other: SchemaExpr[S, Boolean]): Expr[S, Boolean] = Expr.And(self, Expr.fromSchemaExpr(other))
     def ||(other: Expr[S, Boolean]): Expr[S, Boolean]      = Expr.Or(self, other)
@@ -159,7 +169,7 @@ object CompleteExtendedDSL extends App {
     def unary_! : Expr[S, Boolean]                          = Expr.Not(self)
   }
 
-  extension [S](self: SchemaExpr[S, Boolean]) {
+  implicit final class SchemaExprBridge[S](private val self: SchemaExpr[S, Boolean]) extends AnyVal {
     def &&(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.And(Expr.fromSchemaExpr(self), other)
     def ||(other: Expr[S, Boolean]): Expr[S, Boolean] = Expr.Or(Expr.fromSchemaExpr(self), other)
     def toExpr: Expr[S, Boolean] = Expr.fromSchemaExpr(self)
@@ -167,7 +177,7 @@ object CompleteExtendedDSL extends App {
 
   // --- SQL rendering ---
 
-  def columnName(optic: zio.blocks.schema.Optic[?, ?]): String =
+  def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
     optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
   def sqlLiteralUntyped(value: Any): String = value match {
@@ -189,7 +199,7 @@ object CompleteExtendedDSL extends App {
     }
   }
 
-  // Single unified interpreter — no delegation to a second function
+  // Single unified interpreter
   def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
     case Expr.Column(optic)      => columnName(optic)
     case Expr.Lit(value, schema) => sqlLiteral(value, schema)
@@ -219,7 +229,7 @@ object CompleteExtendedDSL extends App {
     case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
     case Expr.Agg(func, e)     => s"${func.name}(${exprToSql(e)})"
     case Expr.CaseWhen(branches, otherwise) =>
-      val cases = branches.map { (cond, value) =>
+      val cases = branches.map { case (cond, value) =>
         s"WHEN ${exprToSql(cond)} THEN ${exprToSql(value)}"
       }.mkString(" ")
       val elseClause = otherwise.map(e => s" ELSE ${exprToSql(e)}").getOrElse("")
@@ -231,7 +241,7 @@ object CompleteExtendedDSL extends App {
   println("=== Complete Extended DSL Example ===")
   println()
 
-  // 1. SQL-specific predicates — seamless composition, no .toExpr for &&
+  // 1. SQL-specific predicates — seamless composition
   val q1 = Product.category.in("Electronics", "Books") &&
     Product.price.between(10.0, 500.0) &&
     (Product.rating >= 4) &&
