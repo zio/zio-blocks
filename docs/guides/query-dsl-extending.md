@@ -172,8 +172,6 @@ object Expr {
   }
 
   // --- Translation from SchemaExpr ---
-  // Each branch is internally type-safe; the single final cast is needed because
-  // SchemaExpr's covariant +B prevents Scala 3 GADT narrowing of A.
   def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
     val result: Expr[S, _] = se match {
       case SchemaExpr.Optic(optic)      => Column(optic)
@@ -232,7 +230,7 @@ object ArithOp {
   case object Multiply extends ArithOp
 }
 
-// Typed aggregate functions — the phantom types encode input→output
+// Typed aggregate functions
 sealed trait AggFunction[A, B] {
   def name: String
 }
@@ -251,10 +249,6 @@ The design has several advantages over a simple wrapper approach:
 - **Type-safe aggregates** — `AggFunction[A, B]` encodes the return type: `COUNT` returns `Long`, `SUM`/`AVG` return `Double`, `MIN`/`MAX` preserve the input type.
 - **Typed literals** — `Lit(value, schema)` carries the `Schema[A]` so the SQL renderer can format values correctly using the schema rather than runtime type checks.
 - **`fromSchemaExpr`** — one-way translation recursively converts every `SchemaExpr` node into its `Expr` equivalent, mapping operators along the way.
-
-:::info
-The single `asInstanceOf` at the end of `fromSchemaExpr` is needed because `SchemaExpr[S, +A]` is covariant in `A`. Covariance prevents Scala's GADT narrowing from proving that, for example, `Expr[S, Boolean]` is `Expr[S, A]` when matching a `Relational` branch. Each branch is internally type-safe; only the final widening from `Expr[S, _]` back to `Expr[S, A]` requires a cast.
-:::
 
 ## Extension Methods
 
