@@ -33,7 +33,7 @@ object Step2SqlPredicates extends App {
     val rating: Lens[Product, Int]      = optic(_.rating)
   }
 
-  // Expr, exprToSql, and extensions are defined in Common.scala
+  // Expr, exprToSql, and extensions are defined in the querydslextended package object (package.scala)
 
   // --- Output ---
 
