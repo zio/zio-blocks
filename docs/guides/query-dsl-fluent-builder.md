@@ -118,9 +118,9 @@ object Expr {
   def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
 
   def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-    val result: Expr[S, _] = se match {
+    val result = se match {
       case SchemaExpr.Optic(optic)      => Column(optic)
-      case SchemaExpr.Literal(value, s) => Lit(value, s)
+      case l: SchemaExpr.Literal[_, _]  => Lit(l.value, l.schema)
       case SchemaExpr.Relational(l, r, op) =>
         val relOp = op match {
           case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
@@ -290,9 +290,9 @@ The result type automatically widens to `Expr` whenever an `Expr` value enters t
 
 ```scala mdoc
 val condition =
-  Product.category === "Electronics" &&
-  Product.rating >= 4 &&
   Product.price.between(10.0, 500.0) &&
+  (Product.category === "Electronics") &&
+  (Product.rating >= 4) &&
   Product.name.like("L%")
 
 exprToSql(condition)
@@ -376,9 +376,9 @@ renderSelect(basicSelect)
 val advancedSelect = select(Product.table)
   .columns(Product.name, Product.price, Product.category)
   .where(
-    Product.category === "Electronics" &&
-    Product.rating >= 4 &&
-    Product.price.between(10.0, 500.0)
+    Product.price.between(10.0, 500.0) &&
+    (Product.category === "Electronics") &&
+    (Product.rating >= 4)
   )
   .orderBy(Product.price, SortOrder.Desc)
   .limit(10)
@@ -422,11 +422,11 @@ val basicUpdate =
   update(Product.table)
     .set(Product.price, 9.99)
     .where(
-      Product.category === "Books" &&
-        Product.rating >= 4 &&
-        Product.inStock === true &&
-        Product.price.between(10.0, 30.0) &&
-        Product.name.like("M%")
+      Product.price.between(10.0, 30.0) &&
+        Product.name.like("M%") &&
+        (Product.category === "Books") &&
+        (Product.rating >= 4) &&
+        (Product.inStock === true)
     )
 
 renderUpdate(basicUpdate)
@@ -499,8 +499,8 @@ renderInsert(ins)
 
 val del = deleteFrom(Product.table)
   .where(
-    Product.inStock === false &&
-    Product.price.between(0.0, 1.0)
+    Product.price.between(0.0, 1.0) &&
+    (Product.inStock === false)
   )
 
 renderDelete(del)
@@ -569,9 +569,9 @@ object Expr {
   def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
 
   def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-    val result: Expr[S, _] = se match {
+    val result = se match {
       case SchemaExpr.Optic(optic)      => Column(optic)
-      case SchemaExpr.Literal(value, s) => Lit(value, s)
+      case l: SchemaExpr.Literal[_, _]  => Lit(l.value, l.schema)
       case SchemaExpr.Relational(l, r, op) =>
         val relOp = op match {
           case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
@@ -821,11 +821,11 @@ println(renderSelect(q))
 val u = update(Product.table)
   .set(Product.price, 9.99)
   .where(
-    Product.category === "Books" &&
-      Product.rating >= 4 &&
-      Product.inStock === true &&
-      Product.price.between(10.0, 30.0) &&
-      Product.name.like("M%")
+    Product.price.between(10.0, 30.0) &&
+      Product.name.like("M%") &&
+      (Product.category === "Books") &&
+      (Product.rating >= 4) &&
+      (Product.inStock === true)
   )
 
 println(renderUpdate(u))
@@ -842,7 +842,7 @@ println(renderInsert(i))
 
 // DELETE
 val d = deleteFrom(Product.table)
-  .where(Product.inStock === false && Product.price.between(0.0, 1.0))
+  .where(Product.price.between(0.0, 1.0) && (Product.inStock === false))
 
 println(renderDelete(d))
 ```
