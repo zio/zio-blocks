@@ -578,20 +578,11 @@ object JsonSpec extends SchemaBaseSpec {
         }
       ),
       suite("merging")(
-        test("merge with Auto strategy merges objects deeply") {
-          val json1  = Json.Object("a" -> Json.Object("x" -> Json.Number(1)))
-          val json2  = Json.Object("a" -> Json.Object("y" -> Json.Number(2)))
+        test("merge with Auto strategy merges objects deeply with key deduplication") {
+          val json1  = Json.Object("a" -> Json.Object("x" -> Json.Number(1), "x" -> Json.Number(3)))
+          val json2  = Json.Object("a" -> Json.Object("x" -> Json.Number(2), "x" -> Json.Number(4)))
           val result = json1.merge(json2)
-          result match {
-            case Json.Object(fields) =>
-              assertTrue(fields.length == 1) &&
-              (fields.head._2 match {
-                case Json.Object(innerFields) =>
-                  assertTrue(innerFields.length == 2)
-                case _ => assertTrue(false)
-              })
-            case _ => assertTrue(false)
-          }
+          assertTrue(result == Json.Object("a" -> Json.Object("x" -> Json.Number(4))))
         },
         test("merge with Replace strategy replaces completely") {
           val json1  = Json.Object("a" -> Json.Number(1))

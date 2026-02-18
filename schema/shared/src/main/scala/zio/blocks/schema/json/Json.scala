@@ -8,7 +8,6 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
 import java.util
-import scala.collection.mutable
 import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
 
@@ -1053,55 +1052,66 @@ object Json {
   private[this] def mergeByKey(path: DynamicOptic, left: Object, right: Object, s: MergeStrategy): Object = {
     val leftFields  = left.value
     val rightFields = right.value
-    val leftMap     = leftFields.toMap
-    val rightMap    = rightFields.toMap
-    val allKeys     = mutable.ArrayBuilder.make[java.lang.String]
-    allKeys.sizeHint(leftFields.length + rightFields.length)
-    leftFields.foreach(kv => allKeys.addOne(kv._1))
+    val leftLen     = leftFields.length
+    val rightLen    = rightFields.length
+    val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen)
+    val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen)
+    var merged      = new scala.Array[(java.lang.String, Json)](leftLen + rightLen)
+    val rightDedup  = new scala.Array[(java.lang.String, Json)](rightLen)
+    var idx         = 0
+    leftFields.foreach { kv =>
+      val key = kv._1
+      val pos = leftSeenAt.getOrDefault(key, -1)
+      if (pos < 0) {
+        leftSeenAt.put(key, idx)
+        merged(idx) = kv
+        idx += 1
+      } else merged(pos) = kv
+    }
+    var rightIdx = 0
     rightFields.foreach { kv =>
       val key = kv._1
-      if (!leftMap.contains(key)) allKeys.addOne(key)
+      val pos = rightSeenAt.getOrDefault(key, -1)
+      if (pos < 0) {
+        rightSeenAt.put(key, rightIdx)
+        rightDedup(rightIdx) = kv
+        rightIdx += 1
+      } else rightDedup(pos) = kv
     }
-    new Object(Chunk.fromArray(allKeys.result().map { key =>
-      val rvOpt = rightMap.get(key)
-      (
-        key,
-        leftMap.get(key) match {
-          case Some(lv) =>
-            rvOpt match {
-              case Some(rv) => merge(path.field(key), lv, rv, s)
-              case _        => lv
-            }
-          case _ =>
-            rvOpt match {
-              case Some(rv) => rv
-              case _        => throw new IllegalStateException("Key should exist in at least one map")
-            }
-        }
-      )
-    }))
+    val rightDedupLen = rightIdx
+    rightIdx = 0
+    while (rightIdx < rightDedupLen) {
+      val kv = rightDedup(rightIdx)
+      rightIdx += 1
+      val key = kv._1
+      val pos = leftSeenAt.getOrDefault(key, -1)
+      if (pos < 0) {
+        merged(idx) = kv
+        idx += 1
+      } else merged(pos) = (key, merge(path.field(key), merged(pos)._2, kv._2, s))
+    }
+    if (merged.length != idx) merged = util.Arrays.copyOf(merged, idx)
+    new Object(Chunk.fromArray(merged))
   }
 
   private[this] def mergeByIndex(path: DynamicOptic, left: Array, right: Array, s: MergeStrategy): Array = {
     val leftVal  = left.value
     val rightVal = right.value
-    val maxLen   = Math.max(leftVal.length, rightVal.length)
-    val arr      = new scala.Array[Json](maxLen)
+    val leftLen  = leftVal.length
+    val rightLen = rightVal.length
+    val arr      = new scala.Array[Json](Math.max(leftLen, rightLen))
+    val minLen   = Math.min(leftLen, rightLen)
     var idx      = 0
-    while (idx < maxLen) {
-      val rvOpt = rightVal.lift(idx)
-      arr(idx) = leftVal.lift(idx) match {
-        case Some(lv) =>
-          rvOpt match {
-            case Some(rv) => merge(path.at(idx), lv, rv, s)
-            case _        => lv
-          }
-        case _ =>
-          rvOpt match {
-            case Some(rv) => rv
-            case _        => throw new IllegalStateException("Index should exist in at least one array")
-          }
-      }
+    while (idx < minLen) {
+      arr(idx) = merge(path.at(idx), leftVal(idx), rightVal(idx), s)
+      idx += 1
+    }
+    while (idx < leftLen) {
+      arr(idx) = leftVal(idx)
+      idx += 1
+    }
+    while (idx < rightLen) {
+      arr(idx) = rightVal(idx)
       idx += 1
     }
     new Array(Chunk.fromArray(arr))
