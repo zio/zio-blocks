@@ -302,27 +302,26 @@ object DynamicSchema extends TypeIdSchemas {
     fields: zio.blocks.chunk.Chunk[(String, DynamicValue)],
     trace: List[DynamicOptic.Node]
   ): Option[SchemaError] = {
-    val recordFields     = record.fields
-    val schemaFieldNames = recordFields.map(_.name).toSet
-    val providedNames    = fields.map(_._1).toSet
-    val extraFields      = providedNames -- schemaFieldNames
-    if (extraFields.nonEmpty) {
-      return new Some(SchemaError.expectationMismatch(trace, s"Unknown field '${extraFields.head}' in Record"))
+    val recordFields = record.fields
+    val schemaFields = new java.util.HashMap[String, Reflect[NoBinding, _]](recordFields.length) {
+      recordFields.foreach(term => put(term.name, term.value))
     }
-    val fieldMap = fields.toMap
-    val len      = recordFields.length
+    val fieldLen = fields.length
     var idx      = 0
-    while (idx < len) {
-      val term     = recordFields(idx)
-      val termName = term.name
-      fieldMap.get(termName) match {
-        case Some(fieldValue) =>
-          val fieldTrace = new DynamicOptic.Node.Field(termName) :: trace
-          val err        = checkValue(term.value.asInstanceOf[Reflect.Unbound[_]], fieldValue, fieldTrace)
-          if (err ne None) return err
-          idx += 1
-        case _ => return new Some(SchemaError.missingField(trace, termName))
+    while (idx < fieldLen) {
+      val kv        = fields(idx)
+      val termName  = kv._1
+      val termValue = schemaFields.remove(termName)
+      if (termValue eq null) {
+        return new Some(SchemaError.expectationMismatch(trace, s"Unknown field '$termName' in Record"))
       }
+      val fieldTrace = new DynamicOptic.Node.Field(termName) :: trace
+      val err        = checkValue(termValue.asInstanceOf[Reflect.Unbound[_]], kv._2, fieldTrace)
+      if (err ne None) return err
+      idx += 1
+    }
+    if (!schemaFields.isEmpty) {
+      return new Some(SchemaError.missingField(trace, schemaFields.keySet().iterator().next()))
     }
     None
   }
@@ -1673,14 +1672,16 @@ object DynamicSchema extends TypeIdSchemas {
 
     def dvToTerm(dv: DynamicValue): Term[NoBinding, Any, Any] = dv match {
       case DynamicValue.Record(fields) =>
-        val fieldMap = fields.toMap
-        val name     = fieldMap("name") match {
+        val fieldMap = new java.util.HashMap[String, DynamicValue](fields.length) {
+          fields.foreach(kv => put(kv._1, kv._2))
+        }
+        val name = fieldMap.get("name") match {
           case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
           case _                                                => "unknown"
         }
-        val value     = dynamicValueToReflect(fieldMap("value"))
-        val doc       = dvToDoc(fieldMap.getOrElse("doc", new DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers = dvToTermModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
+        val value     = dynamicValueToReflect(fieldMap.getOrDefault("value", emptyDynamicRecord))
+        val doc       = dvToDoc(fieldMap.getOrDefault("doc", emptyDynamicVariant))
+        val modifiers = dvToTermModifiers(fieldMap.getOrDefault("modifiers", emptyDynamicSequence))
         new Term(name, value.asInstanceOf[Reflect.Unbound[Any]], doc, modifiers)
       case _ => new Term("unknown", new Reflect.Dynamic[NoBinding](NoBinding()).asInstanceOf[Reflect.Unbound[Any]])
     }
@@ -1766,116 +1767,100 @@ object DynamicSchema extends TypeIdSchemas {
     }).asInstanceOf[PrimitiveType[Any]]
 
     dv match {
-      case DynamicValue.Variant("Record", DynamicValue.Record(fields)) =>
-        val fieldMap   = fields.toMap
-        val tid        = dvToTypeId(fieldMap("typeId"))
-        val doc        = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers  = dvToModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
-        val termFields = fieldMap("fields") match {
-          case DynamicValue.Sequence(elems) => elems.map(dvToTerm)
-          case _                            => Chunk.empty
+      case DynamicValue.Variant(typeName, DynamicValue.Record(fields)) =>
+        val fieldMap = new java.util.HashMap[String, DynamicValue](fields.length) {
+          fields.foreach(kv => put(kv._1, kv._2))
         }
-        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
-        val examples     = dvToExamples(fieldMap.getOrElse("examples", emptyDynamicSequence))
-        new Reflect.Record[NoBinding, Any](
-          fields = termFields,
-          typeId = tid,
-          recordBinding = NoBinding(),
-          doc = doc,
-          modifiers = modifiers,
-          storedDefaultValue = defaultValue,
-          storedExamples = examples
-        )
-      case DynamicValue.Variant("Variant", DynamicValue.Record(fields)) =>
-        val fieldMap  = fields.toMap
-        val tid       = dvToTypeId(fieldMap("typeId"))
-        val doc       = dvToDoc(fieldMap.getOrElse("doc", new DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers = dvToModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
-        val cases     = fieldMap("cases") match {
-          case DynamicValue.Sequence(elems) => elems.map(dvToTerm)
-          case _                            => Chunk.empty
-        }
-        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
-        val examples     = dvToExamples(fieldMap.getOrElse("examples", emptyDynamicSequence))
-        new Reflect.Variant[NoBinding, Any](
-          cases = cases,
-          typeId = tid,
-          variantBinding = NoBinding(),
-          doc = doc,
-          modifiers = modifiers,
-          storedDefaultValue = defaultValue,
-          storedExamples = examples
-        )
-      case DynamicValue.Variant("Sequence", DynamicValue.Record(fields)) =>
-        val fieldMap     = fields.toMap
-        val tid          = dvToTypeId(fieldMap("typeId"))
-        val doc          = dvToDoc(fieldMap.getOrElse("doc", DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
-        val element      = dynamicValueToReflect(fieldMap("element"))
-        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
-        val examples     = dvToExamples(fieldMap.getOrElse("examples", emptyDynamicSequence))
-        new Reflect.Sequence[NoBinding, Any, Seq](
-          element = element.asInstanceOf[Reflect.Unbound[Any]],
-          typeId = tid.asInstanceOf[TypeId[Seq[Any]]],
-          seqBinding = NoBinding(),
-          doc = doc,
-          modifiers = modifiers,
-          storedDefaultValue = defaultValue,
-          storedExamples = examples
-        )
-      case DynamicValue.Variant("Map", DynamicValue.Record(fields)) =>
-        val fieldMap     = fields.toMap
-        val tid          = dvToTypeId(fieldMap("typeId"))
-        val doc          = dvToDoc(fieldMap.getOrElse("doc", new DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
-        val key          = dynamicValueToReflect(fieldMap("key"))
-        val value        = dynamicValueToReflect(fieldMap("value"))
-        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
-        val examples     = dvToExamples(fieldMap.getOrElse("examples", emptyDynamicSequence))
-        new Reflect.Map[NoBinding, Any, Any, scala.collection.immutable.Map](
-          key = key.asInstanceOf[Reflect.Unbound[Any]],
-          value = value.asInstanceOf[Reflect.Unbound[Any]],
-          typeId = tid.asInstanceOf[TypeId[scala.collection.immutable.Map[Any, Any]]],
-          mapBinding = NoBinding(),
-          doc = doc,
-          modifiers = modifiers,
-          storedDefaultValue = defaultValue,
-          storedExamples = examples
-        )
-      case DynamicValue.Variant("Primitive", DynamicValue.Record(fields)) =>
-        val fieldMap      = fields.toMap
-        val tid           = dvToTypeId(fieldMap("typeId"))
-        val doc           = dvToDoc(fieldMap.getOrElse("doc", new DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers     = dvToModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
-        val primitiveType = dvToPrimitiveType(fieldMap("primitiveType"))
-        val defaultValue  = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
-        val examples      = dvToExamples(fieldMap.getOrElse("examples", emptyDynamicSequence))
-        new Reflect.Primitive[NoBinding, Any](
-          primitiveType = primitiveType,
-          typeId = tid,
-          primitiveBinding = NoBinding(),
-          doc = doc,
-          modifiers = modifiers,
-          storedDefaultValue = defaultValue,
-          storedExamples = examples
-        )
-      case DynamicValue.Variant("Wrapper", DynamicValue.Record(fields)) =>
-        val fieldMap     = fields.toMap
-        val tid          = dvToTypeId(fieldMap("typeId"))
-        val doc          = dvToDoc(fieldMap.getOrElse("doc", new DynamicValue.Variant("Empty", emptyDynamicRecord)))
-        val modifiers    = dvToModifiers(fieldMap.getOrElse("modifiers", emptyDynamicSequence))
-        val wrapped      = dynamicValueToReflect(fieldMap("wrapped"))
-        val defaultValue = dvToOptionalDV(fieldMap.getOrElse("defaultValue", DynamicValue.Null))
-        val examples     = dvToExamples(fieldMap.getOrElse("examples", emptyDynamicSequence))
-        new Reflect.Wrapper[NoBinding, Any, Any](
-          wrapped = wrapped.asInstanceOf[Reflect.Unbound[Any]],
-          typeId = tid,
-          wrapperBinding = NoBinding(),
-          doc = doc,
-          modifiers = modifiers,
-          storedDefaultValue = defaultValue,
-          storedExamples = examples
-        )
+        val tid       = dvToTypeId(fieldMap.getOrDefault("typeId", DynamicValue.Null))
+        val doc       = dvToDoc(fieldMap.getOrDefault("doc", emptyDynamicVariant))
+        val modifiers = dvToModifiers(fieldMap.getOrDefault("modifiers", emptyDynamicSequence))
+        if (typeName == "Record") {
+          val termFields = fieldMap.get("fields") match {
+            case DynamicValue.Sequence(elems) => elems.map(dvToTerm)
+            case _                            => Chunk.empty
+          }
+          val defaultValue = dvToOptionalDV(fieldMap.getOrDefault("defaultValue", DynamicValue.Null))
+          val examples     = dvToExamples(fieldMap.getOrDefault("examples", emptyDynamicSequence))
+          new Reflect.Record[NoBinding, Any](
+            fields = termFields,
+            typeId = tid,
+            recordBinding = NoBinding(),
+            doc = doc,
+            modifiers = modifiers,
+            storedDefaultValue = defaultValue,
+            storedExamples = examples
+          )
+        } else if (typeName == "Variant") {
+          val cases = fieldMap.get("cases") match {
+            case DynamicValue.Sequence(elems) => elems.map(dvToTerm)
+            case _                            => Chunk.empty
+          }
+          val defaultValue = dvToOptionalDV(fieldMap.getOrDefault("defaultValue", DynamicValue.Null))
+          val examples     = dvToExamples(fieldMap.getOrDefault("examples", emptyDynamicSequence))
+          new Reflect.Variant[NoBinding, Any](
+            cases = cases,
+            typeId = tid,
+            variantBinding = NoBinding(),
+            doc = doc,
+            modifiers = modifiers,
+            storedDefaultValue = defaultValue,
+            storedExamples = examples
+          )
+        } else if (typeName == "Sequence") {
+          val element      = dynamicValueToReflect(fieldMap.getOrDefault("element", DynamicValue.Null))
+          val defaultValue = dvToOptionalDV(fieldMap.getOrDefault("defaultValue", DynamicValue.Null))
+          val examples     = dvToExamples(fieldMap.getOrDefault("examples", emptyDynamicSequence))
+          new Reflect.Sequence[NoBinding, Any, Seq](
+            element = element.asInstanceOf[Reflect.Unbound[Any]],
+            typeId = tid.asInstanceOf[TypeId[Seq[Any]]],
+            seqBinding = NoBinding(),
+            doc = doc,
+            modifiers = modifiers,
+            storedDefaultValue = defaultValue,
+            storedExamples = examples
+          )
+        } else if (typeName == "Map") {
+          val key          = dynamicValueToReflect(fieldMap.getOrDefault("key", DynamicValue.Null))
+          val value        = dynamicValueToReflect(fieldMap.getOrDefault("value", DynamicValue.Null))
+          val defaultValue = dvToOptionalDV(fieldMap.getOrDefault("defaultValue", DynamicValue.Null))
+          val examples     = dvToExamples(fieldMap.getOrDefault("examples", emptyDynamicSequence))
+          new Reflect.Map[NoBinding, Any, Any, scala.collection.immutable.Map](
+            key = key.asInstanceOf[Reflect.Unbound[Any]],
+            value = value.asInstanceOf[Reflect.Unbound[Any]],
+            typeId = tid.asInstanceOf[TypeId[scala.collection.immutable.Map[Any, Any]]],
+            mapBinding = NoBinding(),
+            doc = doc,
+            modifiers = modifiers,
+            storedDefaultValue = defaultValue,
+            storedExamples = examples
+          )
+        } else if (typeName == "Primitive") {
+          val primitiveType = dvToPrimitiveType(fieldMap.getOrDefault("primitiveType", DynamicValue.Null))
+          val defaultValue  = dvToOptionalDV(fieldMap.getOrDefault("defaultValue", DynamicValue.Null))
+          val examples      = dvToExamples(fieldMap.getOrDefault("examples", emptyDynamicSequence))
+          new Reflect.Primitive[NoBinding, Any](
+            primitiveType = primitiveType,
+            typeId = tid,
+            primitiveBinding = NoBinding(),
+            doc = doc,
+            modifiers = modifiers,
+            storedDefaultValue = defaultValue,
+            storedExamples = examples
+          )
+        } else if (typeName == "Wrapper") {
+          val wrapped      = dynamicValueToReflect(fieldMap.getOrDefault("wrapped", DynamicValue.Null))
+          val defaultValue = dvToOptionalDV(fieldMap.getOrDefault("defaultValue", DynamicValue.Null))
+          val examples     = dvToExamples(fieldMap.getOrDefault("examples", emptyDynamicSequence))
+          new Reflect.Wrapper[NoBinding, Any, Any](
+            wrapped = wrapped.asInstanceOf[Reflect.Unbound[Any]],
+            typeId = tid,
+            wrapperBinding = NoBinding(),
+            doc = doc,
+            modifiers = modifiers,
+            storedDefaultValue = defaultValue,
+            storedExamples = examples
+          )
+        } else new Reflect.Dynamic[NoBinding](NoBinding())
       case _ => new Reflect.Dynamic[NoBinding](NoBinding())
     }
   }
@@ -1885,4 +1870,5 @@ object DynamicSchema extends TypeIdSchemas {
 
   private[this] val emptyDynamicRecord   = new DynamicValue.Record(Chunk.empty)
   private[this] val emptyDynamicSequence = new DynamicValue.Sequence(Chunk.empty)
+  private[this] val emptyDynamicVariant  = new DynamicValue.Variant("Empty", emptyDynamicRecord)
 }
