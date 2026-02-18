@@ -8,6 +8,10 @@ import zio.blocks.schema._
  * Demonstrates handling nested domain types with multi-segment optic paths,
  * producing table-qualified column names for SQL JOIN queries.
  *
+ * This step uses its own domain types (Seller, Address) and overrides
+ * columnName to produce table-qualified names. SQL literal formatting and
+ * the toSql interpreter are defined in the package object (package.scala).
+ *
  * Run with: sbt "examples/runMain querydslsql.Step4NestedSql"
  */
 object Step4NestedSql extends App {
@@ -47,19 +51,10 @@ object Step4NestedSql extends App {
   println()
 
   // --- SQL Generation with Qualified Names ---
+  // Override columnName locally to produce table-qualified names
 
-  def columnName(optic: zio.blocks.schema.Optic[?, ?]): String =
-    qualifiedColumnName(optic)
-
-  def sqlLiteral(value: Any): String = value match {
-    case s: String  => s"'${s.replace("'", "''")}'"
-    case b: Boolean => if (b) "TRUE" else "FALSE"
-    case n: Number  => n.toString
-    case other      => other.toString
-  }
-
-  def toSql[A, B](expr: SchemaExpr[A, B]): String = expr match {
-    case SchemaExpr.Optic(optic)                => columnName(optic)
+  def toSqlQualified[A, B](expr: SchemaExpr[A, B]): String = expr match {
+    case SchemaExpr.Optic(optic)                => qualifiedColumnName(optic)
     case SchemaExpr.Literal(value, _)           => sqlLiteral(value)
     case SchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
@@ -70,28 +65,28 @@ object Step4NestedSql extends App {
         case SchemaExpr.RelationalOperator.GreaterThan        => ">"
         case SchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
       }
-      s"(${toSql(left)} $sqlOp ${toSql(right)})"
+      s"(${toSqlQualified(left)} $sqlOp ${toSqlQualified(right)})"
     case SchemaExpr.Logical(left, right, op) =>
       val sqlOp = op match {
         case SchemaExpr.LogicalOperator.And => "AND"
         case SchemaExpr.LogicalOperator.Or  => "OR"
       }
-      s"(${toSql(left)} $sqlOp ${toSql(right)})"
-    case SchemaExpr.Not(inner)                     => s"NOT (${toSql(inner)})"
+      s"(${toSqlQualified(left)} $sqlOp ${toSqlQualified(right)})"
+    case SchemaExpr.Not(inner)                     => s"NOT (${toSqlQualified(inner)})"
     case SchemaExpr.Arithmetic(left, right, op, _) =>
       val sqlOp = op match {
         case SchemaExpr.ArithmeticOperator.Add      => "+"
         case SchemaExpr.ArithmeticOperator.Subtract => "-"
         case SchemaExpr.ArithmeticOperator.Multiply => "*"
       }
-      s"(${toSql(left)} $sqlOp ${toSql(right)})"
-    case SchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSql(left)}, ${toSql(right)})"
-    case SchemaExpr.StringRegexMatch(regex, string) => s"(${toSql(string)} LIKE ${toSql(regex)})"
-    case SchemaExpr.StringLength(string)            => s"LENGTH(${toSql(string)})"
+      s"(${toSqlQualified(left)} $sqlOp ${toSqlQualified(right)})"
+    case SchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSqlQualified(left)}, ${toSqlQualified(right)})"
+    case SchemaExpr.StringRegexMatch(regex, string) => s"(${toSqlQualified(string)} LIKE ${toSqlQualified(regex)})"
+    case SchemaExpr.StringLength(string)            => s"LENGTH(${toSqlQualified(string)})"
   }
 
-  def select(table: String, predicate: SchemaExpr[?, Boolean]): String =
-    s"SELECT * FROM $table WHERE ${toSql(predicate)}"
+  def selectQualified(table: String, predicate: SchemaExpr[?, Boolean]): String =
+    s"SELECT * FROM $table WHERE ${toSqlQualified(predicate)}"
 
   // --- Example: Nested Query to SQL ---
 
@@ -100,14 +95,9 @@ object Step4NestedSql extends App {
 
   println("=== Nested Query to SQL ===")
   println()
-  println(s"WHERE clause: ${toSql(berlinSellers)}")
+  println(s"WHERE clause: ${toSqlQualified(berlinSellers)}")
   println()
   println("Full JOIN query (conceptual):")
-  println(select("sellers", berlinSellers))
+  println(selectQualified("sellers", berlinSellers))
   println()
-  println("This maps to:")
-  println("  SELECT sellers.*, address.city, address.country")
-  println("  FROM sellers")
-  println("  JOIN addresses AS address ON sellers.id = address.seller_id")
-  println("  WHERE address.city = 'Berlin' AND sellers.rating >= 4.0")
 }
