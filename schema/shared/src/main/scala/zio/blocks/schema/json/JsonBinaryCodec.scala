@@ -184,6 +184,23 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   def decode(input: Array[Byte]): Either[SchemaError, A] = decode(input, ReaderConfig)
 
   /**
+   * Decodes a value of type `A` from the provided byte array using the
+   * specified `from` and `to` slice indices. If decoding fails, an error of
+   * type `SchemaError` is returned.
+   *
+   * @param input
+   *   the byte array containing the binary data to be decoded
+   * @param from
+   *   the start index of the slice (inclusive)
+   * @param to
+   *   the end index of the slice (exclusive)
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
+  def decode(input: Array[Byte], from: Int, to: Int): Either[SchemaError, A] = decode(input, from, to, ReaderConfig)
+
+  /**
    * Encodes the specified value of type `A` into a binary format using the
    * default `WriterConfig`.
    *
@@ -212,6 +229,32 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
       var reader = JsonBinaryCodec.readerPool.get
       if (reader.isInUse) reader = jsonReader(input, config)
       new Right(reader.read(this, input, 0, input.length, config))
+    } catch {
+      case error if NonFatal(error) => new Left(toError(error))
+    }
+
+  /**
+   * Decodes a value of type `A` from the provided byte array using the
+   * specified `from` and `to` slice indices and `ReaderConfig`. If decoding
+   * fails, an error of type `SchemaError` is returned.
+   *
+   * @param input
+   *   the byte array containing the binary data to be decoded
+   * @param from
+   *   the start index of the slice (inclusive)
+   * @param to
+   *   the end index of the slice (exclusive)
+   * @param config
+   *   the `ReaderConfig` instance used to configure the decoding process
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
+  def decode(input: Array[Byte], from: Int, to: Int, config: ReaderConfig): Either[SchemaError, A] =
+    try {
+      var reader = JsonBinaryCodec.readerPool.get
+      if (reader.isInUse) reader = jsonReader(input, config)
+      new Right(reader.read(this, input, from, to, config))
     } catch {
       case error if NonFatal(error) => new Left(toError(error))
     }

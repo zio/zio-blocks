@@ -27,21 +27,32 @@ trait JsonDecoder[A] { self =>
   /**
    * Maps the decoded value using the given function.
    */
-  def map[B](f: A => B): JsonDecoder[B] = (json: Json) => self.decode(json).map(f)
+  def map[B](f: A => B): JsonDecoder[B] = new JsonDecoder[B] {
+    def decode(json: Json): Either[SchemaError, B] = self.decode(json) match {
+      case Right(a) => new Right(f(a))
+      case l        => l.asInstanceOf[Either[SchemaError, B]]
+    }
+  }
 
   /**
    * FlatMaps the decoded value using the given function.
    */
-  def flatMap[B](f: A => Either[SchemaError, B]): JsonDecoder[B] = (json: Json) => self.decode(json).flatMap(f)
+  def flatMap[B](f: A => Either[SchemaError, B]): JsonDecoder[B] = new JsonDecoder[B] {
+    def decode(json: Json): Either[SchemaError, B] = self.decode(json) match {
+      case Right(a) => f(a)
+      case l        => l.asInstanceOf[Either[SchemaError, B]]
+    }
+  }
 
   /**
    * Returns an alternative decoder that is tried if this decoder fails.
    */
-  def orElse(that: => JsonDecoder[A]): JsonDecoder[A] = (json: Json) =>
-    self.decode(json) match {
+  def orElse(that: => JsonDecoder[A]): JsonDecoder[A] = new JsonDecoder[A] {
+    def decode(json: Json): Either[SchemaError, A] = self.decode(json) match {
       case _: Left[_, _] => that.decode(json)
       case r             => r
     }
+  }
 }
 
 object JsonDecoder {
@@ -54,7 +65,9 @@ object JsonDecoder {
   /**
    * Creates a JsonDecoder from a function.
    */
-  def instance[A](f: Json => Either[SchemaError, A]): JsonDecoder[A] = (json: Json) => f(json)
+  def instance[A](f: Json => Either[SchemaError, A]): JsonDecoder[A] = new JsonDecoder[A] {
+    def decode(json: Json): Either[SchemaError, A] = f(json)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Primitive Decoders

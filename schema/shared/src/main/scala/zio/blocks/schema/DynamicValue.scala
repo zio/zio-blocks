@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.json.{Json, JsonBinaryCodec}
-import zio.blocks.schema.patch.{DynamicPatch, Differ}
+import zio.blocks.schema.patch.{Differ, DynamicPatch}
 
 /**
  * A schema-less, dynamically-typed representation of any value.
@@ -2087,7 +2087,7 @@ object DynamicValue {
         // Variants use postfix @ metadata: { ... } @ {tag: "CaseName"}
         toEjson(v.value, indent, sb)
         sb.append(" @ {tag: ")
-        quote(v.caseNameValue, sb)
+        escapeString(sb, v.caseNameValue)
         sb.append('}')
       case s: Sequence =>
         val elements = s.elements
@@ -2123,7 +2123,7 @@ object DynamicValue {
               indentStr(sb, indent + 1)
               val key = kv._1
               key match { // For string keys in maps, we quote them. For non-string keys, we don't quote them.
-                case Primitive(PrimitiveValue.String(str)) => quote(str, sb)
+                case Primitive(PrimitiveValue.String(str)) => escapeString(sb, str)
                 case _                                     => toEjson(key, indent + 1, sb)
               }
               sb.append(": ")
@@ -2150,7 +2150,7 @@ object DynamicValue {
    * Convert a PrimitiveValue to EJSON format. Most primitives render as their
    * JSON equivalent. Some primitives need @ metadata for type information.
    */
-  private def primitiveToEjson(pv: PrimitiveValue, sb: java.lang.StringBuilder): Unit = pv match {
+  private[this] def primitiveToEjson(pv: PrimitiveValue, sb: java.lang.StringBuilder): Unit = pv match {
     case v: PrimitiveValue.Boolean    => sb.append(v.value)
     case v: PrimitiveValue.Byte       => sb.append(v.value)
     case v: PrimitiveValue.Short      => sb.append(v.value)
@@ -2158,8 +2158,8 @@ object DynamicValue {
     case v: PrimitiveValue.Long       => sb.append(v.value)
     case v: PrimitiveValue.Float      => sb.append(JsonBinaryCodec.floatCodec.encodeToString(v.value))
     case v: PrimitiveValue.Double     => sb.append(JsonBinaryCodec.doubleCodec.encodeToString(v.value))
-    case v: PrimitiveValue.Char       => quote(v.value.toString, sb)
-    case v: PrimitiveValue.String     => quote(v.value, sb)
+    case v: PrimitiveValue.Char       => escapeString(sb, v.value.toString)
+    case v: PrimitiveValue.String     => escapeString(sb, v.value)
     case v: PrimitiveValue.BigInt     => sb.append(JsonBinaryCodec.bigIntCodec.encodeToString(v.value))
     case v: PrimitiveValue.BigDecimal => sb.append(JsonBinaryCodec.bigDecimalCodec.encodeToString(v.value))
     case v: PrimitiveValue.DayOfWeek  => sb.append(JsonBinaryCodec.dayOfWeekCodec.encodeToString(v.value))
@@ -2275,24 +2275,35 @@ object DynamicValue {
   /**
    * Quote a string for JSON/EJSON output, escaping special characters.
    */
-  private[this] def quote(s: String, sb: java.lang.StringBuilder): Unit = {
+  private[this] def escapeString(sb: java.lang.StringBuilder, s: String): Unit = {
     sb.append('"')
+    val len = s.length
     var idx = 0
-    while (idx < s.length) {
-      s.charAt(idx) match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\b' => sb.append("\\b")
-        case '\f' => sb.append("\\f")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
-        case c    =>
-          if (c >= ' ') sb.append(c)
-          else sb.append("\\u").append(String.format("%04x", Integer.valueOf(c.toInt)))
-      }
+    while (idx < len) {
+      val ch = s.charAt(idx)
       idx += 1
+      if (ch >= ' ' && ch != '"' && ch != '\\') sb.append(ch)
+      else {
+        sb.append('\\')
+        ch match {
+          case '"'  => sb.append('"')
+          case '\\' => sb.append('\\')
+          case '\b' => sb.append('b')
+          case '\f' => sb.append('f')
+          case '\n' => sb.append('n')
+          case '\r' => sb.append('r')
+          case '\t' => sb.append('t')
+          case _    =>
+            sb.append('u')
+              .append(hexDigit((ch >> 12) & 0xf))
+              .append(hexDigit((ch >> 8) & 0xf))
+              .append(hexDigit((ch >> 4) & 0xf))
+              .append(hexDigit(ch & 0xf))
+        }
+      }
     }
     sb.append('"')
   }
+
+  private[this] def hexDigit(n: Int): Char = (n + (if (n < 10) 48 else 87)).toChar
 }

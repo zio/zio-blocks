@@ -202,28 +202,37 @@ object DynamicPatch {
     }
   }
 
-  private[this] def escapeString(sb: lang.StringBuilder, s: String): Unit = {
-    sb.append('\"')
+  private[this] def escapeString(sb: java.lang.StringBuilder, s: String): Unit = {
+    sb.append('"')
     val len = s.length
     var idx = 0
     while (idx < len) {
-      val c = s.charAt(idx)
-      c match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\b' => sb.append("\\b")
-        case '\f' => sb.append("\\f")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
-        case c    =>
-          if (c >= ' ') sb.append(c)
-          else sb.append(f"\\u${c.toInt}%04x")
-      }
+      val ch = s.charAt(idx)
       idx += 1
+      if (ch >= ' ' && ch != '"' && ch != '\\') sb.append(ch)
+      else {
+        sb.append('\\')
+        ch match {
+          case '"'  => sb.append('"')
+          case '\\' => sb.append('\\')
+          case '\b' => sb.append('b')
+          case '\f' => sb.append('f')
+          case '\n' => sb.append('n')
+          case '\r' => sb.append('r')
+          case '\t' => sb.append('t')
+          case _    =>
+            sb.append('u')
+              .append(hexDigit((ch >> 12) & 0xf))
+              .append(hexDigit((ch >> 8) & 0xf))
+              .append(hexDigit((ch >> 4) & 0xf))
+              .append(hexDigit(ch & 0xf))
+        }
+      }
     }
-    sb.append('\"')
+    sb.append('"')
   }
+
+  private[this] def hexDigit(n: Int): Char = (n + (if (n < 10) 48 else 87)).toChar
 
   private[this] def appendIndent(sb: lang.StringBuilder, indent: Int): Unit = {
     var idx = indent
