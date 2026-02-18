@@ -37,7 +37,7 @@ object Step1ExtendedAST extends App {
     val rating: Lens[Product, Int]      = optic(_.rating)
   }
 
-  // Expr, extensions, and exprToSql are defined in Common.scala
+  // Expr is defined in Common.scala; exprToSql and the extension methods are defined in package.scala
 
   // --- Show the AST structure ---
 
