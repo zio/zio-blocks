@@ -33,7 +33,7 @@ object Step3AggregatesAndCaseWhen extends App {
     val rating: Lens[Product, Int]      = optic(_.rating)
   }
 
-  // Expr, exprToSql, and extensions are defined in Common.scala
+  // Expr and aggregate functions are defined in Common.scala; extensions and exprToSql come from package.scala
 
   // --- Aggregate expressions ---
 
