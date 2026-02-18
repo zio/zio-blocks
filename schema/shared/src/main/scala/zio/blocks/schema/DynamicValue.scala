@@ -4,6 +4,8 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.json.{Json, JsonBinaryCodec}
 import zio.blocks.schema.patch.{Differ, DynamicPatch}
 
+import java.util
+
 /**
  * A schema-less, dynamically-typed representation of any value.
  *
@@ -976,7 +978,8 @@ object DynamicValue {
       case DynamicOptic.Node.AtMapKeys(keys) =>
         dv match {
           case m: Map =>
-            val keysSet    = keys.toSet
+            val keysSet = new util.HashSet[DynamicValue](keys.length)
+            keys.foreach(keysSet.add)
             var found      = false
             val newEntries = m.entries.map { kv =>
               if (keysSet.contains(kv._1)) {
@@ -1150,9 +1153,9 @@ object DynamicValue {
       case DynamicOptic.Node.AtIndices(indices) =>
         dv match {
           case s: Sequence =>
+            val indicesSet = indices.toSet
             if (isLast) {
-              val indicesSet = indices.toSet
-              val newElems   = s.elements
+              val newElems = s.elements
                 .foldLeft(ChunkBuilder.make[DynamicValue](indicesSet.size)) {
                   var idx = -1
                   (acc, dv) =>
@@ -1164,9 +1167,8 @@ object DynamicValue {
               if (newElems.length < s.elements.length) new Some(new Sequence(newElems))
               else None
             } else {
-              val indicesSet = indices.toSet
-              var found      = false
-              val newElems   = s.elements.map {
+              var found    = false
+              val newElems = s.elements.map {
                 var idx = -1
                 e =>
                   idx += 1
@@ -1187,13 +1189,13 @@ object DynamicValue {
       case DynamicOptic.Node.AtMapKeys(keys) =>
         dv match {
           case m: Map =>
+            val keysSet = new util.HashSet[DynamicValue](keys.length)
+            keys.foreach(keysSet.add)
             if (isLast) {
-              val keysSet    = keys.toSet
               val newEntries = m.entries.filterNot(kv => keysSet.contains(kv._1))
               if (newEntries.length < m.entries.length) new Some(new Map(newEntries))
               else None
             } else {
-              val keysSet    = keys.toSet
               var found      = false
               val newEntries = m.entries.map { kv =>
                 if (keysSet.contains(kv._1)) {
