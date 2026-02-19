@@ -211,7 +211,7 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
         assertTrue(show.show(Person("Alice", 30)) == "Person(name = Alice, age = 30)")
       },
       test("shows a record with Double fields") {
-        val show = Point.schema.derive(DeriveShow)
+        val show   = Point.schema.derive(DeriveShow)
         val result = show.show(Point(1.5, 2.5))
         assertTrue(result == "Point(x = 1.5, y = 2.5)")
       }
