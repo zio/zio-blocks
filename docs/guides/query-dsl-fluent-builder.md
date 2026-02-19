@@ -13,6 +13,7 @@ This is Part 4 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) 
 
 - Bridging `SchemaExpr` and `Expr` for seamless `&&` / `||` composition
 - Defining table references with `Table[S]`
+- Deriving table names from `Schema` metadata via `Modifier.config` and auto-pluralization
 - Building fluent SELECT queries with `.columns()`, `.where()`, `.orderBy()`, `.limit()`
 - Building UPDATE statements with `.set()` and `.where()`
 - Building INSERT and DELETE statements
@@ -61,7 +62,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 ## Domain Setup
 
-We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods and statement builder types. The `Expr` ADT used here is the same independent design from Part 3.
+We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods, schema-driven table names, and statement builder types. The `Expr` ADT used here is the same independent design from Part 3.
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -69,6 +70,24 @@ import zio.blocks.schema._
 // --- Table reference ---
 
 case class Table[S](name: String)
+
+object Table {
+  def derived[S](implicit schema: Schema[S]): Table[S] = Table(tableName(schema))
+}
+
+// --- Table name derivation ---
+
+def tableName[S](schema: Schema[S]): String =
+  schema.reflect.modifiers.collectFirst {
+    case Modifier.config(key, value) if key == "sql.table_name" => value
+  }.getOrElse(pluralize(schema.reflect.typeId.name.toLowerCase))
+
+def pluralize(word: String): String =
+  if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z") ||
+      word.endsWith("ch") || word.endsWith("sh")) word + "es"
+  else if (word.endsWith("y") && !word.endsWith("ay") && !word.endsWith("ey") &&
+           !word.endsWith("oy") && !word.endsWith("uy")) word.dropRight(1) + "ies"
+  else word + "s"
 
 // --- Domain ---
 
@@ -83,13 +102,32 @@ case class Product(
 object Product extends CompanionOptics[Product] {
   implicit val schema: Schema[Product] = Schema.derived
 
-  val table: Table[Product] = Table("products")
+  val table: Table[Product] = Table.derived  // "Product" → "products"
 
   val name: Lens[Product, String]     = optic(_.name)
   val price: Lens[Product, Double]    = optic(_.price)
   val category: Lens[Product, String] = optic(_.category)
   val inStock: Lens[Product, Boolean] = optic(_.inStock)
   val rating: Lens[Product, Int]      = optic(_.rating)
+}
+
+case class OrderItem(
+  orderId: Int,
+  productId: Int,
+  quantity: Int,
+  unitPrice: Double
+)
+
+object OrderItem extends CompanionOptics[OrderItem] {
+  implicit val schema: Schema[OrderItem] = Schema.derived
+    .modifier(Modifier.config("sql.table_name", "order_items"))
+
+  val table: Table[OrderItem] = Table.derived  // annotation → "order_items"
+
+  val orderId: Lens[OrderItem, Int]      = optic(_.orderId)
+  val productId: Lens[OrderItem, Int]    = optic(_.productId)
+  val quantity: Lens[OrderItem, Int]     = optic(_.quantity)
+  val unitPrice: Lens[OrderItem, Double] = optic(_.unitPrice)
 }
 
 // --- Expr ADT (from Part 3) ---
@@ -293,18 +331,57 @@ exprToSql(condition)
 
 The first two `&&` calls stay in `SchemaExpr` land (direct method). The third `&&` encounters `between` (returns `Expr`), triggering the bridge. From that point on, everything is `Expr`.
 
-## Table References
+## Schema-Driven Table Names
 
-The `Table[S]` type associates a SQL table name with a schema type. Add it to each companion object:
+The `Table[S]` type associates a SQL table name with a schema type. Rather than hand-writing each table name, `Table.derived` extracts it from `Schema` metadata:
 
 ```scala
 case class Table[S](name: String)
 
-object Product extends CompanionOptics[Product] {
-  val table: Table[Product] = Table("products")
-  // ... lenses
+object Table {
+  def derived[S](implicit schema: Schema[S]): Table[S] = Table(tableName(schema))
 }
 ```
+
+The `tableName` function checks the schema's modifiers for an explicit `sql.table_name` annotation. If none is found, it lowercases the case class name and applies English pluralization:
+
+```scala
+def tableName[S](schema: Schema[S]): String =
+  schema.reflect.modifiers.collectFirst {
+    case Modifier.config(key, value) if key == "sql.table_name" => value
+  }.getOrElse(pluralize(schema.reflect.typeId.name.toLowerCase))
+```
+
+This gives you two ways to control the table name:
+
+**Auto-pluralization (zero configuration):**
+
+```scala
+object Product extends CompanionOptics[Product] {
+  implicit val schema: Schema[Product] = Schema.derived
+  val table: Table[Product] = Table.derived  // "Product" → "products"
+}
+```
+
+**Explicit annotation (for compound names or irregular plurals):**
+
+```scala
+object OrderItem extends CompanionOptics[OrderItem] {
+  implicit val schema: Schema[OrderItem] = Schema.derived
+    .modifier(Modifier.config("sql.table_name", "order_items"))
+  val table: Table[OrderItem] = Table.derived  // annotation → "order_items"
+}
+```
+
+Without the annotation, `OrderItem` would become `orderitems`. The `Modifier.config("sql.table_name", "order_items")` annotation gives you precise control when the default doesn't match your database convention.
+
+```scala mdoc
+Product.table.name
+
+OrderItem.table.name
+```
+
+You can still use the explicit constructor `Table[S]("my_table")` when you need a name that doesn't come from a schema at all.
 
 `Table[S]` is the entry point for every statement builder. The type parameter `S` connects the table to its domain type, ensuring you can only use `Product` lenses in queries against `Product.table`.
 
@@ -505,14 +582,30 @@ For batch inserts, create one `InsertStmt` per row and render each separately. T
 
 ## Putting It Together
 
-Here is a complete example combining the bridge extensions, all four statement builders, and the renderers. The `Expr` ADT, extension methods, SQL rendering, and builder types are defined in `Common.scala` and `package.scala` — the usage code stays focused on building queries:
+Here is a complete example combining schema-driven table names, bridge extensions, all four statement builders, and the renderers. The `Expr` ADT, extension methods, SQL rendering, and builder types are defined in `Common.scala` and `package.scala` — the usage code stays focused on building queries:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
-// --- Table reference ---
+// --- Table reference with schema-driven names ---
 
 case class Table[S](name: String)
+
+object Table {
+  def derived[S](implicit schema: Schema[S]): Table[S] = Table(tableName(schema))
+}
+
+def tableName[S](schema: Schema[S]): String =
+  schema.reflect.modifiers.collectFirst {
+    case Modifier.config(key, value) if key == "sql.table_name" => value
+  }.getOrElse(pluralize(schema.reflect.typeId.name.toLowerCase))
+
+def pluralize(word: String): String =
+  if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z") ||
+      word.endsWith("ch") || word.endsWith("sh")) word + "es"
+  else if (word.endsWith("y") && !word.endsWith("ay") && !word.endsWith("ey") &&
+           !word.endsWith("oy") && !word.endsWith("uy")) word.dropRight(1) + "ies"
+  else word + "s"
 
 // --- Domain ---
 
@@ -527,13 +620,32 @@ case class Product(
 object Product extends CompanionOptics[Product] {
   implicit val schema: Schema[Product] = Schema.derived
 
-  val table: Table[Product] = Table("products")
+  val table: Table[Product] = Table.derived  // "Product" → "products"
 
   val name: Lens[Product, String]     = optic(_.name)
   val price: Lens[Product, Double]    = optic(_.price)
   val category: Lens[Product, String] = optic(_.category)
   val inStock: Lens[Product, Boolean] = optic(_.inStock)
   val rating: Lens[Product, Int]      = optic(_.rating)
+}
+
+case class OrderItem(
+  orderId: Int,
+  productId: Int,
+  quantity: Int,
+  unitPrice: Double
+)
+
+object OrderItem extends CompanionOptics[OrderItem] {
+  implicit val schema: Schema[OrderItem] = Schema.derived
+    .modifier(Modifier.config("sql.table_name", "order_items"))
+
+  val table: Table[OrderItem] = Table.derived  // annotation → "order_items"
+
+  val orderId: Lens[OrderItem, Int]      = optic(_.orderId)
+  val productId: Lens[OrderItem, Int]    = optic(_.productId)
+  val quantity: Lens[OrderItem, Int]     = optic(_.quantity)
+  val unitPrice: Lens[OrderItem, Double] = optic(_.unitPrice)
 }
 
 // --- Expr ADT ---
@@ -790,6 +902,10 @@ def renderDelete[S](stmt: DeleteStmt[S]): String = {
 
 // --- Usage ---
 
+// Schema-driven table names
+println(Product.table.name)    // "products" (auto-pluralized)
+println(OrderItem.table.name)  // "order_items" (from annotation)
+
 // SELECT with mixed conditions
 val q = select(Product.table)
   .columns(Product.name, Product.price, Product.category)
@@ -831,6 +947,14 @@ val d = deleteFrom(Product.table)
   .where(Product.price.between(0.0, 1.0) && (Product.inStock === false))
 
 println(renderDelete(d))
+
+// Cross-table query with annotated table name
+val orderQuery = select(OrderItem.table)
+  .columns(OrderItem.orderId, OrderItem.productId, OrderItem.quantity)
+  .where(OrderItem.quantity >= 3)
+  .orderBy(OrderItem.unitPrice, SortOrder.Desc)
+
+println(renderSelect(orderQuery))
 ```
 
 ## Going Further

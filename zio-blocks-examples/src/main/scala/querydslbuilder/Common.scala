@@ -17,13 +17,33 @@ case class Product(
 object Product extends CompanionOptics[Product] {
   implicit val schema: Schema[Product] = Schema.derived
 
-  val table: Table[Product] = Table("products")
+  val table: Table[Product] = Table.derived
 
   val name: Lens[Product, String]     = optic(_.name)
   val price: Lens[Product, Double]    = optic(_.price)
   val category: Lens[Product, String] = optic(_.category)
   val inStock: Lens[Product, Boolean] = optic(_.inStock)
   val rating: Lens[Product, Int]      = optic(_.rating)
+}
+
+// OrderItem uses Modifier.config to override the auto-derived table name
+case class OrderItem(
+  orderId: Int,
+  productId: Int,
+  quantity: Int,
+  unitPrice: Double
+)
+
+object OrderItem extends CompanionOptics[OrderItem] {
+  implicit val schema: Schema[OrderItem] = Schema.derived
+    .modifier(Modifier.config("sql.table_name", "order_items"))
+
+  val table: Table[OrderItem] = Table.derived
+
+  val orderId: Lens[OrderItem, Int]      = optic(_.orderId)
+  val productId: Lens[OrderItem, Int]    = optic(_.productId)
+  val quantity: Lens[OrderItem, Int]     = optic(_.quantity)
+  val unitPrice: Lens[OrderItem, Double] = optic(_.unitPrice)
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +147,10 @@ object ArithOp {
 // --- Builder types ---
 
 case class Table[S](name: String)
+
+object Table {
+  def derived[S](implicit schema: Schema[S]): Table[S] = Table(tableName(schema))
+}
 
 sealed trait SortOrder
 object SortOrder {

@@ -40,6 +40,18 @@ package object querydslbuilder {
   def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
     optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
+  def tableName[S](schema: Schema[S]): String =
+    schema.reflect.modifiers.collectFirst {
+      case Modifier.config(key, value) if key == "sql.table_name" => value
+    }.getOrElse(pluralize(schema.reflect.typeId.name.toLowerCase))
+
+  def pluralize(word: String): String =
+    if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z") ||
+        word.endsWith("ch") || word.endsWith("sh")) word + "es"
+    else if (word.endsWith("y") && !word.endsWith("ay") && !word.endsWith("ey") &&
+             !word.endsWith("oy") && !word.endsWith("uy")) word.dropRight(1) + "ies"
+    else word + "s"
+
   def sqlLiteral[A](value: A, schema: Schema[A]): String = {
     val dv = schema.toDynamicValue(value)
     dv match {

@@ -5,7 +5,7 @@ package querydslbuilder
  *
  * A complete example demonstrating the fluent SQL builder DSL:
  * SELECT, UPDATE, INSERT, and DELETE with seamless SchemaExpr/Expr composition,
- * table references, and SQL rendering.
+ * schema-driven table names, and SQL rendering.
  *
  * Run with: sbt "examples/runMain querydslbuilder.CompleteFluentBuilder"
  */
@@ -14,6 +14,13 @@ object CompleteFluentBuilder extends App {
   // --- Usage ---
 
   println("=== Complete Fluent SQL Builder ===")
+  println()
+
+  // Table names are derived from Schema metadata:
+  //   Product   → auto-pluralized to "products"
+  //   OrderItem → Modifier.config("sql.table_name", "order_items")
+  println(s"Product table:   ${Product.table.name}")
+  println(s"OrderItem table: ${OrderItem.table.name}")
   println()
 
   // 1. SELECT with mixed conditions, ordering, and limit
@@ -64,4 +71,14 @@ object CompleteFluentBuilder extends App {
 
   println("4. DELETE:")
   println(s"   ${renderDelete(d)}")
+  println()
+
+  // 5. Cross-table query using annotated OrderItem table
+  val orderQuery = select(OrderItem.table)
+    .columns(OrderItem.orderId, OrderItem.productId, OrderItem.quantity)
+    .where(OrderItem.quantity >= 3)
+    .orderBy(OrderItem.unitPrice, SortOrder.Desc)
+
+  println("5. OrderItem SELECT (annotated table name):")
+  println(s"   ${renderSelect(orderQuery)}")
 }
