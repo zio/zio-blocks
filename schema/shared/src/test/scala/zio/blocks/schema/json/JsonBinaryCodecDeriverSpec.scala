@@ -3,6 +3,7 @@ package zio.blocks.schema.json
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema._
+import zio.blocks.schema.derive.InstanceOverrideByTypeAndTermName
 import zio.blocks.schema.JavaTimeGen._
 
 import zio.blocks.schema.json.NameMapper._
@@ -1999,6 +2000,91 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
             Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
           ),
+          """{"r1_1":{"bl":true,"b":1,"sh":2,"i":"3","l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":{"bl":false,"b":1,"sh":2,"i":3.0,"l":4,"f":5.0,"d":6.0,"c":"7","s":"WWW"}}""",
+          codec
+        )
+      },
+      test("record with a custom codec for nested primitives injected by type and term name") {
+        val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+          def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+
+          def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
+        }
+        val typeAndTermNameOverride = new InstanceOverrideByTypeAndTermName[JsonBinaryCodec, Int](
+          TypeId.int,
+          "i",
+          Lazy(stringifyIntCodec)
+        )
+        val builder = Record2.schema.deriving(JsonBinaryCodecDeriver)
+        val codec   = builder
+          .copy(instanceOverrides = builder.instanceOverrides :+ typeAndTermNameOverride)
+          .derive
+        roundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
+          ),
+          // "i" fields are stringified, other fields remain unchanged
+          """{"r1_1":{"bl":true,"b":1,"sh":2,"i":"3","l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":{"bl":false,"b":1,"sh":2,"i":"3","l":4,"f":5.0,"d":6.0,"c":"7","s":"WWW"}}""",
+          codec
+        )
+      },
+      test("record with type and term name override taking priority over type-only override") {
+        val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+          def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+
+          def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
+        }
+        val doubleIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+          def decodeValue(in: JsonReader, default: Int): Int = in.readDouble().toInt
+
+          def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
+        }
+        val typeAndTermNameOverride = new InstanceOverrideByTypeAndTermName[JsonBinaryCodec, Int](
+          TypeId.int,
+          "i",
+          Lazy(stringifyIntCodec)
+        )
+        val builder = Record2.schema.deriving(JsonBinaryCodecDeriver).instance(TypeId.int, doubleIntCodec)
+        val codec   = builder
+          .copy(instanceOverrides = builder.instanceOverrides :+ typeAndTermNameOverride)
+          .derive
+        roundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
+          ),
+          // "i" fields use type+termName override (stringified "3") instead of type-only override (would be 3.0)
+          """{"r1_1":{"bl":true,"b":1,"sh":2,"i":"3","l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":{"bl":false,"b":1,"sh":2,"i":"3","l":4,"f":5.0,"d":6.0,"c":"7","s":"WWW"}}""",
+          codec
+        )
+      },
+      test("record with optic override taking priority over type and term name override") {
+        val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+          def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+
+          def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
+        }
+        val doubleIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+          def decodeValue(in: JsonReader, default: Int): Int = in.readDouble().toInt
+
+          def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
+        }
+        val typeAndTermNameOverride = new InstanceOverrideByTypeAndTermName[JsonBinaryCodec, Int](
+          TypeId.int,
+          "i",
+          Lazy(stringifyIntCodec)
+        )
+        val builder = Record2.schema.deriving(JsonBinaryCodecDeriver).instance(Record2.r1_2_i, doubleIntCodec)
+        val codec   = builder
+          .copy(instanceOverrides = builder.instanceOverrides :+ typeAndTermNameOverride)
+          .derive
+        roundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
+          ),
+          // r1_1.i uses type+termName override (stringified), r1_2.i uses optic override (double)
           """{"r1_1":{"bl":true,"b":1,"sh":2,"i":"3","l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":{"bl":false,"b":1,"sh":2,"i":3.0,"l":4,"f":5.0,"d":6.0,"c":"7","s":"WWW"}}""",
           codec
         )
