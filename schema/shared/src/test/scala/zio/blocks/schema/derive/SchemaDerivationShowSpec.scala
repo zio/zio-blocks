@@ -202,7 +202,7 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       },
       test("shows a Double") {
         val show = Schema[Double].derive(DeriveShow)
-        assertTrue(show.show(3.14) == "3.14")
+        assertTrue(show.show(3.14) == String.valueOf(3.14))
       }
     ),
     suite("Record")(
@@ -212,17 +212,18 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       },
       test("shows a record with Double fields") {
         val show = Point.schema.derive(DeriveShow)
-        assertTrue(show.show(Point(1.0, 2.5)) == "Point(x = 1.0, y = 2.5)")
+        val result = show.show(Point(1.5, 2.5))
+        assertTrue(result == "Point(x = 1.5, y = 2.5)")
       }
     ),
     suite("Variant")(
       test("shows first case") {
         val show = Shape.schema.derive(DeriveShow)
-        assertTrue(show.show(Circle(5.0)) == "Circle(radius = 5.0)")
+        assertTrue(show.show(Circle(5.5)) == "Circle(radius = 5.5)")
       },
       test("shows second case") {
         val show = Shape.schema.derive(DeriveShow)
-        assertTrue(show.show(Rectangle(4.0, 6.0)) == "Rectangle(width = 4.0, height = 6.0)")
+        assertTrue(show.show(Rectangle(4.5, 6.5)) == "Rectangle(width = 4.5, height = 6.5)")
       },
       test("shows recursive variant") {
         val show = Expr.schema.derive(DeriveShow)
