@@ -568,3 +568,10 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
+
+### Guides
+
+- [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
+- [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
+- [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond SchemaExpr
+- [Query DSL Part 4: A Fluent SQL Builder](./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, DELETE statements
