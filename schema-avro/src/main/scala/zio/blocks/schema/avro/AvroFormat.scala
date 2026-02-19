@@ -92,11 +92,7 @@ object AvroFormat
                 var idx              = 0
                 while (idx < len) {
                   val field = fields(idx)
-                  val codec = field.value.metadata
-                    .asInstanceOf[BindingInstance[TC, ?, A]]
-                    .instance
-                    .force
-                    .asInstanceOf[AvroBinaryCodec[A]]
+                  val codec = D.instance(field.value.metadata).force.asInstanceOf[AvroBinaryCodec[?]]
                   codecs(idx) = codec
                   avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
                   offset = RegisterOffset.add(codec.valueOffset, offset)
@@ -184,7 +180,7 @@ object AvroFormat
                   }
                 }
               }
-            } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[A]]
         }
 
@@ -204,11 +200,7 @@ object AvroFormat
               val codecs         = new Array[AvroBinaryCodec[?]](len)
               var idx            = 0
               while (idx < len) {
-                codecs(idx) = cases(idx).value.metadata
-                  .asInstanceOf[BindingInstance[TC, ?, A]]
-                  .instance
-                  .force
-                  .asInstanceOf[AvroBinaryCodec[A]]
+                codecs(idx) = D.instance(cases(idx).value.metadata).force.asInstanceOf[AvroBinaryCodec[A]]
                 idx += 1
               }
               new AvroBinaryCodec[A]() {
