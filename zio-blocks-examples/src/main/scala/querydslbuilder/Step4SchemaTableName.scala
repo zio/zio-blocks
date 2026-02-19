@@ -1,7 +1,5 @@
 package querydslbuilder
 
-import zio.blocks.schema._
-
 /**
  * Query DSL Part 4 — Step 4: Schema-Driven Table Names
  *

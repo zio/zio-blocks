@@ -1,7 +1,5 @@
 package querydslextended
 
-import zio.blocks.schema._
-
 /**
  * Query DSL Part 3 — Step 3: Aggregates and CASE WHEN
  *
