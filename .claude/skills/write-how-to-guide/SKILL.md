@@ -119,7 +119,8 @@ Based on your research answers, design the guide's section structure before writ
 5. Step-by-step sections (each building toward the goal)
    - Each section: brief explanation → code → result/output
 6. Putting It Together (the complete working example)
-7. Going Further (optional: variations, advanced techniques, links)
+7. Running the Examples (how to clone the repo and run companion code)
+8. Going Further (optional: variations, advanced techniques, links)
 ```
 
 ### Section Design Rules
@@ -255,6 +256,50 @@ Do not [common mistake] — it will [bad consequence].
 #### Putting It Together
 
 Near the end, show the complete working example that combines everything from the guide into a single cohesive block. This should be a `mdoc:compile-only` or `mdoc:silent:reset` + `mdoc:compile-only` block that a reader could copy-paste and run.
+
+#### Running the Examples
+
+After the "Putting It Together" section, include a **"Running the Examples"** section that tells the reader how to download and run the companion example code. This section must always be present and follow this exact pattern (substituting `<packagename>` and example object names to match the guide):
+
+```markdown
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `zio-blocks-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+​```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+​```
+
+**2. Run individual examples with sbt:**
+
+​```bash
+# Step 1: <brief step description>
+sbt "examples/runMain <packagename>.<Step1ObjectName>"
+
+# Step 2: <brief step description>
+sbt "examples/runMain <packagename>.<Step2ObjectName>"
+
+# ...additional steps...
+
+# Complete example
+sbt "examples/runMain <packagename>.<CompleteObjectName>"
+​```
+
+**3. Or compile all examples at once:**
+
+​```bash
+sbt "examples/compile"
+​```
+```
+
+**Key rules for this section:**
+- Use plain `` ```bash `` code blocks (not mdoc — these are shell commands).
+- List every companion example file with its `sbt "examples/runMain ..."` command and a short comment describing what it demonstrates.
+- The clone URL must be `https://github.com/zio/zio-blocks.git`.
+- Keep the section concise and mechanical — no extra prose beyond what is needed to run the code.
 
 #### Going Further (Optional)
 
@@ -483,6 +528,12 @@ After writing, verify every item on this checklist:
 - [ ] Each example file has a scaladoc with guide title, step description, and `sbt runMain` command
 - [ ] Each example file includes `println` output showing meaningful results
 - [ ] All examples compile successfully (`sbt "examples/compile"`)
+
+### Running the Examples Section
+- [ ] The guide includes a "Running the Examples" section after "Putting It Together"
+- [ ] The section includes `git clone https://github.com/zio/zio-blocks.git` and `cd zio-blocks`
+- [ ] Every companion example file is listed with its `sbt "examples/runMain ..."` command
+- [ ] The section includes `sbt "examples/compile"` as an alternative
 
 ### Style and Integration
 - [ ] The frontmatter `id` matches the filename
