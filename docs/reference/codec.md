@@ -32,8 +32,8 @@ case class Person(name: String, age: Int)
 object Person {
   // Derive a schema for Person (required for codec derivation)
   implicit val schema: Schema[Person] = Schema.derived
-  // Derive a JSON codec from the schema
-  implicit val codec: JsonBinaryCodec[Person] = schema.derive[JsonFormat.type](JsonFormat)
+   // Derive a JSON codec from the schema
+   implicit val codec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
 }
 
 // Encode
@@ -116,7 +116,7 @@ object Person {
 }
 
 // Pass a Format object to get a codec for that format
-val jsonCodec: JsonBinaryCodec[Person] = Schema[Person].derive[JsonFormat.type](JsonFormat)
+val jsonCodec: JsonBinaryCodec[Person] = Schema[Person].derive(JsonFormat)
 ```
 
 This works with any format:

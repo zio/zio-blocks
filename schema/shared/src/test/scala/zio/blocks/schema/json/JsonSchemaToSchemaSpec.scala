@@ -813,7 +813,8 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
         )
       },
       test("exclusiveMinimum constraint survives roundtrip") {
-        val codec = Schema.fromJsonSchema(JsonSchema.integer(exclusiveMinimum = Some(BigDecimal(0)))).derive(JsonFormat)
+        val codec =
+          Schema.fromJsonSchema(JsonSchema.integer(exclusiveMinimum = Some(BigDecimal(0)))).derive(JsonFormat)
         assertTrue(
           codec.decode("1").isRight,
           codec.decode("100").isRight,
