@@ -3,6 +3,30 @@ package querydslbuilder
 import zio.blocks.schema._
 
 // ---------------------------------------------------------------------------
+// Shared domain type used across Steps 1–3 and CompleteFluentBuilder
+// ---------------------------------------------------------------------------
+
+case class Product(
+  name: String,
+  price: Double,
+  category: String,
+  inStock: Boolean,
+  rating: Int
+)
+
+object Product extends CompanionOptics[Product] {
+  implicit val schema: Schema[Product] = Schema.derived
+
+  val table: Table[Product] = Table("products")
+
+  val name: Lens[Product, String]     = optic(_.name)
+  val price: Lens[Product, Double]    = optic(_.price)
+  val category: Lens[Product, String] = optic(_.category)
+  val inStock: Lens[Product, Boolean] = optic(_.inStock)
+  val rating: Lens[Product, Int]      = optic(_.rating)
+}
+
+// ---------------------------------------------------------------------------
 // Expr language
 // ---------------------------------------------------------------------------
 
@@ -31,8 +55,8 @@ object Expr {
   final case class StringLength[S](string: Expr[S, String])                             extends Expr[S, Int]
 
   // --- SQL-specific extensions (no SchemaExpr equivalents) ---
-  final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A])      extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
   final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
 
@@ -136,8 +160,8 @@ case class UpdateStmt[S](
   assignments: List[Assignment] = Nil,
   whereExpr: Option[Expr[S, Boolean]] = None
 ) {
-  def set[A](optic: Optic[S, A], value: A): UpdateStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
+  def set[A](optic: Optic[S, A], value: A)(implicit schema: Schema[A]): UpdateStmt[S] =
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value, schema)))
   def where(cond: Expr[S, Boolean]): UpdateStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): UpdateStmt[S] =
@@ -148,8 +172,8 @@ case class InsertStmt[S](
   table: Table[S],
   assignments: List[Assignment] = Nil
 ) {
-  def set[A](optic: Optic[S, A], value: A): InsertStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
+  def set[A](optic: Optic[S, A], value: A)(implicit schema: Schema[A]): InsertStmt[S] =
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value, schema)))
 }
 
 case class DeleteStmt[S](

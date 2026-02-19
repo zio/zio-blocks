@@ -13,30 +13,6 @@ import zio.blocks.schema._
  */
 object Step2SelectBuilder extends App {
 
-  // --- Domain Types ---
-
-  case class Product(
-    name: String,
-    price: Double,
-    category: String,
-    inStock: Boolean,
-    rating: Int
-  )
-
-  object Product extends CompanionOptics[Product] {
-    implicit val schema: Schema[Product] = Schema.derived
-
-    val table: Table[Product] = Table("products")
-
-    val name: Lens[Product, String]     = optic(_.name)
-    val price: Lens[Product, Double]    = optic(_.price)
-    val category: Lens[Product, String] = optic(_.category)
-    val inStock: Lens[Product, Boolean] = optic(_.inStock)
-    val rating: Lens[Product, Int]      = optic(_.rating)
-  }
-
-  // Expr, extensions, builders, and renderers are defined in Common.scala and package.scala
-
   // --- Output ---
 
   println("=== Step 2: SELECT Builder ===")

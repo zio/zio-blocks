@@ -109,8 +109,8 @@ object Expr {
   final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
   final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
 
-  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A]) extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
   final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
@@ -185,18 +185,11 @@ def sqlLiteral[A](value: A, schema: Schema[A]): String = {
   }
 }
 
-def sqlLiteralUntyped(value: Any): String = value match {
-  case s: String  => s"'${s.replace("'", "''")}'"
-  case b: Boolean => if (b) "TRUE" else "FALSE"
-  case n: Number  => n.toString
-  case other      => other.toString
-}
-
 // --- Optic extension methods ---
 
 implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
-  def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
-  def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
+  def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
+  def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
@@ -249,10 +242,10 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.StringConcat(l, r)         => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
   case Expr.StringRegexMatch(regex, s) => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
   case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
-  case Expr.In(e, values)              =>
-    s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
-  case Expr.Between(e, low, high)      =>
-    s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
+  case Expr.In(e, values, schema) =>
+    s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v, schema)).mkString(", ")})"
+  case Expr.Between(e, low, high, schema) =>
+    s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
   case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
 }
@@ -398,8 +391,8 @@ case class UpdateStmt[S](
   assignments: List[Assignment] = Nil,
   whereExpr: Option[Expr[S, Boolean]] = None
 ) {
-  def set[A](optic: Optic[S, A], value: A): UpdateStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
+  def set[A](optic: Optic[S, A], value: A)(implicit schema: Schema[A]): UpdateStmt[S] =
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value, schema)))
   def where(cond: Expr[S, Boolean]): UpdateStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): UpdateStmt[S] =
@@ -415,7 +408,7 @@ def renderUpdate[S](stmt: UpdateStmt[S]): String = {
 }
 ```
 
-The `.set()` method uses the optic to extract the column name and `sqlLiteralUntyped` to render the value. The type parameter `A` on `set[A](optic: Optic[S, A], value: A)` ensures you cannot assign a `String` to a `Double` field.
+The `.set()` method uses the optic to extract the column name and `sqlLiteral` (via the implicit `Schema[A]`) to render the value. The type parameter `A` on `set[A](optic: Optic[S, A], value: A)` ensures you cannot assign a `String` to a `Double` field.
 
 ```scala mdoc
 val basicUpdate =
@@ -453,8 +446,8 @@ case class InsertStmt[S](
   table: Table[S],
   assignments: List[Assignment] = Nil
 ) {
-  def set[A](optic: Optic[S, A], value: A): InsertStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
+  def set[A](optic: Optic[S, A], value: A)(implicit schema: Schema[A]): InsertStmt[S] =
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value, schema)))
 }
 
 def insertInto[S](table: Table[S]): InsertStmt[S] = InsertStmt(table)
@@ -512,7 +505,7 @@ For batch inserts, create one `InsertStmt` per row and render each separately. T
 
 ## Putting It Together
 
-Here is a complete, self-contained example combining the bridge extensions, all four statement builders, and the renderers:
+Here is a complete example combining the bridge extensions, all four statement builders, and the renderers. The `Expr` ADT, extension methods, SQL rendering, and builder types are defined in `Common.scala` and `package.scala` — the usage code stays focused on building queries:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -560,8 +553,8 @@ object Expr {
   final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
   final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
 
-  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A]) extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
   final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
@@ -622,8 +615,8 @@ object ArithOp {
 // --- Extension methods with bridge ---
 
 implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
-  def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
-  def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
+  def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
+  def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
@@ -663,13 +656,6 @@ def sqlLiteral[A](value: A, schema: Schema[A]): String = {
   }
 }
 
-def sqlLiteralUntyped(value: Any): String = value match {
-  case s: String  => s"'${s.replace("'", "''")}'"
-  case b: Boolean => if (b) "TRUE" else "FALSE"
-  case n: Number  => n.toString
-  case other      => other.toString
-}
-
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.Column(optic)      => columnName(optic)
   case Expr.Lit(value, schema) => sqlLiteral(value, schema)
@@ -696,10 +682,10 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.StringConcat(l, r)         => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
   case Expr.StringRegexMatch(regex, s) => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
   case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
-  case Expr.In(e, values)              =>
-    s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
-  case Expr.Between(e, low, high)      =>
-    s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
+  case Expr.In(e, values, schema) =>
+    s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v, schema)).mkString(", ")})"
+  case Expr.Between(e, low, high, schema) =>
+    s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
   case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
 }
@@ -738,8 +724,8 @@ case class UpdateStmt[S](
   assignments: List[Assignment] = Nil,
   whereExpr: Option[Expr[S, Boolean]] = None
 ) {
-  def set[A](optic: Optic[S, A], value: A): UpdateStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
+  def set[A](optic: Optic[S, A], value: A)(implicit schema: Schema[A]): UpdateStmt[S] =
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value, schema)))
   def where(cond: Expr[S, Boolean]): UpdateStmt[S] =
     copy(whereExpr = Some(cond))
   def where(cond: SchemaExpr[S, Boolean]): UpdateStmt[S] =
@@ -750,8 +736,8 @@ case class InsertStmt[S](
   table: Table[S],
   assignments: List[Assignment] = Nil
 ) {
-  def set[A](optic: Optic[S, A], value: A): InsertStmt[S] =
-    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteralUntyped(value)))
+  def set[A](optic: Optic[S, A], value: A)(implicit schema: Schema[A]): InsertStmt[S] =
+    copy(assignments = assignments :+ Assignment(columnName(optic), sqlLiteral(value, schema)))
 }
 
 case class DeleteStmt[S](

@@ -7,8 +7,8 @@ package object querydslbuilder {
   // ---------------------------------------------------------------------------
 
   implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
-    def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
-    def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
+    def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
+    def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
     def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
     def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
   }
@@ -53,16 +53,8 @@ package object querydslbuilder {
     }
   }
 
-  // Fallback for raw values (Between, In — where we don't carry Schema)
-  def sqlLiteralUntyped(value: Any): String = value match {
-    case s: String  => s"'${s.replace("'", "''")}'"
-    case b: Boolean => if (b) "TRUE" else "FALSE"
-    case n: Number  => n.toString
-    case other      => other.toString
-  }
-
   // ---------------------------------------------------------------------------
-  // Single unified SQL interpreter — no delegation to a second interpreter
+  // Single unified SQL interpreter
   // ---------------------------------------------------------------------------
 
   def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
@@ -97,10 +89,10 @@ package object querydslbuilder {
     case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
 
     // SQL-specific
-    case Expr.In(e, values) =>
-      s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
-    case Expr.Between(e, low, high) =>
-      s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
+    case Expr.In(e, values, schema) =>
+      s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v, schema)).mkString(", ")})"
+    case Expr.Between(e, low, high, schema) =>
+      s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
     case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
     case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
   }
