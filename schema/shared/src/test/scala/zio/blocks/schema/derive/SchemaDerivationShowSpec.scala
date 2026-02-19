@@ -82,13 +82,14 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
-      val elementShow   = instance(element.metadata)
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[C[A]]] = {
       val deconstructor = binding.asInstanceOf[Binding.Seq[C, A]].deconstructor
-      new Show[C[A]] {
-        def show(value: C[A]): String = {
-          val elements = deconstructor.deconstruct(value).map(elementShow.force.show)
-          s"[${elements.mkString(", ")}]"
+      instance(element.metadata).map { elementShow =>
+        new Show[C[A]] {
+          def show(value: C[A]): String = {
+            val elements = deconstructor.deconstruct(value).map(elementShow.show)
+            s"[${elements.mkString(", ")}]"
+          }
         }
       }
     }
@@ -102,16 +103,16 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
-      val keyShow       = instance(key.metadata)
-      val valueShow     = instance(value.metadata)
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[M[K, V]]] = {
       val deconstructor = binding.asInstanceOf[Binding.Map[M, K, V]].deconstructor
-      new Show[M[K, V]] {
-        def show(m: M[K, V]): String = {
-          val entries = deconstructor.deconstruct(m).map { kv =>
-            s"${keyShow.force.show(deconstructor.getKey(kv))} -> ${valueShow.force.show(deconstructor.getValue(kv))}"
+      instance(key.metadata).zip(instance(value.metadata)).map { case (keyShow, valueShow) =>
+        new Show[M[K, V]] {
+          def show(m: M[K, V]): String = {
+            val entries = deconstructor.deconstruct(m).map { kv =>
+              s"${keyShow.show(deconstructor.getKey(kv))} -> ${valueShow.show(deconstructor.getValue(kv))}"
+            }
+            s"Map(${entries.mkString(", ")})"
           }
-          s"Map(${entries.mkString(", ")})"
         }
       }
     }
@@ -136,12 +137,13 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
-      val wrappedShow    = instance(wrapped.metadata)
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
-      new Show[A] {
-        def show(value: A): String =
-          s"${typeId.name}(${wrappedShow.force.show(wrapperBinding.unwrap(value))})"
+      instance(wrapped.metadata).map { wrappedShow =>
+        new Show[A] {
+          def show(value: A): String =
+            s"${typeId.name}(${wrappedShow.show(wrapperBinding.unwrap(value))})"
+        }
       }
     }
   }
