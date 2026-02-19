@@ -70,6 +70,33 @@ object IntoSpec extends SchemaBaseSpec {
       nestedValidation,
       validationError
     ),
+    suite("DynamicValue conversions")(
+      test("Into[CaseClass, DynamicValue] converts to DynamicValue.Record") {
+        case class Person(name: String, age: Int)
+        object Person {
+          implicit val schema: Schema[Person] = Schema.derived
+        }
+        val person   = Person("Alice", 30)
+        val result   = Into.derived[Person, DynamicValue].into(person)
+        val expected = Schema[Person].toDynamicValue(person)
+        assert(result)(isRight(equalTo(expected)))
+      },
+      test("Into[DynamicValue, CaseClass] converts from matching structure") {
+        case class Person(name: String, age: Int)
+        val dv = DynamicValue.Record(
+          "name" -> DynamicValue.string("Bob"),
+          "age"  -> DynamicValue.int(25)
+        )
+        val result = Into.derived[DynamicValue, Person].into(dv)
+        assert(result)(isRight(equalTo(Person("Bob", 25))))
+      },
+      test("Into[DynamicValue, CaseClass] fails on mismatched structure") {
+        case class Person(name: String, age: Int)
+        val dv     = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
+        val result = Into.derived[DynamicValue, Person].into(dv)
+        assert(result)(isLeft)
+      }
+    ),
     suite("narrowing failure branches")(
       test("shortToByte fails for values above Byte.MaxValue") {
         val result = Into[Short, Byte].into((Byte.MaxValue + 1).toShort)

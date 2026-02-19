@@ -18,6 +18,64 @@ private object AsVersionSpecificImpl {
     val aTpe = weakTypeOf[A].dealias
     val bTpe = weakTypeOf[B].dealias
 
+    // === DynamicValue Support ===
+
+    val dynamicValueType = c.typeOf[DynamicValue]
+
+    def findImplicitOrDeriveSchema(tpe: Type): Tree = {
+      val schemaType = c.universe.appliedType(
+        c.universe.typeOf[Schema[Any]].typeConstructor,
+        List(tpe)
+      )
+      val implicitSchema = c.inferImplicitValue(schemaType, silent = true)
+      if (implicitSchema != EmptyTree) {
+        implicitSchema
+      } else {
+        q"_root_.zio.blocks.schema.Schema.derived[$tpe]"
+      }
+    }
+
+    def deriveToDynamicValue(): c.Expr[As[A, B]] = {
+      val schema = findImplicitOrDeriveSchema(aTpe)
+      c.Expr[As[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.As[$aTpe, $bTpe] {
+            private val _schema = $schema
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _root_.scala.Right(_schema.toDynamicValue(a).asInstanceOf[$bTpe])
+            }
+            def from(dv: $bTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $aTpe] = {
+              _schema.fromDynamicValue(dv.asInstanceOf[_root_.zio.blocks.schema.DynamicValue])
+            }
+          }
+        """
+      )
+    }
+
+    def deriveFromDynamicValue(): c.Expr[As[A, B]] = {
+      val schema = findImplicitOrDeriveSchema(bTpe)
+      c.Expr[As[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.As[$aTpe, $bTpe] {
+            private val _schema = $schema
+            def into(dv: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _schema.fromDynamicValue(dv.asInstanceOf[_root_.zio.blocks.schema.DynamicValue])
+            }
+            def from(b: $bTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $aTpe] = {
+              _root_.scala.Right(_schema.toDynamicValue(b).asInstanceOf[$aTpe])
+            }
+          }
+        """
+      )
+    }
+
+    if (bTpe =:= dynamicValueType) {
+      return deriveToDynamicValue()
+    }
+    if (aTpe =:= dynamicValueType) {
+      return deriveFromDynamicValue()
+    }
+
     def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
 
     def typeArgs(tpe: Type): List[Type] = CommonMacroOps.typeArgs(c)(tpe)
