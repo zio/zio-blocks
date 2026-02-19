@@ -36,20 +36,24 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
-      val fieldShows    = fields.map(field => (field.name, instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]]))
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = {
+      val fieldNames    = fields.map(_.name)
       val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
-      new Show[A] {
-        def show(value: A): String = {
-          val registers = Registers(recordReflect.usedRegisters)
-          recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-          val fieldStrings = fields.indices.map { i =>
-            val fieldValue = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
-            s"${fieldShows(i)._1} = ${fieldShows(i)._2.force.show(fieldValue)}"
+      Lazy {
+        new Show[A] {
+          private lazy val resolvedShows: IndexedSeq[Show[Any]] =
+            fields.map(field => instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]].force)
+          def show(value: A): String = {
+            val registers = Registers(recordReflect.usedRegisters)
+            recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
+            val fieldStrings = fields.indices.map { i =>
+              val fieldValue = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
+              s"${fieldNames(i)} = ${resolvedShows(i).show(fieldValue)}"
+            }
+            s"${typeId.name}(${fieldStrings.mkString(", ")})"
           }
-          s"${typeId.name}(${fieldStrings.mkString(", ")})"
         }
       }
     }
@@ -62,14 +66,17 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = Lazy {
-      val caseShows      = cases.map(c => instance(c.value.metadata).asInstanceOf[Lazy[Show[Any]]])
+    )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = {
+      val caseShowLazies = cases.map(c => instance(c.value.metadata).asInstanceOf[Lazy[Show[Any]]])
       val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
-      new Show[A] {
-        def show(value: A): String = {
-          val caseIndex = variantBinding.discriminator.discriminate(value)
-          val caseValue = variantBinding.matchers(caseIndex).downcastOrNull(value)
-          caseShows(caseIndex).force.show(caseValue)
+      Lazy {
+        new Show[A] {
+          private lazy val resolvedShows: IndexedSeq[Show[Any]] = caseShowLazies.map(_.force)
+          def show(value: A): String                            = {
+            val caseIndex = variantBinding.discriminator.discriminate(value)
+            val caseValue = variantBinding.matchers(caseIndex).downcastOrNull(value)
+            resolvedShows(caseIndex).show(caseValue)
+          }
         }
       }
     }
