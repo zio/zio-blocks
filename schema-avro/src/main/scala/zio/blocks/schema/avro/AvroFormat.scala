@@ -26,43 +26,41 @@ object AvroFormat
           defaultValue: Option[A],
           examples: Seq[A]
         ): Lazy[AvroBinaryCodec[A]] = Lazy {
-          val reflect = new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)
-          val primitive = reflect.asPrimitive.get
           val codec =
-            if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
-              primitive.primitiveType match {
-                case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitCodec
-                case _: PrimitiveType.Boolean => AvroBinaryCodec.booleanCodec
-                case _: PrimitiveType.Byte => AvroBinaryCodec.byteCodec
-                case _: PrimitiveType.Short => AvroBinaryCodec.shortCodec
-                case _: PrimitiveType.Int => AvroBinaryCodec.intCodec
-                case _: PrimitiveType.Long => AvroBinaryCodec.longCodec
-                case _: PrimitiveType.Float => AvroBinaryCodec.floatCodec
-                case _: PrimitiveType.Double => AvroBinaryCodec.doubleCodec
-                case _: PrimitiveType.Char => AvroBinaryCodec.charCodec
-                case _: PrimitiveType.String => AvroBinaryCodec.stringCodec
-                case _: PrimitiveType.BigInt => AvroBinaryCodec.bigIntCodec
-                case _: PrimitiveType.BigDecimal => AvroBinaryCodec.bigDecimalCodec
-                case _: PrimitiveType.DayOfWeek => AvroBinaryCodec.dayOfWeekCodec
-                case _: PrimitiveType.Duration => AvroBinaryCodec.durationCodec
-                case _: PrimitiveType.Instant => AvroBinaryCodec.instantCodec
-                case _: PrimitiveType.LocalDate => AvroBinaryCodec.localDateCodec
-                case _: PrimitiveType.LocalDateTime => AvroBinaryCodec.localDateTimeCodec
-                case _: PrimitiveType.LocalTime => AvroBinaryCodec.localTimeCodec
-                case _: PrimitiveType.Month => AvroBinaryCodec.monthCodec
-                case _: PrimitiveType.MonthDay => AvroBinaryCodec.monthDayCodec
+            if (binding.isInstanceOf[Binding[?, ?]]) {
+              primitiveType match {
+                case _: PrimitiveType.Unit.type      => AvroBinaryCodec.unitCodec
+                case _: PrimitiveType.Boolean        => AvroBinaryCodec.booleanCodec
+                case _: PrimitiveType.Byte           => AvroBinaryCodec.byteCodec
+                case _: PrimitiveType.Short          => AvroBinaryCodec.shortCodec
+                case _: PrimitiveType.Int            => AvroBinaryCodec.intCodec
+                case _: PrimitiveType.Long           => AvroBinaryCodec.longCodec
+                case _: PrimitiveType.Float          => AvroBinaryCodec.floatCodec
+                case _: PrimitiveType.Double         => AvroBinaryCodec.doubleCodec
+                case _: PrimitiveType.Char           => AvroBinaryCodec.charCodec
+                case _: PrimitiveType.String         => AvroBinaryCodec.stringCodec
+                case _: PrimitiveType.BigInt         => AvroBinaryCodec.bigIntCodec
+                case _: PrimitiveType.BigDecimal     => AvroBinaryCodec.bigDecimalCodec
+                case _: PrimitiveType.DayOfWeek      => AvroBinaryCodec.dayOfWeekCodec
+                case _: PrimitiveType.Duration       => AvroBinaryCodec.durationCodec
+                case _: PrimitiveType.Instant        => AvroBinaryCodec.instantCodec
+                case _: PrimitiveType.LocalDate      => AvroBinaryCodec.localDateCodec
+                case _: PrimitiveType.LocalDateTime  => AvroBinaryCodec.localDateTimeCodec
+                case _: PrimitiveType.LocalTime      => AvroBinaryCodec.localTimeCodec
+                case _: PrimitiveType.Month          => AvroBinaryCodec.monthCodec
+                case _: PrimitiveType.MonthDay       => AvroBinaryCodec.monthDayCodec
                 case _: PrimitiveType.OffsetDateTime => AvroBinaryCodec.offsetDateTimeCodec
-                case _: PrimitiveType.OffsetTime => AvroBinaryCodec.offsetTimeCodec
-                case _: PrimitiveType.Period => AvroBinaryCodec.periodCodec
-                case _: PrimitiveType.Year => AvroBinaryCodec.yearCodec
-                case _: PrimitiveType.YearMonth => AvroBinaryCodec.yearMonthCodec
-                case _: PrimitiveType.ZoneId => AvroBinaryCodec.zoneIdCodec
-                case _: PrimitiveType.ZoneOffset => AvroBinaryCodec.zoneOffsetCodec
-                case _: PrimitiveType.ZonedDateTime => AvroBinaryCodec.zonedDateTimeCodec
-                case _: PrimitiveType.Currency => AvroBinaryCodec.currencyCodec
-                case _: PrimitiveType.UUID => AvroBinaryCodec.uuidCodec
+                case _: PrimitiveType.OffsetTime     => AvroBinaryCodec.offsetTimeCodec
+                case _: PrimitiveType.Period         => AvroBinaryCodec.periodCodec
+                case _: PrimitiveType.Year           => AvroBinaryCodec.yearCodec
+                case _: PrimitiveType.YearMonth      => AvroBinaryCodec.yearMonthCodec
+                case _: PrimitiveType.ZoneId         => AvroBinaryCodec.zoneIdCodec
+                case _: PrimitiveType.ZoneOffset     => AvroBinaryCodec.zoneOffsetCodec
+                case _: PrimitiveType.ZonedDateTime  => AvroBinaryCodec.zonedDateTimeCodec
+                case _: PrimitiveType.Currency       => AvroBinaryCodec.currencyCodec
+                case _: PrimitiveType.UUID           => AvroBinaryCodec.uuidCodec
               }
-            } else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[A]]
         }
 
@@ -75,37 +73,30 @@ object AvroFormat
           defaultValue: Option[A],
           examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
-          val reflect =
-            new Reflect.Record(
-              fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-              typeId,
-              binding,
-              doc,
-              modifiers
-            )
-          val record = reflect.asRecord.get
           val codec =
-            if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-              val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
-              val fields = record.fields
-              val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-              val typeId = record.typeId
+            if (binding.isInstanceOf[Binding[?, ?]]) {
+              val recordBinding        = binding.asInstanceOf[Binding.Record[A]]
+              val isRecursive          = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
               var codecsWithAvroSchema =
                 if (isRecursive) recursiveRecordCache.get.get(typeId)
                 else null
               var offset = 0L
               if (codecsWithAvroSchema eq null) {
-                val namespace = typeId.owner.asString
+                val namespace  = typeId.owner.asString
                 val avroSchema = createAvroRecord(namespace, typeId.name)
-                val len = fields.length
-                val codecs = new Array[AvroBinaryCodec[?]](len)
+                val len        = fields.length
+                val codecs     = new Array[AvroBinaryCodec[?]](len)
                 codecsWithAvroSchema = (codecs, avroSchema)
                 if (isRecursive) recursiveRecordCache.get.put(typeId, codecsWithAvroSchema)
                 val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
-                var idx = 0
+                var idx              = 0
                 while (idx < len) {
                   val field = fields(idx)
-                  val codec = field.value.metadata.asInstanceOf[BindingInstance[TC, ?, A]].instance.force.asInstanceOf[AvroBinaryCodec[A]]
+                  val codec = field.value.metadata
+                    .asInstanceOf[BindingInstance[TC, ?, A]]
+                    .instance
+                    .force
+                    .asInstanceOf[AvroBinaryCodec[A]]
                   codecs(idx) = codec
                   avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
                   offset = RegisterOffset.add(codec.valueOffset, offset)
@@ -114,18 +105,18 @@ object AvroFormat
                 avroSchema.setFields(avroSchemaFields)
               }
               new AvroBinaryCodec[A]() {
-                private[this] val deconstructor = binding.deconstructor
-                private[this] val constructor = binding.constructor
+                private[this] val deconstructor = recordBinding.deconstructor
+                private[this] val constructor   = recordBinding.constructor
                 private[this] val usedRegisters = offset
-                private[this] val fieldCodecs = codecsWithAvroSchema._1
+                private[this] val fieldCodecs   = codecsWithAvroSchema._1
 
                 val avroSchema: AvroSchema = codecsWithAvroSchema._2
 
                 def decodeUnsafe(decoder: BinaryDecoder): A = {
-                  val regs = Registers(usedRegisters)
+                  val regs   = Registers(usedRegisters)
                   var offset = 0L
-                  val len = fieldCodecs.length
-                  var idx = 0
+                  val len    = fieldCodecs.length
+                  var idx    = 0
                   try {
                     while (idx < len) {
                       val codec = fieldCodecs(idx)
@@ -160,7 +151,7 @@ object AvroFormat
                 }
 
                 def encode(value: A, encoder: BinaryEncoder): Unit = {
-                  val regs = Registers(usedRegisters)
+                  val regs   = Registers(usedRegisters)
                   var offset = 0L
                   deconstructor.deconstruct(regs, offset, value)
                   val len = fieldCodecs.length
@@ -193,7 +184,7 @@ object AvroFormat
                   }
                 }
               }
-            } else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[A]]
         }
 
@@ -206,34 +197,28 @@ object AvroFormat
           defaultValue: Option[A],
           examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
-          val reflect =
-            new Reflect.Variant(
-              cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-              typeId,
-              binding,
-              doc,
-              modifiers
-            )
-          val variant = reflect.asVariant.get
           val codec =
-            if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
-              val binding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
-              val cases = variant.cases
-              val len = cases.length
-              val codecs = new Array[AvroBinaryCodec[?]](len)
-              var idx = 0
+            if (binding.isInstanceOf[Binding[?, ?]]) {
+              val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
+              val len            = cases.length
+              val codecs         = new Array[AvroBinaryCodec[?]](len)
+              var idx            = 0
               while (idx < len) {
-                codecs(idx) = cases(idx).value.metadata.asInstanceOf[BindingInstance[TC, ?, A]].instance.force.asInstanceOf[AvroBinaryCodec[A]]
+                codecs(idx) = cases(idx).value.metadata
+                  .asInstanceOf[BindingInstance[TC, ?, A]]
+                  .instance
+                  .force
+                  .asInstanceOf[AvroBinaryCodec[A]]
                 idx += 1
               }
               new AvroBinaryCodec[A]() {
-                private[this] val discriminator = binding.discriminator
-                private[this] val caseCodecs = codecs
+                private[this] val discriminator = variantBinding.discriminator
+                private[this] val caseCodecs    = codecs
 
                 val avroSchema: AvroSchema = {
-                  val len = codecs.length
+                  val len             = codecs.length
                   val caseAvroSchemas = new java.util.ArrayList[AvroSchema](len)
-                  var idx = 0
+                  var idx             = 0
                   while (idx < len) {
                     caseAvroSchemas.add(codecs(idx).avroSchema)
                     idx += 1
@@ -257,7 +242,7 @@ object AvroFormat
                   caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].encode(value, encoder)
                 }
               }
-            } else variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[A]]
         }
 
@@ -270,27 +255,24 @@ object AvroFormat
           defaultValue: Option[C[A]],
           examples: Seq[C[A]]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[C[A]]] = Lazy {
-          val reflect =
-            new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
-          val sequence = reflect.asSequenceUnknown.get.sequence
           val codec =
-            if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
-              val binding = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
-              val codec = D.instance(element.metadata).force.asInstanceOf[AvroBinaryCodec[Elem]]
+            if (binding.isInstanceOf[Binding[?, ?]]) {
+              val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
+              val codec      = D.instance(element.metadata).force.asInstanceOf[AvroBinaryCodec[Elem]]
               codec.valueType match {
-                case AvroBinaryCodec.booleanType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.booleanType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Boolean]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Boolean]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Boolean]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Boolean] = {
                       val builder = constructor.newBuilder[Boolean](8)(ClassTag.Boolean)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -324,19 +306,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.byteType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.byteType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Byte]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Byte]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Byte]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Byte] = {
                       val builder = constructor.newBuilder[Byte](8)(ClassTag.Byte)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -370,19 +352,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.charType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.charType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Char]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Char]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Char]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Char] = {
                       val builder = constructor.newBuilder[Char](8)(ClassTag.Char)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -416,19 +398,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.shortType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.shortType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Short]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Short]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Short]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Short] = {
                       val builder = constructor.newBuilder[Short](8)(ClassTag.Short)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -462,19 +444,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.floatType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.floatType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Float]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Float]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Float]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Float] = {
                       val builder = constructor.newBuilder[Float](8)(ClassTag.Float)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -508,19 +490,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.intType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.intType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Int]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Int]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Int]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Int] = {
                       val builder = constructor.newBuilder[Int](8)(ClassTag.Int)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -554,19 +536,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.doubleType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.doubleType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Double]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Double]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Double]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Double] = {
                       val builder = constructor.newBuilder[Double](8)(ClassTag.Double)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -600,19 +582,19 @@ object AvroFormat
                       encoder.writeInt(0)
                     }
                   }
-                case AvroBinaryCodec.longType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                case AvroBinaryCodec.longType if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroBinaryCodec[Col[Long]]() {
-                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec.asInstanceOf[AvroBinaryCodec[Long]]
+                    private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Long]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Long] = {
                       val builder = constructor.newBuilder[Long](8)(ClassTag.Long)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -648,18 +630,18 @@ object AvroFormat
                   }
                 case _ =>
                   new AvroBinaryCodec[Col[Elem]]() {
-                    private[this] val deconstructor = binding.deconstructor
-                    private[this] val constructor = binding.constructor
-                    private[this] val elementCodec = codec
-                    private[this] val elemClassTag = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
+                    private[this] val deconstructor = seqBinding.deconstructor
+                    private[this] val constructor   = seqBinding.constructor
+                    private[this] val elementCodec  = codec
+                    private[this] val elemClassTag  = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
                     def decodeUnsafe(decoder: BinaryDecoder): Col[Elem] = {
                       val builder = constructor.newBuilder[Elem](8)(elemClassTag)
-                      var count = 0L
-                      var size = 0
-                      while ( {
+                      var count   = 0L
+                      var size    = 0
+                      while ({
                         size = decoder.readInt()
                         size > 0
                       }) {
@@ -694,7 +676,7 @@ object AvroFormat
                     }
                   }
               }
-            } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[C[A]]]
         }
 
@@ -708,29 +690,19 @@ object AvroFormat
           defaultValue: Option[M[K, V]],
           examples: Seq[M[K, V]]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[M[K, V]]] = Lazy {
-          val reflect =
-            new Reflect.Map(
-              key.asInstanceOf[Reflect[Binding, K]],
-              value.asInstanceOf[Reflect[Binding, V]],
-              typeId,
-              binding,
-              doc,
-              modifiers
-            )
-          val map = reflect.asMapUnknown.get.map
           val codec =
-            if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
-              val binding = map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
-              val codec1 = D.instance(key.metadata).force.asInstanceOf[AvroBinaryCodec[Key]]
-              val codec2 = D.instance(value.metadata).force.asInstanceOf[AvroBinaryCodec[Value]]
+            if (binding.isInstanceOf[Binding[?, ?]]) {
+              val mapBinding = binding.asInstanceOf[Binding.Map[Map, Key, Value]]
+              val codec1     = D.instance(key.metadata).force.asInstanceOf[AvroBinaryCodec[Key]]
+              val codec2     = D.instance(value.metadata).force.asInstanceOf[AvroBinaryCodec[Value]]
               new AvroBinaryCodec[Map[Key, Value]]() {
-                private[this] val deconstructor = binding.deconstructor
-                private[this] val constructor = binding.constructor
-                private[this] val keyCodec = codec1
-                private[this] val valueCodec = codec2
-                private[this] val keyReflect = map.key.asInstanceOf[Reflect.Bound[Key]]
+                private[this] val deconstructor = mapBinding.deconstructor
+                private[this] val constructor   = mapBinding.constructor
+                private[this] val keyCodec      = codec1
+                private[this] val valueCodec    = codec2
+                private[this] val keyReflect    = key.asInstanceOf[Reflect.Bound[Key]]
 
-                val avroSchema: AvroSchema = map.key.asPrimitive match {
+                val avroSchema: AvroSchema = key.asPrimitive match {
                   case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
                     AvroSchema.createMap(valueCodec.avroSchema)
                   case _ =>
@@ -742,9 +714,9 @@ object AvroFormat
 
                 def decodeUnsafe(decoder: BinaryDecoder): Map[Key, Value] = {
                   val builder = constructor.newObjectBuilder[Key, Value](8)
-                  var count = 0L
-                  var size = 0
-                  while ( {
+                  var count   = 0L
+                  var size    = 0
+                  while ({
                     size = decoder.readInt()
                     size > 0
                   }) {
@@ -789,7 +761,7 @@ object AvroFormat
                   encoder.writeInt(0)
                 }
               }
-            } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, ?]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[M[K, V]]]
         }
 
@@ -800,11 +772,9 @@ object AvroFormat
           defaultValue: Option[DynamicValue],
           examples: Seq[DynamicValue]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] = Lazy {
-          val reflect = new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)
-          val dynamic = reflect.asDynamic.get
           val codec =
-            if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
-            else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, ?]].instance.force
+            if (binding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
+            else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[DynamicValue]]
         }
 
@@ -817,33 +787,24 @@ object AvroFormat
           defaultValue: Option[A],
           examples: Seq[A]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
-          val reflect =
-            new Reflect.Wrapper(
-              wrapped.asInstanceOf[Reflect[Binding, B]],
-              typeId,
-              binding,
-              doc,
-              modifiers
-            )
-          val wrapper = reflect.asWrapperUnknown.get.wrapper
           val codec =
-            if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
-              val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
-              val codec = D.instance(wrapped.metadata).force.asInstanceOf[AvroBinaryCodec[Wrapped]]
-              new AvroBinaryCodec[A](wrapper.underlyingPrimitiveType.fold(AvroBinaryCodec.objectType) {
-                case _: PrimitiveType.Boolean => AvroBinaryCodec.booleanType
-                case _: PrimitiveType.Byte => AvroBinaryCodec.byteType
-                case _: PrimitiveType.Char => AvroBinaryCodec.charType
-                case _: PrimitiveType.Short => AvroBinaryCodec.shortType
-                case _: PrimitiveType.Float => AvroBinaryCodec.floatType
-                case _: PrimitiveType.Int => AvroBinaryCodec.intType
-                case _: PrimitiveType.Double => AvroBinaryCodec.doubleType
-                case _: PrimitiveType.Long => AvroBinaryCodec.longType
+            if (binding.isInstanceOf[Binding[?, ?]]) {
+              val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+              val codec          = D.instance(wrapped.metadata).force.asInstanceOf[AvroBinaryCodec[Wrapped]]
+              new AvroBinaryCodec[A](PrimitiveType.fromTypeId(typeId).fold(AvroBinaryCodec.objectType) {
+                case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
+                case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
+                case _: PrimitiveType.Char      => AvroBinaryCodec.charType
+                case _: PrimitiveType.Short     => AvroBinaryCodec.shortType
+                case _: PrimitiveType.Float     => AvroBinaryCodec.floatType
+                case _: PrimitiveType.Int       => AvroBinaryCodec.intType
+                case _: PrimitiveType.Double    => AvroBinaryCodec.doubleType
+                case _: PrimitiveType.Long      => AvroBinaryCodec.longType
                 case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
-                case _ => AvroBinaryCodec.objectType
+                case _                          => AvroBinaryCodec.objectType
               }) {
-                private[this] val wrap = binding.wrap
-                private[this] val unwrap = binding.unwrap
+                private[this] val wrap         = wrapperBinding.wrap
+                private[this] val unwrap       = wrapperBinding.unwrap
                 private[this] val wrappedCodec = codec
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
@@ -857,7 +818,7 @@ object AvroFormat
                 def encode(value: A, encoder: BinaryEncoder): Unit =
                   wrappedCodec.encode(unwrap(value), encoder)
               }
-            } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+            } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           codec.asInstanceOf[AvroBinaryCodec[A]]
         }
 
