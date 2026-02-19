@@ -5,35 +5,13 @@ import zio.blocks.schema._
 /**
  * Query DSL Part 3 — Step 2: SQL-Specific Predicates
  *
- * Demonstrates generating SQL from the independent Expr ADT using the single
- * unified interpreter (exprToSql). SchemaExpr values are translated into Expr
- * at the boundary via fromSchemaExpr — no dual-interpreter delegation needed.
+ * Demonstrates generating SQL from the Expr ADT using the single unified
+ * interpreter (exprToSql). SchemaExpr values are translated into Expr at the
+ * boundary via fromSchemaExpr.
  *
  * Run with: sbt "examples/runMain querydslextended.Step2SqlPredicates"
  */
 object Step2SqlPredicates extends App {
-
-  // --- Domain Types ---
-
-  case class Product(
-    name: String,
-    price: Double,
-    category: String,
-    inStock: Boolean,
-    rating: Int
-  )
-
-  object Product extends CompanionOptics[Product] {
-    implicit val schema: Schema[Product] = Schema.derived
-
-    val name: Lens[Product, String]     = optic(_.name)
-    val price: Lens[Product, Double]    = optic(_.price)
-    val category: Lens[Product, String] = optic(_.category)
-    val inStock: Lens[Product, Boolean] = optic(_.inStock)
-    val rating: Lens[Product, Int]      = optic(_.rating)
-  }
-
-  // Expr, exprToSql, and extensions are defined in the querydslextended package object (package.scala)
 
   // --- Output ---
 

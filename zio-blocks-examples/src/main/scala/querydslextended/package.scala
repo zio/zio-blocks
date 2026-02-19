@@ -34,7 +34,7 @@ package object querydslextended {
   }
 
   // ---------------------------------------------------------------------------
-  // SQL rendering helpers — typed, no `Any`
+  // SQL rendering helpers
   // ---------------------------------------------------------------------------
 
   def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
@@ -62,7 +62,7 @@ package object querydslextended {
   }
 
   // ---------------------------------------------------------------------------
-  // Single unified SQL interpreter — no delegation to a second interpreter
+  // Single unified SQL interpreter
   // ---------------------------------------------------------------------------
 
   def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
