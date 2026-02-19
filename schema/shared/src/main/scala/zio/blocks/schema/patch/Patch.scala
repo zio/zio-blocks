@@ -50,16 +50,13 @@ final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: S
   }
 
   /** Apply this patch, returning None if any operation fails. */
-  def applyOption(s: S): Option[S] = {
-    val dynamicValue = schema.toDynamicValue(s)
-    dynamicPatch(dynamicValue, PatchMode.Strict) match {
-      case Right(patched) =>
-        schema.fromDynamicValue(patched) match {
-          case Right(result) => new Some(result)
-          case _             => None
-        }
-      case _ => None
-    }
+  def applyOption(s: S): Option[S] = dynamicPatch(schema.toDynamicValue(s), PatchMode.Strict) match {
+    case Right(patched) =>
+      schema.fromDynamicValue(patched) match {
+        case Right(result) => new Some(result)
+        case _             => None
+      }
+    case _ => None
   }
 
   /** Check if this patch is empty (no operations). */

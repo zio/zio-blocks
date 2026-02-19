@@ -28,22 +28,27 @@ final case class Owner(segments: List[Owner.Segment]) {
   /**
    * Returns the owner path as a dot-separated string.
    */
-  def asString: String = segments.map(_.name).mkString(".")
+  def asString: String = segments
+    .foldLeft(new java.lang.StringBuilder) { (sb, s) =>
+      if (sb.length > 0) sb.append('.')
+      sb.append(s.name)
+    }
+    .toString
 
   /**
    * Appends a package segment to this owner.
    */
-  def /(pkg: String): Owner = Owner(segments :+ Owner.Package(pkg))
+  def /(pkg: String): Owner = new Owner(segments :+ new Owner.Package(pkg))
 
   /**
    * Appends a term segment to this owner.
    */
-  def term(name: String): Owner = Owner(segments :+ Owner.Term(name))
+  def term(name: String): Owner = new Owner(segments :+ new Owner.Term(name))
 
   /**
    * Appends a type segment to this owner.
    */
-  def tpe(name: String): Owner = Owner(segments :+ Owner.Type(name))
+  def tpe(name: String): Owner = new Owner(segments :+ new Owner.Type(name))
 
   /**
    * Returns true if this owner represents the root (empty) owner.
@@ -55,13 +60,15 @@ final case class Owner(segments: List[Owner.Segment]) {
    */
   def parent: Owner =
     if (segments.isEmpty) Owner.Root
-    else Owner(segments.init)
+    else new Owner(segments.init)
 
   /**
    * Returns the last segment's name, or empty string if root.
    */
-  def lastName: String =
-    segments.lastOption.map(_.name).getOrElse("")
+  def lastName: String = segments.lastOption match {
+    case Some(s) => s.name
+    case _       => ""
+  }
 }
 
 object Owner {
@@ -91,7 +98,7 @@ object Owner {
   /**
    * The root owner (no segments).
    */
-  val Root: Owner = Owner(Nil)
+  val Root: Owner = new Owner(Nil)
 
   /**
    * Creates an Owner from a dot-separated package path. All segments are
@@ -99,7 +106,7 @@ object Owner {
    */
   def fromPackagePath(path: String): Owner =
     if (path.isEmpty) Root
-    else Owner(path.split("\\.").toList.map(Package.apply))
+    else new Owner(path.split('.').map(Package.apply).toList)
 
   // Common namespaces
   private[typeid] val scala: Owner                    = fromPackagePath("scala")

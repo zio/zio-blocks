@@ -7,7 +7,7 @@ import zio.test._
 
 object SchemaToStringSpec extends ZIOSpecDefault {
 
-  def spec = suite("Schema toString")(
+  def spec = suite("SchemaToStringSpec")(
     suite("Primitive types")(
       test("renders String") {
         lazy implicit val schema: Schema[String] = Schema.string
@@ -93,7 +93,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
             |  record PersonWithAddress {
             |    name: String
             |    age: Int
-            |    address:   record Address {
+            |    address: record Address {
             |      street: String
             |      city: String
             |      zip: String
@@ -248,7 +248,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val expected =
           """Schema {
             |  record ValidatedEmail {
-            |    parts:   record EmailParts {
+            |    parts: record EmailParts {
             |      local: String
             |      domain: String
             |    }
@@ -263,7 +263,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
 
         val expected = """Schema {
                          |  record OrderId {
-                         |    uuid:   record UUID {
+                         |    uuid: record UUID {
                          |      value: String
                          |    }
                          |  }
@@ -280,9 +280,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
           """Schema {
             |  record Tree {
             |    value: Int
-            |    children:   sequence List[
-            |      deferred => Tree
-            |    ]
+            |    children: sequence List[deferred => Tree]
             |  }
             |}""".stripMargin
         assertTrue(treeSchema.toString == expected)
@@ -295,7 +293,7 @@ object SchemaToStringSpec extends ZIOSpecDefault {
           """Schema {
             |  record Node {
             |    id: Int
-            |    edges:   sequence List[
+            |    edges: sequence List[
             |      record Edge {
             |        label: String
             |        target: deferred => Node
@@ -319,10 +317,10 @@ object SchemaToStringSpec extends ZIOSpecDefault {
           """Schema {
             |  record Customer {
             |    name: String
-            |    email:   record Email {
+            |    email: record Email {
             |      value: String
             |    }
-            |    address:   record Address {
+            |    address: record Address {
             |      street: String
             |      city: String
             |      zip: String
@@ -349,8 +347,8 @@ object SchemaToStringSpec extends ZIOSpecDefault {
         val expected =
           """Schema {
             |  record Level1 {
-            |    nested:   record Level2 {
-            |      nested:   record Level3 {
+            |    nested: record Level2 {
+            |      nested: record Level3 {
             |        value: Int
             |      }
             |    }

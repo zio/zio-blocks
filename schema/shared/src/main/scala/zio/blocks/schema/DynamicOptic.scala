@@ -288,7 +288,7 @@ object DynamicOptic {
         constructor = new Constructor[Node.Field] {
           def usedRegisters: RegisterOffset                                = 1
           def construct(in: Registers, offset: RegisterOffset): Node.Field =
-            Node.Field(in.getObject(offset + 0).asInstanceOf[String])
+            new Node.Field(in.getObject(offset + 0).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Node.Field] {
           def usedRegisters: RegisterOffset                                             = 1
@@ -308,7 +308,7 @@ object DynamicOptic {
         constructor = new Constructor[Node.Case] {
           def usedRegisters: RegisterOffset                               = 1
           def construct(in: Registers, offset: RegisterOffset): Node.Case =
-            Node.Case(in.getObject(offset + 0).asInstanceOf[String])
+            new Node.Case(in.getObject(offset + 0).asInstanceOf[String])
         },
         deconstructor = new Deconstructor[Node.Case] {
           def usedRegisters: RegisterOffset                                            = 1
@@ -328,7 +328,7 @@ object DynamicOptic {
         constructor = new Constructor[Node.AtIndex] {
           def usedRegisters: RegisterOffset                                  = 1
           def construct(in: Registers, offset: RegisterOffset): Node.AtIndex =
-            Node.AtIndex(in.getInt(offset + 0))
+            new Node.AtIndex(in.getInt(offset + 0))
         },
         deconstructor = new Deconstructor[Node.AtIndex] {
           def usedRegisters: RegisterOffset                                               = 1
@@ -348,7 +348,7 @@ object DynamicOptic {
         constructor = new Constructor[Node.AtMapKey] {
           def usedRegisters: RegisterOffset                                   = 1
           def construct(in: Registers, offset: RegisterOffset): Node.AtMapKey =
-            Node.AtMapKey(in.getObject(offset + 0).asInstanceOf[DynamicValue])
+            new Node.AtMapKey(in.getObject(offset + 0).asInstanceOf[DynamicValue])
         },
         deconstructor = new Deconstructor[Node.AtMapKey] {
           def usedRegisters: RegisterOffset                                                = 1
@@ -368,7 +368,7 @@ object DynamicOptic {
         constructor = new Constructor[Node.AtIndices] {
           def usedRegisters: RegisterOffset                                    = 1
           def construct(in: Registers, offset: RegisterOffset): Node.AtIndices =
-            Node.AtIndices(in.getObject(offset + 0).asInstanceOf[Seq[Int]])
+            new Node.AtIndices(in.getObject(offset + 0).asInstanceOf[Seq[Int]])
         },
         deconstructor = new Deconstructor[Node.AtIndices] {
           def usedRegisters: RegisterOffset                                                 = 1
@@ -388,7 +388,7 @@ object DynamicOptic {
         constructor = new Constructor[Node.AtMapKeys] {
           def usedRegisters: RegisterOffset                                    = 1
           def construct(in: Registers, offset: RegisterOffset): Node.AtMapKeys =
-            Node.AtMapKeys(in.getObject(offset + 0).asInstanceOf[Seq[DynamicValue]])
+            new Node.AtMapKeys(in.getObject(offset + 0).asInstanceOf[Seq[DynamicValue]])
         },
         deconstructor = new Deconstructor[Node.AtMapKeys] {
           def usedRegisters: RegisterOffset                                                 = 1
@@ -507,7 +507,7 @@ object DynamicOptic {
         constructor = new Constructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                  = 1
           def construct(in: Registers, offset: RegisterOffset): DynamicOptic =
-            DynamicOptic(in.getObject(offset + 0).asInstanceOf[IndexedSeq[Node]])
+            new DynamicOptic(in.getObject(offset + 0).asInstanceOf[IndexedSeq[Node]])
         },
         deconstructor = new Deconstructor[DynamicOptic] {
           def usedRegisters: RegisterOffset                                               = 1

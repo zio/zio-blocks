@@ -482,19 +482,19 @@ object JsonPatch {
     appendIndent(sb, indent)
     appendPath(sb, op.path.nodes)
     op.operation match {
-      case Op.Set(value) =>
-        sb.append(" = ").append(value).append('\n')
-      case Op.PrimitiveDelta(primitiveOp) =>
-        renderPrimitiveDelta(sb, primitiveOp, indent)
-      case Op.ArrayEdit(arrayOps) =>
+      case s: Op.Set =>
+        sb.append(" = ").append(s.value).append('\n')
+      case pd: Op.PrimitiveDelta =>
+        renderPrimitiveDelta(sb, pd.op, indent)
+      case ae: Op.ArrayEdit =>
         sb.append(":\n")
-        arrayOps.foreach(ao => renderArrayOp(sb, ao, indent + 1))
-      case Op.ObjectEdit(objectOps) =>
+        ae.ops.foreach(ao => renderArrayOp(sb, ao, indent + 1))
+      case oe: Op.ObjectEdit =>
         sb.append(":\n")
-        objectOps.foreach(oo => renderObjectOp(sb, oo, indent + 1))
-      case Op.Nested(nestedPatch) =>
+        oe.ops.foreach(oo => renderObjectOp(sb, oo, indent + 1))
+      case n: Op.Nested =>
         sb.append(":\n")
-        nestedPatch.ops.foreach(op => renderOp(sb, op, indent + 1))
+        n.patch.ops.foreach(op => renderOp(sb, op, indent + 1))
     }
   }
 
@@ -604,27 +604,36 @@ object JsonPatch {
   }
 
   private[this] def escapeString(sb: lang.StringBuilder, s: String): Unit = {
-    sb.append('\"')
+    sb.append('"')
     val len = s.length
     var idx = 0
     while (idx < len) {
-      val c = s.charAt(idx)
-      c match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\b' => sb.append("\\b")
-        case '\f' => sb.append("\\f")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
-        case c    =>
-          if (c >= ' ') sb.append(c)
-          else sb.append(f"\\u${c.toInt}%04x")
-      }
+      val ch = s.charAt(idx)
       idx += 1
+      if (ch >= ' ' && ch != '"' && ch != '\\') sb.append(ch)
+      else {
+        sb.append('\\')
+        ch match {
+          case '"'  => sb.append('"')
+          case '\\' => sb.append('\\')
+          case '\b' => sb.append('b')
+          case '\f' => sb.append('f')
+          case '\n' => sb.append('n')
+          case '\r' => sb.append('r')
+          case '\t' => sb.append('t')
+          case _    =>
+            sb.append('u')
+              .append(hexDigit((ch >> 12) & 0xf))
+              .append(hexDigit((ch >> 8) & 0xf))
+              .append(hexDigit((ch >> 4) & 0xf))
+              .append(hexDigit(ch & 0xf))
+        }
+      }
     }
-    sb.append('\"')
+    sb.append('"')
   }
+
+  private[this] def hexDigit(n: Int): Char = (n + (if (n < 10) 48 else 87)).toChar
 
   private[this] def appendIndent(sb: lang.StringBuilder, indent: Int): Unit = {
     var idx = indent
@@ -640,90 +649,119 @@ object JsonPatch {
    * Converts a JsonPatch.Op to a DynamicPatch.Operation.
    */
   private def opToDynamicOperation(op: Op): DynamicPatch.Operation = op match {
-    case Op.Set(value)                  => new DynamicPatch.Operation.Set(value.toDynamicValue)
-    case Op.PrimitiveDelta(primitiveOp) => new DynamicPatch.Operation.PrimitiveDelta(primitiveOpToDynamic(primitiveOp))
-    case Op.ArrayEdit(arrayOps)         => new DynamicPatch.Operation.SequenceEdit(arrayOps.map(arrayOpToDynamic))
-    case Op.ObjectEdit(objectOps)       => new DynamicPatch.Operation.MapEdit(objectOps.map(objectOpToDynamic))
-    case Op.Nested(nestedPatch)         => new DynamicPatch.Operation.Patch(nestedPatch.toDynamicPatch)
+    case s: Op.Set             => new DynamicPatch.Operation.Set(s.value.toDynamicValue)
+    case pd: Op.PrimitiveDelta => new DynamicPatch.Operation.PrimitiveDelta(primitiveOpToDynamic(pd.op))
+    case ae: Op.ArrayEdit      => new DynamicPatch.Operation.SequenceEdit(ae.ops.map(arrayOpToDynamic))
+    case oe: Op.ObjectEdit     => new DynamicPatch.Operation.MapEdit(oe.ops.map(objectOpToDynamic))
+    case n: Op.Nested          => new DynamicPatch.Operation.Patch(n.patch.toDynamicPatch)
   }
 
   private[this] def primitiveOpToDynamic(op: PrimitiveOp): DynamicPatch.PrimitiveOp = op match {
-    case PrimitiveOp.NumberDelta(delta) => new DynamicPatch.PrimitiveOp.BigDecimalDelta(delta)
-    case PrimitiveOp.StringEdit(ops)    => new DynamicPatch.PrimitiveOp.StringEdit(ops.map(stringOpToDynamic))
+    case nd: PrimitiveOp.NumberDelta => new DynamicPatch.PrimitiveOp.BigDecimalDelta(nd.delta)
+    case se: PrimitiveOp.StringEdit  => new DynamicPatch.PrimitiveOp.StringEdit(se.ops.map(stringOpToDynamic))
   }
 
   private[this] def stringOpToDynamic(op: StringOp): DynamicPatch.StringOp = op match {
-    case StringOp.Insert(index, text)         => new DynamicPatch.StringOp.Insert(index, text)
-    case StringOp.Delete(index, length)       => new DynamicPatch.StringOp.Delete(index, length)
-    case StringOp.Append(text)                => new DynamicPatch.StringOp.Append(text)
-    case StringOp.Modify(index, length, text) => new DynamicPatch.StringOp.Modify(index, length, text)
+    case i: StringOp.Insert => new DynamicPatch.StringOp.Insert(i.index, i.text)
+    case d: StringOp.Delete => new DynamicPatch.StringOp.Delete(d.index, d.length)
+    case a: StringOp.Append => new DynamicPatch.StringOp.Append(a.text)
+    case m: StringOp.Modify => new DynamicPatch.StringOp.Modify(m.index, m.length, m.text)
   }
 
   private[this] def arrayOpToDynamic(op: ArrayOp): DynamicPatch.SeqOp = op match {
-    case ArrayOp.Insert(index, values)   => new DynamicPatch.SeqOp.Insert(index, values.map(_.toDynamicValue))
-    case ArrayOp.Append(values)          => new DynamicPatch.SeqOp.Append(values.map(_.toDynamicValue))
-    case ArrayOp.Delete(index, count)    => new DynamicPatch.SeqOp.Delete(index, count)
-    case ArrayOp.Modify(index, nestedOp) => new DynamicPatch.SeqOp.Modify(index, opToDynamicOperation(nestedOp))
+    case i: ArrayOp.Insert => new DynamicPatch.SeqOp.Insert(i.index, i.values.map(_.toDynamicValue))
+    case a: ArrayOp.Append => new DynamicPatch.SeqOp.Append(a.values.map(_.toDynamicValue))
+    case d: ArrayOp.Delete => new DynamicPatch.SeqOp.Delete(d.index, d.count)
+    case m: ArrayOp.Modify => new DynamicPatch.SeqOp.Modify(m.index, opToDynamicOperation(m.op))
   }
 
   private[this] def objectOpToDynamic(op: ObjectOp): DynamicPatch.MapOp = op match {
-    case ObjectOp.Add(key, value)          => new DynamicPatch.MapOp.Add(DynamicValue.string(key), value.toDynamicValue)
-    case ObjectOp.Remove(key)              => new DynamicPatch.MapOp.Remove(DynamicValue.string(key))
-    case ObjectOp.Modify(key, nestedPatch) =>
-      new DynamicPatch.MapOp.Modify(DynamicValue.string(key), nestedPatch.toDynamicPatch)
+    case a: ObjectOp.Add    => new DynamicPatch.MapOp.Add(DynamicValue.string(a.key), a.value.toDynamicValue)
+    case r: ObjectOp.Remove => new DynamicPatch.MapOp.Remove(DynamicValue.string(r.key))
+    case m: ObjectOp.Modify => new DynamicPatch.MapOp.Modify(DynamicValue.string(m.key), m.patch.toDynamicPatch)
   }
 
   /**
    * Converts a DynamicPatch.Operation to a JsonPatch.Op.
    */
   private[this] def operationFromDynamic(op: DynamicPatch.Operation): Either[SchemaError, Op] = op match {
-    case DynamicPatch.Operation.Set(value)                  => new Right(new Op.Set(Json.fromDynamicValue(value)))
-    case DynamicPatch.Operation.PrimitiveDelta(primitiveOp) =>
-      primitiveOpFromDynamic(primitiveOp).map(new Op.PrimitiveDelta(_))
-    case DynamicPatch.Operation.SequenceEdit(seqOps) =>
-      sequenceAll(seqOps.map(seqOpFromDynamic)).map(ops => new Op.ArrayEdit(ops))
-    case DynamicPatch.Operation.MapEdit(mapOps) =>
-      sequenceAll(mapOps.map(mapOpFromDynamic)).map(ops => new Op.ObjectEdit(ops))
-    case DynamicPatch.Operation.Patch(nestedPatch) => fromDynamicPatch(nestedPatch).map(new Op.Nested(_))
+    case s: DynamicPatch.Operation.Set             => new Right(new Op.Set(Json.fromDynamicValue(s.value)))
+    case pd: DynamicPatch.Operation.PrimitiveDelta =>
+      primitiveOpFromDynamic(pd.op) match {
+        case Right(op) => new Right(new Op.PrimitiveDelta(op))
+        case l         => l.asInstanceOf[Either[SchemaError, Op]]
+      }
+    case se: DynamicPatch.Operation.SequenceEdit =>
+      sequenceAll(se.ops.map(seqOpFromDynamic)) match {
+        case Right(ops) => new Right(new Op.ArrayEdit(ops))
+        case l          => l.asInstanceOf[Either[SchemaError, Op]]
+      }
+    case me: DynamicPatch.Operation.MapEdit =>
+      sequenceAll(me.ops.map(mapOpFromDynamic)) match {
+        case Right(ops) => new Right(new Op.ObjectEdit(ops))
+        case l          => l.asInstanceOf[Either[SchemaError, Op]]
+      }
+    case p: DynamicPatch.Operation.Patch =>
+      fromDynamicPatch(p.patch) match {
+        case Right(patch) => new Right(new Op.Nested(patch))
+        case l            => l.asInstanceOf[Either[SchemaError, Op]]
+      }
   }
 
-  private[this] def primitiveOpFromDynamic(op: DynamicPatch.PrimitiveOp): Either[SchemaError, PrimitiveOp] = op match {
-    case DynamicPatch.PrimitiveOp.IntDelta(delta)   => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.LongDelta(delta)  => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.ShortDelta(delta) => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.ByteDelta(delta)  => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.FloatDelta(delta) =>
-      new Right(new PrimitiveOp.NumberDelta(JsonWriter.toBigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.DoubleDelta(delta) =>
-      new Right(new PrimitiveOp.NumberDelta(JsonWriter.toBigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.BigIntDelta(delta)     => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.BigDecimalDelta(delta) => new Right(new PrimitiveOp.NumberDelta(delta))
-    case DynamicPatch.PrimitiveOp.StringEdit(ops)        => new Right(new PrimitiveOp.StringEdit(ops.map(stringOpFromDynamic)))
-    case _                                               => new Left(SchemaError("Temporal operations are not supported in JsonPatch"))
-  }
+  private[this] def primitiveOpFromDynamic(op: DynamicPatch.PrimitiveOp): Either[SchemaError, PrimitiveOp] = new Right(
+    op match {
+      case d: DynamicPatch.PrimitiveOp.IntDelta        => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.LongDelta       => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.ShortDelta      => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.ByteDelta       => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.FloatDelta      => new PrimitiveOp.NumberDelta(JsonWriter.toBigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.DoubleDelta     => new PrimitiveOp.NumberDelta(JsonWriter.toBigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.BigIntDelta     => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.BigDecimalDelta => new PrimitiveOp.NumberDelta(d.delta)
+      case se: DynamicPatch.PrimitiveOp.StringEdit     => new PrimitiveOp.StringEdit(se.ops.map(stringOpFromDynamic))
+      case _                                           =>
+        return new Left(SchemaError("Temporal operations are not supported in JsonPatch"))
+    }
+  )
 
   private[this] def stringOpFromDynamic(op: DynamicPatch.StringOp): StringOp = op match {
-    case DynamicPatch.StringOp.Insert(index, text)         => new StringOp.Insert(index, text)
-    case DynamicPatch.StringOp.Delete(index, length)       => new StringOp.Delete(index, length)
-    case DynamicPatch.StringOp.Append(text)                => new StringOp.Append(text)
-    case DynamicPatch.StringOp.Modify(index, length, text) => new StringOp.Modify(index, length, text)
+    case i: DynamicPatch.StringOp.Insert => new StringOp.Insert(i.index, i.text)
+    case d: DynamicPatch.StringOp.Delete => new StringOp.Delete(d.index, d.length)
+    case a: DynamicPatch.StringOp.Append => new StringOp.Append(a.text)
+    case m: DynamicPatch.StringOp.Modify => new StringOp.Modify(m.index, m.length, m.text)
   }
 
-  private[this] def seqOpFromDynamic(op: DynamicPatch.SeqOp): Either[SchemaError, ArrayOp] = op match {
-    case DynamicPatch.SeqOp.Insert(index, values) =>
-      new Right(new ArrayOp.Insert(index, values.map(Json.fromDynamicValue)))
-    case DynamicPatch.SeqOp.Append(values)          => new Right(new ArrayOp.Append(values.map(Json.fromDynamicValue)))
-    case DynamicPatch.SeqOp.Delete(index, count)    => new Right(new ArrayOp.Delete(index, count))
-    case DynamicPatch.SeqOp.Modify(index, nestedOp) =>
-      operationFromDynamic(nestedOp).map(op => new ArrayOp.Modify(index, op))
-  }
+  private[this] def seqOpFromDynamic(op: DynamicPatch.SeqOp): Either[SchemaError, ArrayOp] = new Right(op match {
+    case i: DynamicPatch.SeqOp.Insert => new ArrayOp.Insert(i.index, i.values.map(Json.fromDynamicValue))
+    case a: DynamicPatch.SeqOp.Append => new ArrayOp.Append(a.values.map(Json.fromDynamicValue))
+    case d: DynamicPatch.SeqOp.Delete => new ArrayOp.Delete(d.index, d.count)
+    case m: DynamicPatch.SeqOp.Modify =>
+      operationFromDynamic(m.op) match {
+        case Right(op) => new ArrayOp.Modify(m.index, op)
+        case l         => return l.asInstanceOf[Either[SchemaError, ArrayOp]]
+      }
+  })
 
   private[this] def mapOpFromDynamic(op: DynamicPatch.MapOp): Either[SchemaError, ObjectOp] = op match {
-    case DynamicPatch.MapOp.Add(key, value) =>
-      extractStringKey(key).map(k => new ObjectOp.Add(k, Json.fromDynamicValue(value)))
-    case DynamicPatch.MapOp.Remove(key)              => extractStringKey(key).map(new ObjectOp.Remove(_))
-    case DynamicPatch.MapOp.Modify(key, nestedPatch) =>
-      extractStringKey(key).flatMap(k => fromDynamicPatch(nestedPatch).map(patch => new ObjectOp.Modify(k, patch)))
+    case a: DynamicPatch.MapOp.Add =>
+      extractStringKey(a.key) match {
+        case Right(k) => new Right(new ObjectOp.Add(k, Json.fromDynamicValue(a.value)))
+        case l        => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+      }
+    case r: DynamicPatch.MapOp.Remove =>
+      extractStringKey(r.key) match {
+        case Right(k) => new Right(new ObjectOp.Remove(k))
+        case l        => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+      }
+    case m: DynamicPatch.MapOp.Modify =>
+      extractStringKey(m.key) match {
+        case Right(k) =>
+          fromDynamicPatch(m.patch) match {
+            case Right(p) => new Right(new ObjectOp.Modify(k, p))
+            case l        => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+          }
+        case l => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+      }
   }
 
   private[this] def extractStringKey(key: DynamicValue): Either[SchemaError, String] = key match {
@@ -972,7 +1010,7 @@ object JsonPatch {
           constructor = new Constructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Insert =
-              StringOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[String])
+              new StringOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(ints = 1, objects = 1)
@@ -995,7 +1033,7 @@ object JsonPatch {
           constructor = new Constructor[StringOp.Delete] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Delete =
-              StringOp.Delete(
+              new StringOp.Delete(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset))
               )
@@ -1021,7 +1059,7 @@ object JsonPatch {
           constructor = new Constructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Append =
-              StringOp.Append(in.getObject(offset).asInstanceOf[String])
+              new StringOp.Append(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -1046,7 +1084,7 @@ object JsonPatch {
           constructor = new Constructor[StringOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Modify =
-              StringOp.Modify(
+              new StringOp.Modify(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset)),
                 in.getObject(offset).asInstanceOf[String]
@@ -1125,7 +1163,7 @@ object JsonPatch {
           constructor = new Constructor[PrimitiveOp.NumberDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.NumberDelta =
-              PrimitiveOp.NumberDelta(in.getObject(offset).asInstanceOf[BigDecimal])
+              new PrimitiveOp.NumberDelta(in.getObject(offset).asInstanceOf[BigDecimal])
           },
           deconstructor = new Deconstructor[PrimitiveOp.NumberDelta] {
             def usedRegisters: RegisterOffset                                                          = RegisterOffset(objects = 1)
@@ -1146,7 +1184,7 @@ object JsonPatch {
           constructor = new Constructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.StringEdit =
-              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
+              new PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
           },
           deconstructor = new Deconstructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1202,7 +1240,7 @@ object JsonPatch {
           constructor = new Constructor[ArrayOp.Insert] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): ArrayOp.Insert =
-              ArrayOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[Json]])
+              new ArrayOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[Json]])
           },
           deconstructor = new Deconstructor[ArrayOp.Insert] {
             def usedRegisters: RegisterOffset                                                 = RegisterOffset(ints = 1, objects = 1)
@@ -1246,7 +1284,7 @@ object JsonPatch {
           constructor = new Constructor[ArrayOp.Delete] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(ints = 2)
             def construct(in: Registers, offset: RegisterOffset): ArrayOp.Delete =
-              ArrayOp.Delete(
+              new ArrayOp.Delete(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset))
               )
@@ -1273,7 +1311,7 @@ object JsonPatch {
           constructor = new Constructor[ArrayOp.Modify] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): ArrayOp.Modify =
-              ArrayOp.Modify(in.getInt(offset), in.getObject(offset).asInstanceOf[Op])
+              new ArrayOp.Modify(in.getInt(offset), in.getObject(offset).asInstanceOf[Op])
           },
           deconstructor = new Deconstructor[ArrayOp.Modify] {
             def usedRegisters: RegisterOffset                                                 = RegisterOffset(ints = 1, objects = 1)
@@ -1347,7 +1385,7 @@ object JsonPatch {
           constructor = new Constructor[ObjectOp.Add] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): ObjectOp.Add =
-              ObjectOp.Add(
+              new ObjectOp.Add(
                 in.getObject(offset).asInstanceOf[String],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Json]
               )
@@ -1395,7 +1433,7 @@ object JsonPatch {
           constructor = new Constructor[ObjectOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): ObjectOp.Modify =
-              ObjectOp.Modify(
+              new ObjectOp.Modify(
                 in.getObject(offset).asInstanceOf[String],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[JsonPatch]
               )
@@ -1464,7 +1502,7 @@ object JsonPatch {
           constructor = new Constructor[Op.Set] {
             def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.Set =
-              Op.Set(in.getObject(offset).asInstanceOf[Json])
+              new Op.Set(in.getObject(offset).asInstanceOf[Json])
           },
           deconstructor = new Deconstructor[Op.Set] {
             def usedRegisters: RegisterOffset                                         = RegisterOffset(objects = 1)
@@ -1485,7 +1523,7 @@ object JsonPatch {
           constructor = new Constructor[Op.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.PrimitiveDelta =
-              Op.PrimitiveDelta(in.getObject(offset).asInstanceOf[PrimitiveOp])
+              new Op.PrimitiveDelta(in.getObject(offset).asInstanceOf[PrimitiveOp])
           },
           deconstructor = new Deconstructor[Op.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                                    = RegisterOffset(objects = 1)
@@ -1506,7 +1544,7 @@ object JsonPatch {
           constructor = new Constructor[Op.ArrayEdit] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.ArrayEdit =
-              Op.ArrayEdit(in.getObject(offset).asInstanceOf[Chunk[ArrayOp]])
+              new Op.ArrayEdit(in.getObject(offset).asInstanceOf[Chunk[ArrayOp]])
           },
           deconstructor = new Deconstructor[Op.ArrayEdit] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -1527,7 +1565,7 @@ object JsonPatch {
           constructor = new Constructor[Op.ObjectEdit] {
             def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.ObjectEdit =
-              Op.ObjectEdit(in.getObject(offset).asInstanceOf[Chunk[ObjectOp]])
+              new Op.ObjectEdit(in.getObject(offset).asInstanceOf[Chunk[ObjectOp]])
           },
           deconstructor = new Deconstructor[Op.ObjectEdit] {
             def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -1549,7 +1587,7 @@ object JsonPatch {
           constructor = new Constructor[Op.Nested] {
             def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.Nested =
-              Op.Nested(in.getObject(offset).asInstanceOf[JsonPatch])
+              new Op.Nested(in.getObject(offset).asInstanceOf[JsonPatch])
           },
           deconstructor = new Deconstructor[Op.Nested] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
@@ -1632,7 +1670,7 @@ object JsonPatch {
           constructor = new Constructor[JsonPatchOp] {
             def usedRegisters: RegisterOffset                                 = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): JsonPatchOp =
-              JsonPatchOp(
+              new JsonPatchOp(
                 in.getObject(offset).asInstanceOf[DynamicOptic],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Op]
               )
@@ -1660,7 +1698,7 @@ object JsonPatch {
           constructor = new Constructor[JsonPatch] {
             def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): JsonPatch =
-              JsonPatch(in.getObject(offset).asInstanceOf[Chunk[JsonPatchOp]])
+              new JsonPatch(in.getObject(offset).asInstanceOf[Chunk[JsonPatchOp]])
           },
           deconstructor = new Deconstructor[JsonPatch] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)

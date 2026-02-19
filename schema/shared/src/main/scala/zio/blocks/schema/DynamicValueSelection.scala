@@ -208,21 +208,21 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
    * values for which the predicate returns true.
    */
   def query(p: DynamicValue => Boolean): DynamicValueSelection =
-    flatMap(dv => DynamicValue.query(dv, DynamicOptic.root, (_, v) => p(v)))
+    flatMap(dv => DynamicValueSelection.succeedMany(DynamicValue.query(dv, DynamicOptic.root, (_, v) => p(v))))
 
   /**
    * Recursively searches each DynamicValue in the selection, collecting all
    * values at paths for which the predicate returns true.
    */
   def queryPath(p: DynamicOptic => Boolean): DynamicValueSelection =
-    flatMap(dv => DynamicValue.query(dv, DynamicOptic.root, (path, _) => p(path)))
+    flatMap(dv => DynamicValueSelection.succeedMany(DynamicValue.query(dv, DynamicOptic.root, (path, _) => p(path))))
 
   /**
    * Recursively searches each DynamicValue in the selection, collecting all
    * values for which the predicate on both path and value returns true.
    */
   def queryBoth(p: (DynamicOptic, DynamicValue) => Boolean): DynamicValueSelection =
-    flatMap(dv => DynamicValue.query(dv, DynamicOptic.root, p))
+    flatMap(dv => DynamicValueSelection.succeedMany(DynamicValue.query(dv, DynamicOptic.root, p)))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Normalization

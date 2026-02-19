@@ -5,8 +5,6 @@ package zio.blocks.mediatype
 // Run: sbt generateMediaTypes
 
 object MediaTypes {
-  import zio.blocks.mediatype.MediaType
-
   lazy val any: MediaType = MediaType("*", "*")
 
   object application {

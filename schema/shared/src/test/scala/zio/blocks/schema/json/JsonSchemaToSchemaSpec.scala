@@ -447,7 +447,7 @@ object JsonSchemaToSchemaSpec extends SchemaBaseSpec {
           wrapped.map(_.toString).getOrElse("") ==
             """record DynamicValue {
               |  name: wrapper DynamicValue(String)
-              |  address:   record DynamicValue {
+              |  address: record DynamicValue {
               |    city: wrapper DynamicValue(String)
               |    zip: wrapper DynamicValue(String)
               |  }

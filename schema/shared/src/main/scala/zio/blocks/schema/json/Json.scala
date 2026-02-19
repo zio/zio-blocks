@@ -8,7 +8,6 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
 import java.util
-import scala.collection.mutable
 import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
 
@@ -152,11 +151,10 @@ sealed trait Json {
    * Deletes the value at the given path. Returns Left with an error if the path
    * doesn't exist.
    */
-  def deleteOrFail(path: DynamicOptic): Either[SchemaError, Json] =
-    Json.deleteAtPath(this, path) match {
-      case Some(json) => new Right(json)
-      case _          => new Left(SchemaError(s"Path not found: $path"))
-    }
+  def deleteOrFail(path: DynamicOptic): Either[SchemaError, Json] = Json.deleteAtPath(this, path) match {
+    case Some(json) => new Right(json)
+    case _          => new Left(SchemaError(s"Path not found: $path"))
+  }
 
   /**
    * Inserts a value at the given path. For arrays, inserts at the specified
@@ -221,10 +219,10 @@ sealed trait Json {
   def printBytes(config: WriterConfig): Array[Byte] = Json.jsonCodec.encode(this, config)
 
   /** Prints this JSON value to a Chunk of bytes (UTF-8). */
-  def printChunk: Chunk[Byte] = Chunk.fromArray(printBytes)
+  def printChunk: Chunk[Byte] = Chunk.fromArray(Json.jsonCodec.encode(this))
 
   /** Prints this JSON value to a Chunk of bytes (UTF-8) with configuration. */
-  def printChunk(config: WriterConfig): Chunk[Byte] = Chunk.fromArray(printBytes(config))
+  def printChunk(config: WriterConfig): Chunk[Byte] = Chunk.fromArray(Json.jsonCodec.encode(this, config))
 
   /** Prints this JSON value into the provided ByteBuffer. */
   def printTo(buffer: ByteBuffer): Unit = Json.jsonCodec.encode(this, buffer)
@@ -249,7 +247,10 @@ sealed trait Json {
    * Decodes this JSON value to a value of type A, throwing SchemaError on
    * failure.
    */
-  def asUnsafe[A](implicit decoder: JsonDecoder[A]): A = as[A].fold(e => throw e, identity)
+  def asUnsafe[A](implicit decoder: JsonDecoder[A]): A = decoder.decode(this) match {
+    case Right(value) => value
+    case Left(err)    => throw err
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Comparison
@@ -909,10 +910,11 @@ object Json {
   def parse(input: java.lang.String, config: ReaderConfig): Either[SchemaError, Json] = jsonCodec.decode(input, config)
 
   /** Parses a JSON CharSequence into a Json value. */
-  def parse(input: CharSequence): Either[SchemaError, Json] = parse(input.toString)
+  def parse(input: CharSequence): Either[SchemaError, Json] = jsonCodec.decode(input.toString)
 
   /** Parses a JSON CharSequence with config. */
-  def parse(input: CharSequence, config: ReaderConfig): Either[SchemaError, Json] = parse(input.toString, config)
+  def parse(input: CharSequence, config: ReaderConfig): Either[SchemaError, Json] =
+    jsonCodec.decode(input.toString, config)
 
   /** Parses a JSON ByteBuffer into a Json value. */
   def parse(input: ByteBuffer): Either[SchemaError, Json] = jsonCodec.decode(input)
@@ -921,13 +923,28 @@ object Json {
   def parse(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, Json] = jsonCodec.decode(input, config)
 
   /** Parses a JSON Chunk of bytes (UTF-8) into a Json value. */
-  def parse(input: Chunk[Byte]): Either[SchemaError, Json] = parse(input.toArray)
+  def parse(input: Chunk[Byte]): Either[SchemaError, Json] = input match {
+    case ba: Chunk.ByteArray =>
+      val from = ba.offset
+      jsonCodec.decode(ba.array, from, ba.length + from)
+    case _ =>
+      jsonCodec.decode(input.toArray)
+  }
 
   /** Parses a JSON Chunk of bytes (UTF-8) with config. */
-  def parse(input: Chunk[Byte], config: ReaderConfig): Either[SchemaError, Json] = parse(input.toArray, config)
+  def parse(input: Chunk[Byte], config: ReaderConfig): Either[SchemaError, Json] = input match {
+    case ba: Chunk.ByteArray =>
+      val from = ba.offset
+      jsonCodec.decode(ba.array, from, ba.length + from, config)
+    case _ =>
+      jsonCodec.decode(input.toArray, config)
+  }
 
   /** Parses a JSON string, throwing SchemaError on failure. */
-  def parseUnsafe(input: java.lang.String): Json = parse(input).fold(e => throw e, identity)
+  def parseUnsafe(input: java.lang.String): Json = parse(input) match {
+    case Right(json) => json
+    case Left(err)   => throw err
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion from DynamicValue
@@ -1015,66 +1032,89 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Merges two JSON values using the specified strategy. */
-  private def merge(path: DynamicOptic, left: Json, right: Json, s: MergeStrategy): Json =
-    (left, right) match {
-      case (lo: Object, ro: Object) if s.recurse(path, JsonType.Object) => mergeByKey(path, lo, ro, s)
-      case (la: Array, ra: Array) if s.recurse(path, JsonType.Array)    => mergeByIndex(path, la, ra, s)
-      case _                                                            => s(path, left, right)
+  private def merge(path: DynamicOptic, left: Json, right: Json, s: MergeStrategy): Json = {
+    left match {
+      case lo: Object =>
+        right match {
+          case ro: Object if s.recurse(path, JsonType.Object) => return mergeByKey(path, lo, ro, s)
+          case _                                              =>
+        }
+      case la: Array =>
+        right match {
+          case ra: Array if s.recurse(path, JsonType.Array) => return mergeByIndex(path, la, ra, s)
+          case _                                            =>
+        }
+      case _ =>
     }
+    s(path, left, right)
+  }
 
   private[this] def mergeByKey(path: DynamicOptic, left: Object, right: Object, s: MergeStrategy): Object = {
     val leftFields  = left.value
     val rightFields = right.value
-    val leftMap     = leftFields.toMap
-    val rightMap    = rightFields.toMap
-    val allKeys     = mutable.ArrayBuilder.make[java.lang.String]
-    allKeys.sizeHint(leftFields.length + rightFields.length)
-    leftFields.foreach(kv => allKeys.addOne(kv._1))
+    val leftLen     = leftFields.length
+    val rightLen    = rightFields.length
+    val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen)
+    val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen)
+    val rightDedup  = new scala.Array[(java.lang.String, Json)](rightLen)
+    var merged      = new scala.Array[(java.lang.String, Json)](leftLen + rightLen)
+    var idx         = 0
+    leftFields.foreach { kv =>
+      val key = kv._1
+      val pos = leftSeenAt.getOrDefault(key, -1)
+      if (pos < 0) {
+        leftSeenAt.put(key, idx)
+        merged(idx) = kv
+        idx += 1
+      } else merged(pos) = kv
+    }
+    var rightIdx = 0
     rightFields.foreach { kv =>
       val key = kv._1
-      if (!leftMap.contains(key)) allKeys.addOne(key)
+      val pos = rightSeenAt.getOrDefault(key, -1)
+      if (pos < 0) {
+        rightSeenAt.put(key, rightIdx)
+        rightDedup(rightIdx) = kv
+        rightIdx += 1
+      } else rightDedup(pos) = kv
     }
-    new Object(Chunk.fromArray(allKeys.result().map { key =>
-      val rvOpt = rightMap.get(key)
-      (
-        key,
-        leftMap.get(key) match {
-          case Some(lv) =>
-            rvOpt match {
-              case Some(rv) => merge(path.field(key), lv, rv, s)
-              case _        => lv
-            }
-          case _ =>
-            rvOpt match {
-              case Some(rv) => rv
-              case _        => throw new IllegalStateException("Key should exist in at least one map")
-            }
-        }
-      )
-    }))
+    val rightDedupLen = rightIdx
+    rightIdx = 0
+    while (rightIdx < rightDedupLen) {
+      val kv = rightDedup(rightIdx)
+      rightIdx += 1
+      val key = kv._1
+      val pos = leftSeenAt.getOrDefault(key, -1)
+      if (pos < 0) {
+        merged(idx) = kv
+        idx += 1
+      } else merged(pos) = (key, merge(path.field(key), merged(pos)._2, kv._2, s))
+    }
+    if (merged.length != idx) merged = util.Arrays.copyOf(merged, idx)
+    new Object(Chunk.fromArray(merged))
   }
 
   private[this] def mergeByIndex(path: DynamicOptic, left: Array, right: Array, s: MergeStrategy): Array = {
-    val maxLen = Math.max(left.value.length, right.value.length)
-    val arr    = new scala.Array[Json](maxLen)
-    var idx    = 0
-    while (idx < maxLen) {
-      val rvOpt = right.value.lift(idx)
-      arr(idx) = left.value.lift(idx) match {
-        case Some(lv) =>
-          rvOpt match {
-            case Some(rv) => merge(path.at(idx), lv, rv, s)
-            case _        => lv
-          }
-        case _ =>
-          rvOpt match {
-            case Some(rv) => rv
-            case _        => throw new IllegalStateException("Index should exist in at least one array")
-          }
-      }
+    val leftElements  = left.value
+    val rightElements = right.value
+    val leftLen       = leftElements.length
+    val rightLen      = rightElements.length
+    val merged        = new scala.Array[Json](Math.max(leftLen, rightLen))
+    val minLen        = Math.min(leftLen, rightLen)
+    var idx           = 0
+    while (idx < minLen) {
+      merged(idx) = merge(path.at(idx), leftElements(idx), rightElements(idx), s)
       idx += 1
     }
-    new Array(Chunk.fromArray(arr))
+    while (idx < leftLen) {
+      merged(idx) = leftElements(idx)
+      idx += 1
+    }
+    while (idx < rightLen) {
+      merged(idx) = rightElements(idx)
+      idx += 1
+    }
+    new Array(Chunk.fromArray(merged))
   }
 
   // ─────────────────────────────────────────────────────────────────────────

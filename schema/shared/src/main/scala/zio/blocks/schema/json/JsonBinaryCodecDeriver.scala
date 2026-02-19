@@ -785,7 +785,7 @@ class JsonBinaryCodecDeriver private[json] (
                             val name        = leaf.getName
                             if (name ne null) {
                               innerSchema = JsonSchema.obj(
-                                properties = new Some(ChunkMap(name -> innerSchema)),
+                                properties = new Some(ChunkMap((name, innerSchema))),
                                 required = new Some(Set(name)),
                                 additionalProperties = new Some(JsonSchema.False)
                               )

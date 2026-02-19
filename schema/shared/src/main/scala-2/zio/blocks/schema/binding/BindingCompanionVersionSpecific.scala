@@ -1,5 +1,6 @@
 package zio.blocks.schema.binding
 
+import zio.blocks.schema.CommonMacroOps
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
@@ -48,8 +49,7 @@ trait BindingCompanionVersionSpecific {
 }
 
 object BindingCompanionVersionSpecificMacros {
-  def ofImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Binding[_, A]] =
-    new BindingMacroImpl[c.type](c).of[A]
+  def ofImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Binding[_, A]] = new BindingMacroImpl[c.type](c).of[A]
 }
 
 private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
@@ -82,7 +82,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   private val mapTpe          = typeOf[Map[_, _]].typeConstructor
   private val dynamicValueTpe = typeOf[zio.blocks.schema.DynamicValue]
 
-  private def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
+  private def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
 
   private def isSealedTraitOrAbstractClass(tpe: Type): Boolean = {
     val symbol = tpe.typeSymbol
@@ -99,13 +99,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     symbol.isModuleClass || (symbol.isClass && symbol.asClass.isModuleClass)
   }
 
-  private def typeArgs(tpe: Type): List[Type] = tpe match {
-    case TypeRef(_, _, args) => args
-    case _                   => Nil
-  }
+  private def typeArgs(tpe: Type): List[Type] = CommonMacroOps.typeArgs(c)(tpe)
 
-  private def directSubTypes(tpe: Type): List[Type] =
-    zio.blocks.schema.CommonMacroOps.directSubTypes(c)(tpe)
+  private def directSubTypes(tpe: Type): List[Type] = CommonMacroOps.directSubTypes(c)(tpe)
 
   private def isIterator(tpe: Type): Boolean = tpe <:< typeOf[Iterator[_]]
 
@@ -175,9 +171,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   }
 
   private def isTypeRef(tpe: Type): Boolean = tpe match {
-    case TypeRef(_, sym, Nil) =>
-      sym.isType && sym.asType.isAliasType
-    case _ => false
+    case TypeRef(_, sym, Nil) => sym.isType && sym.asType.isAliasType
+    case _                    => false
   }
 
   private def typeRefDealias(tpe: Type): Type = tpe.dealias
@@ -195,7 +190,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     isZioPreludeNewtypeImpl(tpe) || isZioPreludeNewtypeImpl(tpe.dealias)
 
   private def zioPreludeNewtypeDealias(tpe: Type): Type = {
-    val t = if (isZioPreludeNewtypeImpl(tpe)) tpe else tpe.dealias
+    val t =
+      if (isZioPreludeNewtypeImpl(tpe)) tpe
+      else tpe.dealias
     t match {
       case TypeRef(compTpe, _, _) =>
         val newtypeOpt = compTpe.baseClasses.find { cls =>
@@ -233,24 +230,18 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     if (!classSymbol.isClass) return None
     val cls = classSymbol.asClass
     if (cls.isAbstract || cls.isTrait) return None
-
     val constructor = cls.primaryConstructor
     if (!constructor.isMethod) return None
     val paramLists = constructor.asMethod.paramLists
     val allParams  = paramLists.flatten
-
     if (allParams.size != 1) return None
-
     val fieldSymbol    = allParams.head
     val fieldName      = fieldSymbol.name.toTermName
     val underlyingType = tpe.decl(fieldSymbol.name).typeSignatureIn(tpe).finalResultType
-
-    val companion = cls.companion
+    val companion      = cls.companion
     if (companion == NoSymbol) return None
-
     val applyMethods = companion.typeSignature.decls.filter(_.name.decodedName.toString == "apply")
     val eitherTpe    = typeOf[Either[_, _]].typeConstructor
-
     applyMethods.find { method =>
       if (!method.isMethod) false
       else {
@@ -456,7 +447,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   private def deriveSealedTraitBinding(tpe: Type): c.Expr[Any] = {
     val subtypes = directSubTypes(tpe)
     if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe}'.")
-
     val matcherCases = subtypes.map { sTpe =>
       q"""
       new _root_.zio.blocks.schema.binding.Matcher[$sTpe] {
@@ -467,11 +457,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       }
       """
     }
-
     val discriminateCases = subtypes.zipWithIndex.map { case (sTpe, idx) =>
       cq"_: $sTpe @_root_.scala.unchecked => $idx"
     }
-
     c.Expr[Any](
       q"""
       new _root_.zio.blocks.schema.binding.Binding.Variant[$tpe](
@@ -490,11 +478,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     val companion      = info.companionSymbol
     val applyMethod    = info.applyMethod
     val errorType      = info.errorType
-
     val schemaErrorTpe = typeOf[_root_.zio.blocks.schema.SchemaError]
     val isSchemaError  = errorType <:< schemaErrorTpe
-
-    val wrapTree =
+    val wrapTree       =
       if (isSchemaError) {
         q"""
         (underlying: $underlyingType) => $companion.$applyMethod(underlying) match {
@@ -510,9 +496,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
         }
         """
       }
-
     val unwrapTree = q"""(a: $tpe) => a.$fieldName"""
-
     c.Expr[Any](
       q"""
       new _root_.zio.blocks.schema.binding.Binding.Wrapper[$tpe, $underlyingType](
@@ -526,11 +510,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
   private def deriveZioPreludeNewtypeBinding(tpe: Type): c.Expr[Any] = {
     val underlyingType = zioPreludeNewtypeDealias(tpe)
     val companion      = zioPreludeNewtypeCompanion(tpe)
-
-    val wrapMethod   = companion.typeSignature.decl(TermName("wrap"))
-    val unwrapMethod = companion.typeSignature.decl(TermName("unwrap"))
-
-    val wrapTree =
+    val wrapMethod     = companion.typeSignature.decl(TermName("wrap"))
+    val unwrapMethod   = companion.typeSignature.decl(TermName("unwrap"))
+    val wrapTree       =
       if (wrapMethod != NoSymbol) {
         q"""
         (underlying: $underlyingType) => $companion.wrap(underlying)
@@ -540,14 +522,9 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
         (underlying: $underlyingType) => underlying.asInstanceOf[$tpe]
         """
       }
-
     val unwrapTree =
-      if (unwrapMethod != NoSymbol) {
-        q"""(a: $tpe) => $companion.unwrap(a)"""
-      } else {
-        q"""(a: $tpe) => a.asInstanceOf[$underlyingType]"""
-      }
-
+      if (unwrapMethod != NoSymbol) q"""(a: $tpe) => $companion.unwrap(a)"""
+      else q"""(a: $tpe) => a.asInstanceOf[$underlyingType]"""
     c.Expr[Any](
       q"""
       new _root_.zio.blocks.schema.binding.Binding.Wrapper[$tpe, $underlyingType](
@@ -562,10 +539,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     val classSymbol = tpe.typeSymbol.asClass
     val constructor = classSymbol.primaryConstructor.asMethod
     val paramLists  = constructor.paramLists
-
-    if (paramLists.isEmpty || paramLists.forall(_.isEmpty)) {
-      deriveEmptyRecordBinding(tpe)
-    } else {
+    if (paramLists.isEmpty || paramLists.forall(_.isEmpty)) deriveEmptyRecordBinding(tpe)
+    else {
       // Compute RegisterOffset deltas at macro time using the same formula as RegisterOffset.apply
       def offsetDelta(registerType: String): Long = registerType match {
         case "Boolean" => 0x100000000L // booleans = 1
@@ -625,9 +600,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
         }
       }
 
-      val constructArgss = fieldLists.map(_.map(fieldToArg))
-      val constructCall  = q"new $tpe(...$constructArgss)"
-
+      val constructArgss        = fieldLists.map(_.map(fieldToArg))
+      val constructCall         = q"new $tpe(...$constructArgss)"
       val deconstructStatements = fields.map { f =>
         val fieldName        = f.name
         val fieldTpe         = f.tpe
@@ -650,9 +624,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
           case _         => q"out.setObject(offset + $offsetLit, in.$fieldName.asInstanceOf[AnyRef])"
         }
       }
-
       val usedRegistersLit = Literal(Constant(usedRegistersLong))
-
       c.Expr[Any](
         q"""
         new _root_.zio.blocks.schema.binding.Binding.Record[$tpe](
@@ -708,7 +680,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
            |Use case classes for cross-platform compatibility.""".stripMargin
       )
     }
-
     val members = getStructuralMembers(tpe)
     if (members.isEmpty) {
       fail(s"Structural type $tpe has no members. Cannot derive Binding.")
@@ -737,7 +708,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       FieldInfo(name, memberTpe, kind, fieldOffset)
     }
     val usedRegistersLong = currentOffset
-
     // Generate anonymous class method definitions for the constructor
     val methodDefs = fields.zipWithIndex.map { case (f, idx) =>
       val fieldName  = TermName(f.name)
@@ -745,7 +715,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
       val idxLiteral = Literal(Constant(idx))
       q"def $fieldName: $fieldTpe = values($idxLiteral).asInstanceOf[$fieldTpe]"
     }
-
     // Generate the values array construction from registers
     val valueReads = fields.map { f =>
       val offsetLit = Literal(Constant(f.fieldOffset))
@@ -761,7 +730,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
         case _         => q"in.getObject(offset + $offsetLit)"
       }
     }
-
     // Generate deconstructor statements using reflection
     val deconstructStatements = fields.map { f =>
       val fieldNameStr = f.name
@@ -814,9 +782,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
           """
       }
     }
-
     val usedRegistersLit = Literal(Constant(usedRegistersLong))
-
     c.Expr[Any](
       q"""
       new _root_.zio.blocks.schema.binding.Binding.Record[$tpe](
