@@ -10,15 +10,13 @@ import zio.blocks.schema._
  * all SchemaExpr node types plus SQL-specific extensions (IN, BETWEEN, IS NULL,
  * LIKE), with a single unified interpreter.
  *
- * Key design: SchemaExpr values are *translated into* Expr.
- *
  * Run with: sbt "examples/runMain querydslextended.Step1ExtendedAST"
  */
 object Step1ExtendedAST extends App {
 
   // --- Show the AST structure ---
 
-  println("=== Independent Expr AST Examples ===")
+  println("=== Expr AST Examples ===")
   println()
 
   // SQL-specific nodes — built directly in Expr, no SchemaExpr involved
@@ -43,7 +41,7 @@ object Step1ExtendedAST extends App {
   println()
 
   // Seamless composition
-  val combined =
+  val combined: Expr[Product, Boolean] =
     Product.category.in("Electronics") &&
       Product.price.between(10.0, 500.0) &&
       (Product.rating >= 4) // bridge extension handles SchemaExpr && Expr

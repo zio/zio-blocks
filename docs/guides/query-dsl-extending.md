@@ -3,14 +3,14 @@ id: query-dsl-extending
 title: "Query DSL with Reified Optics — Part 3: Extending the Expression Language"
 ---
 
-In this guide, we will extend the ZIO Blocks query DSL with an independent expression language that goes beyond what `SchemaExpr` provides out of the box. By the end, you will have an `Expr` ADT that adds SQL-specific predicates (`IN`, `BETWEEN`, `IS NULL`, `LIKE`), type-safe aggregate functions (`COUNT`, `SUM`, `AVG`), and conditional expressions (`CASE WHEN`) — all composable with the built-in `SchemaExpr` operators from Parts 1 and 2.
+In this guide, we will extend the ZIO Blocks query DSL with an expression language that goes beyond what `SchemaExpr` provides out of the box. By the end, you will have an `Expr` ADT that adds SQL-specific predicates (`IN`, `BETWEEN`, `IS NULL`, `LIKE`), type-safe aggregate functions (`COUNT`, `SUM`, `AVG`), and conditional expressions (`CASE WHEN`) — all composable with the built-in `SchemaExpr` operators from Parts 1 and 2.
 
 This is Part 3 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) covered building query expressions, and [Part 2](./query-dsl-sql.md) covered translating them to SQL. Here, we handle the cases where the built-in expression language is not enough.
 
 **What we'll cover:**
 
 - Why `SchemaExpr` is deliberately closed and what that means for extension
-- Designing an independent `Expr` ADT that is a superset of `SchemaExpr`
+- Designing an `Expr` ADT that is a superset of `SchemaExpr`
 - Translating `SchemaExpr` into `Expr` via `fromSchemaExpr`
 - Adding SQL-specific predicates: `IN`, `BETWEEN`, `IS NULL`, `LIKE`
 - Writing bridge extension methods for seamless `SchemaExpr` + `Expr` composition
@@ -45,7 +45,7 @@ FROM products
 
 None of these can be expressed with `SchemaExpr` alone. You could generate the SQL strings manually, but then you lose composability — you can no longer mix these operations with the type-safe `SchemaExpr` predicates from Parts 1 and 2.
 
-Since `SchemaExpr` is a sealed trait, you cannot add new cases to it. Instead, we define an independent `Expr` ADT that is a superset of `SchemaExpr` — it includes equivalent nodes for everything `SchemaExpr` can express, plus our custom SQL-specific operations. A `fromSchemaExpr` function translates `SchemaExpr` values into `Expr`, enabling seamless interoperability with a single unified interpreter.
+Since `SchemaExpr` is a sealed trait, you cannot add new cases to it. Instead, we define an `Expr` ADT that is a superset of `SchemaExpr` — it includes equivalent nodes for everything `SchemaExpr` can express, plus our custom SQL-specific operations. A `fromSchemaExpr` function translates `SchemaExpr` values into `Expr`, enabling seamless interoperability with a single unified interpreter.
 
 ## Prerequisites
 
@@ -83,7 +83,7 @@ object Product extends CompanionOptics[Product] {
 }
 ```
 
-## Designing the Independent Expr ADT
+## Designing the Expr ADT
 
 The key insight is the **translation pattern**: define your own sealed trait whose node types are a superset of `SchemaExpr`'s, then provide a `fromSchemaExpr` function that converts any `SchemaExpr` into your ADT. This gives you a single unified interpreter.
 
@@ -100,8 +100,8 @@ The key insight is the **translation pattern**: define your own sealed trait who
 │  ├── StringConcat             │──────▶│  ├── StringConcat                     │
 │  ├── StringRegexMatch         │──────▶│  ├── StringRegexMatch                 │
 │  └── StringLength             │──────▶│  ├── StringLength                     │
-└───────────────────────────────┘       │  ├── In(expr, values)         ← new   │
-         fromSchemaExpr ────────────────│  ├── Between(expr, low, high) ← new   │
+└───────────────────────────────┘       │  ├── In(expr, values, schema)         ← new   │
+         fromSchemaExpr ────────────────│  ├── Between(expr, low, high, schema) ← new   │
                                         │  ├── IsNull(expr)             ← new   │
                                         │  ├── Like(expr, pattern)      ← new   │
                                         │  ├── Agg(function, expr)      ← new   │
@@ -139,8 +139,8 @@ object Expr {
   final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
 
   // --- SQL-specific extensions (no SchemaExpr equivalents) ---
-  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A]) extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
   final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
@@ -235,7 +235,7 @@ sealed trait AggFunction[A, B] {
   def name: String
 }
 object AggFunction {
-  case class Count[A]() extends AggFunction[A, Long]        { val name = "COUNT" }
+  case class Count[A]() extends AggFunction[A, Long]         { val name = "COUNT" }
   case object Sum       extends AggFunction[Double, Double]  { val name = "SUM" }
   case object Avg       extends AggFunction[Double, Double]  { val name = "AVG" }
   case class Min[A]()   extends AggFunction[A, A]            { val name = "MIN" }
@@ -243,11 +243,10 @@ object AggFunction {
 }
 ```
 
-The design has several advantages over a simple wrapper approach:
+Here are some keynotes on the design:
 
-- **Single unified interpreter** — `exprToSql` handles all cases directly. No delegation to a Part 2 `toSql` function.
 - **Type-safe aggregates** — `AggFunction[A, B]` encodes the return type: `COUNT` returns `Long`, `SUM`/`AVG` return `Double`, `MIN`/`MAX` preserve the input type.
-- **Typed literals** — `Lit(value, schema)` carries the `Schema[A]` so the SQL renderer can format values correctly using the schema rather than runtime type checks.
+- **Typed literals and predicates** — `Lit(value, schema)`, `In(expr, values, schema)`, and `Between(expr, low, high, schema)` all carry a `Schema[A]` so the SQL renderer can format values correctly using the schema rather than runtime type checks.
 - **`fromSchemaExpr`** — one-way translation recursively converts every `SchemaExpr` node into its `Expr` equivalent, mapping operators along the way.
 
 ## Extension Methods
@@ -256,8 +255,8 @@ To make the new operations feel natural, we define implicit classes on `Optic`, 
 
 ```scala mdoc:silent
 implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
-  def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
-  def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
+  def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
+  def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
@@ -291,7 +290,7 @@ The `.toExpr` method is still available for cases where you need to explicitly l
 
 ## The Unified SQL Interpreter
 
-With the independent `Expr` ADT, we write a single interpreter that handles all cases directly. No delegation to a Part 2 `toSql` is needed:
+With the `Expr` ADT, we write a single interpreter that handles all cases directly:
 
 ```scala mdoc:silent
 def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
@@ -307,14 +306,6 @@ def sqlLiteral[A](value: A, schema: Schema[A]): String = {
     }
     case _ => value.toString
   }
-}
-
-// Fallback for raw values
-def sqlLiteralUntyped(value: Any): String = value match {
-  case s: String  => s"'${s.replace("'", "''")}'"
-  case b: Boolean => if (b) "TRUE" else "FALSE"
-  case n: Number  => n.toString
-  case other      => other.toString
 }
 
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
@@ -349,10 +340,10 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.StringLength(s)             => s"LENGTH(${exprToSql(s)})"
 
   // SQL-specific
-  case Expr.In(e, values) =>
-    s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
-  case Expr.Between(e, low, high) =>
-    s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
+  case Expr.In(e, values, schema) =>
+    s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v, schema)).mkString(", ")})"
+  case Expr.Between(e, low, high, schema) =>
+    s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
   case Expr.IsNull(e)          => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern)   => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
 
@@ -369,7 +360,7 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
 }
 ```
 
-The typed `sqlLiteral[A](value, schema)` uses the `Schema` carried by `Lit` to format values correctly — strings get quoted, booleans become `TRUE`/`FALSE`, numbers stay as-is. The `sqlLiteralUntyped` fallback handles cases like `In` and `Between` where individual values don't carry a schema.
+The typed `sqlLiteral[A](value, schema)` uses the `Schema` carried by `Lit`, `In`, and `Between` to format values correctly — strings get quoted, booleans become `TRUE`/`FALSE`, numbers stay as-is. Every AST node that holds literal values carries a `Schema[A]`, so a single `sqlLiteral` function handles all formatting with no untyped fallbacks.
 
 ## SQL-Specific Predicates
 
@@ -548,8 +539,8 @@ object Expr {
   final case class StringRegexMatch[S](regex: Expr[S, String], string: Expr[S, String]) extends Expr[S, Boolean]
   final case class StringLength[S](string: Expr[S, String]) extends Expr[S, Int]
 
-  final case class In[S, A](expr: Expr[S, A], values: List[A]) extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A]) extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
   final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
@@ -638,8 +629,8 @@ object AggFunction {
 // --- Extension methods with bridge ---
 
 implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
-  def in(values: A*): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList)
-  def between(low: A, high: A): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high)
+  def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
+  def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
   def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
   def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
 }
@@ -679,13 +670,6 @@ def sqlLiteral[A](value: A, schema: Schema[A]): String = {
   }
 }
 
-def sqlLiteralUntyped(value: Any): String = value match {
-  case s: String  => s"'${s.replace("'", "''")}'"
-  case b: Boolean => if (b) "TRUE" else "FALSE"
-  case n: Number  => n.toString
-  case other      => other.toString
-}
-
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.Column(optic)      => columnName(optic)
   case Expr.Lit(value, schema) => sqlLiteral(value, schema)
@@ -707,10 +691,10 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
   case Expr.StringConcat(l, r)         => s"CONCAT(${exprToSql(l)}, ${exprToSql(r)})"
   case Expr.StringRegexMatch(regex, s) => s"(${exprToSql(s)} LIKE ${exprToSql(regex)})"
   case Expr.StringLength(s)            => s"LENGTH(${exprToSql(s)})"
-  case Expr.In(e, values) =>
-    s"${exprToSql(e)} IN (${values.map(v => sqlLiteralUntyped(v)).mkString(", ")})"
-  case Expr.Between(e, low, high) =>
-    s"(${exprToSql(e)} BETWEEN ${sqlLiteralUntyped(low)} AND ${sqlLiteralUntyped(high)})"
+  case Expr.In(e, values, schema) =>
+    s"${exprToSql(e)} IN (${values.map(v => sqlLiteral(v, schema)).mkString(", ")})"
+  case Expr.Between(e, low, high, schema) =>
+    s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
   case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
   case Expr.Agg(func, e)     => s"${func.name}(${exprToSql(e)})"

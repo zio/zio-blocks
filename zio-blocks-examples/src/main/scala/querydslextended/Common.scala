@@ -53,8 +53,8 @@ object Expr {
   final case class StringLength[S](string: Expr[S, String])                             extends Expr[S, Int]
 
   // --- SQL-specific extensions (no SchemaExpr equivalents) ---
-  final case class In[S, A](expr: Expr[S, A], values: List[A])      extends Expr[S, Boolean]
-  final case class Between[S, A](expr: Expr[S, A], low: A, high: A) extends Expr[S, Boolean]
+  final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A])      extends Expr[S, Boolean]
+  final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
   final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
 
