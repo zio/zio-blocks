@@ -36,6 +36,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     unsupportedActionsSuite,
     toStringSuite,
     migrationErrorSuite,
+    actionCoverageSuite,
     errorHandlingSuite
   )
 
@@ -621,6 +622,93 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         reversed.actions(0).isInstanceOf[MigrationAction.DropField],
         reversed.actions(1).isInstanceOf[MigrationAction.DropField]
       )
+    }
+  )
+
+  private val actionCoverageSuite = suite("Action coverage")(
+    test("all action types have correct at field") {
+      val root                           = DynamicOptic.root
+      val f                              = root.field("x")
+      val actions: List[MigrationAction] = List(
+        MigrationAction.AddField(f, intVal(0)),
+        MigrationAction.DropField(f, intVal(0)),
+        MigrationAction.Rename(f, "y"),
+        MigrationAction.TransformValue(f, intVal(1)),
+        MigrationAction.Mandate(f, intVal(0)),
+        MigrationAction.Optionalize(f),
+        MigrationAction.ChangeType(f, stringVal("0")),
+        MigrationAction.RenameCase(root, "A", "B"),
+        MigrationAction.TransformCase(root, Chunk.empty),
+        MigrationAction.Join(f, Chunk.empty, DynamicValue.Null),
+        MigrationAction.Split(f, Chunk.empty, DynamicValue.Null),
+        MigrationAction.TransformElements(f, DynamicValue.Null),
+        MigrationAction.TransformKeys(f, DynamicValue.Null),
+        MigrationAction.TransformValues(f, DynamicValue.Null)
+      )
+      assertTrue(actions.forall(a => a.at != null))
+    },
+    test("all actions have stable reverse.reverse") {
+      val f                              = DynamicOptic.root.field("x")
+      val actions: List[MigrationAction] = List(
+        MigrationAction.AddField(f, intVal(0)),
+        MigrationAction.DropField(f, intVal(0)),
+        MigrationAction.Rename(f, "y"),
+        MigrationAction.TransformValue(f, intVal(1)),
+        MigrationAction.Mandate(f, intVal(0)),
+        MigrationAction.Optionalize(f),
+        MigrationAction.ChangeType(f, stringVal("0")),
+        MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+        MigrationAction.TransformCase(DynamicOptic.root, Chunk.empty),
+        MigrationAction.Join(f, Chunk.empty, DynamicValue.Null),
+        MigrationAction.Split(f, Chunk.empty, DynamicValue.Null),
+        MigrationAction.TransformElements(f, DynamicValue.Null),
+        MigrationAction.TransformKeys(f, DynamicValue.Null),
+        MigrationAction.TransformValues(f, DynamicValue.Null)
+      )
+      assertTrue(actions.forall(a => a.reverse != null && a.reverse.reverse != null))
+    },
+    test("action equality and hashCode") {
+      val a1 = MigrationAction.AddField(DynamicOptic.root.field("x"), intVal(1))
+      val a2 = MigrationAction.AddField(DynamicOptic.root.field("x"), intVal(1))
+      val a3 = MigrationAction.AddField(DynamicOptic.root.field("y"), intVal(1))
+      assertTrue(a1 == a2, a1.hashCode == a2.hashCode, a1 != a3)
+    },
+    test("action toString contains class name") {
+      val actions: List[MigrationAction] = List(
+        MigrationAction.AddField(DynamicOptic.root.field("x"), intVal(0)),
+        MigrationAction.DropField(DynamicOptic.root.field("x"), intVal(0)),
+        MigrationAction.Rename(DynamicOptic.root.field("x"), "y"),
+        MigrationAction.TransformValue(DynamicOptic.root.field("x"), intVal(1)),
+        MigrationAction.Mandate(DynamicOptic.root.field("x"), intVal(0)),
+        MigrationAction.Optionalize(DynamicOptic.root.field("x")),
+        MigrationAction.ChangeType(DynamicOptic.root.field("x"), stringVal("0")),
+        MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+        MigrationAction.TransformCase(DynamicOptic.root, Chunk.empty),
+        MigrationAction.Join(DynamicOptic.root.field("x"), Chunk.empty, DynamicValue.Null),
+        MigrationAction.Split(DynamicOptic.root.field("x"), Chunk.empty, DynamicValue.Null),
+        MigrationAction.TransformElements(DynamicOptic.root.field("x"), DynamicValue.Null),
+        MigrationAction.TransformKeys(DynamicOptic.root.field("x"), DynamicValue.Null),
+        MigrationAction.TransformValues(DynamicOptic.root.field("x"), DynamicValue.Null)
+      )
+      assertTrue(actions.forall(_.toString.nonEmpty))
+    },
+    test("DynamicMigration isEmpty and size") {
+      val empty    = DynamicMigration.empty
+      val nonEmpty = DynamicMigration(Chunk(MigrationAction.Optionalize(DynamicOptic.root.field("x"))))
+      assertTrue(empty.isEmpty, empty.size == 0, !nonEmpty.isEmpty, nonEmpty.size == 1)
+    },
+    test("Migration.identity law") {
+      val intSchema: Schema[Int] = Schema[Int]
+      val m                      = Migration.identity[Int](intSchema)
+      assertTrue(m.isEmpty, m(42) == Right(42))
+    },
+    test("RenameCase at nested path") {
+      val original = record("shape" -> variant("Old", record("x" -> intVal(1))))
+      val m        = DynamicMigration(
+        Chunk(MigrationAction.RenameCase(DynamicOptic.root.field("shape"), "Old", "New"))
+      )
+      val result = m(original)
+      assertTrue(result == Right(record("shape" -> variant("New", record("x" -> intVal(1))))))
     }
   )
 
