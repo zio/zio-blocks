@@ -34,11 +34,11 @@ object AvroFormatVersionSpecificSpec extends SchemaBaseSpec {
         val schema2 = Schema.derived[LinkedList[Option[String]]]
 
         avroSchema[LinkedList[Int]](
-          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
+          "[{\"type\":\"record\",\"name\":\"End_1\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End\",\"fields\":[]},\"Node\"]}]}]"
         )(schema1) &&
         roundTrip(Node(1, Node(2, End)), 5)(schema1) &&
         avroSchema[LinkedList[Option[String]]](
-          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
+          "[{\"type\":\"record\",\"name\":\"End_1\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End\",\"fields\":[]},\"Node\"]}]}]"
         )(schema2) &&
         roundTrip(Node(Some("VVV"), Node(None, End)), 9)(schema2)
       },
