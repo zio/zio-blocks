@@ -17,26 +17,15 @@ final class MigrationBuilder[A, B](
 
   // ── Record Operations ─────────────────────────────────────────────
 
-  def addField(target: B => Any, default: DynamicValue): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.addFieldImpl[A, B]
-
-  def dropField(source: A => Any, defaultForReverse: DynamicValue): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.dropFieldImpl[A, B]
-
-  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.renameFieldImpl[A, B]
-
-  def transformField(from: A => Any, to: B => Any, transform: DynamicValue): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.transformFieldImpl[A, B]
-
-  def mandateField(source: A => Any, default: DynamicValue): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.mandateFieldImpl[A, B]
-
-  def optionalizeField(source: A => Any): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.optionalizeFieldImpl[A, B]
-
-  def changeFieldType(source: A => Any, converter: DynamicValue): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.changeFieldTypeImpl[A, B]
+  // format: off
+  def addField(target: B => Any, default: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.addFieldImpl[A, B]
+  def dropField(source: A => Any, defaultForReverse: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
+  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.renameFieldImpl[A, B]
+  def transformField(from: A => Any, to: B => Any, transform: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformFieldImpl[A, B]
+  def mandateField(source: A => Any, default: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.mandateFieldImpl[A, B]
+  def optionalizeField(source: A => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
+  def changeFieldType(source: A => Any, converter: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.changeFieldTypeImpl[A, B]
+  // format: on
 
   // ── Enum Operations ───────────────────────────────────────────────
 
