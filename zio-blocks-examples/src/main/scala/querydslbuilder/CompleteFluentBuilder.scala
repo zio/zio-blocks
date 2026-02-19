@@ -3,9 +3,9 @@ package querydslbuilder
 /**
  * Query DSL Part 4 — Complete Example
  *
- * A complete example demonstrating the fluent SQL builder DSL:
- * SELECT, UPDATE, INSERT, and DELETE with seamless SchemaExpr/Expr composition,
- * schema-driven table names, and SQL rendering.
+ * A complete example demonstrating the fluent SQL builder DSL: SELECT, UPDATE,
+ * INSERT, and DELETE with seamless SchemaExpr/Expr composition, schema-driven
+ * table names, and SQL rendering.
  *
  * Run with: sbt "examples/runMain querydslbuilder.CompleteFluentBuilder"
  */

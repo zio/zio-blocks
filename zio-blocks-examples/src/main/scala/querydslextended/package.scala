@@ -8,9 +8,10 @@ package object querydslextended {
 
   implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
     def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
-    def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
-    def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
-    def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
+    def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] =
+      Expr.Between(Expr.col(optic), low, high, schema)
+    def isNull: Expr[S, Boolean]    = Expr.IsNull(Expr.col(optic))
+    def isNotNull: Expr[S, Boolean] = Expr.Not(Expr.IsNull(Expr.col(optic)))
   }
 
   implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
@@ -52,7 +53,6 @@ package object querydslextended {
       case _ => value.toString
     }
   }
-
 
   // ---------------------------------------------------------------------------
   // Single unified SQL interpreter

@@ -6,8 +6,8 @@ import zio.blocks.schema._
  * Query DSL Part 4 — Step 4: Schema-Driven Table Names
  *
  * Demonstrates deriving SQL table names from Schema metadata:
- * - Auto-pluralization from the case class name ("Product" → "products")
- * - Explicit override via Modifier.config("sql.table_name", "order_items")
+ *   - Auto-pluralization from the case class name ("Product" → "products")
+ *   - Explicit override via Modifier.config("sql.table_name", "order_items")
  *
  * Run with: sbt "examples/runMain querydslbuilder.Step4SchemaTableName"
  */

@@ -9,8 +9,8 @@ import zio.blocks.schema._
  * producing table-qualified column names for SQL JOIN queries.
  *
  * This step uses its own domain types (Seller, Address) and overrides
- * columnName to produce table-qualified names. SQL literal formatting and
- * the toSql interpreter are defined in the package object (package.scala).
+ * columnName to produce table-qualified names. SQL literal formatting and the
+ * toSql interpreter are defined in the package object (package.scala).
  *
  * Run with: sbt "examples/runMain querydslsql.Step4NestedSql"
  */

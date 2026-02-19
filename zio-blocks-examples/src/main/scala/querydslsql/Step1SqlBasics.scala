@@ -8,8 +8,8 @@ package querydslsql
  * matching on SchemaExpr, and generating basic SQL WHERE clauses.
  *
  * Column name extraction, SQL literal formatting, and the core SQL interpreter
- * are defined in the package object (package.scala). The Product domain type
- * is defined in Common.scala.
+ * are defined in the package object (package.scala). The Product domain type is
+ * defined in Common.scala.
  *
  * Run with: sbt "examples/runMain querydslsql.Step1SqlBasics"
  */

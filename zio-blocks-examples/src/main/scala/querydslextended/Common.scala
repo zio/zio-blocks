@@ -55,8 +55,8 @@ object Expr {
   // --- SQL-specific extensions (no SchemaExpr equivalents) ---
   final case class In[S, A](expr: Expr[S, A], values: List[A], schema: Schema[A])      extends Expr[S, Boolean]
   final case class Between[S, A](expr: Expr[S, A], low: A, high: A, schema: Schema[A]) extends Expr[S, Boolean]
-  final case class IsNull[S, A](expr: Expr[S, A])                   extends Expr[S, Boolean]
-  final case class Like[S](expr: Expr[S, String], pattern: String)  extends Expr[S, Boolean]
+  final case class IsNull[S, A](expr: Expr[S, A])                                      extends Expr[S, Boolean]
+  final case class Like[S](expr: Expr[S, String], pattern: String)                     extends Expr[S, Boolean]
 
   // --- Aggregates (return type reflects SQL semantics) ---
   final case class Agg[S, A, B](function: AggFunction[A, B], expr: Expr[S, A]) extends Expr[S, B]
@@ -88,8 +88,8 @@ object Expr {
   // --- Translation from SchemaExpr ---
   def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
     val result = se match {
-      case SchemaExpr.Optic(optic)      => Column(optic)
-      case l: SchemaExpr.Literal[_, _]  => Lit(l.value, l.schema)
+      case SchemaExpr.Optic(optic)     => Column(optic)
+      case l: SchemaExpr.Literal[_, _] => Lit(l.value, l.schema)
 
       case SchemaExpr.Relational(l, r, op) =>
         val relOp = op match {

@@ -8,9 +8,10 @@ package object querydslbuilder {
 
   implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) extends AnyVal {
     def in(values: A*)(implicit schema: Schema[A]): Expr[S, Boolean]           = Expr.In(Expr.col(optic), values.toList, schema)
-    def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] = Expr.Between(Expr.col(optic), low, high, schema)
-    def isNull: Expr[S, Boolean]                   = Expr.IsNull(Expr.col(optic))
-    def isNotNull: Expr[S, Boolean]                = Expr.Not(Expr.IsNull(Expr.col(optic)))
+    def between(low: A, high: A)(implicit schema: Schema[A]): Expr[S, Boolean] =
+      Expr.Between(Expr.col(optic), low, high, schema)
+    def isNull: Expr[S, Boolean]    = Expr.IsNull(Expr.col(optic))
+    def isNotNull: Expr[S, Boolean] = Expr.Not(Expr.IsNull(Expr.col(optic)))
   }
 
   implicit final class StringOpticExprOps[S](private val optic: Optic[S, String]) extends AnyVal {
@@ -46,10 +47,14 @@ package object querydslbuilder {
     }.getOrElse(pluralize(schema.reflect.typeId.name.toLowerCase))
 
   def pluralize(word: String): String =
-    if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z") ||
-        word.endsWith("ch") || word.endsWith("sh")) word + "es"
-    else if (word.endsWith("y") && !word.endsWith("ay") && !word.endsWith("ey") &&
-             !word.endsWith("oy") && !word.endsWith("uy")) word.dropRight(1) + "ies"
+    if (
+      word.endsWith("s") || word.endsWith("x") || word.endsWith("z") ||
+      word.endsWith("ch") || word.endsWith("sh")
+    ) word + "es"
+    else if (
+      word.endsWith("y") && !word.endsWith("ay") && !word.endsWith("ey") &&
+      !word.endsWith("oy") && !word.endsWith("uy")
+    ) word.dropRight(1) + "ies"
     else word + "s"
 
   def sqlLiteral[A](value: A, schema: Schema[A]): String = {
