@@ -36,7 +36,7 @@ object DeriveGenExample extends App {
     override def derivePrimitive[A](
       primitiveType: PrimitiveType[A],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Primitive, A],
+      binding: Binding.Primitive[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -74,7 +74,7 @@ object DeriveGenExample extends App {
     override def deriveRecord[F[_, _], A](
       fields: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Record, A],
+      binding: Binding.Record[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -86,10 +86,8 @@ object DeriveGenExample extends App {
           D.instance(field.value.metadata).asInstanceOf[Lazy[Gen[Any]]]
         }
 
-        // Build Reflect.Record to access registers and constructor
         val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
-        val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-        val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
+        val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, binding, doc, modifiers)
 
         new Gen[A] {
           def generate(random: Random): A = {
@@ -103,7 +101,7 @@ object DeriveGenExample extends App {
             }
 
             // Construct the record from registers
-            recordBinding.constructor.construct(registers, RegisterOffset.Zero)
+            binding.constructor.construct(registers, RegisterOffset.Zero)
           }
         }
       }
@@ -117,7 +115,7 @@ object DeriveGenExample extends App {
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Variant, A],
+      binding: Binding.Variant[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -146,15 +144,14 @@ object DeriveGenExample extends App {
     override def deriveSequence[F[_, _], C[_], A](
       element: Reflect[F, A],
       typeId: TypeId[C[A]],
-      binding: Binding[BindingType.Seq[C], C[A]],
+      binding: Binding.Seq[C, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = Lazy {
       val elementGen   = D.instance(element.metadata)
-      val seqBinding   = binding.asInstanceOf[Binding.Seq[C, A]]
-      val constructor  = seqBinding.constructor
+      val constructor  = binding.constructor
       val elemClassTag = element.typeId.classTag.asInstanceOf[ClassTag[A]]
 
       new Gen[C[A]] {
@@ -185,7 +182,7 @@ object DeriveGenExample extends App {
       key: Reflect[F, K],
       value: Reflect[F, V],
       typeId: TypeId[M[K, V]],
-      binding: Binding[BindingType.Map[M], M[K, V]],
+      binding: Binding.Map[M, K, V],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
@@ -193,8 +190,7 @@ object DeriveGenExample extends App {
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[M[K, V]]] = Lazy {
       val keyGen      = D.instance(key.metadata)
       val valueGen    = D.instance(value.metadata)
-      val mapBinding  = binding.asInstanceOf[Binding.Map[M, K, V]]
-      val constructor = mapBinding.constructor
+      val constructor = binding.constructor
 
       new Gen[M[K, V]] {
         def generate(random: Random): M[K, V] = {
@@ -219,7 +215,7 @@ object DeriveGenExample extends App {
      * content.
      */
     override def deriveDynamic[F[_, _]](
-      binding: Binding[BindingType.Dynamic, DynamicValue],
+      binding: Binding.Dynamic,
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[DynamicValue],
@@ -274,18 +270,17 @@ object DeriveGenExample extends App {
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Wrapper[A, B], A],
+      binding: Binding.Wrapper[A, B],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = Lazy {
-      val wrappedGen     = D.instance(wrapped.metadata)
-      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+      val wrappedGen = D.instance(wrapped.metadata)
 
       new Gen[A] {
         def generate(random: Random): A =
-          wrapperBinding.wrap(wrappedGen.force.generate(random))
+          binding.wrap(wrappedGen.force.generate(random))
       }
     }
   }

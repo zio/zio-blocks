@@ -3,7 +3,7 @@ package zio.blocks.schema.avro
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.docs.Doc
-import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
+import zio.blocks.schema.binding.{Binding, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
 import zio.blocks.chunk.ChunkBuilder
@@ -20,7 +20,7 @@ object AvroFormat
         override def derivePrimitive[A](
           primitiveType: PrimitiveType[A],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Primitive, A],
+          binding: Binding.Primitive[A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[A],
@@ -31,7 +31,7 @@ object AvroFormat
         override def deriveRecord[F[_, _], A](
           fields: IndexedSeq[Term[F, A, ?]],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Record, A],
+          binding: Binding.Record[A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[A],
@@ -51,7 +51,7 @@ object AvroFormat
         override def deriveVariant[F[_, _], A](
           cases: IndexedSeq[Term[F, A, ?]],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Variant, A],
+          binding: Binding.Variant[A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[A],
@@ -71,7 +71,7 @@ object AvroFormat
         override def deriveSequence[F[_, _], C[_], A](
           element: Reflect[F, A],
           typeId: TypeId[C[A]],
-          binding: Binding[BindingType.Seq[C], C[A]],
+          binding: Binding.Seq[C, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[C[A]],
@@ -86,7 +86,7 @@ object AvroFormat
           key: Reflect[F, K],
           value: Reflect[F, V],
           typeId: TypeId[M[K, V]],
-          binding: Binding[BindingType.Map[M], M[K, V]],
+          binding: Binding.Map[M, K, V],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[M[K, V]],
@@ -105,7 +105,7 @@ object AvroFormat
         }
 
         override def deriveDynamic[F[_, _]](
-          binding: Binding[BindingType.Dynamic, DynamicValue],
+          binding: Binding.Dynamic,
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[DynamicValue],
@@ -116,7 +116,7 @@ object AvroFormat
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Wrapper[A, B], A],
+          binding: Binding.Wrapper[A, B],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect],
           defaultValue: Option[A],

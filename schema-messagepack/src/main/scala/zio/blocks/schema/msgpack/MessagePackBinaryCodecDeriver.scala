@@ -1,7 +1,7 @@
 package zio.blocks.schema.msgpack
 
 import zio.blocks.docs.Doc
-import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
+import zio.blocks.schema.binding.{Binding, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
@@ -14,7 +14,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: zio.blocks.typeid.TypeId[A],
-    binding: Binding[BindingType.Primitive, A],
+    binding: Binding.Primitive[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -25,7 +25,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: zio.blocks.typeid.TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: Binding.Record[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -45,7 +45,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeId: zio.blocks.typeid.TypeId[A],
-    binding: Binding[BindingType.Variant, A],
+    binding: Binding.Variant[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -65,7 +65,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: zio.blocks.typeid.TypeId[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
+    binding: Binding.Seq[C, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
@@ -80,7 +80,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     key: Reflect[F, K],
     value: Reflect[F, V],
     typeId: zio.blocks.typeid.TypeId[M[K, V]],
-    binding: Binding[BindingType.Map[M], M[K, V]],
+    binding: Binding.Map[M, K, V],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
@@ -99,7 +99,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   }
 
   override def deriveDynamic[F[_, _]](
-    binding: Binding[BindingType.Dynamic, DynamicValue],
+    binding: Binding.Dynamic,
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
@@ -110,7 +110,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: zio.blocks.typeid.TypeId[A],
-    binding: Binding[BindingType.Wrapper[A, B], A],
+    binding: Binding.Wrapper[A, B],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],

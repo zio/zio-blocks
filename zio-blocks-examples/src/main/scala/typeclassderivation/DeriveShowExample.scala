@@ -25,7 +25,7 @@ object DeriveShowExample extends App {
     override def derivePrimitive[A](
       primitiveType: PrimitiveType[A],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Primitive, A],
+      binding: Binding.Primitive[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -44,7 +44,7 @@ object DeriveShowExample extends App {
     override def deriveRecord[F[_, _], A](
       fields: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Record, A],
+      binding: Binding.Record[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -60,14 +60,8 @@ object DeriveShowExample extends App {
           (fieldName, fieldShowInstance)
         }
 
-        // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
-        val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
-
-        // Cast to Binding.Record to access constructor/deconstructor
-        val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-
-        // Build a Reflect.Record to get access to the computed registers for each field
-        val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
+        val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
+        val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, binding, doc, modifiers)
 
         new Show[A] {
           def show(value: A): String = {
@@ -76,7 +70,7 @@ object DeriveShowExample extends App {
             val registers = Registers(recordReflect.usedRegisters)
 
             // Deconstruct field values of the record into the registers
-            recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
+            binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
 
             // Build string representations for all fields
             val fieldStrings = fields.indices.map { i =>
@@ -94,7 +88,7 @@ object DeriveShowExample extends App {
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Variant, A],
+      binding: Binding.Variant[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -105,10 +99,8 @@ object DeriveShowExample extends App {
         D.instance(case_.value.metadata).asInstanceOf[Lazy[Show[Any]]]
       }
 
-      // Cast binding to Binding.Variant to access discriminator and matchers
-      val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
-      val discriminator  = variantBinding.discriminator
-      val matchers       = variantBinding.matchers
+      val discriminator = binding.discriminator
+      val matchers      = binding.matchers
 
       new Show[A] {
         // Implement show by using discriminator and matchers to find the right case
@@ -129,7 +121,7 @@ object DeriveShowExample extends App {
     override def deriveSequence[F[_, _], C[_], A](
       element: Reflect[F, A],
       typeId: TypeId[C[A]],
-      binding: Binding[BindingType.Seq[C], C[A]],
+      binding: Binding.Seq[C, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
@@ -138,9 +130,7 @@ object DeriveShowExample extends App {
       // Get Show instance for element type LAZILY
       val elementShowLazy: Lazy[Show[A]] = D.instance(element.metadata)
 
-      // Cast binding to Binding.Seq to access the deconstructor
-      val seqBinding    = binding.asInstanceOf[Binding.Seq[C, A]]
-      val deconstructor = seqBinding.deconstructor
+      val deconstructor = binding.deconstructor
 
       new Show[C[A]] {
         def show(value: C[A]): String = {
@@ -157,7 +147,7 @@ object DeriveShowExample extends App {
       key: Reflect[F, K],
       value: Reflect[F, V],
       typeId: TypeId[M[K, V]],
-      binding: Binding[BindingType.Map[M], M[K, V]],
+      binding: Binding.Map[M, K, V],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
@@ -167,9 +157,7 @@ object DeriveShowExample extends App {
       val keyShowLazy: Lazy[Show[K]]   = D.instance(key.metadata)
       val valueShowLazy: Lazy[Show[V]] = D.instance(value.metadata)
 
-      // Cast binding to Binding.Map to access the deconstructor
-      val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
-      val deconstructor = mapBinding.deconstructor
+      val deconstructor = binding.deconstructor
 
       new Show[M[K, V]] {
         def show(m: M[K, V]): String = {
@@ -187,7 +175,7 @@ object DeriveShowExample extends App {
     }
 
     override def deriveDynamic[F[_, _]](
-      binding: Binding[BindingType.Dynamic, DynamicValue],
+      binding: Binding.Dynamic,
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[DynamicValue],
@@ -226,7 +214,7 @@ object DeriveShowExample extends App {
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Wrapper[A, B], A],
+      binding: Binding.Wrapper[A, B],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -235,12 +223,9 @@ object DeriveShowExample extends App {
       // Get Show instance for the wrapped (underlying) type B LAZILY
       val wrappedShowLazy: Lazy[Show[B]] = D.instance(wrapped.metadata)
 
-      // Cast binding to Binding.Wrapper to access unwrap function
-      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
-
       new Show[A] {
         def show(value: A): String = {
-          val unwrapped = wrapperBinding.unwrap(value)
+          val unwrapped = binding.unwrap(value)
           s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
         }
       }
