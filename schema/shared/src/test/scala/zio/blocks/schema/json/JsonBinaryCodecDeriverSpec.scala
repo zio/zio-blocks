@@ -2128,7 +2128,7 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("record with a custom codec for a nested variant injected by type and term name") {
         implicit val catSchema: Schema[Cat] = Schema.derived
-        val fixedAgeCodec = new JsonBinaryCodec[Either[String, Int]]() {
+        val fixedAgeCodec                   = new JsonBinaryCodec[Either[String, Int]]() {
           def decodeValue(in: JsonReader, default: Either[String, Int]): Either[String, Int] = Right(in.readInt())
 
           def encodeValue(x: Either[String, Int], out: JsonWriter): Unit = x match {
