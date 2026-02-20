@@ -3,7 +3,7 @@ package golem
 import scala.annotation.unused
 import scala.scalajs.js
 
-private[golem] final class AgentMethodProxy extends Selectable {
+final class AgentMethodProxy extends Selectable {
   private val fns: js.Dictionary[js.Any] = js.Dictionary.empty
 
   def register(name: String, fn: js.Any): Unit = fns(name) = fn
