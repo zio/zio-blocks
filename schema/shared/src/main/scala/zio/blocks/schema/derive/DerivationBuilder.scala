@@ -34,6 +34,11 @@ final case class DerivationBuilder[TC[_], A](
   def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByType(typeId, Lazy(instance)))
 
+  def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A] =
+    copy(instanceOverrides =
+      instanceOverrides :+ new InstanceOverrideByTypeAndTermName(typeId, termName, Lazy(instance))
+    )
+
   def modifier[B](typeId: TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByType(typeId, modifier))
 
@@ -54,6 +59,9 @@ final case class DerivationBuilder[TC[_], A](
         }
       }
   }
+
+  def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
+    copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByType(typeId, termName, modifier))
 
   lazy val derive: TC[A] = {
     val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
@@ -108,27 +116,54 @@ final case class DerivationBuilder[TC[_], A](
       }
 
     def getCustomInstance[A0](path: DynamicOptic, typeId: TypeId[A0]): Option[Lazy[TC[A0]]] =
-      // first try to find an instance by optic (most precise)
       instanceByOpticMap
         .get(path)
-        .orElse {
-          // then try to find an instance by type + term name (medium precision)
-          if (path.nodes.nonEmpty) {
-            path.nodes.last match {
-              case DynamicOptic.Node.Field(name) =>
-                instanceByTypeAndTermNameMap.get((typeId.asInstanceOf[TypeId[Any]], name))
-              case DynamicOptic.Node.Case(name) =>
-                instanceByTypeAndTermNameMap.get((typeId.asInstanceOf[TypeId[Any]], name))
-              case _ => None
-            }
-          } else None
-        }
-        // then try to find an instance by type name (most general)
         .orElse(instanceByTypeMap.get(typeId.asInstanceOf[TypeId[Any]]))
         .map(_.asInstanceOf[Lazy[TC[A0]]])
 
     type F[T, A0] = Binding[T, A0]
     type G[T, A0] = BindingInstance[TC, T, A0]
+
+    def replaceFieldInstance[A0](reflect: Reflect[G, A0], newInstance: Lazy[TC[A0]]): Reflect[G, A0] = {
+      def swap[T, B](bi: BindingInstance[TC, T, B]): BindingInstance[TC, T, B] =
+        new BindingInstance(bi.binding, newInstance.asInstanceOf[Lazy[TC[B]]])
+
+      (reflect match {
+        case p: Reflect.Primitive[G, _]   => p.copy(primitiveBinding = swap(p.primitiveBinding))
+        case r: Reflect.Record[G, _]      => r.copy(recordBinding = swap(r.recordBinding))
+        case v: Reflect.Variant[G, _]     => v.copy(variantBinding = swap(v.variantBinding))
+        case s: Reflect.Sequence[G, _, _] => s.copy(seqBinding = swap(s.seqBinding))
+        case m: Reflect.Map[G, _, _, _]   => m.copy(mapBinding = swap(m.mapBinding))
+        case d: Reflect.Dynamic[G]        => d.copy(dynamicBinding = swap(d.dynamicBinding))
+        case w: Reflect.Wrapper[G, _, _]  => w.copy(wrapperBinding = swap(w.wrapperBinding))
+        case d: Reflect.Deferred[G, A0]   =>
+          new Reflect.Deferred[G, A0](() => replaceFieldInstance(d._value(), newInstance), d._typeId)
+      }).asInstanceOf[Reflect[G, A0]]
+    }
+
+    def applyTypeAndTermNameOverrides[A0](
+      typeId: TypeId[A0],
+      path: DynamicOptic,
+      terms: IndexedSeq[Term[G, A0, ?]],
+      pathBuilder: (DynamicOptic, String) => DynamicOptic
+    ): IndexedSeq[Term[G, A0, ?]] =
+      if (instanceByTypeAndTermNameMap.isEmpty) terms
+      else
+        terms.map { term =>
+          instanceByTypeAndTermNameMap.get((typeId.asInstanceOf[TypeId[Any]], term.name)) match {
+            case Some(overrideInstance) =>
+              val fieldPath = pathBuilder(path, term.name)
+              if (instanceByOpticMap.contains(fieldPath)) term
+              else {
+                val newValue = replaceFieldInstance(
+                  term.value.asInstanceOf[Reflect[G, Any]],
+                  overrideInstance.asInstanceOf[Lazy[TC[Any]]]
+                )
+                term.copy(value = newValue.asInstanceOf[Reflect[G, term.Focus]]).asInstanceOf[Term[G, A0, ?]]
+              }
+            case None => term
+          }
+        }
 
     schema.reflect
       .transform[G](
@@ -159,11 +194,13 @@ final case class DerivationBuilder[TC[_], A](
             val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
             val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
             val instance     = getCustomInstance[A0](path, typeId).getOrElse {
+              val fieldsWithInstanceOverrides =
+                applyTypeAndTermNameOverrides(typeId, path, fields, (p, name) => p.field(name))
               val modifiersToPrepend = combineModifiers(path, typeId)
               val updatedFields      =
-                if (modifiersToPrepend.isEmpty) fields
+                if (modifiersToPrepend.isEmpty) fieldsWithInstanceOverrides
                 else {
-                  fields.map { field =>
+                  fieldsWithInstanceOverrides.map { field =>
                     val fieldModifiersToPrepend = modifiersToPrepend.collect {
                       case (name, modifier) if name == field.name => modifier
                     }
@@ -218,11 +255,14 @@ final case class DerivationBuilder[TC[_], A](
             val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
             val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
             val instance     = getCustomInstance[A0](path, typeId).getOrElse {
+              val casesWithInstanceOverrides =
+                applyTypeAndTermNameOverrides(typeId, path, cases, (p, name) => p.caseOf(name))
+                  .asInstanceOf[IndexedSeq[Term[G, A0, ? <: A0]]]
               val modifiersToAdd = combineModifiers(path, typeId)
               val updatedCases   =
-                if (modifiersToAdd.isEmpty) cases
+                if (modifiersToAdd.isEmpty) casesWithInstanceOverrides
                 else {
-                  cases.map { case_ =>
+                  casesWithInstanceOverrides.map { case_ =>
                     val caseModifiersToPrepend = modifiersToAdd.collect {
                       case (name, modifier) if name == case_.name => modifier
                     }

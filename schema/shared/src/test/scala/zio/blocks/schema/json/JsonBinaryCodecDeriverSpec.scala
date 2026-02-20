@@ -3,7 +3,6 @@ package zio.blocks.schema.json
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema._
-import zio.blocks.schema.derive.InstanceOverrideByTypeAndTermName
 import zio.blocks.schema.JavaTimeGen._
 
 import zio.blocks.schema.json.NameMapper._
@@ -2010,14 +2009,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
         }
-        val typeAndTermNameOverride = new InstanceOverrideByTypeAndTermName[JsonBinaryCodec, Int](
-          TypeId.int,
-          "i",
-          Lazy(stringifyIntCodec)
-        )
-        val builder = Record2.schema.deriving(JsonBinaryCodecDeriver)
-        val codec   = builder
-          .copy(instanceOverrides = builder.instanceOverrides :+ typeAndTermNameOverride)
+        val codec = Record2.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(Record1.schema.reflect.typeId, "i", stringifyIntCodec)
           .derive
         roundTrip(
           Record2(
@@ -2040,14 +2034,10 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
         }
-        val typeAndTermNameOverride = new InstanceOverrideByTypeAndTermName[JsonBinaryCodec, Int](
-          TypeId.int,
-          "i",
-          Lazy(stringifyIntCodec)
-        )
-        val builder = Record2.schema.deriving(JsonBinaryCodecDeriver).instance(TypeId.int, doubleIntCodec)
-        val codec   = builder
-          .copy(instanceOverrides = builder.instanceOverrides :+ typeAndTermNameOverride)
+        val codec = Record2.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(TypeId.int, doubleIntCodec)
+          .instance(Record1.schema.reflect.typeId, "i", stringifyIntCodec)
           .derive
         roundTrip(
           Record2(
@@ -2070,14 +2060,10 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
         }
-        val typeAndTermNameOverride = new InstanceOverrideByTypeAndTermName[JsonBinaryCodec, Int](
-          TypeId.int,
-          "i",
-          Lazy(stringifyIntCodec)
-        )
-        val builder = Record2.schema.deriving(JsonBinaryCodecDeriver).instance(Record2.r1_2_i, doubleIntCodec)
-        val codec   = builder
-          .copy(instanceOverrides = builder.instanceOverrides :+ typeAndTermNameOverride)
+        val codec = Record2.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(Record2.r1_2_i, doubleIntCodec)
+          .instance(Record1.schema.reflect.typeId, "i", stringifyIntCodec)
           .derive
         roundTrip(
           Record2(
