@@ -129,14 +129,14 @@ final case class DerivationBuilder[TC[_], A](
         new BindingInstance(bi.binding, newInstance.asInstanceOf[Lazy[TC[B]]])
 
       (reflect match {
-        case p: Reflect.Primitive[G, _]   => p.copy(primitiveBinding = swap(p.primitiveBinding))
-        case r: Reflect.Record[G, _]      => r.copy(recordBinding = swap(r.recordBinding))
-        case v: Reflect.Variant[G, _]     => v.copy(variantBinding = swap(v.variantBinding))
-        case s: Reflect.Sequence[G, _, _] => s.copy(seqBinding = swap(s.seqBinding))
-        case m: Reflect.Map[G, _, _, _]   => m.copy(mapBinding = swap(m.mapBinding))
-        case d: Reflect.Dynamic[G]        => d.copy(dynamicBinding = swap(d.dynamicBinding))
-        case w: Reflect.Wrapper[G, _, _]  => w.copy(wrapperBinding = swap(w.wrapperBinding))
-        case d: Reflect.Deferred[G, A0]   =>
+        case p: Reflect.Primitive[G, _]              => p.copy(primitiveBinding = swap(p.primitiveBinding))
+        case r: Reflect.Record[G, _]                 => r.copy(recordBinding = swap(r.recordBinding))
+        case v: Reflect.Variant[G, _]                => v.copy(variantBinding = swap(v.variantBinding))
+        case s: Reflect.Sequence[G, _, _] @unchecked => s.copy(seqBinding = swap(s.seqBinding))
+        case m: Reflect.Map[G, _, _, _] @unchecked   => m.copy(mapBinding = swap(m.mapBinding))
+        case d: Reflect.Dynamic[G] @unchecked        => d.copy(dynamicBinding = swap(d.dynamicBinding))
+        case w: Reflect.Wrapper[G, _, _]             => w.copy(wrapperBinding = swap(w.wrapperBinding))
+        case d: Reflect.Deferred[G, A0]              =>
           new Reflect.Deferred[G, A0](() => replaceFieldInstance(d._value(), newInstance), d._typeId)
       }).asInstanceOf[Reflect[G, A0]]
     }
