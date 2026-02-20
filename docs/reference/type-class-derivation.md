@@ -1554,12 +1554,13 @@ val tc: TC[A] = schema.deriving(deriver)
   .derive           // finalize the derivation
 ```
 
-The `DerivationBuilder` offers two overloaded `instance` methods for providing custom type class instances:
+The `DerivationBuilder` offers three overloaded `instance` methods for providing custom type class instances:
 
 ```scala
 final case class DerivationBuilder[TC[_], A](...) {
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A]
-  def instance[B](typeId: TypeId[B],  instance: => TC[B]): DerivationBuilder[TC, A]
+  def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A]
+  def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A]
 }
 ```
 
@@ -1648,15 +1649,37 @@ All `Int` fields in the `Person` schema (in this case, just `age`) will use the 
 personShow.show(Person("Alice", 30))
 ```
 
+### Overriding by TypeId and Term Name
+
+The third overload takes a `TypeId[P]` identifying the **parent** record or variant and a `termName` string identifying a field or case within it. This provides medium precision between optic-based (exact path) and type-based (all occurrences) overrides, and is useful when you want to override a specific field across all locations where the parent type appears without having to enumerate each path with an optic:
+
+```scala mdoc:silent:nest
+val customAgeShow: Show[Int] = new Show[Int] {
+  def show(value: Int): String = s"age=$value"
+}
+
+val personShow: Show[Person] = Person.schema
+  .deriving(DeriveShow)
+  .instance(Person.schema.reflect.typeId, "age", customAgeShow)
+  .derive
+```
+
+The `typeId` refers to the parent record/variant type (here `Person`), not the field type. If no term with the given name exists in the parent type, the override is silently ignored.
+
+```scala mdoc
+personShow.show(Person("Alice", 30))
+```
+
 ### Resolution Order
 
 When the derivation engine encounters a schema node, it resolves the type class instance using the following priority order:
 
 1. **Optic-based override** (most precise): If an instance override was registered using an optic that matches the current path in the schema tree, that instance is used.
-2. **TypeId-based override** (more general): If no optic-based match is found, it checks for an instance override registered by type ID.
-3. **Automatic derivation** (default): If no override is found, the deriver's method (e.g., `derivePrimitive`, `deriveRecord`) is called to automatically derive the instance.
+2. **TypeId + term-name override** (medium precision): If no optic-based match is found, it checks for an override registered by parent type ID and term name.
+3. **TypeId-based override** (more general): If no term-name match is found, it checks for an instance override registered by type ID.
+4. **Automatic derivation** (default): If no override is found, the deriver's method (e.g., `derivePrimitive`, `deriveRecord`) is called to automatically derive the instance.
 
-This means you can set a global override by type and then selectively refine specific fields using optics:
+This means you can set a global override by type and then selectively refine specific fields using optics or term names:
 
 ```scala mdoc:silent:nest
 val companyShow: Show[Company] = Company.schema
@@ -1706,12 +1729,13 @@ While modifiers can be attached to schemas directly using Scala annotations (e.g
 - You need different modifiers for different derivation contexts (e.g., one JSON codec with renamed fields, another without)
 - You want to keep the schema clean and push format-specific concerns into the derivation layer
 
-The `DerivationBuilder` offers two overloaded `modifier` methods:
+The `DerivationBuilder` offers three overloaded `modifier` methods:
 
 ```scala
 final case class DerivationBuilder[TC[_], A](...) {
-  def modifier[B](typeId: TypeId[B],  modifier: Modifier.Reflect): DerivationBuilder[TC, A]
-  def modifier[B](optic: Optic[A, B], modifier: Modifier)        : DerivationBuilder[TC, A]
+  def modifier[B](typeId: TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A]
+  def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A]
+  def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A]
 }
 ```
 
@@ -1778,6 +1802,18 @@ val jsonCodec: JsonBinaryCodec[User] = User.schema
   .deriving(JsonBinaryCodecDeriver)
   .modifier(TypeId.of[User], Modifier.config("json", "camelCase"))
   .modifier(User.internalScore, Modifier.transient())
+  .derive
+```
+
+### Adding Modifiers by TypeId and Term Name
+
+The `modifier` method with `TypeId` and `termName` allows you to add a `Modifier.Term` to a specific field or case identified by name inside a parent type identified by its `TypeId`. This is useful when you want to target a specific term without constructing an optic for it. The `typeId` refers to the parent record/variant type that owns the term. If no term with the given name exists in the parent type, the modifier is silently ignored:
+
+```scala mdoc:silent:nest
+val jsonCodec: JsonBinaryCodec[User] = User.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .modifier(User.schema.reflect.typeId, "name", Modifier.rename("full_name"))
+  .modifier(User.schema.reflect.typeId, "internalScore", Modifier.transient())
   .derive
 ```
 

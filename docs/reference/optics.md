@@ -5,6 +5,10 @@ title: "Optics"
 
 Optics are a fundamental feature of ZIO Blocks that enable type-safe, composable access and modification of nested data structures. What sets ZIO Blocks apart is its implementation of **reflective optics** — a novel construct that combines the operational capabilities of traditional optics with embedded structural metadata, enabling both data manipulation AND introspection.
 
+:::tip
+For a practical walkthrough of building query DSLs with optics, see the [Writing a Query DSL with Reified Optics](../guides/query-dsl-reified-optics.md) guide.
+:::
+
 ## What Are Optics?
 
 Optics are abstractions that allow you to focus on a specific part of a data structure. They provide a way to **view**, **update**, and **traverse** nested fields in immutable data types without boilerplate code:

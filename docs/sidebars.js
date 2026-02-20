@@ -30,6 +30,16 @@ const sidebars = {
          "reference/syntax",
          "reference/media-type",
       ]
+    },
+    {
+      type: "category",
+      label: "Guides",
+      items: [
+        "guides/query-dsl-reified-optics",
+        "guides/query-dsl-sql",
+        "guides/query-dsl-extending",
+        "guides/query-dsl-fluent-builder",
+      ]
     }
   ]
 };
