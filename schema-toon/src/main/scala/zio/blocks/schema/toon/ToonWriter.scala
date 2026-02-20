@@ -32,8 +32,6 @@ final class ToonWriter private (
   private[toon] val flattenDepth: Int,
   private[toon] val discriminatorField: Option[String]
 ) {
-  import ToonWriter._
-
   private[this] var depth: Int                 = 0
   private[this] var lineStart: Boolean         = true
   private[this] var activeDelimiter: Delimiter = delimiter
@@ -60,11 +58,15 @@ final class ToonWriter private (
   def getActiveDelimiter: Delimiter = activeDelimiter
 
   def enterInlineContext(): Unit = inlineContext = true
-  def exitInlineContext(): Unit  = inlineContext = false
-  def isInlineContext: Boolean   = inlineContext
+
+  def exitInlineContext(): Unit = inlineContext = false
+
+  def isInlineContext: Boolean = inlineContext
 
   def enterListItemContext(): Unit = listItemContext = true
-  def exitListItemContext(): Unit  = listItemContext = false
+
+  def exitListItemContext(): Unit = listItemContext = false
+
   def isInListItemContext: Boolean = listItemContext
 
   def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
@@ -83,11 +85,11 @@ final class ToonWriter private (
     out.write(buf, 0, end)
   }
 
-  def writeNull(): Unit = writeRaw(nullBytes)
+  def writeNull(): Unit = writeRaw(ToonWriter.nullBytes)
 
   def writeBoolean(x: Boolean): Unit = writeRaw {
-    if (x) trueBytes
-    else falseBytes
+    if (x) ToonWriter.trueBytes
+    else ToonWriter.falseBytes
   }
 
   def writeInt(x: Int): Unit = writeRaw(java.lang.Integer.toString(x).getBytes(UTF_8))
@@ -224,7 +226,7 @@ final class ToonWriter private (
       lineStart = false
     }
 
-  private def writeDecimalString(str: String): Unit = {
+  private[this] def writeDecimalString(str: String): Unit = {
     val eIdx   = str.indexOf('E')
     val result =
       if (eIdx < 0) {
@@ -235,7 +237,7 @@ final class ToonWriter private (
     writeRaw(result.getBytes(UTF_8))
   }
 
-  private def expandScientific(str: String, eIdx: Int): String = stripTrailingZeros {
+  private[this] def expandScientific(str: String, eIdx: Int): String = stripTrailingZeros {
     val mantissa = str.substring(0, eIdx)
     val exp      = str.substring(eIdx + 1).toInt
     val mant     = mantissa.split('.')
@@ -263,14 +265,14 @@ final class ToonWriter private (
     } else digits.substring(0, pointPos) + '.' + digits.substring(pointPos)
   }
 
-  private def writeQuotedString(s: String): Unit = {
+  private[this] def writeQuotedString(s: String): Unit = {
     writeByte('"')
     count = writeEscapedStringAsUtf8Bytes(s, 0, s.length, count, buf.length - 4)
     writeByte('"')
   }
 
   @tailrec
-  private def writeEscapedStringAsUtf8Bytes(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
+  private[this] def writeEscapedStringAsUtf8Bytes(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
     if (from >= to) pos
     else if (pos >= posLim) {
       buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, count + (to - from) * 3))
@@ -329,11 +331,11 @@ final class ToonWriter private (
       }
     }
 
-  private def writeUnquotedString(s: String): Unit =
+  private[this] def writeUnquotedString(s: String): Unit =
     count = writeStringAsUtf8Bytes(s, 0, s.length, count, buf.length - 4)
 
   @tailrec
-  private def writeStringAsUtf8Bytes(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
+  private[this] def writeStringAsUtf8Bytes(s: String, from: Int, to: Int, pos: Int, posLim: Int): Int =
     if (from >= to) pos
     else if (pos >= posLim) {
       buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, count + (to - from) * 3))
@@ -369,86 +371,21 @@ final class ToonWriter private (
       }
     }
 
-  private def writeByte(b: Int): Unit = {
+  private[this] def writeByte(b: Int): Unit = {
     if (count >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
     buf(count) = b.toByte
     count += 1
   }
 
-  private def writeRaw(bs: Array[Byte]): Unit = {
+  private[this] def writeRaw(bs: Array[Byte]): Unit = {
     val len    = bs.length
     val newLen = count + len
     if (newLen > buf.length) buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, newLen))
     System.arraycopy(bs, 0, buf, count, len)
     count = newLen
   }
-}
 
-object ToonWriter {
-  private val nullBytes  = "null".getBytes(UTF_8)
-  private val trueBytes  = "true".getBytes(UTF_8)
-  private val falseBytes = "false".getBytes(UTF_8)
-
-  private[toon] def isIdentifierSegment(key: String): Boolean = {
-    val len = key.length
-    var i   = 0
-    while (i < len) {
-      val c = key.charAt(i)
-      val a = c | 0x20
-      if (!(a >= 'a' && a <= 'z' || c == '_' || i > 0 && (c >= '0' && c <= '9'))) {
-        return false
-      }
-      i += 1
-    }
-    i != 0
-  }
-
-  private val pool: ThreadLocal[ToonWriter] = new ThreadLocal[ToonWriter] {
-    override def initialValue(): ToonWriter =
-      new ToonWriter(new Array[Byte](1024), 0, 2, Delimiter.Comma, KeyFolding.Off, Int.MaxValue, None)
-  }
-
-  def apply(config: WriterConfig): ToonWriter = {
-    val writer = pool.get()
-    if (
-      writer.indentSize == config.indent &&
-      writer.delimiter == config.delimiter &&
-      writer.keyFolding == config.keyFolding &&
-      writer.flattenDepth == config.flattenDepth &&
-      writer.discriminatorField == config.discriminatorField
-    ) {
-      writer.reset()
-      writer
-    } else {
-      new ToonWriter(
-        new Array[Byte](1024),
-        0,
-        config.indent,
-        config.delimiter,
-        config.keyFolding,
-        config.flattenDepth,
-        config.discriminatorField
-      )
-    }
-  }
-
-  /**
-   * Creates a fresh writer that is NOT from the pool. Use this when you need a
-   * temporary writer while another writer is in use (e.g., for encoding keys to
-   * strings).
-   */
-  def fresh(config: WriterConfig): ToonWriter =
-    new ToonWriter(
-      new Array[Byte](64),
-      0,
-      config.indent,
-      config.delimiter,
-      config.keyFolding,
-      config.flattenDepth,
-      config.discriminatorField
-    )
-
-  private def isValidUnquotedKey(key: String): Boolean = {
+  private[this] def isValidUnquotedKey(key: String): Boolean = {
     val len = key.length
     var i   = 0
     while (i < len) {
@@ -462,7 +399,7 @@ object ToonWriter {
     i != 0
   }
 
-  private def needsQuoting(s: String, delimiter: Delimiter): Boolean = {
+  private[this] def needsQuoting(s: String, delimiter: Delimiter): Boolean = {
     if (s.isEmpty) return true
     var c   = s.charAt(0)
     val len = s.length
@@ -516,11 +453,76 @@ object ToonWriter {
     false
   }
 
-  private def stripTrailingZeros(s: String): String = {
+  private[this] def stripTrailingZeros(s: String): String = {
     if (s.indexOf('.') < 0) return s
     var end = s.length
     while (end > 0 && s.charAt(end - 1) == '0') end -= 1
     if (end > 0 && s.charAt(end - 1) == '.') end -= 1
     if (end == s.length) s else s.substring(0, end)
   }
+}
+
+object ToonWriter {
+  private val nullBytes  = "null".getBytes(UTF_8)
+  private val trueBytes  = "true".getBytes(UTF_8)
+  private val falseBytes = "false".getBytes(UTF_8)
+
+  private[toon] def isIdentifierSegment(key: String): Boolean = {
+    val len = key.length
+    var i   = 0
+    while (i < len) {
+      val c = key.charAt(i)
+      val a = c | 0x20
+      if (!(a >= 'a' && a <= 'z' || c == '_' || i > 0 && (c >= '0' && c <= '9'))) {
+        return false
+      }
+      i += 1
+    }
+    i != 0
+  }
+
+  private[this] val pool: ThreadLocal[ToonWriter] = new ThreadLocal[ToonWriter] {
+    override def initialValue(): ToonWriter =
+      new ToonWriter(new Array[Byte](1024), 0, 2, Delimiter.Comma, KeyFolding.Off, Int.MaxValue, None)
+  }
+
+  def apply(config: WriterConfig): ToonWriter = {
+    val writer = pool.get()
+    if (
+      writer.indentSize == config.indent &&
+      writer.delimiter == config.delimiter &&
+      writer.keyFolding == config.keyFolding &&
+      writer.flattenDepth == config.flattenDepth &&
+      writer.discriminatorField == config.discriminatorField
+    ) {
+      writer.reset()
+      writer
+    } else {
+      new ToonWriter(
+        new Array[Byte](1024),
+        0,
+        config.indent,
+        config.delimiter,
+        config.keyFolding,
+        config.flattenDepth,
+        config.discriminatorField
+      )
+    }
+  }
+
+  /**
+   * Creates a fresh writer that is NOT from the pool. Use this when you need a
+   * temporary writer while another writer is in use (e.g., for encoding keys to
+   * strings).
+   */
+  private[toon] def fresh(config: WriterConfig): ToonWriter =
+    new ToonWriter(
+      new Array[Byte](64),
+      0,
+      config.indent,
+      config.delimiter,
+      config.keyFolding,
+      config.flattenDepth,
+      config.discriminatorField
+    )
 }

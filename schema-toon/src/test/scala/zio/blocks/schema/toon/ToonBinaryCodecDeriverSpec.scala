@@ -609,6 +609,18 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           deriveCodec[Record4](_.withTransientNone(false))
         )
       },
+      test("record with renamed, aliased, and transient fields") {
+        encode(Record5(BigInt(1), BigDecimal(2.0)), "bigInt: 1\nbd: 2") &&
+        decode("bi: 1\nbd: 2.0", Record5(BigInt(1), BigDecimal(2.0)))
+      },
+      test("simple record with fields that have default values") {
+        roundTrip(Record6(), "") &&
+        roundTrip(Record6(bl = true, s = "WWW"), "bl: true\ns: WWW") &&
+        roundTrip(
+          Record6(true, 2: Byte, 3: Short, 4, 5L, 6.0f, 7.0, '8', "WWW"),
+          "bl: true\nb: 2\nsh: 3\ni: 4\nl: 5\nf: 6\nd: 7\nc: \"8\"\ns: WWW"
+        )
+      },
       test("extra fields are ignored by default") {
         decode(
           """name: Alice
@@ -943,6 +955,17 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
+      test("ArrayFormat.List encodes record arrays in list format") {
+        roundTrip(
+          PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
+          """people[2]:
+            |  - name: Alice
+            |    age: 25
+            |  - name: Bob
+            |    age: 30""".stripMargin,
+          deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.List))
+        )
+      },
       test("ArrayFormat.Tabular with custom delimiter") {
         roundTrip(
           PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
@@ -986,6 +1009,23 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           StringStringMap(Map("a" -> "hello", "b" -> "world")),
           """a: hello
             |b: world""".stripMargin
+        )
+      }
+    ),
+    suite("wrapper")(
+      test("top-level") {
+        roundTrip[UserId](UserId(1234567890123456789L), "1234567890123456789") &&
+        roundTrip[Email](Email("john@gmail.com"), "john@gmail.com") &&
+        decodeError[Email]("john&gmail.com", "expected e-mail at: .wrapped")
+      },
+      test("as a map key") {
+        roundTrip(
+          Map(UserId(1234567890123456789L) -> Email("backup@gmail.com")),
+          """"1234567890123456789": backup@gmail.com"""
+        ) &&
+        decodeError[Map[Long, Email]](
+          """1234567890123456789: backup&gmail.com""",
+          "expected e-mail at: .atKey(1234567890123456789).wrapped"
         )
       }
     ),
@@ -1154,6 +1194,32 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Record4] = Schema.derived
   }
 
+  case class Record5(
+    @Modifier.alias("bi") bigInt: BigInt,
+    @Modifier.rename("bd") bigDecimal: BigDecimal,
+    @Modifier.transient x: String = "x"
+  )
+
+  object Record5 extends CompanionOptics[Record5] {
+    implicit val schema: Schema[Record5] = Schema.derived
+  }
+
+  case class Record6(
+    bl: Boolean = false,
+    b: Byte = 1.toByte,
+    sh: Short = 2.toShort,
+    i: Int = 3,
+    l: Long = 4L,
+    f: Float = 5.0f,
+    d: Double = 6.0,
+    c: Char = '7',
+    s: String = "VVV"
+  )
+
+  object Record6 extends CompanionOptics[Record6] {
+    implicit val schema: Schema[Record6] = Schema.derived
+  }
+
   case class IntList(xs: List[Int])
 
   object IntList {
@@ -1270,5 +1336,27 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
   object CamelPascalSnakeKebabCases {
     implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
+  }
+
+  case class UserId(value: Long)
+
+  object UserId {
+    implicit lazy val schema: Schema[UserId] =
+      Schema[Long].transform[UserId](x => new UserId(x), _.value)
+  }
+
+  case class Email(value: String)
+
+  object Email {
+    private[this] val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+
+    implicit lazy val schema: Schema[Email] =
+      Schema[String].transform[Email](
+        {
+          case x @ EmailRegex(_*) => new Email(x)
+          case _                  => throw SchemaError.validationFailed("expected e-mail")
+        },
+        _.value
+      )
   }
 }
