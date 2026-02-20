@@ -39,30 +39,17 @@ private[toon] final class ToonFieldInfo(
     val off = this.offset + top
     (codec.valueType: @switch) match {
       case 0 =>
-        regs.setObject(
-          off,
-          codec
-            .asInstanceOf[ToonBinaryCodec[AnyRef]]
-            .decodeValue(in, codec.asInstanceOf[ToonBinaryCodec[AnyRef]].nullValue)
-        )
-      case 1 =>
-        regs.setInt(off, codec.asInstanceOf[ToonBinaryCodec[Int]].decodeValue(in, 0))
-      case 2 =>
-        regs.setLong(off, codec.asInstanceOf[ToonBinaryCodec[Long]].decodeValue(in, 0L))
-      case 3 =>
-        regs.setFloat(off, codec.asInstanceOf[ToonBinaryCodec[Float]].decodeValue(in, 0f))
-      case 4 =>
-        regs.setDouble(off, codec.asInstanceOf[ToonBinaryCodec[Double]].decodeValue(in, 0.0))
-      case 5 =>
-        regs.setBoolean(off, codec.asInstanceOf[ToonBinaryCodec[Boolean]].decodeValue(in, false))
-      case 6 =>
-        regs.setByte(off, codec.asInstanceOf[ToonBinaryCodec[Byte]].decodeValue(in, 0.toByte))
-      case 7 =>
-        regs.setChar(off, codec.asInstanceOf[ToonBinaryCodec[Char]].decodeValue(in, 0.toChar))
-      case 8 =>
-        regs.setShort(off, codec.asInstanceOf[ToonBinaryCodec[Short]].decodeValue(in, 0.toShort))
-      case _ =>
-        codec.asInstanceOf[ToonBinaryCodec[Unit]].decodeValue(in, ())
+        val c = codec.asInstanceOf[ToonBinaryCodec[AnyRef]]
+        regs.setObject(off, c.decodeValue(in, c.nullValue))
+      case 1 => regs.setInt(off, codec.asInstanceOf[ToonBinaryCodec[Int]].decodeValue(in, 0))
+      case 2 => regs.setLong(off, codec.asInstanceOf[ToonBinaryCodec[Long]].decodeValue(in, 0L))
+      case 3 => regs.setFloat(off, codec.asInstanceOf[ToonBinaryCodec[Float]].decodeValue(in, 0f))
+      case 4 => regs.setDouble(off, codec.asInstanceOf[ToonBinaryCodec[Double]].decodeValue(in, 0.0))
+      case 5 => regs.setBoolean(off, codec.asInstanceOf[ToonBinaryCodec[Boolean]].decodeValue(in, false))
+      case 6 => regs.setByte(off, codec.asInstanceOf[ToonBinaryCodec[Byte]].decodeValue(in, 0.toByte))
+      case 7 => regs.setChar(off, codec.asInstanceOf[ToonBinaryCodec[Char]].decodeValue(in, 0.toChar))
+      case 8 => regs.setShort(off, codec.asInstanceOf[ToonBinaryCodec[Short]].decodeValue(in, 0.toShort))
+      case _ => codec.asInstanceOf[ToonBinaryCodec[Unit]].decodeValue(in, ())
     }
   }
 
@@ -72,13 +59,11 @@ private[toon] final class ToonFieldInfo(
       val closeQuoteIdx = rawKey.indexOf('"', 1)
       if (closeQuoteIdx > 0) rawKey.indexOf('[', closeQuoteIdx + 1)
       else rawKey.indexOf('[')
-    } else {
-      rawKey.indexOf('[')
-    }
+    } else rawKey.indexOf('[')
     val bracketEnd = rawKey.indexOf(']', bracketStart)
-    val lengthStr  = if (bracketStart >= 0 && bracketEnd > bracketStart) {
-      rawKey.substring(bracketStart + 1, bracketEnd)
-    } else "0"
+    val lengthStr  =
+      if (bracketStart >= 0 && bracketEnd > bracketStart) rawKey.substring(bracketStart + 1, bracketEnd)
+      else "0"
     val delimChar = if (lengthStr.nonEmpty) {
       val lastChar = lengthStr.charAt(lengthStr.length - 1)
       if (lastChar == '\t') Delimiter.Tab
@@ -87,8 +72,8 @@ private[toon] final class ToonFieldInfo(
     } else Delimiter.Comma
     val length =
       try {
-        val numPart = if (delimChar != Delimiter.Comma) lengthStr.dropRight(1).trim else lengthStr
-        numPart.toInt
+        (if (delimChar != Delimiter.Comma) lengthStr.dropRight(1).trim
+         else lengthStr).toInt
       } catch {
         case _: NumberFormatException => 0
       }
@@ -98,9 +83,9 @@ private[toon] final class ToonFieldInfo(
       val fieldNamesStr = rawKey.substring(braceStart + 1, braceEnd)
       val fieldNames    = splitFieldNames(fieldNamesStr, delimChar).map { f =>
         val trimmed = f.trim
-        if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length >= 2)
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length >= 2) {
           trimmed.substring(1, trimmed.length - 1)
-        else trimmed
+        } else trimmed
       }
       in.advanceLine()
       in.skipBlankLines()
@@ -113,17 +98,11 @@ private[toon] final class ToonFieldInfo(
       if (remaining.isEmpty) {
         in.advanceLine()
         in.skipBlankLines()
-        regs.setObject(
-          off,
-          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeListArray(in, length)
-        )
+        regs.setObject(off, codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeListArray(in, length))
       } else {
         in.setActiveDelimiter(delimChar)
         val values = in.readInlineArray()
-        regs.setObject(
-          off,
-          codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeInlineArray(in, values, length)
-        )
+        regs.setObject(off, codec.asInstanceOf[ToonBinaryCodec[AnyRef]].decodeInlineArray(in, values, length))
       }
     }
   }
@@ -144,13 +123,9 @@ private[toon] final class ToonFieldInfo(
         case 8 => regs.setShort(off, defaultValue.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) {
-      regs.setObject(off, None)
-    } else if (isCollection) {
-      regs.setObject(off, codec.nullValue.asInstanceOf[AnyRef])
-    } else {
-      in.decodeError(s"Missing required field: $name")
-    }
+    } else if (isOptional) regs.setObject(off, None)
+    else if (isCollection) regs.setObject(off, codec.nullValue.asInstanceOf[AnyRef])
+    else in.decodeError(s"Missing required field: $name")
   }
 
   def writeRequired(out: ToonWriter, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
@@ -201,21 +176,17 @@ private[toon] final class ToonFieldInfo(
   def writeOptional(out: ToonWriter, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
     val off   = this.offset + top
     val value = regs.getObject(off).asInstanceOf[Option[?]]
-    if (value.isDefined) {
-      codec.asInstanceOf[ToonBinaryCodec[Option[Any]]].encodeAsField(name, value, out)
-    }
+    if (value.isDefined) codec.asInstanceOf[ToonBinaryCodec[Option[Any]]].encodeAsField(name, value, out)
   }
 
   def writeCollection(out: ToonWriter, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
-    val off     = this.offset + top
-    val value   = regs.getObject(off)
-    val isEmpty = value match {
-      case s: Iterable[?] => s.isEmpty
+    val off      = this.offset + top
+    val value    = regs.getObject(off)
+    val nonEmpty = value match {
+      case s: Iterable[?] => s.nonEmpty
       case _              => false
     }
-    if (!isEmpty) {
-      codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeAsField(name, value, out)
-    }
+    if (nonEmpty) codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeAsField(name, value, out)
   }
 
   def writeDefaultValue(out: ToonWriter, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
@@ -232,10 +203,7 @@ private[toon] final class ToonFieldInfo(
       case 8 => regs.getShort(off)
       case _ => ()
     }
-    val defaultValue = if (defaultValueConstructor ne null) defaultValueConstructor.apply() else null
-    if (currentValue != defaultValue) {
-      writeRequired(out, regs, top)
-    }
+    if (defaultValueConstructor.apply() != currentValue) writeRequired(out, regs, top)
   }
 
   def writeTabularValue(
@@ -249,11 +217,12 @@ private[toon] final class ToonFieldInfo(
       case 0 =>
         val value = regs.getObject(off)
         if (value == null || value == None) out.writeNull()
-        else
+        else {
           value match {
             case s: String => out.writeString(s, delimiter)
             case _         => codec.asInstanceOf[ToonBinaryCodec[AnyRef]].encodeValue(value, out)
           }
+        }
       case 1 => codec.asInstanceOf[ToonBinaryCodec[Int]].encodeValue(regs.getInt(off), out)
       case 2 => codec.asInstanceOf[ToonBinaryCodec[Long]].encodeValue(regs.getLong(off), out)
       case 3 => codec.asInstanceOf[ToonBinaryCodec[Float]].encodeValue(regs.getFloat(off), out)
@@ -267,36 +236,21 @@ private[toon] final class ToonFieldInfo(
   }
 
   def readTabularValue(value: String, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
-    val off = this.offset + top
-
-    val reader = ToonReader(ReaderConfig.withDelimiter(Delimiter.None))
-    reader.reset(value)
+    val reader = ToonCodecUtils.createReaderForValue(value)
+    val off    = this.offset + top
     (codec.valueType: @switch) match {
       case 0 =>
-        regs.setObject(
-          off,
-          codec
-            .asInstanceOf[ToonBinaryCodec[AnyRef]]
-            .decodeValue(reader, codec.asInstanceOf[ToonBinaryCodec[AnyRef]].nullValue)
-        )
-      case 1 =>
-        regs.setInt(off, codec.asInstanceOf[ToonBinaryCodec[Int]].decodeValue(reader, 0))
-      case 2 =>
-        regs.setLong(off, codec.asInstanceOf[ToonBinaryCodec[Long]].decodeValue(reader, 0L))
-      case 3 =>
-        regs.setFloat(off, codec.asInstanceOf[ToonBinaryCodec[Float]].decodeValue(reader, 0f))
-      case 4 =>
-        regs.setDouble(off, codec.asInstanceOf[ToonBinaryCodec[Double]].decodeValue(reader, 0.0))
-      case 5 =>
-        regs.setBoolean(off, codec.asInstanceOf[ToonBinaryCodec[Boolean]].decodeValue(reader, false))
-      case 6 =>
-        regs.setByte(off, codec.asInstanceOf[ToonBinaryCodec[Byte]].decodeValue(reader, 0.toByte))
-      case 7 =>
-        regs.setChar(off, codec.asInstanceOf[ToonBinaryCodec[Char]].decodeValue(reader, 0.toChar))
-      case 8 =>
-        regs.setShort(off, codec.asInstanceOf[ToonBinaryCodec[Short]].decodeValue(reader, 0.toShort))
-      case _ =>
-        codec.asInstanceOf[ToonBinaryCodec[Unit]].decodeValue(reader, ())
+        val c = codec.asInstanceOf[ToonBinaryCodec[AnyRef]]
+        regs.setObject(off, c.decodeValue(reader, c.nullValue))
+      case 1 => regs.setInt(off, codec.asInstanceOf[ToonBinaryCodec[Int]].decodeValue(reader, 0))
+      case 2 => regs.setLong(off, codec.asInstanceOf[ToonBinaryCodec[Long]].decodeValue(reader, 0L))
+      case 3 => regs.setFloat(off, codec.asInstanceOf[ToonBinaryCodec[Float]].decodeValue(reader, 0f))
+      case 4 => regs.setDouble(off, codec.asInstanceOf[ToonBinaryCodec[Double]].decodeValue(reader, 0.0))
+      case 5 => regs.setBoolean(off, codec.asInstanceOf[ToonBinaryCodec[Boolean]].decodeValue(reader, false))
+      case 6 => regs.setByte(off, codec.asInstanceOf[ToonBinaryCodec[Byte]].decodeValue(reader, 0.toByte))
+      case 7 => regs.setChar(off, codec.asInstanceOf[ToonBinaryCodec[Char]].decodeValue(reader, 0.toChar))
+      case 8 => regs.setShort(off, codec.asInstanceOf[ToonBinaryCodec[Short]].decodeValue(reader, 0.toShort))
+      case _ => codec.asInstanceOf[ToonBinaryCodec[Unit]].decodeValue(reader, ())
     }
   }
 
@@ -319,17 +273,13 @@ private[toon] final class ToonFieldInfo(
     }
   }
 
-  def setOptionalNone(regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
-    val off = this.offset + top
-    regs.setObject(off, None)
-  }
+  def setOptionalNone(regs: Registers, top: RegisterOffset.RegisterOffset): Unit =
+    regs.setObject(this.offset + top, None)
 
-  def setEmptyCollection(regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
-    val off = this.offset + top
-    regs.setObject(off, codec.nullValue.asInstanceOf[AnyRef])
-  }
+  def setEmptyCollection(regs: Registers, top: RegisterOffset.RegisterOffset): Unit =
+    regs.setObject(this.offset + top, codec.nullValue.asInstanceOf[AnyRef])
 
-  private def splitFieldNames(s: String, delim: Delimiter): Array[String] = {
+  private[this] def splitFieldNames(s: String, delim: Delimiter): Array[String] = {
     val result  = new scala.collection.mutable.ArrayBuffer[String]()
     var start   = 0
     var inQuote = false

@@ -148,8 +148,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   }
 
   def optionInnerType: Option[Reflect[F, ?]] =
-    if (!isOption) None
-    else asVariant.get.cases(1).value.asRecord.map(_.fields(0).value)
+    if (isOption) asVariant.get.cases(1).value.asRecord.map(_.fields(0).value)
+    else None
 
   def modifiers: Seq[Modifier.Reflect]
 
