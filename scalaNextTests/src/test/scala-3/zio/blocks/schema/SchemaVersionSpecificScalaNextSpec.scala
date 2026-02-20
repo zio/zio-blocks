@@ -5,9 +5,9 @@ import zio.blocks.typeid.Owner
 import zio.test.*
 import zio.test.Assertion.*
 
-object SchemaVersionSpecificSpec extends SchemaBaseSpec {
+object SchemaVersionSpecificScalaNextSpec extends SchemaBaseSpec {
 
-  def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificScalaNextSpec")(
     suite("Reflect.Record")(
       test("derives schema for named tuples") {
         type NamedTuple4 = (b: Byte, sh: Short, i: Int, l: Long)
