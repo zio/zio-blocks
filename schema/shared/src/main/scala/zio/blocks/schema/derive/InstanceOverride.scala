@@ -9,8 +9,8 @@ import zio.blocks.typeid.TypeId
  *
  * Resolution priority (highest to lowest):
  *   1. [[InstanceOverrideByOptic]] — matches an exact path in the schema tree
- *   2. [[InstanceOverrideByTypeAndTermName]] — matches a type used under a
- *      specific term (field or case) name
+ *   2. [[InstanceOverrideByTypeAndTermName]] — matches a term (field or case)
+ *      name inside a specific parent record/variant
  *   3. [[InstanceOverrideByType]] — matches every occurrence of a type
  */
 sealed trait InstanceOverride
@@ -35,14 +35,14 @@ case class InstanceOverrideByOptic[TC[_], A](optic: DynamicOptic, instance: Lazy
 case class InstanceOverrideByType[TC[_], A](typeId: TypeId[A], instance: Lazy[TC[A]]) extends InstanceOverride
 
 /**
- * Overrides the type class instance for a type when it appears as a term
- * (record field or variant case) with a specific name. Applies at every
- * matching (typeId, termName) pair in the schema tree.
+ * Overrides the type class instance for a term (record field or variant case)
+ * with a specific name inside a parent record or variant identified by its
+ * [[zio.blocks.typeid.TypeId TypeId]]. Applies at every matching (parentTypeId,
+ * termName) pair in the schema tree.
  *
  * This provides medium precision between [[InstanceOverrideByOptic]] and
- * [[InstanceOverrideByType]]. Intended for use by [[Deriver]] implementations
- * via `instanceOverrides`; there is no factory method on `DerivationBuilder`
- * for this variant.
+ * [[InstanceOverrideByType]]. Created via
+ * `DerivationBuilder.instance(typeId, termName, instance)`.
  */
-case class InstanceOverrideByTypeAndTermName[TC[_], A](typeId: TypeId[A], termName: String, instance: Lazy[TC[A]])
+case class InstanceOverrideByTypeAndTermName[TC[_], P, A](typeId: TypeId[P], termName: String, instance: Lazy[TC[A]])
     extends InstanceOverride
