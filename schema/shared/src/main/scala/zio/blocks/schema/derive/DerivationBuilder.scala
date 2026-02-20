@@ -28,20 +28,52 @@ final case class DerivationBuilder[TC[_], A](
   instanceOverrides: IndexedSeq[InstanceOverride],
   modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
+
+  /**
+   * Overrides the type class instance at an exact path in the schema tree
+   * identified by `optic`. This is the most precise override: it targets one
+   * specific location.
+   */
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance)))
 
+  /**
+   * Overrides the type class instance for every occurrence of the type
+   * identified by `typeId`, regardless of where it appears in the schema tree.
+   * This is the least precise override.
+   */
   def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByType(typeId, Lazy(instance)))
 
+  /**
+   * Overrides the type class instance for a term (record field or variant case)
+   * identified by `termName` inside a parent record or variant identified by
+   * `typeId`. This is a medium-precision override between optic-based (exact
+   * path) and type-based (all occurrences).
+   *
+   * The `typeId` refers to the ''parent'' record/variant type, not the field
+   * type. The field type `B` is not statically checked against the actual term
+   * type. If no term with the given name exists in the parent type, the
+   * override is silently ignored.
+   */
   def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides =
       instanceOverrides :+ new InstanceOverrideByTypeAndTermName(typeId, termName, Lazy(instance))
     )
 
+  /**
+   * Adds a reflect-level modifier for every occurrence of the type identified
+   * by `typeId`.
+   */
   def modifier[B](typeId: TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByType(typeId, modifier))
 
+  /**
+   * Adds a modifier at an exact path in the schema tree identified by `optic`.
+   * Accepts both [[Modifier.Reflect]] (applied to the node itself) and
+   * [[Modifier.Term]] (applied to the terminal field or case at the end of the
+   * optic path).
+   */
   def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = modifier match {
     case mr: Modifier.Reflect =>
       copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByOptic(optic.toDynamic, mr))
@@ -60,6 +92,13 @@ final case class DerivationBuilder[TC[_], A](
       }
   }
 
+  /**
+   * Adds a term-level modifier for a field or variant case identified by
+   * `termName` inside a parent type identified by `typeId`. The `typeId` refers
+   * to the ''parent'' record/variant type that owns the term, not the term's
+   * own type. If no term with the given name exists in the parent type, the
+   * modifier is silently ignored.
+   */
   def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByType(typeId, termName, modifier))
 
@@ -136,8 +175,7 @@ final case class DerivationBuilder[TC[_], A](
         case m: Reflect.Map[G, _, _, _] @unchecked   => m.copy(mapBinding = swap(m.mapBinding))
         case d: Reflect.Dynamic[G] @unchecked        => d.copy(dynamicBinding = swap(d.dynamicBinding))
         case w: Reflect.Wrapper[G, _, _]             => w.copy(wrapperBinding = swap(w.wrapperBinding))
-        case d: Reflect.Deferred[G, A0]              =>
-          new Reflect.Deferred[G, A0](() => replaceFieldInstance(d._value(), newInstance), d._typeId)
+        case d: Reflect.Deferred[G, A0]              => d.copy(_value = () => replaceFieldInstance(d._value(), newInstance))
       }).asInstanceOf[Reflect[G, A0]]
     }
 
