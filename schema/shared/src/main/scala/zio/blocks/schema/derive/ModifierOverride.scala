@@ -35,9 +35,6 @@ case class ModifierReflectOverrideByType[A](typeId: TypeId[A], modifier: Modifie
  * term (field or case) within every schema node whose type matches the given
  * [[zio.blocks.typeid.TypeId TypeId]]. The `termName` identifies which field or
  * case within the matched node receives the modifier.
- *
- * Created internally by `DerivationBuilder` — there is no direct factory method
- * for this variant.
  */
 case class ModifierTermOverrideByType[A](typeId: TypeId[A], termName: String, modifier: Modifier.Term)
     extends ModifierOverride

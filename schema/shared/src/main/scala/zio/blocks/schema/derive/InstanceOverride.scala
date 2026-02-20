@@ -41,9 +41,8 @@ case class InstanceOverrideByType[TC[_], A](typeId: TypeId[A], instance: Lazy[TC
  * termName) pair in the schema tree.
  *
  * This provides medium precision between [[InstanceOverrideByOptic]] and
- * [[InstanceOverrideByType]]. Intended for use by [[Deriver]] implementations
- * via `instanceOverrides`; there is no factory method on `DerivationBuilder`
- * for this variant.
+ * [[InstanceOverrideByType]]. Created via
+ * `DerivationBuilder.instance(typeId, termName, instance)`.
  */
 case class InstanceOverrideByTypeAndTermName[TC[_], P, A](typeId: TypeId[P], termName: String, instance: Lazy[TC[A]])
     extends InstanceOverride
