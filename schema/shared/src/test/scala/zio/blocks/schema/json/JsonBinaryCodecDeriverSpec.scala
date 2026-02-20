@@ -2075,6 +2075,38 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           codec
         )
       },
+      test("record with a custom codec for a nested record injected by type and term name") {
+        val nullableRecord1Codec = new JsonBinaryCodec[Record1]() {
+          private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
+
+          override def decodeValue(in: JsonReader, default: Record1): Record1 =
+            if (in.isNextToken('n')) {
+              in.rollbackToken()
+              in.skip()
+              null
+            } else {
+              in.rollbackToken()
+              codec.decodeValue(in, default)
+            }
+
+          override def encodeValue(x: Record1, out: JsonWriter): Unit =
+            if (x eq null) out.writeNull()
+            else codec.encodeValue(x, out)
+        }
+        val codec = Record2.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(Record2.schema.reflect.typeId, "r1_2", nullableRecord1Codec)
+          .derive
+        // r1_2 uses the nullable override, r1_1 uses the default (non-nullable) codec
+        roundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            null
+          ),
+          """{"r1_1":{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":null}""",
+          codec
+        )
+      },
       test("record with a custom codec for nested record injected by type name") {
         val codec = Record2.schema
           .deriving(JsonBinaryCodecDeriver)
