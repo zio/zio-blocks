@@ -999,103 +999,107 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   }
 
   private def deriveGenericTupleBinding[A: Type](tpe: TypeRepr)(using Quotes): Expr[Any] = {
-    val tTpe        = normalizeGenericTuple(tpe)
-    val tpeTypeArgs = genericTupleTypeArgs(tpe)
-    val fieldInfos  = {
-      var usedRegisters = RegisterOffset.Zero
-      var idx           = 0
-      tpeTypeArgs.map { fTpe =>
-        val fieldInfo = TupleFieldInfo(idx, fTpe, usedRegisters)
-        usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
-        idx += 1
-        fieldInfo
+    val tTpe = normalizeGenericTuple(tpe)
+    if (isGenericTuple(tTpe)) {
+      val tpeTypeArgs = genericTupleTypeArgs(tTpe)
+      val fieldInfos  = {
+        var usedRegisters = RegisterOffset.Zero
+        var idx           = 0
+        tpeTypeArgs.map { fTpe =>
+          val fieldInfo = TupleFieldInfo(idx, fTpe, usedRegisters)
+          usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
+          idx += 1
+          fieldInfo
+        }
       }
-    }
-    val totalUsedRegisters = fieldInfos.lastOption
-      .map(f => RegisterOffset.add(f.usedRegisters, fieldOffset(f.tpe)))
-      .getOrElse(RegisterOffset.Zero)
-    val usedRegistersExpr = Expr(totalUsedRegisters)
-    tTpe.asType match {
-      case '[tt] =>
-        val constructorExpr: Expr[(Registers, RegisterOffset) => tt] = '{ (in: Registers, offset: RegisterOffset) =>
-          ${
-            if (fieldInfos.isEmpty) Expr(EmptyTuple).asInstanceOf[Expr[tt]]
-            else {
-              val symbol      = Symbol.newVal(Symbol.spliceOwner, "xs", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
-              val ref         = Ref(symbol)
-              val update      = Select(ref, defn.Array_update)
-              val assignments = fieldInfos.map { fieldInfo =>
-                Apply(
-                  update,
-                  List(Literal(IntConstant(fieldInfo.index)), tupleFieldConstructor('in, 'offset, fieldInfo))
-                )
+      val totalUsedRegisters = fieldInfos.lastOption
+        .map(f => RegisterOffset.add(f.usedRegisters, fieldOffset(f.tpe)))
+        .getOrElse(RegisterOffset.Zero)
+      val usedRegistersExpr = Expr(totalUsedRegisters)
+      tTpe.asType match {
+        case '[tt] =>
+          val constructorExpr: Expr[(Registers, RegisterOffset) => tt] = '{ (in: Registers, offset: RegisterOffset) =>
+            ${
+              if (fieldInfos.isEmpty) Expr(EmptyTuple).asInstanceOf[Expr[tt]]
+              else {
+                val symbol      = Symbol.newVal(Symbol.spliceOwner, "xs", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
+                val ref         = Ref(symbol)
+                val update      = Select(ref, defn.Array_update)
+                val assignments = fieldInfos.map { fieldInfo =>
+                  Apply(
+                    update,
+                    List(Literal(IntConstant(fieldInfo.index)), tupleFieldConstructor('in, 'offset, fieldInfo))
+                  )
+                }
+                val valDef   = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
+                val block    = Block(valDef :: assignments, ref)
+                val typeCast = Select(block, asInstanceOfMethod).appliedToType(iArrayOfAnyRefTpe)
+                Select(Apply(fromIArrayMethod, List(typeCast)), asInstanceOfMethod)
+                  .appliedToType(tTpe)
+                  .asExpr
+                  .asInstanceOf[Expr[tt]]
               }
-              val valDef   = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
-              val block    = Block(valDef :: assignments, ref)
-              val typeCast = Select(block, asInstanceOfMethod).appliedToType(iArrayOfAnyRefTpe)
-              Select(Apply(fromIArrayMethod, List(typeCast)), asInstanceOfMethod)
-                .appliedToType(tTpe)
-                .asExpr
-                .asInstanceOf[Expr[tt]]
             }
           }
-        }
-        val deconstructorExpr: Expr[(Registers, RegisterOffset, tt) => Unit] = '{
-          (out: Registers, offset: RegisterOffset, in: tt) =>
-            ${
-              val productElement = Select('in.asTerm, productElementMethod)
-              val statements     = fieldInfos.map { fieldInfo =>
-                val fTpe          = fieldInfo.tpe
-                val sTpe          = dealiasOnDemand(fTpe)
-                val getter        = productElement.appliedTo(Literal(IntConstant(fieldInfo.index))).asExpr
-                val usedRegisters = Expr(fieldInfo.usedRegisters)
-                (if (sTpe <:< intTpe) '{
-                   out.setInt(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Int])
-                 }
-                 else if (sTpe <:< floatTpe) '{
-                   out.setFloat(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Float])
-                 }
-                 else if (sTpe <:< longTpe) '{
-                   out.setLong(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Long])
-                 }
-                 else if (sTpe <:< doubleTpe) '{
-                   out.setDouble(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Double])
-                 }
-                 else if (sTpe <:< booleanTpe) '{
-                   out.setBoolean(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Boolean])
-                 }
-                 else if (sTpe <:< byteTpe) '{
-                   out.setByte(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Byte])
-                 }
-                 else if (sTpe <:< charTpe) '{
-                   out.setChar(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Char])
-                 }
-                 else if (sTpe <:< shortTpe) '{
-                   out.setShort(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Short])
-                 }
-                 else if (sTpe <:< unitTpe) '{ () }
-                 else
-                   '{ out.setObject(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[AnyRef]) }).asTerm
+          val deconstructorExpr: Expr[(Registers, RegisterOffset, tt) => Unit] = '{
+            (out: Registers, offset: RegisterOffset, in: tt) =>
+              ${
+                val productElement = Select('in.asTerm, productElementMethod)
+                val statements     = fieldInfos.map { fieldInfo =>
+                  val fTpe          = fieldInfo.tpe
+                  val sTpe          = dealiasOnDemand(fTpe)
+                  val getter        = productElement.appliedTo(Literal(IntConstant(fieldInfo.index))).asExpr
+                  val usedRegisters = Expr(fieldInfo.usedRegisters)
+                  (if (sTpe <:< intTpe) '{
+                     out.setInt(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Int])
+                   }
+                   else if (sTpe <:< floatTpe) '{
+                     out.setFloat(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Float])
+                   }
+                   else if (sTpe <:< longTpe) '{
+                     out.setLong(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Long])
+                   }
+                   else if (sTpe <:< doubleTpe) '{
+                     out.setDouble(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Double])
+                   }
+                   else if (sTpe <:< booleanTpe) '{
+                     out.setBoolean(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Boolean])
+                   }
+                   else if (sTpe <:< byteTpe) '{
+                     out.setByte(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Byte])
+                   }
+                   else if (sTpe <:< charTpe) '{
+                     out.setChar(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Char])
+                   }
+                   else if (sTpe <:< shortTpe) '{
+                     out.setShort(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Short])
+                   }
+                   else if (sTpe <:< unitTpe) '{ () }
+                   else
+                     '{
+                       out.setObject(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[AnyRef])
+                     }).asTerm
+                }
+                toBlock(statements).asExpr.asInstanceOf[Expr[Unit]]
               }
-              toBlock(statements).asExpr.asInstanceOf[Expr[Unit]]
-            }
-        }
-        '{
-          new Binding.Record[A](
-            constructor = new Constructor[A] {
-              def usedRegisters: RegisterOffset = $usedRegistersExpr
+          }
+          '{
+            new Binding.Record[A](
+              constructor = new Constructor[A] {
+                def usedRegisters: RegisterOffset = $usedRegistersExpr
 
-              def construct(in: Registers, offset: RegisterOffset): A = $constructorExpr(in, offset).asInstanceOf[A]
-            },
-            deconstructor = new Deconstructor[A] {
-              def usedRegisters: RegisterOffset = $usedRegistersExpr
+                def construct(in: Registers, offset: RegisterOffset): A = $constructorExpr(in, offset).asInstanceOf[A]
+              },
+              deconstructor = new Deconstructor[A] {
+                def usedRegisters: RegisterOffset = $usedRegistersExpr
 
-              def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit =
-                $deconstructorExpr(out, offset, in.asInstanceOf[tt])
-            }
-          )
-        }
-    }
+                def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit =
+                  $deconstructorExpr(out, offset, in.asInstanceOf[tt])
+              }
+            )
+          }
+      }
+    } else tTpe.asType match { case '[tt] => deriveRecordBinding[tt](tTpe) }
   }
 
   private def deriveNamedTupleBinding[A: Type](originalTpe: TypeRepr)(using Quotes): Expr[Any] = {

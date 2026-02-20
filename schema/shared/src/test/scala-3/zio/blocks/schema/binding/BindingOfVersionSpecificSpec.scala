@@ -241,6 +241,28 @@ object BindingOfVersionSpecificSpec extends SchemaBaseSpec {
         assertTrue(binding.isInstanceOf[Binding.Record[?]])
       }
     ),
+    suite("generic tuple")(
+      test("generic tuple that is normalized to regular tuple") {
+        type GenericTuple3 = String *: Int *: Boolean *: EmptyTuple
+        val binding   = Binding.of[GenericTuple3].asInstanceOf[Binding.Record[GenericTuple3]]
+        val original  = "hello" *: 42 *: true *: EmptyTuple
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      },
+      test("generic tuple that is represented by TupleXXL") {
+        type GenericTupleXXL = Boolean *: Byte *: Char *: Short *: Float *: Int *: Double *: Long *: String *: Int *:
+          Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: Int *: EmptyTuple
+        val binding  = Binding.of[GenericTupleXXL].asInstanceOf[Binding.Record[GenericTupleXXL]]
+        val original =
+          true *: (2: Byte) *: '3' *: (4: Short) *: 5.0f *: 6 *: 7.0 *: 8L *: "9" *: 10 *: 11 *: 12 *: 13 *: 14 *: 15 *: 16 *: 17 *: 18 *: 19 *: 20 *: 21 *: 22 *: 23 *: 24 *: EmptyTuple
+        val registers = Registers(binding.deconstructor.usedRegisters)
+        binding.deconstructor.deconstruct(registers, RegisterOffset.Zero, original)
+        val reconstructed = binding.constructor.construct(registers, RegisterOffset.Zero)
+        assertTrue(reconstructed == original)
+      }
+    ),
     suite("Scala 3 enums")(
       test("simple enum returns Binding.Variant") {
         val binding = Binding.of[Color]
