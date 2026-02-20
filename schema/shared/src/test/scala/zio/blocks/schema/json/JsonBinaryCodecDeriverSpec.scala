@@ -2123,8 +2123,11 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver.withTransientEmptyCollection(false).withRequireCollectionFields(true))
           .instance(Recursive.schema.reflect.typeId, "ln", emptyListCodec)
           .derive
-        // ln field always encodes as empty array regardless of content
-        roundTrip(Recursive(42, Nil), """{"i":42,"ln":[]}""", codec)
+        encode(
+          Recursive(42, List(Recursive(1, Nil))),
+          """{"i":42,"ln":[]}""",
+          codec
+        )
       },
       test("record with a custom codec for a nested variant injected by type and term name") {
         implicit val catSchema: Schema[Cat] = Schema.derived
@@ -2162,12 +2165,12 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(Record3.schema.reflect.typeId, "accounts", fixedMapCodec)
           .derive
-        roundTrip(
+        encode(
           Record3(
             UserId(42L),
             Email("a@b.com"),
             Currency.getInstance("USD"),
-            Map(Currency.getInstance("EUR") -> "W")
+            Map(Currency.getInstance("USD") -> "V")
           ),
           """{"userId":42,"email":"a@b.com","currency":"USD","accounts":{"EUR":"W"}}""",
           codec
@@ -2209,8 +2212,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(Dynamic.schema.reflect.typeId, "primitive", nullDynamicCodec)
           .derive
-        roundTrip(
-          Dynamic(DynamicValue.Null, DynamicValue.Primitive(PrimitiveValue.Int(1))),
+        encode(
+          Dynamic(DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
           """{"primitive":null,"record":1}""",
           codec
         )
