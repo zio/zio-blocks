@@ -1,0 +1,3 @@
+let explorer = host-api-explorer("explorer");
+let result = explorer.explore-rdbms();
+result

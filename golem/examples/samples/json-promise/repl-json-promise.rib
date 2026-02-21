@@ -1,0 +1,4 @@
+let demo = json-promise-demo("json-demo");
+let roundtrip = demo.json-roundtrip();
+let blocking = demo.blocking-demo();
+{ roundtrip: roundtrip, blocking: blocking }
