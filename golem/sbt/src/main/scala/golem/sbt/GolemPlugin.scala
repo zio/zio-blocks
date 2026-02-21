@@ -425,6 +425,7 @@ object GolemPlugin extends AutoPlugin {
                     s"""|package $genBasePkg
                         |
                         |import golem.runtime.autowire.AgentImplementation
+                        |import $pkg._
                         |
                         |/** Generated. Do not edit. */
                         |private[golem] object __GolemAutoRegister_$objSuffix {
