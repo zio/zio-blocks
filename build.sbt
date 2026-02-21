@@ -39,26 +39,17 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "golemPublishLocal",
-  """++3.3.7!; set ThisBuild / version := "0.0.0-SNAPSHOT"; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; ++2.12.20!; set ThisBuild / version := "0.0.0-SNAPSHOT"; zioGolemSbt/publishLocal"""
+  """set ThisBuild / version := "0.0.0-SNAPSHOT"; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; ++2.12.20!; set ThisBuild / version := "0.0.0-SNAPSHOT"; zioGolemSbt/publishLocal"""
 )
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test"
-
-"typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; " +
-  "schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; " +
-  "zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
-
-"typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
+    "zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test"
-
-"++3.3.7!; typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; " +
-  "contextJS/test; scopeJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
-
-"typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; " +
+    "contextJS/test; scopeJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
 )
 
 addCommandAlias(
@@ -514,7 +505,7 @@ lazy val benchmarks = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 30,
-    coverageMinimumBranchTotal := 42,
+    coverageMinimumBranchTotal := 42
   )
 
 // ---------------------------------------------------------------------------
@@ -572,6 +563,14 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
     }
   )
   .jsSettings(jsSettings)
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0" % Test,
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0" % Test,
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
   .dependsOn(zioGolemModel)
 
 lazy val zioGolemCoreJS  = zioGolemCore.js.dependsOn(zioGolemMacros)
@@ -625,6 +624,12 @@ lazy val zioGolemExamples = project
     golemComponentPathPrefix        := "../..",
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4",
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4"
+    ),
     Test / test := {
       Keys.streams.value.log.info(
         "Skipping zioGolemExamples tests (requires golem runtime). Run `golem/examples/agent2agent-local.sh` instead."
@@ -658,6 +663,12 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
     golemComponentPathPrefix        := "../..",
     Compile / mainClass             := Some("golem.quickstart.Boot"),
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4",
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4"
+    ),
     Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
     Test / testOnly       := (Test / test).value,
     Test / testQuick      := (Test / test).value,

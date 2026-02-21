@@ -340,7 +340,7 @@ object GolemPlugin extends AutoPlugin {
               tree match {
                 case source: Source =>
                   source.stats.flatMap(collect(_, pkg))
-                case Pkg(ref, stats) =>
+                case Pkg.After_4_9_9(ref, stats) =>
                   val nextPkg = appendPkg(pkg, ref.syntax)
                   stats.flatMap(collect(_, nextPkg))
                 case Pkg.Object(_, name, templ) =>
