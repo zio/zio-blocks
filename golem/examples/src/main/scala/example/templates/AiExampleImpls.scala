@@ -1,4 +1,4 @@
-package golem.examples.templates
+package example.templates
 
 import golem.ai.{Llm, WebSearch}
 import golem.runtime.annotations.agentImplementation

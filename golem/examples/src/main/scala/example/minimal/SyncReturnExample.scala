@@ -1,4 +1,4 @@
-package golem.examples.minimal
+package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, description}
 import golem.{AgentCompanion, BaseAgent}

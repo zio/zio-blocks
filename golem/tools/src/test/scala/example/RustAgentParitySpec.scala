@@ -1,4 +1,4 @@
-package golem.examples
+package example
 
 import golem.data.SchemaHelpers.{singleElementSchema, singleElementValue}
 import golem.data.multimodal.Multimodal
@@ -15,7 +15,7 @@ import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
 
-private[golem] object RustAgentParityTypes {
+private[example] object RustAgentParityTypes {
   type MediaPayload = Multimodal[MediaBundle]
 
   sealed trait EnglishOnly

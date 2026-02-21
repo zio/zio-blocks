@@ -1,11 +1,11 @@
-package golem.examples.templates
+package example.templates
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 import scala.scalajs.js.typedarray.Uint8Array
 import scala.annotation.unused
 
-private[golem] object Utf8 {
+private[templates] object Utf8 {
   @js.native
   @JSGlobal("TextEncoder")
   private class TextEncoder() extends js.Object {

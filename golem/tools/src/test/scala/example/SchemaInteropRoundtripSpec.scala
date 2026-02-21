@@ -1,4 +1,4 @@
-package golem.examples
+package example
 
 import golem.data.{
   DataInterop,

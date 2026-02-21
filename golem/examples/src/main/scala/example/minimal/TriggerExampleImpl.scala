@@ -1,4 +1,4 @@
-package golem.examples.minimal
+package example.minimal
 
 import golem._
 import golem.runtime.annotations.agentImplementation

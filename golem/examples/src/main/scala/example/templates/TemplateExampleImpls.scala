@@ -1,4 +1,4 @@
-package golem.examples.templates
+package example.templates
 
 import golem.*
 import golem.runtime.annotations.agentImplementation
