@@ -3,7 +3,6 @@ package golem
 import golem.data.multimodal.Multimodal
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
 import golem.runtime.autowire.{AgentImplementation, MethodBinding}
-import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import org.scalatest.funsuite.AnyFunSuite
 import zio.blocks.schema.Schema
 

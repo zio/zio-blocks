@@ -37,8 +37,8 @@ final class DatetimeCompileSpec extends AnyFunSuite {
   }
 
   test("Datetime is a value type (AnyVal)") {
-    val _: AnyVal = Datetime.fromEpochMillis(0.0)
-    assert(true)
+    val d: Datetime = Datetime.fromEpochMillis(0.0)
+    assert(d.epochMillis == 0.0)
   }
 
   test("Uuid construction and field access") {

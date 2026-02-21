@@ -206,6 +206,7 @@ object BuildHelper {
             "-language:existentials",
             "-opt:l:method",
             "-Ywarn-unused",
+            "-Wconf:cat=unused&src=.*/test/.*:s",
             "-Xfatal-warnings"
           )
       }),

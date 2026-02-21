@@ -11,7 +11,7 @@ final class SnapshotExportsCompileSpec extends AnyFunSuite {
     val save: () => Future[Array[Byte]]                                       = () => Future.successful(Array[Byte](1, 2, 3))
     val load: Array[Byte] => Future[Unit]                                     = _ => Future.successful(())
     val _: ((() => Future[Array[Byte]], Array[Byte] => Future[Unit]) => Unit) =
-      SnapshotExports.configure
+      SnapshotExports.configure(_, _)
     SnapshotExports.configure(save, load)
     assert(true)
   }

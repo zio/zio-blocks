@@ -26,7 +26,7 @@ class ConfigCompileSpec extends AnyFunSuite {
 
   test("method return types compile") {
     val _: Either[ConfigError, Option[String]]      = Right(None)
-    val _: Either[ConfigError, Map[String, String]] = Right(Map.empty)
+    val _: Either[ConfigError, Map[String, String]] = Right(Map.empty[String, String])
     assert(true)
   }
 
