@@ -1,0 +1,3 @@
+let demo = transactions-demo("fallible-failure-test");
+let result = demo.fallible-failure-demo();
+result

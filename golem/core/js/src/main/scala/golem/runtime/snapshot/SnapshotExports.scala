@@ -3,6 +3,7 @@ package golem.runtime.snapshot
 import golem.runtime.util.FutureInterop
 
 import scala.concurrent.Future
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
 import scala.scalajs.js.typedarray.Uint8Array
@@ -23,7 +24,6 @@ import scala.scalajs.js.typedarray.Uint8Array
  * {{{
  * import golem.runtime.snapshot.SnapshotExports
  * import scala.concurrent.Future
- * import scala.scalajs.js.typedarray.Uint8Array
  *
  * SnapshotExports.configure(
  *   save = () => Future.successful(serializeState()),
@@ -49,11 +49,11 @@ object SnapshotExports {
    * @param load
    *   Function accepting bytes and returning a Promise of completion
    */
-  def configureJs(
+  private[golem] def configureJs(
     save: () => js.Promise[Uint8Array],
     load: Uint8Array => js.Promise[Unit]
   ): Unit =
-    configure(
+    configureRaw(
       () => FutureInterop.fromPromise(save()),
       bytes => FutureInterop.fromPromise(load(bytes))
     )
@@ -69,6 +69,20 @@ object SnapshotExports {
    *   a previous snapshot.
    */
   def configure(
+    save: () => Future[Array[Byte]],
+    load: Array[Byte] => Future[Unit]
+  ): Unit =
+    configureRaw(
+      () => save().map(toUint8Array),
+      bytes => load(fromUint8Array(bytes))
+    )
+
+  /**
+   * Low-level variant that works with `Uint8Array` directly.
+   *
+   * Prefer [[configure]] unless you need raw typed-array access.
+   */
+  private[golem] def configureRaw(
     save: () => Future[Uint8Array],
     load: Uint8Array => Future[Unit]
   ): Unit = {
@@ -96,5 +110,25 @@ object SnapshotExports {
     @JSExport
     def load(bytes: Uint8Array): js.Promise[Unit] =
       FutureInterop.toPromise(loadHook(bytes))
+  }
+
+  private def toUint8Array(bytes: Array[Byte]): Uint8Array = {
+    val array = new Uint8Array(bytes.length)
+    var i     = 0
+    while (i < bytes.length) {
+      array(i) = (bytes(i) & 0xff).toShort
+      i += 1
+    }
+    array
+  }
+
+  private def fromUint8Array(bytes: Uint8Array): Array[Byte] = {
+    val out = new Array[Byte](bytes.length)
+    var i   = 0
+    while (i < bytes.length) {
+      out(i) = bytes(i).toByte
+      i += 1
+    }
+    out
   }
 }

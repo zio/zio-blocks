@@ -1,0 +1,3 @@
+let demo = agent-registry-demo("phantom-test");
+let result = demo.phantom-demo();
+result

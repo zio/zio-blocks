@@ -19,6 +19,7 @@ import scala.scalajs.js.typedarray.Uint8Array
  * Scala.js-only API (delegates to `golem:api/host@1.3.0`).
  */
 object HostApi {
+
   // ----- Core oplog / atomic region ---------------------------------------------------------
 
   type OplogIndex = BigInt
@@ -121,10 +122,18 @@ object HostApi {
     agentName: String,
     componentId: ComponentIdLiteral
   )
-  type UpdateMode             = AgentHostApi.UpdateMode
-  type RevertAgentTarget      = AgentHostApi.RevertAgentTarget
-  type RegisteredAgentType    = AgentHostApi.RegisteredAgentType
-  type AgentTypeDescriptor    = AgentHostApi.AgentTypeDescriptor
+  type UpdateMode        = AgentHostApi.UpdateMode
+  type RevertAgentTarget = AgentHostApi.RevertAgentTarget
+
+  /**
+   * A registered agent type as reported by the Golem host registry.
+   *
+   * @param typeName
+   *   The WIT type name (kebab-case, from `@agentDefinition`)
+   * @param implementedBy
+   *   The component that implements this agent type
+   */
+  final case class RegisteredAgentType(typeName: String, implementedBy: ComponentIdLiteral)
   type FilterComparator       = AgentHostApi.FilterComparator
   type StringFilterComparator = AgentHostApi.StringFilterComparator
   type AgentPropertyFilter    = AgentHostApi.AgentPropertyFilter
@@ -158,21 +167,45 @@ object HostApi {
   type UuidLiteral            = AgentHostApi.UuidLiteral
   val UuidLiteral: AgentHostApi.UuidLiteral.type               = AgentHostApi.UuidLiteral
   val ComponentIdLiteral: AgentHostApi.ComponentIdLiteral.type = AgentHostApi.ComponentIdLiteral
-  type AgentIdParts = AgentHostApi.AgentIdParts
+
+  /**
+   * The parsed components of a Golem agent ID string.
+   *
+   * @param agentTypeName
+   *   The agent type name
+   * @param phantom
+   *   Optional phantom UUID (for pre-provisioned instances)
+   */
+  final case class AgentIdParts(agentTypeName: String, phantom: Option[Uuid])
   val AgentIdLiteral: AgentHostApi.AgentIdLiteral.type     = AgentHostApi.AgentIdLiteral
   val PromiseIdLiteral: AgentHostApi.PromiseIdLiteral.type = AgentHostApi.PromiseIdLiteral
 
   def registeredAgentType(typeName: String): Option[RegisteredAgentType] =
-    AgentHostApi.registeredAgentType(typeName)
+    AgentHostApi.registeredAgentType(typeName).map(fromHostRegisteredAgentType)
 
   def getAllAgentTypes(): List[RegisteredAgentType] =
-    AgentHostApi.getAllAgentTypes()
+    AgentHostApi.getAllAgentTypes().map(fromHostRegisteredAgentType)
 
-  def makeAgentId(agentTypeName: String, payload: js.Dynamic, phantom: Option[Uuid]): Either[String, String] =
+  private[golem] def makeAgentId(
+    agentTypeName: String,
+    payload: js.Dynamic,
+    phantom: Option[Uuid]
+  ): Either[String, String] =
     AgentHostApi.makeAgentId(agentTypeName, payload, phantom)
 
-  def parseAgentId(agentId: String): Either[String, AgentIdParts] =
+  private[golem] def parseAgentIdRaw(agentId: String): Either[String, AgentHostApi.AgentIdParts] =
     AgentHostApi.parseAgentId(agentId)
+
+  /**
+   * Parses a Golem agent ID string into its components.
+   *
+   * @return
+   *   Either an error or the parsed parts (type name, phantom UUID)
+   */
+  def parseAgentId(agentId: String): Either[String, AgentIdParts] =
+    AgentHostApi.parseAgentId(agentId).map { raw =>
+      AgentIdParts(agentTypeName = raw.agentTypeName, phantom = raw.phantom)
+    }
 
   def resolveComponentId(componentReference: String): Option[ComponentIdLiteral] =
     AgentHostApi.resolveComponentId(componentReference)
@@ -471,13 +504,27 @@ object HostApi {
     out
   }
 
+  private def fromHostRegisteredAgentType(raw: AgentHostApi.RegisteredAgentType): RegisteredAgentType =
+    RegisteredAgentType(
+      typeName = raw.agentType.typeName,
+      implementedBy = raw.implementedBy
+    )
+
   private def fromHostMetadata(m: AgentHostApi.AgentMetadata): AgentMetadata = {
+    val dyn        = m.asInstanceOf[js.Dynamic]
     val args       = if (m.args == null || js.isUndefined(m.args)) Nil else m.args.toList
     val env        = tuplesToMap(m.env)
     val configVars = tuplesToMap(m.configVars)
     val compRev    =
       if (js.isUndefined(m.componentRevision.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.componentRevision)
-    val retry = if (js.isUndefined(m.retryCount.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.retryCount)
+    val retry     = if (js.isUndefined(m.retryCount.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.retryCount)
+    val agentType =
+      if (js.isUndefined(dyn.agentType) || dyn.agentType == null) "" else dyn.agentType.asInstanceOf[String]
+    val agentName =
+      if (js.isUndefined(dyn.agentName) || dyn.agentName == null) "" else dyn.agentName.asInstanceOf[String]
+    val componentId =
+      if (js.isUndefined(dyn.componentId) || dyn.componentId == null) m.agentId.componentId
+      else m.componentId
     AgentMetadata(
       agentId = m.agentId,
       args = args,
@@ -486,9 +533,9 @@ object HostApi {
       status = m.status,
       componentRevision = compRev,
       retryCount = retry,
-      agentType = m.agentType,
-      agentName = m.agentName,
-      componentId = m.componentId
+      agentType = agentType,
+      agentName = agentName,
+      componentId = componentId
     )
   }
 

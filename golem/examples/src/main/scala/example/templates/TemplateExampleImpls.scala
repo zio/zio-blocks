@@ -9,7 +9,6 @@ import scala.concurrent.Future
 import scala.language.reflectiveCalls
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import scala.scalajs.js.typedarray.{ArrayBuffer, DataView, Uint8Array}
 
 @agentImplementation()
 final class CounterImpl(@unused private val name: String) extends Counter {
@@ -63,7 +62,6 @@ final class TasksImpl(@unused private val name: String) extends Tasks {
 final class SnapshotCounterImpl(@unused private val name: String) extends SnapshotCounter {
   private var value: Int = 0
 
-  // Install component-level snapshot hooks, closing over this agent instance.
   SnapshotExports.configure(
     save = () => Future.successful(encodeU32(value)),
     load = bytes =>
@@ -79,17 +77,19 @@ final class SnapshotCounterImpl(@unused private val name: String) extends Snapsh
       value
     }
 
-  private def encodeU32(i: Int): Uint8Array = {
-    val buf  = new ArrayBuffer(4)
-    val view = new DataView(buf)
-    view.setUint32(0, i, false)
-    new Uint8Array(buf)
-  }
+  private def encodeU32(i: Int): Array[Byte] =
+    Array(
+      ((i >>> 24) & 0xff).toByte,
+      ((i >>> 16) & 0xff).toByte,
+      ((i >>> 8) & 0xff).toByte,
+      (i & 0xff).toByte
+    )
 
-  private def decodeU32(bytes: Uint8Array): Int = {
-    val view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-    view.getUint32(0, false).toInt
-  }
+  private def decodeU32(bytes: Array[Byte]): Int =
+    ((bytes(0) & 0xff) << 24) |
+      ((bytes(1) & 0xff) << 16) |
+      ((bytes(2) & 0xff) << 8) |
+      (bytes(3) & 0xff)
 }
 
 @agentImplementation()

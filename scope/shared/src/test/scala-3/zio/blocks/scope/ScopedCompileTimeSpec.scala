@@ -1,7 +1,6 @@
 package zio.blocks.scope
 
 import zio.test._
-import scala.compiletime.testing.typeCheckErrors
 
 /**
  * Tests that verify compile-time safety of scoped values.
