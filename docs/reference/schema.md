@@ -389,6 +389,7 @@ Here is an example of how to set and retrieve documentation values:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
+import zio.blocks.docs.Doc
 
 case class Person(name: String, age: Int)
 

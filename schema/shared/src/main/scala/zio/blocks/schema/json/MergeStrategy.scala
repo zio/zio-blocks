@@ -93,6 +93,7 @@ object MergeStrategy {
     r: (DynamicOptic, JsonType) => Boolean = (_, _) => true
   ) extends MergeStrategy {
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = r(path, jsonType)
+
     def apply(path: DynamicOptic, left: Json, right: Json): Json = f(path, left, right)
   }
 }

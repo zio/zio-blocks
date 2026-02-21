@@ -1,11 +1,12 @@
 package zio.blocks.schema.binding
 
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.binding.RegisterOffset._
+import zio.blocks.schema.{CommonMacroOps, DynamicValue, Platform, SchemaError}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
-import scala.quoted.*
-import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{CommonMacroOps, DynamicValue, Platform, SchemaError}
+import scala.quoted._
 
 trait BindingCompanionVersionSpecific {
 
@@ -53,13 +54,13 @@ trait BindingCompanionVersionSpecific {
 }
 
 private object BindingCompanionVersionSpecificImpl {
-  import scala.quoted.*
+  import scala.quoted._
 
   def of[A: Type](using Quotes): Expr[Binding[_, A]] = new BindingCompanionVersionSpecificImpl().of[A]
 }
 
 private class BindingCompanionVersionSpecificImpl(using Quotes) {
-  import quotes.reflect.*
+  import quotes.reflect._
 
   private val intTpe             = defn.IntClass.typeRef
   private val floatTpe           = defn.FloatClass.typeRef
@@ -76,89 +77,42 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   private val arrayClass         = defn.ArrayClass
   private val arrayOfWildcardTpe = arrayClass.typeRef.appliedTo(wildcard)
 
-  private def fail(msg: String): Nothing = throw new Exception(msg)
+  private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
-  private def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
+  private def isEnumValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumValue(tpe)
 
-  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
+  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumOrModuleValue(tpe)
 
-  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
-  }
+  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = CommonMacroOps.isSealedTraitOrAbstractClass(tpe)
 
-  private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
-  }
+  private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = CommonMacroOps.isNonAbstractScalaClass(tpe)
 
   private def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
-  private def isUnion(tpe: TypeRepr): Boolean = tpe match {
-    case OrType(_, _) => true
-    case _            => false
-  }
+  private def isUnion(tpe: TypeRepr): Boolean = CommonMacroOps.isUnion(tpe)
 
   private def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.allUnionTypes(tpe)
 
-  private def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
-    case AppliedType(_, args) => args
-    case _                    => Nil
-  }
+  private def typeArgs(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.typeArgs(tpe)
 
   private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.directSubTypes(tpe)
 
-  private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
+  private def isOpaque(tpe: TypeRepr): Boolean = CommonMacroOps.isOpaque(tpe)
 
-  private def opaqueDealias(tpe: TypeRepr): TypeRepr = {
-    @tailrec
-    def loop(tpe: TypeRepr): TypeRepr = tpe match {
-      case trTpe: TypeRef =>
-        if (trTpe.isOpaqueAlias) loop(trTpe.translucentSuperType.dealias)
-        else tpe
-      case AppliedType(atTpe, _)   => loop(atTpe.dealias)
-      case TypeLambda(_, _, tlTpe) => loop(tlTpe.dealias)
-      case _                       => tpe
-    }
+  private def opaqueDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.opaqueDealias(tpe)
 
-    val sTpe = loop(tpe)
-    if (sTpe =:= tpe) fail(s"Cannot dealias opaque type: ${tpe.show}.")
-    sTpe
-  }
+  private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = CommonMacroOps.isZioPreludeNewtype(tpe)
 
-  private def isZioPreludeNewtype(tpe: TypeRepr): Boolean = tpe match {
-    case TypeRef(compTpe, "Type") => compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-    case _                        => false
-  }
-
-  private def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
-    case TypeRef(compTpe, _) =>
-      compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
-        case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
-        case _         => fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
-      }
-    case _ => fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
-  }
+  private def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.zioPreludeNewtypeDealias(tpe)
 
   private def zioPreludeNewtypeCompanion(tpe: TypeRepr): Term = tpe match {
     case TypeRef(compTpe, _) => Ref(compTpe.typeSymbol.companionModule)
     case _                   => fail(s"Cannot get companion for zio-prelude newtype: ${tpe.show}.")
   }
 
-  private def isTypeRef(tpe: TypeRepr): Boolean = tpe match {
-    case trTpe: TypeRef =>
-      val typeSymbol = trTpe.typeSymbol
-      typeSymbol.isTypeDef && typeSymbol.isAliasType
-    case _ => false
-  }
+  private def isTypeRef(tpe: TypeRepr): Boolean = CommonMacroOps.isTypeRef(tpe)
 
-  private def typeRefDealias(tpe: TypeRepr): TypeRepr = tpe match {
-    case trTpe: TypeRef =>
-      val sTpe = trTpe.translucentSuperType.dealias
-      if (sTpe == trTpe) fail(s"Cannot dealias type reference: ${tpe.show}.")
-      sTpe
-    case _ => fail(s"Cannot dealias type reference: ${tpe.show}.")
-  }
+  private def typeRefDealias(tpe: TypeRepr): TypeRepr = CommonMacroOps.typeRefDealias(tpe)
 
   private def isGenericTuple(tpe: TypeRepr): Boolean = CommonMacroOps.isGenericTuple(tpe)
 
@@ -184,7 +138,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
   private def findSmartConstructor(tpe: TypeRepr): Option[SmartConstructorInfo] = {
     val eitherSymbol = Symbol.requiredClass("scala.util.Either")
-
     for {
       classSymbol <- tpe.classSymbol
       if !classSymbol.flags.is(Flags.Abstract) && !classSymbol.flags.is(Flags.Trait)
@@ -247,6 +200,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     deriveBinding[A](tpe).asExprOf[Binding[_, A]]
   }
 
+  @tailrec
   private def deriveBinding[A: Type](tpe: TypeRepr)(using Quotes): Expr[Any] =
     if (tpe =:= intTpe) '{ Binding.Primitive.int }
     else if (tpe =:= floatTpe) '{ Binding.Primitive.float }
@@ -316,7 +270,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     else if (isNonAbstractScalaClass(tpe)) {
       findSmartConstructor(tpe) match {
         case Some(info) => deriveSmartConstructorBinding[A](tpe, info)
-        case None       => deriveRecordBinding[A](tpe)
+        case _          => deriveRecordBinding[A](tpe)
       }
     } else if (isOpaque(tpe)) deriveOpaqueBinding[A](tpe)
     else if (isZioPreludeNewtype(tpe)) deriveZioPreludeNewtypeBinding[A](tpe)
@@ -449,7 +403,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   private def deriveUnionBinding[A: Type](tpe: TypeRepr)(using Quotes): Expr[Any] = {
     val subtypes = allUnionTypes(tpe)
     if (subtypes.isEmpty) fail(s"Cannot find sub-types for union type '${tpe.show}'.")
-
     val matcherCases = Varargs(subtypes.map { sTpe =>
       sTpe.asType match {
         case '[st] =>
@@ -463,7 +416,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           }.asInstanceOf[Expr[Matcher[? <: A]]]
       }
     })
-
     '{
       new Binding.Variant[A](
         discriminator = new Discriminator[A] {
@@ -488,7 +440,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     val companion     =
       if (owner.isClassDef && owner.flags.is(Flags.Module)) owner.companionModule
       else tpe.typeSymbol.companionModule
-
     if (companion == Symbol.noSymbol) {
       underlyingTpe.asType match {
         case '[b] =>
@@ -500,9 +451,8 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           }
       }
     } else {
-      val applyMethods = companion.methodMember("apply")
-      val eitherSymbol = Symbol.requiredClass("scala.util.Either")
-
+      val applyMethods        = companion.methodMember("apply")
+      val eitherSymbol        = Symbol.requiredClass("scala.util.Either")
       val smartConstructorOpt = applyMethods.find { method =>
         val methodType = companion.typeRef.memberType(method)
         methodType match {
@@ -519,7 +469,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           case _ => false
         }
       }
-
       smartConstructorOpt match {
         case Some(method) =>
           val returnType = companion.typeRef.memberType(method) match {
@@ -531,7 +480,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
             case _                               => fail(s"Unexpected return type for opaque smart constructor: ${tpe.show}")
           }
           val isSchemaError = errorType <:< TypeRepr.of[SchemaError]
-
           val unwrapMethods = companion.methodMember("unwrap") ++ companion.methodMember("value")
           val unwrapMethod  = unwrapMethods.find { m =>
             val mTpe = companion.typeRef.memberType(m)
@@ -542,7 +490,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
               case _ => false
             }
           }
-
           (underlyingTpe.asType, errorType.asType) match {
             case ('[b], '[e]) =>
               val wrapExpr: Expr[b => A] =
@@ -567,20 +514,17 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                     }
                   }
                 }
-
               val unwrapExpr: Expr[A => b] = unwrapMethod match {
                 case Some(m) =>
                   '{ (a: A) =>
                     ${ Apply(Select(Ref(companion), m), List('a.asTerm)).asExpr.asInstanceOf[Expr[b]] }
                   }
-                case None =>
+                case _ =>
                   '{ (a: A) => a.asInstanceOf[b] }
               }
-
               '{ Binding.Wrapper[A, b](wrap = $wrapExpr, unwrap = $unwrapExpr) }
           }
-
-        case None =>
+        case _ =>
           underlyingTpe.asType match {
             case '[b] =>
               '{
@@ -597,14 +541,12 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   private def deriveZioPreludeNewtypeBinding[A: Type](tpe: TypeRepr)(using Quotes): Expr[Any] = {
     val underlyingTpe = zioPreludeNewtypeDealias(tpe)
     val companion     = zioPreludeNewtypeCompanion(tpe)
-
-    val wrapMethod = companion.symbol
+    val wrapMethod    = companion.symbol
       .methodMember("wrap")
       .headOption
       .orElse(companion.symbol.methodMember("make").headOption)
     val unwrapMethod = companion.symbol.methodMember("unwrap").headOption
     val eitherSymbol = Symbol.requiredClass("scala.util.Either")
-
     underlyingTpe.asType match {
       case '[b] =>
         val wrapExpr: Expr[b => A] = wrapMethod match {
@@ -642,17 +584,15 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                   ${ Apply(Select(companion, m), List('underlying.asTerm)).asExpr.asInstanceOf[Expr[A]] }
                 }
             }
-          case None =>
+          case _ =>
             '{ (underlying: b) => underlying.asInstanceOf[A] }
         }
-
         val unwrapExpr: Expr[A => b] = unwrapMethod match {
           case Some(m) =>
             '{ (a: A) => ${ Apply(Select(companion, m), List('a.asTerm)).asExpr.asInstanceOf[Expr[b]] } }
-          case None =>
+          case _ =>
             '{ (a: A) => a.asInstanceOf[b] }
         }
-
         '{ Binding.Wrapper[A, b](wrap = $wrapExpr, unwrap = $unwrapExpr) }
     }
   }
@@ -662,7 +602,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     info: SmartConstructorInfo
   )(using Quotes): Expr[Any] = {
     val isSchemaError = info.errorType <:< TypeRepr.of[SchemaError]
-
     (info.underlyingType.asType, info.errorType.asType) match {
       case ('[b], '[e]) =>
         val wrapExpr: Expr[b => A] =
@@ -687,23 +626,18 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
               }
             }
           }
-
         val fieldName                = info.unwrapFieldName
         val fieldSymbol              = tpe.typeSymbol.fieldMember(fieldName)
         val unwrapExpr: Expr[A => b] = '{ (a: A) =>
           ${ Select('a.asTerm, fieldSymbol).asExpr.asInstanceOf[Expr[b]] }
         }
-
         '{ Binding.Wrapper[A, b](wrap = $wrapExpr, unwrap = $unwrapExpr) }
     }
   }
 
   private def deriveRecordBinding[A: Type](tpe: TypeRepr)(using Quotes): Expr[Any] = {
-    import zio.blocks.schema.binding.RegisterOffset.*
-
-    val classSymbol = tpe.classSymbol.getOrElse(fail(s"Cannot get class symbol for ${tpe.show}"))
-    val constructor = classSymbol.primaryConstructor
-
+    val classSymbol                              = tpe.classSymbol.getOrElse(fail(s"Cannot get class symbol for ${tpe.show}"))
+    val constructor                              = classSymbol.primaryConstructor
     val (tpeTypeArgs, tpeTypeParams, paramLists) = constructor.paramSymss match {
       case tps :: ps if tps.exists(_.isTypeParam) => (typeArgs(tpe), tps, ps.map(_.filterNot(_.isTypeParam)))
       case ps                                     => (Nil, Nil, ps.map(_.filterNot(_.isTypeParam)))
@@ -714,7 +648,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     val fieldLists = paramLists.map(_.map { sym =>
       var fieldTpe = tpe.memberType(sym).dealias
       if (tpeTypeArgs.nonEmpty) fieldTpe = fieldTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
-
       // Dealias newtypes/opaque types to get the underlying type for register type determination
       val dealiasedTpe = dealiasOnDemand(fieldTpe)
       val registerType =
@@ -728,11 +661,9 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         else if (dealiasedTpe <:< charTpe) RegisterType.Char
         else if (dealiasedTpe <:< unitTpe) RegisterType.Unit
         else RegisterType.Object()
-
       FieldInfo(sym.name, fieldTpe, registerType)
     })
-    val fields = fieldLists.flatten
-
+    val fields        = fieldLists.flatten
     val usedRegisters = fields.foldLeft(RegisterOffset.Zero) { (acc, f) =>
       f.registerType match {
         case RegisterType.Boolean      => RegisterOffset.add(acc, RegisterOffset(booleans = 1))
@@ -747,8 +678,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         case _: RegisterType.Object[?] => RegisterOffset.add(acc, RegisterOffset(objects = 1))
       }
     }
-    val usedRegistersExpr = Expr(usedRegisters)
-
+    val usedRegistersExpr                                       = Expr(usedRegisters)
     val constructorExpr: Expr[(Registers, RegisterOffset) => A] = '{ (in: Registers, offset: RegisterOffset) =>
       ${
         var currentOffset = RegisterOffset.Zero
@@ -757,8 +687,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           val offsetExpr    = Expr(currentOffset)
           val dealiasedType = dealiasOnDemand(f.tpe)
           val needsCast     = !(f.tpe =:= dealiasedType)
-
-          val argExpr = f.registerType match {
+          val argExpr       = f.registerType match {
             case RegisterType.Boolean =>
               currentOffset = RegisterOffset.add(currentOffset, RegisterOffset(booleans = 1))
               if (needsCast) f.tpe.asType match {
@@ -820,7 +749,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           }
           argExpr.asTerm
         }
-
         val argss      = fieldLists.map(_.map(fieldToArg))
         val newExpr    = New(Inferred(tpe))
         val selectCtor = Select(newExpr, constructor).appliedToTypes(tpeTypeArgs)
@@ -830,7 +758,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         applied.asExpr.asInstanceOf[Expr[A]]
       }
     }
-
     val deconstructorExpr: Expr[(Registers, RegisterOffset, A) => Unit] =
       '{ (out: Registers, offset: RegisterOffset, in: A) =>
         ${
@@ -847,12 +774,10 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
                   .getOrElse(fail(s"Cannot find field ${f.name} in ${tpe.show}"))
             }
             val fieldSelectTerm = Select('in.asTerm, fieldSymbol)
-
             // Check if field needs cast from newtype to underlying primitive
             val dealiasedType = dealiasOnDemand(f.tpe)
             val needsCast     = !(f.tpe =:= dealiasedType)
-
-            val stmt = f.registerType match {
+            val stmt          = f.registerType match {
               case RegisterType.Boolean =>
                 currentOffset = RegisterOffset.add(currentOffset, RegisterOffset(booleans = 1))
                 if (needsCast) {
@@ -983,7 +908,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           else Block(statements.init.toList, statements.last).asExpr.asInstanceOf[Expr[Unit]]
         }
       }
-
     '{
       new Binding.Record[A](
         constructor = new Constructor[A] {
@@ -1075,122 +999,116 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
   }
 
   private def deriveGenericTupleBinding[A: Type](tpe: TypeRepr)(using Quotes): Expr[Any] = {
-    import zio.blocks.schema.binding.RegisterOffset.*
-
-    val tTpe        = normalizeGenericTuple(tpe)
-    val tpeTypeArgs = genericTupleTypeArgs(tpe)
-
-    val fieldInfos = {
-      var usedRegisters = RegisterOffset.Zero
-      var idx           = 0
-      tpeTypeArgs.map { fTpe =>
-        val fieldInfo = TupleFieldInfo(idx, fTpe, usedRegisters)
-        usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
-        idx += 1
-        fieldInfo
+    val tTpe = normalizeGenericTuple(tpe)
+    if (isGenericTuple(tTpe)) {
+      val tpeTypeArgs = genericTupleTypeArgs(tTpe)
+      val fieldInfos  = {
+        var usedRegisters = RegisterOffset.Zero
+        var idx           = 0
+        tpeTypeArgs.map { fTpe =>
+          val fieldInfo = TupleFieldInfo(idx, fTpe, usedRegisters)
+          usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
+          idx += 1
+          fieldInfo
+        }
       }
-    }
-    val totalUsedRegisters = fieldInfos.lastOption
-      .map(f => RegisterOffset.add(f.usedRegisters, fieldOffset(f.tpe)))
-      .getOrElse(RegisterOffset.Zero)
-    val usedRegistersExpr = Expr(totalUsedRegisters)
-
-    tTpe.asType match {
-      case '[tt] =>
-        val constructorExpr: Expr[(Registers, RegisterOffset) => tt] = '{ (in: Registers, offset: RegisterOffset) =>
-          ${
-            if (fieldInfos.isEmpty) Expr(EmptyTuple).asInstanceOf[Expr[tt]]
-            else {
-              val symbol      = Symbol.newVal(Symbol.spliceOwner, "xs", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
-              val ref         = Ref(symbol)
-              val update      = Select(ref, defn.Array_update)
-              val assignments = fieldInfos.map { fieldInfo =>
-                Apply(
-                  update,
-                  List(Literal(IntConstant(fieldInfo.index)), tupleFieldConstructor('in, 'offset, fieldInfo))
-                )
+      val totalUsedRegisters = fieldInfos.lastOption
+        .map(f => RegisterOffset.add(f.usedRegisters, fieldOffset(f.tpe)))
+        .getOrElse(RegisterOffset.Zero)
+      val usedRegistersExpr = Expr(totalUsedRegisters)
+      tTpe.asType match {
+        case '[tt] =>
+          val constructorExpr: Expr[(Registers, RegisterOffset) => tt] = '{ (in: Registers, offset: RegisterOffset) =>
+            ${
+              if (fieldInfos.isEmpty) Expr(EmptyTuple).asInstanceOf[Expr[tt]]
+              else {
+                val symbol      = Symbol.newVal(Symbol.spliceOwner, "xs", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
+                val ref         = Ref(symbol)
+                val update      = Select(ref, defn.Array_update)
+                val assignments = fieldInfos.map { fieldInfo =>
+                  Apply(
+                    update,
+                    List(Literal(IntConstant(fieldInfo.index)), tupleFieldConstructor('in, 'offset, fieldInfo))
+                  )
+                }
+                val valDef   = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
+                val block    = Block(valDef :: assignments, ref)
+                val typeCast = Select(block, asInstanceOfMethod).appliedToType(iArrayOfAnyRefTpe)
+                Select(Apply(fromIArrayMethod, List(typeCast)), asInstanceOfMethod)
+                  .appliedToType(tTpe)
+                  .asExpr
+                  .asInstanceOf[Expr[tt]]
               }
-              val valDef   = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
-              val block    = Block(valDef :: assignments, ref)
-              val typeCast = Select(block, asInstanceOfMethod).appliedToType(iArrayOfAnyRefTpe)
-              Select(Apply(fromIArrayMethod, List(typeCast)), asInstanceOfMethod)
-                .appliedToType(tTpe)
-                .asExpr
-                .asInstanceOf[Expr[tt]]
             }
           }
-        }
-
-        val deconstructorExpr: Expr[(Registers, RegisterOffset, tt) => Unit] = '{
-          (out: Registers, offset: RegisterOffset, in: tt) =>
-            ${
-              val productElement = Select('in.asTerm, productElementMethod)
-              val statements     = fieldInfos.map { fieldInfo =>
-                val fTpe          = fieldInfo.tpe
-                val sTpe          = dealiasOnDemand(fTpe)
-                val getter        = productElement.appliedTo(Literal(IntConstant(fieldInfo.index))).asExpr
-                val usedRegisters = Expr(fieldInfo.usedRegisters)
-                (if (sTpe <:< intTpe) '{
-                   out.setInt(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Int])
-                 }
-                 else if (sTpe <:< floatTpe) '{
-                   out.setFloat(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Float])
-                 }
-                 else if (sTpe <:< longTpe) '{
-                   out.setLong(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Long])
-                 }
-                 else if (sTpe <:< doubleTpe) '{
-                   out.setDouble(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Double])
-                 }
-                 else if (sTpe <:< booleanTpe) '{
-                   out.setBoolean(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Boolean])
-                 }
-                 else if (sTpe <:< byteTpe) '{
-                   out.setByte(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Byte])
-                 }
-                 else if (sTpe <:< charTpe) '{
-                   out.setChar(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Char])
-                 }
-                 else if (sTpe <:< shortTpe) '{
-                   out.setShort(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Short])
-                 }
-                 else if (sTpe <:< unitTpe) '{ () }
-                 else
-                   '{ out.setObject(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[AnyRef]) }).asTerm
+          val deconstructorExpr: Expr[(Registers, RegisterOffset, tt) => Unit] = '{
+            (out: Registers, offset: RegisterOffset, in: tt) =>
+              ${
+                val productElement = Select('in.asTerm, productElementMethod)
+                val statements     = fieldInfos.map { fieldInfo =>
+                  val fTpe          = fieldInfo.tpe
+                  val sTpe          = dealiasOnDemand(fTpe)
+                  val getter        = productElement.appliedTo(Literal(IntConstant(fieldInfo.index))).asExpr
+                  val usedRegisters = Expr(fieldInfo.usedRegisters)
+                  (if (sTpe <:< intTpe) '{
+                     out.setInt(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Int])
+                   }
+                   else if (sTpe <:< floatTpe) '{
+                     out.setFloat(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Float])
+                   }
+                   else if (sTpe <:< longTpe) '{
+                     out.setLong(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Long])
+                   }
+                   else if (sTpe <:< doubleTpe) '{
+                     out.setDouble(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Double])
+                   }
+                   else if (sTpe <:< booleanTpe) '{
+                     out.setBoolean(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Boolean])
+                   }
+                   else if (sTpe <:< byteTpe) '{
+                     out.setByte(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Byte])
+                   }
+                   else if (sTpe <:< charTpe) '{
+                     out.setChar(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Char])
+                   }
+                   else if (sTpe <:< shortTpe) '{
+                     out.setShort(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[Short])
+                   }
+                   else if (sTpe <:< unitTpe) '{ () }
+                   else
+                     '{
+                       out.setObject(RegisterOffset.add(offset, $usedRegisters), $getter.asInstanceOf[AnyRef])
+                     }).asTerm
+                }
+                toBlock(statements).asExpr.asInstanceOf[Expr[Unit]]
               }
-              toBlock(statements).asExpr.asInstanceOf[Expr[Unit]]
-            }
-        }
+          }
+          '{
+            new Binding.Record[A](
+              constructor = new Constructor[A] {
+                def usedRegisters: RegisterOffset = $usedRegistersExpr
 
-        '{
-          new Binding.Record[A](
-            constructor = new Constructor[A] {
-              def usedRegisters: RegisterOffset = $usedRegistersExpr
+                def construct(in: Registers, offset: RegisterOffset): A = $constructorExpr(in, offset).asInstanceOf[A]
+              },
+              deconstructor = new Deconstructor[A] {
+                def usedRegisters: RegisterOffset = $usedRegistersExpr
 
-              def construct(in: Registers, offset: RegisterOffset): A = $constructorExpr(in, offset).asInstanceOf[A]
-            },
-            deconstructor = new Deconstructor[A] {
-              def usedRegisters: RegisterOffset = $usedRegistersExpr
-
-              def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit =
-                $deconstructorExpr(out, offset, in.asInstanceOf[tt])
-            }
-          )
-        }
-    }
+                def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit =
+                  $deconstructorExpr(out, offset, in.asInstanceOf[tt])
+              }
+            )
+          }
+      }
+    } else tTpe.asType match { case '[tt] => deriveRecordBinding[tt](tTpe) }
   }
 
   private def deriveNamedTupleBinding[A: Type](originalTpe: TypeRepr)(using Quotes): Expr[Any] = {
-    import zio.blocks.schema.binding.RegisterOffset.*
-
     val tpeTypeArgs = typeArgs(originalTpe)
     var tTpe        = tpeTypeArgs.last
     if (isGenericTuple(tTpe)) tTpe = normalizeGenericTuple(tTpe)
-
     val valueTupleTypeArgs =
       if (isGenericTuple(tpeTypeArgs.last)) genericTupleTypeArgs(tpeTypeArgs.last)
       else typeArgs(tpeTypeArgs.last)
-
     val fieldInfos = {
       var usedRegisters = RegisterOffset.Zero
       var idx           = 0
@@ -1206,7 +1124,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       .getOrElse(RegisterOffset.Zero)
     val usedRegistersExpr = Expr(totalUsedRegisters)
     val isLargeTuple      = valueTupleTypeArgs.size > 22
-
     tTpe.asType match {
       case '[tt] =>
         val constructorExpr: Expr[(Registers, RegisterOffset) => tt] = '{ (in: Registers, offset: RegisterOffset) =>
@@ -1235,11 +1152,9 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
               val tupleClassSymbol = tTpe.classSymbol.getOrElse(fail(s"Cannot get class symbol for tuple ${tTpe.show}"))
               val tupleConstructor = tupleClassSymbol.primaryConstructor
               val tupleTypeArgs    = typeArgs(tTpe)
-              val args             = fieldInfos.map { fieldInfo =>
-                tupleFieldConstructor('in, 'offset, fieldInfo)
-              }
-              val newExpr    = New(Inferred(tTpe))
-              val selectCtor = Select(newExpr, tupleConstructor).appliedToTypes(tupleTypeArgs)
+              val args             = fieldInfos.map(fieldInfo => tupleFieldConstructor('in, 'offset, fieldInfo))
+              val newExpr          = New(Inferred(tTpe))
+              val selectCtor       = Select(newExpr, tupleConstructor).appliedToTypes(tupleTypeArgs)
               Apply(selectCtor, args).asExpr.asInstanceOf[Expr[tt]]
             }
           }
@@ -1253,8 +1168,7 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
               val tupleValDef    = ValDef(tupleSymbol, new Some(toTupleCall))
               val tupleRef       = Ref(tupleSymbol)
               val productElement = Select(tupleRef, productElementMethod)
-
-              val statements = fieldInfos.map { fieldInfo =>
+              val statements     = fieldInfos.map { fieldInfo =>
                 val fTpe          = fieldInfo.tpe
                 val sTpe          = dealiasOnDemand(fTpe)
                 val getter        = productElement.appliedTo(Literal(IntConstant(fieldInfo.index))).asExpr
@@ -1291,7 +1205,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
               Block(List(tupleValDef), toBlock(statements)).asExpr.asInstanceOf[Expr[Unit]]
             }
         }
-
         '{
           new Binding.Record[A](
             constructor = new Constructor[A] {
@@ -1311,43 +1224,34 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
   // ============ Structural Type Support (JVM only) ============
 
-  private def isStructuralType(tpe: TypeRepr): Boolean = {
-    val dealiased = tpe.dealias
-    dealiased match {
-      case Refinement(_, _, _)     => true
-      case AndType(left, right)    => isStructuralType(left) || isStructuralType(right)
-      case AnnotatedType(inner, _) => isStructuralType(inner)
-      case _                       => false
-    }
+  private def isStructuralType(tpe: TypeRepr): Boolean = tpe.dealias match {
+    case Refinement(_, _, _)     => true
+    case AndType(left, right)    => isStructuralType(left) || isStructuralType(right)
+    case AnnotatedType(inner, _) => isStructuralType(inner)
+    case _                       => false
   }
 
-  private def isUnionOfStructuralTypes(tpe: TypeRepr): Boolean =
-    tpe.dealias match {
-      case OrType(left, right) =>
-        (isStructuralType(left) || isUnionOfStructuralTypes(left)) &&
-        (isStructuralType(right) || isUnionOfStructuralTypes(right))
-      case _ => false
-    }
+  private def isUnionOfStructuralTypes(tpe: TypeRepr): Boolean = tpe.dealias match {
+    case OrType(left, right) =>
+      (isStructuralType(left) || isUnionOfStructuralTypes(left)) &&
+      (isStructuralType(right) || isUnionOfStructuralTypes(right))
+    case _ => false
+  }
 
   private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
-    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = {
-      val dealiased = t.dealias
-      dealiased match {
-        case Refinement(parent, name, info) =>
-          val memberType = info match {
-            case MethodType(Nil, Nil, returnType)            => returnType
-            case MethodType(_, params, _) if params.nonEmpty =>
-              fail(s"Structural type member '$name' has parameters, which is not supported.")
-            case ByNameType(underlying) => underlying
-            case other                  => other
-          }
-          (name, memberType) :: collectMembers(parent)
-        case AndType(left, right) =>
-          collectMembers(left) ++ collectMembers(right)
-        case AnnotatedType(inner, _) =>
-          collectMembers(inner)
-        case _ => Nil
-      }
+    def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t.dealias match {
+      case Refinement(parent, name, info) =>
+        val memberType = info match {
+          case MethodType(Nil, Nil, returnType)            => returnType
+          case MethodType(_, params, _) if params.nonEmpty =>
+            fail(s"Structural type member '$name' has parameters, which is not supported.")
+          case ByNameType(underlying) => underlying
+          case other                  => other
+        }
+        (name, memberType) :: collectMembers(parent)
+      case AndType(left, right)    => collectMembers(left) ++ collectMembers(right)
+      case AnnotatedType(inner, _) => collectMembers(inner)
+      case _                       => Nil
     }
 
     val members = collectMembers(tpe)
@@ -1363,12 +1267,10 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     members.distinctBy(_._1).sortBy(_._1)
   }
 
-  private def getAllUnionTypesForStructural(tpe: TypeRepr): List[TypeRepr] =
-    tpe.dealias match {
-      case OrType(left, right) =>
-        getAllUnionTypesForStructural(left) ++ getAllUnionTypesForStructural(right)
-      case other => List(other)
-    }
+  private def getAllUnionTypesForStructural(tpe: TypeRepr): List[TypeRepr] = tpe.dealias match {
+    case OrType(left, right) => getAllUnionTypesForStructural(left) ++ getAllUnionTypesForStructural(right)
+    case other               => List(other)
+  }
 
   private def structuralRegisterKind(tpe: TypeRepr): String =
     tpe.dealias match {
@@ -1407,16 +1309,13 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
            |Use case classes for cross-platform compatibility.""".stripMargin
       )
     }
-
     val members = getStructuralMembers(tpe)
     if (members.isEmpty) {
       fail(s"Structural type ${tpe.show} has no members. Cannot derive Binding.")
     }
-
     val fields = members.zipWithIndex.map { case ((name, memberTpe), idx) =>
       StructuralFieldForGen(name, memberTpe, structuralRegisterKind(memberTpe), idx)
     }
-
     val totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset] = {
       var acc: Expr[RegisterOffset.RegisterOffset] = '{ 0L }
       fields.foreach { f =>
@@ -1424,12 +1323,9 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       }
       acc
     }
-
     val constructorExpr: Expr[Constructor[A]] =
       generateStructuralConstructorWithRealMethods[A](fields, totalUsedRegistersExpr)
-
     val deconstructorExpr: Expr[Deconstructor[A]] = generateStructuralDeconstructor[A](fields, totalUsedRegistersExpr)
-
     '{ new Binding.Record[A]($constructorExpr, $deconstructorExpr) }
   }
 
@@ -1438,7 +1334,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     totalUsedRegistersExpr: Expr[RegisterOffset.RegisterOffset]
   ): Expr[Constructor[A]] = {
     val fieldKindsExpr = Expr(fields.map(_.kind).toArray)
-
     // Generate anonymous class factory using Symbol.newClass (Scala 3.5+ only)
     val instanceCreatorExpr: Expr[Array[Any] => A] = generateAnonymousClassFactory[A](fields)
 
@@ -1601,7 +1496,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
            |Use sealed traits for cross-platform compatibility.""".stripMargin
       )
     }
-
     val unionTypes = getAllUnionTypesForStructural(tpe)
     if (unionTypes.size < 2) {
       fail(s"Union type ${tpe.show} needs at least 2 alternatives.")
@@ -1616,7 +1510,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       }
       VariantCase(t, members, members.map(_._1).toArray)
     }
-
     val otherCasesMembers = cases.map(_.members.map(_._1).toSet)
     cases.zipWithIndex.foreach { case (c, i) =>
       val myMembers     = c.members.map(_._1).toSet
@@ -1672,7 +1565,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         }
       }
     }
-
     val matcherExprs: List[Expr[Matcher[?]]] = cases.map { c =>
       c.tpe.asType match {
         case '[t] =>
@@ -1688,7 +1580,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
           }
       }
     }
-
     val matchersExpr = matcherExprs match {
       case Nil             => fail("No matchers generated")
       case m :: Nil        => '{ Matchers($m.asInstanceOf[Matcher[? <: A]]) }
@@ -1697,7 +1588,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         val varargs = Varargs(all.map(m => '{ $m.asInstanceOf[Matcher[? <: A]] }))
         '{ Matchers($varargs*) }
     }
-
     '{ new Binding.Variant[A]($discriminatorExpr, $matchersExpr) }
   }
 }

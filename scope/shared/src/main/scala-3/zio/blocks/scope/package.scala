@@ -1,115 +1,69 @@
 package zio.blocks
 
-import zio.blocks.context.{Context, IsNominalType}
-import zio.blocks.scope.internal.Finalizers
-
 /**
- * Top-level functions for the Scope dependency injection library.
+ * Scope: A compile-time safe resource management library using scope-local
+ * opaque types.
  *
- * Import `zio.blocks.scope._` to access these functions.
+ * ==Quick Start==
+ *
+ * {{{
+ * import zio.blocks.scope._
+ *
+ * Scope.global.scoped { scope =>
+ *   import scope._
+ *   val db: $[Database] = allocate(Resource[Database])
+ *   val result: $[Int] = (scope $ db)(_.query("SELECT 1"))
+ *   result  // Returns $[Int], unwrapped to Int at boundary
+ * }
+ * }}}
+ *
+ * ==Key Concepts==
+ *
+ *   - '''Scoped values''' (`scope.$[A]`): Values tied to a scope, preventing
+ *     escape
+ *   - '''`import scope._`''': Bring scope operations into lexical scope
+ *   - '''`allocate(resource)`''': Allocate a value in the current scope
+ *   - '''`(scope $ value)(f)`''': Apply a function to a scoped value
+ *   - '''`scoped { s => ... }`''': Create a child scope
+ *   - '''`defer { ... }`''': Register cleanup to run when scope closes
+ *
+ * ==How It Works==
+ *
+ * Each scope has its own `$[A]` opaque type. Child scopes create structurally
+ * incompatible `$[A]` types, preventing sibling-scoped values from being mixed.
+ * Parent-scoped values can be lowered into child scopes via `lower()`.
+ *
+ * The `.scoped` method requires `Unscoped[A]` evidence on the return type,
+ * ensuring only pure data (not resources or closures) can escape.
+ *
+ * @see
+ *   [[scope.Scope]] for scope types and operations [[scope.Resource]] for
+ *   creating scoped values [[scope.Unscoped]] for types that can cross scope
+ *   boundaries
  */
 package object scope {
 
   /**
    * Registers a finalizer to run when the current scope closes.
    *
+   * Finalizers run in LIFO order (last registered runs first). If a finalizer
+   * throws, subsequent finalizers still run.
+   *
    * @example
    *   {{{
-   *   class MyService()(using Scope.Any) {
+   *   Scope.global.scoped { scope =>
    *     val resource = acquire()
-   *     defer { resource.release() }
+   *     scope.defer { resource.release() }
+   *     // use resource...
    *   }
    *   }}}
+   *
+   * @param finalizer
+   *   a by-name expression to execute on scope close
+   * @param fin
+   *   the finalizer capability to register cleanup with
    */
-  def defer(finalizer: => Unit)(using scope: Scope.Any): Unit =
-    scope.defer(finalizer)
+  def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle =
+    fin.defer(finalizer)
 
-  /**
-   * Retrieves a service from the current scope, scoped with the scope's
-   * identity.
-   *
-   * The returned value is scoped to prevent escape. Use the `$` operator on the
-   * scoped value to access methods:
-   *
-   * @example
-   *   {{{
-   *   def doWork()(using scope: Scope.Has[Database]): Unit = {
-   *     val db = $[Database]           // Database @@ scope.Tag
-   *     db $ (_.query("SELECT ..."))   // String (unscoped, since String is Unscoped)
-   *   }
-   *   }}}
-   */
-  inline def $[T](using scope: Scope.Has[T], nom: IsNominalType[T]): T @@ scope.Tag =
-    @@.scoped(scope.get[T])
-
-  /**
-   * Creates a closeable scope containing the given value.
-   *
-   * If the value is `AutoCloseable`, its `close()` method is automatically
-   * registered as a finalizer.
-   *
-   * @example
-   *   {{{
-   *   val config = Config.load()
-   *   injected(config).run {
-   *     val cfg = $[Config]
-   *     cfg $ (_.dbUrl)
-   *   }
-   *   }}}
-   */
-  def injected[T](t: T)(using scope: Scope.Any, nom: IsNominalType[T]): Scope.Closeable[T, ?] = {
-    val ctx        = Context(t)
-    val finalizers = new Finalizers
-    if (t.isInstanceOf[AutoCloseable]) {
-      finalizers.add(t.asInstanceOf[AutoCloseable].close())
-    }
-    Scope.makeCloseable(scope, ctx, finalizers)
-  }
-
-  /**
-   * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
-   *
-   * If a `Wireable[T]` exists in implicit scope, it is used. Otherwise, the
-   * macro inspects `T`'s primary constructor and generates a wire that:
-   *   - Retrieves constructor parameters from the scope
-   *   - Passes an implicit `Scope` parameter if present
-   *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
-   *
-   * @example
-   *   {{{
-   *   Scope.global.injected[App](shared[Database], shared[Cache]).run { ... }
-   *   }}}
-   */
-  transparent inline def shared[T]: Wire.Shared[?, T] = ${ ScopeMacros.sharedImpl[T] }
-
-  /**
-   * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
-   *
-   * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used.
-   */
-  transparent inline def unique[T]: Wire.Unique[?, T] = ${ ScopeMacros.uniqueImpl[T] }
-
-  /**
-   * Creates a child scope containing an instance of `T` and its dependencies.
-   *
-   * The macro inspects `T`'s constructor to determine dependencies.
-   * Dependencies are resolved from:
-   *   1. Provided wires (in order)
-   *   2. The parent scope's stack
-   *
-   * @example
-   *   {{{
-   *   Scope.global.injected[App](shared[Config]).run {
-   *     // App and Config are available here
-   *     val app = $[App]
-   *     app.run()
-   *   }
-   *   }}}
-   */
-  inline def injected[T](using scope: Scope.Any): Scope.Closeable[T, ?] =
-    ${ ScopeMacros.injectedImpl[T]('{ Seq.empty[Wire[?, ?]] }, 'scope) }
-
-  inline def injected[T](inline wires: Wire[?, ?]*)(using scope: Scope.Any): Scope.Closeable[T, ?] =
-    ${ ScopeMacros.injectedImpl[T]('wires, 'scope) }
 }

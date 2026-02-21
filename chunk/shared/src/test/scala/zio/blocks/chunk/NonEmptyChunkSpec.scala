@@ -21,18 +21,13 @@ import zio.test._
 
 object NonEmptyChunkSpec extends ChunkBaseSpec {
 
-  lazy val genChunkLocal: Gen[Any, Chunk[Int]] = genChunk(genInt)
-
-  lazy val genInt: Gen[Any, Int] = Gen.int(-10, 10)
-
-  lazy val genIntFunction: Gen[Any, Any => Int] = Gen.function(genInt)
-
-  lazy val genIntFunction2: Gen[Any, (Any, Any) => Int] = Gen.function2(genInt)
-
-  lazy val genNonEmptyChunkLocal: Gen[Any, NonEmptyChunk[Int]] = genNonEmptyChunk(genInt)
-
-  lazy val genNonEmptyChunkFunction: Gen[Any, Any => NonEmptyChunk[Int]] =
-    Gen.function(genNonEmptyChunkLocal)
+  val genInt: Gen[Any, Int]                                         = Gen.int(-10, 10)
+  val genChunkLocal: Gen[Any, Chunk[Int]]                           = genChunk(genInt)
+  val genIntFunction: Gen[Any, Any => Int]                          = Gen.function(genInt)
+  val genIntFunction2: Gen[Any, (Any, Any) => Int]                  = Gen.function2(genInt)
+  val genNonEmptyChunkLocal: Gen[Any, NonEmptyChunk[Int]]           = genNonEmptyChunk(genInt)
+  val genBooleanFunction: Gen[Any, Any => Boolean]                  = Gen.function(Gen.boolean)
+  val genNonEmptyChunkFunction: Gen[Any, Any => NonEmptyChunk[Int]] = Gen.function(genNonEmptyChunkLocal)
 
   def spec = suite("NonEmptyChunkSpec")(
     test("+") {
@@ -51,10 +46,29 @@ object NonEmptyChunkSpec extends ChunkBaseSpec {
         }
       }
     ),
+    test("distinct") {
+      check(genNonEmptyChunkLocal)(as => assert(as.distinct.toChunk)(equalTo(as.toChunk.distinct)))
+    },
+    test("exists") {
+      check(genNonEmptyChunkLocal, genBooleanFunction)((as, f) => assert(as.exists(f))(equalTo(as.toChunk.exists(f))))
+    },
     test("flatMap") {
       check(genNonEmptyChunkLocal, genNonEmptyChunkFunction) { (as, f) =>
         assert(as.flatMap(f).toChunk)(equalTo(as.toChunk.flatMap(a => f(a).toChunk)))
       }
+    },
+    test("foldLeft") {
+      check(genNonEmptyChunkLocal, genInt, genIntFunction2) { (as, z, f) =>
+        assert(as.foldLeft(z)(f))(equalTo(as.toChunk.foldLeft(z)(f)))
+      }
+    },
+    test("forall") {
+      check(genNonEmptyChunkLocal, genBooleanFunction)((as, f) => assert(as.forall(f))(equalTo(as.toChunk.forall(f))))
+    },
+    test("grouped") {
+      check(genNonEmptyChunkLocal, genInt.filter(_ > 0))((as, n) =>
+        assert(as.grouped(n).map(_.toChunk).toList)(equalTo(as.toChunk.grouped(n).toList))
+      )
     },
     test("groupBy") {
       check(genNonEmptyChunkLocal, genIntFunction)((as, f) =>
@@ -69,8 +83,14 @@ object NonEmptyChunkSpec extends ChunkBaseSpec {
         }))
       )
     },
+    test("hashcode") {
+      check(genNonEmptyChunkLocal)(as => assert(as.hashCode)(equalTo(as.toChunk.hashCode)))
+    },
     test("map") {
       check(genNonEmptyChunkLocal, genIntFunction)((as, f) => assert(as.map(f).toChunk)(equalTo(as.toChunk.map(f))))
+    },
+    test("materialize") {
+      check(genNonEmptyChunkLocal)(as => assert(as.materialize)(equalTo(as)))
     },
     test("reduceMapLeft") {
       check(genNonEmptyChunkLocal, genIntFunction, genIntFunction2) { (as, map, reduce) =>
@@ -84,6 +104,51 @@ object NonEmptyChunkSpec extends ChunkBaseSpec {
         val actual   = as.reduceMapRight(map)(reduce)
         val expected = as.init.foldRight(map(as.last))(reduce)
         assert(actual)(equalTo(expected))
+      }
+    },
+    test("reduce") {
+      check(genNonEmptyChunkLocal, genIntFunction2)((as, f) => assert(as.reduce(f))(equalTo(as.toChunk.reduce(f))))
+    },
+    test("reverse") {
+      check(genNonEmptyChunkLocal)(as => assert(as.reverse.toChunk)(equalTo(as.toChunk.reverse)))
+    },
+    test("size") {
+      check(genNonEmptyChunkLocal)(as => assert(as.size)(equalTo(as.toChunk.size)))
+    },
+    test("sorted") {
+      check(genNonEmptyChunkLocal)(as => assert(as.sorted.toChunk)(equalTo(as.toChunk.sorted)))
+    },
+    test("sortBy") {
+      check(genNonEmptyChunkLocal, genIntFunction) { (as, f) =>
+        assert(as.sortBy(f).toChunk)(equalTo(as.toChunk.sortBy(f)))
+      }
+    },
+    test("toArray") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toArray)(equalTo(as.toChunk.toArray)))
+    },
+    test("toChunk") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toChunk)(equalTo(Chunk.from(as))))
+    },
+    test("toCons") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toCons)(equalTo(as.toChunk.toList)))
+    },
+    test("toIterable") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toIterable)(equalTo(as.toChunk)))
+    },
+    test("toList") {
+      check(genNonEmptyChunkLocal)(as => assert(as.toList)(equalTo(as.toChunk.toList)))
+    },
+    test("zip") {
+      check(genNonEmptyChunkLocal, genNonEmptyChunkLocal) { (as1, as2) =>
+        assert(as1.zip(as2).toChunk)(equalTo(as1.toChunk.zip(as2.toChunk)))
+      }
+    },
+    test("zipWithIndex") {
+      check(genNonEmptyChunkLocal)(as => assert(as.zipWithIndex.toChunk)(equalTo(as.toChunk.zipWithIndex)))
+    },
+    test("zipWithIndexFrom") {
+      check(genNonEmptyChunkLocal, genInt) { (as, n) =>
+        assert(as.zipWithIndexFrom(n).toChunk)(equalTo(as.toChunk.zipWithIndexFrom(n)))
       }
     },
     suite("unapplySeq")(

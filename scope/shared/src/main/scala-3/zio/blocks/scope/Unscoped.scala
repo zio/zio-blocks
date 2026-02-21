@@ -6,22 +6,70 @@ package zio.blocks.scope
  * Types with an `Unscoped` instance are considered "safe data" - they don't
  * hold resources and can be freely extracted from a scope without tracking.
  *
- * Primitives, strings, and collections of unscoped types are unscoped by
- * default. Resource types (streams, connections, handles) should NOT have
- * instances.
+ * ==Default Instances==
+ *
+ * The following types have `Unscoped` instances by default:
+ *   - Primitives: `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`,
+ *     `Double`, `Unit`
+ *   - Text: `String`
+ *   - Numeric: `BigInt`, `BigDecimal`
+ *   - Collections: `Array`, `List`, `Vector`, `Set`, `Seq`, `IndexedSeq`,
+ *     `Iterable`, `Map` (when elements are `Unscoped`)
+ *   - Containers: `Option`, `Either` (when elements are `Unscoped`)
+ *   - Tuples: up to 4-tuples (when elements are `Unscoped`)
+ *   - Time: `java.time.*` value types, `scala.concurrent.duration.*`
+ *   - Other: `java.util.UUID`, [[zio.blocks.chunk.Chunk]]
+ *
+ * ==Resource Types==
+ *
+ * Types representing resources (streams, connections, handles, etc.) should NOT
+ * have `Unscoped` instances. This ensures they remain tracked by the scope
+ * system and cannot accidentally escape.
  *
  * @example
  *   {{{
- *   // Primitives escape freely
- *   val n: Int = stream $ (_.read())  // Int is Unscoped
+ *   // Primitives escape freely (auto-unwrapped by $)
+ *   Scope.global.scoped { s =>
+ *     import s._
+ *     (s $ stream)(_.read()) // returns Int directly since Int: Unscoped
+ *   }
  *
  *   // Resources stay scoped
- *   val body = request $ (_.body)     // InputStream @@ Tag (not raw InputStream)
+ *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped (no Unscoped instance)
  *   }}}
+ *
+ * @tparam A
+ *   the type that can escape scopes
  */
 trait Unscoped[A]
 
-object Unscoped {
+/**
+ * Low-priority Unscoped instances to avoid ambiguity.
+ */
+private[scope] trait UnscopedLowPriority {
+  // Nothing - can always escape (never actually returned)
+  // Must be low priority since Nothing <: A for all A
+  given given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
+}
+
+/**
+ * Companion object providing given instances for common types.
+ *
+ * ==Adding Custom Instances==
+ *
+ * To mark your own type as safe to escape scopes, define a given instance:
+ *
+ * {{{
+ * case class UserId(value: Long)
+ * object UserId {
+ *   given Unscoped[UserId] = new Unscoped[UserId] {}
+ * }
+ * }}}
+ *
+ * Only add `Unscoped` instances for pure data types that don't hold resources.
+ * Resource types (streams, connections, handles) should NOT have instances.
+ */
+object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives
   given Unscoped[Int]        = new Unscoped[Int] {}
   given Unscoped[Long]       = new Unscoped[Long] {}
@@ -79,6 +127,7 @@ object Unscoped {
   given Unscoped[scala.concurrent.duration.FiniteDuration] =
     new Unscoped[scala.concurrent.duration.FiniteDuration] {}
 
-  // zio-blocks Chunk
+  // zio-blocks types
   given [A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] = new Unscoped[zio.blocks.chunk.Chunk[A]] {}
+
 }

@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -15,42 +15,56 @@ private[schema] object JsonSchemaToReflect {
 
   private[this] def typeIdFromTitle(title: Option[String]): TypeId[DynamicValue] = title match {
     case Some(name) => TypeId.nominal[DynamicValue](name, Owner.Root)
-    case None       => TypeId.of[DynamicValue]
+    case _          => TypeId.of[DynamicValue]
   }
 
   private[json] sealed trait Shape
+
   private[json] object Shape {
     sealed trait PrimKind
+
     object PrimKind {
-      case object String  extends PrimKind
+      case object String extends PrimKind
+
       case object Integer extends PrimKind
-      case object Number  extends PrimKind
+
+      case object Number extends PrimKind
+
       case object Boolean extends PrimKind
-      case object Null    extends PrimKind
+
+      case object Null extends PrimKind
     }
 
-    case class Primitive(kind: PrimKind, schema: JsonSchema.Object)                               extends Shape
-    case class Record(fields: List[(String, JsonSchema)], required: Set[String], closed: Boolean) extends Shape
-    case class MapShape(values: JsonSchema)                                                       extends Shape
-    case class Sequence(items: JsonSchema)                                                        extends Shape
-    case class Tuple(prefixItems: List[JsonSchema])                                               extends Shape
-    case class Enum(cases: List[String])                                                          extends Shape
-    case class KeyVariant(cases: List[(String, JsonSchema)])                                      extends Shape
-    case class FieldVariant(discriminator: String, cases: List[(String, JsonSchema)])             extends Shape
-    case class OptionOf(inner: JsonSchema)                                                        extends Shape
-    case object Dynamic                                                                           extends Shape
+    case class Primitive(kind: PrimKind, schema: JsonSchema.Object) extends Shape
+
+    case class Record(fields: ChunkMap[String, JsonSchema], required: Set[String], closed: Boolean) extends Shape
+
+    case class MapShape(values: JsonSchema) extends Shape
+
+    case class Sequence(items: JsonSchema) extends Shape
+
+    case class Tuple(prefixItems: Chunk[JsonSchema]) extends Shape
+
+    case class Enum(cases: Chunk[String]) extends Shape
+
+    case class KeyVariant(cases: ChunkMap[String, JsonSchema]) extends Shape
+
+    case class FieldVariant(discriminator: String, cases: ChunkMap[String, JsonSchema]) extends Shape
+
+    case class OptionOf(inner: JsonSchema) extends Shape
+
+    case object Dynamic extends Shape
   }
 
   def toReflect(jsonSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
     val shape = analyze(jsonSchema)
-    val base  = build(shape, jsonSchema)
-    wrapWithValidation(jsonSchema, shape, base)
+    wrapWithValidation(jsonSchema, shape, build(shape, jsonSchema))
   }
 
   private[json] def analyze(schema: JsonSchema): Shape = schema match {
-    case JsonSchema.True        => Shape.Dynamic
-    case JsonSchema.False       => Shape.Dynamic
-    case obj: JsonSchema.Object =>
+    case _: JsonSchema.True.type  => Shape.Dynamic
+    case _: JsonSchema.False.type => Shape.Dynamic
+    case obj: JsonSchema.Object   =>
       analyzeEnum(obj)
         .orElse(analyzeOption(obj))
         .orElse(analyzeVariant(obj))
@@ -64,18 +78,19 @@ private[schema] object JsonSchemaToReflect {
   private[this] def analyzeEnum(obj: JsonSchema.Object): Option[Shape] =
     obj.`enum` match {
       case Some(values) =>
-        // values is ::[Json], guaranteed non-empty by type
         val strings = values.collect { case Json.String(s) => s }
         if (strings.length == values.length) new Some(new Shape.Enum(strings))
         else None
-      case None => None
+      case _ => None
     }
 
   private[this] def analyzeOption(obj: JsonSchema.Object): Option[Shape] =
     obj.`type` match {
       case Some(SchemaType.Union(types)) if types.length == 2 && types.contains(JsonSchemaType.Null) =>
-        types.filterNot(_ == JsonSchemaType.Null).headOption.flatMap { jt =>
-          new Some(new Shape.OptionOf(new JsonSchema.Object(`type` = new Some(new SchemaType.Single(jt)))))
+        types.collectFirst { case jt if jt ne JsonSchemaType.Null => jt } match {
+          case Some(jt) =>
+            new Some(new Shape.OptionOf(new JsonSchema.Object(`type` = new Some(new SchemaType.Single(jt)))))
+          case _ => None
         }
       case _ =>
         obj.anyOf match {
@@ -102,26 +117,25 @@ private[schema] object JsonSchemaToReflect {
     case _           => None
   }
 
-  private[this] def analyzeKeyDiscriminatedVariant(cases: ::[JsonSchema]): Option[Shape.KeyVariant] = {
-    val extracted = cases.flatMap {
+  private[this] def analyzeKeyDiscriminatedVariant(cases: NonEmptyChunk[JsonSchema]): Option[Shape.KeyVariant] = {
+    val extracted = cases.toChunk.flatMap {
       case caseObj: JsonSchema.Object =>
         caseObj.properties match {
           case Some(props) if props.size == 1 =>
-            val (caseName, bodySchema) = props.head
+            val kv = props.head
             caseObj.required match {
-              case Some(req) if req.size == 1 && req.contains(caseName) =>
-                new Some((caseName, bodySchema))
-              case _ => None
+              case Some(req) if req.size == 1 && req.contains(kv._1) => new Some(kv)
+              case _                                                 => None
             }
           case _ => None
         }
       case _ => None
     }
-    if (extracted.length == cases.length) new Some(new Shape.KeyVariant(extracted))
+    if (extracted.length == cases.length) new Some(new Shape.KeyVariant(ChunkMap.fromChunk(extracted)))
     else None
   }
 
-  private[this] def analyzeFieldDiscriminatedVariant(cases: ::[JsonSchema]): Option[Shape.FieldVariant] = {
+  private[this] def analyzeFieldDiscriminatedVariant(cases: NonEmptyChunk[JsonSchema]): Option[Shape.FieldVariant] = {
     val caseObjects = cases.collect { case obj: JsonSchema.Object => obj }
     if (caseObjects.length != cases.length) return None
     val allConstFields = caseObjects.map { obj =>
@@ -135,7 +149,6 @@ private[schema] object JsonSchemaToReflect {
       fields.result()
     }
     val commonConstFields = allConstFields.reduceOption(_ intersect _).getOrElse(Set.empty)
-
     commonConstFields.headOption.flatMap { discField =>
       val extracted = caseObjects.flatMap { obj =>
         val props = obj.properties.getOrElse(ChunkMap.empty)
@@ -154,14 +167,14 @@ private[schema] object JsonSchemaToReflect {
           case _ => None
         }
       }
-      if (extracted.length == cases.length) new Some(new Shape.FieldVariant(discField, extracted))
+      if (extracted.length == cases.length) new Some(new Shape.FieldVariant(discField, ChunkMap.fromChunk(extracted)))
       else None
     }
   }
 
   private[this] def analyzeTuple(obj: JsonSchema.Object): Option[Shape] = obj.prefixItems match {
-    case Some(items) if items.nonEmpty && obj.items.contains(JsonSchema.False) => new Some(new Shape.Tuple(items))
-    case _                                                                     => None
+    case Some(items) if obj.items.contains(JsonSchema.False) => new Some(new Shape.Tuple(items))
+    case _                                                   => None
   }
 
   private[this] def analyzeSequence(obj: JsonSchema.Object): Option[Shape] = obj.items match {
@@ -176,7 +189,7 @@ private[schema] object JsonSchemaToReflect {
       (obj.additionalProperties.get ne JsonSchema.False)
     if (hasOnlyAdditionalProps) new Some(Shape.MapShape(obj.additionalProperties.get))
     else if (hasProperties) {
-      val props    = obj.properties.getOrElse(ChunkMap.empty).toList
+      val props    = obj.properties.getOrElse(ChunkMap.empty)
       val required = obj.required.getOrElse(Set.empty)
       val closed   = obj.additionalProperties.contains(JsonSchema.False)
       new Some(Shape.Record(props, required, closed))
@@ -187,79 +200,71 @@ private[schema] object JsonSchemaToReflect {
     case Some(st) =>
       st match {
         case SchemaType.Single(jst) =>
-          jst match {
-            case JsonSchemaType.String  => new Some(new Shape.Primitive(Shape.PrimKind.String, obj))
-            case JsonSchemaType.Integer => new Some(new Shape.Primitive(Shape.PrimKind.Integer, obj))
-            case JsonSchemaType.Number  => new Some(new Shape.Primitive(Shape.PrimKind.Number, obj))
-            case JsonSchemaType.Boolean => new Some(new Shape.Primitive(Shape.PrimKind.Boolean, obj))
-            case JsonSchemaType.Null    => new Some(new Shape.Primitive(Shape.PrimKind.Null, obj))
-            case _                      => None
-          }
+          new Some(
+            new Shape.Primitive(
+              jst match {
+                case _: JsonSchemaType.String.type  => Shape.PrimKind.String
+                case _: JsonSchemaType.Integer.type => Shape.PrimKind.Integer
+                case _: JsonSchemaType.Number.type  => Shape.PrimKind.Number
+                case _: JsonSchemaType.Boolean.type => Shape.PrimKind.Boolean
+                case _: JsonSchemaType.Null.type    => Shape.PrimKind.Null
+                case _                              => return None
+              },
+              obj
+            )
+          )
         case _ => None
       }
     case _ => None
   }
 
-  private[this] def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
-    val title = extractTitle(originalSchema)
-    shape match {
-      case Shape.Primitive(kind, schemaObj)       => buildPrimitive(kind, schemaObj)
-      case Shape.Record(fields, required, closed) => buildRecord(fields, required, closed, title)
-      case Shape.MapShape(values)                 => buildMap(values)
-      case Shape.Sequence(items)                  => buildSequence(items)
-      case Shape.Tuple(prefixItems)               => buildTuple(prefixItems)
-      case Shape.Enum(cases)                      => buildEnum(cases, title)
-      case Shape.KeyVariant(cases)                => buildKeyVariant(cases, title)
-      case Shape.FieldVariant(disc, cases)        => buildFieldVariant(disc, cases, title)
-      case Shape.OptionOf(inner)                  => toReflect(inner)
-      case Shape.Dynamic                          => Reflect.dynamic[Binding]
-    }
+  private[this] def build(shape: Shape, originalSchema: JsonSchema): Reflect[Binding, DynamicValue] = shape match {
+    case p: Shape.Primitive     => buildPrimitive(p.kind, p.schema)
+    case r: Shape.Record        => buildRecord(r.fields, r.required, r.closed, extractTitle(originalSchema))
+    case ms: Shape.MapShape     => buildMap(ms.values)
+    case s: Shape.Sequence      => buildSequence(s.items)
+    case t: Shape.Tuple         => buildTuple(t.prefixItems)
+    case e: Shape.Enum          => buildEnum(e.cases, extractTitle(originalSchema))
+    case kv: Shape.KeyVariant   => buildKeyVariant(kv.cases, extractTitle(originalSchema))
+    case fv: Shape.FieldVariant => buildFieldVariant(fv.discriminator, fv.cases, extractTitle(originalSchema))
+    case oo: Shape.OptionOf     => toReflect(oo.inner)
+    case _                      => Reflect.dynamic[Binding]
   }
 
   private[this] def buildPrimitive(kind: Shape.PrimKind, schemaObj: JsonSchema.Object): Reflect[Binding, DynamicValue] =
-    kind match {
-      case Shape.PrimKind.String  => wrapPrimitive(new PrimitiveType.String(buildStringValidation(schemaObj)))
-      case Shape.PrimKind.Integer => wrapPrimitive(new PrimitiveType.BigInt(buildBigIntValidation(schemaObj)))
-      case Shape.PrimKind.Number  => wrapPrimitive(new PrimitiveType.BigDecimal(buildBigDecimalValidation(schemaObj)))
-      case Shape.PrimKind.Boolean => wrapPrimitive(new PrimitiveType.Boolean(Validation.None))
-      case Shape.PrimKind.Null    => Reflect.dynamic[Binding]
-    }
+    wrapPrimitive((kind match {
+      case _: Shape.PrimKind.String.type  => new PrimitiveType.String(buildStringValidation(schemaObj))
+      case _: Shape.PrimKind.Integer.type => new PrimitiveType.BigInt(buildBigIntValidation(schemaObj))
+      case _: Shape.PrimKind.Number.type  => new PrimitiveType.BigDecimal(buildBigDecimalValidation(schemaObj))
+      case _: Shape.PrimKind.Boolean.type => new PrimitiveType.Boolean(Validation.None)
+      case _                              => return Reflect.dynamic[Binding]
+    }).asInstanceOf[PrimitiveType[?]])
 
   private[this] def buildStringValidation(obj: JsonSchema.Object): Validation[String] =
-    // Pattern takes precedence; length constraints cannot be combined in Validation ADT
-    obj.pattern.map(_.value) match {
-      case Some(regex) => Validation.String.Pattern(regex)
+    obj.pattern match { // Pattern takes precedence; length constraints cannot be combined in Validation ADT
+      case Some(regex) => Validation.String.Pattern(regex.value)
       case _           =>
         val minLen = obj.minLength.map(_.value)
         val maxLen = obj.maxLength.map(_.value)
-        (minLen, maxLen) match {
-          case (Some(min), Some(max)) if min == max && min == 1 => Validation.String.NonEmpty
-          case (Some(min), _) if min > 0                        => Validation.String.Length(Some(min), maxLen)
-          case (_, Some(max))                                   => Validation.String.Length(minLen, Some(max))
-          case _                                                => Validation.None
-        }
+        if ((minLen ne None) || (maxLen ne None)) {
+          if ((minLen ne None) && (maxLen ne None) && minLen.get == maxLen.get && minLen.get == 1) {
+            Validation.String.NonEmpty
+          } else new Validation.String.Length(minLen, maxLen)
+        } else Validation.None
     }
 
   private[this] def buildBigIntValidation(obj: JsonSchema.Object): Validation[BigInt] = {
     val min = obj.minimum.orElse(obj.exclusiveMinimum).map(_.toBigInt)
     val max = obj.maximum.orElse(obj.exclusiveMaximum).map(_.toBigInt)
-    (min, max) match {
-      case (Some(minVal), Some(maxVal)) => Validation.Numeric.Range(Some(minVal), Some(maxVal))
-      case (Some(minVal), None)         => Validation.Numeric.Range(Some(minVal), None)
-      case (None, Some(maxVal))         => Validation.Numeric.Range(None, Some(maxVal))
-      case (None, None)                 => Validation.None
-    }
+    if (min.isDefined || max.isDefined) new Validation.Numeric.Range(min, max)
+    else Validation.None
   }
 
   private[this] def buildBigDecimalValidation(obj: JsonSchema.Object): Validation[BigDecimal] = {
     val min = obj.minimum.orElse(obj.exclusiveMinimum)
     val max = obj.maximum.orElse(obj.exclusiveMaximum)
-    (min, max) match {
-      case (Some(minVal), Some(maxVal)) => Validation.Numeric.Range(Some(minVal), Some(maxVal))
-      case (Some(minVal), None)         => Validation.Numeric.Range(Some(minVal), None)
-      case (None, Some(maxVal))         => Validation.Numeric.Range(None, Some(maxVal))
-      case (None, None)                 => Validation.None
-    }
+    if (min.isDefined || max.isDefined) new Validation.Numeric.Range(min, max)
+    else Validation.None
   }
 
   private[this] def wrapPrimitive[A](primitiveType: PrimitiveType[A]): Reflect[Binding, DynamicValue] = {
@@ -269,13 +274,13 @@ private[schema] object JsonSchemaToReflect {
       unwrap = dv =>
         primitiveType.fromDynamicValue(dv) match {
           case Right(a) => a
-          case Left(_)  =>
+          case _        =>
             primitiveType match {
-              case _: PrimitiveType.String     => "".asInstanceOf[A]
-              case _: PrimitiveType.BigInt     => BigInt(0).asInstanceOf[A]
-              case _: PrimitiveType.BigDecimal => BigDecimal(0).asInstanceOf[A]
-              case _: PrimitiveType.Boolean    => false.asInstanceOf[A]
-              case PrimitiveType.Unit          => ().asInstanceOf[A]
+              case _: PrimitiveType.String     => ""
+              case _: PrimitiveType.BigInt     => BigInt(0)
+              case _: PrimitiveType.BigDecimal => BigDecimal(0)
+              case _: PrimitiveType.Boolean    => false
+              case _: PrimitiveType.Unit.type  => ()
               case _                           => null.asInstanceOf[A]
             }
         }
@@ -284,12 +289,12 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[this] def buildRecord(
-    fields: List[(String, JsonSchema)],
+    fields: ChunkMap[String, JsonSchema],
     @scala.annotation.unused required: Set[String],
     closed: Boolean,
     title: Option[String]
   ): Reflect[Binding, DynamicValue] = {
-    val fieldCount = fields.length
+    val fieldCount = fields.size
     val fieldTerms = Chunk.from(fields).map { case (fieldName, fieldSchema) =>
       new Term[Binding, DynamicValue, DynamicValue](fieldName, toReflect(fieldSchema))
     }
@@ -363,18 +368,12 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper(seqReflect, TypeId.of[DynamicValue], wrapperBinding)
   }
 
-  private[this] def buildTuple(prefixItems: List[JsonSchema]): Reflect[Binding, DynamicValue] = {
-    val fieldTerms = {
-      val terms = ChunkBuilder.make[Term[Binding, DynamicValue, DynamicValue]]()
-      var idx   = 1
-      var items = prefixItems
-      while (items ne Nil) {
-        val schema = items.head
-        terms.addOne(new Term[Binding, DynamicValue, DynamicValue](s"_$idx", toReflect(schema)))
-        items = items.tail
+  private[this] def buildTuple(prefixItems: Chunk[JsonSchema]): Reflect[Binding, DynamicValue] = {
+    val fieldTerms = prefixItems.map {
+      var idx = 0
+      schema =>
         idx += 1
-      }
-      terms.result()
+        new Term[Binding, DynamicValue, DynamicValue](s"_$idx", toReflect(schema))
     }
     val tupleSize     = fieldTerms.length
     val recordBinding = new Binding.Record[DynamicValue](
@@ -415,12 +414,12 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Record[Binding, DynamicValue](fieldTerms, TypeId.of[DynamicValue], recordBinding)
   }
 
-  private[this] def buildEnum(cases: List[String], title: Option[String]): Reflect[Binding, DynamicValue] = {
-    val caseTerms = Chunk.from(cases).map { caseName =>
+  private[this] def buildEnum(cases: Chunk[String], title: Option[String]): Reflect[Binding, DynamicValue] = {
+    val caseTerms = cases.map { caseName =>
       val emptyRecordBinding = new Binding.Record[DynamicValue](
         constructor = new Constructor[DynamicValue] {
           def usedRegisters: RegisterOffset                                  = 0L
-          def construct(in: Registers, offset: RegisterOffset): DynamicValue = DynamicValue.Record(Chunk.empty)
+          def construct(in: Registers, offset: RegisterOffset): DynamicValue = new DynamicValue.Record(Chunk.empty)
         },
         deconstructor = new Deconstructor[DynamicValue] {
           def usedRegisters: RegisterOffset                                               = 0L
@@ -456,14 +455,22 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[this] def buildKeyVariant(
-    cases: List[(String, JsonSchema)],
+    cases: ChunkMap[String, JsonSchema],
     title: Option[String]
   ): Reflect[Binding, DynamicValue] = {
-    val caseTerms: IndexedSeq[Term[Binding, DynamicValue, DynamicValue]] =
-      Chunk.from(cases).map { case (caseName, bodySchema) =>
-        new Term[Binding, DynamicValue, DynamicValue](caseName, toReflect(bodySchema))
+    val caseTerms = Chunk.fromArray {
+      val caseNames = cases.keysChunk
+      val schemas   = cases.valuesChunk
+      val len       = cases.size
+      val arr       = new Array[Term[Binding, DynamicValue, DynamicValue]](len)
+      var idx       = 0
+      while (idx < len) {
+        arr(idx) = new Term[Binding, DynamicValue, DynamicValue](caseNames(idx), toReflect(schemas(idx)))
+        idx += 1
       }
-    val caseNames      = cases.toArray.map(_._1)
+      arr
+    }
+    val caseNames      = cases.keysChunk.toArray
     val variantBinding = new Binding.Variant[DynamicValue](
       discriminator = new Discriminator[DynamicValue] {
         def discriminate(a: DynamicValue): Int = a match {
@@ -489,7 +496,7 @@ private[schema] object JsonSchemaToReflect {
 
   private[this] def buildFieldVariant(
     @scala.annotation.unused discriminator: String,
-    cases: List[(String, JsonSchema)],
+    cases: ChunkMap[String, JsonSchema],
     title: Option[String]
   ): Reflect[Binding, DynamicValue] = buildKeyVariant(cases, title)
 

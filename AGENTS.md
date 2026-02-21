@@ -69,6 +69,7 @@ Enter only when fast loop is green. Run in order:
 4. **Downstream** — all projects that depend on what you changed:
     - `chunk*` → `schema*`, `benchmarks`
     - `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
+    - `scope*` → `scope-examples`
 
     If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
@@ -77,6 +78,10 @@ If any step fails: return to phase 1, fix, get green in phase 2, rerun the faili
 ### 4. Format
 
 Run once after verify passes.
+
+## Cross-Version Code Structure
+
+For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
 
 ## Testing
 
@@ -98,11 +103,13 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Batch edits; keep sbt runs scoped to one project
 - Update AGENTS.md if you find errors or gaps
 - Document new data types in `docs/`; update existing docs when behavior changes
+- **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client generateReadme` to regenerate `README.md`.
 
 ### Ask First
 - Adding dependencies (even test-only)
 - Creating or removing subprojects
 - Any repo-wide test or coverage run
+- **New modules:** When adding a new module, update the `testJVM`, `testJS`, `docJVM`, and `docJS` command aliases in `build.sbt`.
 
 ### Never
 - Use coverage as starting point for test design (think first, verify with coverage)

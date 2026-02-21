@@ -159,6 +159,7 @@ val evenNumber = JsonSchema.integer(
 Create schemas for array validation:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.NonEmptyChunk
 import zio.blocks.schema.json.{JsonSchema, JsonSchemaType, NonNegativeInt}
 
 // Array of strings
@@ -181,9 +182,9 @@ val uniqueNumbers = JsonSchema.array(
 
 // Tuple-like array with prefixItems
 val point2D = JsonSchema.array(
-  prefixItems = Some(new ::(
+  prefixItems = Some(NonEmptyChunk(
     JsonSchema.ofType(JsonSchemaType.Number),
-    JsonSchema.ofType(JsonSchemaType.Number) :: Nil
+    JsonSchema.ofType(JsonSchemaType.Number)
   ))
 )
 ```
@@ -219,15 +220,17 @@ val strictPerson = JsonSchema.obj(
 ### Enum and Const
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.NonEmptyChunk
 import zio.blocks.schema.json.{JsonSchema, Json}
 
 // Enum of string values
-val status = JsonSchema.enumOfStrings(new ::("pending", "active" :: "completed" :: Nil))
+val status = JsonSchema.enumOfStrings(NonEmptyChunk("pending", "active", "completed"))
 
 // Enum of mixed values
-val mixed = JsonSchema.enumOf(new ::(
+val mixed = JsonSchema.enumOf(NonEmptyChunk(
   Json.String("auto"),
-  Json.Number(0) :: Json.Boolean(true) :: Nil
+  Json.Number(0),
+  Json.Boolean(true)
 ))
 
 // Constant value
@@ -467,8 +470,8 @@ Format validation is enabled by default. Use `ValidationOptions.annotationOnly` 
 JSON Schema 2020-12 introduces `unevaluatedProperties` and `unevaluatedItems` for validating properties/items not matched by any applicator keyword:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
-import zio.blocks.chunk.ChunkMap
 
 // Reject any properties not defined in properties or patternProperties
 val strictObject = JsonSchema.Object(
@@ -480,9 +483,9 @@ val strictObject = JsonSchema.Object(
 
 // Reject extra array items not matched by prefixItems or items
 val strictArray = JsonSchema.Object(
-  prefixItems = Some(new ::(
+  prefixItems = Some(NonEmptyChunk(
     JsonSchema.ofType(JsonSchemaType.String),
-    JsonSchema.ofType(JsonSchemaType.Number) :: Nil
+    JsonSchema.ofType(JsonSchemaType.Number)
   )),
   unevaluatedItems = Some(JsonSchema.False)
 )
@@ -555,8 +558,8 @@ The implementation passes **817 of 844 tests** (97%+) from the official JSON Sch
 ## Complete Example
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema.json._
-import zio.blocks.chunk.ChunkMap
 
 // Define a complex schema
 val userSchema = JsonSchema.obj(
@@ -573,7 +576,7 @@ val userSchema = JsonSchema.obj(
     ),
     "roles" -> JsonSchema.array(
       items = Some(JsonSchema.enumOfStrings(
-        new ::("admin", "user" :: "guest" :: Nil)
+        NonEmptyChunk("admin", "user", "guest")
       )),
       minItems = Some(NonNegativeInt.literal(1)),
       uniqueItems = Some(true)
@@ -618,7 +621,7 @@ val schemaJson = userSchema.toJson.print
 
 ## Cross-Platform Support
 
-`JsonSchema` works across all platforms:
+`JsonSchema` works across 2 platforms:
 
 - **JVM** - Full functionality
 - **Scala.js** - Browser and Node.js

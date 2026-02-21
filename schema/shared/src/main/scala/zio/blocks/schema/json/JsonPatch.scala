@@ -66,17 +66,16 @@ final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
    * @return
    *   A DynamicPatch equivalent to this JsonPatch
    */
-  def toDynamicPatch: DynamicPatch = new DynamicPatch(ops.map { jsonOp =>
-    new DynamicPatch.DynamicPatchOp(jsonOp.path, JsonPatch.opToDynamicOperation(jsonOp.operation))
+  def toDynamicPatch: DynamicPatch = new DynamicPatch(ops.map { op =>
+    new DynamicPatch.DynamicPatchOp(op.path, JsonPatch.opToDynamicOperation(op.operation))
   })
 
   override def toString: String =
     if (ops.isEmpty) "JsonPatch {}"
     else {
       val sb = new lang.StringBuilder("JsonPatch {\n")
-      ops.foreach(op => JsonPatch.renderOp(sb, op, "  "))
-      sb.append('}')
-      sb.toString
+      ops.foreach(op => JsonPatch.renderOp(sb, op, 1))
+      sb.append('}').toString
     }
 }
 
@@ -106,7 +105,7 @@ object JsonPatch {
     while (idx < len) {
       val dynOp = ops(idx)
       operationFromDynamic(dynOp.operation) match {
-        case Right(op) => builder.addOne(JsonPatchOp(dynOp.path, op))
+        case Right(op) => builder.addOne(new JsonPatchOp(dynOp.path, op))
         case l         => return l.asInstanceOf[Either[SchemaError, JsonPatch]]
       }
       idx += 1
@@ -168,20 +167,14 @@ object JsonPatch {
           case obj: Json.Object =>
             val fields   = obj.value
             val fieldIdx = fields.indexWhere(_._1 == name)
-            if (fieldIdx < 0) {
-              // Field not found
-              new Left(SchemaError.missingField(trace, name))
-            } else {
-              val (fieldName, fieldValue) = fields(fieldIdx)
-              val newTrace                = f :: trace
-              if (isLast) {
-                applyOperation(fieldValue, operation, mode, newTrace).map { newFieldValue =>
-                  new Json.Object(fields.updated(fieldIdx, (fieldName, newFieldValue)))
-                }
-              } else {
-                navigateAndApply(fieldValue, path, pathIdx + 1, operation, mode, newTrace).map { newFieldValue =>
-                  new Json.Object(fields.updated(fieldIdx, (fieldName, newFieldValue)))
-                }
+            if (fieldIdx < 0) new Left(SchemaError.missingField(trace, name))
+            else {
+              val kv     = fields(fieldIdx)
+              val trace_ = f :: trace
+              (if (isLast) applyOperation(kv._2, operation, mode, trace_)
+               else navigateAndApply(kv._2, path, pathIdx + 1, operation, mode, trace_)) match {
+                case Right(v) => new Right(new Json.Object(fields.updated(fieldIdx, (kv._1, v))))
+                case l        => l
               }
             }
           case _ => new Left(SchemaError.expectationMismatch(trace, s"Expected Object but got ${value.jsonType}"))
@@ -192,23 +185,15 @@ object JsonPatch {
           case arr: Json.Array =>
             val elements = arr.value
             if (index < 0 || index >= elements.length) {
-              new Left(
-                SchemaError.expectationMismatch(
-                  trace,
-                  s"Index $index out of bounds for array of length ${elements.length}"
-                )
-              )
+              val msg = s"Index $index out of bounds for array of length ${elements.length}"
+              new Left(SchemaError.expectationMismatch(trace, msg))
             } else {
-              val element  = elements(index)
-              val newTrace = ai :: trace
-              if (isLast) {
-                applyOperation(element, operation, mode, newTrace).map { newElement =>
-                  new Json.Array(elements.updated(index, newElement))
-                }
-              } else {
-                navigateAndApply(element, path, pathIdx + 1, operation, mode, newTrace).map { newElement =>
-                  new Json.Array(elements.updated(index, newElement))
-                }
+              val element = elements(index)
+              val trace_  = ai :: trace
+              (if (isLast) applyOperation(element, operation, mode, trace_)
+               else navigateAndApply(element, path, pathIdx + 1, operation, mode, trace_)) match {
+                case Right(e) => new Right(new Json.Array(elements.updated(index, e)))
+                case l        => l
               }
             }
           case _ => new Left(SchemaError.expectationMismatch(trace, s"Expected Array but got ${value.jsonType}"))
@@ -217,33 +202,30 @@ object JsonPatch {
         value match {
           case arr: Json.Array =>
             val elements = arr.value
-            val newTrace = e :: trace
+            val trace_   = e :: trace
             if (elements.isEmpty) {
               if (mode ne PatchMode.Strict) new Right(value)
-              else new Left(SchemaError.expectationMismatch(newTrace, "encountered an empty array"))
-            } else if (isLast) applyToAllElements(elements, operation, mode, newTrace)
-            else navigateAllElements(elements, path, pathIdx + 1, operation, mode, newTrace)
+              else new Left(SchemaError.expectationMismatch(trace_, "encountered an empty array"))
+            } else if (isLast) applyToAllElements(elements, operation, mode, trace_)
+            else navigateAllElements(elements, path, pathIdx + 1, operation, mode, trace_)
           case _ => new Left(SchemaError.expectationMismatch(trace, s"Expected Array but got ${value.jsonType}"))
         }
       case _: DynamicOptic.Node.Case =>
-        // JSON doesn't have variant types - case navigation is not supported
         new Left(SchemaError.expectationMismatch(trace, "Case navigation not supported for JSON values"))
       case w: DynamicOptic.Node.Wrapped.type =>
-        // JSON doesn't have wrapper types - pass through
-        val newTrace = w :: trace
-        if (isLast) applyOperation(value, operation, mode, newTrace)
-        else navigateAndApply(value, path, pathIdx + 1, operation, mode, newTrace)
+        val trace_ = w :: trace
+        if (isLast) applyOperation(value, operation, mode, trace_)
+        else navigateAndApply(value, path, pathIdx + 1, operation, mode, trace_)
       case _: DynamicOptic.Node.AtMapKey =>
-        new Left(
-          SchemaError.expectationMismatch(trace, "AtMapKey not supported for JSON - use Field navigation for objects")
-        )
+        val msg = "AtMapKey not supported for JSON - use Field navigation for objects"
+        new Left(SchemaError.expectationMismatch(trace, msg))
       case _: DynamicOptic.Node.AtIndices =>
         new Left(SchemaError.expectationMismatch(trace, "AtIndices not supported in patches"))
       case _: DynamicOptic.Node.AtMapKeys =>
         new Left(SchemaError.expectationMismatch(trace, "AtMapKeys not supported in patches"))
-      case DynamicOptic.Node.MapKeys =>
+      case _: DynamicOptic.Node.MapKeys.type =>
         new Left(SchemaError.expectationMismatch(trace, "MapKeys not supported in patches"))
-      case DynamicOptic.Node.MapValues =>
+      case _: DynamicOptic.Node.MapValues.type =>
         new Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
     }
   }
@@ -261,12 +243,12 @@ object JsonPatch {
     val results = new Array[Json](len)
     var idx     = 0
     while (idx < len) {
-      applyOperation(elements(idx), operation, mode, new DynamicOptic.Node.AtIndex(idx) :: trace) match {
-        case Right(updated) => results(idx) = updated
-        case l              =>
-          if (mode eq PatchMode.Strict) return l
-          results(idx) = elements(idx)
+      var element = elements(idx)
+      applyOperation(element, operation, mode, new DynamicOptic.Node.AtIndex(idx) :: trace) match {
+        case Right(e) => element = e
+        case l        => if (mode eq PatchMode.Strict) return l
       }
+      results(idx) = element
       idx += 1
     }
     new Right(new Json.Array(Chunk.fromArray(results)))
@@ -287,13 +269,12 @@ object JsonPatch {
     val results = new Array[Json](len)
     var idx     = 0
     while (idx < len) {
-      val elementTrace = new DynamicOptic.Node.AtIndex(idx) :: trace
-      navigateAndApply(elements(idx), path, pathIdx, operation, mode, elementTrace) match {
-        case Right(updated) => results(idx) = updated
-        case l              =>
-          if (mode eq PatchMode.Strict) return l
-          results(idx) = elements(idx)
+      var element = elements(idx)
+      navigateAndApply(element, path, pathIdx, operation, mode, new DynamicOptic.Node.AtIndex(idx) :: trace) match {
+        case Right(e) => element = e
+        case l        => if (mode eq PatchMode.Strict) return l
       }
+      results(idx) = element
       idx += 1
     }
     new Right(new Json.Array(Chunk.fromArray(results)))
@@ -308,31 +289,54 @@ object JsonPatch {
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Json] = operation match {
-    case Op.Set(newValue)         => new Right(newValue)
-    case Op.PrimitiveDelta(op)    => applyPrimitiveDelta(value, op, trace)
-    case Op.ArrayEdit(arrayOps)   => applyArrayEdit(value, arrayOps, mode, trace)
-    case Op.ObjectEdit(objectOps) => applyObjectEdit(value, objectOps, mode, trace)
-    case Op.Nested(nestedPatch)   => nestedPatch.apply(value, mode)
-  }
-
-  /**
-   * Apply a primitive delta operation (number delta or string edits).
-   */
-  private[this] def applyPrimitiveDelta(
-    value: Json,
-    op: PrimitiveOp,
-    trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Json] = op match {
-    case PrimitiveOp.NumberDelta(delta) =>
-      value match {
-        case Json.Number(current) => new Right(new Json.Number(current + delta))
-        case _                    => new Left(SchemaError.expectationMismatch(trace, s"Expected Number but got ${value.jsonType}"))
+    case s: Op.Set             => new Right(s.value)
+    case pd: Op.PrimitiveDelta =>
+      pd.op match {
+        case nd: PrimitiveOp.NumberDelta =>
+          value match {
+            case n: Json.Number => new Right(new Json.Number(n.value + nd.delta))
+            case _              => new Left(SchemaError.expectationMismatch(trace, s"Expected Number but got ${value.jsonType}"))
+          }
+        case se: PrimitiveOp.StringEdit =>
+          value match {
+            case s: Json.String => applyStringOps(s.value, se.ops, trace)
+            case _              => new Left(SchemaError.expectationMismatch(trace, s"Expected String but got ${value.jsonType}"))
+          }
       }
-    case PrimitiveOp.StringEdit(ops) =>
+    case ae: Op.ArrayEdit =>
       value match {
-        case Json.String(str) => applyStringOps(str, ops, trace)
-        case _                => new Left(SchemaError.expectationMismatch(trace, s"Expected String but got ${value.jsonType}"))
+        case arr: Json.Array =>
+          val len    = ae.ops.length
+          var result = arr.value
+          var idx    = 0
+          while (idx < len) {
+            applyArrayOp(result, ae.ops(idx), mode, trace) match {
+              case Right(es) => result = es
+              case l         => if (mode eq PatchMode.Strict) return l.asInstanceOf[Either[SchemaError, Json]]
+            }
+            idx += 1
+          }
+          new Right(new Json.Array(result))
+        case _ => new Left(SchemaError.expectationMismatch(trace, s"Expected Array but got ${value.jsonType}"))
       }
+    case oe: Op.ObjectEdit =>
+      value match {
+        case obj: Json.Object =>
+          val fields = obj.value
+          var result = fields
+          val len    = oe.ops.length
+          var idx    = 0
+          while (idx < len) {
+            applyObjectOp(result, oe.ops(idx), mode, trace) match {
+              case Right(fs) => result = fs
+              case l         => if (mode eq PatchMode.Strict) return l.asInstanceOf[Either[SchemaError, Json]]
+            }
+            idx += 1
+          }
+          new Right(new Json.Object(result))
+        case _ => new Left(SchemaError.expectationMismatch(trace, s"Expected Object but got ${value.jsonType}"))
+      }
+    case n: Op.Nested => n.patch.apply(value, mode)
   }
 
   /**
@@ -347,73 +351,31 @@ object JsonPatch {
     var idx    = 0
     while (idx < ops.length) {
       ops(idx) match {
-        case StringOp.Insert(index, text) =>
+        case i: StringOp.Insert =>
+          val index = i.index
           if (index < 0 || index > result.length) {
-            return new Left(
-              SchemaError.expectationMismatch(
-                trace,
-                s"String insert index $index out of bounds for string of length ${result.length}"
-              )
-            )
-          } else result = result.substring(0, index) + text + result.substring(index)
-        case StringOp.Delete(index, length) =>
-          if (index < 0 || index + length > result.length) {
-            return new Left(
-              SchemaError.expectationMismatch(
-                trace,
-                s"String delete range [$index, ${index + length}) out of bounds for string of length ${result.length}"
-              )
-            )
-          } else result = result.substring(0, index) + result.substring(index + length)
-        case StringOp.Append(text)                => result = result + text
-        case StringOp.Modify(index, length, text) =>
-          if (index < 0 || index + length > result.length) {
-            return new Left(
-              SchemaError.expectationMismatch(
-                trace,
-                s"String modify range [$index, ${index + length}) out of bounds for string of length ${result.length}"
-              )
-            )
-          } else result = result.substring(0, index) + text + result.substring(index + length)
+            val msg = s"String insert index $index out of bounds for string of length ${result.length}"
+            return new Left(SchemaError.expectationMismatch(trace, msg))
+          } else result = result.substring(0, index) + i.text + result.substring(index)
+        case d: StringOp.Delete =>
+          val index = d.index
+          val limit = index + d.length
+          if (index < 0 || limit > result.length) {
+            val msg = s"String delete range [$index, $limit) out of bounds for string of length ${result.length}"
+            return new Left(SchemaError.expectationMismatch(trace, msg))
+          } else result = result.substring(0, index) + result.substring(limit)
+        case a: StringOp.Append => result = result + a.text
+        case m: StringOp.Modify =>
+          val index = m.index
+          val limit = index + m.length
+          if (index < 0 || limit > result.length) {
+            val msg = s"String modify range [$index, $limit) out of bounds for string of length ${result.length}"
+            return new Left(SchemaError.expectationMismatch(trace, msg))
+          } else result = result.substring(0, index) + m.text + result.substring(limit)
       }
       idx += 1
     }
     new Right(new Json.String(result))
-  }
-
-  /**
-   * Apply array edit operations.
-   */
-  private[this] def applyArrayEdit(
-    value: Json,
-    ops: Chunk[ArrayOp],
-    mode: PatchMode,
-    trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Json] = value match {
-    case arr: Json.Array => applyArrayOps(arr.value, ops, mode, trace)
-    case _               => new Left(SchemaError.expectationMismatch(trace, s"Expected Array but got ${value.jsonType}"))
-  }
-
-  /**
-   * Apply array operations to elements.
-   */
-  private[this] def applyArrayOps(
-    elements: Chunk[Json],
-    ops: Chunk[ArrayOp],
-    mode: PatchMode,
-    trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Json] = {
-    val len    = ops.length
-    var result = elements
-    var idx    = 0
-    while (idx < len) {
-      applyArrayOp(result, ops(idx), mode, trace) match {
-        case Right(updated) => result = updated
-        case l              => if (mode eq PatchMode.Strict) return l.asInstanceOf[Either[SchemaError, Json]]
-      }
-      idx += 1
-    }
-    new Right(new Json.Array(result))
   }
 
   /**
@@ -426,85 +388,35 @@ object JsonPatch {
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, Chunk[Json]] =
     op match {
-      case ArrayOp.Append(values)        => new Right(elements ++ values)
-      case ArrayOp.Insert(index, values) =>
-        val len = elements.length
-        if (index < 0 || index > len) {
-          mode match {
-            case PatchMode.Clobber =>
-              // In clobber mode, clamp the index
-              val clampedIndex    = Math.max(0, Math.min(index, len))
-              val (before, after) = elements.splitAt(clampedIndex)
-              new Right(before ++ values ++ after)
-            case _ =>
-              val msg = s"Insert index $index out of bounds for array of length $len"
-              new Left(SchemaError.expectationMismatch(trace, msg))
-          }
-        } else {
-          val (before, after) = elements.splitAt(index)
-          new Right(before ++ values ++ after)
-        }
-      case ArrayOp.Delete(index, count) =>
-        val limit = index + count
+      case a: ArrayOp.Append => new Right(elements ++ a.values)
+      case i: ArrayOp.Insert =>
+        val index = i.index
         val len   = elements.length
-        if (index < 0 || limit > len) {
-          mode match {
-            case PatchMode.Clobber =>
-              // In clobber mode, delete what we can
-              val clampedIndex = Math.max(0, Math.min(index, len))
-              val clampedEnd   = Math.max(0, Math.min(limit, len))
-              new Right(elements.take(clampedIndex) ++ elements.drop(clampedEnd))
-            case _ =>
-              val msg = s"Delete range [$index, $limit) out of bounds for array of length $len"
-              new Left(SchemaError.expectationMismatch(trace, msg))
-          }
+        if ((index < 0 || index > len) && (mode ne PatchMode.Clobber)) {
+          val msg = s"Insert index $index out of bounds for array of length $len"
+          new Left(SchemaError.expectationMismatch(trace, msg))
+        } else new Right(elements.take(index) ++ i.values ++ elements.drop(index))
+      case d: ArrayOp.Delete =>
+        val index = d.index
+        val limit = index + d.count
+        val len   = elements.length
+        if ((index < 0 || limit > len) && (mode ne PatchMode.Clobber)) {
+          val msg = s"Delete range [$index, $limit) out of bounds for array of length $len"
+          new Left(SchemaError.expectationMismatch(trace, msg))
         } else new Right(elements.take(index) ++ elements.drop(limit))
-      case ArrayOp.Modify(index, nestedOp) =>
-        val len = elements.length
+      case m: ArrayOp.Modify =>
+        val index = m.index
+        val len   = elements.length
         if (index < 0 || index >= len) {
           val msg = s"Modify index $index out of bounds for array of length $len"
           new Left(SchemaError.expectationMismatch(trace, msg))
         } else {
-          val element  = elements(index)
-          val newTrace = new DynamicOptic.Node.AtIndex(index) :: trace
-          applyOperation(element, nestedOp, mode, newTrace).map(elements.updated(index, _))
+          applyOperation(elements(index), m.op, mode, new DynamicOptic.Node.AtIndex(index) :: trace) match {
+            case Right(v) => new Right(elements.updated(index, v))
+            case l        => l.asInstanceOf[Either[SchemaError, Chunk[Json]]]
+          }
         }
     }
-
-  /**
-   * Apply object edit operations.
-   */
-  private[this] def applyObjectEdit(
-    value: Json,
-    ops: Chunk[ObjectOp],
-    mode: PatchMode,
-    trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Json] = value match {
-    case obj: Json.Object => applyObjectOps(obj.value, ops, mode, trace)
-    case _                => new Left(SchemaError.expectationMismatch(trace, s"Expected Object but got ${value.jsonType}"))
-  }
-
-  /**
-   * Apply object operations to fields.
-   */
-  private[this] def applyObjectOps(
-    fields: Chunk[(String, Json)],
-    ops: Chunk[ObjectOp],
-    mode: PatchMode,
-    trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Json] = {
-    var result = fields
-    val len    = ops.length
-    var idx    = 0
-    while (idx < len) {
-      applyObjectOp(result, ops(idx), mode, trace) match {
-        case Right(updated) => result = updated
-        case l              => if (mode eq PatchMode.Strict) return l.asInstanceOf[Either[SchemaError, Json]]
-      }
-      idx += 1
-    }
-    new Right(new Json.Object(result))
-  }
 
   /**
    * Apply a single object operation.
@@ -514,34 +426,34 @@ object JsonPatch {
     op: ObjectOp,
     mode: PatchMode,
     trace: List[DynamicOptic.Node]
-  ): Either[SchemaError, Chunk[(String, Json)]] =
-    op match {
-      case ObjectOp.Add(key, value) =>
-        val existingIdx = fields.indexWhere(_._1 == key)
-        if (existingIdx >= 0) {
-          mode match {
-            case PatchMode.Clobber => new Right(fields.updated(existingIdx, (key, value))) // Overwrite existing
-            case _                 => new Left(SchemaError.expectationMismatch(trace, s"Key '$key' already exists in object"))
-          }
-        } else new Right(fields :+ (key, value))
-      case ObjectOp.Remove(key) =>
-        val existingIdx = fields.indexWhere(_._1 == key)
-        if (existingIdx < 0) {
-          mode match {
-            case PatchMode.Clobber => new Right(fields) // Nothing to remove, return unchanged
-            case _                 => new Left(SchemaError.expectationMismatch(trace, s"Key '$key' not found in object"))
-          }
-        } else new Right(fields.take(existingIdx) ++ fields.drop(existingIdx + 1))
-      case ObjectOp.Modify(key, nestedPatch) =>
-        val existingIdx = fields.indexWhere(_._1 == key)
-        if (existingIdx < 0) new Left(SchemaError.expectationMismatch(trace, s"Key '$key' not found in object"))
-        else {
-          val (k, v) = fields(existingIdx)
-          nestedPatch.apply(v, mode).map { newValue =>
-            fields.updated(existingIdx, (k, newValue))
-          }
+  ): Either[SchemaError, Chunk[(String, Json)]] = op match {
+    case a: ObjectOp.Add =>
+      val key         = a.key
+      val value       = a.value
+      val existingIdx = fields.indexWhere(_._1 == key)
+      if (existingIdx >= 0) {
+        if (mode eq PatchMode.Clobber) new Right(fields.updated(existingIdx, (key, value)))
+        else new Left(SchemaError.expectationMismatch(trace, s"Key '$key' already exists in object"))
+      } else new Right(fields :+ (key, value))
+    case r: ObjectOp.Remove =>
+      val key         = r.key
+      val existingIdx = fields.indexWhere(_._1 == key)
+      if (existingIdx < 0) {
+        if (mode eq PatchMode.Clobber) new Right(fields)
+        else new Left(SchemaError.expectationMismatch(trace, s"Key '$key' not found in object"))
+      } else new Right(fields.take(existingIdx) ++ fields.drop(existingIdx + 1))
+    case m: ObjectOp.Modify =>
+      val key         = m.key
+      val existingIdx = fields.indexWhere(_._1 == key)
+      if (existingIdx < 0) new Left(SchemaError.expectationMismatch(trace, s"Key '$key' not found in object"))
+      else {
+        val kv = fields(existingIdx)
+        m.patch.apply(kv._2, mode) match {
+          case Right(v) => new Right(fields.updated(existingIdx, (kv._1, v)))
+          case l        => l.asInstanceOf[Either[SchemaError, Chunk[(String, Json)]]]
         }
-    }
+      }
+  }
 
   /**
    * Creates a patch with a single operation at the root.
@@ -566,79 +478,88 @@ object JsonPatch {
   def apply(path: DynamicOptic, operation: Op): JsonPatch =
     new JsonPatch(Chunk.single(new JsonPatchOp(path, operation)))
 
-  private def renderOp(sb: lang.StringBuilder, op: JsonPatchOp, indent: String): Unit = {
-    val pathStr = renderPath(op.path.nodes)
+  private def renderOp(sb: lang.StringBuilder, op: JsonPatchOp, indent: Int): Unit = {
+    appendIndent(sb, indent)
+    appendPath(sb, op.path.nodes)
     op.operation match {
-      case Op.Set(value) =>
-        sb.append(indent).append(pathStr).append(" = ").append(value).append('\n')
-      case Op.PrimitiveDelta(primitiveOp) =>
-        renderPrimitiveDelta(sb, pathStr, primitiveOp, indent)
-      case Op.ArrayEdit(arrayOps) =>
-        sb.append(indent).append(pathStr).append(":\n")
-        arrayOps.foreach(ao => renderArrayOp(sb, ao, indent + "  "))
-      case Op.ObjectEdit(objectOps) =>
-        sb.append(indent).append(pathStr).append(":\n")
-        objectOps.foreach(oo => renderObjectOp(sb, oo, indent + "  "))
-      case Op.Nested(nestedPatch) =>
-        sb.append(indent).append(pathStr).append(":\n")
-        nestedPatch.ops.foreach(op => renderOp(sb, op, indent + "  "))
+      case s: Op.Set =>
+        sb.append(" = ").append(s.value).append('\n')
+      case pd: Op.PrimitiveDelta =>
+        renderPrimitiveDelta(sb, pd.op, indent)
+      case ae: Op.ArrayEdit =>
+        sb.append(":\n")
+        ae.ops.foreach(ao => renderArrayOp(sb, ao, indent + 1))
+      case oe: Op.ObjectEdit =>
+        sb.append(":\n")
+        oe.ops.foreach(oo => renderObjectOp(sb, oo, indent + 1))
+      case n: Op.Nested =>
+        sb.append(":\n")
+        n.patch.ops.foreach(op => renderOp(sb, op, indent + 1))
     }
   }
 
-  private[this] def renderPath(nodes: IndexedSeq[DynamicOptic.Node]): String = {
-    if (nodes.isEmpty) return "root"
-    val sb = new lang.StringBuilder
-    nodes.foreach {
-      case DynamicOptic.Node.Field(name)    => sb.append('.').append(name)
-      case DynamicOptic.Node.AtIndex(index) => sb.append('[').append(index).append(']')
-      case other                            => sb.append(other.toString)
-    }
-    sb.toString
-  }
-
-  private[this] def renderPrimitiveDelta(
-    sb: lang.StringBuilder,
-    pathStr: String,
-    op: PrimitiveOp,
-    indent: String
-  ): Unit = op match {
-    case PrimitiveOp.NumberDelta(d) =>
-      sb.append(indent)
-      if (d >= BigDecimal(0)) sb.append(pathStr).append(" += ").append(d).append('\n')
-      else sb.append(pathStr).append(" -= ").append(-d).append('\n')
-    case PrimitiveOp.StringEdit(ops) =>
-      sb.append(indent).append(pathStr).append(":\n")
-      ops.foreach {
-        case StringOp.Insert(idx, text) =>
-          sb.append(indent).append("  + [").append(idx).append(": ").append(escapeString(text)).append("]\n")
-        case StringOp.Delete(idx, len) =>
-          sb.append(indent).append("  - [").append(idx).append(", ").append(len).append("]\n")
-        case StringOp.Append(text) =>
-          sb.append(indent).append("  + ").append(escapeString(text)).append('\n')
-        case StringOp.Modify(idx, len, text) =>
-          sb.append(indent)
-            .append("  ~ [")
-            .append(idx)
-            .append(", ")
-            .append(len)
-            .append(": ")
-            .append(escapeString(text))
-            .append("]\n")
+  private[this] def appendPath(sb: lang.StringBuilder, nodes: IndexedSeq[DynamicOptic.Node]): Unit =
+    if (nodes.isEmpty) sb.append("root")
+    else {
+      nodes.foreach {
+        case f: DynamicOptic.Node.Field    => sb.append('.').append(f.name)
+        case ai: DynamicOptic.Node.AtIndex => sb.append('[').append(ai.index).append(']')
+        case _                             =>
       }
+    }
+
+  private[this] def renderPrimitiveDelta(sb: lang.StringBuilder, op: PrimitiveOp, indent: Int): Unit = {
+    op match {
+      case nd: PrimitiveOp.NumberDelta =>
+        val d = nd.delta
+        if (d >= BigDecimal(0)) sb.append(" += ").append(d)
+        else sb.append(" -= ").append(-d)
+      case se: PrimitiveOp.StringEdit =>
+        sb.append(":\n")
+        se.ops.foreach {
+          var idx = 0
+          op =>
+            if (idx > 0) sb.append('\n')
+            idx += 1
+            appendIndent(sb, indent)
+            op match {
+              case i: StringOp.Insert =>
+                sb.append("  + [").append(i.index).append(": ")
+                escapeString(sb, i.text)
+                sb.append(']')
+              case d: StringOp.Delete =>
+                sb.append("  - [").append(d.index).append(", ").append(d.length).append(']')
+              case a: StringOp.Append =>
+                sb.append("  + ")
+                escapeString(sb, a.text)
+              case m: StringOp.Modify =>
+                sb.append("  ~ [").append(m.index).append(", ").append(m.length).append(": ")
+                escapeString(sb, m.text)
+                sb.append(']')
+            }
+        }
+    }
+    sb.append('\n')
   }
 
-  private[this] def renderArrayOp(sb: lang.StringBuilder, op: ArrayOp, indent: String): Unit = op match {
-    case ArrayOp.Insert(index, values) =>
-      values.foreach {
-        var idx = -1
+  private[this] def renderArrayOp(sb: lang.StringBuilder, op: ArrayOp, indent: Int): Unit = op match {
+    case i: ArrayOp.Insert =>
+      i.values.foreach {
+        var idx = i.index
         v =>
+          appendIndent(sb, indent)
+          sb.append("+ [").append(idx).append(": ").append(v).append("]\n")
           idx += 1
-          sb.append(indent).append("+ [").append(index + idx).append(": ").append(v).append("]\n")
       }
-    case ArrayOp.Append(values) =>
-      values.foreach(v => sb.append(indent).append("+ ").append(v).append('\n'))
-    case ArrayOp.Delete(index, count) =>
-      sb.append(indent)
+    case a: ArrayOp.Append =>
+      a.values.foreach { v =>
+        appendIndent(sb, indent)
+        sb.append("+ ").append(v).append('\n')
+      }
+    case d: ArrayOp.Delete =>
+      appendIndent(sb, indent)
+      val index = d.index
+      val count = d.count
       if (count == 1) sb.append("- [").append(index).append("]\n")
       else {
         sb.append("- [")
@@ -651,28 +572,76 @@ object JsonPatch {
         }
         sb.append("]\n")
       }
-    case ArrayOp.Modify(index, nestedOp) =>
-      sb.append(indent)
-      nestedOp match {
-        case Op.Set(v) => sb.append("~ [").append(index).append(": ").append(v).append("]\n")
+    case m: ArrayOp.Modify =>
+      appendIndent(sb, indent)
+      val op    = m.op
+      val index = m.index
+      op match {
+        case s: Op.Set => sb.append("~ [").append(index).append(": ").append(s.value).append("]\n")
         case _         =>
           sb.append("~ [").append(index).append("]:\n")
-          renderOp(sb, JsonPatchOp(DynamicOptic.root, nestedOp), indent + "  ")
+          renderOp(sb, new JsonPatchOp(DynamicOptic.root, op), indent + 1)
       }
   }
 
-  private[this] def renderObjectOp(sb: lang.StringBuilder, op: ObjectOp, indent: String): Unit = {
-    sb.append(indent)
+  private[this] def renderObjectOp(sb: lang.StringBuilder, op: ObjectOp, indent: Int): Unit = {
+    appendIndent(sb, indent)
     op match {
-      case ObjectOp.Add(k, v)        => sb.append("+ {").append(escapeString(k)).append(": ").append(v).append("}\n")
-      case ObjectOp.Remove(k)        => sb.append("- {").append(escapeString(k)).append("}\n")
-      case ObjectOp.Modify(k, patch) =>
-        sb.append("~ {").append(escapeString(k)).append("}:\n")
-        patch.ops.foreach(op => renderOp(sb, op, indent + "  "))
+      case a: ObjectOp.Add =>
+        sb.append("+ {")
+        escapeString(sb, a.key)
+        sb.append(": ").append(a.value).append("}\n")
+      case r: ObjectOp.Remove =>
+        sb.append("- {")
+        escapeString(sb, r.key)
+        sb.append("}\n")
+      case m: ObjectOp.Modify =>
+        sb.append("~ {")
+        escapeString(sb, m.key)
+        sb.append("}:\n")
+        m.patch.ops.foreach(op => renderOp(sb, op, indent + 1))
     }
   }
 
-  private[this] def escapeString(s: String): String = JsonBinaryCodec.stringCodec.encodeToString(s)
+  private[this] def escapeString(sb: lang.StringBuilder, s: String): Unit = {
+    sb.append('"')
+    val len = s.length
+    var idx = 0
+    while (idx < len) {
+      val ch = s.charAt(idx)
+      idx += 1
+      if (ch >= ' ' && ch != '"' && ch != '\\') sb.append(ch)
+      else {
+        sb.append('\\')
+        ch match {
+          case '"'  => sb.append('"')
+          case '\\' => sb.append('\\')
+          case '\b' => sb.append('b')
+          case '\f' => sb.append('f')
+          case '\n' => sb.append('n')
+          case '\r' => sb.append('r')
+          case '\t' => sb.append('t')
+          case _    =>
+            sb.append('u')
+              .append(hexDigit((ch >> 12) & 0xf))
+              .append(hexDigit((ch >> 8) & 0xf))
+              .append(hexDigit((ch >> 4) & 0xf))
+              .append(hexDigit(ch & 0xf))
+        }
+      }
+    }
+    sb.append('"')
+  }
+
+  private[this] def hexDigit(n: Int): Char = (n + (if (n < 10) 48 else 87)).toChar
+
+  private[this] def appendIndent(sb: lang.StringBuilder, indent: Int): Unit = {
+    var idx = indent
+    while (idx > 0) {
+      sb.append(' ').append(' ')
+      idx -= 1
+    }
+  }
 
   // DynamicPatch Conversion Helpers
 
@@ -680,101 +649,119 @@ object JsonPatch {
    * Converts a JsonPatch.Op to a DynamicPatch.Operation.
    */
   private def opToDynamicOperation(op: Op): DynamicPatch.Operation = op match {
-    case Op.Set(value)                  => new DynamicPatch.Operation.Set(value.toDynamicValue)
-    case Op.PrimitiveDelta(primitiveOp) => new DynamicPatch.Operation.PrimitiveDelta(primitiveOpToDynamic(primitiveOp))
-    case Op.ArrayEdit(arrayOps)         => new DynamicPatch.Operation.SequenceEdit(arrayOps.map(arrayOpToDynamic))
-    case Op.ObjectEdit(objectOps)       => new DynamicPatch.Operation.MapEdit(objectOps.map(objectOpToDynamic))
-    case Op.Nested(nestedPatch)         => new DynamicPatch.Operation.Patch(nestedPatch.toDynamicPatch)
+    case s: Op.Set             => new DynamicPatch.Operation.Set(s.value.toDynamicValue)
+    case pd: Op.PrimitiveDelta => new DynamicPatch.Operation.PrimitiveDelta(primitiveOpToDynamic(pd.op))
+    case ae: Op.ArrayEdit      => new DynamicPatch.Operation.SequenceEdit(ae.ops.map(arrayOpToDynamic))
+    case oe: Op.ObjectEdit     => new DynamicPatch.Operation.MapEdit(oe.ops.map(objectOpToDynamic))
+    case n: Op.Nested          => new DynamicPatch.Operation.Patch(n.patch.toDynamicPatch)
   }
 
   private[this] def primitiveOpToDynamic(op: PrimitiveOp): DynamicPatch.PrimitiveOp = op match {
-    case PrimitiveOp.NumberDelta(delta) => new DynamicPatch.PrimitiveOp.BigDecimalDelta(delta)
-    case PrimitiveOp.StringEdit(ops)    => new DynamicPatch.PrimitiveOp.StringEdit(ops.map(stringOpToDynamic))
+    case nd: PrimitiveOp.NumberDelta => new DynamicPatch.PrimitiveOp.BigDecimalDelta(nd.delta)
+    case se: PrimitiveOp.StringEdit  => new DynamicPatch.PrimitiveOp.StringEdit(se.ops.map(stringOpToDynamic))
   }
 
   private[this] def stringOpToDynamic(op: StringOp): DynamicPatch.StringOp = op match {
-    case StringOp.Insert(index, text)         => new DynamicPatch.StringOp.Insert(index, text)
-    case StringOp.Delete(index, length)       => new DynamicPatch.StringOp.Delete(index, length)
-    case StringOp.Append(text)                => new DynamicPatch.StringOp.Append(text)
-    case StringOp.Modify(index, length, text) => new DynamicPatch.StringOp.Modify(index, length, text)
+    case i: StringOp.Insert => new DynamicPatch.StringOp.Insert(i.index, i.text)
+    case d: StringOp.Delete => new DynamicPatch.StringOp.Delete(d.index, d.length)
+    case a: StringOp.Append => new DynamicPatch.StringOp.Append(a.text)
+    case m: StringOp.Modify => new DynamicPatch.StringOp.Modify(m.index, m.length, m.text)
   }
 
   private[this] def arrayOpToDynamic(op: ArrayOp): DynamicPatch.SeqOp = op match {
-    case ArrayOp.Insert(index, values)   => new DynamicPatch.SeqOp.Insert(index, values.map(_.toDynamicValue))
-    case ArrayOp.Append(values)          => new DynamicPatch.SeqOp.Append(values.map(_.toDynamicValue))
-    case ArrayOp.Delete(index, count)    => new DynamicPatch.SeqOp.Delete(index, count)
-    case ArrayOp.Modify(index, nestedOp) => new DynamicPatch.SeqOp.Modify(index, opToDynamicOperation(nestedOp))
+    case i: ArrayOp.Insert => new DynamicPatch.SeqOp.Insert(i.index, i.values.map(_.toDynamicValue))
+    case a: ArrayOp.Append => new DynamicPatch.SeqOp.Append(a.values.map(_.toDynamicValue))
+    case d: ArrayOp.Delete => new DynamicPatch.SeqOp.Delete(d.index, d.count)
+    case m: ArrayOp.Modify => new DynamicPatch.SeqOp.Modify(m.index, opToDynamicOperation(m.op))
   }
 
   private[this] def objectOpToDynamic(op: ObjectOp): DynamicPatch.MapOp = op match {
-    case ObjectOp.Add(key, value)          => new DynamicPatch.MapOp.Add(DynamicValue.string(key), value.toDynamicValue)
-    case ObjectOp.Remove(key)              => new DynamicPatch.MapOp.Remove(DynamicValue.string(key))
-    case ObjectOp.Modify(key, nestedPatch) =>
-      new DynamicPatch.MapOp.Modify(DynamicValue.string(key), nestedPatch.toDynamicPatch)
+    case a: ObjectOp.Add    => new DynamicPatch.MapOp.Add(DynamicValue.string(a.key), a.value.toDynamicValue)
+    case r: ObjectOp.Remove => new DynamicPatch.MapOp.Remove(DynamicValue.string(r.key))
+    case m: ObjectOp.Modify => new DynamicPatch.MapOp.Modify(DynamicValue.string(m.key), m.patch.toDynamicPatch)
   }
 
   /**
    * Converts a DynamicPatch.Operation to a JsonPatch.Op.
    */
   private[this] def operationFromDynamic(op: DynamicPatch.Operation): Either[SchemaError, Op] = op match {
-    case DynamicPatch.Operation.Set(value)                  => new Right(new Op.Set(Json.fromDynamicValue(value)))
-    case DynamicPatch.Operation.PrimitiveDelta(primitiveOp) =>
-      primitiveOpFromDynamic(primitiveOp).map(new Op.PrimitiveDelta(_))
-    case DynamicPatch.Operation.SequenceEdit(seqOps) =>
-      sequenceAll(seqOps.map(seqOpFromDynamic)).map(ops => new Op.ArrayEdit(ops))
-    case DynamicPatch.Operation.MapEdit(mapOps) =>
-      sequenceAll(mapOps.map(mapOpFromDynamic)).map(ops => new Op.ObjectEdit(ops))
-    case DynamicPatch.Operation.Patch(nestedPatch) => fromDynamicPatch(nestedPatch).map(new Op.Nested(_))
+    case s: DynamicPatch.Operation.Set             => new Right(new Op.Set(Json.fromDynamicValue(s.value)))
+    case pd: DynamicPatch.Operation.PrimitiveDelta =>
+      primitiveOpFromDynamic(pd.op) match {
+        case Right(op) => new Right(new Op.PrimitiveDelta(op))
+        case l         => l.asInstanceOf[Either[SchemaError, Op]]
+      }
+    case se: DynamicPatch.Operation.SequenceEdit =>
+      sequenceAll(se.ops.map(seqOpFromDynamic)) match {
+        case Right(ops) => new Right(new Op.ArrayEdit(ops))
+        case l          => l.asInstanceOf[Either[SchemaError, Op]]
+      }
+    case me: DynamicPatch.Operation.MapEdit =>
+      sequenceAll(me.ops.map(mapOpFromDynamic)) match {
+        case Right(ops) => new Right(new Op.ObjectEdit(ops))
+        case l          => l.asInstanceOf[Either[SchemaError, Op]]
+      }
+    case p: DynamicPatch.Operation.Patch =>
+      fromDynamicPatch(p.patch) match {
+        case Right(patch) => new Right(new Op.Nested(patch))
+        case l            => l.asInstanceOf[Either[SchemaError, Op]]
+      }
   }
 
-  private[this] def primitiveOpFromDynamic(op: DynamicPatch.PrimitiveOp): Either[SchemaError, PrimitiveOp] = op match {
-    case DynamicPatch.PrimitiveOp.IntDelta(delta)   => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.LongDelta(delta)  => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.ShortDelta(delta) => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta.toInt)))
-    case DynamicPatch.PrimitiveOp.ByteDelta(delta)  => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta.toInt)))
-    case DynamicPatch.PrimitiveOp.FloatDelta(delta) =>
-      new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta.toDouble)))
-    case DynamicPatch.PrimitiveOp.DoubleDelta(delta)     => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.BigIntDelta(delta)     => new Right(new PrimitiveOp.NumberDelta(BigDecimal(delta)))
-    case DynamicPatch.PrimitiveOp.BigDecimalDelta(delta) => new Right(new PrimitiveOp.NumberDelta(delta))
-    case DynamicPatch.PrimitiveOp.StringEdit(ops)        => new Right(new PrimitiveOp.StringEdit(ops.map(stringOpFromDynamic)))
-    case _: DynamicPatch.PrimitiveOp.InstantDelta        =>
-      new Left(SchemaError("Temporal operations (InstantDelta) are not supported in JsonPatch"))
-    case _: DynamicPatch.PrimitiveOp.DurationDelta =>
-      new Left(SchemaError("Temporal operations (DurationDelta) are not supported in JsonPatch"))
-    case _: DynamicPatch.PrimitiveOp.LocalDateDelta =>
-      new Left(SchemaError("Temporal operations (LocalDateDelta) are not supported in JsonPatch"))
-    case _: DynamicPatch.PrimitiveOp.LocalDateTimeDelta =>
-      new Left(SchemaError("Temporal operations (LocalDateTimeDelta) are not supported in JsonPatch"))
-    case _: DynamicPatch.PrimitiveOp.PeriodDelta =>
-      new Left(SchemaError("Temporal operations (PeriodDelta) are not supported in JsonPatch"))
-  }
+  private[this] def primitiveOpFromDynamic(op: DynamicPatch.PrimitiveOp): Either[SchemaError, PrimitiveOp] = new Right(
+    op match {
+      case d: DynamicPatch.PrimitiveOp.IntDelta        => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.LongDelta       => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.ShortDelta      => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.ByteDelta       => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.FloatDelta      => new PrimitiveOp.NumberDelta(JsonWriter.toBigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.DoubleDelta     => new PrimitiveOp.NumberDelta(JsonWriter.toBigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.BigIntDelta     => new PrimitiveOp.NumberDelta(BigDecimal(d.delta))
+      case d: DynamicPatch.PrimitiveOp.BigDecimalDelta => new PrimitiveOp.NumberDelta(d.delta)
+      case se: DynamicPatch.PrimitiveOp.StringEdit     => new PrimitiveOp.StringEdit(se.ops.map(stringOpFromDynamic))
+      case _                                           =>
+        return new Left(SchemaError("Temporal operations are not supported in JsonPatch"))
+    }
+  )
 
   private[this] def stringOpFromDynamic(op: DynamicPatch.StringOp): StringOp = op match {
-    case DynamicPatch.StringOp.Insert(index, text)         => new StringOp.Insert(index, text)
-    case DynamicPatch.StringOp.Delete(index, length)       => new StringOp.Delete(index, length)
-    case DynamicPatch.StringOp.Append(text)                => new StringOp.Append(text)
-    case DynamicPatch.StringOp.Modify(index, length, text) => new StringOp.Modify(index, length, text)
+    case i: DynamicPatch.StringOp.Insert => new StringOp.Insert(i.index, i.text)
+    case d: DynamicPatch.StringOp.Delete => new StringOp.Delete(d.index, d.length)
+    case a: DynamicPatch.StringOp.Append => new StringOp.Append(a.text)
+    case m: DynamicPatch.StringOp.Modify => new StringOp.Modify(m.index, m.length, m.text)
   }
 
-  private[this] def seqOpFromDynamic(op: DynamicPatch.SeqOp): Either[SchemaError, ArrayOp] = op match {
-    case DynamicPatch.SeqOp.Insert(index, values) =>
-      new Right(new ArrayOp.Insert(index, values.map(Json.fromDynamicValue)))
-    case DynamicPatch.SeqOp.Append(values)          => new Right(new ArrayOp.Append(values.map(Json.fromDynamicValue)))
-    case DynamicPatch.SeqOp.Delete(index, count)    => new Right(new ArrayOp.Delete(index, count))
-    case DynamicPatch.SeqOp.Modify(index, nestedOp) =>
-      operationFromDynamic(nestedOp).map(op => new ArrayOp.Modify(index, op))
-  }
+  private[this] def seqOpFromDynamic(op: DynamicPatch.SeqOp): Either[SchemaError, ArrayOp] = new Right(op match {
+    case i: DynamicPatch.SeqOp.Insert => new ArrayOp.Insert(i.index, i.values.map(Json.fromDynamicValue))
+    case a: DynamicPatch.SeqOp.Append => new ArrayOp.Append(a.values.map(Json.fromDynamicValue))
+    case d: DynamicPatch.SeqOp.Delete => new ArrayOp.Delete(d.index, d.count)
+    case m: DynamicPatch.SeqOp.Modify =>
+      operationFromDynamic(m.op) match {
+        case Right(op) => new ArrayOp.Modify(m.index, op)
+        case l         => return l.asInstanceOf[Either[SchemaError, ArrayOp]]
+      }
+  })
 
   private[this] def mapOpFromDynamic(op: DynamicPatch.MapOp): Either[SchemaError, ObjectOp] = op match {
-    case DynamicPatch.MapOp.Add(key, value) =>
-      extractStringKey(key).map(k => new ObjectOp.Add(k, Json.fromDynamicValue(value)))
-    case DynamicPatch.MapOp.Remove(key)              => extractStringKey(key).map(new ObjectOp.Remove(_))
-    case DynamicPatch.MapOp.Modify(key, nestedPatch) =>
-      for {
-        k     <- extractStringKey(key)
-        patch <- fromDynamicPatch(nestedPatch)
-      } yield new ObjectOp.Modify(k, patch)
+    case a: DynamicPatch.MapOp.Add =>
+      extractStringKey(a.key) match {
+        case Right(k) => new Right(new ObjectOp.Add(k, Json.fromDynamicValue(a.value)))
+        case l        => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+      }
+    case r: DynamicPatch.MapOp.Remove =>
+      extractStringKey(r.key) match {
+        case Right(k) => new Right(new ObjectOp.Remove(k))
+        case l        => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+      }
+    case m: DynamicPatch.MapOp.Modify =>
+      extractStringKey(m.key) match {
+        case Right(k) =>
+          fromDynamicPatch(m.patch) match {
+            case Right(p) => new Right(new ObjectOp.Modify(k, p))
+            case l        => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+          }
+        case l => l.asInstanceOf[Either[SchemaError, ObjectOp]]
+      }
   }
 
   private[this] def extractStringKey(key: DynamicValue): Either[SchemaError, String] = key match {
@@ -1017,13 +1004,13 @@ object JsonPatch {
   implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Insert](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[String].reflect.asTerm("text")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[String].reflect.asTerm("text")),
         typeId = TypeId.of[StringOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Insert =
-              StringOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[String])
+              new StringOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[StringOp.Insert] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(ints = 1, objects = 1)
@@ -1033,20 +1020,20 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpDeleteSchema: Schema[StringOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Delete](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("length")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("length")),
         typeId = TypeId.of[StringOp.Delete],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Delete] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Delete =
-              StringOp.Delete(
+              new StringOp.Delete(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset))
               )
@@ -1059,20 +1046,20 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpAppendSchema: Schema[StringOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Append](
-        fields = Vector(Schema[String].reflect.asTerm("text")),
+        fields = Chunk.single(Schema[String].reflect.asTerm("text")),
         typeId = TypeId.of[StringOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Append =
-              StringOp.Append(in.getObject(offset).asInstanceOf[String])
+              new StringOp.Append(in.getObject(offset).asInstanceOf[String])
           },
           deconstructor = new Deconstructor[StringOp.Append] {
             def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
@@ -1080,14 +1067,14 @@ object JsonPatch {
               out.setObject(offset, in.text)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpModifySchema: Schema[StringOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Modify](
-        fields = Vector(
+        fields = Chunk(
           Schema[Int].reflect.asTerm("index"),
           Schema[Int].reflect.asTerm("length"),
           Schema[String].reflect.asTerm("text")
@@ -1097,7 +1084,7 @@ object JsonPatch {
           constructor = new Constructor[StringOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(ints = 2, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): StringOp.Modify =
-              StringOp.Modify(
+              new StringOp.Modify(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset)),
                 in.getObject(offset).asInstanceOf[String]
@@ -1112,13 +1099,13 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val stringOpSchema: Schema[StringOp] = new Schema(
     reflect = new Reflect.Variant[Binding, StringOp](
-      cases = Vector(
+      cases = Chunk(
         stringOpInsertSchema.reflect.asTerm("Insert"),
         stringOpDeleteSchema.reflect.asTerm("Delete"),
         stringOpAppendSchema.reflect.asTerm("Append"),
@@ -1161,7 +1148,7 @@ object JsonPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
@@ -1170,13 +1157,13 @@ object JsonPatch {
   implicit lazy val primitiveOpNumberDeltaSchema: Schema[PrimitiveOp.NumberDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.NumberDelta](
-        fields = Vector(Schema[BigDecimal].reflect.asTerm("delta")),
+        fields = Chunk.single(Schema[BigDecimal].reflect.asTerm("delta")),
         typeId = TypeId.of[PrimitiveOp.NumberDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.NumberDelta] {
             def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.NumberDelta =
-              PrimitiveOp.NumberDelta(in.getObject(offset).asInstanceOf[BigDecimal])
+              new PrimitiveOp.NumberDelta(in.getObject(offset).asInstanceOf[BigDecimal])
           },
           deconstructor = new Deconstructor[PrimitiveOp.NumberDelta] {
             def usedRegisters: RegisterOffset                                                          = RegisterOffset(objects = 1)
@@ -1184,20 +1171,20 @@ object JsonPatch {
               out.setObject(offset, in.delta)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
-        fields = Vector(Schema[Chunk[StringOp]].reflect.asTerm("ops")),
+        fields = Chunk.single(Schema[Chunk[StringOp]].reflect.asTerm("ops")),
         typeId = TypeId.of[PrimitiveOp.StringEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): PrimitiveOp.StringEdit =
-              PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
+              new PrimitiveOp.StringEdit(in.getObject(offset).asInstanceOf[Chunk[StringOp]])
           },
           deconstructor = new Deconstructor[PrimitiveOp.StringEdit] {
             def usedRegisters: RegisterOffset                                                         = RegisterOffset(objects = 1)
@@ -1205,13 +1192,13 @@ object JsonPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val primitiveOpSchema: Schema[PrimitiveOp] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveOp](
-      cases = Vector(
+      cases = Chunk(
         primitiveOpNumberDeltaSchema.reflect.asTerm("NumberDelta"),
         primitiveOpStringEditSchema.reflect.asTerm("StringEdit")
       ),
@@ -1238,7 +1225,7 @@ object JsonPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
@@ -1247,13 +1234,13 @@ object JsonPatch {
   implicit lazy val arrayOpInsertSchema: Schema[ArrayOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Insert](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[Chunk[Json]].reflect.asTerm("values")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[Chunk[Json]].reflect.asTerm("values")),
         typeId = TypeId.of[ArrayOp.Insert],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ArrayOp.Insert] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): ArrayOp.Insert =
-              ArrayOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[Json]])
+              new ArrayOp.Insert(in.getInt(offset), in.getObject(offset).asInstanceOf[Chunk[Json]])
           },
           deconstructor = new Deconstructor[ArrayOp.Insert] {
             def usedRegisters: RegisterOffset                                                 = RegisterOffset(ints = 1, objects = 1)
@@ -1263,14 +1250,14 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val arrayOpAppendSchema: Schema[ArrayOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Append](
-        fields = Vector(Schema[Chunk[Json]].reflect.asTerm("values")),
+        fields = Chunk.single(Schema[Chunk[Json]].reflect.asTerm("values")),
         typeId = TypeId.of[ArrayOp.Append],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ArrayOp.Append] {
@@ -1284,20 +1271,20 @@ object JsonPatch {
               out.setObject(offset, in.values)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val arrayOpDeleteSchema: Schema[ArrayOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Delete](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("count")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Schema[Int].reflect.asTerm("count")),
         typeId = TypeId.of[ArrayOp.Delete],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ArrayOp.Delete] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(ints = 2)
             def construct(in: Registers, offset: RegisterOffset): ArrayOp.Delete =
-              ArrayOp.Delete(
+              new ArrayOp.Delete(
                 in.getInt(offset),
                 in.getInt(RegisterOffset.incrementFloatsAndInts(offset))
               )
@@ -1310,7 +1297,7 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
@@ -1318,13 +1305,13 @@ object JsonPatch {
   implicit lazy val arrayOpModifySchema: Schema[ArrayOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Modify](
-        fields = Vector(Schema[Int].reflect.asTerm("index"), Reflect.Deferred(() => opSchema.reflect).asTerm("op")),
+        fields = Chunk(Schema[Int].reflect.asTerm("index"), Reflect.Deferred(() => opSchema.reflect).asTerm("op")),
         typeId = TypeId.of[ArrayOp.Modify],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ArrayOp.Modify] {
             def usedRegisters: RegisterOffset                                    = RegisterOffset(ints = 1, objects = 1)
             def construct(in: Registers, offset: RegisterOffset): ArrayOp.Modify =
-              ArrayOp.Modify(in.getInt(offset), in.getObject(offset).asInstanceOf[Op])
+              new ArrayOp.Modify(in.getInt(offset), in.getObject(offset).asInstanceOf[Op])
           },
           deconstructor = new Deconstructor[ArrayOp.Modify] {
             def usedRegisters: RegisterOffset                                                 = RegisterOffset(ints = 1, objects = 1)
@@ -1334,13 +1321,13 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val arrayOpSchema: Schema[ArrayOp] = new Schema(
     reflect = new Reflect.Variant[Binding, ArrayOp](
-      cases = Vector(
+      cases = Chunk(
         arrayOpInsertSchema.reflect.asTerm("Insert"),
         arrayOpAppendSchema.reflect.asTerm("Append"),
         arrayOpDeleteSchema.reflect.asTerm("Delete"),
@@ -1383,7 +1370,7 @@ object JsonPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
@@ -1392,13 +1379,13 @@ object JsonPatch {
   implicit lazy val objectOpAddSchema: Schema[ObjectOp.Add] =
     new Schema(
       reflect = new Reflect.Record[Binding, ObjectOp.Add](
-        fields = Vector(Schema[String].reflect.asTerm("key"), Schema[Json].reflect.asTerm("value")),
+        fields = Chunk(Schema[String].reflect.asTerm("key"), Schema[Json].reflect.asTerm("value")),
         typeId = TypeId.of[ObjectOp.Add],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ObjectOp.Add] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): ObjectOp.Add =
-              ObjectOp.Add(
+              new ObjectOp.Add(
                 in.getObject(offset).asInstanceOf[String],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Json]
               )
@@ -1411,14 +1398,14 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val objectOpRemoveSchema: Schema[ObjectOp.Remove] =
     new Schema(
       reflect = new Reflect.Record[Binding, ObjectOp.Remove](
-        fields = Vector(Schema[String].reflect.asTerm("key")),
+        fields = Chunk.single(Schema[String].reflect.asTerm("key")),
         typeId = TypeId.of[ObjectOp.Remove],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ObjectOp.Remove] {
@@ -1432,7 +1419,7 @@ object JsonPatch {
               out.setObject(offset, in.key)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
@@ -1440,13 +1427,13 @@ object JsonPatch {
   implicit lazy val objectOpModifySchema: Schema[ObjectOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, ObjectOp.Modify](
-        fields = Vector(Schema[String].reflect.asTerm("key"), Reflect.Deferred(() => schema.reflect).asTerm("patch")),
+        fields = Chunk(Schema[String].reflect.asTerm("key"), Reflect.Deferred(() => schema.reflect).asTerm("patch")),
         typeId = TypeId.of[ObjectOp.Modify],
         recordBinding = new Binding.Record(
           constructor = new Constructor[ObjectOp.Modify] {
             def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): ObjectOp.Modify =
-              ObjectOp.Modify(
+              new ObjectOp.Modify(
                 in.getObject(offset).asInstanceOf[String],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[JsonPatch]
               )
@@ -1459,13 +1446,13 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val objectOpSchema: Schema[ObjectOp] = new Schema(
     reflect = new Reflect.Variant[Binding, ObjectOp](
-      cases = Vector(
+      cases = Chunk(
         objectOpAddSchema.reflect.asTerm("Add"),
         objectOpRemoveSchema.reflect.asTerm("Remove"),
         Reflect.Deferred(() => objectOpModifySchema.reflect).asTerm("Modify")
@@ -1500,7 +1487,7 @@ object JsonPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
@@ -1509,13 +1496,13 @@ object JsonPatch {
   implicit lazy val opSetSchema: Schema[Op.Set] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.Set](
-        fields = Vector(Schema[Json].reflect.asTerm("value")),
+        fields = Chunk.single(Schema[Json].reflect.asTerm("value")),
         typeId = TypeId.of[Op.Set],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.Set] {
             def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.Set =
-              Op.Set(in.getObject(offset).asInstanceOf[Json])
+              new Op.Set(in.getObject(offset).asInstanceOf[Json])
           },
           deconstructor = new Deconstructor[Op.Set] {
             def usedRegisters: RegisterOffset                                         = RegisterOffset(objects = 1)
@@ -1523,20 +1510,20 @@ object JsonPatch {
               out.setObject(offset, in.value)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val opPrimitiveDeltaSchema: Schema[Op.PrimitiveDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.PrimitiveDelta](
-        fields = Vector(primitiveOpSchema.reflect.asTerm("op")),
+        fields = Chunk.single(primitiveOpSchema.reflect.asTerm("op")),
         typeId = TypeId.of[Op.PrimitiveDelta],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.PrimitiveDelta =
-              Op.PrimitiveDelta(in.getObject(offset).asInstanceOf[PrimitiveOp])
+              new Op.PrimitiveDelta(in.getObject(offset).asInstanceOf[PrimitiveOp])
           },
           deconstructor = new Deconstructor[Op.PrimitiveDelta] {
             def usedRegisters: RegisterOffset                                                    = RegisterOffset(objects = 1)
@@ -1544,20 +1531,20 @@ object JsonPatch {
               out.setObject(offset, in.op)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val opArrayEditSchema: Schema[Op.ArrayEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.ArrayEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Chunk[ArrayOp]].reflect).asTerm("ops")),
+        fields = Chunk.single(Reflect.Deferred(() => Schema[Chunk[ArrayOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Op.ArrayEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.ArrayEdit] {
             def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.ArrayEdit =
-              Op.ArrayEdit(in.getObject(offset).asInstanceOf[Chunk[ArrayOp]])
+              new Op.ArrayEdit(in.getObject(offset).asInstanceOf[Chunk[ArrayOp]])
           },
           deconstructor = new Deconstructor[Op.ArrayEdit] {
             def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 1)
@@ -1565,20 +1552,20 @@ object JsonPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val opObjectEditSchema: Schema[Op.ObjectEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.ObjectEdit](
-        fields = Vector(Reflect.Deferred(() => Schema[Chunk[ObjectOp]].reflect).asTerm("ops")),
+        fields = Chunk.single(Reflect.Deferred(() => Schema[Chunk[ObjectOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[Op.ObjectEdit],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.ObjectEdit] {
             def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.ObjectEdit =
-              Op.ObjectEdit(in.getObject(offset).asInstanceOf[Chunk[ObjectOp]])
+              new Op.ObjectEdit(in.getObject(offset).asInstanceOf[Chunk[ObjectOp]])
           },
           deconstructor = new Deconstructor[Op.ObjectEdit] {
             def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 1)
@@ -1586,7 +1573,7 @@ object JsonPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
@@ -1594,13 +1581,13 @@ object JsonPatch {
   implicit lazy val opNestedSchema: Schema[Op.Nested] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.Nested](
-        fields = Vector(Reflect.Deferred(() => schema.reflect).asTerm("patch")),
+        fields = Chunk.single(Reflect.Deferred(() => schema.reflect).asTerm("patch")),
         typeId = TypeId.of[Op.Nested],
         recordBinding = new Binding.Record(
           constructor = new Constructor[Op.Nested] {
             def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): Op.Nested =
-              Op.Nested(in.getObject(offset).asInstanceOf[JsonPatch])
+              new Op.Nested(in.getObject(offset).asInstanceOf[JsonPatch])
           },
           deconstructor = new Deconstructor[Op.Nested] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
@@ -1608,13 +1595,13 @@ object JsonPatch {
               out.setObject(offset, in.patch)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
   implicit lazy val opSchema: Schema[Op] = new Schema(
     reflect = new Reflect.Variant[Binding, Op](
-      cases = Vector(
+      cases = Chunk(
         opSetSchema.reflect.asTerm("Set"),
         opPrimitiveDeltaSchema.reflect.asTerm("PrimitiveDelta"),
         opArrayEditSchema.reflect.asTerm("ArrayEdit"),
@@ -1665,7 +1652,7 @@ object JsonPatch {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
@@ -1674,7 +1661,7 @@ object JsonPatch {
   implicit lazy val jsonPatchOpSchema: Schema[JsonPatchOp] =
     new Schema(
       reflect = new Reflect.Record[Binding, JsonPatchOp](
-        fields = Vector(
+        fields = Chunk(
           Schema[DynamicOptic].reflect.asTerm("path"),
           Reflect.Deferred(() => opSchema.reflect).asTerm("operation")
         ),
@@ -1683,7 +1670,7 @@ object JsonPatch {
           constructor = new Constructor[JsonPatchOp] {
             def usedRegisters: RegisterOffset                                 = RegisterOffset(objects = 2)
             def construct(in: Registers, offset: RegisterOffset): JsonPatchOp =
-              JsonPatchOp(
+              new JsonPatchOp(
                 in.getObject(offset).asInstanceOf[DynamicOptic],
                 in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Op]
               )
@@ -1696,7 +1683,7 @@ object JsonPatch {
             }
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 
@@ -1705,13 +1692,13 @@ object JsonPatch {
   implicit lazy val schema: Schema[JsonPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, JsonPatch](
-        fields = Vector(Reflect.Deferred(() => Schema[Chunk[JsonPatchOp]].reflect).asTerm("ops")),
+        fields = Chunk.single(Reflect.Deferred(() => Schema[Chunk[JsonPatchOp]].reflect).asTerm("ops")),
         typeId = TypeId.of[JsonPatch],
         recordBinding = new Binding.Record(
           constructor = new Constructor[JsonPatch] {
             def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
             def construct(in: Registers, offset: RegisterOffset): JsonPatch =
-              JsonPatch(in.getObject(offset).asInstanceOf[Chunk[JsonPatchOp]])
+              new JsonPatch(in.getObject(offset).asInstanceOf[Chunk[JsonPatchOp]])
           },
           deconstructor = new Deconstructor[JsonPatch] {
             def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
@@ -1719,7 +1706,7 @@ object JsonPatch {
               out.setObject(offset, in.ops)
           }
         ),
-        modifiers = Vector.empty
+        modifiers = Chunk.empty
       )
     )
 }

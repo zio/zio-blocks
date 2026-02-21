@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object PathParserSpec extends SchemaBaseSpec {
@@ -9,57 +10,57 @@ object PathParserSpec extends SchemaBaseSpec {
 
   def spec = suite("PathParserSpec")(
     suite("successful parsing")(
-      test("empty path returns empty vector") {
-        assertTrue(parse("") == Right(Vector.empty))
+      test("empty path returns empty chunk") {
+        assertTrue(parse("") == Right(Chunk.empty))
       },
       test("simple field") {
-        assertTrue(parse(".foo") == Right(Vector(Node.Field("foo"))))
+        assertTrue(parse(".foo") == Right(Chunk(Node.Field("foo"))))
       },
       test("field without leading dot") {
-        assertTrue(parse("foo") == Right(Vector(Node.Field("foo"))))
+        assertTrue(parse("foo") == Right(Chunk(Node.Field("foo"))))
       },
       test("chained fields") {
-        assertTrue(parse(".foo.bar") == Right(Vector(Node.Field("foo"), Node.Field("bar"))))
+        assertTrue(parse(".foo.bar") == Right(Chunk(Node.Field("foo"), Node.Field("bar"))))
       },
       test("index access") {
-        assertTrue(parse("[42]") == Right(Vector(Node.AtIndex(42))))
+        assertTrue(parse("[42]") == Right(Chunk(Node.AtIndex(42))))
       },
       test("elements selector") {
-        assertTrue(parse("[*]") == Right(Vector(Node.Elements)))
+        assertTrue(parse("[*]") == Right(Chunk(Node.Elements)))
       },
       test("colon star elements") {
-        assertTrue(parse("[:*]") == Right(Vector(Node.Elements)))
+        assertTrue(parse("[:*]") == Right(Chunk(Node.Elements)))
       },
       test("star colon elements") {
-        assertTrue(parse("[*:]") == Right(Vector(Node.Elements)))
+        assertTrue(parse("[*:]") == Right(Chunk(Node.Elements)))
       },
       test("map key string") {
         assertTrue(
-          parse("""{"key"}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))))
+          parse("""{"key"}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))))
         )
       },
       test("map values") {
-        assertTrue(parse("{*}") == Right(Vector(Node.MapValues)))
+        assertTrue(parse("{*}") == Right(Chunk(Node.MapValues)))
       },
       test("map keys") {
-        assertTrue(parse("{*:}") == Right(Vector(Node.MapKeys)))
+        assertTrue(parse("{*:}") == Right(Chunk(Node.MapKeys)))
       },
       test("colon star map values") {
-        assertTrue(parse("{:*}") == Right(Vector(Node.MapValues)))
+        assertTrue(parse("{:*}") == Right(Chunk(Node.MapValues)))
       },
       test("variant case") {
-        assertTrue(parse("<Foo>") == Right(Vector(Node.Case("Foo"))))
+        assertTrue(parse("<Foo>") == Right(Chunk(Node.Case("Foo"))))
       },
       test("index range") {
-        assertTrue(parse("[0:3]") == Right(Vector(Node.AtIndices(Seq(0, 1, 2)))))
+        assertTrue(parse("[0:3]") == Right(Chunk(Node.AtIndices(Seq(0, 1, 2)))))
       },
       test("multiple indices") {
-        assertTrue(parse("[0,1,2]") == Right(Vector(Node.AtIndices(Seq(0, 1, 2)))))
+        assertTrue(parse("[0,1,2]") == Right(Chunk(Node.AtIndices(Seq(0, 1, 2)))))
       },
       test("multiple map keys") {
         assertTrue(
           parse("""{"a","b"}""") == Right(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Vector(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
@@ -395,87 +396,87 @@ object PathParserSpec extends SchemaBaseSpec {
     suite("map key types")(
       test("boolean true key") {
         assertTrue(
-          parse("{true}") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+          parse("{true}") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
         )
       },
       test("boolean false key") {
         assertTrue(
-          parse("{false}") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+          parse("{false}") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
         )
       },
       test("positive integer key") {
-        assertTrue(parse("{42}") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42))))))
+        assertTrue(parse("{42}") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42))))))
       },
       test("negative integer key") {
-        assertTrue(parse("{-42}") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-42))))))
+        assertTrue(parse("{-42}") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-42))))))
       },
       test("negative int min value") {
         assertTrue(
           parse("{-2147483648}") == Right(
-            Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(Int.MinValue))))
+            Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(Int.MinValue))))
           )
         )
       },
       test("char key") {
-        assertTrue(parse("{'a'}") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('a'))))))
+        assertTrue(parse("{'a'}") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('a'))))))
       },
       test("escaped char key newline") {
         assertTrue(
-          parse("""{'\\'}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))))
+          parse("""{'\\'}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))))
         )
       },
       test("escaped char key tab") {
         assertTrue(
-          parse("""{'\''}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\'')))))
+          parse("""{'\''}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\'')))))
         )
       },
       test("escaped char key n") {
         assertTrue(
-          parse("""{'\\'}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))))
+          parse("""{'\\'}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))))
         )
       }
     ),
     suite("string escapes")(
       test("escaped quote in string") {
         assertTrue(
-          parse("""{"\""}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\"")))))
+          parse("""{"\""}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\"")))))
         )
       },
       test("escaped backslash in string") {
         assertTrue(
-          parse("""{"\\"}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\\")))))
+          parse("""{"\\"}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\\")))))
         )
       },
       test("escaped newline in string") {
         assertTrue(
-          parse("""{"a\nb"}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("a\nb")))))
+          parse("""{"a\nb"}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("a\nb")))))
         )
       },
       test("escaped tab in string") {
         assertTrue(
-          parse("""{"a\tb"}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("a\tb")))))
+          parse("""{"a\tb"}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("a\tb")))))
         )
       },
       test("escaped carriage return in string") {
         assertTrue(
-          parse("""{"a\rb"}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("a\rb")))))
+          parse("""{"a\rb"}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("a\rb")))))
         )
       }
     ),
     suite("char escapes")(
       test("escaped newline char") {
         assertTrue(
-          parse("""{'\n'}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\n')))))
+          parse("""{'\n'}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\n')))))
         )
       },
       test("escaped tab char") {
         assertTrue(
-          parse("""{'\t'}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\t')))))
+          parse("""{'\t'}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\t')))))
         )
       },
       test("escaped carriage return char") {
         assertTrue(
-          parse("""{'\r'}""") == Right(Vector(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\r')))))
+          parse("""{'\r'}""") == Right(Chunk(Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\r')))))
         )
       }
     ),
@@ -523,15 +524,15 @@ object PathParserSpec extends SchemaBaseSpec {
     ),
     suite("ParseContext edge cases")(
       test("peek beyond end returns null char") {
-        assertTrue(parse("[0]") == Right(Vector(Node.AtIndex(0))))
+        assertTrue(parse("[0]") == Right(Chunk(Node.AtIndex(0))))
       },
       test("whitespace handling in various positions") {
-        assertTrue(parse("[ 0 , 1 , 2 ]") == Right(Vector(Node.AtIndices(Seq(0, 1, 2)))))
+        assertTrue(parse("[ 0 , 1 , 2 ]") == Right(Chunk(Node.AtIndices(Seq(0, 1, 2)))))
       },
       test("whitespace in map keys") {
         assertTrue(
           parse("""{ "a" , "b" }""") == Right(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Vector(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
@@ -543,7 +544,7 @@ object PathParserSpec extends SchemaBaseSpec {
         )
       },
       test("whitespace in variant") {
-        assertTrue(parse("< Foo >") == Right(Vector(Node.Case("Foo"))))
+        assertTrue(parse("< Foo >") == Right(Chunk(Node.Case("Foo"))))
       }
     )
   )

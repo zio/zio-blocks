@@ -111,6 +111,37 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
         }
         assertTrue(success)
       }
+    },
+    test("Resource.shared handles concurrent initialization contention") {
+      ZIO.succeed {
+        val counter  = new AtomicInteger(0)
+        val resource = Resource.shared[Int] { _ =>
+          Thread.sleep(10)
+          counter.incrementAndGet()
+        }
+        val results = new java.util.concurrent.ConcurrentLinkedQueue[Int]()
+        Scope.global.scoped { scope =>
+          val threads = 100
+          val barrier = new CyclicBarrier(threads)
+          val latch   = new CountDownLatch(threads)
+          val workers = (0 until threads).map { _ =>
+            new Thread(() => {
+              barrier.await()
+              val result = resource.make(scope)
+              results.add(result)
+              latch.countDown()
+            })
+          }
+          workers.foreach(_.start())
+          latch.await()
+        }
+        import scala.jdk.CollectionConverters._
+        val allResults = results.asScala.toList
+        assertTrue(
+          allResults.forall(_ == 1),
+          counter.get() == 1
+        )
+      }
     }
   )
 }

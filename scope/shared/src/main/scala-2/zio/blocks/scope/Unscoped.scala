@@ -12,16 +12,45 @@ package zio.blocks.scope
  *
  * @example
  *   {{{
- *   // Primitives escape freely
- *   val n: Int = stream $ (_.read())  // Int is Unscoped
+ *   // Primitives escape freely (auto-unwrapped by $)
+ *   Scope.global.scoped { s =>
+ *     import s._
+ *     (s $ stream)(_.read()) // returns Int directly since Int: Unscoped
+ *   }
  *
  *   // Resources stay scoped
- *   val body = request $ (_.body)     // InputStream @@ Tag (not raw InputStream)
+ *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped (no Unscoped instance)
  *   }}}
  */
 trait Unscoped[A]
 
-object Unscoped {
+/**
+ * Low-priority Unscoped instances to avoid ambiguity.
+ */
+private[scope] trait UnscopedLowPriority {
+  // Nothing - can always escape (never actually returned)
+  // Must be low priority since Nothing <: A for all A
+  implicit val unscopedNothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
+}
+
+/**
+ * Companion object providing implicit instances for common types.
+ *
+ * ==Adding Custom Instances==
+ *
+ * To mark your own type as safe to escape scopes, define an implicit instance:
+ *
+ * {{{
+ * case class UserId(value: Long)
+ * object UserId {
+ *   implicit val unscopedUserId: Unscoped[UserId] = new Unscoped[UserId] {}
+ * }
+ * }}}
+ *
+ * Only add `Unscoped` instances for pure data types that don't hold resources.
+ * Resource types (streams, connections, handles) should NOT have instances.
+ */
+object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives
   implicit val unscopedInt: Unscoped[Int]               = new Unscoped[Int] {}
   implicit val unscopedLong: Unscoped[Long]             = new Unscoped[Long] {}
@@ -82,7 +111,8 @@ object Unscoped {
   implicit val unscopedFiniteDuration: Unscoped[scala.concurrent.duration.FiniteDuration] =
     new Unscoped[scala.concurrent.duration.FiniteDuration] {}
 
-  // zio-blocks Chunk
+  // zio-blocks types
   implicit def unscopedChunk[A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] =
     new Unscoped[zio.blocks.chunk.Chunk[A]] {}
+
 }
