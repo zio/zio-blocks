@@ -8,7 +8,7 @@ import scala.scalajs.js.JSConverters._
 import scala.scalajs.js.annotation.{JSImport, JSName}
 import scala.scalajs.js.typedarray.Uint8Array
 
-private[golem] object AgentHostApi {
+object AgentHostApi {
   type OplogIndex       = BigInt
   type ComponentVersion = BigInt
   private lazy val getAgentsConstructor: js.Dynamic =
@@ -150,8 +150,13 @@ private[golem] object AgentHostApi {
   def revertAgent(agentId: AgentIdLiteral, target: RevertAgentTarget): Unit =
     HostModule.revertAgent(agentId, target)
 
-  def fork(): ForkResult =
-    HostModule.fork().asInstanceOf[ForkResult]
+  def fork(): (String, UuidLiteral) = {
+    val raw       = HostModule.fork().asInstanceOf[js.Dynamic]
+    val tag       = raw.tag.asInstanceOf[String]
+    val details   = raw.selectDynamic("val").asInstanceOf[js.Dynamic]
+    val phantomId = details.forkedPhantomId.asInstanceOf[UuidLiteral]
+    (tag, phantomId)
+  }
 
   private def tagOnly(tag: String): js.Dynamic =
     js.Dynamic.literal("tag" -> tag)
@@ -164,38 +169,28 @@ private[golem] object AgentHostApi {
 
   @js.native
   sealed trait AgentMetadata extends js.Object {
+
+    // WIT-defined fields (golem:api/host@1.3.0 agent-metadata record)
     def agentId: AgentIdLiteral = js.native
 
+    def args: js.Array[String] = js.native
+
+    def env: js.Array[js.Tuple2[String, String]] = js.native
+
+    def configVars: js.Array[js.Tuple2[String, String]] = js.native
+
+    def status: AgentStatus = js.native
+
+    def componentRevision: BigInt = js.native
+
+    def retryCount: BigInt = js.native
+
+    // Runtime-provided fields (beyond WIT minimum)
     def agentType: String = js.native
 
     def agentName: String = js.native
 
     def componentId: ComponentIdLiteral = js.native
-
-    def wasmPath: String = js.native
-
-    def version: ComponentVersion = js.native
-
-    def rpcUrl: String = js.native
-
-    def oplogUrl: String = js.native
-
-    def persistenceLevel: PersistenceLevel = js.native
-
-    def oplogSize: BigInt = js.native
-
-    def status: AgentStatus = js.native
-
-    def createdAt: BigInt = js.native
-  }
-
-  @js.native
-  sealed trait ForkResult extends js.Object {
-    def agentId: AgentIdLiteral = js.native
-
-    def oplogIdx: OplogIndex = js.native
-
-    def version: ComponentVersion = js.native
   }
 
   @js.native
@@ -352,28 +347,6 @@ private[golem] object AgentHostApi {
   @js.native
   trait AgentAnyFilter extends js.Object {
     def filters: js.Array[AgentAllFilter] = js.native
-  }
-
-  @js.native
-  trait ForkResultTag extends js.Object {
-    def oplogIdx: OplogIndex = js.native
-
-    def version: ComponentVersion = js.native
-
-    def agentId: AgentIdLiteral = js.native
-  }
-
-  @js.native
-  trait ForkResultTagged extends js.Object {
-    def tag: String = js.native
-
-    def value: ForkResultTag = js.native
-
-    def current: OplogIndex = js.native
-
-    def retryAfterMs: BigInt = js.native
-
-    def outdatedSince: BigInt = js.native
   }
 
   final case class AgentIdParts(agentTypeName: String, payload: js.Dynamic, phantom: Option[Uuid])
@@ -599,45 +572,11 @@ private[golem] object AgentHostApi {
   }
 
   object RevertAgentTarget {
-    def ToLastSnapshot: RevertAgentTarget =
-      tagOnly("to-last-snapshot").asInstanceOf[RevertAgentTarget]
+    def RevertToOplogIndex(index: OplogIndex): RevertAgentTarget =
+      tagWithValue("revert-to-oplog-index", index).asInstanceOf[RevertAgentTarget]
 
-    def ToVersion(version: BigInt): RevertAgentTarget =
-      tagWithValue("to-version", version).asInstanceOf[RevertAgentTarget]
-
-    def ToOplogIndex(index: OplogIndex): RevertAgentTarget =
-      tagWithValue("to-oplog-index", index).asInstanceOf[RevertAgentTarget]
-  }
-
-  object ForkResultTag {
-    def apply(result: ForkResult): ForkResultTag =
-      js.Dynamic
-        .literal(
-          "oplogIdx" -> result.oplogIdx,
-          "version"  -> result.version,
-          "agentId"  -> result.agentId
-        )
-        .asInstanceOf[ForkResultTag]
-  }
-
-  object ForkResultTagged {
-    def asTagged(result: ForkResult): ForkResultTagged =
-      js.Dynamic
-        .literal(
-          "tag"   -> "ok",
-          "value" -> ForkResultTag(result)
-        )
-        .asInstanceOf[ForkResultTagged]
-
-    def outdated(oplogIdx: OplogIndex, retryAfterMs: BigInt, outdatedSince: BigInt): ForkResultTagged =
-      js.Dynamic
-        .literal(
-          "tag"           -> "outdated",
-          "current"       -> oplogIdx,
-          "retryAfterMs"  -> retryAfterMs,
-          "outdatedSince" -> outdatedSince
-        )
-        .asInstanceOf[ForkResultTagged]
+    def RevertLastInvocations(count: BigInt): RevertAgentTarget =
+      tagWithValue("revert-last-invocations", count).asInstanceOf[RevertAgentTarget]
   }
 
   @js.native

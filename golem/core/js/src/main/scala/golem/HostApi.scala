@@ -104,11 +104,23 @@ object HostApi {
 
   // ----- Agent management / registry ------------------------------------------------------
 
-  type ComponentVersion       = AgentHostApi.ComponentVersion
-  type ComponentIdLiteral     = AgentHostApi.ComponentIdLiteral
-  type AgentIdLiteral         = AgentHostApi.AgentIdLiteral
-  type AgentMetadata          = AgentHostApi.AgentMetadata
-  type AgentStatus            = AgentHostApi.AgentStatus
+  type ComponentVersion   = AgentHostApi.ComponentVersion
+  type ComponentIdLiteral = AgentHostApi.ComponentIdLiteral
+  type AgentIdLiteral     = AgentHostApi.AgentIdLiteral
+  type AgentStatus        = AgentHostApi.AgentStatus
+
+  final case class AgentMetadata(
+    agentId: AgentIdLiteral,
+    args: List[String],
+    env: Map[String, String],
+    configVars: Map[String, String],
+    status: AgentStatus,
+    componentRevision: BigInt,
+    retryCount: BigInt,
+    agentType: String,
+    agentName: String,
+    componentId: ComponentIdLiteral
+  )
   type UpdateMode             = AgentHostApi.UpdateMode
   type RevertAgentTarget      = AgentHostApi.RevertAgentTarget
   type RegisteredAgentType    = AgentHostApi.RegisteredAgentType
@@ -124,15 +136,31 @@ object HostApi {
   type AgentConfigVarsFilter  = AgentHostApi.AgentConfigVarsFilter
   type AgentAllFilter         = AgentHostApi.AgentAllFilter
   type AgentAnyFilter         = AgentHostApi.AgentAnyFilter
-  type ForkResult             = AgentHostApi.ForkResult
-  type ForkResultTag          = AgentHostApi.ForkResultTag
-  type ForkResultTagged       = AgentHostApi.ForkResultTagged
+  final case class ForkDetails(
+    forkedPhantomId: Uuid,
+    agentId: AgentIdLiteral,
+    oplogIndex: BigInt,
+    componentRevision: BigInt
+  )
+
+  sealed trait ForkResult {
+    def details: ForkDetails
+  }
+
+  object ForkResult {
+    final case class Original(details: ForkDetails) extends ForkResult
+    final case class Forked(details: ForkDetails)   extends ForkResult
+  }
   type GetAgentsHandle        = AgentHostApi.GetAgentsHandle
   type GetPromiseResultHandle = AgentHostApi.GetPromiseResultHandle
   type PromiseResult          = AgentHostApi.PromiseResult
   type Pollable               = AgentHostApi.Pollable
   type UuidLiteral            = AgentHostApi.UuidLiteral
-  type AgentIdParts           = AgentHostApi.AgentIdParts
+  val UuidLiteral: AgentHostApi.UuidLiteral.type               = AgentHostApi.UuidLiteral
+  val ComponentIdLiteral: AgentHostApi.ComponentIdLiteral.type = AgentHostApi.ComponentIdLiteral
+  type AgentIdParts = AgentHostApi.AgentIdParts
+  val AgentIdLiteral: AgentHostApi.AgentIdLiteral.type     = AgentHostApi.AgentIdLiteral
+  val PromiseIdLiteral: AgentHostApi.PromiseIdLiteral.type = AgentHostApi.PromiseIdLiteral
 
   def registeredAgentType(typeName: String): Option[RegisteredAgentType] =
     AgentHostApi.registeredAgentType(typeName)
@@ -156,16 +184,16 @@ object HostApi {
     AgentHostApi.resolveAgentIdStrict(componentReference, agentName)
 
   def getSelfMetadata(): AgentMetadata =
-    AgentHostApi.getSelfMetadata()
+    fromHostMetadata(AgentHostApi.getSelfMetadata())
 
   def getAgentMetadata(agentId: AgentIdLiteral): Option[AgentMetadata] =
-    AgentHostApi.getAgentMetadata(agentId)
+    AgentHostApi.getAgentMetadata(agentId).map(fromHostMetadata)
 
   def getAgents(componentId: ComponentIdLiteral, filter: Option[AgentAnyFilter], precise: Boolean): GetAgentsHandle =
     AgentHostApi.getAgents(componentId, filter, precise)
 
   def nextAgentBatch(handle: GetAgentsHandle): Option[List[AgentMetadata]] =
-    AgentHostApi.nextAgentBatch(handle)
+    AgentHostApi.nextAgentBatch(handle).map(_.map(fromHostMetadata))
 
   def generateIdempotencyKey(): Uuid =
     fromUuidLiteral(AgentHostApi.generateIdempotencyKey())
@@ -182,8 +210,21 @@ object HostApi {
   def revertAgent(agentId: AgentIdLiteral, target: RevertAgentTarget): Unit =
     AgentHostApi.revertAgent(agentId, target)
 
-  def fork(): ForkResult =
-    AgentHostApi.fork()
+  def fork(): ForkResult = {
+    val (tag, phantomIdLit) = AgentHostApi.fork()
+    val selfMeta            = AgentHostApi.getSelfMetadata()
+    val details             = ForkDetails(
+      forkedPhantomId = fromUuidLiteral(phantomIdLit),
+      agentId = selfMeta.agentId,
+      oplogIndex = fromJsBigInt(AgentHostApi.getOplogIndex()),
+      componentRevision = fromJsBigInt(selfMeta.componentRevision)
+    )
+    tag match {
+      case "original" => ForkResult.Original(details)
+      case "forked"   => ForkResult.Forked(details)
+      case other      => throw new IllegalStateException(s"Unknown fork result tag: $other")
+    }
+  }
 
   object AgentStatus {
     val Running: AgentStatus     = AgentHostApi.AgentStatus.Running
@@ -273,28 +314,10 @@ object HostApi {
   }
 
   object RevertAgentTarget {
-    def ToLastSnapshot: RevertAgentTarget =
-      AgentHostApi.RevertAgentTarget.ToLastSnapshot
-    def ToVersion(version: BigInt): RevertAgentTarget =
-      AgentHostApi.RevertAgentTarget.ToVersion(toJsBigInt(version))
-    def ToOplogIndex(index: OplogIndex): RevertAgentTarget =
-      AgentHostApi.RevertAgentTarget.ToOplogIndex(toJsBigInt(index))
-  }
-
-  object ForkResultTag {
-    def apply(result: ForkResult): ForkResultTag =
-      AgentHostApi.ForkResultTag(result)
-  }
-
-  object ForkResultTagged {
-    def asTagged(result: ForkResult): ForkResultTagged =
-      AgentHostApi.ForkResultTagged.asTagged(result)
-    def outdated(oplogIdx: OplogIndex, retryAfterMs: BigInt, outdatedSince: BigInt): ForkResultTagged =
-      AgentHostApi.ForkResultTagged.outdated(
-        toJsBigInt(oplogIdx),
-        toJsBigInt(retryAfterMs),
-        toJsBigInt(outdatedSince)
-      )
+    def RevertToOplogIndex(index: OplogIndex): RevertAgentTarget =
+      AgentHostApi.RevertAgentTarget.RevertToOplogIndex(toJsBigInt(index))
+    def RevertLastInvocations(count: BigInt): RevertAgentTarget =
+      AgentHostApi.RevertAgentTarget.RevertLastInvocations(toJsBigInt(count))
   }
 
   // ----- Promises --------------------------------------------------------------------------
@@ -447,6 +470,31 @@ object HostApi {
     }
     out
   }
+
+  private def fromHostMetadata(m: AgentHostApi.AgentMetadata): AgentMetadata = {
+    val args       = if (m.args == null || js.isUndefined(m.args)) Nil else m.args.toList
+    val env        = tuplesToMap(m.env)
+    val configVars = tuplesToMap(m.configVars)
+    val compRev    =
+      if (js.isUndefined(m.componentRevision.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.componentRevision)
+    val retry = if (js.isUndefined(m.retryCount.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.retryCount)
+    AgentMetadata(
+      agentId = m.agentId,
+      args = args,
+      env = env,
+      configVars = configVars,
+      status = m.status,
+      componentRevision = compRev,
+      retryCount = retry,
+      agentType = m.agentType,
+      agentName = m.agentName,
+      componentId = m.componentId
+    )
+  }
+
+  private def tuplesToMap(arr: js.Array[js.Tuple2[String, String]]): Map[String, String] =
+    if (arr == null || js.isUndefined(arr)) Map.empty
+    else arr.map(t => (t._1, t._2)).toMap
 
   private def fromHostRetryPolicy(policy: AgentHostApi.RetryPolicy): RetryPolicy = {
     // jco guest-types represent u32 as number and u64 as bigint (BigInt).

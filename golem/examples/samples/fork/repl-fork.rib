@@ -1,0 +1,3 @@
+let demo = fork-demo("demo");
+let result = demo.run-fork();
+result
