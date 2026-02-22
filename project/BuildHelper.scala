@@ -207,6 +207,7 @@ object BuildHelper {
             "-opt:l:method",
             "-Ywarn-unused",
             "-Wconf:cat=unused&src=.*/test/.*:s",
+            "-Wconf:msg=outer reference.*cannot be checked&src=.*/test/.*:s",
             "-Xfatal-warnings"
           )
       }),
@@ -239,8 +240,12 @@ object BuildHelper {
     coverageEnabled          := false,
     Test / parallelExecution := false,
     Test / fork              := false,
-    // Skip JS projects only when running Scala 3.7.4.
-    Compile / skip := (ThisBuild / scalaVersion).value == Scala3,
-    Test / skip    := (ThisBuild / scalaVersion).value == Scala3
+    // Skip JS projects only when the resolved scalaVersion is 3.7.x
+    // (Scala.js doesn't support 3.7.x due to virtualfile: URI issues).
+    // We check scalaVersion (not ThisBuild / scalaVersion) so that ++ version
+    // switches work correctly — ++ changes the project-level scalaVersion but
+    // not the ThisBuild-level one.
+    Compile / skip := scalaVersion.value.startsWith("3.7"),
+    Test / skip    := scalaVersion.value.startsWith("3.7")
   )
 }

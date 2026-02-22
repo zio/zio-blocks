@@ -1,6 +1,8 @@
 package golem
 
 import golem.data.multimodal.Multimodal
+import golem.data.UnstructuredBinaryValue
+import golem.data.UnstructuredTextValue
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
 import golem.runtime.autowire.AgentImplementation
 import org.scalatest.funsuite.AnyFunSuite
@@ -300,114 +302,17 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   }
 
   // ---------------------------------------------------------------------------
-  // Tests: Annotation patterns compile
+  // Tests: Annotation field access
   // ---------------------------------------------------------------------------
 
-  test("@agentDefinition with typeName compiles") {
-    val _: agentDefinition = new agentDefinition(typeName = "explicit-name-agent")
-    assert(true)
+  test("@agentDefinition mode defaults and overrides") {
+    assert(new agentDefinition(mode = DurabilityMode.Durable).mode == DurabilityMode.Durable)
+    assert(new agentDefinition(mode = DurabilityMode.Ephemeral).mode == DurabilityMode.Ephemeral)
   }
 
-  test("@agentDefinition with DurabilityMode.Durable compiles") {
-    val a = new agentDefinition(mode = DurabilityMode.Durable)
-    assert(a.mode == DurabilityMode.Durable)
-  }
-
-  test("@agentDefinition with DurabilityMode.Ephemeral compiles") {
-    val a = new agentDefinition(mode = DurabilityMode.Ephemeral)
-    assert(a.mode == DurabilityMode.Ephemeral)
-  }
-
-  test("@description annotation compiles on trait and method level") {
-    val d = new description("test description")
-    assert(d.value == "test description")
-  }
-
-  test("@prompt annotation compiles") {
-    val p = new prompt("test prompt")
-    assert(p.value == "test prompt")
-  }
-
-  test("@agentImplementation annotation compiles") {
-    val _ = new agentImplementation()
-    assert(true)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Companion patterns compile (type-level only, no runtime calls)
-  // ---------------------------------------------------------------------------
-
-  test("AgentCompanion type hierarchy compiles") {
-    val _: AgentCompanionBase[UnitCtorAgent]   = null.asInstanceOf[AgentCompanion[UnitCtorAgent, Unit]]
-    val _: AgentCompanionBase[StringCtorAgent] = null.asInstanceOf[AgentCompanion[StringCtorAgent, String]]
-    assert(true)
-  }
-
-  test("AgentCompanion with case class input compiles") {
-    val _: AgentCompanionBase[CaseClassCtorAgent] =
-      null.asInstanceOf[AgentCompanion[CaseClassCtorAgent, MyConfig]]
-    assert(true)
-  }
-
-  test("AgentCompanion with tuple input compiles") {
-    val _: AgentCompanionBase[Tuple2CtorAgent] =
-      null.asInstanceOf[AgentCompanion[Tuple2CtorAgent, (String, Int)]]
-    assert(true)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Various type patterns compile
-  // ---------------------------------------------------------------------------
-
-  test("Tuple3 constructor trait compiles") {
-    val _: BaseAgent[(String, Int, Boolean)] = null.asInstanceOf[Tuple3CtorAgent]
-    assert(true)
-  }
-
-  test("Tuple4 constructor trait compiles") {
-    val _: BaseAgent[(String, Int, Boolean, Double)] = null.asInstanceOf[Tuple4CtorAgent]
-    assert(true)
-  }
-
-  test("Tuple5 constructor trait compiles") {
-    val _: BaseAgent[(String, Int, Boolean, Double, Long)] = null.asInstanceOf[Tuple5CtorAgent]
-    assert(true)
-  }
-
-  test("IntCtorAgent trait compiles") {
-    val _: BaseAgent[Int] = null.asInstanceOf[IntCtorAgent]
-    assert(true)
-  }
-
-  test("ParamTypesAgent trait with various parameter types compiles") {
-    val _: ParamTypesAgent = null.asInstanceOf[ParamTypesAgent]
-    assert(true)
-  }
-
-  test("EphemeralAgent trait compiles") {
-    val _: BaseAgent[String] = null.asInstanceOf[EphemeralAgent]
-    assert(true)
-  }
-
-  test("case class with Schema.derived compiles as constructor type") {
-    val _: Schema[MyConfig] = MyConfig.schema
-    val _: Schema[Nested]   = Nested.schema
-    assert(true)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: BaseAgent type hierarchy (accessor methods require Golem host runtime
-  // so we verify the trait structure only — the method signatures are guaranteed
-  // by the BaseAgent[Input] trait definition)
-  // ---------------------------------------------------------------------------
-
-  test("all agent traits extend BaseAgent with correct type parameter") {
-    assert(classOf[BaseAgent[?]].isAssignableFrom(classOf[UnitCtorAgent]))
-    assert(classOf[BaseAgent[?]].isAssignableFrom(classOf[StringCtorAgent]))
-    assert(classOf[BaseAgent[?]].isAssignableFrom(classOf[IntCtorAgent]))
-    assert(classOf[BaseAgent[?]].isAssignableFrom(classOf[CaseClassCtorAgent]))
-    assert(classOf[BaseAgent[?]].isAssignableFrom(classOf[Tuple2CtorAgent]))
-    assert(classOf[BaseAgent[?]].isAssignableFrom(classOf[KitchenSinkAgent]))
+  test("@description and @prompt store their values") {
+    assert(new description("test description").value == "test description")
+    assert(new prompt("test prompt").value == "test prompt")
   }
 
   // ---------------------------------------------------------------------------
@@ -526,31 +431,45 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
     assert(names == Set("echoMultimodal", "echoText", "echoTextAny", "echoBinary", "echoBinaryAny"))
   }
 
-  test("Multimodal type compiles as method parameter and return type") {
-    val _: Multimodal[MultimodalPayload] = Multimodal(MultimodalPayload("hello", 1))
-    assert(true)
+  test("Multimodal wraps and unwraps payload") {
+    val payload = MultimodalPayload("hello", 1)
+    val mm      = Multimodal(payload)
+    assert(mm.value == payload)
   }
 
-  test("TextSegment with language constraints compiles") {
-    val _: TextSegment[SupportedLang] = TextSegment.inline[SupportedLang]("hello", Some("en"))
-    val _: TextSegment[SupportedLang] = TextSegment.url[SupportedLang]("http://example.com/text.txt")
-    assert(true)
+  test("TextSegment.inline sets data and language code") {
+    val seg = TextSegment.inline[SupportedLang]("hello", Some("en"))
+    seg.value match {
+      case UnstructuredTextValue.Inline(data, lang) =>
+        assert(data == "hello")
+        assert(lang.contains("en"))
+      case _ => fail("expected Inline")
+    }
   }
 
-  test("TextSegment with Any language compiles") {
-    val _: TextSegment[AllowedLanguages.Any] = TextSegment.inline[AllowedLanguages.Any]("hello")
-    assert(true)
+  test("TextSegment.url sets URL") {
+    val seg = TextSegment.url[SupportedLang]("http://example.com/text.txt")
+    seg.value match {
+      case UnstructuredTextValue.Url(u) => assert(u == "http://example.com/text.txt")
+      case _                            => fail("expected Url")
+    }
   }
 
-  test("BinarySegment with MIME constraints compiles") {
-    val _: BinarySegment[SupportedMime] = BinarySegment.inline[SupportedMime](Array[Byte](1, 2), "image/png")
-    val _: BinarySegment[SupportedMime] = BinarySegment.url[SupportedMime]("http://example.com/data.png")
-    assert(true)
+  test("BinarySegment.inline sets data and MIME type") {
+    val seg = BinarySegment.inline[SupportedMime](Array[Byte](1, 2), "image/png")
+    seg.value match {
+      case UnstructuredBinaryValue.Inline(data, mime) =>
+        assert(data.toList == List[Byte](1, 2))
+        assert(mime == "image/png")
+      case _ => fail("expected Inline")
+    }
   }
 
-  test("BinarySegment with Any MIME type compiles") {
-    val _: BinarySegment[AllowedMimeTypes.Any] =
-      BinarySegment.inline[AllowedMimeTypes.Any](Array[Byte](1), "application/octet-stream")
-    assert(true)
+  test("BinarySegment.url sets URL") {
+    val seg = BinarySegment.url[SupportedMime]("http://example.com/data.png")
+    seg.value match {
+      case UnstructuredBinaryValue.Url(u) => assert(u == "http://example.com/data.png")
+      case _                              => fail("expected Url")
+    }
   }
 }

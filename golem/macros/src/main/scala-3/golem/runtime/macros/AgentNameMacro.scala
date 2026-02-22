@@ -24,7 +24,7 @@ object AgentNameMacro {
 
     val maybe = sym.annotations.collectFirst {
       case Apply(Select(New(tpt), _), args)
-          if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+          if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
         extractAgentDefinitionTypeName(args)
     }.flatten
 
@@ -36,7 +36,7 @@ object AgentNameMacro {
         val hasAnn =
           sym.annotations.exists {
             case Apply(Select(New(tpt), _), _)
-                if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+                if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
               true
             case _ => false
           }

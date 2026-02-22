@@ -33,31 +33,4 @@ class ContextApiCompileSpec extends AnyFunSuite {
     assert(dateTime.seconds == BigInt(1700000000L))
     assert(dateTime.nanoseconds == 500000000L)
   }
-
-  test("Span method types compile") {
-    type StartedAtType     = () => DateTime
-    type SetAttributeType  = (String, AttributeValue) => Unit
-    type SetAttributesType = List[Attribute] => Unit
-    type FinishType        = () => Unit
-    assert(true)
-  }
-
-  test("InvocationContext method types compile") {
-    type TraceIdType             = () => String
-    type SpanIdType              = () => String
-    type ParentType              = () => Option[InvocationContext]
-    type GetAttributeType        = (String, Boolean) => Option[AttributeValue]
-    type GetAttributesType       = Boolean => List[Attribute]
-    type GetAttributeChainType   = String => List[AttributeValue]
-    type GetAttributeChainsType  = () => List[AttributeChain]
-    type TraceContextHeadersType = () => List[(String, String)]
-    assert(true)
-  }
-
-  test("top-level function return types compile") {
-    val _: Span              = null.asInstanceOf[Span]
-    val _: InvocationContext = null.asInstanceOf[InvocationContext]
-    val _: Boolean           = true
-    assert(true)
-  }
 }

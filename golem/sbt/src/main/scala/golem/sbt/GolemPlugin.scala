@@ -395,12 +395,31 @@ object GolemPlugin extends AutoPlugin {
               def fileFor(pkg: String, name: String): File =
                 managedRoot / pkg.split('.').toList.mkString("/") / name
 
+              val scalaBuiltins: Set[String] = Set(
+                "String",
+                "Int",
+                "Long",
+                "Double",
+                "Float",
+                "Boolean",
+                "Byte",
+                "Short",
+                "Char",
+                "Unit",
+                "BigInt",
+                "BigDecimal",
+                "Any",
+                "AnyRef",
+                "AnyVal",
+                "Nothing",
+                "Null"
+              )
+
               def fqn(ownerPkg: String, tpeOrTerm: String): String =
-                if (tpeOrTerm.contains(".")) tpeOrTerm
+                if (tpeOrTerm.contains(".") || scalaBuiltins.contains(tpeOrTerm)) tpeOrTerm
                 else s"$ownerPkg.$tpeOrTerm"
 
               def registrationExpr(ai: AgentImpl): String = {
-                // Heuristic: in our examples/quickstart, impl class and its agent trait live in the same package.
                 val traitFqn = fqn(ai.pkg, ai.traitType)
                 val implFqn  = fqn(ai.pkg, ai.implClass)
 
@@ -408,10 +427,12 @@ object GolemPlugin extends AutoPlugin {
                   case Nil =>
                     s"AgentImplementation.register[$traitFqn](new $implFqn())"
                   case tpe :: Nil =>
-                    s"AgentImplementation.register[$traitFqn, $tpe]((in: $tpe) => new $implFqn(in))"
+                    val fqnTpe = fqn(ai.pkg, tpe)
+                    s"AgentImplementation.register[$traitFqn, $fqnTpe]((in: $fqnTpe) => new $implFqn(in))"
                   case many =>
-                    val args    = many.indices.map(i => s"in._${i + 1}").mkString(", ")
-                    val ctorTpe = s"(${many.mkString(", ")})"
+                    val fqnMany = many.map(t => fqn(ai.pkg, t))
+                    val args    = fqnMany.indices.map(i => s"in._${i + 1}").mkString(", ")
+                    val ctorTpe = s"(${fqnMany.mkString(", ")})"
                     s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn($args))"
                 }
               }
@@ -425,7 +446,6 @@ object GolemPlugin extends AutoPlugin {
                     s"""|package $genBasePkg
                         |
                         |import golem.runtime.autowire.AgentImplementation
-                        |import $pkg._
                         |
                         |/** Generated. Do not edit. */
                         |private[golem] object __GolemAutoRegister_$objSuffix {

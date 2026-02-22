@@ -345,8 +345,14 @@ trait GolemAutoRegister extends ScalaJSModule {
           def fileFor(pkg: String, name: String): os.Path =
             managedRoot / os.SubPath(pkg.split('.').toList) / name
 
+          val scalaBuiltins: Set[String] = Set(
+            "String", "Int", "Long", "Double", "Float", "Boolean", "Byte", "Short", "Char", "Unit",
+            "BigInt", "BigDecimal", "Any", "AnyRef", "AnyVal", "Nothing", "Null"
+          )
+
           def fqn(ownerPkg: String, tpeOrTerm: String): String =
-            if (tpeOrTerm.contains(".")) tpeOrTerm else s"$ownerPkg.$tpeOrTerm"
+            if (tpeOrTerm.contains(".") || scalaBuiltins.contains(tpeOrTerm)) tpeOrTerm
+            else s"$ownerPkg.$tpeOrTerm"
 
           def registrationExpr(ai: AgentImpl): String = {
             val traitFqn = fqn(ai.pkg, ai.traitType)
@@ -355,10 +361,12 @@ trait GolemAutoRegister extends ScalaJSModule {
               case Nil =>
                 s"AgentImplementation.register[$traitFqn](new $implFqn())"
               case tpe :: Nil =>
-                s"AgentImplementation.register[$traitFqn, $tpe]((in: $tpe) => new $implFqn(in))"
+                val fqnTpe = fqn(ai.pkg, tpe)
+                s"AgentImplementation.register[$traitFqn, $fqnTpe]((in: $fqnTpe) => new $implFqn(in))"
               case many =>
-                val args    = many.indices.map(i => s"in._${i + 1}").mkString(", ")
-                val ctorTpe = s"(${many.mkString(", ")})"
+                val fqnMany = many.map(t => fqn(ai.pkg, t))
+                val args    = fqnMany.indices.map(i => s"in._${i + 1}").mkString(", ")
+                val ctorTpe = s"(${fqnMany.mkString(", ")})"
                 s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn($args))"
             }
           }
@@ -373,7 +381,6 @@ trait GolemAutoRegister extends ScalaJSModule {
                 s"""|package $genBasePkg
                     |
                     |import golem.runtime.autowire.AgentImplementation
-                    |import $pkg._
                     |
                     |/** Generated. Do not edit. */
                     |private[golem] object __GolemAutoRegister_$objSuffix {

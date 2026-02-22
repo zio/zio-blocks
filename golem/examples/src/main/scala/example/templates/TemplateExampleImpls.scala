@@ -1,12 +1,11 @@
 package example.templates
 
-import golem.*
+import golem._
 import golem.runtime.annotations.agentImplementation
 import golem.runtime.snapshot.SnapshotExports
 
 import scala.annotation.unused
 import scala.concurrent.Future
-import scala.language.reflectiveCalls
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 

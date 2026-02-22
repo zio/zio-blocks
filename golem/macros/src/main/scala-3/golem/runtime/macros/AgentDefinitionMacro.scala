@@ -32,7 +32,7 @@ object AgentDefinitionMacro {
     val hasAgentDefinition =
       typeSymbol.annotations.exists {
         case Apply(Select(New(tpt), _), _)
-            if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+            if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
           true
         case _ => false
       }
@@ -81,7 +81,7 @@ object AgentDefinitionMacro {
     import quotes.reflect.*
     symbol.annotations.collectFirst {
       case Apply(Select(New(tpt), _), args)
-          if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+          if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
         args.collectFirst {
           case Literal(StringConstant(value))                       => value
           case NamedArg("typeName", Literal(StringConstant(value))) => value
@@ -98,7 +98,7 @@ object AgentDefinitionMacro {
     import quotes.reflect.*
     symbol.annotations.collectFirst {
       case Apply(Select(New(tpt), _), args)
-          if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+          if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
         // The compiler may represent default args as:
         // - positional args (typeName, mode)
         // - NamedArg(...) entries (even if not explicitly provided by the user)

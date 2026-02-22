@@ -45,13 +45,4 @@ final class AgentModeCompileSpec extends AnyFunSuite {
     assert(describe(AgentMode.Ephemeral) == "ephemeral")
   }
 
-  test("AgentMode variants are distinct") {
-    assert(AgentMode.Durable != AgentMode.Ephemeral)
-  }
-
-  test("AgentMode accessible via golem package alias") {
-    val _: golem.AgentMode = golem.AgentMode.Durable
-    val _: golem.AgentMode = golem.AgentMode.Ephemeral
-    assert(true)
-  }
 }

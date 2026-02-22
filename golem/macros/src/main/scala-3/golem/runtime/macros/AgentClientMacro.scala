@@ -96,7 +96,7 @@ object AgentClientMacro {
     val annArgsOpt =
       traitSymbol.annotations.collectFirst {
         case Apply(Select(New(tpt), _), args)
-            if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+            if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
           args
       }
 

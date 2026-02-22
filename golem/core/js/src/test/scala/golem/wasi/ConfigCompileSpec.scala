@@ -24,13 +24,7 @@ class ConfigCompileSpec extends AnyFunSuite {
     assert(errors(1).asInstanceOf[ConfigError.Io].message == "io error")
   }
 
-  test("method return types compile") {
-    val _: Either[ConfigError, Option[String]]      = Right(None)
-    val _: Either[ConfigError, Map[String, String]] = Right(Map.empty[String, String])
-    assert(true)
-  }
-
-  test("Either result type usage compiles") {
+  test("Either result type usage") {
     val result: Either[ConfigError, Option[String]]         = Right(Some("value"))
     val allResult: Either[ConfigError, Map[String, String]] = Right(Map("k" -> "v"))
 

@@ -178,6 +178,6 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
       payload <- liftEither(HostPayload.encode[String]("ignored"))
       raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
       decoded <- liftEither(HostPayload.decode[Unit](raw))
-    } yield assert(decoded == ())
+    } yield succeed
   }
 }

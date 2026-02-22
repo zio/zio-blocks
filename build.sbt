@@ -637,7 +637,12 @@ lazy val zioGolemExamples = project
     },
     Test / testOnly       := (Test / test).value,
     Test / testQuick      := (Test / test).value,
-    Test / testFrameworks := Nil
+    Test / testFrameworks := Nil,
+    Compile / scalacOptions ++= {
+      if (scalaVersion.value.startsWith("2."))
+        Seq("-Wconf:cat=unused-imports:s")
+      else Nil
+    }
   )
   .dependsOn(schema.js, zioGolemCoreJS, zioGolemMacros)
   .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, golem.sbt.GolemPlugin)

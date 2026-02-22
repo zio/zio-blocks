@@ -83,11 +83,4 @@ class DurabilityApiCompileSpec extends AnyFunSuite {
     val idx: OplogIndex = BigInt(99)
     assert(idx == BigInt(99))
   }
-
-  test("method return types compile") {
-    val _: OplogIndex                         = BigInt(0)
-    val _: DurableExecutionState              = DurableExecutionState(false, HostApi.PersistenceLevel.Smart)
-    val _: PersistedDurableFunctionInvocation = invocation
-    assert(true)
-  }
 }

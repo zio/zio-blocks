@@ -24,7 +24,7 @@ object AgentSdkMacro {
     def extractTypeNameFromAgentDefinition(sym: Symbol): Option[String] =
       sym.annotations.collectFirst {
         case Apply(Select(New(tpt), _), args)
-            if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+            if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
           args.collectFirst {
             case Literal(StringConstant(value))                       => value
             case NamedArg("typeName", Literal(StringConstant(value))) => value
@@ -34,7 +34,7 @@ object AgentSdkMacro {
     val hasAnn =
       traitSym.annotations.exists {
         case Apply(Select(New(tpt), _), _)
-            if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+            if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
           true
         case _ => false
       }

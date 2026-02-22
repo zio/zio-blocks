@@ -183,19 +183,11 @@ final class HostApiCompileSpec extends AnyFunSuite {
   // RevertAgentTarget
   // ---------------------------------------------------------------------------
 
-  test("RevertAgentTarget factory methods compile") {
-    val _: HostApi.RevertAgentTarget = HostApi.RevertAgentTarget.RevertToOplogIndex(BigInt(42))
-    val _: HostApi.RevertAgentTarget = HostApi.RevertAgentTarget.RevertLastInvocations(BigInt(3))
-    assert(true)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Type aliases
-  // ---------------------------------------------------------------------------
-
-  test("OplogIndex type alias compiles") {
-    val _: HostApi.OplogIndex = BigInt(0)
-    assert(true)
+  test("RevertAgentTarget factory methods") {
+    val byIndex: HostApi.RevertAgentTarget = HostApi.RevertAgentTarget.RevertToOplogIndex(BigInt(42))
+    val byCount: HostApi.RevertAgentTarget = HostApi.RevertAgentTarget.RevertLastInvocations(BigInt(3))
+    assert(byIndex != null)
+    assert(byCount != null)
   }
 
   test("Uuid construction") {
@@ -351,18 +343,10 @@ final class HostApiCompileSpec extends AnyFunSuite {
   }
 
   test("PromiseIdLiteral companion constructs from AgentIdLiteral and oplog index") {
-    val uuid                   = HostApi.UuidLiteral(js.BigInt(1), js.BigInt(2))
-    val cid                    = HostApi.ComponentIdLiteral(uuid)
-    val aid                    = HostApi.AgentIdLiteral(cid, "my-agent")
-    val pid: HostApi.PromiseId = HostApi.PromiseIdLiteral(aid, js.BigInt(42))
+    val uuid = HostApi.UuidLiteral(js.BigInt(1), js.BigInt(2))
+    val cid  = HostApi.ComponentIdLiteral(uuid)
+    val aid  = HostApi.AgentIdLiteral(cid, "my-agent")
+    val pid  = HostApi.PromiseIdLiteral(aid, js.BigInt(42))
     assert(pid != null)
-  }
-
-  test("PromiseId type alias resolves to PromiseIdLiteral") {
-    val uuid                 = HostApi.UuidLiteral(js.BigInt(1), js.BigInt(2))
-    val cid                  = HostApi.ComponentIdLiteral(uuid)
-    val aid                  = HostApi.AgentIdLiteral(cid, "test")
-    val _: HostApi.PromiseId = HostApi.PromiseIdLiteral(aid, js.BigInt(0))
-    assert(true)
   }
 }

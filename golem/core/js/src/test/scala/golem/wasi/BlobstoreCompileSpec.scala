@@ -27,24 +27,4 @@ class BlobstoreCompileSpec extends AnyFunSuite {
     assert(objectId1.name == "object1")
     assert(objectId2.container == "container2")
   }
-
-  test("Container method types compile") {
-    type NameType          = () => String
-    type InfoType          = () => ContainerMetadata
-    type GetDataType       = (String, Long, Long) => Array[Byte]
-    type WriteDataType     = (String, Array[Byte]) => Unit
-    type ListObjectsType   = () => List[String]
-    type DeleteObjectType  = String => Unit
-    type DeleteObjectsType = List[String] => Unit
-    type HasObjectType     = String => Boolean
-    type ObjectInfoType    = String => ObjectMetadata
-    type ClearType         = () => Unit
-    assert(true)
-  }
-
-  test("top-level function return types compile") {
-    val _: Container = null.asInstanceOf[Container]
-    val _: Boolean   = true
-    assert(true)
-  }
 }

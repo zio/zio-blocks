@@ -8,7 +8,7 @@ import scala.concurrent.Future
 final case class CounterState(initialCount: Int)
 
 object CounterState {
-  given zio.blocks.schema.Schema[CounterState] = zio.blocks.schema.Schema.derived
+  implicit val schema: zio.blocks.schema.Schema[CounterState] = zio.blocks.schema.Schema.derived
 }
 
 @agentDefinition(typeName = "stateful-counter")
