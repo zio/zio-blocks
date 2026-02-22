@@ -1714,7 +1714,6 @@ private object IntoVersionSpecificImpl {
 
     val dynamicValueType = c.typeOf[DynamicValue]
 
-    // Helper to find implicit Schema or derive one
     def findImplicitOrDeriveSchema(tpe: Type): Tree = {
       val schemaType = c.universe.appliedType(
         c.universe.typeOf[Schema[Any]].typeConstructor,

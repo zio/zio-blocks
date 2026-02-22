@@ -130,8 +130,15 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
     Implicits.search(schemaTpe) match {
       case success: ImplicitSearchSuccess =>
         success.tree.asExprOf[Schema[T]]
-      case _ =>
-        '{ Schema.derived[T] }
+      case failure: ImplicitSearchFailure =>
+        val explanation = failure.explanation.toLowerCase
+        if (explanation.contains("ambiguous") || explanation.contains("diverging")) {
+          report.errorAndAbort(
+            s"Failed to summon Schema[${tpe.show}]: ${failure.explanation}"
+          )
+        } else {
+          '{ Schema.derived[T] }
+        }
     }
   }
 
