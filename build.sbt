@@ -46,6 +46,8 @@ addCommandAlias(
       "typeidJS/publishLocal",
       "chunkJVM/publishLocal",
       "chunkJS/publishLocal",
+      "markdownJVM/publishLocal",
+      "markdownJS/publishLocal",
       "schemaJVM/publishLocal",
       "schemaJS/publishLocal"
     )
