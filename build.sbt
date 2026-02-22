@@ -204,8 +204,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 85,
-    coverageMinimumBranchTotal := 80,
+    coverageMinimumStmtTotal   := 86,
+    coverageMinimumBranchTotal := 81,
     coverageExcludedFiles      := ".*BuildInfo.*"
   )
   .jvmSettings(
@@ -262,7 +262,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 90,
+    coverageMinimumStmtTotal   := 91,
     coverageMinimumBranchTotal := 86
   )
 
@@ -327,8 +327,8 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 94,
-    coverageMinimumBranchTotal := 87
+    coverageMinimumStmtTotal   := 97,
+    coverageMinimumBranchTotal := 91
   )
 
 lazy val `schema-thrift` = project
@@ -343,8 +343,8 @@ lazy val `schema-thrift` = project
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 74,
-    coverageMinimumBranchTotal := 61
+    coverageMinimumStmtTotal   := 89,
+    coverageMinimumBranchTotal := 80
   )
 
 lazy val `schema-bson` = project
@@ -365,7 +365,7 @@ lazy val `schema-bson` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 63,
+    coverageMinimumStmtTotal   := 67,
     coverageMinimumBranchTotal := 59
   )
 
@@ -383,8 +383,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 75,
-    coverageMinimumBranchTotal := 66
+    coverageMinimumStmtTotal   := 76,
+    coverageMinimumBranchTotal := 67
   )
   .jsSettings(
     libraryDependencies ++= Seq(
@@ -407,8 +407,8 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 79,
-    coverageMinimumBranchTotal := 72
+    coverageMinimumStmtTotal   := 81,
+    coverageMinimumBranchTotal := 73
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {

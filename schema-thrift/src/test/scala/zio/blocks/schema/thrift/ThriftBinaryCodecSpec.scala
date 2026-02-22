@@ -750,6 +750,14 @@ object ThriftBinaryCodecSpec extends SchemaBaseSpec {
           Schema[Status].decode(ThriftFormat)(buffer) == Right(status)
         }
         assertTrue(allPass)
+      },
+      test("dynamic value encoding") {
+        check(DynamicValueGen.genDynamicValue) { value =>
+          val buffer = ByteBuffer.allocate(10000)
+          Schema[DynamicValue].encode(ThriftFormat)(buffer)(value)
+          buffer.flip()
+          assertTrue(buffer.limit() >= buffer.position())
+        }
       }
     )
   )
