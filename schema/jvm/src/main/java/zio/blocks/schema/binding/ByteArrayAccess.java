@@ -19,50 +19,50 @@ class ByteArrayAccess {
             MethodHandles.byteArrayViewVarHandle(char[].class, ByteOrder.LITTLE_ENDIAN);
 
     static void setLong(byte[] buf, int pos, long value) {
-        VH_LONG.set(buf, pos, value);
+        VH_LONG.set(buf, pos >> 3, value);
     }
 
     static long getLong(byte[] buf, int pos) {
-        return (long) VH_LONG.get(buf, pos);
+        return (long) VH_LONG.get(buf, pos >> 3);
     }
 
     static void setDouble(byte[] buf, int pos, double value) {
-        VH_DOUBLE.set(buf, pos, value);
+        VH_DOUBLE.set(buf, pos >> 3, value);
     }
 
     static double getDouble(byte[] buf, int pos) {
-        return (double) VH_DOUBLE.get(buf, pos);
+        return (double) VH_DOUBLE.get(buf, pos >> 3);
     }
 
     static void setInt(byte[] buf, int pos, int value) {
-        VH_INT.set(buf, pos, value);
+        VH_INT.set(buf, pos >> 2, value);
     }
 
     static int getInt(byte[] buf, int pos) {
-        return (int) VH_INT.get(buf, pos);
+        return (int) VH_INT.get(buf, pos >> 2);
     }
 
     static void setFloat(byte[] buf, int pos, float value) {
-        VH_FLOAT.set(buf, pos, value);
+        VH_FLOAT.set(buf, pos >> 2, value);
     }
 
     static float getFloat(byte[] buf, int pos) {
-        return (float) VH_FLOAT.get(buf, pos);
+        return (float) VH_FLOAT.get(buf, pos >> 2);
     }
 
     static void setShort(byte[] buf, int pos, short value) {
-        VH_SHORT.set(buf, pos, value);
+        VH_SHORT.set(buf, pos >> 1, value);
     }
 
     static short getShort(byte[] buf, int pos) {
-        return (short) VH_SHORT.get(buf, pos);
+        return (short) VH_SHORT.get(buf, pos >> 1);
     }
 
     static void setChar(byte[] buf, int pos, char value) {
-        VH_CHAR.set(buf, pos, value);
+        VH_CHAR.set(buf, pos >> 1, value);
     }
 
     static char getChar(byte[] buf, int pos) {
-        return (char) VH_CHAR.get(buf, pos);
+        return (char) VH_CHAR.get(buf, pos >> 1);
     }
 }
