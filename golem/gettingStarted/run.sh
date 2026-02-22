@@ -11,6 +11,8 @@ fi
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
 
+rm -rf target project/target .golem
+
 echo "Preparing..."
 sbt golemPrepare
 echo "Building..."
