@@ -38,8 +38,35 @@ addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
-  "golemPublishLocal",
-  """set ThisBuild / version := "0.0.0-SNAPSHOT"; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal; ++2.12.20!; set ThisBuild / version := "0.0.0-SNAPSHOT"; zioGolemSbt/publishLocal"""
+  "golemPublishLocal", {
+    val setVersion = """set ThisBuild / version := "0.0.0-SNAPSHOT""""
+    val noDoc      = """set ThisBuild / packageDoc / publishArtifact := false"""
+    val deps       = List(
+      "typeidJVM/publishLocal",
+      "typeidJS/publishLocal",
+      "chunkJVM/publishLocal",
+      "chunkJS/publishLocal",
+      "schemaJVM/publishLocal",
+      "schemaJS/publishLocal"
+    )
+    val golem = List(
+      "zioGolemModelJVM/publishLocal",
+      "zioGolemModelJS/publishLocal",
+      "zioGolemMacros/publishLocal",
+      "zioGolemCoreJS/publishLocal",
+      "zioGolemCoreJVM/publishLocal"
+    )
+    List(
+      // Scala 3.7.4 JVM / 3.3.7 JS (via jsSettings) for deps
+      List(setVersion, noDoc) ++ deps,
+      // Scala 3.3.7 for all Golem projects
+      List("++3.3.7", setVersion, noDoc) ++ golem,
+      // Scala 2.13 for deps + Golem
+      List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
+      // Scala 2.12 for sbt plugin
+      List("++2.12.20!", setVersion, noDoc, "zioGolemSbt/publishLocal")
+    ).flatten.mkString("; ")
+  }
 )
 addCommandAlias(
   "testJVM",
