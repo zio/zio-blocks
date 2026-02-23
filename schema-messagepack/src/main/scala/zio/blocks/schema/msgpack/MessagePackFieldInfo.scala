@@ -6,10 +6,7 @@ import zio.blocks.schema.binding.{Registers, RegisterOffset}
 import java.nio.charset.StandardCharsets
 import scala.annotation.switch
 
-private[msgpack] final class MessagePackFieldInfo(
-  val span: DynamicOptic.Node.Field,
-  val idx: Int
-) {
+private[msgpack] final class MessagePackFieldInfo(val span: DynamicOptic.Node.Field, val idx: Int) {
   private[this] var codec: MessagePackBinaryCodec[?]      = null
   private[this] var _name: String                         = null
   private[this] var offset: RegisterOffset.RegisterOffset = 0
@@ -60,55 +57,38 @@ private[msgpack] final class MessagePackFieldInfo(
   def usedRegisters: RegisterOffset.RegisterOffset = RegisterOffset.add(codec.valueOffset, offset)
 
   def readValue(in: MessagePackReader, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
-    val off = if (top == 0L) this.offset else RegisterOffset.add(this.offset, top)
+    val offset =
+      if (top == 0L) this.offset
+      else RegisterOffset.add(this.offset, top)
     (codec.valueType: @switch) match {
-      case 0 =>
-        regs.setObject(off, codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].decodeValue(in))
-      case 1 =>
-        regs.setInt(off, codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeValue(in))
-      case 2 =>
-        regs.setLong(off, codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeValue(in))
-      case 3 =>
-        regs.setFloat(off, codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeValue(in))
-      case 4 =>
-        regs.setDouble(off, codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeValue(in))
-      case 5 =>
-        regs.setBoolean(off, codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeValue(in))
-      case 6 =>
-        regs.setByte(off, codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeValue(in))
-      case 7 =>
-        regs.setChar(off, codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeValue(in))
-      case 8 =>
-        regs.setShort(off, codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeValue(in))
-      case _ =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeValue(in)
+      case 0 => regs.setObject(offset, codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].decodeValue(in))
+      case 1 => regs.setInt(offset, codec.asInstanceOf[MessagePackBinaryCodec[Int]].decodeValue(in))
+      case 2 => regs.setLong(offset, codec.asInstanceOf[MessagePackBinaryCodec[Long]].decodeValue(in))
+      case 3 => regs.setFloat(offset, codec.asInstanceOf[MessagePackBinaryCodec[Float]].decodeValue(in))
+      case 4 => regs.setDouble(offset, codec.asInstanceOf[MessagePackBinaryCodec[Double]].decodeValue(in))
+      case 5 => regs.setBoolean(offset, codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].decodeValue(in))
+      case 6 => regs.setByte(offset, codec.asInstanceOf[MessagePackBinaryCodec[Byte]].decodeValue(in))
+      case 7 => regs.setChar(offset, codec.asInstanceOf[MessagePackBinaryCodec[Char]].decodeValue(in))
+      case 8 => regs.setShort(offset, codec.asInstanceOf[MessagePackBinaryCodec[Short]].decodeValue(in))
+      case _ => codec.asInstanceOf[MessagePackBinaryCodec[Unit]].decodeValue(in)
     }
   }
 
   def writeValue(out: MessagePackWriter, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
-    val off = if (top == 0L) this.offset else RegisterOffset.add(this.offset, top)
+    val offset =
+      if (top == 0L) this.offset
+      else RegisterOffset.add(this.offset, top)
     (codec.valueType: @switch) match {
-      case 0 =>
-        val value = regs.getObject(off)
-        codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].encodeValue(value, out)
-      case 1 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Int]].encodeValue(regs.getInt(off), out)
-      case 2 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Long]].encodeValue(regs.getLong(off), out)
-      case 3 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Float]].encodeValue(regs.getFloat(off), out)
-      case 4 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Double]].encodeValue(regs.getDouble(off), out)
-      case 5 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].encodeValue(regs.getBoolean(off), out)
-      case 6 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Byte]].encodeValue(regs.getByte(off), out)
-      case 7 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Char]].encodeValue(regs.getChar(off), out)
-      case 8 =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Short]].encodeValue(regs.getShort(off), out)
-      case _ =>
-        codec.asInstanceOf[MessagePackBinaryCodec[Unit]].encodeValue((), out)
+      case 0 => codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset), out)
+      case 1 => codec.asInstanceOf[MessagePackBinaryCodec[Int]].encodeValue(regs.getInt(offset), out)
+      case 2 => codec.asInstanceOf[MessagePackBinaryCodec[Long]].encodeValue(regs.getLong(offset), out)
+      case 3 => codec.asInstanceOf[MessagePackBinaryCodec[Float]].encodeValue(regs.getFloat(offset), out)
+      case 4 => codec.asInstanceOf[MessagePackBinaryCodec[Double]].encodeValue(regs.getDouble(offset), out)
+      case 5 => codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].encodeValue(regs.getBoolean(offset), out)
+      case 6 => codec.asInstanceOf[MessagePackBinaryCodec[Byte]].encodeValue(regs.getByte(offset), out)
+      case 7 => codec.asInstanceOf[MessagePackBinaryCodec[Char]].encodeValue(regs.getChar(offset), out)
+      case 8 => codec.asInstanceOf[MessagePackBinaryCodec[Short]].encodeValue(regs.getShort(offset), out)
+      case _ => codec.asInstanceOf[MessagePackBinaryCodec[Unit]].encodeValue((), out)
     }
   }
 }
