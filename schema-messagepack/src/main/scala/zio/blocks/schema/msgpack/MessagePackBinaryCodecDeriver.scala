@@ -179,10 +179,10 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
       val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
       if (typeId.isOption) {
         val someRecord  = cases(1).value.asRecord.get
-        val someBinding = someRecord.recordBinding match {
-          case b: Binding.Record[?]         => b.asInstanceOf[Binding.Record[A]]
-          case bi: BindingInstance[?, ?, ?] => bi.binding.asInstanceOf[Binding.Record[A]]
-        }
+        val someBinding = someRecord.recordBinding
+          .asInstanceOf[BindingInstance[TC, ?, ?]]
+          .binding
+          .asInstanceOf[Binding.Record[A]]
         val valueReflect = someRecord.fields(0).value
         D.instance(valueReflect.metadata).map { valueCodec =>
           new MessagePackBinaryCodec[A]() {
@@ -474,6 +474,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   type Value
   type Col[_]
   type Map[_, _]
+  type TC[_]
 
   private[this] val recursiveRecordCache =
     new ThreadLocal[java.util.HashMap[TypeId[?], Array[MessagePackFieldInfo]]] {

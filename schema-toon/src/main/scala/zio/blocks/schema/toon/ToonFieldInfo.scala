@@ -7,7 +7,7 @@ import scala.annotation.switch
 
 private[toon] final class ToonFieldInfo(
   val span: DynamicOptic.Node.Field,
-  defaultValueConstructor: () => ?,
+  defaultValue: Option[?],
   val idx: Int,
   val isOptional: Boolean,
   val isCollection: Boolean
@@ -26,7 +26,7 @@ private[toon] final class ToonFieldInfo(
   def setOffset(offset: RegisterOffset.RegisterOffset): Unit = this.offset = offset
 
   @inline
-  def hasDefault: Boolean = defaultValueConstructor ne null
+  def hasDefault: Boolean = defaultValue ne None
 
   /**
    * Returns true if the codec for this field represents a primitive type.
@@ -109,18 +109,18 @@ private[toon] final class ToonFieldInfo(
 
   def setMissingValueOrError(in: ToonReader, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
     val off = this.offset + top
-    if (defaultValueConstructor ne null) {
-      val defaultValue = defaultValueConstructor.apply()
+    if (defaultValue ne None) {
+      val dv = defaultValue.get
       (codec.valueType: @switch) match {
-        case 0 => regs.setObject(off, defaultValue.asInstanceOf[AnyRef])
-        case 1 => regs.setInt(off, defaultValue.asInstanceOf[Int])
-        case 2 => regs.setLong(off, defaultValue.asInstanceOf[Long])
-        case 3 => regs.setFloat(off, defaultValue.asInstanceOf[Float])
-        case 4 => regs.setDouble(off, defaultValue.asInstanceOf[Double])
-        case 5 => regs.setBoolean(off, defaultValue.asInstanceOf[Boolean])
-        case 6 => regs.setByte(off, defaultValue.asInstanceOf[Byte])
-        case 7 => regs.setChar(off, defaultValue.asInstanceOf[Char])
-        case 8 => regs.setShort(off, defaultValue.asInstanceOf[Short])
+        case 0 => regs.setObject(off, dv.asInstanceOf[AnyRef])
+        case 1 => regs.setInt(off, dv.asInstanceOf[Int])
+        case 2 => regs.setLong(off, dv.asInstanceOf[Long])
+        case 3 => regs.setFloat(off, dv.asInstanceOf[Float])
+        case 4 => regs.setDouble(off, dv.asInstanceOf[Double])
+        case 5 => regs.setBoolean(off, dv.asInstanceOf[Boolean])
+        case 6 => regs.setByte(off, dv.asInstanceOf[Byte])
+        case 7 => regs.setChar(off, dv.asInstanceOf[Char])
+        case 8 => regs.setShort(off, dv.asInstanceOf[Short])
         case _ =>
       }
     } else if (isOptional) regs.setObject(off, None)
@@ -203,7 +203,7 @@ private[toon] final class ToonFieldInfo(
       case 8 => regs.getShort(off)
       case _ => ()
     }
-    if (defaultValueConstructor.apply() != currentValue) writeRequired(out, regs, top)
+    if (defaultValue.get != currentValue) writeRequired(out, regs, top)
   }
 
   def writeTabularValue(
@@ -256,20 +256,18 @@ private[toon] final class ToonFieldInfo(
 
   def setDefaultValue(regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
     val off = this.offset + top
-    if (defaultValueConstructor ne null) {
-      val defaultValue = defaultValueConstructor.apply()
-      (codec.valueType: @switch) match {
-        case 0 => regs.setObject(off, defaultValue.asInstanceOf[AnyRef])
-        case 1 => regs.setInt(off, defaultValue.asInstanceOf[Int])
-        case 2 => regs.setLong(off, defaultValue.asInstanceOf[Long])
-        case 3 => regs.setFloat(off, defaultValue.asInstanceOf[Float])
-        case 4 => regs.setDouble(off, defaultValue.asInstanceOf[Double])
-        case 5 => regs.setBoolean(off, defaultValue.asInstanceOf[Boolean])
-        case 6 => regs.setByte(off, defaultValue.asInstanceOf[Byte])
-        case 7 => regs.setChar(off, defaultValue.asInstanceOf[Char])
-        case 8 => regs.setShort(off, defaultValue.asInstanceOf[Short])
-        case _ =>
-      }
+    val dv  = defaultValue.get
+    (codec.valueType: @switch) match {
+      case 0 => regs.setObject(off, dv.asInstanceOf[AnyRef])
+      case 1 => regs.setInt(off, dv.asInstanceOf[Int])
+      case 2 => regs.setLong(off, dv.asInstanceOf[Long])
+      case 3 => regs.setFloat(off, dv.asInstanceOf[Float])
+      case 4 => regs.setDouble(off, dv.asInstanceOf[Double])
+      case 5 => regs.setBoolean(off, dv.asInstanceOf[Boolean])
+      case 6 => regs.setByte(off, dv.asInstanceOf[Byte])
+      case 7 => regs.setChar(off, dv.asInstanceOf[Char])
+      case 8 => regs.setShort(off, dv.asInstanceOf[Short])
+      case _ =>
     }
   }
 

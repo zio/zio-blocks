@@ -352,8 +352,11 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
             }
             new DynamicOptic(ArraySeq.unsafeWrapArray(array))
           case _ => DynamicOptic.root
-        },
-        error.getMessage
+        }, {
+          var msg = error.getMessage
+          if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+          msg
+        }
       ),
       Nil
     )

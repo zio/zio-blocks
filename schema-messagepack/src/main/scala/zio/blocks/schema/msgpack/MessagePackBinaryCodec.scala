@@ -169,7 +169,10 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
 
   protected def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: MessagePackCodecError => throw e.copy(spans = span :: e.spans)
-    case _                        => throw new MessagePackCodecError(span :: Nil, error.getMessage)
+    case _                        =>
+      var msg = error.getMessage
+      if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+      throw new MessagePackCodecError(span :: Nil, msg)
   }
 
   private def toError(error: Throwable): SchemaError = new SchemaError(

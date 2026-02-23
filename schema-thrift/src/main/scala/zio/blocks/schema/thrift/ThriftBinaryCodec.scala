@@ -67,17 +67,6 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
       throw new ThriftBinaryCodecError(new ::(span, Nil), getMessage(error))
   }
 
-  /**
-   * Throws decode error with two path spans and an underlying error.
-   */
-  def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: ThriftBinaryCodecError =>
-      e.spans = new ::(span1, new ::(span2, e.spans))
-      throw e
-    case _ =>
-      throw new ThriftBinaryCodecError(new ::(span1, new ::(span2, Nil)), getMessage(error))
-  }
-
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     var pos             = input.position
     val len             = input.limit - pos
@@ -136,7 +125,10 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
   private def getMessage(error: Throwable): String = error match {
     case _: java.io.EOFException         => "Unexpected end of input"
     case _: org.apache.thrift.TException => s"Thrift protocol error: ${error.getMessage}"
-    case e                               => e.getMessage
+    case _                               =>
+      var msg = error.getMessage
+      if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+      msg
   }
 }
 
