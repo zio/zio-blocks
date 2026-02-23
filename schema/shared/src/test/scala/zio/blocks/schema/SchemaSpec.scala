@@ -1785,7 +1785,7 @@ object SchemaSpec extends SchemaBaseSpec {
         )
         val dv     = Schema[Int].toDynamicValue(-1)
         val result = positiveSchema.fromDynamicValue(dv)
-        assert(result)(isLeft(equalTo(customError)))
+        assert(result.swap.map(_.message))(isRight(equalTo("Custom validation error with details at: .wrapped")))
       },
       test("creates Wrapper reflect") {
         assertTrue(PosInt.schema.reflect.isWrapper)
