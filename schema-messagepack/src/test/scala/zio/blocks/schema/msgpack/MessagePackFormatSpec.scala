@@ -1,89 +1,107 @@
 package zio.blocks.schema.msgpack
 
 import zio.blocks.schema._
+import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.msgpack.MessagePackTestUtils._
+import zio.blocks.typeid.TypeId
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.jvmOnly
-
-import java.time._
-import java.util.Currency
 
 object MessagePackFormatSpec extends SchemaBaseSpec {
 
   case class Record(name: String, value: Int)
+
   object Record {
     implicit val schema: Schema[Record] = Schema.derived
   }
 
   case class BasicInt(value: Int)
+
   object BasicInt {
     implicit val schema: Schema[BasicInt] = Schema.derived
   }
 
   case class BasicString(value: String)
+
   object BasicString {
     implicit val schema: Schema[BasicString] = Schema.derived
   }
 
   case class BasicFloat(value: Float)
+
   object BasicFloat {
     implicit val schema: Schema[BasicFloat] = Schema.derived
   }
 
   case class BasicDouble(value: Double)
+
   object BasicDouble {
     implicit val schema: Schema[BasicDouble] = Schema.derived
   }
 
   case class BasicLong(value: Long)
+
   object BasicLong {
     implicit val schema: Schema[BasicLong] = Schema.derived
   }
 
   case class BasicBoolean(value: Boolean)
+
   object BasicBoolean {
     implicit val schema: Schema[BasicBoolean] = Schema.derived
   }
 
   case class Embedded(inner: BasicInt)
+
   object Embedded {
     implicit val schema: Schema[Embedded] = Schema.derived
   }
 
   case class IntList(items: List[Int])
+
   object IntList {
     implicit val schema: Schema[IntList] = Schema.derived
   }
 
   case class StringList(items: List[String])
+
   object StringList {
     implicit val schema: Schema[StringList] = Schema.derived
   }
 
-  case class MapValue(value: scala.collection.immutable.Map[String, Record])
+  case class MapValue(value: Map[String, Record])
+
   object MapValue {
     implicit val schema: Schema[MapValue] = Schema.derived
   }
 
-  case class SetValue(value: scala.collection.immutable.Set[Record])
+  case class SetValue(value: Set[Record])
+
   object SetValue {
     implicit val schema: Schema[SetValue] = Schema.derived
   }
 
   sealed trait OneOf
-  case class StringValue(value: String)   extends OneOf
-  case class IntValue(value: Int)         extends OneOf
+
+  case class StringValue(value: String) extends OneOf
+
+  case class IntValue(value: Int) extends OneOf
+
   case class BooleanValue(value: Boolean) extends OneOf
+
   object OneOf {
     implicit val schema: Schema[OneOf] = Schema.derived
   }
 
   sealed trait RichSum
+
   object RichSum {
     case class Person(name: String, age: Int) extends RichSum
-    case class AnotherSum(oneOf: OneOf)       extends RichSum
-    case class LongWrapper(long: Long)        extends RichSum
+
+    case class AnotherSum(oneOf: OneOf) extends RichSum
+
+    case class LongWrapper(long: Long) extends RichSum
+
     implicit val schema: Schema[RichSum] = Schema.derived
   }
 
@@ -113,91 +131,109 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
     f23: Int = 23,
     f24: Int = 24
   )
+
   object HighArity {
     implicit val schema: Schema[HighArity] = Schema.derived
   }
 
   case class ClassWithOption(number: Int, name: Option[String])
+
   object ClassWithOption {
     implicit val schema: Schema[ClassWithOption] = Schema.derived
   }
 
   case class NestedOption(value: Option[Option[Int]])
+
   object NestedOption {
     implicit val schema: Schema[NestedOption] = Schema.derived
   }
 
   case class RequestVars(someString: String, second: Int)
+
   object RequestVars {
     implicit val schema: Schema[RequestVars] = Schema.derived
   }
 
   case class SearchRequest(query: String, pageNumber: RequestVars, resultPerPage: Int)
+
   object SearchRequest {
     implicit val schema: Schema[SearchRequest] = Schema.derived
   }
 
   case class SequenceOfProduct(name: String, records: List[Record], richSum: RichSum)
+
   object SequenceOfProduct {
     implicit val schema: Schema[SequenceOfProduct] = Schema.derived
   }
 
   case class SequenceOfSum(value: String, enums: List[RichSum])
+
   object SequenceOfSum {
     implicit val schema: Schema[SequenceOfSum] = Schema.derived
   }
 
-  case class MapRecord(age: Int, map: scala.collection.immutable.Map[Int, String])
+  case class MapRecord(age: Int, map: Map[Int, String])
+
   object MapRecord {
     implicit val schema: Schema[MapRecord] = Schema.derived
   }
 
-  case class SetRecord(age: Int, set: scala.collection.immutable.Set[String])
+  case class SetRecord(age: Int, set: Set[String])
+
   object SetRecord {
     implicit val schema: Schema[SetRecord] = Schema.derived
   }
 
   case class Recursive(value: Int, next: Option[Recursive])
+
   object Recursive {
     implicit val schema: Schema[Recursive] = Schema.derived
   }
 
   case class TreeNode(value: String, children: List[TreeNode])
+
   object TreeNode {
     implicit val schema: Schema[TreeNode] = Schema.derived
   }
 
   case class WithTuple2(value: (Int, String))
+
   object WithTuple2 {
     implicit val schema: Schema[WithTuple2] = Schema.derived
   }
 
   case class WithTuple3(value: (Int, String, Boolean))
+
   object WithTuple3 {
     implicit val schema: Schema[WithTuple3] = Schema.derived
   }
 
   case class ComplexTuple(value: (Record, OneOf))
+
   object ComplexTuple {
     implicit val schema: Schema[ComplexTuple] = Schema.derived
   }
 
   case class BasicIntWrapper(basic: BasicInt)
+
   object BasicIntWrapper {
     implicit val schema: Schema[BasicIntWrapper] = Schema.derived
   }
 
   case class BasicTwoInts(value1: Int, value2: Int)
+
   object BasicTwoInts {
     implicit val schema: Schema[BasicTwoInts] = Schema.derived
   }
 
   case class BasicTwoIntWrapper(basic: BasicTwoInts)
+
   object BasicTwoIntWrapper {
     implicit val schema: Schema[BasicTwoIntWrapper] = Schema.derived
   }
 
   case class SeparateWrapper(basic1: BasicInt, basic2: BasicInt)
+
   object SeparateWrapper {
     implicit val schema: Schema[SeparateWrapper] = Schema.derived
   }
@@ -231,28 +267,55 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
   }
 
   case class Enumeration(oneOf: OneOf)
+
   object Enumeration {
     implicit val schema: Schema[Enumeration] = Schema.derived
   }
 
   case class RichProduct(stringOneOf: OneOf, basicString: BasicString, record: Record)
+
   object RichProduct {
     implicit val schema: Schema[RichProduct] = Schema.derived
   }
 
   case class MyRecord(age: Int)
+
   object MyRecord {
     implicit val schema: Schema[MyRecord] = Schema.derived
   }
 
   case class TupleWithEmptyList(value: (String, List[Int], String))
+
   object TupleWithEmptyList {
     implicit val schema: Schema[TupleWithEmptyList] = Schema.derived
   }
 
   case class TupleWithNestedEmptyList(value: (String, List[List[Int]], String))
+
   object TupleWithNestedEmptyList {
     implicit val schema: Schema[TupleWithNestedEmptyList] = Schema.derived
+  }
+
+  case class UserId(value: Long)
+
+  object UserId {
+    implicit val typeId: TypeId[UserId] = TypeId.of[UserId]
+    implicit val schema: Schema[UserId] = Schema[Long].transform[UserId](x => new UserId(x), _.value)
+  }
+
+  case class Email(value: String)
+
+  object Email {
+    private[this] val EmailRegex       = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+    implicit val typeId: TypeId[Email] = TypeId.of[Email]
+    implicit val schema: Schema[Email] =
+      Schema[String].transform[Email](
+        {
+          case x @ EmailRegex(_*) => new Email(x)
+          case _                  => throw SchemaError.validationFailed("expected e-mail")
+        },
+        _.value
+      )
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("MessagePackFormat Spec")(
@@ -297,13 +360,16 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         check(Gen.string)(x => roundTrip(x))
       },
       test("BigInt") {
-        check(Gen.bigInt(BigInt(-1000000000000L), BigInt(1000000000000L)))(x => roundTrip(x))
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x => roundTrip(x))
       },
       test("BigDecimal") {
-        check(Gen.bigDecimal(BigDecimal(-1000000), BigDecimal(1000000)))(x => roundTrip(x))
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => roundTrip(x))
       },
       test("UUID") {
         check(Gen.uuid)(x => roundTrip(x))
+      },
+      test("Currency") {
+        check(Gen.currency)(x => roundTrip(x))
       },
       test("binary (Array[Byte])") {
         check(Gen.listOf(Gen.byte).map(_.toArray)) { bytes =>
@@ -316,62 +382,54 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
     ),
     suite("java.time types")(
       test("DayOfWeek") {
-        roundTrip(DayOfWeek.MONDAY) &&
-        roundTrip(DayOfWeek.SUNDAY)
+        check(genDayOfWeek)(x => roundTrip(x))
       },
       test("Duration") {
-        roundTrip(Duration.ofSeconds(100, 500))
+        check(genDuration)(x => roundTrip(x))
       },
       test("Instant") {
-        roundTrip(Instant.parse("2021-01-01T00:00:00Z"))
+        check(genInstant)(x => roundTrip(x))
       },
       test("LocalDate") {
-        roundTrip(LocalDate.of(2021, 6, 15))
+        check(genLocalDate)(x => roundTrip(x))
       },
       test("LocalDateTime") {
-        roundTrip(LocalDateTime.of(2021, 6, 15, 12, 30, 45))
+        check(genLocalDateTime)(x => roundTrip(x))
       },
       test("LocalTime") {
-        roundTrip(LocalTime.of(12, 30, 45))
+        check(genLocalTime)(x => roundTrip(x))
       },
       test("Month") {
-        roundTrip(Month.JUNE)
+        check(genMonth)(x => roundTrip(x))
       },
       test("MonthDay") {
-        roundTrip(MonthDay.of(6, 15))
+        check(genMonthDay)(x => roundTrip(x))
       },
       test("OffsetDateTime") {
-        roundTrip(OffsetDateTime.of(2021, 6, 15, 12, 30, 45, 0, ZoneOffset.UTC))
+        check(genOffsetDateTime)(x => roundTrip(x))
       },
       test("OffsetTime") {
-        roundTrip(OffsetTime.of(12, 30, 45, 0, ZoneOffset.UTC))
+        check(genOffsetTime)(x => roundTrip(x))
       },
       test("Period") {
-        roundTrip(Period.of(1, 2, 3))
+        check(genPeriod)(x => roundTrip(x))
       },
       test("Year") {
-        roundTrip(Year.of(2021))
+        check(genYear)(x => roundTrip(x))
       },
       test("YearMonth") {
-        roundTrip(YearMonth.of(2021, 6))
+        check(genYearMonth)(x => roundTrip(x))
       },
       test("ZoneId") {
-        roundTrip(ZoneId.of("UTC")) &&
-        roundTrip(ZoneId.of("America/New_York"))
+        check(genZoneId)(x => roundTrip(x))
       },
       test("ZoneOffset") {
-        roundTrip(ZoneOffset.UTC) &&
-        roundTrip(ZoneOffset.ofHours(5))
+        check(genZoneOffset)(x => roundTrip(x))
       },
       test("ZonedDateTime") {
-        roundTrip(ZonedDateTime.of(2021, 6, 15, 12, 30, 45, 0, ZoneId.of("UTC")))
+        check(genZonedDateTime)(x => roundTrip(x))
       }
-    ) @@ jvmOnly,
-    suite("Currency")(
-      test("Currency") {
-        roundTrip(Currency.getInstance("USD"))
-      }
-    ) @@ jvmOnly,
+    ),
     suite("records")(
       test("simple record") {
         roundTrip(Record("hello", 150))
@@ -425,8 +483,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip(Enumeration(IntValue(482)))
       },
       test("product type with inner product") {
-        val richProduct = RichProduct(StringValue("sum_type"), BasicString("string"), Record("value", 47))
-        roundTrip(richProduct)
+        roundTrip(RichProduct(StringValue("sum_type"), BasicString("string"), Record("value", 47)))
       }
     ),
     suite("collections")(
@@ -470,19 +527,37 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip(SetRecord(1, Set("aaa", "ccc")))
       },
       test("map of products") {
-        val m: scala.collection.immutable.Map[Record, MyRecord] = scala.collection.immutable.Map(
-          Record("AAA", 1) -> MyRecord(1),
-          Record("BBB", 2) -> MyRecord(2)
-        )
-        roundTrip(m)
+        roundTrip(Map(Record("AAA", 1) -> MyRecord(1), Record("BBB", 2) -> MyRecord(2)))
       },
       test("set of products") {
-        val set: scala.collection.immutable.Set[Record] =
-          scala.collection.immutable.Set(Record("AAA", 1), Record("BBB", 2))
-        roundTrip(set)
+        roundTrip(Set(Record("AAA", 1), Record("BBB", 2)))
+      },
+      test("sequence of products") {
+        roundTrip(
+          SequenceOfProduct(
+            "hello",
+            List(Record("Jan", 30), Record("xxx", 40), Record("Peter", 22)),
+            RichSum.LongWrapper(150L)
+          )
+        )
+      },
+      test("sequence of sums") {
+        roundTrip(SequenceOfSum("hello", List(RichSum.LongWrapper(150L), RichSum.LongWrapper(200L))))
       }
     ),
     suite("optionals")(
+      test("standalone Some for primitives") {
+        check(Gen.boolean)(x => roundTrip(Some(x): Option[Boolean])) &&
+        check(Gen.byte)(x => roundTrip(Some(x): Option[Byte])) &&
+        check(Gen.char)(x => roundTrip(Some(x): Option[Char])) &&
+        check(Gen.short)(x => roundTrip(Some(x): Option[Short])) &&
+        check(Gen.float)(x => roundTrip(Some(x): Option[Float])) &&
+        check(Gen.int)(x => roundTrip(Some(x): Option[Int])) &&
+        check(Gen.double)(x => roundTrip(Some(x): Option[Double])) &&
+        check(Gen.long)(x => roundTrip(Some(x): Option[Long])) &&
+        check(Gen.string)(x => roundTrip(Some(x): Option[String])) &&
+        check(Gen.unit)(x => roundTrip(Some(x): Option[Unit]))
+      },
       test("option with value") {
         roundTrip(ClassWithOption(42, Some("hello")))
       },
@@ -505,20 +580,16 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip(NestedOption(None))
       },
       test("complex optional with sum type") {
-        val value = Some(BooleanValue(true)): Option[OneOf]
-        roundTrip(value)
+        roundTrip(Some(BooleanValue(true)): Option[OneOf])
       },
       test("complex optional with product type") {
-        val value = Some(Record("hello earth", 21)): Option[Record]
-        roundTrip(value)
+        roundTrip(Some(Record("hello earth", 21)): Option[Record])
       },
       test("optional of product type within optional") {
-        val value = Some(Some(Record("hello", 10))): Option[Option[Record]]
-        roundTrip(value)
+        roundTrip(Some(Some(Record("hello", 10))): Option[Option[Record]])
       },
       test("optional of sum type within optional") {
-        val value = Some(Some(BooleanValue(true))): Option[Option[OneOf]]
-        roundTrip(value)
+        roundTrip(Some(Some(BooleanValue(true))): Option[Option[OneOf]])
       }
     ),
     suite("variants (sealed traits)")(
@@ -564,47 +635,6 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip[Either[Record, RichSum]](Right(RichSum.Person("right", 2)))
       }
     ),
-    suite("sequence of complex types")(
-      test("sequence of products") {
-        val richSequence = SequenceOfProduct(
-          "hello",
-          List(Record("Jan", 30), Record("xxx", 40), Record("Peter", 22)),
-          RichSum.LongWrapper(150L)
-        )
-        roundTrip(richSequence)
-      },
-      test("sequence of sums") {
-        val richSequence = SequenceOfSum("hello", List(RichSum.LongWrapper(150L), RichSum.LongWrapper(200L)))
-        roundTrip(richSequence)
-      }
-    ),
-    suite("property-based tests")(
-      test("arbitrary strings roundtrip") {
-        check(Gen.string) { s =>
-          roundTrip(s)
-        }
-      },
-      test("arbitrary ints roundtrip") {
-        check(Gen.int) { i =>
-          roundTrip(i)
-        }
-      },
-      test("arbitrary longs roundtrip") {
-        check(Gen.long) { l =>
-          roundTrip(l)
-        }
-      },
-      test("arbitrary records roundtrip") {
-        check(Gen.string, Gen.int) { (name, value) =>
-          roundTrip(Record(name, value))
-        }
-      },
-      test("arbitrary lists roundtrip") {
-        check(Gen.listOf(Gen.int)) { list =>
-          roundTrip(list)
-        }
-      }
-    ),
     suite("Tuple types")(
       test("Tuple2 - simple") {
         roundTrip(WithTuple2((123, "hello")))
@@ -630,21 +660,21 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip(Recursive(1, Some(Recursive(2, None))))
       },
       test("simple recursive - deep nesting") {
-        val deep = Recursive(1, Some(Recursive(2, Some(Recursive(3, Some(Recursive(4, None)))))))
-        roundTrip(deep)
+        roundTrip(Recursive(1, Some(Recursive(2, Some(Recursive(3, Some(Recursive(4, None))))))))
       },
       test("tree structure - leaf") {
         roundTrip(TreeNode("root", Nil))
       },
       test("tree structure - with children") {
-        val tree = TreeNode(
-          "root",
-          List(
-            TreeNode("child1", Nil),
-            TreeNode("child2", List(TreeNode("grandchild", Nil)))
+        roundTrip(
+          TreeNode(
+            "root",
+            List(
+              TreeNode("child1", Nil),
+              TreeNode("child2", List(TreeNode("grandchild", Nil)))
+            )
           )
         )
-        roundTrip(tree)
       },
       test("list of recursive") {
         roundTrip(
@@ -653,6 +683,12 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
             Recursive(2, Some(Recursive(3, None)))
           )
         )
+      }
+    ),
+    suite("wrapper")(
+      test("simple wrappers") {
+        roundTrip(UserId(1L)) &&
+        roundTrip(Email("xxx@test.com"))
       }
     ),
     suite("error handling")(
@@ -684,7 +720,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         decodeError[List[Int]]("9301", "Unexpected end of input")
       },
       test("truncated map - header says 2 entries but only 1 present") {
-        decodeError[scala.collection.immutable.Map[String, Int]]("82a16101", "Unexpected end of input")
+        decodeError[Map[String, Int]]("82a16101", "Unexpected end of input")
       },
       test("truncated float - only 2 bytes after marker") {
         decodeError[Float]("ca0000", "Unexpected end of input")

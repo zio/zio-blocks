@@ -2,21 +2,26 @@ package zio.blocks.schema.msgpack
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-final class MessagePackWriter private (
-  private[this] var buf: Array[Byte],
-  private[this] var count: Int
+final class MessagePackWriter private[msgpack] (
+  private[this] var buf: Array[Byte] = new Array[Byte](32768),
+  private[this] var count: Int = -1
 ) {
   import MessagePackWriter._
+
+  private[msgpack] def isInUse: Boolean = count >= 0
+
+  private[msgpack] def release(): Unit = count = -1
 
   def reset(): Unit = count = 0
 
   def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
 
-  def size: Int = count
-
   def writeNil(): Unit = writeRawByte(NIL)
 
-  def writeBoolean(x: Boolean): Unit = writeRawByte(if (x) TRUE else FALSE)
+  def writeBoolean(x: Boolean): Unit = writeRawByte {
+    if (x) TRUE
+    else FALSE
+  }
 
   def writeByte(x: Byte): Unit =
     if (x >= 0) writePositiveFixintOrUint8(x.toInt)
@@ -179,10 +184,7 @@ final class MessagePackWriter private (
       count += 5
     }
 
-  def writeBigInt(x: BigInt): Unit = {
-    val bytes = x.toByteArray
-    writeBinary(bytes)
-  }
+  def writeBigInt(x: BigInt): Unit = writeBinary(x.toByteArray)
 
   def writeBigDecimal(x: BigDecimal): Unit = {
     val underlying = x.underlying()
@@ -198,42 +200,64 @@ final class MessagePackWriter private (
     writeInt(scale)
   }
 
-  private def writePositiveFixintOrUint8(x: Int): Unit =
+  private[this] def writePositiveFixintOrUint8(x: Int): Unit = {
+    if (x > 0x7f) writeRawByte(UINT8)
+    writeRawByte(x.toByte)
+  }
+
+  private[this] def writeNegativeFixintOrInt8(x: Int): Unit = {
+    if (x < -32) writeRawByte(INT8)
+    writeRawByte(x.toByte)
+  }
+
+  private[this] def writePositiveInt(x: Int): Unit =
     if (x <= 0x7f) writeRawByte(x.toByte)
-    else { writeRawByte(UINT8); writeRawByte(x.toByte) }
+    else if (x <= 0xff) {
+      writeRawByte(UINT8)
+      writeRawByte(x.toByte)
+    } else if (x <= 0xffff) {
+      writeRawByte(UINT16)
+      writeShortBE(x)
+    } else {
+      writeRawByte(UINT32)
+      writeIntBE(x)
+    }
 
-  private def writeNegativeFixintOrInt8(x: Int): Unit =
+  private[this] def writeNegativeInt(x: Int): Unit =
     if (x >= -32) writeRawByte(x.toByte)
-    else { writeRawByte(INT8); writeRawByte(x.toByte) }
+    else if (x >= Byte.MinValue) {
+      writeRawByte(INT8)
+      writeRawByte(x.toByte)
+    } else if (x >= Short.MinValue) {
+      writeRawByte(INT16)
+      writeShortBE(x)
+    } else {
+      writeRawByte(INT32)
+      writeIntBE(x)
+    }
 
-  private def writePositiveInt(x: Int): Unit =
-    if (x <= 0x7f) writeRawByte(x.toByte)
-    else if (x <= 0xff) { writeRawByte(UINT8); writeRawByte(x.toByte) }
-    else if (x <= 0xffff) { writeRawByte(UINT16); writeShortBE(x) }
-    else { writeRawByte(UINT32); writeIntBE(x) }
-
-  private def writeNegativeInt(x: Int): Unit =
-    if (x >= -32) writeRawByte(x.toByte)
-    else if (x >= Byte.MinValue) { writeRawByte(INT8); writeRawByte(x.toByte) }
-    else if (x >= Short.MinValue) { writeRawByte(INT16); writeShortBE(x) }
-    else { writeRawByte(INT32); writeIntBE(x) }
-
-  private def writePositiveLong(x: Long): Unit =
+  private[this] def writePositiveLong(x: Long): Unit =
     if (x <= Int.MaxValue) writePositiveInt(x.toInt)
-    else { writeRawByte(UINT64); writeLongBE(x) }
+    else {
+      writeRawByte(UINT64)
+      writeLongBE(x)
+    }
 
-  private def writeNegativeLong(x: Long): Unit =
+  private[this] def writeNegativeLong(x: Long): Unit =
     if (x >= Int.MinValue) writeNegativeInt(x.toInt)
-    else { writeRawByte(INT64); writeLongBE(x) }
+    else {
+      writeRawByte(INT64)
+      writeLongBE(x)
+    }
 
-  private def writeShortBE(x: Int): Unit = {
+  private[this] def writeShortBE(x: Int): Unit = {
     ensureCapacity(2)
     buf(count) = (x >> 8).toByte
     buf(count + 1) = x.toByte
     count += 2
   }
 
-  private def writeIntBE(x: Int): Unit = {
+  private[this] def writeIntBE(x: Int): Unit = {
     ensureCapacity(4)
     buf(count) = (x >> 24).toByte
     buf(count + 1) = (x >> 16).toByte
@@ -242,7 +266,7 @@ final class MessagePackWriter private (
     count += 4
   }
 
-  private def writeLongBE(x: Long): Unit = {
+  private[this] def writeLongBE(x: Long): Unit = {
     ensureCapacity(8)
     buf(count) = (x >> 56).toByte
     buf(count + 1) = (x >> 48).toByte
@@ -262,21 +286,13 @@ final class MessagePackWriter private (
     count += len
   }
 
-  private def ensureCapacity(needed: Int): Unit = {
+  private[this] def ensureCapacity(needed: Int): Unit = {
     val required = count + needed
-    if (required > buf.length) {
-      val newSize =
-        if (buf.length > 1024 * 1024)
-          buf.length + (buf.length >> 2)
-        else
-          buf.length << 1
-      buf = java.util.Arrays.copyOf(buf, Math.max(newSize, required))
-    }
+    if (required > buf.length) buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, required))
   }
 }
 
 object MessagePackWriter {
-
   val NIL: Byte            = 0xc0.toByte
   val FALSE: Byte          = 0xc2.toByte
   val TRUE: Byte           = 0xc3.toByte
@@ -315,16 +331,4 @@ object MessagePackWriter {
   private[msgpack] val UnscaledBytes: Array[Byte]  = Array(0xa8.toByte, 'u', 'n', 's', 'c', 'a', 'l', 'e', 'd')
   private[msgpack] val PrecisionBytes: Array[Byte] = Array(0xa9.toByte, 'p', 'r', 'e', 'c', 'i', 's', 'i', 'o', 'n')
   private[msgpack] val ScaleBytes: Array[Byte]     = Array(0xa5.toByte, 's', 'c', 'a', 'l', 'e')
-
-  private val pool: ThreadLocal[MessagePackWriter] = new ThreadLocal[MessagePackWriter] {
-    override def initialValue(): MessagePackWriter = new MessagePackWriter(new Array[Byte](1024), 0)
-  }
-
-  def apply(): MessagePackWriter = {
-    val writer = pool.get()
-    writer.reset()
-    writer
-  }
-
-  def fresh(): MessagePackWriter = new MessagePackWriter(new Array[Byte](1024), 0)
 }
