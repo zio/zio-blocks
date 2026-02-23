@@ -115,7 +115,10 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
 
   private[this] def getMessage(error: Throwable): String = error match {
     case _: java.io.EOFException => "Unexpected end of input"
-    case e                       => e.getMessage
+    case _                       =>
+      var msg = error.getMessage
+      if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+      msg
   }
 }
 
