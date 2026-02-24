@@ -1279,6 +1279,14 @@ object TypeIdMacros {
             val aliasedType = tref.translucentSuperType.dealias
             val aliasedExpr = buildTypeReprFromTypeRepr(aliasedType, Set(sym.fullName))
             '{ TypeId.alias[Nothing](${ Expr(resolvedName) }, $resolvedOwnerExpr, Nil, $aliasedExpr, Nil, Nil) }
+          } else if (sym.flags.is(Flags.Opaque)) {
+            val reprExpr     = extractOpaqueRepresentationExpr(tref)
+            val defKindExpr  = buildDefKindShallow(sym)
+            val publicBounds = defKindExpr match {
+              case '{ TypeDefKind.OpaqueType($bounds) } => bounds
+              case _                                    => '{ zio.blocks.typeid.TypeBounds.Unbounded }
+            }
+            '{ TypeId.opaque[Nothing](${ Expr(resolvedName) }, $resolvedOwnerExpr, Nil, $reprExpr, Nil, $publicBounds) }
           } else {
             val defKindExpr = buildDefKindShallow(sym)
             '{ TypeId.nominal[Nothing](${ Expr(resolvedName) }, $resolvedOwnerExpr, $defKindExpr) }

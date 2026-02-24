@@ -3390,18 +3390,16 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
-    implicit lazy val typeId: TypeId[UserId] = TypeId.of[UserId]
-    implicit lazy val schema: Schema[UserId] =
-      Schema[Long].transform[UserId](x => new UserId(x), _.value)
+    implicit val typeId: TypeId[UserId] = TypeId.of[UserId]
+    implicit val schema: Schema[UserId] = Schema[Long].transform[UserId](x => new UserId(x), _.value)
   }
 
   case class Email(value: String)
 
   object Email {
-    private[this] val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-
-    implicit lazy val typeId: TypeId[Email] = TypeId.of[Email]
-    implicit lazy val schema: Schema[Email] =
+    private[this] val EmailRegex       = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+    implicit val typeId: TypeId[Email] = TypeId.of[Email]
+    implicit val schema: Schema[Email] =
       Schema[String].transform[Email](
         {
           case x @ EmailRegex(_*) => new Email(x)

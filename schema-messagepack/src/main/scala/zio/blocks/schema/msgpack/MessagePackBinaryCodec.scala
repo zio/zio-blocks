@@ -85,9 +85,10 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
    *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
    *   the `Right` contains the successfully decoded value of type `A`
    */
-  override def decode(input: ByteBuffer): Either[SchemaError, A] =
+  override def decode(input: ByteBuffer): Either[SchemaError, A] = {
+    var reader = MessagePackBinaryCodec.readerPool.get
+    if (reader.isInUse) reader = new MessagePackReader()
     try {
-      val reader             = MessagePackReader()
       var bytes: Array[Byte] = null
       var offset             = input.position()
       val length             = input.remaining()
@@ -100,10 +101,11 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
         offset = 0
       }
       reader.reset(bytes, offset, length)
-      Right(decodeValue(reader))
+      new Right(decodeValue(reader))
     } catch {
-      case error if NonFatal(error) => Left(toError(error))
-    }
+      case error if NonFatal(error) => new Left(toError(error))
+    } finally reader.release()
+  }
 
   /**
    * Encodes the specified value of type `A` into binary format and writes it to
@@ -115,9 +117,13 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
    *   the `ByteBuffer` where the encoded binary data is written
    */
   override def encode(value: A, output: ByteBuffer): Unit = {
-    val writer = MessagePackWriter()
-    encodeValue(value, writer)
-    output.put(writer.toByteArray)
+    var writer = MessagePackBinaryCodec.writerPool.get
+    if (writer.isInUse) writer = new MessagePackWriter()
+    writer.reset()
+    try {
+      encodeValue(value, writer)
+      output.put(writer.toByteArray)
+    } finally writer.release()
   }
 
   /**
@@ -130,14 +136,16 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
    *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
    *   the `Right` contains the successfully decoded value of type `A`
    */
-  def decode(input: Array[Byte]): Either[SchemaError, A] =
+  def decode(input: Array[Byte]): Either[SchemaError, A] = {
+    var reader = MessagePackBinaryCodec.readerPool.get
+    if (reader.isInUse) reader = new MessagePackReader()
     try {
-      val reader = MessagePackReader()
       reader.reset(input, 0, input.length)
-      Right(decodeValue(reader))
+      new Right(decodeValue(reader))
     } catch {
-      case error if NonFatal(error) => Left(toError(error))
-    }
+      case error if NonFatal(error) => new Left(toError(error))
+    } finally reader.release()
+  }
 
   /**
    * Encodes the specified value of type `A` into a binary format.
@@ -148,19 +156,23 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
    *   an array of bytes representing the binary-encoded data
    */
   def encode(value: A): Array[Byte] = {
-    val writer = MessagePackWriter()
-    encodeValue(value, writer)
-    writer.toByteArray
+    var writer = MessagePackBinaryCodec.writerPool.get
+    if (writer.isInUse) writer = new MessagePackWriter()
+    writer.reset()
+    try {
+      encodeValue(value, writer)
+      writer.toByteArray
+    } finally writer.release()
   }
 
-  protected def decodeError(msg: String): Nothing =
-    throw MessagePackCodecError(Nil, msg)
+  protected def decodeError(msg: String): Nothing = throw new MessagePackCodecError(Nil, msg)
 
   protected def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: MessagePackCodecError =>
-      throw e.copy(spans = span :: e.spans)
-    case _ =>
-      throw MessagePackCodecError(span :: Nil, error.getMessage)
+    case e: MessagePackCodecError => throw e.copy(spans = span :: e.spans)
+    case _                        =>
+      var msg = error.getMessage
+      if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+      throw new MessagePackCodecError(span :: Nil, msg)
   }
 
   private def toError(error: Throwable): SchemaError = new SchemaError(
@@ -199,67 +211,80 @@ object MessagePackBinaryCodec {
   val unitType    = 9
 
   val unitCodec: MessagePackBinaryCodec[Unit] = new MessagePackBinaryCodec[Unit](unitType) {
-    def decodeValue(in: MessagePackReader): Unit           = in.readNil()
+    def decodeValue(in: MessagePackReader): Unit = in.readNil()
+
     def encodeValue(x: Unit, out: MessagePackWriter): Unit = out.writeNil()
   }
 
   val booleanCodec: MessagePackBinaryCodec[Boolean] = new MessagePackBinaryCodec[Boolean](booleanType) {
-    def decodeValue(in: MessagePackReader): Boolean           = in.readBoolean()
+    def decodeValue(in: MessagePackReader): Boolean = in.readBoolean()
+
     def encodeValue(x: Boolean, out: MessagePackWriter): Unit = out.writeBoolean(x)
   }
 
   val byteCodec: MessagePackBinaryCodec[Byte] = new MessagePackBinaryCodec[Byte](byteType) {
-    def decodeValue(in: MessagePackReader): Byte           = in.readByteValue()
+    def decodeValue(in: MessagePackReader): Byte = in.readByteValue()
+
     def encodeValue(x: Byte, out: MessagePackWriter): Unit = out.writeByte(x)
   }
 
   val shortCodec: MessagePackBinaryCodec[Short] = new MessagePackBinaryCodec[Short](shortType) {
-    def decodeValue(in: MessagePackReader): Short           = in.readShortValue()
+    def decodeValue(in: MessagePackReader): Short = in.readShortValue()
+
     def encodeValue(x: Short, out: MessagePackWriter): Unit = out.writeShort(x)
   }
 
   val intCodec: MessagePackBinaryCodec[Int] = new MessagePackBinaryCodec[Int](intType) {
-    def decodeValue(in: MessagePackReader): Int           = in.readIntValue()
+    def decodeValue(in: MessagePackReader): Int = in.readIntValue()
+
     def encodeValue(x: Int, out: MessagePackWriter): Unit = out.writeInt(x)
   }
 
   val longCodec: MessagePackBinaryCodec[Long] = new MessagePackBinaryCodec[Long](longType) {
-    def decodeValue(in: MessagePackReader): Long           = in.readLongValue()
+    def decodeValue(in: MessagePackReader): Long = in.readLongValue()
+
     def encodeValue(x: Long, out: MessagePackWriter): Unit = out.writeLong(x)
   }
 
   val floatCodec: MessagePackBinaryCodec[Float] = new MessagePackBinaryCodec[Float](floatType) {
-    def decodeValue(in: MessagePackReader): Float           = in.readFloatValue()
+    def decodeValue(in: MessagePackReader): Float = in.readFloatValue()
+
     def encodeValue(x: Float, out: MessagePackWriter): Unit = out.writeFloat(x)
   }
 
   val doubleCodec: MessagePackBinaryCodec[Double] = new MessagePackBinaryCodec[Double](doubleType) {
-    def decodeValue(in: MessagePackReader): Double           = in.readDoubleValue()
+    def decodeValue(in: MessagePackReader): Double = in.readDoubleValue()
+
     def encodeValue(x: Double, out: MessagePackWriter): Unit = out.writeDouble(x)
   }
 
   val charCodec: MessagePackBinaryCodec[Char] = new MessagePackBinaryCodec[Char](charType) {
-    def decodeValue(in: MessagePackReader): Char           = in.readChar()
+    def decodeValue(in: MessagePackReader): Char = in.readChar()
+
     def encodeValue(x: Char, out: MessagePackWriter): Unit = out.writeChar(x)
   }
 
   val stringCodec: MessagePackBinaryCodec[String] = new MessagePackBinaryCodec[String]() {
-    def decodeValue(in: MessagePackReader): String           = in.readString()
+    def decodeValue(in: MessagePackReader): String = in.readString()
+
     def encodeValue(x: String, out: MessagePackWriter): Unit = out.writeString(x)
   }
 
   val bigIntCodec: MessagePackBinaryCodec[BigInt] = new MessagePackBinaryCodec[BigInt]() {
-    def decodeValue(in: MessagePackReader): BigInt           = in.readBigInt()
+    def decodeValue(in: MessagePackReader): BigInt = in.readBigInt()
+
     def encodeValue(x: BigInt, out: MessagePackWriter): Unit = out.writeBigInt(x)
   }
 
   val bigDecimalCodec: MessagePackBinaryCodec[BigDecimal] = new MessagePackBinaryCodec[BigDecimal]() {
-    def decodeValue(in: MessagePackReader): BigDecimal           = in.readBigDecimal()
+    def decodeValue(in: MessagePackReader): BigDecimal = in.readBigDecimal()
+
     def encodeValue(x: BigDecimal, out: MessagePackWriter): Unit = out.writeBigDecimal(x)
   }
 
   val dayOfWeekCodec: MessagePackBinaryCodec[DayOfWeek] = new MessagePackBinaryCodec[DayOfWeek]() {
-    def decodeValue(in: MessagePackReader): DayOfWeek           = DayOfWeek.of(in.readIntValue())
+    def decodeValue(in: MessagePackReader): DayOfWeek = DayOfWeek.of(in.readIntValue())
+
     def encodeValue(x: DayOfWeek, out: MessagePackWriter): Unit = out.writeInt(x.getValue)
   }
 
@@ -288,27 +313,32 @@ object MessagePackBinaryCodec {
   }
 
   val instantCodec: MessagePackBinaryCodec[Instant] = new MessagePackBinaryCodec[Instant]() {
-    def decodeValue(in: MessagePackReader): Instant           = Instant.parse(in.readString())
+    def decodeValue(in: MessagePackReader): Instant = Instant.parse(in.readString())
+
     def encodeValue(x: Instant, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val localDateCodec: MessagePackBinaryCodec[LocalDate] = new MessagePackBinaryCodec[LocalDate]() {
-    def decodeValue(in: MessagePackReader): LocalDate           = LocalDate.parse(in.readString())
+    def decodeValue(in: MessagePackReader): LocalDate = LocalDate.parse(in.readString())
+
     def encodeValue(x: LocalDate, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val localDateTimeCodec: MessagePackBinaryCodec[LocalDateTime] = new MessagePackBinaryCodec[LocalDateTime]() {
-    def decodeValue(in: MessagePackReader): LocalDateTime           = LocalDateTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): LocalDateTime = LocalDateTime.parse(in.readString())
+
     def encodeValue(x: LocalDateTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val localTimeCodec: MessagePackBinaryCodec[LocalTime] = new MessagePackBinaryCodec[LocalTime]() {
-    def decodeValue(in: MessagePackReader): LocalTime           = LocalTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): LocalTime = LocalTime.parse(in.readString())
+
     def encodeValue(x: LocalTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val monthCodec: MessagePackBinaryCodec[Month] = new MessagePackBinaryCodec[Month]() {
-    def decodeValue(in: MessagePackReader): Month           = Month.of(in.readIntValue())
+    def decodeValue(in: MessagePackReader): Month = Month.of(in.readIntValue())
+
     def encodeValue(x: Month, out: MessagePackWriter): Unit = out.writeInt(x.getValue)
   }
 
@@ -337,12 +367,14 @@ object MessagePackBinaryCodec {
   }
 
   val offsetDateTimeCodec: MessagePackBinaryCodec[OffsetDateTime] = new MessagePackBinaryCodec[OffsetDateTime]() {
-    def decodeValue(in: MessagePackReader): OffsetDateTime           = OffsetDateTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): OffsetDateTime = OffsetDateTime.parse(in.readString())
+
     def encodeValue(x: OffsetDateTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val offsetTimeCodec: MessagePackBinaryCodec[OffsetTime] = new MessagePackBinaryCodec[OffsetTime]() {
-    def decodeValue(in: MessagePackReader): OffsetTime           = OffsetTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): OffsetTime = OffsetTime.parse(in.readString())
+
     def encodeValue(x: OffsetTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
@@ -363,6 +395,7 @@ object MessagePackBinaryCodec {
       }
       Period.of(years, months, days)
     }
+
     def encodeValue(x: Period, out: MessagePackWriter): Unit = {
       out.writeMapHeader(3)
       out.writeRaw(MessagePackWriter.YearsBytes)
@@ -375,7 +408,8 @@ object MessagePackBinaryCodec {
   }
 
   val yearCodec: MessagePackBinaryCodec[Year] = new MessagePackBinaryCodec[Year]() {
-    def decodeValue(in: MessagePackReader): Year           = Year.of(in.readIntValue())
+    def decodeValue(in: MessagePackReader): Year = Year.of(in.readIntValue())
+
     def encodeValue(x: Year, out: MessagePackWriter): Unit = out.writeInt(x.getValue)
   }
 
@@ -394,6 +428,7 @@ object MessagePackBinaryCodec {
       }
       YearMonth.of(year, month)
     }
+
     def encodeValue(x: YearMonth, out: MessagePackWriter): Unit = {
       out.writeMapHeader(2)
       out.writeRaw(MessagePackWriter.YearBytes)
@@ -404,32 +439,46 @@ object MessagePackBinaryCodec {
   }
 
   val zoneIdCodec: MessagePackBinaryCodec[ZoneId] = new MessagePackBinaryCodec[ZoneId]() {
-    def decodeValue(in: MessagePackReader): ZoneId           = ZoneId.of(in.readString())
+    def decodeValue(in: MessagePackReader): ZoneId = ZoneId.of(in.readString())
+
     def encodeValue(x: ZoneId, out: MessagePackWriter): Unit = out.writeString(x.getId)
   }
 
   val zoneOffsetCodec: MessagePackBinaryCodec[ZoneOffset] = new MessagePackBinaryCodec[ZoneOffset]() {
-    def decodeValue(in: MessagePackReader): ZoneOffset           = ZoneOffset.ofTotalSeconds(in.readIntValue())
+    def decodeValue(in: MessagePackReader): ZoneOffset = ZoneOffset.ofTotalSeconds(in.readIntValue())
+
     def encodeValue(x: ZoneOffset, out: MessagePackWriter): Unit = out.writeInt(x.getTotalSeconds)
   }
 
   val zonedDateTimeCodec: MessagePackBinaryCodec[ZonedDateTime] = new MessagePackBinaryCodec[ZonedDateTime]() {
-    def decodeValue(in: MessagePackReader): ZonedDateTime           = ZonedDateTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): ZonedDateTime = ZonedDateTime.parse(in.readString())
+
     def encodeValue(x: ZonedDateTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val currencyCodec: MessagePackBinaryCodec[Currency] = new MessagePackBinaryCodec[Currency]() {
-    def decodeValue(in: MessagePackReader): Currency           = Currency.getInstance(in.readString())
+    def decodeValue(in: MessagePackReader): Currency = Currency.getInstance(in.readString())
+
     def encodeValue(x: Currency, out: MessagePackWriter): Unit = out.writeString(x.getCurrencyCode)
   }
 
   val uuidCodec: MessagePackBinaryCodec[UUID] = new MessagePackBinaryCodec[UUID]() {
-    def decodeValue(in: MessagePackReader): UUID           = UUID.fromString(in.readString())
+    def decodeValue(in: MessagePackReader): UUID = UUID.fromString(in.readString())
+
     def encodeValue(x: UUID, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
 
   val binaryCodec: MessagePackBinaryCodec[Array[Byte]] = new MessagePackBinaryCodec[Array[Byte]]() {
-    def decodeValue(in: MessagePackReader): Array[Byte]           = in.readBinary()
+    def decodeValue(in: MessagePackReader): Array[Byte] = in.readBinary()
+
     def encodeValue(x: Array[Byte], out: MessagePackWriter): Unit = out.writeBinary(x)
+  }
+
+  private val readerPool: ThreadLocal[MessagePackReader] = new ThreadLocal[MessagePackReader] {
+    override def initialValue(): MessagePackReader = new MessagePackReader(null, 0, 0)
+  }
+
+  private val writerPool: ThreadLocal[MessagePackWriter] = new ThreadLocal[MessagePackWriter] {
+    override def initialValue(): MessagePackWriter = new MessagePackWriter(new Array[Byte](32768), -1)
   }
 }

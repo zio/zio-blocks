@@ -2,11 +2,15 @@ package zio.blocks.schema.msgpack
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-final class MessagePackReader private (
-  private[this] var buf: Array[Byte],
-  private[this] var pos: Int,
-  private[this] var limit: Int
+final class MessagePackReader private[msgpack] (
+  private[this] var buf: Array[Byte] = null,
+  private[this] var pos: Int = 0,
+  private[this] var limit: Int = 0
 ) {
+  private[msgpack] def isInUse: Boolean = buf ne null
+
+  private[msgpack] def release(): Unit = buf = null
+
   import MessagePackReader._
 
   def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = {
@@ -17,20 +21,14 @@ final class MessagePackReader private (
 
   def hasRemaining: Boolean = pos < limit
 
-  def remaining: Int = limit - pos
-
-  def position: Int = pos
-
-  def peekType: Byte = if (pos < limit) buf(pos) else decodeError("Unexpected end of input")
+  def peekType: Byte =
+    if (pos < limit) buf(pos)
+    else endOfInputError()
 
   def readNil(): Unit = {
     val b = readByte()
     if (b != NIL) decodeError("Expected nil (0xc0), got: " + (b & 0xff))
   }
-
-  def tryReadNil(): Boolean =
-    if (pos < limit && buf(pos) == NIL) { pos += 1; true }
-    else false
 
   def readBoolean(): Boolean = {
     val b = readByte()
@@ -41,22 +39,23 @@ final class MessagePackReader private (
 
   def readByteValue(): Byte = {
     val b = peekByte()
-    if ((b & 0x80) == 0) { pos += 1; b }
-    else if ((b & 0xe0) == 0xe0) { pos += 1; b }
-    else if (b == INT8) { pos += 1; readByte() }
-    else if (b == UINT8) { pos += 1; (readByte() & 0xff).toByte }
+    pos += 1
+    if ((b & 0x80) == 0) b
+    else if ((b & 0xe0) == 0xe0) b
+    else if (b == INT8) readByte()
+    else if (b == UINT8) (readByte() & 0xff).toByte
     else decodeError("Expected byte value, got: " + (b & 0xff))
   }
 
   def readShortValue(): Short = {
     val b = peekByte()
-    if ((b & 0x80) == 0) { pos += 1; b.toShort }
-    else if ((b & 0xe0) == 0xe0) { pos += 1; b.toShort }
-    else if (b == INT8) { pos += 1; readByte().toShort }
-    else if (b == INT16) { pos += 1; readShortBE() }
-    else if (b == UINT8) { pos += 1; (readByte() & 0xff).toShort }
+    pos += 1
+    if ((b & 0x80) == 0) b.toShort
+    else if ((b & 0xe0) == 0xe0) b.toShort
+    else if (b == INT8) readByte().toShort
+    else if (b == INT16) readShortBE()
+    else if (b == UINT8) (readByte() & 0xff).toShort
     else if (b == UINT16) {
-      pos += 1
       val v = readShortBE() & 0xffff
       if (v > Short.MaxValue) decodeError("Value " + v + " exceeds Short range")
       v.toShort
@@ -65,15 +64,15 @@ final class MessagePackReader private (
 
   def readIntValue(): Int = {
     val b = peekByte()
-    if ((b & 0x80) == 0) { pos += 1; b.toInt }
-    else if ((b & 0xe0) == 0xe0) { pos += 1; b.toInt }
-    else if (b == INT8) { pos += 1; readByte().toInt }
-    else if (b == INT16) { pos += 1; readShortBE().toInt }
-    else if (b == INT32) { pos += 1; readIntBE() }
-    else if (b == UINT8) { pos += 1; readByte() & 0xff }
-    else if (b == UINT16) { pos += 1; readShortBE() & 0xffff }
+    pos += 1
+    if ((b & 0x80) == 0) b.toInt
+    else if ((b & 0xe0) == 0xe0) b.toInt
+    else if (b == INT8) readByte().toInt
+    else if (b == INT16) readShortBE().toInt
+    else if (b == INT32) readIntBE()
+    else if (b == UINT8) readByte() & 0xff
+    else if (b == UINT16) readShortBE() & 0xffff
     else if (b == UINT32) {
-      pos += 1
       val v = readIntBE().toLong & 0xffffffffL
       if (v > Int.MaxValue) decodeError("Value " + v + " exceeds Int range")
       v.toInt
@@ -82,17 +81,17 @@ final class MessagePackReader private (
 
   def readLongValue(): Long = {
     val b = peekByte()
-    if ((b & 0x80) == 0) { pos += 1; b.toLong }
-    else if ((b & 0xe0) == 0xe0) { pos += 1; b.toLong }
-    else if (b == INT8) { pos += 1; readByte().toLong }
-    else if (b == INT16) { pos += 1; readShortBE().toLong }
-    else if (b == INT32) { pos += 1; readIntBE().toLong }
-    else if (b == INT64) { pos += 1; readLongBE() }
-    else if (b == UINT8) { pos += 1; (readByte() & 0xff).toLong }
-    else if (b == UINT16) { pos += 1; (readShortBE() & 0xffff).toLong }
-    else if (b == UINT32) { pos += 1; readIntBE().toLong & 0xffffffffL }
+    pos += 1
+    if ((b & 0x80) == 0) b.toLong
+    else if ((b & 0xe0) == 0xe0) b.toLong
+    else if (b == INT8) readByte().toLong
+    else if (b == INT16) readShortBE().toLong
+    else if (b == INT32) readIntBE().toLong
+    else if (b == INT64) readLongBE()
+    else if (b == UINT8) (readByte() & 0xff).toLong
+    else if (b == UINT16) (readShortBE() & 0xffff).toLong
+    else if (b == UINT32) readIntBE().toLong & 0xffffffffL
     else if (b == UINT64) {
-      pos += 1
       val v = readLongBE()
       if (v < 0) decodeError("Value exceeds Long range (unsigned 64-bit)")
       v
@@ -123,7 +122,8 @@ final class MessagePackReader private (
 
   def readString(): String = {
     val len = readStringHeader()
-    if ((len | (remaining - len)) < 0) decodeError("String length " + len + " exceeds remaining bytes " + remaining)
+    if ((len | (limit - pos - len)) < 0)
+      decodeError("String length " + len + " exceeds remaining bytes " + (limit - pos))
     val str = new String(buf, pos, len, UTF_8)
     pos += len
     str
@@ -139,7 +139,6 @@ final class MessagePackReader private (
         else if (b == 0xda) readShortBE() & 0xffff
         else if (b == 0xdb) readIntBE()
         else -1
-
       if (len != expected.length || len == -1) {
         pos = savedPos
         false
@@ -197,7 +196,8 @@ final class MessagePackReader private (
 
   def readBinary(): Array[Byte] = {
     val len = readBinaryHeader()
-    if ((len | (remaining - len)) < 0) decodeError("Binary length " + len + " exceeds remaining bytes " + remaining)
+    if ((len | (limit - pos - len)) < 0)
+      decodeError("Binary length " + len + " exceeds remaining bytes " + (limit - pos))
     val bytes = new Array[Byte](len)
     System.arraycopy(buf, pos, bytes, 0, len)
     pos += len
@@ -228,10 +228,7 @@ final class MessagePackReader private (
     else decodeError("Expected map header, got: " + b)
   }
 
-  def readBigInt(): BigInt = {
-    val bytes = readBinary()
-    BigInt(bytes)
-  }
+  def readBigInt(): BigInt = BigInt(readBinary())
 
   def readBigDecimal(): BigDecimal = {
     val len = readMapHeader()
@@ -254,9 +251,18 @@ final class MessagePackReader private (
   def skipValue(): Unit = {
     val b = readByte() & 0xff
     if ((b & 0x80) == 0 || (b & 0xe0) == 0xe0) return
-    if ((b & 0xe0) == 0xa0) { pos += (b & 0x1f); return }
-    if ((b & 0xf0) == 0x90) { skipArrayElements(b & 0x0f); return }
-    if ((b & 0xf0) == 0x80) { skipMapElements(b & 0x0f); return }
+    if ((b & 0xe0) == 0xa0) {
+      pos += (b & 0x1f)
+      return
+    }
+    if ((b & 0xf0) == 0x90) {
+      skipArrayElements(b & 0x0f)
+      return
+    }
+    if ((b & 0xf0) == 0x80) {
+      skipMapElements(b & 0x0f)
+      return
+    }
     b match {
       case 0xc0 | 0xc2 | 0xc3 => // nil, false, true
       case 0xc4               => pos += (readByte() & 0xff)
@@ -284,33 +290,44 @@ final class MessagePackReader private (
   }
 
   private[this] def skipArrayElements(count: Int): Unit = {
-    var i = 0
-    while (i < count) { skipValue(); i += 1 }
+    var idx = 0
+    while (idx < count) {
+      skipValue()
+      idx += 1
+    }
   }
 
   private[this] def skipMapElements(count: Int): Unit = {
-    var i = 0
-    while (i < count) { skipValue(); skipValue(); i += 1 }
+    var idx = 0
+    while (idx < count) {
+      skipValue()
+      skipValue()
+      idx += 1
+    }
   }
 
   @inline
-  private def peekByte(): Byte =
-    if (pos < limit) buf(pos) else decodeError("Unexpected end of input")
+  private[this] def peekByte(): Byte =
+    if (pos < limit) buf(pos)
+    else endOfInputError()
 
   @inline
-  private def readByte(): Byte =
-    if (pos < limit) { val b = buf(pos); pos += 1; b }
-    else decodeError("Unexpected end of input")
+  private[this] def readByte(): Byte =
+    if (pos < limit) {
+      val b = buf(pos)
+      pos += 1
+      b
+    } else endOfInputError()
 
-  private def readShortBE(): Short = {
-    if (pos + 2 > limit) decodeError("Unexpected end of input")
+  private[this] def readShortBE(): Short = {
+    if (pos + 2 > limit) endOfInputError()
     val result = ((buf(pos) & 0xff) << 8) | (buf(pos + 1) & 0xff)
     pos += 2
     result.toShort
   }
 
-  private def readIntBE(): Int = {
-    if (pos + 4 > limit) decodeError("Unexpected end of input")
+  private[this] def readIntBE(): Int = {
+    if (pos + 4 > limit) endOfInputError()
     val result = ((buf(pos) & 0xff) << 24) |
       ((buf(pos + 1) & 0xff) << 16) |
       ((buf(pos + 2) & 0xff) << 8) |
@@ -319,8 +336,8 @@ final class MessagePackReader private (
     result
   }
 
-  private def readLongBE(): Long = {
-    if (pos + 8 > limit) decodeError("Unexpected end of input")
+  private[this] def readLongBE(): Long = {
+    if (pos + 8 > limit) endOfInputError()
     val result = ((buf(pos) & 0xffL) << 56) |
       ((buf(pos + 1) & 0xffL) << 48) |
       ((buf(pos + 2) & 0xffL) << 40) |
@@ -333,8 +350,9 @@ final class MessagePackReader private (
     result
   }
 
-  def decodeError(msg: String): Nothing =
-    throw MessagePackCodecError(Nil, msg)
+  private[this] def endOfInputError() = decodeError("Unexpected end of input")
+
+  def decodeError(msg: String): Nothing = throw MessagePackCodecError(Nil, msg)
 }
 
 object MessagePackReader {
@@ -363,12 +381,4 @@ object MessagePackReader {
   private[msgpack] val UnscaledName: Array[Byte]  = Array('u', 'n', 's', 'c', 'a', 'l', 'e', 'd')
   private[msgpack] val PrecisionName: Array[Byte] = Array('p', 'r', 'e', 'c', 'i', 's', 'i', 'o', 'n')
   private[msgpack] val ScaleName: Array[Byte]     = Array('s', 'c', 'a', 'l', 'e')
-
-  private val pool: ThreadLocal[MessagePackReader] = new ThreadLocal[MessagePackReader] {
-    override def initialValue(): MessagePackReader = new MessagePackReader(null, 0, 0)
-  }
-
-  def apply(): MessagePackReader = pool.get()
-
-  def fresh(): MessagePackReader = new MessagePackReader(null, 0, 0)
 }

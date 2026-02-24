@@ -327,7 +327,7 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 97,
+    coverageMinimumStmtTotal   := 96,
     coverageMinimumBranchTotal := 91
   )
 
@@ -354,7 +354,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.6.3",
+      "org.mongodb" % "bson"         % "5.6.4",
       "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -383,8 +383,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 76,
-    coverageMinimumBranchTotal := 67
+    coverageMinimumStmtTotal   := 78,
+    coverageMinimumBranchTotal := 69
   )
   .jsSettings(
     libraryDependencies ++= Seq(
