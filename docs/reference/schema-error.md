@@ -540,7 +540,7 @@ Path annotation (`atField`, `atIndex`, `atKey`, `atCase`) builds a [`DynamicOpti
 import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema, SchemaError}
 
 implicit val intSchema: Schema[Int] = Schema[Int]
-val data   = DynamicValue.sequence(DynamicValue.int(1), DynamicValue.int(2))
+val data   = DynamicValue.Sequence(DynamicValue.int(1), DynamicValue.int(2))
 val optic  = DynamicOptic.root.at(10)
 
 val result: Either[SchemaError, DynamicValue] = data.setOrFail(optic, DynamicValue.int(99))
