@@ -134,7 +134,7 @@ object SchemaErrorExample extends App {
 
   // --- Example 4: Aggregating multiple independent errors ---
 
-  printHeader("Example 5: Error aggregation with ++")
+  printHeader("Example 4: Error aggregation with ++")
 
   val nameErr  = SchemaError.validationFailed("string must not be blank").atField("name")
   val priceErr = SchemaError.validationFailed("expected a positive integer, got -1").atField("price")
