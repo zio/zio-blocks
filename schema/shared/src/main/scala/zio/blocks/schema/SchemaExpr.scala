@@ -47,6 +47,13 @@ sealed trait SchemaExpr[A, +B] { self =>
 }
 
 object SchemaExpr {
+
+  /**
+   * Creates a DefaultValue expression that uses the schema's default value.
+   */
+  def DefaultValue[A](implicit schema: Schema[A]): SchemaExpr[Unit, A] =
+    new SchemaExpr.DefaultValue(schema)
+
   final case class Literal[S, A](value: A, schema: Schema[A]) extends SchemaExpr[S, A] {
     def eval(input: S): Either[OpticCheck, Seq[A]] = result
 
@@ -301,5 +308,31 @@ object SchemaExpr {
 
     private[this] def toDynamicValue(value: Int): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Int(value))
+  }
+
+  /**
+   * A special expression that uses the schema's default value.
+   * This is used in migrations for AddField, DropField reverse, etc.
+   */
+  final case class DefaultValue[A](schema: Schema[A]) extends SchemaExpr[Unit, A] {
+    def eval(input: Unit): Either[OpticCheck, Seq[A]] =
+      schema match {
+        case s: Schema[?] =>
+          s.getDefaultValue match {
+            case Some(value) => Right(Seq(value.asInstanceOf[A]))
+            case None => Left(OpticCheck.Missing)
+          }
+        case _ => Left(OpticCheck.Missing)
+      }
+
+    def evalDynamic(input: Unit): Either[OpticCheck, Seq[DynamicValue]] =
+      schema match {
+        case s: Schema[?] =>
+          s.getDefaultValue match {
+            case Some(value) => Right(Seq(s.toDynamicValue(value)))
+            case None => Left(OpticCheck.Missing)
+          }
+        case _ => Left(OpticCheck.Missing)
+      }
   }
 }
