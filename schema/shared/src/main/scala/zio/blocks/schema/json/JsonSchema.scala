@@ -4,6 +4,7 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import java.net.URI
 import java.util.regex.{Pattern, PatternSyntaxException}
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 
 // =============================================================================
@@ -19,7 +20,8 @@ object NonNegativeInt extends NonNegativeIntCompanionVersionSpecific {
 
   /** Creates a NonNegativeInt from a runtime value, returning Option. */
   def apply(n: Int): Option[NonNegativeInt] =
-    if (n >= 0) new Some(new NonNegativeInt(n)) else None
+    if (n >= 0) new Some(new NonNegativeInt(n))
+    else None
 
   def unsafe(n: Int): NonNegativeInt = {
     require(n >= 0, s"NonNegativeInt requires n >= 0, got $n")
@@ -41,7 +43,8 @@ object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
    * Creates a PositiveNumber from a runtime BigDecimal value, returning Option.
    */
   def apply(n: BigDecimal): Option[PositiveNumber] =
-    if (n > 0) new Some(new PositiveNumber(n)) else None
+    if (n > 0) new Some(new PositiveNumber(n))
+    else None
 
   def unsafe(n: BigDecimal): PositiveNumber = {
     require(n > 0, s"PositiveNumber requires n > 0, got $n")
@@ -49,7 +52,8 @@ object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
   }
 
   def fromInt(n: Int): Option[PositiveNumber] =
-    if (n > 0) new Some(new PositiveNumber(BigDecimal(n))) else None
+    if (n > 0) new Some(new PositiveNumber(BigDecimal(n)))
+    else None
 }
 
 /**
@@ -922,8 +926,18 @@ object JsonSchema {
     override def check(json: Json, options: ValidationOptions): Option[SchemaError] =
       checkWithEvaluation(json, options, Nil).toSchemaError
 
-    private[this] def toJsonObject[K, V](m: ChunkMap[K, V], f: K => String, g: V => Json): Json.Object =
-      new Json.Object(Chunk.from(m).map(kv => (f(kv._1), g(kv._2))))
+    private[this] def toJsonObject[K, V](m: ChunkMap[K, V], f: K => String, g: V => Json): Json.Object = {
+      val keys    = m.keysChunk
+      val values  = m.valuesChunk
+      val len     = keys.length
+      val builder = ChunkBuilder.make[(String, Json)](len)
+      var idx     = 0
+      while (idx < len) {
+        builder.addOne((f(keys(idx)), g(values(idx))))
+        idx += 1
+      }
+      new Json.Object(builder.result())
+    }
 
     /**
      * Internal validation that tracks evaluated properties and items for
@@ -1131,8 +1145,10 @@ object JsonSchema {
           }
           result = result.withEvaluatedItems(evaluatedIndices)
         case obj: Json.Object => // Object validations
-          val fieldMap  = obj.value.toMap
-          val fieldKeys = fieldMap.keySet
+          val fieldMap = new java.util.HashMap[String, Json](obj.value.length) {
+            obj.value.foreach(kv => put(kv._1, kv._2))
+          }
+          val fieldKeys = fieldMap.keySet()
           // Required validation
           required match {
             case Some(reqs) =>
@@ -1157,27 +1173,26 @@ object JsonSchema {
           // Property names validation
           propertyNames match {
             case Some(nameSchema) =>
-              fieldKeys.foreach { key =>
+              fieldKeys.forEach((key: String) =>
                 nameSchema.check(new Json.String(key), options) match {
                   case Some(e) =>
                     result =
                       result.addError(trace, s"Property name '$key' does not match propertyNames schema: ${e.message}")
                   case _ =>
                 }
-              }
+              )
             case _ =>
           }
-          var localEvaluatedProps = Set.empty[String] // Track which properties are evaluated locally
+          val localEvaluatedProps = new java.util.HashSet[String] // Track which properties are evaluated locally
           properties match {
             case Some(props) =>
               props.foreach { kv =>
-                val propName = kv._1
-                fieldMap.get(propName) match {
-                  case Some(propValue) =>
-                    localEvaluatedProps += propName
-                    val trace_ = new DynamicOptic.Node.Field(propName) :: trace
-                    result = result.addErrors(collectFromSchema(kv._2, propValue, options, trace_).errors)
-                  case _ =>
+                val propName  = kv._1
+                val propValue = fieldMap.get(propName)
+                if (propValue ne null) {
+                  localEvaluatedProps.add(propName)
+                  val trace_ = new DynamicOptic.Node.Field(propName) :: trace
+                  result = result.addErrors(collectFromSchema(kv._2, propValue, options, trace_).errors)
                 }
               }
             case _ =>
@@ -1187,14 +1202,13 @@ object JsonSchema {
               patterns.foreach { case (pattern, propSchema) =>
                 pattern.compiled match {
                   case Right(regex) =>
-                    fieldMap.foreach { kv =>
-                      val key = kv._1
+                    fieldMap.forEach((key: String, value: Json) =>
                       if (regex.matcher(key).find()) {
-                        localEvaluatedProps += key
+                        localEvaluatedProps.add(key)
                         val trace_ = new DynamicOptic.Node.Field(key) :: trace
-                        result = result.addErrors(collectFromSchema(propSchema, kv._2, options, trace_).errors)
+                        result = result.addErrors(collectFromSchema(propSchema, value, options, trace_).errors)
                       }
-                    }
+                    )
                   case _ =>
                 }
               }
@@ -1202,23 +1216,23 @@ object JsonSchema {
           }
           additionalProperties match {
             case Some(addSchema) =>
-              var additionalKeys = fieldKeys -- localEvaluatedProps
+              val additionalKeys = new java.util.HashSet[String](fieldKeys)
+              additionalKeys.removeAll(localEvaluatedProps)
               properties match {
-                case Some(props) => additionalKeys = additionalKeys -- props.keySet
+                case Some(props) => props.keysChunk.foreach(additionalKeys.remove)
                 case _           =>
               }
-              additionalKeys.foreach { key =>
-                localEvaluatedProps += key
-                fieldMap.get(key) match {
-                  case Some(propValue) =>
-                    val trace_ = new DynamicOptic.Node.Field(key) :: trace
-                    result = result.addErrors(collectFromSchema(addSchema, propValue, options, trace_).errors)
-                  case _ =>
+              additionalKeys.forEach { (key: String) =>
+                localEvaluatedProps.add(key)
+                val propValue = fieldMap.get(key)
+                if (propValue ne null) {
+                  val trace_ = new DynamicOptic.Node.Field(key) :: trace
+                  result = result.addErrors(collectFromSchema(addSchema, propValue, options, trace_).errors)
                 }
               }
             case _ =>
           }
-          result = result.withEvaluatedProperties(localEvaluatedProps)
+          result = result.copy(evaluatedProperties = result.evaluatedProperties ++ localEvaluatedProps.asScala)
           // Dependent required validation
           dependentRequired match {
             case Some(deps) =>
@@ -1329,14 +1343,17 @@ object JsonSchema {
         case obj: Json.Object =>
           unevaluatedProperties match {
             case Some(unevalSchema) =>
-              obj.value.toMap.foreach {
+              obj.value.foreach {
+                val seen         = new java.util.HashSet[String](obj.value.length)
                 val allEvaluated = result.evaluatedProperties
                 kv =>
                   val key = kv._1
-                  if (!allEvaluated.contains(key)) {
-                    val trace_ = new DynamicOptic.Node.Field(key) :: trace
-                    result = result.addErrors(collectFromSchema(unevalSchema, kv._2, options, trace_).errors)
-                    result = result.withEvaluatedProperty(key)
+                  if (seen.add(key)) {
+                    if (!allEvaluated.contains(key)) {
+                      val trace_ = new DynamicOptic.Node.Field(key) :: trace
+                      result = result.addErrors(collectFromSchema(unevalSchema, kv._2, options, trace_).errors)
+                      result = result.withEvaluatedProperty(key)
+                    }
                   }
               }
             case _ =>
@@ -1503,54 +1520,58 @@ object JsonSchema {
   // ===========================================================================
 
   private def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
-    val fieldMap = obj.value.toMap
+    val fieldMap = new java.util.HashMap[java.lang.String, Json](obj.value.length) {
+      obj.value.foreach(kv => put(kv._1, kv._2))
+    }
 
     def getString(key: String): Option[String] = fieldMap.get(key) match {
-      case Some(s: Json.String) => new Some(s.value)
-      case _                    => None
+      case s: Json.String => new Some(s.value)
+      case _              => None
     }
 
     def getBoolean(key: String): Option[scala.Boolean] = fieldMap.get(key) match {
-      case Some(b: Json.Boolean) => new Some(b.value)
-      case _                     => None
+      case b: Json.Boolean => new Some(b.value)
+      case _               => None
     }
 
     def getNumber(key: String): Option[BigDecimal] = fieldMap.get(key) match {
-      case Some(n: Json.Number) => new Some(n.value)
-      case _                    => None
+      case n: Json.Number => new Some(n.value)
+      case _              => None
     }
 
-    def getNonNegativeInt(key: String): Option[NonNegativeInt] = getNumber(key) match {
-      case Some(n) => NonNegativeInt(n.intValue)
-      case _       => None
+    def getNonNegativeInt(key: String): Option[NonNegativeInt] = fieldMap.get(key) match {
+      case n: Json.Number => NonNegativeInt(n.value.intValue)
+      case _              => None
     }
 
-    def getPositiveNumber(key: String): Option[PositiveNumber] = getNumber(key) match {
-      case Some(n) => PositiveNumber(n)
-      case _       => None
+    def getPositiveNumber(key: String): Option[PositiveNumber] = fieldMap.get(key) match {
+      case n: Json.Number => PositiveNumber(n.value)
+      case _              => None
     }
 
-    def getSchema(key: String): Either[SchemaError, Option[JsonSchema]] = fieldMap.get(key) match {
-      case Some(json) =>
+    def getSchema(key: String): Either[SchemaError, Option[JsonSchema]] = {
+      val json = fieldMap.get(key)
+      if (json eq null) new Right(None)
+      else {
         fromJson(json) match {
           case Right(schema) => new Right(new Some(schema))
           case l             => l.asInstanceOf[Either[SchemaError, Option[JsonSchema]]]
         }
-      case _ => new Right(None)
+      }
     }
 
     def getAnchor(key: String): Option[Anchor] = fieldMap.get(key) match {
-      case Some(s: Json.String) => new Some(Anchor(s.value))
-      case _                    => None
+      case s: Json.String => new Some(Anchor(s.value))
+      case _              => None
     }
 
     def getUriReference(key: String): Option[UriReference] = fieldMap.get(key) match {
-      case Some(s: Json.String) => new Some(UriReference(s.value))
-      case _                    => None
+      case s: Json.String => new Some(UriReference(s.value))
+      case _              => None
     }
 
     def getSchemaList(key: String): Either[SchemaError, Option[NonEmptyChunk[JsonSchema]]] = fieldMap.get(key) match {
-      case Some(arr: Json.Array) =>
+      case arr: Json.Array =>
         val schemas            = ChunkBuilder.make[JsonSchema]()
         var error: SchemaError = null
         arr.value.foreach { json =>
@@ -1565,12 +1586,12 @@ object JsonSchema {
         if (error eq null) new Right(NonEmptyChunk.fromChunk(schemas.result()))
         else new Left(error)
       case v =>
-        if (v eq None) new Right(None)
+        if (v eq null) new Right(None)
         else new Left(SchemaError.expectationMismatch(Nil, s"Expected array for $key"))
     }
 
     def getSchemaMap(key: String): Either[SchemaError, Option[ChunkMap[String, JsonSchema]]] = fieldMap.get(key) match {
-      case Some(o: Json.Object) =>
+      case o: Json.Object =>
         val schemaMap          = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
         var error: SchemaError = null
         o.value.foreach { kv =>
@@ -1585,12 +1606,12 @@ object JsonSchema {
         if (error eq null) new Right(new Some(schemaMap.result()))
         else new Left(error)
       case v =>
-        if (v eq None) new Right(None)
+        if (v eq null) new Right(None)
         else new Left(SchemaError.expectationMismatch(Nil, s"Expected object for $key"))
     }
 
     def getStringSet(key: String): Option[Set[String]] = fieldMap.get(key) match {
-      case Some(arr: Json.Array) =>
+      case arr: Json.Array =>
         new Some(
           arr.value
             .foldLeft(Set.newBuilder[String])((acc, json) =>
@@ -1605,8 +1626,8 @@ object JsonSchema {
     }
 
     def getJsonList(key: String): Option[NonEmptyChunk[Json]] = fieldMap.get(key) match {
-      case Some(arr: Json.Array) => NonEmptyChunk.fromChunk(arr.value)
-      case _                     => None
+      case arr: Json.Array => NonEmptyChunk.fromChunk(arr.value)
+      case _               => None
     }
 
     // Parse all fields
@@ -1631,7 +1652,7 @@ object JsonSchema {
       contentSchemaVal       <- getSchema("contentSchema")
     } yield {
       val patternPropsOpt = fieldMap.get("patternProperties") match {
-        case Some(o: Json.Object) =>
+        case o: Json.Object =>
           val schemas       = ChunkBuilder.make[JsonSchema]()
           val regexPatterns = ChunkBuilder.make[RegexPattern]()
           o.value.foreach { kv =>
@@ -1647,7 +1668,7 @@ object JsonSchema {
         case _ => None
       }
       val dependentRequiredOpt = fieldMap.get("dependentRequired") match {
-        case Some(o: Json.Object) =>
+        case o: Json.Object =>
           val keys = o.value.map(_._1)
           val sets = o.value.map { kv =>
             kv._2 match {
@@ -1667,13 +1688,14 @@ object JsonSchema {
           else None
         case _ => None
       }
-      val typeOpt = fieldMap.get("type") match {
-        case Some(j) =>
-          SchemaType.fromJson(j) match {
+      val typeOpt = {
+        val json = fieldMap.get("type")
+        if (json ne null) {
+          SchemaType.fromJson(json) match {
             case Right(t) => new Some(t)
             case _        => None
           }
-        case _ => None
+        } else None
       }
       val extensions = ChunkMap.from(obj.value).filterNot(kv => knownKeys.contains(kv._1))
       new Object(
@@ -1712,7 +1734,7 @@ object JsonSchema {
         unevaluatedItems = unevaluatedItemsSchema,
         `type` = typeOpt,
         `enum` = getJsonList("enum"),
-        const = fieldMap.get("const"),
+        const = Option(fieldMap.get("const")),
         multipleOf = getPositiveNumber("multipleOf"),
         maximum = getNumber("maximum"),
         exclusiveMaximum = getNumber("exclusiveMaximum"),
@@ -1736,7 +1758,7 @@ object JsonSchema {
         contentSchema = contentSchemaVal,
         title = getString("title"),
         description = getString("description"),
-        default = fieldMap.get("default"),
+        default = Option(fieldMap.get("default")),
         deprecated = getBoolean("deprecated"),
         readOnly = getBoolean("readOnly"),
         writeOnly = getBoolean("writeOnly"),
