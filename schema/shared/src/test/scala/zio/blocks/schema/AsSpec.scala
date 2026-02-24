@@ -28,7 +28,7 @@ object AsSpec extends SchemaBaseSpec {
         val original = Item(123L, "widget")
         val as       = As.derived[Item, DynamicValue]
         val forward  = as.into(original)
-        assert(forward.flatMap(as.from))(isRight(equalTo(original)))
+        assertTrue(forward.flatMap(as.from) == Right(original))
       },
       test("As[DynamicValue, CaseClass] provides roundtrip conversion") {
         case class Item(id: Long, name: String)
@@ -38,7 +38,7 @@ object AsSpec extends SchemaBaseSpec {
         )
         val as      = As.derived[DynamicValue, Item]
         val forward = as.into(dv)
-        assert(forward.flatMap(as.from))(isRight(equalTo(dv)))
+        assertTrue(forward.flatMap(as.from) == Right(dv))
       }
     ),
     suite("validation")(

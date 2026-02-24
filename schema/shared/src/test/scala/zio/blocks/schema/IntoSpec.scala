@@ -79,7 +79,7 @@ object IntoSpec extends SchemaBaseSpec {
         val person   = Person("Alice", 30)
         val result   = Into.derived[Person, DynamicValue].into(person)
         val expected = Schema[Person].toDynamicValue(person)
-        assert(result)(isRight(equalTo(expected)))
+        assertTrue(result == Right(expected))
       },
       test("Into[DynamicValue, CaseClass] converts from matching structure") {
         case class Person(name: String, age: Int)
@@ -88,19 +88,19 @@ object IntoSpec extends SchemaBaseSpec {
           "age"  -> DynamicValue.int(25)
         )
         val result = Into.derived[DynamicValue, Person].into(dv)
-        assert(result)(isRight(equalTo(Person("Bob", 25))))
+        assertTrue(result == Right(Person("Bob", 25)))
       },
       test("Into[DynamicValue, CaseClass] fails on mismatched structure") {
         case class Person(name: String, age: Int)
         val dv     = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
         val result = Into.derived[DynamicValue, Person].into(dv)
-        assert(result)(isLeft)
+        assertTrue(result.isLeft)
       },
       test("Into[List[Int], DynamicValue] converts sequence to DynamicValue.Sequence") {
         val list     = List(1, 2, 3)
         val result   = Into.derived[List[Int], DynamicValue].into(list)
         val expected = Schema[List[Int]].toDynamicValue(list)
-        assert(result)(isRight(equalTo(expected)))
+        assertTrue(result == Right(expected))
       },
       test("Into[DynamicValue, List[Int]] converts from DynamicValue.Sequence") {
         val dv = DynamicValue.Sequence(
@@ -109,13 +109,13 @@ object IntoSpec extends SchemaBaseSpec {
           DynamicValue.int(3)
         )
         val result = Into.derived[DynamicValue, List[Int]].into(dv)
-        assert(result)(isRight(equalTo(List(1, 2, 3))))
+        assertTrue(result == Right(List(1, 2, 3)))
       },
       test("Into[Map[String, Int], DynamicValue] converts map to DynamicValue.Map") {
         val map      = Map("a" -> 1, "b" -> 2)
         val result   = Into.derived[Map[String, Int], DynamicValue].into(map)
         val expected = Schema[Map[String, Int]].toDynamicValue(map)
-        assert(result)(isRight(equalTo(expected)))
+        assertTrue(result == Right(expected))
       },
       test("Into[DynamicValue, Map[String, Int]] converts from DynamicValue.Map") {
         val dv = DynamicValue.Map(
@@ -123,7 +123,7 @@ object IntoSpec extends SchemaBaseSpec {
           DynamicValue.string("y") -> DynamicValue.int(20)
         )
         val result = Into.derived[DynamicValue, Map[String, Int]].into(dv)
-        assert(result)(isRight(equalTo(Map("x" -> 10, "y" -> 20))))
+        assertTrue(result == Right(Map("x" -> 10, "y" -> 20)))
       },
       test("Into[sealed trait, DynamicValue] converts variant to DynamicValue.Variant") {
         sealed trait Status
@@ -135,7 +135,7 @@ object IntoSpec extends SchemaBaseSpec {
         val status: Status = Status.Active(12345L)
         val result         = Into.derived[Status, DynamicValue].into(status)
         val expected       = Schema[Status].toDynamicValue(status)
-        assert(result)(isRight(equalTo(expected)))
+        assertTrue(result == Right(expected))
       },
       test("Into[DynamicValue, sealed trait] converts from DynamicValue.Variant") {
         sealed trait Status
@@ -149,18 +149,18 @@ object IntoSpec extends SchemaBaseSpec {
           DynamicValue.Record("since" -> DynamicValue.long(99999L))
         )
         val result = Into.derived[DynamicValue, Status].into(dv)
-        assert(result.map(_.isInstanceOf[Status.Active]))(isRight(isTrue))
+        assertTrue(result.map(_.isInstanceOf[Status.Active]) == Right(true))
       },
       test("Into[Option[Int], DynamicValue] converts Option") {
         val opt: Option[Int] = Some(42)
         val result           = Into.derived[Option[Int], DynamicValue].into(opt)
         val expected         = Schema[Option[Int]].toDynamicValue(opt)
-        assert(result)(isRight(equalTo(expected)))
+        assertTrue(result == Right(expected))
       },
       test("Into[DynamicValue, Option[Int]] converts to Option") {
         val dv     = DynamicValue.Variant("Some", DynamicValue.Record("value" -> DynamicValue.int(99)))
         val result = Into.derived[DynamicValue, Option[Int]].into(dv)
-        assert(result)(isRight(equalTo(Some(99): Option[Int])))
+        assertTrue(result == Right(Some(99): Option[Int]))
       }
     ),
     suite("narrowing failure branches")(
