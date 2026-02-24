@@ -20,7 +20,7 @@ ZIO Blocks handles these transformations with:
 
 | Type Class | Direction | Use Case |
 |------------|-----------|----------|
-| `Into[A, B]` | One-way (A → B) | Migrations, API responses, data import |
+| [`Into[A, B]`](./into.md) | One-way (A → B) | Migrations, API responses, data import |
 | `As[A, B]` | Bidirectional (A ↔ B) | Round-trip serialization, data sync |
 
 ## Into[A, B] - One-Way Conversion

@@ -198,40 +198,67 @@ This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala
 
 #### Modifier Summary
 
-| Modifier                   | Rendered Output           | Scope                         | Use When                                        |
-|----------------------------|---------------------------|-------------------------------|-------------------------------------------------|
-| `scala mdoc:compile-only ` | Source code only          | Isolated (no shared state)    | Default choice for most examples                |
-| `scala mdoc:silent`        | Nothing (hidden)          | Shared with subsequent blocks | Setting up definitions needed by later blocks   |
-| `scala mdoc:silent:nest`   | Nothing (hidden)          | Shared, wrapped in `object`   | Re-defining names already in scope              |
-| `scala mdoc`               | Source + evaluated output | Shared with subsequent blocks | Showing REPL-style output to the reader         |
-| `scala mdoc:invisible`     | Nothing (hidden)          | Shared with subsequent blocks | Importing hidden prerequisites                  |
-| `scala mdoc:silent:reset`  | Nothing (hidden)          | Resets all prior scope        | Starting a clean scope mid-document             |
-| `scala` (no mdoc)          | Source code only          | Not compiled                  | Pseudocode, ASCII diagrams, conceptual snippets |
+| Modifier                   | Rendered Output           | Scope                         | Use When                                                                 |
+|----------------------------|---------------------------|-------------------------------|--------------------------------------------------------------------------|
+| `scala mdoc:compile-only`  | Source code only          | Isolated (no shared state)    | Self-contained examples where evaluated output is NOT needed             |
+| `scala mdoc:silent`        | Nothing (hidden)          | Shared with subsequent blocks | Setting up definitions needed by later blocks                            |
+| `scala mdoc:silent:nest`   | Nothing (hidden)          | Shared, wrapped in `object`   | Re-defining names already in scope                                       |
+| `scala mdoc`               | Source + evaluated output | Shared with subsequent blocks | When the evaluated result of expressions should be shown to the reader   |
+| `scala mdoc:invisible`     | Nothing (hidden)          | Shared with subsequent blocks | Importing hidden prerequisites                                           |
+| `scala mdoc:silent:reset`  | Nothing (hidden)          | Resets all prior scope        | Starting a clean scope mid-document                                      |
+| `scala` (no mdoc)          | Source code only          | Not compiled                  | Pseudocode, ASCII diagrams, conceptual snippets                          |
 
 #### Key Rules
 
-- **`mdoc:compile-only`** is the **default**. Use it for self-contained examples. Each block is compiled in isolation — definitions do NOT carry over between `compile-only` blocks.
+- **`mdoc:compile-only`** is the **default** for structural or setup-only examples where no output needs to be shown. Each block is compiled in isolation — definitions do NOT carry over between `compile-only` blocks.
 - **`mdoc:silent`** defines types/values that **subsequent blocks** can reference (scope persists until reset). Nothing is rendered. You cannot redefine the same name — use `silent:nest` for that.
 - **`mdoc:silent:nest`** is like `silent` but wraps code in an anonymous `object`, allowing you to **shadow names** from earlier blocks (e.g., redefining `Person` with different fields in a later section).
 - **`mdoc:silent:reset`** wipes **all** accumulated scope and starts fresh. Use when `silent:nest` wouldn't suffice (e.g., switching to a completely different topic mid-document).
-- **`mdoc`** (no qualifier) shows **source + evaluated output** (REPL-style). Requires definitions in scope from a prior `silent`/`silent:nest` block. Use to show `toJson`, `show`, encoding results, etc.
+- **`mdoc`** (no qualifier) shows **source + evaluated output** (REPL-style). Use this whenever you would otherwise write `// Right(42L)`, `// Some("hello")`, or any result comment — let mdoc render the actual evaluated output instead. Requires definitions to be in scope from a prior `silent`/`silent:nest` block.
 - **`mdoc:invisible`** is like `silent` but signals "hidden imports only." Rare — prefer including imports in the `compile-only` block itself.
 - **No mdoc** (plain `` ```scala ``) — not compiled. Use for pseudocode, ASCII diagrams, type signatures for illustration, or sbt/non-Scala syntax.
 
 #### Choosing the Right Modifier
 
-1. Self-contained example? → `mdoc:compile-only`
+1. Self-contained example where output doesn't need to be shown? → `mdoc:compile-only`
 2. Later blocks need these definitions? → `mdoc:silent` (first time) or `mdoc:silent:nest` (redefining)
 3. Need a completely clean scope? → `mdoc:silent:reset`
-4. Want to show evaluated output? → `mdoc` (after a `silent` setup)
+4. **Showing the result of expressions** (return values, decoded output, computed values)? → `mdoc:silent` for setup + `mdoc` to render evaluated output. **Never manually write `// result` comments when mdoc can show the real output.**
 5. Not real Scala? → plain `` ```scala `` or `` ```text ``
+
+#### Pattern: Setup + Evaluated Output
+
+When a code snippet evaluates expressions whose results are meaningful to the reader, split it into two blocks:
+
+````
+```scala mdoc:silent
+import zio.blocks.schema.Into
+
+case class Source(name: String, count: Int)
+case class Target(name: String, count: Long)
+
+val conv = Into.derived[Source, Target]
+```
+
+```scala mdoc
+conv.into(Source("events", 100))
+```
+````
+
+The `mdoc` block renders as:
+```
+conv.into(Source("events", 100))
+// val res0: Either[zio.blocks.schema.SchemaError, Target] = Right(Target(events,100))
+```
+
+Do **not** use `mdoc:compile-only` and manually write `// Right(Target("events", 100L))` — always prefer the live evaluated output from `mdoc`.
 
 ### Writing Rules
 
 - **Be exhaustive on the public API**: Every public method on the type and its companion should be documented. Group them logically, but don't skip methods.
-- **One concept per code block**: Each `` ```scala mdoc:compile-only `` block demonstrates one cohesive idea.
+- **One concept per code block**: Each code block demonstrates one cohesive idea.
 - **Always include imports**: Every code block must start with the necessary import statements.
-- **Show return types in comments**: Use `// Type` comments to clarify non-obvious return types.
+- **Show evaluated output with mdoc, not comments**: When expressions have results that are meaningful to the reader (return values, decoded output, computed values), use `mdoc:silent` + `mdoc` so mdoc renders the real output. Do **not** write `// Right(42L)` or `// Some("hello")` manually — these go stale and can be wrong.
 - **Prefer `val` over `var`**: Use immutable patterns everywhere.
 - **Use ASCII art** for type hierarchies, data structures, and flows.
 - **Link to related docs**: Use relative paths `[TypeName](./type-name.md)`.
