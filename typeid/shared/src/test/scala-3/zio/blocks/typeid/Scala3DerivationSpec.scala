@@ -795,6 +795,42 @@ object Scala3DerivationSpec extends ZIOSpecDefault {
           nested1 == nested2,
           nested1.hashCode() == nested2.hashCode()
         )
+      },
+      test("opaque type as type argument in List preserves representation") {
+        val listEmailId   = TypeId.of[List[OpaqueTypes.Email]]
+        val directEmailId = TypeId.of[OpaqueTypes.Email]
+
+        val typeArgRepr = listEmailId.typeArgs.head
+        val argTypeId   = typeArgRepr match {
+          case TypeRepr.Ref(id) => Some(id)
+          case _                => None
+        }
+
+        assertTrue(
+          argTypeId.isDefined,
+          argTypeId.get.isOpaque,
+          argTypeId.get.representation.isDefined,
+          argTypeId.get == directEmailId,
+          argTypeId.get.hashCode == directEmailId.hashCode
+        )
+      },
+      test("opaque type as type argument in Option preserves representation") {
+        val optAgeId    = TypeId.of[Option[OpaqueTypes.Age]]
+        val directAgeId = TypeId.of[OpaqueTypes.Age]
+
+        val typeArgRepr = optAgeId.typeArgs.head
+        val argTypeId   = typeArgRepr match {
+          case TypeRepr.Ref(id) => Some(id)
+          case _                => None
+        }
+
+        assertTrue(
+          argTypeId.isDefined,
+          argTypeId.get.isOpaque,
+          argTypeId.get.representation.isDefined,
+          argTypeId.get == directAgeId,
+          argTypeId.get.hashCode == directAgeId.hashCode
+        )
       }
     )
   )
