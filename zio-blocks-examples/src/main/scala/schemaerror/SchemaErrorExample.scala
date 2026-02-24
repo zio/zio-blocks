@@ -1,6 +1,6 @@
 package schemaerror
 
-import zio.blocks.schema.*
+import zio.blocks.schema._
 import zio.blocks.schema.json.{JsonBinaryCodec, JsonFormat}
 
 /**
