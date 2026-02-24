@@ -20,6 +20,14 @@ import scala.util.Random
  * As the `Gen` type class is a generator, its derivation logic focuses on
  * producing random values of type `A` for various schema structures; which
  * means it requires constructing values rather than deconstructing them.
+ *
+ * Implementation pattern (mirrors SchemaDerivationShowSpec):
+ *   - Record/Variant (potentially recursive): pre-compute structural setup outside the Lazy
+ *     block; inside Lazy, use `private lazy val resolvedGens` to defer forcing child instances
+ *     until the first generate() call — this breaks initialization cycles for recursive types.
+ *   - Sequence/Map/Wrapper (non-recursive): use `instance(...).map` / `.zip` monadic composition
+ *     — no explicit `.force` needed inside generate().
+ *   - Primitive/Dynamic: simple `Lazy { new Gen { ... } }`.
  */
 object DeriveGenExample extends App {
 
@@ -79,34 +87,35 @@ object DeriveGenExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] =
+    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = {
+      // Pre-compute structural setup outside Lazy — none of this touches Deferred nodes
+      // Build Reflect.Record to access registers and constructor
+      val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
+      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+      val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
       Lazy {
-        // Get Gen instances for each field
-        val fieldGens: IndexedSeq[Lazy[Gen[Any]]] = fields.map { field =>
-          D.instance(field.value.metadata).asInstanceOf[Lazy[Gen[Any]]]
-        }
-
-        // Build Reflect.Record to access registers and constructor
-        val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
-        val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-        val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
-
         new Gen[A] {
+          // Defer child-instance resolution to first generate() call via lazy val.
+          // For recursive types (e.g. case class Tree(children: List[Tree])), accessing
+          // field.value.metadata during derivation would re-enter a Deferred node that is
+          // still initialising, causing an infinite loop. The lazy val here ensures access
+          // only happens after the framework has finished deriving all instances.
+          private lazy val resolvedGens: IndexedSeq[Gen[Any]] =
+            fields.map(field => D.instance(field.value.metadata).asInstanceOf[Lazy[Gen[Any]]].force)
           def generate(random: Random): A = {
             // Create registers to hold field values
             val registers = Registers(recordReflect.usedRegisters)
-
             // Generate each field and store in registers
             fields.indices.foreach { i =>
-              val value = fieldGens(i).force.generate(random)
+              val value = resolvedGens(i).generate(random)
               recordReflect.registers(i).set(registers, RegisterOffset.Zero, value)
             }
-
             // Construct the record from registers
             recordBinding.constructor.construct(registers, RegisterOffset.Zero)
           }
         }
       }
+    }
 
     /**
      * Strategy:
@@ -122,17 +131,21 @@ object DeriveGenExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = Lazy {
-      // Get Gen instances for all cases
-      val caseGens: IndexedSeq[Lazy[Gen[A]]] = cases.map { c =>
+    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = {
+      // Collect the Lazy[Gen] references for each case outside the Lazy block.
+      // Capturing Lazy refs is safe here; we only .force them later inside the lazy val.
+      val caseGenLazies: IndexedSeq[Lazy[Gen[A]]] = cases.map { c =>
         D.instance(c.value.metadata).asInstanceOf[Lazy[Gen[A]]]
       }
-
-      new Gen[A] {
-        def generate(random: Random): A = {
-          // Pick a random case and generate its value
-          val caseIndex = random.nextInt(cases.length)
-          caseGens(caseIndex).force.generate(random)
+      Lazy {
+        new Gen[A] {
+          // Force child instances lazily — same recursive-safety rationale as deriveRecord
+          private lazy val resolvedGens: IndexedSeq[Gen[A]] = caseGenLazies.map(_.force)
+          def generate(random: Random): A = {
+            // Pick a random case and generate its value
+            val caseIndex = random.nextInt(cases.length)
+            resolvedGens(caseIndex).generate(random)
+          }
         }
       }
     }
@@ -151,25 +164,29 @@ object DeriveGenExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
-    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = Lazy {
-      val elementGen   = D.instance(element.metadata)
-      val seqBinding   = binding.asInstanceOf[Binding.Seq[C, A]]
-      val constructor  = seqBinding.constructor
+    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = {
+      // Cast binding to Binding.Seq to access the constructor
+      val constructor  = binding.asInstanceOf[Binding.Seq[C, A]].constructor
       val elemClassTag = element.typeId.classTag.asInstanceOf[ClassTag[A]]
+      // Sequences are structurally non-recursive, so we can use monadic .map composition.
+      // instance(...).map { elementGen => ... } returns a Lazy that, when forced, builds
+      // a Gen[C[A]] with elementGen already resolved — no .force needed at generate()-time.
+      D.instance(element.metadata).map { elementGen =>
+        new Gen[C[A]] {
+          def generate(random: Random): C[A] = {
+            val length                   = random.nextInt(6) // 0 to 5 elements
+            implicit val ct: ClassTag[A] = ClassTag.Any.asInstanceOf[ClassTag[A]]
 
-      new Gen[C[A]] {
-        def generate(random: Random): C[A] = {
-          val length                   = random.nextInt(6) // 0 to 5 elements
-          implicit val ct: ClassTag[A] = ClassTag.Any.asInstanceOf[ClassTag[A]]
-
-          if (length == 0) {
-            constructor.empty[A]
-          } else {
-            val builder = constructor.newBuilder[A](length)(elemClassTag)
-            (0 until length).foreach { _ =>
-              constructor.add(builder, elementGen.force.generate(random))
+            if (length == 0) {
+              constructor.empty[A]
+            } else {
+              // Build the collection by generating each element and adding it to the builder
+              val builder = constructor.newBuilder[A](length)(elemClassTag)
+              (0 until length).foreach { _ =>
+                constructor.add(builder, elementGen.generate(random))
+              }
+              constructor.result(builder)
             }
-            constructor.result(builder)
           }
         }
       }
@@ -190,24 +207,26 @@ object DeriveGenExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
-    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[M[K, V]]] = Lazy {
-      val keyGen      = D.instance(key.metadata)
-      val valueGen    = D.instance(value.metadata)
-      val mapBinding  = binding.asInstanceOf[Binding.Map[M, K, V]]
-      val constructor = mapBinding.constructor
+    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[M[K, V]]] = {
+      // Cast binding to Binding.Map to access the constructor
+      val constructor = binding.asInstanceOf[Binding.Map[M, K, V]].constructor
+      // Maps are non-recursive: use .zip to pair the two child Lazy instances, then .map
+      // to build the Gen[M[K,V]] with both keyGen and valueGen already resolved.
+      D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (keyGen, valueGen) =>
+        new Gen[M[K, V]] {
+          def generate(random: Random): M[K, V] = {
+            val size = random.nextInt(6) // 0 to 5 entries
 
-      new Gen[M[K, V]] {
-        def generate(random: Random): M[K, V] = {
-          val size = random.nextInt(6) // 0 to 5 entries
-
-          if (size == 0) {
-            constructor.emptyObject[K, V]
-          } else {
-            val builder = constructor.newObjectBuilder[K, V](size)
-            (0 until size).foreach { _ =>
-              constructor.addObject(builder, keyGen.force.generate(random), valueGen.force.generate(random))
+            if (size == 0) {
+              constructor.emptyObject[K, V]
+            } else {
+              // Build the map by generating each key-value pair and adding it to the builder
+              val builder = constructor.newObjectBuilder[K, V](size)
+              (0 until size).foreach { _ =>
+                constructor.addObject(builder, keyGen.generate(random), valueGen.generate(random))
+              }
+              constructor.resultObject(builder)
             }
-            constructor.resultObject(builder)
           }
         }
       }
@@ -279,13 +298,17 @@ object DeriveGenExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = Lazy {
-      val wrappedGen     = D.instance(wrapped.metadata)
+    )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = {
+      // Cast binding to Binding.Wrapper to access the wrap function
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
-
-      new Gen[A] {
-        def generate(random: Random): A =
-          wrapperBinding.wrap(wrappedGen.force.generate(random))
+      // Wrappers are non-recursive: use .map so wrappedGen is already resolved
+      // when generate() is called — no .force needed.
+      D.instance(wrapped.metadata).map { wrappedGen =>
+        new Gen[A] {
+          def generate(random: Random): A =
+            // Generate a value of the underlying type B and wrap it into A
+            wrapperBinding.wrap(wrappedGen.generate(random))
+        }
       }
     }
   }
