@@ -22,11 +22,12 @@ import scala.util.Random
  * means it requires constructing values rather than deconstructing them.
  *
  * Implementation pattern (mirrors SchemaDerivationShowSpec):
- *   - Record/Variant (potentially recursive): pre-compute structural setup outside the Lazy
- *     block; inside Lazy, use `private lazy val resolvedGens` to defer forcing child instances
- *     until the first generate() call — this breaks initialization cycles for recursive types.
- *   - Sequence/Map/Wrapper (non-recursive): use `instance(...).map` / `.zip` monadic composition
- *     — no explicit `.force` needed inside generate().
+ *   - Record/Variant (potentially recursive): pre-compute structural setup
+ *     outside the Lazy block; inside Lazy, use `private lazy val resolvedGens`
+ *     to defer forcing child instances until the first generate() call — this
+ *     breaks initialization cycles for recursive types.
+ *   - Sequence/Map/Wrapper (non-recursive): use `instance(...).map` / `.zip`
+ *     monadic composition — no explicit `.force` needed inside generate().
  *   - Primitive/Dynamic: simple `Lazy { new Gen { ... } }`.
  */
 object DeriveGenExample extends App {
@@ -141,7 +142,7 @@ object DeriveGenExample extends App {
         new Gen[A] {
           // Force child instances lazily — same recursive-safety rationale as deriveRecord
           private lazy val resolvedGens: IndexedSeq[Gen[A]] = caseGenLazies.map(_.force)
-          def generate(random: Random): A = {
+          def generate(random: Random): A                   = {
             // Pick a random case and generate its value
             val caseIndex = random.nextInt(cases.length)
             resolvedGens(caseIndex).generate(random)

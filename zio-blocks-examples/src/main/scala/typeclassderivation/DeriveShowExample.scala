@@ -13,12 +13,13 @@ import zio.blocks.typeid.TypeId
  * schema types.
  *
  * Implementation pattern (from SchemaDerivationShowSpec):
- *   - Record/Variant (potentially recursive): pre-compute structural setup (field names, bindings,
- *     reflects) outside the Lazy block; inside Lazy, use `private lazy val resolvedShows` to defer
- *     forcing child instances until first show() call — this breaks initialization cycles for
- *     recursive types like `sealed trait Expr; case class Add(a: Expr, b: Expr)`.
- *   - Sequence/Map/Wrapper (non-recursive): use `instance(...).map` / `.zip` monadic composition
- *     — no explicit `.force` needed.
+ *   - Record/Variant (potentially recursive): pre-compute structural setup
+ *     (field names, bindings, reflects) outside the Lazy block; inside Lazy,
+ *     use `private lazy val resolvedShows` to defer forcing child instances
+ *     until first show() call — this breaks initialization cycles for recursive
+ *     types like `sealed trait Expr; case class Add(a: Expr, b: Expr)`.
+ *   - Sequence/Map/Wrapper (non-recursive): use `instance(...).map` / `.zip`
+ *     monadic composition — no explicit `.force` needed.
  *   - Primitive/Dynamic: simple `Lazy { new Show { ... } }`.
  */
 object DeriveShowExample extends App {
@@ -57,9 +58,9 @@ object DeriveShowExample extends App {
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = {
       // Pre-compute structural setup outside Lazy — none of this touches Deferred nodes
-      val fieldNames    = fields.map(_.name)
+      val fieldNames = fields.map(_.name)
       // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
-      val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
+      val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
       // Cast to Binding.Record to access constructor/deconstructor
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       // Build a Reflect.Record to get access to the computed registers for each field
@@ -166,11 +167,14 @@ object DeriveShowExample extends App {
         new Show[M[K, V]] {
           def show(m: M[K, V]): String = {
             // Use deconstructor to iterate over key-value pairs
-            val entries = deconstructor.deconstruct(m).map { kv =>
-              val k = deconstructor.getKey(kv)
-              val v = deconstructor.getValue(kv)
-              s"${keyShow.show(k)} -> ${valueShow.show(v)}"
-            }.mkString(", ")
+            val entries = deconstructor
+              .deconstruct(m)
+              .map { kv =>
+                val k = deconstructor.getKey(kv)
+                val v = deconstructor.getValue(kv)
+                s"${keyShow.show(k)} -> ${valueShow.show(v)}"
+              }
+              .mkString(", ")
             s"Map($entries)"
           }
         }
