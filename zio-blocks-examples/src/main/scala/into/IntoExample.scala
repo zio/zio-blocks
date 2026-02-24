@@ -1,0 +1,5 @@
+package into
+
+object IntoExample {
+
+}
