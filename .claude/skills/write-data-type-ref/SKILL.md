@@ -2,7 +2,7 @@
 name: write-data-type-ref
 description: Write a reference documentation page for a specific data type in ZIO Blocks. Use when the user asks to document a data type, write an API reference for a type, or create a reference page for a class/trait/object.
 argument-hint: "[fully-qualified-type-name or simple-type-name]"
-allowed-tools: Read, Glob, Grep, Bash(sbt:*)
+allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 ---
 
 # Write Data Type Reference Page
@@ -31,6 +31,14 @@ Before writing anything, build a complete mental model of the type:
 4. **Find existing examples**: Use Glob and Grep to locate examples in `zio-blocks-examples/` or any directory with "examples" in its name.
 5. **Find usages**: Grep for the type name across the codebase to find how it's used by other modules — this reveals integration points and relationships.
 6. **Read related docs**: Check `docs/` and `docs/reference/` for pages that reference this type.
+7. **Search GitHub history**: Run `sbt "gh-query --verbose <TypeName>"` to search GitHub issues, PRs, and comments for discussions about the type. Use the results to:
+   - Understand design decisions and rationale behind the API
+   - Find known caveats, gotchas, or non-obvious behavior surfaced in issues
+   - Discover common user questions or pain points to address in the docs
+   - Identify changelog entries or breaking changes worth noting
+   - Surface examples or idioms shared by contributors in PRs
+
+   Run multiple queries as needed (e.g., the simple type name, the fully-qualified name, related feature keywords) to get thorough coverage.
 
 ## Step 2: Write the Documentation
 
