@@ -520,7 +520,8 @@ lazy val `schema-examples` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.2")
   )
   .dependsOn(
     schema.jvm,
