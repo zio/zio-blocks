@@ -92,7 +92,8 @@ object SchemaErrorExample extends App {
   // All three failures surface with precise paths.
   Schema[ShoppingCart].fromDynamicValue(invalidCartDv) match {
     case Right(cart) => println(s"Decoded: $cart")
-    case Left(err)   => err.errors.foreach(e => println(s"${e.message}"))
+    case Left(err)   =>
+      err.errors.foreach(e => println(s"${e.message} (source: ${e.source})"))
   }
 
   // --- Example 2: ShoppingCart with multiple nested validation errors ---
