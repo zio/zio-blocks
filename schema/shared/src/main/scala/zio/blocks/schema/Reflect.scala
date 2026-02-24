@@ -1055,7 +1055,7 @@ object Reflect {
           try new Right(binding.wrap(unwrapped))
           catch {
             case error if NonFatal(error) =>
-              new Left(SchemaError.expectationMismatch(DynamicOptic.Node.Wrapped :: trace, error.getMessage))
+              new Left(SchemaError.conversionFailed(DynamicOptic.Node.Wrapped :: trace, error.getMessage))
           }
         case left => left.asInstanceOf[Either[SchemaError, A]]
       }

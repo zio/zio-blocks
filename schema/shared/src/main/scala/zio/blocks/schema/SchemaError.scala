@@ -145,7 +145,9 @@ object SchemaError {
             }
           }
           sb.toString
-        case _ => details
+        case _ =>
+          if (source.nodes.isEmpty) details
+          else s"$details at: ${source.toScalaString}"
       }
   }
 
