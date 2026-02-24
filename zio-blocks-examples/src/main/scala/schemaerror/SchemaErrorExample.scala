@@ -8,8 +8,8 @@ import zio.blocks.schema.json.{JsonBinaryCodec, JsonFormat}
  *
  * Demonstrates how to use SchemaError.validationFailed inside a
  * Schema#transform smart constructor to reject invalid values during both
- * decoding and encoding. Shows how SchemaError carries a precise path to the
- * failing location.
+ * decoding and encoding, and how those validation failures are surfaced as
+ * SchemaError instances.
  *
  * Run with: sbt "examples/runMain schemaerror.SchemaErrorExample"
  */
