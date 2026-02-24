@@ -1,6 +1,7 @@
 package into
 
 import zio.blocks.schema.Into
+import util.ShowExpr.show
 
 // Demonstrates migrating a sealed trait (coproduct) across versions.
 // Cases are matched by name; field types are coerced automatically.
@@ -23,8 +24,8 @@ object IntoSealedTraitExample extends App {
   val migrate = Into.derived[EventV1, EventV2]
 
   // Created: count field widens from Int to Long
-  println(migrate.into(EventV1.Created("e1", 42)))
+  show(migrate.into(EventV1.Created("e1", 42)))
 
   // Deleted: no field changes
-  println(migrate.into(EventV1.Deleted("e2")))
+  show(migrate.into(EventV1.Deleted("e2")))
 }

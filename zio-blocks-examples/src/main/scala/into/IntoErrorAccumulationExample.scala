@@ -1,6 +1,7 @@
 package into
 
 import zio.blocks.schema.{Into, SchemaError}
+import util.ShowExpr.show
 
 // Demonstrates that Into collects ALL field errors into one SchemaError
 // rather than stopping at the first failure.
@@ -22,19 +23,11 @@ object IntoErrorAccumulationExample extends App {
   //   id:    Long.MaxValue overflows Int
   //   email: missing '@'
   //   score: 7.5 is not a whole number
-  val allBad = RawRecord(Long.MaxValue, "not-an-email", 7.5)
-  validate.into(allBad) match {
-    case Right(r)    => println(s"OK: $r")
-    case Left(error) => println(s"Failed (${error.errors.length} errors):\n${error.message}")
-  }
+  show(validate.into(RawRecord(Long.MaxValue, "not-an-email", 7.5)))
 
   // Only score fails — id and email are valid
-  val oneBad = RawRecord(42L, "carol@example.com", 7.5)
-  validate.into(oneBad) match {
-    case Right(r)    => println(s"OK: $r")
-    case Left(error) => println(s"Failed (${error.errors.length} error):\n${error.message}")
-  }
+  show(validate.into(RawRecord(42L, "carol@example.com", 7.5)))
 
   // All fields valid
-  println(validate.into(RawRecord(42L, "carol@example.com", 100.0)))
+  show(validate.into(RawRecord(42L, "carol@example.com", 100.0)))
 }

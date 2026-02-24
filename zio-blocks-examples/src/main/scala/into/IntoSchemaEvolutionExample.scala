@@ -1,6 +1,7 @@
 package into
 
 import zio.blocks.schema.Into
+import util.ShowExpr.show
 
 // Demonstrates migrating a product type across API versions.
 // The macro handles: Int → Long widening, and a new Option field
@@ -13,6 +14,6 @@ object IntoSchemaEvolutionExample extends App {
   val migrate = Into.derived[PersonV1, PersonV2]
 
   // age widens from Int to Long; email defaults to None
-  println(migrate.into(PersonV1("Alice", 30)))
-  println(migrate.into(PersonV1("Bob", 25)))
+  show(migrate.into(PersonV1("Alice", 30)))
+  show(migrate.into(PersonV1("Bob", 25)))
 }

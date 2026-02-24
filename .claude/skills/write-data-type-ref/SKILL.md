@@ -279,9 +279,77 @@ Additional context or clarification.
 :::
 ```
 
-## Step 3: Integrate
+## Step 3: Write Examples
 
-After writing the reference page:
+Create focused `App` objects in `zio-blocks-examples/src/main/scala/<type-name-lowercase>/`. Each `App` demonstrates **one use case**. Avoid bundling unrelated scenarios into a single `App`.
+
+### File granularity
+
+- **One `App` per concept** — schema evolution, collection reshaping, error accumulation, etc. are separate `App` objects.
+- **Small, related `App`s can share a file** — if several `App`s are short and tightly related (e.g., numeric widening variants), place them together in one file so the reader can run them in sequence.
+- **Large `App`s get their own file** — if an `App` needs many types or substantial setup, give it a dedicated file.
+
+### Conventions
+
+- **Package**: matches the directory name (e.g., `package into` for `into/`)
+- **Object**: `extends App` so each unit is independently runnable
+- **Output**: use `util.ShowExpr.show(expr)` to print both the expression and its result — e.g., `show(Into[Int, Long].into(100))` prints `Into[Int, Long].into(100)  =>  Right(100)`. Never print just the result alone; the reader should see what was evaluated without looking at the source. The `show` helper lives in `zio-blocks-examples/src/main/scala/util/ShowExpr.scala` and is powered by `sourcecode.Text` to capture the source text at compile time.
+- **Naming**: name files after the scenario(s) they contain (e.g., `IntoSchemaEvolutionExample.scala`, `IntoCollectionsExample.scala`) not just the type name
+
+### What to Cover
+
+Each `App` should:
+
+- Focus on **one coherent use case**
+- Use **realistic domain types** (`Person`, `Order`, `Address`) rather than abstract `Source`/`Target`
+- Cover the **happy path and at least one failure/edge case**
+- Be **self-contained** — all types and imports are defined within the file
+
+### Example: multiple small Apps in one file
+
+```scala
+package mytype
+
+import zio.blocks.schema.Into
+import util.ShowExpr.show
+
+// Small related examples share a file — reader runs them one after another
+
+object IntoWideningExample extends App {
+  show(Into[Int, Long].into(100))
+  show(Into[Float, Double].into(3.14f))
+}
+
+object IntoNarrowingExample extends App {
+  show(Into[Long, Int].into(42L))
+  show(Into[Long, Int].into(Long.MaxValue))
+}
+```
+
+### Example: large App in its own file
+
+```scala
+// IntoSchemaEvolutionExample.scala
+package mytype
+
+import zio.blocks.schema.Into
+import util.ShowExpr.show
+
+object IntoSchemaEvolutionExample extends App {
+
+  case class PersonV1(name: String, age: Int)
+  case class PersonV2(name: String, age: Long, email: Option[String])
+
+  val migrate = Into.derived[PersonV1, PersonV2]
+
+  show(migrate.into(PersonV1("Alice", 30)))
+  show(migrate.into(PersonV1("Bob",   25)))
+}
+```
+
+## Step 4: Integrate
+
+After writing the reference page and examples:
 
 1. If updating an existing file, edit it in place.
 2. If creating a new file, place it in the appropriate `docs/reference/` subdirectory based on where it logically belongs and update `sidebars.js` to add it to the sidebar.
@@ -289,10 +357,11 @@ After writing the reference page:
 4. **Cross-reference**: Add links from related existing docs to the new page.
 5. **Verify all links**: Ensure relative links in the new page and in updated pages are correct.
 
-## Step 4: Review
+## Step 5: Review
 
 After writing, re-read the document and verify:
 - All method signatures match the actual source code
 - All code examples would compile with `mdoc`
 - The frontmatter `id` matches what `sidebars.js` expects (if an entry exists)
 - The document is self-contained—a reader shouldn't need to look at the source code to understand the type's API
+- The example file compiles and runs without errors

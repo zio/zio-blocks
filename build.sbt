@@ -490,7 +490,8 @@ lazy val examples = project
   .in(file("zio-blocks-examples"))
   .settings(stdSettings("zio-blocks-examples"))
   .settings(
-    publish / skip := true
+    publish / skip        := true,
+    libraryDependencies  ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.2")
   )
   .dependsOn(
     schema.jvm,
