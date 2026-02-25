@@ -40,11 +40,11 @@ import zio.blocks.schema.comptime.*
 import Allows.*
 
 def insert[A: Schema](value: A)(using
-  Allows[Record[Primitive | Sequence[Primitive] | Map[String, Primitive]]]
+  Allows[A, Record[Primitive | Sequence[Primitive] | Map[String, Primitive]]]
 ): Unit = ???
 
 def createTable[A: Schema]()(using
-  Allows[Record[Primitive | Map[String, Primitive]]]
+  Allows[A, Record[Primitive | Map[String, Primitive]]]
 ): String = ???
 ```
 
@@ -68,7 +68,7 @@ comma-separated scalar lists. No nesting, no maps, no variants.
 
 ```scala
 def queryParams[A: Schema](req: Request)(using
-  Allows[Record[Primitive | Optional[Primitive] | Sequence[Primitive]]]
+  Allows[A, Record[Primitive | Optional[Primitive] | Sequence[Primitive]]]
 ): Either[DecodeError, A]
 ```
 
@@ -90,11 +90,11 @@ scalars. No sequences, no maps, no nesting.
 
 ```scala
 def writeCsv[A: Schema](rows: Seq[A], writer: Writer)(using
-  Allows[Record[Primitive | Optional[Primitive]]]
+  Allows[A, Record[Primitive | Optional[Primitive]]]
 ): Unit = ???
 
 def readCsv[A: Schema](reader: Reader)(using
-  Allows[Record[Primitive | Optional[Primitive]]]
+  Allows[A, Record[Primitive | Optional[Primitive]]]
 ): Iterator[Either[ParseError, A]] = ???
 ```
 
@@ -117,11 +117,11 @@ or primitive does not satisfy the constraint.
 
 ```scala
 def publish[A: Schema](event: A)(using
-  Allows[Variant[Record[Primitive | Sequence[Primitive]]]]
+  Allows[A, Variant[Record[Primitive | Sequence[Primitive]]]]
 ): Future[Unit] = ???
 
 def subscribe[A: Schema](topic: String)(handler: A => Unit)(using
-  Allows[Variant[Record[Primitive | Sequence[Primitive]]]]
+  Allows[A, Variant[Record[Primitive | Sequence[Primitive]]]]
 ): Subscription = ???
 ```
 
@@ -153,7 +153,7 @@ recursively.
 
 ```scala
 def graphqlType[A: Schema]()(using
-  Allows[Record[Primitive | Optional[Self] | Sequence[Self] | Map[String, Self]]]
+  Allows[A, Record[Primitive | Optional[Self] | Sequence[Self] | Map[String, Self]]]
 ): GraphQLTypeDefinition = ???
 ```
 
@@ -167,7 +167,7 @@ so on — as long as every branch terminates at `Primitive`.
 case class TreeNode(value: Int, children: List[TreeNode])
 
 def buildIndex[A: Schema](root: A)(using
-  Allows[Record[Primitive | Sequence[Self]]]
+  Allows[A, Record[Primitive | Sequence[Self]]]
 ): SearchIndex = ???
 ```
 
@@ -215,31 +215,50 @@ schema/
             AllowsNegativeSpec.scala        ← typeCheckErrors assertions (Scala 3)
 ```
 
-### 3.2 The `Allows[S]` Phantom Type
+### 3.2 The `Allows[A, S]` Phantom Type
 
 `Allows.scala` contains the shared cross-version declarations. The companion object
 extends `AllowsCompanionVersionSpecific`, which provides the version-specific macro
 synthesis of `given` instances.
 
+`Allows` has **two type parameters**:
+
+- `A` — the data type being validated (e.g. `Person`, `DomainEvent`)
+- `S <: Allows.Structural` — the grammar shape constraint
+
+`Allows[A, S]` is proof that type `A` satisfies shape `S`. The compiler infers
+`A` from the `Schema[A]` available in scope (via the `using Schema[A]` parameter
+on the macro `given`). `Structural` does **not** extend `Allows` — the grammar node
+hierarchy is kept entirely separate from the capability token type.
+
+Usage:
+
+```scala
+// Scala 3
+def insert[A: Schema](value: A)(using Allows[A, Record[Primitive]]): Unit = ???
+
+// Scala 2
+def insert[A: Schema](value: A)(implicit ev: Allows[A, Record[Primitive]]): Unit = ???
+```
+
 ```scala
 package zio.blocks.schema.comptime
 
 /**
- * A compile-time capability token that constrains the shape of a schema.
- * `Allows[S]` is satisfied when the type `A` for which a `Schema[A]` is in
- * scope is structurally compatible with the grammar described by `S`.
+ * A compile-time capability token that proves type `A` satisfies the
+ * grammar shape `S`.
  *
- * Allows is an upper bound: any type "simpler than" S also satisfies it.
- * The instance carries no runtime data and is represented as a single
- * private singleton cast to the required phantom type.
+ * `Allows[A, S]` is an upper bound: any type whose structure is a subset
+ * of `S` also satisfies it. The instance carries no runtime data and is
+ * represented as a single private singleton cast to the required type.
  */
-sealed abstract class Allows[S <: Allows.Structural]
+sealed abstract class Allows[A, S <: Allows.Structural]
 
 object Allows extends AllowsCompanionVersionSpecific {
 
-  // Single private singleton; the macro casts this to Allows[S] for any S.
+  // Single private singleton; the macro casts this to Allows[A, S] for any A, S.
   // This eliminates any per-call-site allocation.
-  private[comptime] val instance: Allows[Any] = new Allows[Any] {}
+  private[comptime] val instance: Allows[Any, Structural] = new Allows[Any, Structural] {}
 
   /** Root of the grammar type hierarchy. All shape descriptors extend this. */
   abstract class Structural
@@ -308,10 +327,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    * union type syntax available in Scala 3. In Scala 3, use `A | B` directly.
    *
    * Example (Scala 2):
-   *   Allows[Record[|[Primitive, |[Sequence[Primitive], Map[Primitive, Primitive]]]]]
+   *   Allows[Person, Record[|[Primitive, |[Sequence[Primitive], Map[Primitive, Primitive]]]]]
    *
    * Equivalent (Scala 3):
-   *   Allows[Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]
+   *   Allows[Person, Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]
    */
   abstract class |[A <: Structural, B <: Structural] extends Structural
 }
@@ -322,22 +341,27 @@ object Allows extends AllowsCompanionVersionSpecific {
 The macro is provided in `AllowsCompanionVersionSpecific.scala`, one version per
 Scala major version, mixed into the `Allows` companion object.
 
+The `given` / `implicit def` takes a `Schema[A]` as a context parameter. This anchors
+type inference of `A` — the compiler finds the `Schema[A]` in scope, extracts `A`,
+and the macro validates `A` against `S`.
+
 #### Scala 3 — `scala-3/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala`
 
 ```scala
 package zio.blocks.schema.comptime
 
 import scala.quoted.*
+import zio.blocks.schema.Schema
 
 trait AllowsCompanionVersionSpecific {
-  inline given derived[S <: Allows.Structural, A]: Allows[S] =
+  inline given derived[S <: Allows.Structural, A](using Schema[A]): Allows[A, S] =
     ${ AllowsMacro.deriveAllows[S, A] }
 }
 
 object AllowsMacro {
   def deriveAllows[S <: Allows.Structural : Type, A : Type](
     using Quotes
-  ): Expr[Allows[S]] = ???
+  ): Expr[Allows[A, S]] = ???
 }
 ```
 
@@ -347,10 +371,11 @@ object AllowsMacro {
 package zio.blocks.schema.comptime
 
 import scala.language.experimental.macros
-import scala.reflect.macros.whitebox
+import scala.reflect.macros.blackbox
+import zio.blocks.schema.Schema
 
 trait AllowsCompanionVersionSpecific {
-  implicit def derived[S <: Allows.Structural, A]: Allows[S] =
+  implicit def derived[S <: Allows.Structural, A](implicit schema: Schema[A]): Allows[A, S] =
     macro AllowsMacro.deriveAllows[S, A]
 }
 
@@ -845,24 +870,24 @@ library-style signatures.
 ```scala
 // Simulated RDBMS insert — compile-time check at call site
 def testInsertCompiles(): Unit = {
-  def insert[A: Schema](v: A)(using Allows[Record[Primitive]]): Unit = ()
+  def insert[A: Schema](v: A)(using Allows[A, Record[Primitive]]): Unit = ()
   insert(UserRow(UUID.randomUUID(), "Alice", 30, Some("a@b.com")))  // ✓
 }
 
 def testInsertRejects(): Unit = {
-  def insert[A: Schema](v: A)(using Allows[Record[Primitive]]): Unit = ()
+  def insert[A: Schema](v: A)(using Allows[A, Record[Primitive]]): Unit = ()
   // must not compile:
   insert(Person("Alice", 30, Address("1 Main St", "Springfield", "12345")))
 }
 
 // Simulated event bus publish
 def testPublishCompiles(): Unit = {
-  def publish[A: Schema](e: A)(using Allows[Variant[Record[Primitive]]]): Unit = ()
+  def publish[A: Schema](e: A)(using Allows[A, Variant[Record[Primitive]]]): Unit = ()
   publish(AccountOpened(UUID.randomUUID(), "Alice"))  // ✓ (DomainEvent)
 }
 
 def testPublishRejects(): Unit = {
-  def publish[A: Schema](e: A)(using Allows[Variant[Record[Primitive]]]): Unit = ()
+  def publish[A: Schema](e: A)(using Allows[A, Variant[Record[Primitive]]]): Unit = ()
   // must not compile:
   publish(UserRow(UUID.randomUUID(), "Alice", 30, None))
 }
@@ -872,8 +897,12 @@ def testPublishRejects(): Unit = {
 
 ## 6. Implementation Notes
 
-- **Runtime allocation**: The `Allows[S]` instance produced by the macro is
-  `Allows.instance.asInstanceOf[Allows[S]]` — a single private singleton declared
+- **Two type parameters**: `Allows[A, S]` where `A` is the validated data type and
+  `S <: Allows.Structural` is the grammar shape. `Structural` and its subtypes form a
+  pure phantom type hierarchy that is kept entirely separate from `Allows` itself.
+
+- **Runtime allocation**: The `Allows[A, S]` instance produced by the macro is
+  `Allows.instance.asInstanceOf[Allows[A, S]]` — a single private singleton declared
   once in the companion object and reused at every call site via a cast. There is no
   per-call-site allocation.
 
@@ -893,6 +922,11 @@ def testPublishRejects(): Unit = {
   (`Some` and `None`) but is surfaced in the grammar as `Optional[A]` for
   ergonomics. The macro recognises `Option` by its fully-qualified type constructor
   and routes it through `GrammarNode.Optional` checking.
+
+- **Type inference of `A`**: The `given` / `implicit def` takes `Schema[A]` as a
+  context parameter. This anchors type inference — the compiler finds the `Schema[A]`
+  in scope (provided by the library function's `A: Schema` context bound), extracts
+  `A`, and passes it to the macro for validation.
 
 - **Scala 2 union emulation**: Scala 2 does not have native union types. The `|[A, B]`
   type in `Allows` companion provides the equivalent of `A | B`. Users nest `|` for
