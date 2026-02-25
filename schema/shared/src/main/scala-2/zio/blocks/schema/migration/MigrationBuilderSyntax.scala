@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import scala.reflect.macros.whitebox
-import zio.blocks.schema.{Schema, SchemaExpr}
+import zio.blocks.schema.SchemaExpr
 
 /**
  * Macro implementations for MigrationBuilder methods. Each macro returns a
@@ -352,72 +352,6 @@ object MigrationBuilderMacros {
     }"""
   }
 
-  def transformNestedImpl[
-    A: c.WeakTypeTag,
-    B: c.WeakTypeTag,
-    F1: c.WeakTypeTag,
-    F2: c.WeakTypeTag,
-    SH: c.WeakTypeTag,
-    TP: c.WeakTypeTag
-  ](c: whitebox.Context)(
-    source: c.Expr[A => F1],
-    target: c.Expr[B => F2]
-  )(
-    nestedMigration: c.Expr[MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, _, _]]
-  )(
-    nestedSourceSchema: c.Expr[Schema[F1]],
-    nestedTargetSchema: c.Expr[Schema[F2]]
-  ): c.Tree = {
-    import c.universe._
-
-    val aType  = weakTypeOf[A]
-    val bType  = weakTypeOf[B]
-    val f1Type = weakTypeOf[F1]
-    val f2Type = weakTypeOf[F2]
-    val shType = weakTypeOf[SH]
-    val tpType = weakTypeOf[TP]
-
-    val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
-
-    val nestedSourceFields = extractCaseClassFields(c)(f1Type)
-    val nestedTargetFields = extractCaseClassFields(c)(f2Type)
-
-    var newSHType = shType
-    newSHType = createRefinedType(c)(newSHType, sourceFieldName)
-    for (nestedField <- nestedSourceFields) {
-      val dotPath = s"$sourceFieldName.$nestedField"
-      newSHType = createRefinedType(c)(newSHType, dotPath)
-    }
-
-    var newTPType = tpType
-    newTPType = createRefinedType(c)(newTPType, targetFieldName)
-    for (nestedField <- nestedTargetFields) {
-      val dotPath = s"$targetFieldName.$nestedField"
-      newTPType = createRefinedType(c)(newTPType, dotPath)
-    }
-
-    val sourcePath = SelectorMacros.toPathImpl[A, F1](c)(source.asInstanceOf[c.Expr[A => F1]])
-
-    q"""{
-      val sourcePath = $sourcePath
-      val innerBuilder = new _root_.zio.blocks.schema.migration.MigrationBuilder[$f1Type, $f2Type, Any, Any](
-        $nestedSourceSchema,
-        $nestedTargetSchema,
-        _root_.scala.collection.immutable.Vector.empty
-      )
-      val builtInner = $nestedMigration(innerBuilder)
-      new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newSHType, $newTPType](
-        ${c.prefix}.sourceSchema,
-        ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformNested(
-          sourcePath,
-          builtInner.actions
-        )
-      )
-    }"""
-  }
-
   def migrateFieldExplicitImpl[
     A: c.WeakTypeTag,
     B: c.WeakTypeTag,
@@ -426,8 +360,7 @@ object MigrationBuilderMacros {
     SH: c.WeakTypeTag,
     TP: c.WeakTypeTag
   ](c: whitebox.Context)(
-    source: c.Expr[A => F1],
-    target: c.Expr[B => F2],
+    selector: c.Expr[A => F1],
     migration: c.Expr[Migration[F1, F2]]
   ): c.Tree = {
     import c.universe._
@@ -439,8 +372,7 @@ object MigrationBuilderMacros {
     val shType = weakTypeOf[SH]
     val tpType = weakTypeOf[TP]
 
-    val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
+    val sourceFieldName = extractFieldNameFromSelector(c)(selector.tree)
 
     val nestedSourceFields = extractCaseClassFields(c)(f1Type)
     val nestedTargetFields = extractCaseClassFields(c)(f2Type)
@@ -453,13 +385,13 @@ object MigrationBuilderMacros {
     }
 
     var newTPType = tpType
-    newTPType = createRefinedType(c)(newTPType, targetFieldName)
+    newTPType = createRefinedType(c)(newTPType, sourceFieldName)
     for (nestedField <- nestedTargetFields) {
-      val dotPath = s"$targetFieldName.$nestedField"
+      val dotPath = s"$sourceFieldName.$nestedField"
       newTPType = createRefinedType(c)(newTPType, dotPath)
     }
 
-    val sourcePath = SelectorMacros.toPathImpl[A, F1](c)(source.asInstanceOf[c.Expr[A => F1]])
+    val sourcePath = SelectorMacros.toPathImpl[A, F1](c)(selector.asInstanceOf[c.Expr[A => F1]])
 
     q"""{
       val sourcePath = $sourcePath
@@ -482,13 +414,11 @@ object MigrationBuilderMacros {
     SH: c.WeakTypeTag,
     TP: c.WeakTypeTag
   ](c: whitebox.Context)(
-    source: c.Expr[A => F1],
-    target: c.Expr[B => F2]
+    selector: c.Expr[A => F1]
   )(
     migration: c.Expr[Migration[F1, F2]]
   ): c.Tree =
-    migrateFieldExplicitImpl[A, B, F1, F2, SH, TP](c)(source, target, migration)
-
+    migrateFieldExplicitImpl[A, B, F1, F2, SH, TP](c)(selector, migration)
   private def extractCaseClassFields(c: whitebox.Context)(tpe: c.universe.Type): List[String] = {
     import c.universe._
 
@@ -535,12 +465,12 @@ object MigrationValidationMacros {
 
       if (missingTarget.nonEmpty) {
         errors.append(s"\n  Target fields not provided: ${missingTarget.mkString(", ")}\n")
-        errors.append("  Use addField, renameField, transformField, or transformNested to provide these fields.\n")
+        errors.append("  Use addField, renameField, transformField, or migrateField to provide these fields.\n")
       }
 
       if (unhandledSource.nonEmpty) {
         errors.append(s"\n  Source fields not handled: ${unhandledSource.mkString(", ")}\n")
-        errors.append("  Use dropField, renameField, transformField, or transformNested to handle these fields.\n")
+        errors.append("  Use dropField, renameField, transformField, or migrateField to handle these fields.\n")
       }
 
       errors.append("\n  Alternatively, use .buildPartial to skip validation.")

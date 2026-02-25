@@ -27,12 +27,12 @@ object MigrationValidationMacros {
 
       if (missingTarget.nonEmpty) {
         errors.append(s"\n  Target fields not provided: ${missingTarget.mkString(", ")}\n")
-        errors.append("  Use addField, renameField, transformField, or transformNested to provide these fields.\n")
+        errors.append("  Use addField, renameField, transformField, or migrateField to provide these fields.\n")
       }
 
       if (unhandledSource.nonEmpty) {
         errors.append(s"\n  Source fields not handled: ${unhandledSource.mkString(", ")}\n")
-        errors.append("  Use dropField, renameField, transformField, or transformNested to handle these fields.\n")
+        errors.append("  Use dropField, renameField, transformField, or migrateField to handle these fields.\n")
       }
 
       errors.append("\n  Alternatively, use .buildPartial to skip validation.")
