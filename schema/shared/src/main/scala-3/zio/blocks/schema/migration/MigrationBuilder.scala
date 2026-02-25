@@ -118,47 +118,24 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     )
   }
 
-  transparent inline def transformNested[F1, F2](
-    inline source: A => F1,
-    inline target: B => F2
-  )(
-    inline nestedMigration: MigrationBuilder[F1, F2, Any, Any] => MigrationBuilder[F1, F2, ?, ?]
-  )(using
-    nestedSourceSchema: Schema[F1],
-    nestedTargetSchema: Schema[F2]
-  ) = ${
-    MigrationBuilderMacros.transformNestedImpl[A, B, F1, F2, SourceHandled, TargetProvided](
-      'this,
-      'source,
-      'target,
-      'nestedMigration,
-      'nestedSourceSchema,
-      'nestedTargetSchema
-    )
-  }
-
   transparent inline def migrateField[F1, F2](
-    inline source: A => F1,
-    inline target: B => F2,
+    inline selector: A => F1,
     migration: Migration[F1, F2]
   ) = ${
     MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided](
       'this,
-      'source,
-      'target,
+      'selector,
       'migration
     )
   }
 
   @scala.annotation.targetName("migrateFieldImplicit")
   transparent inline def migrateField[F1, F2](
-    inline source: A => F1,
-    inline target: B => F2
+    inline selector: A => F1
   )(using migration: Migration[F1, F2]) = ${
     MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided](
       'this,
-      'source,
-      'target,
+      'selector,
       'migration
     )
   }

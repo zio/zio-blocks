@@ -5,8 +5,8 @@ import zio.blocks.schema.*
 
 object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
-  private def literal(dv: DynamicValue): SchemaExpr[Any, DynamicValue] =
-    SchemaExpr.literal(dv)
+  private def literal[A: Schema](value: A): SchemaExpr[Any, A] =
+    SchemaExpr.literal(value)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationBuildValidationSpec")(
     suite("build validation")(
@@ -35,7 +35,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literal(0))
           .build
 
         val input  = PersonV1("Alice")
@@ -52,7 +52,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .dropField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .dropField(_.age, literal(0))
           .build
 
         val input  = PersonV1("Alice", 30)
@@ -86,7 +86,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .transformField(_.age, _.age, literal(DynamicValue.Primitive(PrimitiveValue.Long(30L))))
+          .transformField(_.age, _.age, literal(30L))
           .build
 
         val input  = PersonV1(30)
@@ -143,7 +143,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         assertTrue(migration.actions.isEmpty)
       },
-      test("build succeeds with transformNested for nested type migration") {
+      test("build succeeds with migrateField for nested type migration") {
         case class AddressV1(street: String, city: String)
         case class AddressV2(street: String, city: String, zip: String)
         case class PersonV1(name: String, address: AddressV1)
@@ -154,11 +154,14 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         given Schema[PersonV1]  = Schema.derived[PersonV1]
         given Schema[PersonV2]  = Schema.derived[PersonV2]
 
+        val addressMigration = Migration
+          .newBuilder[AddressV1, AddressV2]
+          .addField(_.zip, literal("00000"))
+          .build
+
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .transformNested(_.address, _.address) { builder =>
-            builder.addField(_.zip, literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
-          }
+          .migrateField(_.address, addressMigration)
           .build
 
         val input  = PersonV1("Alice", AddressV1("123 Main St", "Springfield"))
@@ -166,7 +169,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         assertTrue(result == Right(PersonV2("Alice", AddressV2("123 Main St", "Springfield", "00000"))))
       },
-      test("build fails to compile when nested field is missing without transformNested") {
+      test("build fails to compile when nested field is missing without migrateField") {
         typeCheck {
           """
           import zio.blocks.schema.Schema
@@ -188,7 +191,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
           assertTrue(result.isLeft)
         }
       },
-      test("build succeeds with transformNested when dropping nested field") {
+      test("build succeeds with migrateField when dropping nested field") {
         case class AddressV1(street: String, city: String, zip: String)
         case class AddressV2(street: String, city: String)
         case class PersonV1(name: String, address: AddressV1)
@@ -199,11 +202,14 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         given Schema[PersonV1]  = Schema.derived[PersonV1]
         given Schema[PersonV2]  = Schema.derived[PersonV2]
 
+        val addressMigration = Migration
+          .newBuilder[AddressV1, AddressV2]
+          .dropField(_.zip, literal("00000"))
+          .build
+
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .transformNested(_.address, _.address) { builder =>
-            builder.dropField(_.zip, literal(DynamicValue.Primitive(PrimitiveValue.String("00000"))))
-          }
+          .migrateField(_.address, addressMigration)
           .build
 
         val input  = PersonV1("Alice", AddressV1("123 Main St", "Springfield", "12345"))
@@ -222,7 +228,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .addField(_.age, literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+          .addField(_.age, literal(0))
           .build
 
         val input  = PersonV1("Alice", Address("123 Main St", "Springfield"))
