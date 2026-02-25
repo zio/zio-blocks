@@ -3,7 +3,7 @@ package comptime
 import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
 import Allows.{Record, Sequence, Variant, `|`}
-import Allows.{Map => AMap, Optional => AOptional, Self => ASelf}
+import Allows.{Optional => AOptional, Self => ASelf}
 
 // ---------------------------------------------------------------------------
 // Realistic JSON document-store example using Allows[A, S]
@@ -15,63 +15,57 @@ import Allows.{Map => AMap, Optional => AOptional, Self => ASelf}
 //   - string  → String
 //
 // Notably absent from JSON: Char, Byte, Short, UUID, Currency,
-// and ALL java.time.* types. A JSON library that accepts Schema[A] should
-// use SPECIFIC primitive nodes to enforce that user types only contain
-// JSON-representable scalars, rather than the catch-all Primitive.
+// and ALL java.time.* types. A JSON library should use SPECIFIC primitive
+// nodes to reject non-JSON scalars at the call site.
 //
-// The Allows grammar that captures a valid JSON document type is:
-//   JsonPrimitive = Primitive.Boolean | Primitive.Int | Primitive.Long |
-//                   Primitive.Float   | Primitive.Double | Primitive.String |
-//                   Primitive.BigDecimal | Primitive.BigInt | Primitive.Unit
+// The grammar is simply:
+//   type Json = Record[JsonPrimitive | Self] | Sequence[JsonPrimitive | Self]
 //
-//   JsonDocument  = Record[JsonPrimitive | Self | Optional[JsonPrimitive | Self] |
-//                          Sequence[JsonPrimitive | Self] | Map[Primitive.String, JsonPrimitive | Self]]
-//
-// The `Self` node allows arbitrary recursive nesting. DynamicValue is excluded.
+// Self handles all nesting: a field may be a primitive or another Json value.
+// Sequences of primitives (List[String]) and sequences of records
+// (List[Author]) both satisfy Sequence[JsonPrimitive | Self].
+// Optional fields (Option[X]) satisfy Record[...] because Option is recognised
+// by the Optional grammar node which falls through to the field constraint.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Domain types
 // ---------------------------------------------------------------------------
 
-// Compatible: flat document using only JSON-safe primitives
+// Compatible: flat document
 case class Author(name: String, email: String)
 object Author { implicit val schema: Schema[Author] = Schema.derived }
 
-// Compatible: document with nested documents (Self allows this)
+// Compatible: document with nested documents and sequences
 case class BookChapter(title: String, wordCount: Int)
 object BookChapter { implicit val schema: Schema[BookChapter] = Schema.derived }
 
 case class Book(
   title: String,
-  author: Author,
-  chapters: List[BookChapter],
-  tags: List[String],
-  metadata: scala.collection.immutable.Map[String, String]
+  author: Author,              // nested record — satisfied via Self
+  chapters: List[BookChapter], // sequence of records — satisfied via Sequence[Self]
+  tags: List[String],          // sequence of primitives — satisfied via Sequence[JsonPrimitive]
+  rating: Option[Double]       // optional primitive — satisfied via Optional[JsonPrimitive | Self]
 )
 object Book { implicit val schema: Schema[Book] = Schema.derived }
 
-// Compatible: recursive document (tree)
+// Compatible: recursive document
 case class Category(name: String, subcategories: List[Category])
 object Category { implicit val schema: Schema[Category] = Schema.derived }
 
-// Compatible: variant of search result types
+// Compatible: variant of search results (for indexing)
 sealed trait SearchResult
 case class BookResult(title: String, score: Double)   extends SearchResult
 case class AuthorResult(name: String, bookCount: Int) extends SearchResult
 object SearchResult { implicit val schema: Schema[SearchResult] = Schema.derived }
 
-// INCOMPATIBLE: contains UUID — not a JSON-native type
+// INCOMPATIBLE: UUID is not a JSON-native scalar
 case class WithUUID(id: java.util.UUID, name: String)
 object WithUUID { implicit val schema: Schema[WithUUID] = Schema.derived }
 
-// INCOMPATIBLE: contains Instant — not JSON-native (would need to be String-encoded)
+// INCOMPATIBLE: Instant is not a JSON-native scalar
 case class WithTimestamp(name: String, createdAt: java.time.Instant)
 object WithTimestamp { implicit val schema: Schema[WithTimestamp] = Schema.derived }
-
-// INCOMPATIBLE: DynamicValue
-case class UntypedDoc(id: String, payload: DynamicValue)
-object UntypedDoc { implicit val schema: Schema[UntypedDoc] = Schema.derived }
 
 // ---------------------------------------------------------------------------
 // Document store library API
@@ -80,12 +74,11 @@ object UntypedDoc { implicit val schema: Schema[UntypedDoc] = Schema.derived }
 object DocumentStore {
 
   /**
-   * JSON-representable primitive scalar types.
+   * JSON-representable scalar types.
    *
-   * Deliberately excludes Char, Byte, Short, UUID, Currency, and all
-   * java.time.* types because JSON has no native encoding for them. Library
-   * authors wishing to support java.time via ISO-8601 strings would substitute
-   * Primitive.String for those fields.
+   * Excludes Char, Byte, Short, UUID, Currency, and all java.time.* types —
+   * none of these have a native JSON encoding. Authors who need java.time
+   * values in JSON should store them as Primitive.String (ISO-8601 etc.).
    */
   type JsonPrimitive =
     Allows.Primitive.Boolean | Allows.Primitive.Int | Allows.Primitive.Long | Allows.Primitive.Float |
@@ -93,42 +86,30 @@ object DocumentStore {
       Allows.Primitive.Unit
 
   /**
-   * A valid JSON document field may be:
-   *   - A JSON-safe primitive scalar
-   *   - A nested document (Self)
-   *   - An optional primitive or nested document
-   *   - A sequence of primitives or nested documents
-   *   - A map from string keys to primitives or nested documents
-   *
-   * The `Self` node allows arbitrary recursive nesting depth.
+   * A JSON value is either a JSON object (Record) or a JSON array (Sequence).
+   * Self recurses back to this same grammar, so nesting works at any depth.
+   * Optional covers nullable fields (JSON null / absent key).
    */
-  type JsonDocument =
-    Record[
-      JsonPrimitive | ASelf | AOptional[JsonPrimitive | ASelf] | Sequence[JsonPrimitive | ASelf] |
-        AMap[Allows.Primitive.String, JsonPrimitive | ASelf]
-    ]
+  type Json = Record[JsonPrimitive | AOptional[JsonPrimitive | ASelf] | ASelf] | Sequence[JsonPrimitive | ASelf]
 
   /**
-   * Convert a document to its JSON string representation.
+   * Encode a value to its JSON string representation.
    *
-   * Requires that `A` satisfies the `JsonDocument` grammar — a record whose
-   * fields contain only JSON-representable primitives, nested documents,
-   * sequences, or string-keyed maps. Types containing UUID, Instant, etc. are
-   * rejected at compile time with a precise error message.
+   * Accepts both JSON objects (records) and JSON arrays (sequences) at the top
+   * level. Fields may be primitives, nested documents, sequences, or optionals
+   * — all handled via Self and the JsonPrimitive constraint. Types containing
+   * UUID, Instant, Char etc. are rejected at compile time.
    */
-  def toJson[A: Schema](doc: A)(implicit ev: Allows[A, JsonDocument]): String =
+  def toJson[A: Schema](doc: A)(implicit ev: Allows[A, Json]): String =
     Schema[A].toDynamicValue(doc).toJson.toString
 
-  /** Serialize a document to a DynamicValue for further processing. */
-  def serialize[A: Schema](doc: A)(implicit ev: Allows[A, JsonDocument]): DynamicValue =
+  /** Serialize to DynamicValue for further processing. */
+  def serialize[A: Schema](doc: A)(implicit ev: Allows[A, Json]): DynamicValue =
     Schema[A].toDynamicValue(doc)
 
-  /**
-   * Index a search result. The type must be a variant of flat JSON record
-   * cases.
-   */
+  /** Index a search result. The type must be a variant of flat JSON records. */
   def index[A: Schema](result: A)(implicit
-    ev: Allows[A, Variant[Record[JsonPrimitive | AOptional[JsonPrimitive] | Sequence[JsonPrimitive]]]]
+    ev: Allows[A, Variant[Record[JsonPrimitive | AOptional[JsonPrimitive | ASelf] | Sequence[JsonPrimitive | ASelf]]]]
   ): String = {
     val typeName = Schema[A].toDynamicValue(result) match {
       case DynamicValue.Variant(name, _) => name
@@ -145,14 +126,14 @@ object DocumentStore {
 
 object DocumentStoreDemo {
 
-  // All of these compile fine — fields use only JSON-native types
+  // JSON objects compile fine
   val bookJson: String = DocumentStore.toJson(
     Book(
       "ZIO Blocks",
       Author("John", "john@example.com"),
       List(BookChapter("Intro", 1000)),
       List("scala", "zio"),
-      scala.collection.immutable.Map("version" -> "2.0")
+      Some(4.9)
     )
   )
 
@@ -160,21 +141,20 @@ object DocumentStoreDemo {
     Category("Programming", List(Category("Scala", Nil)))
   )
 
+  // JSON arrays also satisfy Json (top-level Sequence)
+  val tagListJson: String    = DocumentStore.toJson(List("scala", "zio", "functional"))
+  val authorListJson: String = DocumentStore.toJson(List(Author("Alice", "a@b.com"), Author("Bob", "b@b.com")))
+
   val indexed: String = DocumentStore.index[SearchResult](BookResult("ZIO Blocks", 0.99))
 
   // The following would NOT compile — uncomment to see the errors:
   //
   // DocumentStore.toJson(WithUUID(new java.util.UUID(0, 0), "Alice"))
   //   [error] Schema shape violation at WithUUID.id: found Primitive(java.util.UUID),
-  //           required Boolean | Int | Long | Float | Double | String | ...
-  //   Hint: UUID is not a JSON-native type. Consider encoding it as Primitive.String.
+  //           required JsonPrimitive (Boolean | Int | Long | Float | Double | String | ...)
+  //   UUID is not a JSON-native type — encode it as Primitive.String.
   //
   // DocumentStore.toJson(WithTimestamp("Alice", java.time.Instant.EPOCH))
-  //   [error] Schema shape violation at WithTimestamp.createdAt: found Primitive(java.time.Instant),
-  //           required Boolean | Int | Long | Float | Double | String | ...
-  //   Hint: Instant is not a JSON-native type. Consider encoding it as Primitive.String (ISO-8601).
-  //
-  // DocumentStore.toJson(UntypedDoc("x", DynamicValue.Null))
-  //   [error] Schema shape violation at UntypedDoc.payload: found Dynamic,
-  //           required Boolean | Int | Long | Float | Double | String | ...
+  //   [error] Schema shape violation at WithTimestamp.createdAt: found Primitive(java.time.Instant)
+  //   Instant is not a JSON-native type — encode it as Primitive.String (ISO-8601).
 }

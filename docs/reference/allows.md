@@ -100,12 +100,31 @@ val sp: Allows[Int, Primitive.Int] = implicitly  // Primitive.Int (specific) —
 
 ### JSON Document Store Example
 
-JSON's primitive value set is `null | boolean | number | string`. Types such as `UUID`, `Char`, and all `java.time.*` types have no native JSON representation and must be encoded as strings at the application layer. Using `JsonPrimitive` instead of the catch-all `Primitive` enforces this at compile time:
+JSON's primitive value set is `null | boolean | number | string`. Types such as `UUID`, `Char`, and all `java.time.*` types have no native JSON representation and must be encoded as strings at the application layer. Using `JsonPrimitive` instead of the catch-all `Primitive` enforces this at compile time.
+
+A JSON document grammar is straightforward: a JSON value is either a record (JSON object) or a sequence (JSON array), and `Self` handles all nesting:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+type JsonPrimitive =
+  Primitive.Boolean | Primitive.Int | Primitive.Long | Primitive.Double |
+  Primitive.String  | Primitive.BigDecimal | Primitive.BigInt | Primitive.Unit
+
+type Json = Record[JsonPrimitive | Self] | Sequence[JsonPrimitive | Self]
+
+def toJson[A](doc: A)(using Allows[A, Json]): String = ???
+```
+
+`Self` recurses back to `Json` at every nested position, so `List[String]` satisfies `Sequence[JsonPrimitive | Self]` (String is JsonPrimitive), `List[Author]` satisfies it too (Author satisfies `Record[JsonPrimitive | Self]` via Self), and top-level arrays work directly.
+
+A type with a UUID or Instant field fails at compile time:
 
 ```
 [error] Schema shape violation at WithUUID.id: found Primitive(java.util.UUID),
-        required Primitive.Boolean | Primitive.Int | Primitive.Long | ...
-        Hint: UUID is not a JSON-native type. Encode it as Primitive.String.
+        required Primitive.Boolean | Primitive.Int | ... | Primitive.String | ...
+        UUID is not a JSON-native type — encode it as Primitive.String.
 ```
 
 ## Union Syntax
