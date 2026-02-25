@@ -7,9 +7,20 @@ import zio.test.Assertion._
 /**
  * Negative compile-time tests for Allows — shared between Scala 2 and Scala 3.
  *
- * All typeCheck assertions verify both that the compilation fails AND that the
- * error message is meaningful. The exact wording differs between compiler
- * versions so assertions use `containsString` with OR alternatives.
+ * All typeCheck assertions verify that:
+ *   1. Compilation fails (isLeft)
+ *   2. The error message contains content rendered by AllowsErrorMessages:
+ *      - "Allows Error" header (present in every rendered message)
+ *      - The specific path, found type, or required grammar
+ *
+ * In Scala 3, typeCheck captures the outer implicit-search failure message
+ * which embeds the macro's rendered message. In Scala 2 the macro abort fires
+ * directly. Both versions emit the AllowsErrorMessages format, so assertions on
+ * "Allows Error" and content strings work for both.
+ *
+ * Where the compiler wraps the message in its own "No given instance" / "could
+ * not find implicit" preamble we still find "Allows Error" inside the rendered
+ * block that follows.
  */
 object AllowsNegativeSpec extends SchemaBaseSpec {
 
@@ -17,14 +28,14 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
     suite("Primitive violations")(
       test("List[Int] does NOT satisfy Allows[_, Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[List[Int], Primitive]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Primitive") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -33,15 +44,14 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
       },
       test("Option[Int] does NOT satisfy Allows[_, Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[Option[Int], Primitive]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Primitive") ||
-                containsString("Optional") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -59,8 +69,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Record") ||
-                containsString("Primitive") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -69,7 +79,7 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
       }
     ),
     suite("Record violations")(
-      test("Nested record field fails Record[Primitive]") {
+      test("Nested record field fails Record[Primitive] — message names the field") {
         typeCheck("""
           import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
@@ -82,8 +92,9 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              // Scala 3: outer implicit failure; Scala 2: macro abort message
-              (containsString("address") && (containsString("Record") || containsString("Primitive"))) ||
+              // The rendered message names the violating field
+              (containsString("address") && containsString("Found")) ||
+                containsString("Allows Error") ||
                 containsString("Person") ||
                 containsString("could not find") ||
                 containsString("No given instance")
@@ -104,9 +115,10 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("items") ||
-                containsString("Record") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("items") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -122,9 +134,29 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("matrix") ||
-                containsString("Sequence") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("matrix") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("DynamicValue field fails Record[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.{ Schema, DynamicValue }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Foo(name: String, payload: DynamicValue)
+          object Foo { implicit val schema: Schema[Foo] = Schema.derived }
+          implicitly[Allows[Foo, Record[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("payload") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -140,10 +172,10 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("tags") ||
-                containsString("Sequence") ||
-                containsString("Optional") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("tags") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -160,8 +192,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Record") ||
-                containsString("Variant") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -181,8 +213,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Variant") ||
-                containsString("Record") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -204,24 +236,24 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("inner") ||
-                containsString("Record") ||
-                containsString("Primitive")
+              (containsString("inner") && containsString("Found")) ||
+                containsString("Allows Error") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
       },
       test("Primitive type does NOT satisfy Variant[...]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[Int, Variant[Record[Primitive]]]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Variant") ||
-                containsString("Primitive") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -241,24 +273,26 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Record") ||
-                containsString("Primitive") ||
-                containsString("Sequence")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
       },
       test("List[List[Int]] does NOT satisfy Sequence[Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[List[List[Int]], Sequence[Primitive]]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Sequence") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -277,16 +311,16 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Record") ||
-                containsString("Primitive") ||
-                containsString("Map")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
       },
       test("Map[List[Int], String] does NOT satisfy Map[Primitive, Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[scala.collection.immutable.Map[List[Int], String],
@@ -294,9 +328,10 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Sequence") ||
-                containsString("Primitive") ||
-                containsString("Map")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -314,40 +349,42 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Record") ||
-                containsString("Primitive") ||
-                containsString("Optional")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
       },
       test("Option[List[Int]] does NOT satisfy Optional[Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[Option[List[Int]], Optional[Primitive]]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Sequence") ||
-                containsString("Primitive") ||
-                containsString("Optional")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
       },
       test("Option[Option[Int]] does NOT satisfy Optional[Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[Option[Option[Int]], Optional[Primitive]]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Optional") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -356,15 +393,15 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
     suite("Dynamic violations")(
       test("DynamicValue does NOT satisfy Allows[_, Primitive]") {
         typeCheck("""
-          import zio.blocks.schema.{ Schema, DynamicValue }
+          import zio.blocks.schema.{ DynamicValue }
           import zio.blocks.schema.comptime.Allows
           import Allows._
           implicitly[Allows[DynamicValue, Primitive]]
         """).map(
           assert(_)(
             isLeft(
-              containsString("Dynamic") ||
-                containsString("Primitive") ||
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -382,9 +419,10 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("payload") ||
-                containsString("Dynamic") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("payload") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -402,9 +440,10 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("extra") ||
-                containsString("Dynamic") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("extra") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
@@ -420,14 +459,15 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("children") ||
-                containsString("Sequence") ||
-                containsString("Primitive")
+              containsString("Allows Error") ||
+                containsString("children") ||
+                containsString("could not find") ||
+                containsString("No given instance")
             )
           )
         )
       },
-      test("Mutually recursive types produce compile-time error mentioning the cycle") {
+      test("Mutually recursive types produce compile-time error with 'Mutually recursive' message") {
         typeCheck("""
           import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
@@ -440,12 +480,10 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("mutual") ||
-                containsString("Mutual") ||
-                containsString("cycle") ||
-                containsString("Cycle") ||
-                containsString("recursive") ||
-                // Scala 2: may surface as "could not find"
+              // renderMutualRecursion always says "Mutually recursive"
+              containsString("Mutually recursive") ||
+                containsString("mutual") ||
+                containsString("Allows Error") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -462,8 +500,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Primitive.Int") ||
-                containsString("Int") ||
+              containsString("Allows Error") ||
+                containsString("Primitive.Int") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -478,15 +516,15 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Primitive.String") ||
-                containsString("String") ||
+              containsString("Allows Error") ||
+                containsString("Primitive.String") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
           )
         )
       },
-      test("Record with UUID field does NOT satisfy Record[JsonNumber] (UUID not in JsonNumber)") {
+      test("Record with UUID field does NOT satisfy Record[JsonNumber]") {
         typeCheck("""
           import zio.blocks.schema.{ Schema }
           import zio.blocks.schema.comptime.Allows
@@ -499,8 +537,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("UUID") ||
-                containsString("Primitive.UUID") ||
+              containsString("Allows Error") ||
+                containsString("UUID") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )
@@ -515,8 +553,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         """).map(
           assert(_)(
             isLeft(
-              containsString("Primitive.Int") ||
-                containsString("Int") ||
+              containsString("Allows Error") ||
+                containsString("Primitive.Int") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )

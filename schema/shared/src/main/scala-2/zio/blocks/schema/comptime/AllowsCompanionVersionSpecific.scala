@@ -3,6 +3,7 @@ package zio.blocks.schema.comptime
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 import scala.reflect.NameTransformer
+import zio.blocks.schema.comptime.internal.AllowsErrorMessages
 
 trait AllowsCompanionVersionSpecific {
   implicit def derived[S <: Allows.Structural, A]: Allows[A, S] = macro AllowsMacroImpl.deriveAllows[S, A]
@@ -18,6 +19,8 @@ private[comptime] object AllowsMacroImpl {
     // -----------------------------------------------------------------------
     // Grammar node ADT (internal, compile-time only)
     // -----------------------------------------------------------------------
+
+    val color = AllowsErrorMessages.Colors.shouldUseColor
 
     sealed trait GrammarNode
     case object GPrimitive                                extends GrammarNode // any primitive
@@ -108,9 +111,7 @@ private[comptime] object AllowsMacroImpl {
         else
           c.abort(
             c.enclosingPosition,
-            s"Unknown Allows grammar node: ${tpe}. " +
-              "Expected Primitive (or a specific Primitive.Xxx subtype), Record, Variant, Sequence, " +
-              "Map, Optional, Wrapped, Dynamic, Self, or |."
+            AllowsErrorMessages.renderUnknownGrammarNode(tpe.toString, color)
           )
       }
     }
@@ -254,9 +255,7 @@ private[comptime] object AllowsMacroImpl {
 
     def err(path: List[String], found: String, required: String, hint: String = ""): Unit = {
       val pathStr = if (path.isEmpty) "<root>" else path.reverse.mkString(".")
-      val msg     = s"Schema shape violation at $pathStr: found $found, required $required" +
-        (if (hint.nonEmpty) s"\n  Hint: $hint" else "")
-      errors += msg
+      errors += AllowsErrorMessages.renderShapeViolation(pathStr, found, required, hint, color)
     }
 
     // -----------------------------------------------------------------------
@@ -275,13 +274,10 @@ private[comptime] object AllowsMacroImpl {
       val isAlready = seen.contains(tpeSym)
 
       if (isAlready && !(dt =:= rootTpe.dealias)) {
-        err(
-          path,
-          tpe.toString,
-          "no mutual recursion",
-          s"Mutually recursive types are not supported by Allows. " +
-            s"Cycle: ${seen.map(_.name).mkString(" -> ")} -> ${tpeSym.name}"
-        )
+        val cycle = (seen
+          .map(_.name.decodedName.toString)
+          .toList :+ tpeSym.name.decodedName.toString :+ seen.head.name.decodedName.toString)
+        errors += AllowsErrorMessages.renderMutualRecursion(tpeSym.name.decodedName.toString, cycle, color)
         return
       }
 
@@ -464,7 +460,11 @@ private[comptime] object AllowsMacroImpl {
     val rootTpe = rootTpe0
     check(rootTpe, rootGrammar, List(rootTpe.typeSymbol.name.decodedName.toString), Set.empty, rootTpe)
 
-    if (errors.nonEmpty) c.abort(c.enclosingPosition, errors.mkString("\n"))
+    if (errors.nonEmpty)
+      c.abort(
+        c.enclosingPosition,
+        AllowsErrorMessages.renderMultipleViolations(errors.toList)
+      )
 
     c.Expr[Allows[A, S]](
       q"_root_.zio.blocks.schema.comptime.Allows.instance.asInstanceOf[_root_.zio.blocks.schema.comptime.Allows[${rootTpe0}, ${sTpe}]]"
