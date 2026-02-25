@@ -295,9 +295,15 @@ private[comptime] object AllowsMacroImpl {
       }
 
       // Auto-unwrap: if the type is a user-defined sealed trait / enum (not a
-      // stdlib collection or Option), recursively check all cases against the same
-      // grammar. This makes an explicit Variant node unnecessary.
-      if (isSealed(dt) && !isOption(dt) && !isSeq(dt) && !isMap(dt)) {
+      // stdlib collection, Option, or Java/Scala stdlib type), recursively check
+      // all cases against the same grammar. This makes Variant unnecessary.
+      // Java enums (DayOfWeek, Month, etc.) are sealed in Scala but are primitives.
+      val isJavaOrStdlib =
+        dt.typeSymbol.isJava ||
+          dt.typeSymbol.fullName.startsWith("java.") ||
+          dt.typeSymbol.fullName.startsWith("javax.") ||
+          dt.typeSymbol.fullName.startsWith("scala.collection.")
+      if (isSealed(dt) && !isOption(dt) && !isSeq(dt) && !isMap(dt) && !isJavaOrStdlib) {
         casesOf(dt).foreach { caseTpe =>
           val caseName = caseTpe.typeSymbol.name.decodedName.toString
           check(caseTpe, grammar, caseName :: path, seen + tpeSym, rootTpe)
