@@ -161,7 +161,7 @@ object AllowsFixtures {
 object AllowsSpec extends SchemaBaseSpec {
   import AllowsFixtures._
 
-  // 5.1 Primitive
+  // 5.1a Primitive (catch-all)
   private val primInt: Allows[Int, Primitive]                   = implicitly
   private val primString: Allows[String, Primitive]             = implicitly
   private val primUUID: Allows[java.util.UUID, Primitive]       = implicitly
@@ -177,6 +177,52 @@ object AllowsSpec extends SchemaBaseSpec {
   private val primUnit: Allows[Unit, Primitive]                 = implicitly
   private val primBigInt: Allows[BigInt, Primitive]             = implicitly
   private val primCurr: Allows[java.util.Currency, Primitive]   = implicitly
+
+  // 5.1b Specific primitives — each type satisfies its own specific node
+  private val spInt: Allows[Int, Primitive.Int]                                 = implicitly
+  private val spLong: Allows[Long, Primitive.Long]                              = implicitly
+  private val spDouble: Allows[Double, Primitive.Double]                        = implicitly
+  private val spFloat: Allows[Float, Primitive.Float]                           = implicitly
+  private val spBoolean: Allows[Boolean, Primitive.Boolean]                     = implicitly
+  private val spString: Allows[String, Primitive.String]                        = implicitly
+  private val spBigDec: Allows[BigDecimal, Primitive.BigDecimal]                = implicitly
+  private val spBigInt: Allows[BigInt, Primitive.BigInt]                        = implicitly
+  private val spUUID: Allows[java.util.UUID, Primitive.UUID]                    = implicitly
+  private val spInstant: Allows[java.time.Instant, Primitive.Instant]           = implicitly
+  private val spUnit: Allows[Unit, Primitive.Unit]                              = implicitly
+  private val spByte: Allows[Byte, Primitive.Byte]                              = implicitly
+  private val spShort: Allows[Short, Primitive.Short]                           = implicitly
+  private val spChar: Allows[Char, Primitive.Char]                              = implicitly
+  private val spCurr: Allows[java.util.Currency, Primitive.Currency]            = implicitly
+  private val spDOW: Allows[java.time.DayOfWeek, Primitive.DayOfWeek]           = implicitly
+  private val spDur: Allows[java.time.Duration, Primitive.Duration]             = implicitly
+  private val spLD: Allows[java.time.LocalDate, Primitive.LocalDate]            = implicitly
+  private val spLDT: Allows[java.time.LocalDateTime, Primitive.LocalDateTime]   = implicitly
+  private val spLT: Allows[java.time.LocalTime, Primitive.LocalTime]            = implicitly
+  private val spMonth: Allows[java.time.Month, Primitive.Month]                 = implicitly
+  private val spMD: Allows[java.time.MonthDay, Primitive.MonthDay]              = implicitly
+  private val spODT: Allows[java.time.OffsetDateTime, Primitive.OffsetDateTime] = implicitly
+  private val spOT: Allows[java.time.OffsetTime, Primitive.OffsetTime]          = implicitly
+  private val spPeriod: Allows[java.time.Period, Primitive.Period]              = implicitly
+  private val spYear: Allows[java.time.Year, Primitive.Year]                    = implicitly
+  private val spYM: Allows[java.time.YearMonth, Primitive.YearMonth]            = implicitly
+  private val spZID: Allows[java.time.ZoneId, Primitive.ZoneId]                 = implicitly
+  private val spZO: Allows[java.time.ZoneOffset, Primitive.ZoneOffset]          = implicitly
+  private val spZDT: Allows[java.time.ZonedDateTime, Primitive.ZonedDateTime]   = implicitly
+
+  // Specific primitive satisfies the catch-all Primitive (subtyping)
+  private val spIntAsPrim: Allows[Int, Primitive | Primitive.Double] = implicitly
+
+  // Record constrained to specific primitives (e.g. JSON-like numbers only)
+  type JsonNumber = Primitive.Boolean | Primitive.Int | Primitive.Long | Primitive.Double | Primitive.String |
+    Primitive.BigDecimal | Primitive.BigInt | Primitive.Unit
+  case class JsonRecord(active: Boolean, count: Int, label: String)
+  object JsonRecord { implicit val schema: Schema[JsonRecord] = Schema.derived }
+  private val jsonRec: Allows[JsonRecord, Record[JsonNumber]] = implicitly
+
+  // UUID is a primitive but NOT a JsonNumber — record containing UUID fails JsonNumber
+  case class WithUUID(id: java.util.UUID, name: String)
+  object WithUUID { implicit val schema: Schema[WithUUID] = Schema.derived }
 
   // 5.2 Record — use infix `|` via the Allows.| type
   private val recAll: Allows[AllPrimitives, Record[Primitive]]                               = implicitly
@@ -232,7 +278,7 @@ object AllowsSpec extends SchemaBaseSpec {
     implicitly
 
   def spec: Spec[TestEnvironment, Any] = suite("AllowsSpec")(
-    suite("Primitive")(
+    suite("Primitive catch-all")(
       test("Int")(assertTrue(primInt.ne(null))),
       test("String")(assertTrue(primString.ne(null))),
       test("UUID")(assertTrue(primUUID.ne(null))),
@@ -248,6 +294,42 @@ object AllowsSpec extends SchemaBaseSpec {
       test("Unit")(assertTrue(primUnit.ne(null))),
       test("BigInt")(assertTrue(primBigInt.ne(null))),
       test("Currency")(assertTrue(primCurr.ne(null)))
+    ),
+    suite("Specific primitives")(
+      test("Int satisfies Primitive.Int")(assertTrue(spInt.ne(null))),
+      test("Long satisfies Primitive.Long")(assertTrue(spLong.ne(null))),
+      test("Double satisfies Primitive.Double")(assertTrue(spDouble.ne(null))),
+      test("Float satisfies Primitive.Float")(assertTrue(spFloat.ne(null))),
+      test("Boolean satisfies Primitive.Boolean")(assertTrue(spBoolean.ne(null))),
+      test("String satisfies Primitive.String")(assertTrue(spString.ne(null))),
+      test("BigDecimal satisfies Primitive.BigDecimal")(assertTrue(spBigDec.ne(null))),
+      test("BigInt satisfies Primitive.BigInt")(assertTrue(spBigInt.ne(null))),
+      test("UUID satisfies Primitive.UUID")(assertTrue(spUUID.ne(null))),
+      test("Instant satisfies Primitive.Instant")(assertTrue(spInstant.ne(null))),
+      test("Unit satisfies Primitive.Unit")(assertTrue(spUnit.ne(null))),
+      test("Byte satisfies Primitive.Byte")(assertTrue(spByte.ne(null))),
+      test("Short satisfies Primitive.Short")(assertTrue(spShort.ne(null))),
+      test("Char satisfies Primitive.Char")(assertTrue(spChar.ne(null))),
+      test("Currency satisfies Primitive.Currency")(assertTrue(spCurr.ne(null))),
+      test("DayOfWeek satisfies Primitive.DayOfWeek")(assertTrue(spDOW.ne(null))),
+      test("Duration satisfies Primitive.Duration")(assertTrue(spDur.ne(null))),
+      test("LocalDate satisfies Primitive.LocalDate")(assertTrue(spLD.ne(null))),
+      test("LocalDateTime satisfies Primitive.LocalDateTime")(assertTrue(spLDT.ne(null))),
+      test("LocalTime satisfies Primitive.LocalTime")(assertTrue(spLT.ne(null))),
+      test("Month satisfies Primitive.Month")(assertTrue(spMonth.ne(null))),
+      test("MonthDay satisfies Primitive.MonthDay")(assertTrue(spMD.ne(null))),
+      test("OffsetDateTime satisfies Primitive.OffsetDateTime")(assertTrue(spODT.ne(null))),
+      test("OffsetTime satisfies Primitive.OffsetTime")(assertTrue(spOT.ne(null))),
+      test("Period satisfies Primitive.Period")(assertTrue(spPeriod.ne(null))),
+      test("Year satisfies Primitive.Year")(assertTrue(spYear.ne(null))),
+      test("YearMonth satisfies Primitive.YearMonth")(assertTrue(spYM.ne(null))),
+      test("ZoneId satisfies Primitive.ZoneId")(assertTrue(spZID.ne(null))),
+      test("ZoneOffset satisfies Primitive.ZoneOffset")(assertTrue(spZO.ne(null))),
+      test("ZonedDateTime satisfies Primitive.ZonedDateTime")(assertTrue(spZDT.ne(null))),
+      test("Int satisfies Primitive | Primitive.Double (catch-all union)")(assertTrue(spIntAsPrim.ne(null))),
+      test("JsonRecord satisfies Record[JsonNumber] (specific JSON-compatible primitives)") {
+        assertTrue(jsonRec.ne(null))
+      }
     ),
     suite("Record")(
       test("AllPrimitives satisfies Record[Primitive]")(assertTrue(recAll.ne(null))),

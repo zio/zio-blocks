@@ -17,7 +17,8 @@ private[comptime] object AllowsMacroImpl {
     // -----------------------------------------------------------------------
 
     sealed trait GrammarNode
-    case object GPrimitive                                extends GrammarNode
+    case object GPrimitive                                extends GrammarNode // any primitive
+    case class GSpecificPrimitive(scalaFQN: String)       extends GrammarNode // one exact primitive
     case object GDynamic                                  extends GrammarNode
     case object GSelf                                     extends GrammarNode
     case class GRecord(inner: GrammarNode)                extends GrammarNode
@@ -42,6 +43,42 @@ private[comptime] object AllowsMacroImpl {
     val optionalClass  = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Optional")
     val wrappedClass   = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Wrapped")
     val pipeClass      = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.|")
+
+    // Map from Allows.Primitive.Xxx grammar class FQN → the Scala type FQN it matches.
+    // In Scala 3, Symbol.fullName for nested classes inside objects uses '$' separators
+    // e.g. "zio.blocks.schema.comptime.Allows$.Primitive$.Int"
+    val specificPrimitiveMap: Map[String, String] = Map(
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Unit"           -> "scala.Unit",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Boolean"        -> "scala.Boolean",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Byte"           -> "scala.Byte",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Short"          -> "scala.Short",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Int"            -> "scala.Int",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Long"           -> "scala.Long",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Float"          -> "scala.Float",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Double"         -> "scala.Double",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Char"           -> "scala.Char",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.String"         -> "java.lang.String",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.BigInt"         -> "scala.math.BigInt",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.BigDecimal"     -> "scala.math.BigDecimal",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.UUID"           -> "java.util.UUID",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Currency"       -> "java.util.Currency",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.DayOfWeek"      -> "java.time.DayOfWeek",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Duration"       -> "java.time.Duration",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Instant"        -> "java.time.Instant",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.LocalDate"      -> "java.time.LocalDate",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.LocalDateTime"  -> "java.time.LocalDateTime",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.LocalTime"      -> "java.time.LocalTime",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Month"          -> "java.time.Month",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.MonthDay"       -> "java.time.MonthDay",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.OffsetDateTime" -> "java.time.OffsetDateTime",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.OffsetTime"     -> "java.time.OffsetTime",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Period"         -> "java.time.Period",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.Year"           -> "java.time.Year",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.YearMonth"      -> "java.time.YearMonth",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.ZoneId"         -> "java.time.ZoneId",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.ZoneOffset"     -> "java.time.ZoneOffset",
+      "zio.blocks.schema.comptime.Allows$.Primitive$.ZonedDateTime"  -> "java.time.ZonedDateTime"
+    )
 
     // -----------------------------------------------------------------------
     // Grammar decomposition from S
@@ -70,14 +107,17 @@ private[comptime] object AllowsMacroImpl {
             Position.ofMacroExpansion
           )
       case other =>
-        val sym = other.typeSymbol
+        val sym    = other.typeSymbol
+        val symFQN = sym.fullName
         if (sym == primitiveClass) GPrimitive
         else if (sym == dynamicClass) GDynamic
         else if (sym == selfClass) GSelf
+        else if (specificPrimitiveMap.contains(symFQN)) GSpecificPrimitive(specificPrimitiveMap(symFQN))
         else
           report.errorAndAbort(
             s"Unknown Allows grammar node: ${tpe.show}. " +
-              "Expected Primitive, Record, Variant, Sequence, Map, Optional, Wrapped, Dynamic, Self, or |.",
+              "Expected Primitive (or a specific Primitive.Xxx subtype), Record, Variant, Sequence, " +
+              "Map, Optional, Wrapped, Dynamic, Self, or |.",
             Position.ofMacroExpansion
           )
     }
@@ -346,6 +386,12 @@ private[comptime] object AllowsMacroImpl {
           if (!isPrimitive(dt))
             err(path, describeType(tpe), "Primitive")
 
+        case GSpecificPrimitive(scalaFQN) =>
+          // The type must be exactly the named primitive (or a subtype of it)
+          val actualFQN = dt.typeSymbol.fullName
+          if (actualFQN != scalaFQN)
+            err(path, describeType(tpe), s"Primitive.${scalaFQN.split('.').last}")
+
         case GDynamic =>
           if (!isDynamic(dt))
             err(path, describeType(tpe), "Dynamic")
@@ -479,16 +525,17 @@ private[comptime] object AllowsMacroImpl {
     }
 
     def describeGrammar(g: GrammarNode): String = g match {
-      case GPrimitive       => "Primitive"
-      case GDynamic         => "Dynamic"
-      case GSelf            => "Self"
-      case GRecord(inner)   => s"Record[${describeGrammar(inner)}]"
-      case GVariant(inner)  => s"Variant[${describeGrammar(inner)}]"
-      case GSequence(inner) => s"Sequence[${describeGrammar(inner)}]"
-      case GMap(k, v)       => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
-      case GOptional(inner) => s"Optional[${describeGrammar(inner)}]"
-      case GWrapped(inner)  => s"Wrapped[${describeGrammar(inner)}]"
-      case GUnion(branches) => branches.map(describeGrammar).mkString(" | ")
+      case GPrimitive              => "Primitive"
+      case GSpecificPrimitive(fqn) => s"Primitive.${fqn.split('.').last}"
+      case GDynamic                => "Dynamic"
+      case GSelf                   => "Self"
+      case GRecord(inner)          => s"Record[${describeGrammar(inner)}]"
+      case GVariant(inner)         => s"Variant[${describeGrammar(inner)}]"
+      case GSequence(inner)        => s"Sequence[${describeGrammar(inner)}]"
+      case GMap(k, v)              => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
+      case GOptional(inner)        => s"Optional[${describeGrammar(inner)}]"
+      case GWrapped(inner)         => s"Wrapped[${describeGrammar(inner)}]"
+      case GUnion(branches)        => branches.map(describeGrammar).mkString(" | ")
     }
 
     // -----------------------------------------------------------------------

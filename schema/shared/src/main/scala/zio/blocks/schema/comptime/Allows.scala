@@ -9,8 +9,9 @@ package zio.blocks.schema.comptime
  * trivially passes. This is analogous to a subtype bound.
  *
  * `Allows` does not require or use `Schema[A]`. It inspects the Scala type
- * structure of `A` directly at compile time. Any `Schema[A]` in the examples
- * below is the library author's own constraint — independent of `Allows`.
+ * structure of `A` directly at compile time. Any `Schema[A]` that appears
+ * alongside `Allows` in examples is the library author's own separate
+ * constraint — it is not imposed by `Allows` itself.
  *
  * @tparam A
  *   The Scala data type being validated.
@@ -26,20 +27,17 @@ package zio.blocks.schema.comptime
  * // Shape constraint alone — no Schema required
  * def validate[A](v: A)(using Allows[A, Record[Primitive]]): Boolean = ???
  *
+ * // Specific primitives only (e.g. JSON: no Char, UUID, java.time types)
+ * type JsonPrimitive = Primitive.Boolean | Primitive.Int | Primitive.Long |
+ *                      Primitive.Float | Primitive.Double | Primitive.String |
+ *                      Primitive.BigInt | Primitive.BigDecimal | Primitive.Unit
+ *
+ * def toJson[A](doc: A)(using Allows[A, Record[JsonPrimitive | Self]]): String = ???
+ *
  * // Combined with Schema when runtime encoding is also needed
  * def writeCsv[A: Schema](rows: Seq[A])(using
  *   Allows[A, Record[Primitive | Optional[Primitive]]]
  * ): Unit = ???
- *
- * // Discriminated union of flat records (e.g. event bus)
- * def publish[A: Schema](event: A)(using
- *   Allows[A, Variant[Record[Primitive | Sequence[Primitive]]]]
- * ): Unit = ???
- *
- * // Recursive tree (e.g. GraphQL, JSON Schema)
- * def graphqlType[A: Schema]()(using
- *   Allows[A, Record[Primitive | Optional[Self] | Sequence[Self]]]
- * ): String = ???
  * }}}
  *
  * ==Usage (Scala 2)==
@@ -58,7 +56,8 @@ package zio.blocks.schema.comptime
  *
  * ==Grammar nodes==
  *
- *   - [[Allows.Primitive]] — any scalar type (Int, String, UUID, Instant, …)
+ *   - [[Allows.Primitive]] — any primitive scalar; or use a specific subtype
+ *     such as [[Allows.Primitive$.Int]] to restrict to a single kind
  *   - [[Allows.Record]] — a product type (case class); fields must satisfy `A`
  *   - [[Allows.Variant]] — a sum type (sealed trait / enum); cases must satisfy
  *     `A`
@@ -87,11 +86,176 @@ object Allows extends AllowsCompanionVersionSpecific {
   abstract class Structural
 
   /**
-   * Matches any primitive type: Unit, Boolean, Byte, Short, Int, Long, Float,
-   * Double, Char, String, BigInt, BigDecimal, UUID, Currency, and all
-   * `java.time.*` types.
+   * Matches any primitive type. Also serves as the parent of all specific
+   * primitive grammar nodes — a type satisfying e.g. [[Primitive.Int]] also
+   * satisfies `Primitive`.
+   *
+   * To restrict to a subset of primitives, use the specific subtypes:
+   *
+   * {{{
+   * // Allow only JSON-representable numbers:
+   * type JsonNumber = Primitive.Int | Primitive.Long | Primitive.Double
+   *
+   * // Allow any primitive (the traditional usage):
+   * type AnyPrim = Primitive
+   * }}}
+   *
+   * In Scala 2 you may also write `` Primitive.Int `|` Primitive.Long ``.
    */
   abstract class Primitive extends Structural
+
+  object Primitive {
+
+    /**
+     * Matches `scala.Unit` only.
+     */
+    abstract class Unit extends Primitive
+
+    /**
+     * Matches `scala.Boolean` only.
+     */
+    abstract class Boolean extends Primitive
+
+    /**
+     * Matches `scala.Byte` only.
+     */
+    abstract class Byte extends Primitive
+
+    /**
+     * Matches `scala.Short` only.
+     */
+    abstract class Short extends Primitive
+
+    /**
+     * Matches `scala.Int` only.
+     */
+    abstract class Int extends Primitive
+
+    /**
+     * Matches `scala.Long` only.
+     */
+    abstract class Long extends Primitive
+
+    /**
+     * Matches `scala.Float` only.
+     */
+    abstract class Float extends Primitive
+
+    /**
+     * Matches `scala.Double` only.
+     */
+    abstract class Double extends Primitive
+
+    /**
+     * Matches `scala.Char` only.
+     */
+    abstract class Char extends Primitive
+
+    /**
+     * Matches `java.lang.String` only.
+     */
+    abstract class String extends Primitive
+
+    /**
+     * Matches `scala.BigInt` only.
+     */
+    abstract class BigInt extends Primitive
+
+    /**
+     * Matches `scala.BigDecimal` only.
+     */
+    abstract class BigDecimal extends Primitive
+
+    /**
+     * Matches `java.util.UUID` only.
+     */
+    abstract class UUID extends Primitive
+
+    /**
+     * Matches `java.util.Currency` only.
+     */
+    abstract class Currency extends Primitive
+
+    /**
+     * Matches `java.time.DayOfWeek` only.
+     */
+    abstract class DayOfWeek extends Primitive
+
+    /**
+     * Matches `java.time.Duration` only.
+     */
+    abstract class Duration extends Primitive
+
+    /**
+     * Matches `java.time.Instant` only.
+     */
+    abstract class Instant extends Primitive
+
+    /**
+     * Matches `java.time.LocalDate` only.
+     */
+    abstract class LocalDate extends Primitive
+
+    /**
+     * Matches `java.time.LocalDateTime` only.
+     */
+    abstract class LocalDateTime extends Primitive
+
+    /**
+     * Matches `java.time.LocalTime` only.
+     */
+    abstract class LocalTime extends Primitive
+
+    /**
+     * Matches `java.time.Month` only.
+     */
+    abstract class Month extends Primitive
+
+    /**
+     * Matches `java.time.MonthDay` only.
+     */
+    abstract class MonthDay extends Primitive
+
+    /**
+     * Matches `java.time.OffsetDateTime` only.
+     */
+    abstract class OffsetDateTime extends Primitive
+
+    /**
+     * Matches `java.time.OffsetTime` only.
+     */
+    abstract class OffsetTime extends Primitive
+
+    /**
+     * Matches `java.time.Period` only.
+     */
+    abstract class Period extends Primitive
+
+    /**
+     * Matches `java.time.Year` only.
+     */
+    abstract class Year extends Primitive
+
+    /**
+     * Matches `java.time.YearMonth` only.
+     */
+    abstract class YearMonth extends Primitive
+
+    /**
+     * Matches `java.time.ZoneId` only.
+     */
+    abstract class ZoneId extends Primitive
+
+    /**
+     * Matches `java.time.ZoneOffset` only.
+     */
+    abstract class ZoneOffset extends Primitive
+
+    /**
+     * Matches `java.time.ZonedDateTime` only.
+     */
+    abstract class ZonedDateTime extends Primitive
+  }
 
   /**
    * Matches a record (case class / product type) whose every field satisfies

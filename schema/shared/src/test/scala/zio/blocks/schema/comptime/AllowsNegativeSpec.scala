@@ -452,6 +452,77 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
           )
         )
       }
+    ),
+    suite("Specific primitive violations")(
+      test("String does NOT satisfy Allows[_, Primitive.Int]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[String, Primitive.Int]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Primitive.Int") ||
+                containsString("Int") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("UUID does NOT satisfy Allows[_, Primitive.String]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[java.util.UUID, Primitive.String]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Primitive.String") ||
+                containsString("String") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Record with UUID field does NOT satisfy Record[JsonNumber] (UUID not in JsonNumber)") {
+        typeCheck("""
+          import zio.blocks.schema.{ Schema }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          type JsonNumber = Primitive.Boolean | Primitive.Int | Primitive.Long |
+            Primitive.Double | Primitive.String | Primitive.BigDecimal | Primitive.BigInt | Primitive.Unit
+          case class WithUUID(id: java.util.UUID, name: String)
+          object WithUUID { implicit val schema: Schema[WithUUID] = Schema.derived }
+          implicitly[Allows[WithUUID, Record[JsonNumber]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("UUID") ||
+                containsString("Primitive.UUID") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Instant does NOT satisfy Primitive.Int") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[java.time.Instant, Primitive.Int]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Primitive.Int") ||
+                containsString("Int") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
     )
   )
 }

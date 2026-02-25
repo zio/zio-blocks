@@ -37,7 +37,22 @@ All grammar nodes extend `Allows.Structural`.
 
 | Node | Matches |
 |---|---|
-| `Primitive` | Any scalar: `Unit`, `Boolean`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `Char`, `String`, `BigInt`, `BigDecimal`, `UUID`, `Currency`, all `java.time.*` types |
+| `Primitive` | **Any** scalar — catch-all for all 30 Schema 2 primitive types |
+| `Primitive.Boolean` | `scala.Boolean` only |
+| `Primitive.Int` | `scala.Int` only |
+| `Primitive.Long` | `scala.Long` only |
+| `Primitive.Double` | `scala.Double` only |
+| `Primitive.Float` | `scala.Float` only |
+| `Primitive.String` | `java.lang.String` only |
+| `Primitive.BigDecimal` | `scala.BigDecimal` only |
+| `Primitive.BigInt` | `scala.BigInt` only |
+| `Primitive.Unit` | `scala.Unit` only |
+| `Primitive.Byte` | `scala.Byte` only |
+| `Primitive.Short` | `scala.Short` only |
+| `Primitive.Char` | `scala.Char` only |
+| `Primitive.UUID` | `java.util.UUID` only |
+| `Primitive.Currency` | `java.util.Currency` only |
+| `Primitive.Instant` / `LocalDate` / `LocalDateTime` / … | Each specific `java.time.*` type |
 | `Record[A]` | A case class / product type whose every field satisfies `A`. Vacuously true for zero-field records (case objects, enum singletons). |
 | `Variant[A]` | A sealed trait / enum whose every case satisfies at least one branch of `A`. No requirement that all branches of `A` are exercised. |
 | `Sequence[A]` | `List`, `Vector`, `Set`, `Array`, `Chunk`, … whose element type satisfies `A` |
@@ -47,6 +62,51 @@ All grammar nodes extend `Allows.Structural`.
 | `Dynamic` | `DynamicValue` — the schema-less escape hatch |
 | `Self` | Recursive self-reference back to the entire enclosing `Allows[A, S]` grammar |
 | `` `\|` `` | Union of two grammar nodes: `A \| B`. In Scala 2 write `` A `\|` B `` in infix position. |
+
+Every specific `Primitive.Xxx` node also satisfies the catch-all `Primitive`. This means a type annotated with `Primitive.Int` is valid wherever `Primitive` or `Primitive | Primitive.Long` is required.
+
+## Specific Primitives
+
+The `Primitive` parent class is the catch-all: it accepts any of the 30 Schema 2 primitive types. For stricter control — such as when the target serialisation format only supports a subset — use the specific subtype nodes in `Allows.Primitive`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Only JSON-representable scalars (no UUID, Char, java.time.*)
+type JsonPrimitive =
+  Primitive.Boolean | Primitive.Int | Primitive.Long |
+  Primitive.Double  | Primitive.String | Primitive.BigDecimal |
+  Primitive.BigInt  | Primitive.Unit
+
+def toJson[A](doc: A)(using Allows[A, Record[JsonPrimitive | Self]]): String = ???
+
+// Only numeric types
+type Numeric = Primitive.Int | Primitive.Long | Primitive.Double | Primitive.Float |
+               Primitive.BigInt | Primitive.BigDecimal
+
+def aggregate[A](data: A)(using Allows[A, Record[Numeric]]): Double = ???
+```
+
+A type annotated with `Primitive.Int` satisfies `Primitive` (the catch-all) because `Primitive.Int extends Primitive`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+val ev: Allows[Int, Primitive] = implicitly  // Primitive (catch-all) — ✓
+val sp: Allows[Int, Primitive.Int] = implicitly  // Primitive.Int (specific) — ✓
+```
+
+### JSON Document Store Example
+
+JSON's primitive value set is `null | boolean | number | string`. Types such as `UUID`, `Char`, and all `java.time.*` types have no native JSON representation and must be encoded as strings at the application layer. Using `JsonPrimitive` instead of the catch-all `Primitive` enforces this at compile time:
+
+```
+[error] Schema shape violation at WithUUID.id: found Primitive(java.util.UUID),
+        required Primitive.Boolean | Primitive.Int | Primitive.Long | ...
+        Hint: UUID is not a JSON-native type. Encode it as Primitive.String.
+```
 
 ## Union Syntax
 
