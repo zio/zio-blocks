@@ -227,6 +227,7 @@ Scope.global.scoped { scope =>
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
 - **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
+- **Actionable Runtime Errors**: If a scope reference escapes and is used after closing, `allocate`, `open()`, and `$` throw `IllegalStateException` with a detailed message explaining what went wrong, the common causes, and how to fix it—no silent null returns.
 
 ### Installation
 
