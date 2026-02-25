@@ -220,7 +220,7 @@ def graphqlType[A: Schema]()(using
 
 // Works:
 case class TreeNode(value: Int, children: List[TreeNode])
-object TreeNode { implicit val schema = Schema.derived[TreeNode] }
+object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
 // graphqlType[TreeNode]() — compiles fine
 ```
 
@@ -241,17 +241,14 @@ object TreeNode { implicit val schema = Schema.derived[TreeNode] }
 
 The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers. The underlying type must satisfy `A`.
 
-```scala mdoc:compile-only
-import zio.blocks.schema.Schema
-import zio.blocks.schema.comptime.Allows
-import Allows._
+```scala
+// ZIO Prelude Newtype pattern:
 import zio.prelude.Newtype
-
+object ProductCode extends Newtype[String]
 type ProductCode = ProductCode.Type
-object ProductCode extends Newtype[String] {
-  implicit val schema: Schema[ProductCode] =
-    Schema[String].transform(_.asInstanceOf[ProductCode], _.asInstanceOf[String])
-}
+
+given Schema[ProductCode] =
+  Schema[String].transform(_.asInstanceOf[ProductCode], _.asInstanceOf[String])
 
 // ProductCode satisfies Wrapped[Primitive] — its underlying String is Primitive
 val ev: Allows[ProductCode, Wrapped[Primitive]] = implicitly
