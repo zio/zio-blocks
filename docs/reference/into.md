@@ -16,7 +16,7 @@ trait Into[-A, +B] {
   def into(a: A): Either[SchemaError, B]
 }
 ```
-
+The variance and data flow can be visualised as:
 ```
   A ──── into ────► Either[SchemaError, B]
   │                       │
@@ -45,7 +45,7 @@ case class PersonV2(name: String, age: Long, email: Option[String])
 
 val migrate = Into.derived[PersonV1, PersonV2]
 ```
-
+With `migrate` derived, converting a `PersonV1` widens `age` to `Long` and defaults `email` to `None`:
 ```scala mdoc
 migrate.into(PersonV1("Alice", 30))
 ```
@@ -86,13 +86,13 @@ object Into {
   def apply[A, B](implicit ev: Into[A, B]): Into[A, B]
 }
 ```
-
+We summon the pre-existing `Into[Int, Long]` widening instance and call `into` on it:
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
 
 val intToLong: Into[Int, Long] = Into[Int, Long]
 ```
-
+With `intToLong` in scope, `into` converts the value and returns a `Right`:
 ```scala mdoc
 intToLong.into(42)
 ```
@@ -106,7 +106,7 @@ object Into {
   def derived[A, B]: Into[A, B] // macro
 }
 ```
-
+We derive the conversion between two case classes and observe the `count` field being widened from `Int` to `Long`:
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
 
@@ -115,7 +115,7 @@ case class Target(name: String, count: Long)
 
 val conv = Into.derived[Source, Target]
 ```
-
+The derived `conv` maps each field by name, coercing types where needed:
 ```scala mdoc
 conv.into(Source("events", 100))
 ```
@@ -129,13 +129,13 @@ object Into {
   implicit def identity[A]: Into[A, A]
 }
 ```
-
+Any `Into[A, A]` resolves to this built-in — there is nothing to configure:
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
 
 val same: Into[String, String] = Into[String, String]
 ```
-
+The identity conversion always returns `Right` wrapping the original value:
 ```scala mdoc
 same.into("hello")
 ```
@@ -153,7 +153,7 @@ case class Fahrenheit(value: Double)
 implicit val celsiusToFahrenheit: Into[Celsius, Fahrenheit] =
   (c: Celsius) => Right(Fahrenheit(c.value * 9.0 / 5.0 + 32.0))
 ```
-
+With `celsiusToFahrenheit` in implicit scope, `Into[Celsius, Fahrenheit]` resolves to it automatically:
 ```scala mdoc
 Into[Celsius, Fahrenheit].into(Celsius(100.0))
 ```
@@ -174,10 +174,10 @@ These instances always succeed because the conversion cannot lose information:
 | `Long`    |         |       |        | ✅       | ✅        |
 | `Float`   |         |       |        |         | ✅        |
 
+Each widening conversion always returns `Right` since no information is lost:
 ```scala mdoc:invisible
 import zio.blocks.schema.Into
 ```
-
 ```scala mdoc
 Into[Byte, Int].into(42.toByte)
 Into[Int, Long].into(100)
@@ -202,6 +202,7 @@ These instances check at runtime whether the value fits in the target type. They
 | `Double` | `Int`   | value is not a whole number, or outside Int range  |
 | `Double` | `Long`  | value is not a whole number, or outside Long range |
 
+A value within range returns `Right`; an overflow or fractional value returns `Left`:
 ```scala mdoc
 Into[Long, Int].into(42L)
 Into[Long, Int].into(Long.MaxValue)
@@ -217,7 +218,7 @@ Into[Double, Int].into(3.14)
 ```scala
 implicit def optionInto[A, B](implicit into: Into[A, B]): Into[Option[A], Option[B]]
 ```
-
+Both `Some` and `None` are handled — `None` passes through unchanged:
 ```scala mdoc
 Into[Option[Int], Option[Long]].into(Some(42))
 Into[Option[Int], Option[Long]].into(None)
@@ -231,7 +232,7 @@ implicit def eitherInto[L1, R1, L2, R2](
   rightInto: Into[R1, R2]
 ): Into[Either[L1, R1], Either[L2, R2]]
 ```
-
+Both `Left` and `Right` branches are coerced independently:
 ```scala mdoc
 Into[Either[Int, Int], Either[Long, Long]].into(Right(1))
 Into[Either[Int, Int], Either[Long, Long]].into(Left(2))
@@ -245,7 +246,7 @@ implicit def mapInto[K1, V1, K2, V2](
   valueInto: Into[V1, V2]
 ): Into[Map[K1, V1], Map[K2, V2]]
 ```
-
+Both keys and values are coerced element-by-element:
 ```scala mdoc
 Into[Map[String, Int], Map[String, Long]].into(Map("a" -> 1, "b" -> 2))
 ```
@@ -273,7 +274,7 @@ implicit def arrayToArray[A, B](
   ct: ClassTag[B]
 ): Into[Array[A], Array[B]]
 ```
-
+The source and target collection kinds are independent — elements are coerced individually and the target collection is built using its factory:
 ```scala mdoc
 Into[List[Int], Vector[Long]].into(List(1, 2, 3))
 Into[List[Int], Set[Long]].into(List(1, 2, 2, 3))
@@ -285,18 +286,14 @@ Converting to `Set` removes duplicates. Converting from `Set` does not guarantee
 
 ## Core Operation
 
-`Into` exposes a single abstract method. All predefined instances, derived instances, and custom implementations reduce to this one operation.
-
-#### `into`
-
-Performs the conversion from `A` to `B`, returning a `Right` on success or a `Left` with a `SchemaError` on failure.
+`Into` exposes a single abstract method, `into`. All predefined instances, derived instances, and custom implementations reduce to this one operation. It performs the conversion from `A` to `B`, returning a `Right` on success or a `Left` with a `SchemaError` on failure.
 
 ```scala
 trait Into[-A, +B] {
   def into(a: A): Either[SchemaError, B]
 }
 ```
-
+We derive an `Into[Raw, Narrow]` to show both the success path and the overflow path:
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
 
@@ -305,7 +302,7 @@ case class Narrow(value: Int)
 
 val conv = Into.derived[Raw, Narrow]
 ```
-
+A value that fits in `Int` returns `Right`; a value that overflows returns `Left`:
 ```scala mdoc
 conv.into(Raw(42L))
 conv.into(Raw(Long.MaxValue))
@@ -330,7 +327,7 @@ import zio.blocks.schema.Into
 case class Source(firstName: String, count: Int)
 case class Target(label: String, total: Long)
 ```
-
+Because `String` and `Long` each appear uniquely, the macro resolves `firstName` → `label` and `count` → `total`:
 ```scala mdoc
 Into.derived[Source, Target].into(Source("events", 5))
 ```
@@ -342,7 +339,7 @@ import zio.blocks.schema.Into
 
 case class Point(x: Int, y: Int)
 ```
-
+The macro treats a two-element tuple and a two-field case class as structurally equivalent:
 ```scala mdoc
 Into.derived[(Int, Int), Point].into((3, 4))
 Into.derived[Point, (Int, Int)].into(Point(3, 4))
@@ -356,7 +353,7 @@ import zio.blocks.schema.Into
 case class Source(name: String)
 case class Target(name: String, nickname: Option[String], score: Int = 0)
 ```
-
+Missing fields are filled with `None` or their declared defaults — no extra code is needed:
 ```scala mdoc
 Into.derived[Source, Target].into(Source("Alice"))
 ```
@@ -382,7 +379,7 @@ object ShapeV2 {
 
 val conv = Into.derived[ShapeV1, ShapeV2]
 ```
-
+Each case is matched by name and its fields are coerced from `Int` to `Long`:
 ```scala mdoc
 conv.into(ShapeV1.Circle(5))
 conv.into(ShapeV1.Square(3))
@@ -407,7 +404,7 @@ case class PersonValidated(name: String, age: Age)
 
 val validate = Into.derived[PersonRaw, PersonValidated]
 ```
-
+Values within the assertion range succeed; out-of-range values return a `Left` from the smart constructor:
 ```scala mdoc
 validate.into(PersonRaw("Alice", 30))
 validate.into(PersonRaw("Bob", 200))
@@ -432,7 +429,7 @@ case class UserValidated(name: String, email: Email)
 
 val validate = Into.derived[UserRaw, UserValidated]
 ```
-
+A valid email address succeeds; an invalid one returns the error produced by the `apply` smart constructor:
 ```scala mdoc
 validate.into(UserRaw("Alice", "alice@example.com"))
 validate.into(UserRaw("Alice", "not-an-email"))
@@ -480,15 +477,13 @@ case class Target(a: Int,  b: Int,  c: Int)
 val conv    = Into.derived[Source, Target]
 val result  = conv.into(Source(Long.MaxValue, Long.MinValue, 42L))
 ```
-
+We pattern-match on the result to print either the converted value or the accumulated error message:
 ```scala mdoc
 result match {
   case Right(t)    => println(s"OK: $t")
   case Left(error) => println(s"Failed:\n${error.message}")
 }
 ```
-
-### Error Accumulation
 
 When multiple fields fail, all errors are collected and reported together. The field `c` above succeeds (42 fits in `Int`), so only errors for `a` and `b` appear.
 
@@ -516,7 +511,7 @@ case class UserValidated(id: PositiveId, email: Email, age: Int)
 val conv = Into.derived[UserRaw, UserValidated]
 val err  = conv.into(UserRaw(-1L, "not-an-email", 200L)).swap.toOption.get
 ```
-
+All three field errors are accumulated into a single `SchemaError` with a combined message:
 ```scala mdoc
 println(err.message)
 ```
@@ -531,7 +526,7 @@ trait As[A, B] extends Into[A, B] {
   def reverse: As[B, A]
 }
 ```
-
+We derive an `As` for two case classes and obtain its reverse using `as.reverse`:
 ```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
@@ -541,7 +536,7 @@ case class LongBox(value: Long)
 val as  = As.derived[IntBox, LongBox]
 val rev = as.reverse
 ```
-
+`into` converts forward, `from` converts backward, and `reverse` gives a flipped `As[LongBox, IntBox]`:
 ```scala mdoc
 as.into(IntBox(42))
 as.from(LongBox(99L))
@@ -561,7 +556,7 @@ case class Coord(x: Int, y: Int)
 
 implicit val as: As[P2D, Coord] = As.derived[P2D, Coord]
 ```
-
+Passing `as` where an `Into` is expected works without any cast since `As` is a subtype of `Into`:
 ```scala mdoc
 migrate(P2D(1, 2))
 ```

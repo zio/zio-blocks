@@ -239,7 +239,7 @@ case class Target(name: String, count: Long)
 
 val conv = Into.derived[Source, Target]
 ```
-
+With `conv` in scope, we can call `into` and see the result:
 ```scala mdoc
 conv.into(Source("events", 100))
 ```
@@ -265,6 +265,8 @@ Do **not** use `mdoc:compile-only` and manually write `// Right(Target("events",
 - **Use "ZIO Blocks"** (not "zio-blocks") for the project name.
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
 - **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write at least one sentence of explanation before the first subheader — introduce the group, state the purpose, or give context. The same rule applies at every heading level: a heading must be followed by prose before any child heading.
+- **No lone subheaders**: Never create a subsection with only one child. If a `##` section would have only one `###`, or a `###` would have only one `####`, remove the subheader entirely and place the content directly under the parent heading. A subheader is only justified when there are two or more siblings.
+- **Always bridge consecutive code blocks with prose**: Two code blocks must never be separated by a blank line alone. Between every pair of consecutive code blocks, write a short descriptive sentence that either summarises what the previous block set up or introduces what the next block demonstrates. This sentence must be concise (one line) and genuinely informative — not filler.
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
 - **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
