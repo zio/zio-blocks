@@ -20,7 +20,7 @@ import zio.blocks.schema.patch._
  *   - Optics (Lens, Prism) obtained from the schema
  *   - Diff and patch
  *
- * Run with: sbt "examples/runMain ziosschemamigration.CompleteMigrationExample"
+ * Run with: sbt "schema-examples/runMain ziosschemamigration.CompleteMigrationExample"
  */
 object CompleteMigrationExample extends App {
 
@@ -185,8 +185,8 @@ object CompleteMigrationExample extends App {
 
   printHeader("5. Diff and Patch")
 
-  val paidOrder: Order    = shippedOrder.copy(notes = Some("Shipped via express"))
-  val patch: Patch[Order] = Order.schema.diff(order, paidOrder)
+  val shippedWithNotes: Order = shippedOrder.copy(notes = Some("Shipped via express"))
+  val patch: Patch[Order]     = Order.schema.diff(order, shippedWithNotes)
   println(s"Patch (pending → shipped+notes): $patch")
 
   val applied: Either[SchemaError, Order] = Order.schema.patch(order, patch)

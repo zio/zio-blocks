@@ -13,7 +13,7 @@ import zio.blocks.schema._
  *   - @Modifier.config(key, value) for codec-specific configuration
  *   - Schema.transform replaces Schema.transformOrFail (throwing to indicate failure)
  *
- * Run with: sbt "examples/runMain ziosschemamigration.Step2ModifiersAndTransform"
+ * Run with: sbt "schema-examples/runMain ziosschemamigration.Step2ModifiersAndTransform"
  */
 object Step2ModifiersAndTransform extends App {
 

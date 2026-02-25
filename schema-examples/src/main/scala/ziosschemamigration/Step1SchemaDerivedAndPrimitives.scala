@@ -14,7 +14,7 @@ import zio.blocks.schema._
  *   - Converting between typed values and DynamicValue
  *   - Using Option, Either, and collection schemas
  *
- * Run with: sbt "examples/runMain
+ * Run with: sbt "schema-examples/runMain
  * ziosschemamigration.Step1SchemaDerivedAndPrimitives"
  */
 object Step1SchemaDerivedAndPrimitives extends App {

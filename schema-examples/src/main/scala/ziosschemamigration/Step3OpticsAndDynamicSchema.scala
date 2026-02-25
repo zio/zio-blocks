@@ -14,7 +14,7 @@ import zio.blocks.schema._
  *   - DynamicSchema (replaces MetaSchema / schema.ast)
  *   - Validating DynamicValue against a DynamicSchema
  *
- * Run with: sbt "examples/runMain
+ * Run with: sbt "schema-examples/runMain
  * ziosschemamigration.Step3OpticsAndDynamicSchema"
  */
 object Step3OpticsAndDynamicSchema extends App {
@@ -41,12 +41,13 @@ object Step3OpticsAndDynamicSchema extends App {
     // Obtain lenses from the schema's reflect tree
     // ZIO Schema: schema.makeAccessors(ZioOpticsBuilder) → (nameLens, ageLens, addressLens)
     // ZIO Blocks: schema.reflect.asRecord.get.lensByName[A]("field")
+    private val record = schema.reflect.asRecord.getOrElse(sys.error("Person must be a Record"))
     val name: Lens[Person, String] =
-      schema.reflect.asRecord.get.lensByName[String]("name").get
+      record.lensByName[String]("name").getOrElse(sys.error("Field 'name' not found"))
     val age: Lens[Person, Int] =
-      schema.reflect.asRecord.get.lensByName[Int]("age").get
+      record.lensByName[Int]("age").getOrElse(sys.error("Field 'age' not found"))
     val address: Lens[Person, Address] =
-      schema.reflect.asRecord.get.lensByName[Address]("address").get
+      record.lensByName[Address]("address").getOrElse(sys.error("Field 'address' not found"))
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -87,10 +88,11 @@ object Step3OpticsAndDynamicSchema extends App {
   object Shape {
     implicit val schema: Schema[Shape] = Schema.derived[Shape]
 
+    private val variant = schema.reflect.asVariant.getOrElse(sys.error("Shape must be a Variant"))
     val circle: Prism[Shape, Circle] =
-      schema.reflect.asVariant.get.prismByName[Circle]("Circle").get
+      variant.prismByName[Circle]("Circle").getOrElse(sys.error("Case 'Circle' not found"))
     val rectangle: Prism[Shape, Rectangle] =
-      schema.reflect.asVariant.get.prismByName[Rectangle]("Rectangle").get
+      variant.prismByName[Rectangle]("Rectangle").getOrElse(sys.error("Case 'Rectangle' not found"))
   }
 
   val c: Shape = Circle(5.0)

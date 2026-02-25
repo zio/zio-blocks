@@ -15,7 +15,7 @@ import zio.blocks.schema.patch._
  *   - Patch composition with ++
  *   - PatchMode.Strict / Lenient / Clobber
  *
- * Run with: sbt "examples/runMain ziosschemamigration.Step4DiffAndPatch"
+ * Run with: sbt "schema-examples/runMain ziosschemamigration.Step4DiffAndPatch"
  */
 object Step4DiffAndPatch extends App {
 
