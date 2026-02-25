@@ -264,6 +264,7 @@ Do **not** use `mdoc:compile-only` and manually write `// Right(Target("events",
 - **Link to related docs**: Use relative paths `[TypeName](./type-name.md)`.
 - **Use "ZIO Blocks"** (not "zio-blocks") for the project name.
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
+- **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write at least one sentence of explanation before the first subheader — introduce the group, state the purpose, or give context. The same rule applies at every heading level: a heading must be followed by prose before any child heading.
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
 - **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
