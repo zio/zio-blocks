@@ -182,48 +182,64 @@ complexity of expressing and validating cross-type recursive grammars.
 
 ## 3. High-Level Structure of `zio.blocks.schema.comptime`
 
-### 3.1 Module
+### 3.1 Location
 
-A new sbt cross-project `schema-comptime` (JVM + Scala.js) that depends on `schema`.
-It lives entirely in Scala 3 (macro implementation requires Scala 3 `quotes`). The
-package is `zio.blocks.schema.comptime`.
+`Allows` lives in the **existing `schema` module**, in the package
+`zio.blocks.schema.comptime`. No new sbt module is created. The source layout
+mirrors the conventions already in place for the `schema` module:
 
 ```
-schema-comptime/
+schema/
   shared/
     src/
       main/
         scala/
           zio/blocks/schema/comptime/
-            Allows.scala          ← phantom type + grammar nodes (pure types)
+            Allows.scala                    ← phantom type + grammar nodes (pure types,
+                                              cross-version)
+        scala-2/
+          zio/blocks/schema/comptime/
+            AllowsCompanionVersionSpecific.scala  ← Scala 2 macro + |[A,B] union emulation
         scala-3/
           zio/blocks/schema/comptime/
-            AllowsMacro.scala     ← macro implementation
-            AllowsVersionSpecific.scala ← `given Allows[S]` synthesised by macro
+            AllowsCompanionVersionSpecific.scala  ← Scala 3 macro + native | union support
       test/
         scala/
           zio/blocks/schema/comptime/
-            AllowsSpec.scala      ← positive and negative compile-time tests
+            AllowsSpec.scala                ← positive compile-time tests (cross-version)
+        scala-2/
+          zio/blocks/schema/comptime/
+            AllowsNegativeSpec.scala        ← typeCheckErrors assertions (Scala 2)
         scala-3/
           zio/blocks/schema/comptime/
-            AllowsNegativeSpec.scala ← typeCheckErrors assertions
+            AllowsNegativeSpec.scala        ← typeCheckErrors assertions (Scala 3)
 ```
 
 ### 3.2 The `Allows[S]` Phantom Type
+
+`Allows.scala` contains the shared cross-version declarations. The companion object
+extends `AllowsCompanionVersionSpecific`, which provides the version-specific macro
+synthesis of `given` instances.
 
 ```scala
 package zio.blocks.schema.comptime
 
 /**
  * A compile-time capability token that constrains the shape of a schema.
- * `Allows[S]` is satisfied when the schema of the implicit `Schema[A]` in
+ * `Allows[S]` is satisfied when the type `A` for which a `Schema[A]` is in
  * scope is structurally compatible with the grammar described by `S`.
  *
- * Allows is an upper bound: any schema "simpler than" S also satisfies it.
+ * Allows is an upper bound: any type "simpler than" S also satisfies it.
+ * The instance carries no runtime data and is represented as a single
+ * private singleton cast to the required phantom type.
  */
 sealed abstract class Allows[S <: Allows.Structural]
 
-object Allows {
+object Allows extends AllowsCompanionVersionSpecific {
+
+  // Single private singleton; the macro casts this to Allows[S] for any S.
+  // This eliminates any per-call-site allocation.
+  private[comptime] val instance: Allows[Any] = new Allows[Any] {}
 
   /** Root of the grammar type hierarchy. All shape descriptors extend this. */
   abstract class Structural
@@ -263,42 +279,60 @@ object Allows {
 
   /**
    * Matches Option[A] where the inner type satisfies A.
-   * Optional is a convenience alias; Option is derived as Variant internally
-   * but the macro recognises it structurally and applies this grammar node.
+   * Option is handled as a dedicated grammar node rather than as a generic
+   * two-case Variant, so that users can express Optional[Primitive] without
+   * being forced to spell out the full Option Variant structure.
    */
   abstract class Optional[A <: Structural] extends Structural
 
   /**
-   * Matches a wrapper / newtype / opaque type (Reflect.Wrapper) whose
-   * underlying type satisfies A.
+   * Matches a wrapper / newtype / opaque type whose underlying type satisfies A.
    */
   abstract class Wrapped[A <: Structural] extends Structural
 
   /**
-   * Matches DynamicValue (Reflect.Dynamic) — the schema-less escape hatch.
-   * No further constraint.
+   * Matches DynamicValue — the schema-less escape hatch. No further constraint.
    */
   abstract class Dynamic extends Structural
 
   /**
-   * Recursive self-reference. When used inside a grammar expression,
-   * Self refers back to the entire enclosing Allows[...] constraint.
-   * Allows the grammar to describe recursive data structures.
-   * Mutual recursion is a compile-time error.
+   * Recursive self-reference. When used inside a grammar expression, Self
+   * refers back to the entire enclosing Allows[...] constraint, allowing the
+   * grammar to describe recursive data structures. Mutual recursion between
+   * two or more distinct types is a compile-time error.
    */
   abstract class Self extends Structural
+
+  /**
+   * Union of two grammar nodes. Used in Scala 2 to emulate the native `|`
+   * union type syntax available in Scala 3. In Scala 3, use `A | B` directly.
+   *
+   * Example (Scala 2):
+   *   Allows[Record[|[Primitive, |[Sequence[Primitive], Map[Primitive, Primitive]]]]]
+   *
+   * Equivalent (Scala 3):
+   *   Allows[Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]
+   */
+  abstract class |[A <: Structural, B <: Structural] extends Structural
 }
 ```
 
 ### 3.3 The Macro
 
-`AllowsMacro.scala` (Scala 3 only) provides:
+The macro is provided in `AllowsCompanionVersionSpecific.scala`, one version per
+Scala major version, mixed into the `Allows` companion object.
+
+#### Scala 3 — `scala-3/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala`
 
 ```scala
 package zio.blocks.schema.comptime
 
 import scala.quoted.*
-import zio.blocks.schema.{Schema, Reflect}
+
+trait AllowsCompanionVersionSpecific {
+  inline given derived[S <: Allows.Structural, A]: Allows[S] =
+    ${ AllowsMacro.deriveAllows[S, A] }
+}
 
 object AllowsMacro {
   def deriveAllows[S <: Allows.Structural : Type, A : Type](
@@ -307,18 +341,21 @@ object AllowsMacro {
 }
 ```
 
-The macro is invoked via a `given` synthesis in `AllowsVersionSpecific.scala`:
+#### Scala 2 — `scala-2/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala`
 
 ```scala
 package zio.blocks.schema.comptime
 
-import scala.quoted.*
-import zio.blocks.schema.Schema
+import scala.language.experimental.macros
+import scala.reflect.macros.whitebox
 
-trait AllowsVersionSpecific {
-  inline given derived[S <: Allows.Structural, A](
-    using schema: Schema[A]
-  ): Allows[S] = ${ AllowsMacro.deriveAllows[S, A] }
+trait AllowsCompanionVersionSpecific {
+  implicit def derived[S <: Allows.Structural, A]: Allows[S] =
+    macro AllowsMacro.deriveAllows[S, A]
+}
+
+object AllowsMacro {
+  def deriveAllows[S <: Allows.Structural, A](c: whitebox.Context): c.Expr[Allows[S]] = ???
 }
 ```
 
@@ -327,65 +364,89 @@ trait AllowsVersionSpecific {
 The macro receives two type arguments at elaboration time:
 
 - `S` — the grammar type (the phantom type parameter of `Allows`)
-- `A` — the user's data type (from the `Schema[A]` in scope)
+- `A` — the user's data type inferred at the call site
 
-It proceeds as follows:
+**It does not use `Schema[A]` or `Reflect` at compile time.** Both are runtime
+constructs. Instead, the macro inspects the Scala type structure of `A` directly,
+using:
 
-1. **Decompose `S`** into a grammar tree by inspecting the `TypeRepr` of `S`:
-   - `Allows.Primitive` → `GrammarNode.Primitive`
-   - `Allows.Record[inner]` → `GrammarNode.Record(decompose(inner))`
-   - `Allows.Variant[inner]` → `GrammarNode.Variant(decomposeUnion(inner))`
-   - `Allows.Sequence[inner]` → `GrammarNode.Sequence(decompose(inner))`
-   - `Allows.Map[k, v]` → `GrammarNode.Map(decompose(k), decompose(v))`
-   - `Allows.Optional[inner]` → `GrammarNode.Optional(decompose(inner))`
-   - `Allows.Wrapped[inner]` → `GrammarNode.Wrapped(decompose(inner))`
-   - `Allows.Dynamic` → `GrammarNode.Dynamic`
-   - `Allows.Self` → `GrammarNode.Self`
-   - Union `A | B` → `GrammarNode.Union(List(decompose(A), decompose(B)))`
+- **Scala 3**: `scala.quoted.quotes.reflect.TypeRepr`, `Symbol`, and optionally
+  `scala.deriving.Mirror` for product/sum decomposition
+- **Scala 2**: `c.universe.Type`, `c.universe.Symbol`, and `TypeTag`
 
-2. **Obtain the `Reflect` tree** of `A` by summoning `Schema[A]` and reading its
-   `reflect` field. The `Reflect` tree is inspected structurally via `Reflect`'s
-   pattern-matchable node types.
+The macro proceeds as follows:
 
-3. **Walk `Reflect` against the grammar**, carrying:
-   - The current grammar node `G`
-   - The path so far (list of field/case names for error messages)
-   - A `seen: Set[TypeId]` for cycle detection (mutual recursion → error)
-   - The root grammar `G0` for `Self` resolution
+**Step 1 — Decompose `S` into a grammar tree** by inspecting the `TypeRepr` / `Type`
+of `S`:
 
-   At each step, `check(reflect: Reflect[_, _], grammar: GrammarNode, path: List[String])`:
+- `Allows.Primitive` → `GrammarNode.Primitive`
+- `Allows.Record[inner]` → `GrammarNode.Record(decompose(inner))`
+- `Allows.Variant[inner]` → `GrammarNode.Variant(decomposeUnion(inner))`
+- `Allows.Sequence[inner]` → `GrammarNode.Sequence(decompose(inner))`
+- `Allows.Map[k, v]` → `GrammarNode.Map(decompose(k), decompose(v))`
+- `Allows.Optional[inner]` → `GrammarNode.Optional(decompose(inner))`
+- `Allows.Wrapped[inner]` → `GrammarNode.Wrapped(decompose(inner))`
+- `Allows.Dynamic` → `GrammarNode.Dynamic`
+- `Allows.Self` → `GrammarNode.Self`
+- Scala 3 native union `A | B` → `GrammarNode.Union(List(decompose(A), decompose(B)))`
+- `Allows.|[A, B]` (Scala 2 emulation) → `GrammarNode.Union(List(decompose(A), decompose(B)))`
 
-   | Reflect node | Grammar node | Result |
-   |---|---|---|
-   | `Reflect.Primitive` | `GrammarNode.Primitive` | ✓ |
-   | `Reflect.Primitive` | `GrammarNode.Union(gs)` | ✓ if any `g` in `gs` accepts Primitive |
-   | `Reflect.Record(fields)` | `GrammarNode.Record(inner)` | recurse each field against `inner` |
-   | `Reflect.Record(fields)` | `GrammarNode.Union(gs)` | ✓ if any `g` in `gs` is `Record(...)` that accepts all fields |
-   | `Reflect.Variant(cases)` | `GrammarNode.Variant(inners)` | each case must satisfy `Union(inners)` |
-   | `Reflect.Sequence(elem)` | `GrammarNode.Sequence(inner)` | recurse `elem` against `inner` |
-   | `Reflect.Map(k, v)` | `GrammarNode.Map(gk, gv)` | recurse `k` against `gk`, `v` against `gv` |
-   | `Reflect.Wrapper(inner)` | `GrammarNode.Wrapped(g)` | recurse `inner` against `g` |
-   | `Reflect.Dynamic` | `GrammarNode.Dynamic` | ✓ |
-   | `Reflect.Deferred(...)` | any — `typeId` in `seen` | ✗ compile error: mutual recursion |
-   | `Reflect.Deferred(...)` | `GrammarNode.Self` | ✓ self-recursion accepted |
-   | `Reflect.Deferred(...)` | any — `typeId` == root typeId | recurse root against root grammar |
-   | any | `GrammarNode.Self` | recurse against root grammar `G0` |
+**Step 2 — Inspect the type structure of `A`** by examining the `Symbol` of `A`:
 
-   Special rule for `Option[A]`: the macro recognises `Option` by `TypeId` and
-   routes it to `GrammarNode.Optional(inner)` checking rather than treating it as a
-   generic two-case `Variant`.
+- If `A` is a primitive (Boolean, Int, String, UUID, Instant, etc.) →
+  `TypeNode.Primitive`
+- If `A` is a case class / product → `TypeNode.Record(fields: List[(name, TypeNode)])`
+  by inspecting primary constructor parameters
+- If `A` is a sealed trait / abstract class / enum → `TypeNode.Variant(cases: List[TypeNode])`
+  by inspecting `knownDirectSubclasses` (Scala 2) or `Symbol.children` (Scala 3)
+- If `A` is `Option[B]` → `TypeNode.Optional(inspect(B))`
+- If `A` is a known collection type (List, Vector, Set, Chunk, Array, etc.) →
+  `TypeNode.Sequence(inspect(elementType))`
+- If `A` is a known map type (Map, HashMap, etc.) →
+  `TypeNode.Map(inspect(keyType), inspect(valueType))`
+- If `A` is an opaque type / newtype wrapper → `TypeNode.Wrapped(inspect(underlyingType))`
+- If `A` is `DynamicValue` → `TypeNode.Dynamic`
+- If `A` is a type alias → dereference and re-inspect
 
-4. **Error accumulation**: all violations are collected (not short-circuited) before
-   reporting, so the user sees the full set of problems in one compilation pass.
+**Step 3 — Walk `TypeNode` against `GrammarNode`**, carrying:
+- The current grammar node `G`
+- The path so far (list of field/case names for error messages)
+- A `seen: Set[TypeSymbol]` for cycle detection (mutual recursion → error)
+- The root type `A0` and root grammar `G0` for `Self` resolution
 
-5. **Error reporting**: each error includes:
-   - The path to the violating node (`Order.items`, `Filter.tags.elem`, etc.)
-   - What was found (`Sequence[Record[...]]`)
-   - What was required at that position
-   - A concrete suggested fix
+Check table:
 
-6. **Success**: the macro emits `new Allows[S] {}` (a trivial anonymous subclass).
-   The instance carries no runtime data — it is erased to a singleton allocation.
+| Type node | Grammar node | Result |
+|---|---|---|
+| `TypeNode.Primitive` | `GrammarNode.Primitive` | ✓ |
+| `TypeNode.Primitive` | `GrammarNode.Union(gs)` | ✓ if any `g` in `gs` accepts Primitive |
+| `TypeNode.Record(fields)` | `GrammarNode.Record(inner)` | recurse each field against `inner` |
+| `TypeNode.Record(fields)` | `GrammarNode.Union(gs)` | ✓ if any `g` in `gs` is `Record(...)` that accepts all fields |
+| `TypeNode.Variant(cases)` | `GrammarNode.Variant(inners)` | each case must satisfy `Union(inners)` |
+| `TypeNode.Sequence(elem)` | `GrammarNode.Sequence(inner)` | recurse `elem` against `inner` |
+| `TypeNode.Map(k, v)` | `GrammarNode.Map(gk, gv)` | recurse `k` against `gk`, `v` against `gv` |
+| `TypeNode.Wrapped(inner)` | `GrammarNode.Wrapped(g)` | recurse `inner` against `g` |
+| `TypeNode.Dynamic` | `GrammarNode.Dynamic` | ✓ |
+| `TypeNode.Optional(inner)` | `GrammarNode.Optional(g)` | recurse `inner` against `g` |
+| any — type symbol in `seen`, symbol ≠ root | any | ✗ compile error: mutual recursion |
+| any — type symbol in `seen`, symbol == root | `GrammarNode.Self` | ✓ self-recursion accepted |
+| any — type symbol in `seen`, symbol == root | other grammar | recurse root against root grammar |
+| any | `GrammarNode.Self` | recurse type against root grammar `G0` |
+
+**Step 4 — Error accumulation**: all violations are collected before reporting, so
+the user sees the full set of problems in one compilation pass rather than being
+forced to fix one at a time.
+
+**Step 5 — Error reporting**: each error includes:
+- The path to the violating node (`Order.items`, `Filter.tags.elem`, etc.)
+- What was found (`Sequence[Record[...]]`)
+- What was required at that position
+- A concrete suggested fix where possible
+
+**Step 6 — Success**: the macro emits
+`Allows.instance.asInstanceOf[Allows[S]]`. The singleton `Allows.instance` is
+allocated once, privately, in the companion object. Every successful call site
+reuses this same instance via a cast — zero per-call-site allocation.
 
 ---
 
@@ -448,8 +509,8 @@ case class NestedOption(x: Option[Option[Int]])  // negative: not Allows[Record[
 
 ```scala
 case class WithSeqPrimitive(ids: List[Int], names: Vector[String])
-case class WithSeqRecord(orders: List[Order])     // negative for flat-only constraints
-case class WithSeqSeq(matrix: List[List[Int]])    // negative: nested sequence
+case class WithSeqRecord(orders: List[Order])      // negative for flat-only constraints
+case class WithSeqSeq(matrix: List[List[Int]])     // negative: nested sequence
 case class WithChunk(data: zio.blocks.chunk.Chunk[String])
 case class WithSet(tags: Set[String])
 ```
@@ -458,8 +519,8 @@ case class WithSet(tags: Set[String])
 
 ```scala
 case class WithStringMap(meta: Map[String, Int])
-case class WithStringMapRecord(meta: Map[String, Address]) // negative for Primitive-valued map
-case class WithIntMap(counts: Map[Int, String])            // negative for Map[String, _] constraints
+case class WithStringMapRecord(meta: Map[String, Address])  // negative for Primitive-valued map
+case class WithIntMap(counts: Map[Int, String])             // negative for Map[String, _] constraints
 ```
 
 ### 4.5 Nested records (depth 2)
@@ -529,7 +590,7 @@ case class TreeNode(value: Int, children: List[TreeNode])
 // Direct self-recursion with optional — satisfies Allows[Record[Primitive | Optional[Self]]]
 case class LinkedList(value: String, next: Option[LinkedList])
 
-// Mutual recursion — compile-time error regardless of grammar
+// Mutually recursive — compile-time error regardless of grammar
 case class Forest(trees: List[Tree])
 case class Tree(value: Int, children: Forest)
 ```
@@ -538,7 +599,7 @@ case class Tree(value: Int, children: Forest)
 
 ```scala
 // Top-level Option — satisfies Allows[Optional[Primitive]] but not Allows[Record[_]]
-val optSchema: Schema[Option[Int]] = Schema.derived
+// (tested via the macro directly, not via Schema)
 ```
 
 ### 4.13 Complex realistic types (positive and negative cross-tests)
@@ -576,14 +637,14 @@ case class BadNode(name: String, extra: DynamicValue, children: List[BadNode])
 individually and in combination.
 
 **Positive cases**:
-- Each of the 30 `PrimitiveType` cases satisfies `Allows[Primitive]` when used as a
-  top-level `Schema[A]` (e.g. `Schema[Int]`, `Schema[UUID]`, etc.)
+- Each of the 30 primitive types satisfies `Allows[Primitive]` when used as a
+  top-level type (e.g. `Int`, `UUID`, `Instant`, etc.)
 
 **Negative cases**:
-- `Schema[List[Int]]` does NOT satisfy `Allows[Primitive]`
-- `Schema[Option[Int]]` does NOT satisfy `Allows[Primitive]`
-- `Schema[AllPrimitives]` (a Record) does NOT satisfy `Allows[Primitive]`
-- `Schema[Shape]` (a Variant) does NOT satisfy `Allows[Primitive]`
+- `List[Int]` does NOT satisfy `Allows[Primitive]`
+- `Option[Int]` does NOT satisfy `Allows[Primitive]`
+- `AllPrimitives` (a Record) does NOT satisfy `Allows[Primitive]`
+- `Shape` (a Variant) does NOT satisfy `Allows[Primitive]`
 
 ### 5.2 `AllowsRecordSpec`
 
@@ -599,14 +660,15 @@ individually and in combination.
 - `UserRow` satisfies `Allows[Record[Primitive | Optional[Primitive]]]`
 - `Invoice` satisfies `Allows[Record[Wrapped[Primitive]]]`
 - `WithDynamic` satisfies `Allows[Record[Primitive | Dynamic]]`
-- `Person` satisfies `Allows[Record[Primitive | Self]]` (Address is a Record[Primitive])
+- `Person` satisfies `Allows[Record[Primitive | Self]]`
+  (the `address: Address` field is itself a `Record[Primitive]`, which satisfies `Self`)
 
 **Negative cases**:
-- `Person` does NOT satisfy `Allows[Record[Primitive]]` (address field is Record)
+- `Person` does NOT satisfy `Allows[Record[Primitive]]` (address field is a Record)
 - `WithSeqRecord` does NOT satisfy `Allows[Record[Primitive | Sequence[Primitive]]]`
   (sequence element is Record, not Primitive)
 - `WithSeqSeq` does NOT satisfy `Allows[Record[Primitive | Sequence[Primitive]]]`
-  (element of element is not Primitive)
+  (inner sequence element is not Primitive)
 - `NestedOption` does NOT satisfy `Allows[Record[Optional[Primitive]]]`
 - `OrderRow` does NOT satisfy `Allows[Record[Primitive]]` (customer is Record)
 - `WithDynamic` does NOT satisfy `Allows[Record[Primitive]]` (payload is Dynamic)
@@ -623,7 +685,7 @@ individually and in combination.
   `Allows[Variant[Record[Primitive | Sequence[Primitive]]]]`
 - `DomainEvent` satisfies `Allows[Variant[Record[Primitive]]]`
 - `Shape` satisfies `Allows[Variant[Record[Primitive] | Primitive]]`
-  (even though no case is a bare Primitive — unused branches are fine)
+  (Primitive branch unused — fine under Allows semantics)
 - `Outer` with nested sub-sealed-trait satisfies
   `Allows[Variant[Record[Primitive]]]` if all leaf cases have primitive fields
 
@@ -640,103 +702,108 @@ individually and in combination.
 **Purpose**: `Allows[Sequence[...]]` at top-level and nested.
 
 **Positive cases**:
-- `Schema[List[Int]]` satisfies `Allows[Sequence[Primitive]]`
-- `Schema[Vector[String]]` satisfies `Allows[Sequence[Primitive]]`
-- `Schema[List[Address]]` satisfies `Allows[Sequence[Record[Primitive]]]`
-- `Schema[List[List[Int]]]` satisfies `Allows[Sequence[Sequence[Primitive]]]`
-- `Schema[Chunk[String]]` satisfies `Allows[Sequence[Primitive]]`
-- `Schema[Set[Int]]` satisfies `Allows[Sequence[Primitive]]`
+- `List[Int]` satisfies `Allows[Sequence[Primitive]]`
+- `Vector[String]` satisfies `Allows[Sequence[Primitive]]`
+- `List[Address]` satisfies `Allows[Sequence[Record[Primitive]]]`
+- `List[List[Int]]` satisfies `Allows[Sequence[Sequence[Primitive]]]`
+- `Chunk[String]` satisfies `Allows[Sequence[Primitive]]`
+- `Set[Int]` satisfies `Allows[Sequence[Primitive]]`
 
 **Negative cases**:
-- `Schema[List[Address]]` does NOT satisfy `Allows[Sequence[Primitive]]`
-- `Schema[List[List[Int]]]` does NOT satisfy `Allows[Sequence[Primitive]]`
+- `List[Address]` does NOT satisfy `Allows[Sequence[Primitive]]`
+- `List[List[Int]]` does NOT satisfy `Allows[Sequence[Primitive]]`
 
 ### 5.5 `AllowsMapSpec`
 
 **Purpose**: `Allows[Map[K, V]]` at top-level and nested.
 
 **Positive cases**:
-- `Schema[Map[String, Int]]` satisfies `Allows[Map[Primitive, Primitive]]`
-- `Schema[Map[String, Int]]` satisfies `Allows[Map[Primitive, Primitive]]`
-- `Schema[Map[String, Address]]` satisfies `Allows[Map[Primitive, Record[Primitive]]]`
-- `Schema[Map[Int, List[String]]]` satisfies
-  `Allows[Map[Primitive, Sequence[Primitive]]]`
+- `Map[String, Int]` satisfies `Allows[Map[Primitive, Primitive]]`
+- `Map[String, Address]` satisfies `Allows[Map[Primitive, Record[Primitive]]]`
+- `Map[Int, List[String]]` satisfies `Allows[Map[Primitive, Sequence[Primitive]]]`
 
 **Negative cases**:
-- `Schema[Map[String, Address]]` does NOT satisfy `Allows[Map[Primitive, Primitive]]`
-- `Schema[Map[String, Int]]` does NOT satisfy `Allows[Map[String, Primitive]]`
-  (note: `String` in phantom position must be `Primitive`, not a literal type)
-- `Schema[Map[List[Int], String]]` does NOT satisfy `Allows[Map[Primitive, Primitive]]`
+- `Map[String, Address]` does NOT satisfy `Allows[Map[Primitive, Primitive]]`
+- `Map[List[Int], String]` does NOT satisfy `Allows[Map[Primitive, Primitive]]`
 
 ### 5.6 `AllowsOptionalSpec`
 
 **Purpose**: `Allows[Optional[...]]` at top-level and nested.
 
 **Positive cases**:
-- `Schema[Option[Int]]` satisfies `Allows[Optional[Primitive]]`
-- `Schema[Option[Address]]` satisfies `Allows[Optional[Record[Primitive]]]`
-- `Schema[Option[List[Int]]]` satisfies `Allows[Optional[Sequence[Primitive]]]`
+- `Option[Int]` satisfies `Allows[Optional[Primitive]]`
+- `Option[Address]` satisfies `Allows[Optional[Record[Primitive]]]`
+- `Option[List[Int]]` satisfies `Allows[Optional[Sequence[Primitive]]]`
 
 **Negative cases**:
-- `Schema[Option[Address]]` does NOT satisfy `Allows[Optional[Primitive]]`
-- `Schema[Option[List[Int]]]` does NOT satisfy `Allows[Optional[Primitive]]`
-- `Schema[Option[Option[Int]]]` does NOT satisfy `Allows[Optional[Primitive]]`
+- `Option[Address]` does NOT satisfy `Allows[Optional[Primitive]]`
+- `Option[List[Int]]` does NOT satisfy `Allows[Optional[Primitive]]`
+- `Option[Option[Int]]` does NOT satisfy `Allows[Optional[Primitive]]`
 
 ### 5.7 `AllowsWrappedSpec`
 
 **Purpose**: `Allows[Wrapped[...]]` for opaque/newtype types.
 
 **Positive cases**:
-- `Schema[UserId]` satisfies `Allows[Wrapped[Primitive]]`
-- `Schema[Amount]` satisfies `Allows[Wrapped[Primitive]]`
-- `Schema[UserId]` satisfies `Allows[Primitive | Wrapped[Primitive]]`
+- `UserId` satisfies `Allows[Wrapped[Primitive]]`
+- `Amount` satisfies `Allows[Wrapped[Primitive]]`
 - `Invoice` satisfies `Allows[Record[Wrapped[Primitive]]]`
 
 **Negative cases**:
-- `Schema[UserId]` does NOT satisfy `Allows[Primitive]`
-  (it is `Wrapped[Primitive]`, not bare `Primitive`, unless auto-unwrapping is chosen)
-- `Schema[UserId]` does NOT satisfy `Allows[Record[Primitive]]`
+- `UserId` does NOT satisfy `Allows[Primitive]`
+  (it is `Wrapped[Primitive]`, not a bare primitive)
+- `UserId` does NOT satisfy `Allows[Record[Primitive]]`
 
 ### 5.8 `AllowsDynamicSpec`
 
 **Purpose**: `Allows[Dynamic]` and rejection of `Dynamic` where not permitted.
 
 **Positive cases**:
-- `Schema[DynamicValue]` satisfies `Allows[Dynamic]`
+- `DynamicValue` satisfies `Allows[Dynamic]`
 - `WithDynamic` satisfies `Allows[Record[Primitive | Dynamic]]`
 
 **Negative cases**:
-- `Schema[DynamicValue]` does NOT satisfy `Allows[Primitive]`
+- `DynamicValue` does NOT satisfy `Allows[Primitive]`
 - `WithDynamic` does NOT satisfy `Allows[Record[Primitive]]`
 
-### 5.9 `AllowsSelfSpec`
+### 5.9 `AllowsRecursiveSpec`
 
-**Purpose**: `Self` in recursive grammars; mutual recursion error.
+**Purpose**: `Self` in recursive grammars — positive self-recursion cases, negative
+cases where the recursive type violates the grammar, and compile-time errors for
+mutual recursion.
 
 **Positive cases**:
 - `TreeNode` satisfies `Allows[Record[Primitive | Sequence[Self]]]`
+  (`children: List[TreeNode]` — the element type is `TreeNode` itself, which
+  satisfies the enclosing grammar recursively)
 - `LinkedList` satisfies `Allows[Record[Primitive | Optional[Self]]]`
+  (`next: Option[LinkedList]` — same reasoning)
 - `Category` satisfies
   `Allows[Record[Primitive | Sequence[Self] | Map[String, Self]]]`
-- Non-recursive types satisfy `Self`-containing grammars vacuously:
+- Non-recursive types satisfy `Self`-containing grammars without issue, since the
+  `Self` position is never reached:
   - `AllPrimitives` satisfies `Allows[Record[Primitive | Sequence[Self]]]`
-    (there are no recursive fields, so `Self` is never reached)
   - `UserRow` satisfies `Allows[Record[Primitive | Optional[Self]]]`
 
-**Negative cases**:
+**Negative cases — grammar violation in recursive type**:
 - `BadNode` does NOT satisfy `Allows[Record[Primitive | Sequence[Self]]]`
-  (the `extra: DynamicValue` field violates `Primitive`)
-- `Forest` + `Tree` (mutual recursion) produce a **compile-time error**:
+  (the `extra: DynamicValue` field violates `Primitive | Sequence[Self]`)
+- `TreeNode` does NOT satisfy `Allows[Record[Primitive]]`
+  (the `children` field is `List[TreeNode]`, a Sequence, not a Primitive)
+
+**Negative cases — mutual recursion (compile-time error)**:
+- `Forest` produces a compile-time error for any `Allows[...]` constraint:
   ```
-  [error] Mutual recursion detected in schema for Forest:
+  [error] Mutual recursion detected for Forest:
   [error]   Forest → Tree → Forest
   [error]   Mutually recursive types are not supported by Allows
   ```
+- `Tree` produces the same error (either type in the cycle triggers it)
 
 ### 5.10 `AllowsUnionGrammarSpec`
 
-**Purpose**: Union types (`A | B | C`) in grammar positions — at field level,
-variant case level, and at top level.
+**Purpose**: Union types (`A | B | C` in Scala 3; `|[A, |[B, C]]` in Scala 2) in
+grammar positions — at field level, variant case level, and at top level.
 
 **Positive cases**:
 - `AllPrimitives` satisfies `Allows[Record[Primitive | Optional[Primitive]]]`
@@ -751,8 +818,7 @@ variant case level, and at top level.
 **Negative cases**:
 - `WithSeqRecord` does NOT satisfy
   `Allows[Record[Primitive | Sequence[Primitive]]]`
-  (even though `Record` branch of the union is unused, the actual seq element
-  is a Record which does not match `Primitive`)
+  (the sequence element is a Record which does not match `Primitive`)
 
 ### 5.11 `AllowsErrorMessageSpec`
 
@@ -769,7 +835,7 @@ This suite uses `typeCheckErrors` (from ZIO Test) to assert that:
 6. For top-level shape mismatch (Record where Variant required), the error
    correctly names the outer mismatch
 7. **All violations are reported in a single compilation pass** — not short-circuited
-   after the first error. A type with 3 violating fields must produce 3 errors.
+   after the first error; a type with 3 violating fields must produce 3 errors
 
 ### 5.12 `AllowsCompositionSpec`
 
@@ -804,30 +870,36 @@ def testPublishRejects(): Unit = {
 
 ---
 
-## 6. Open Implementation Notes
+## 6. Implementation Notes
 
-- The `Allows[S]` instance produced by the macro is **erased at runtime** — it is a
-  single anonymous class allocation with no data fields. Libraries may choose to
-  `inline` functions accepting `Allows` to eliminate even this allocation.
+- **Runtime allocation**: The `Allows[S]` instance produced by the macro is
+  `Allows.instance.asInstanceOf[Allows[S]]` — a single private singleton declared
+  once in the companion object and reused at every call site via a cast. There is no
+  per-call-site allocation.
 
-- The macro must handle `Reflect.Deferred` carefully: when it encounters a deferred
-  node whose `TypeId` matches the root type, it is direct self-recursion and is
-  accepted under `Self`. When it encounters a `TypeId` that is different from the
-  root but has already been seen in the walk, it is mutual recursion and is an error.
-  When it encounters a `TypeId` never seen before, it unfolds the deferred node and
-  continues walking.
+- **Type inspection, not Reflect**: The macro inspects the Scala type structure of
+  `A` directly using `TypeRepr` (Scala 3) or `c.universe.Type` (Scala 2). It does
+  not use `Schema[A]` or `Reflect` — those are runtime constructs not available at
+  macro expansion time. Mirrors (`scala.deriving.Mirror`) may be used in Scala 3 as
+  a convenient alternative to direct symbol inspection for product/sum decomposition.
 
-- `Option[A]` is represented in ZIO Schema as a two-case `Reflect.Variant`. The
-  macro must special-case `Option` by its `TypeId` and route it through
-  `GrammarNode.Optional` checking rather than generic `Variant` checking, to
-  preserve the ergonomic `Optional[A]` grammar node for users.
+- **Recursive type detection**: When the macro encounters a type it has already
+  visited (tracked via a `Set` of type symbols):
+  - If the symbol matches the root type `A0` → self-recursion, accepted under `Self`
+  - If the symbol is a different type already in the set → mutual recursion,
+    compile-time error identifying the cycle
 
-- The `Allows` module lives in `zio.blocks.schema.comptime`, a new sbt module that
-  depends on `schema`. It does not modify `schema` itself.
+- **`Option[A]` special-casing**: `Option[A]` is a sealed trait with two cases
+  (`Some` and `None`) but is surfaced in the grammar as `Optional[A]` for
+  ergonomics. The macro recognises `Option` by its fully-qualified type constructor
+  and routes it through `GrammarNode.Optional` checking.
 
-- Scala 2 is **not supported** for `schema-comptime`. The implementation requires
-  Scala 3 inline macros (`scala.quoted`). The module is Scala 3-only.
+- **Scala 2 union emulation**: Scala 2 does not have native union types. The `|[A, B]`
+  type in `Allows` companion provides the equivalent of `A | B`. Users nest `|` for
+  three-or-more alternatives: `|[A, |[B, C]]`. The macro handles both `|[A, B]`
+  and Scala 3 native `A | B` via the same `GrammarNode.Union` internal
+  representation.
 
-- The `testJVM` and `testJS` command aliases in `build.sbt` must be updated to
-  include `schema-comptimeJVM/test` and `schema-comptimeJS/test` respectively.
-  Similarly for `docJVM` and `docJS`.
+- **Location**: All files live within the existing `schema` module under
+  `zio.blocks.schema.comptime`. No new sbt module or `build.sbt` changes are
+  required beyond any coverage threshold adjustments.
