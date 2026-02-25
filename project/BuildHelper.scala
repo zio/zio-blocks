@@ -8,7 +8,7 @@ import scoverage.ScoverageKeys._
 object BuildHelper {
   val Scala213: String = "2.13.18"
   val Scala33: String  = "3.3.7" // LTS
-  val Scala3: String   = "3.7.4"
+  val Scala3: String   = "3.8.2"
 
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
