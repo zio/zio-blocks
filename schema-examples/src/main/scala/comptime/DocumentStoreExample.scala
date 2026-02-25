@@ -2,8 +2,8 @@ package comptime
 
 import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
-import Allows.{ Primitive, Record, Sequence, Variant, `|` }
-import Allows.{ Map => AMap, Optional => AOptional, Self => ASelf }
+import Allows.{Primitive, Record, Sequence, Variant, `|`}
+import Allows.{Map => AMap, Optional => AOptional, Self => ASelf}
 
 // ---------------------------------------------------------------------------
 // Realistic JSON document-store example using Allows[A, S]
@@ -37,10 +37,10 @@ object BookChapter { implicit val schema: Schema[BookChapter] = Schema.derived }
 case class Book(
   id: java.util.UUID,
   title: String,
-  author: Author,                                              // nested document — via Self
-  chapters: List[BookChapter],                                 // sequence of documents — via Self
-  tags: List[String],                                          // sequence of primitives — via Self
-  metadata: scala.collection.immutable.Map[String, String]     // string map — via Self
+  author: Author,                                          // nested document — via Self
+  chapters: List[BookChapter],                             // sequence of documents — via Self
+  tags: List[String],                                      // sequence of primitives — via Self
+  metadata: scala.collection.immutable.Map[String, String] // string map — via Self
 )
 object Book { implicit val schema: Schema[Book] = Schema.derived }
 
@@ -50,8 +50,8 @@ object Category { implicit val schema: Schema[Category] = Schema.derived }
 
 // Compatible: variant of search result types
 sealed trait SearchResult
-case class BookResult(title: String, score: Double)    extends SearchResult
-case class AuthorResult(name: String, bookCount: Int)  extends SearchResult
+case class BookResult(title: String, score: Double)   extends SearchResult
+case class AuthorResult(name: String, bookCount: Int) extends SearchResult
 object SearchResult { implicit val schema: Schema[SearchResult] = Schema.derived }
 
 // Incompatible: contains DynamicValue (not in the document grammar)
@@ -64,10 +64,11 @@ object UntypedDocument { implicit val schema: Schema[UntypedDocument] = Schema.d
 
 object DocumentStore {
 
-  /** The grammar of a valid JSON document: a record whose fields are either
-    * primitive values, optional nested documents, sequences of nested
-    * documents, or string-keyed maps of nested documents. Recursive via Self.
-    */
+  /**
+   * The grammar of a valid JSON document: a record whose fields are either
+   * primitive values, optional nested documents, sequences of nested documents,
+   * or string-keyed maps of nested documents. Recursive via Self.
+   */
   // A JSON document field may be:
   //   - A primitive scalar
   //   - A nested document (another record satisfying this grammar)
@@ -76,13 +77,17 @@ object DocumentStore {
   //   - A map from primitive keys to primitive values or nested documents
   // The `Self` node allows arbitrary recursive nesting at any position.
   type JsonDocument =
-    Record[Primitive | ASelf | AOptional[Primitive | ASelf] | Sequence[Primitive | ASelf] | AMap[Primitive, Primitive | ASelf]]
+    Record[
+      Primitive | ASelf | AOptional[Primitive | ASelf] | Sequence[Primitive | ASelf] |
+        AMap[Primitive, Primitive | ASelf]
+    ]
 
-  /** Convert a document to its JSON representation.
-    *
-    * The type must satisfy the JsonDocument grammar — a record (not a bare
-    * primitive or sequence) whose fields recursively satisfy the same grammar.
-    */
+  /**
+   * Convert a document to its JSON representation.
+   *
+   * The type must satisfy the JsonDocument grammar — a record (not a bare
+   * primitive or sequence) whose fields recursively satisfy the same grammar.
+   */
   def toJson[A: Schema](doc: A)(implicit ev: Allows[A, JsonDocument]): String =
     Schema[A].toDynamicValue(doc).toJson.toString
 

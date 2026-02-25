@@ -2,8 +2,8 @@ package comptime
 
 import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
-import Allows.{ Primitive, Record, Variant, `|` }
-import Allows.{ Map => AMap, Optional => AOptional }
+import Allows.{Primitive, Record, Variant, `|`}
+import Allows.{Map => AMap, Optional => AOptional}
 
 // ---------------------------------------------------------------------------
 // Realistic RDBMS example using Allows[A, S] compile-time shape constraints
@@ -46,7 +46,7 @@ object ProductRow {
 
 // Compatible: event table — a variant (sealed trait) of flat record cases
 sealed trait DomainEvent
-case class UserCreated(id: java.util.UUID, name: String, email: String)              extends DomainEvent
+case class UserCreated(id: java.util.UUID, name: String, email: String)               extends DomainEvent
 case class UserDeleted(id: java.util.UUID)                                            extends DomainEvent
 case class OrderPlaced(id: java.util.UUID, userId: java.util.UUID, total: BigDecimal) extends DomainEvent
 object DomainEvent {
@@ -85,7 +85,7 @@ object Rdbms {
     ev: Allows[A, Record[FlatRow]]
   ): String = {
     val fields = schema.reflect.asRecord.get.fields
-    val cols = fields.map { f =>
+    val cols   = fields.map { f =>
       val tpe = sqlType(f.value)
       s"  ${f.name} $tpe"
     }
@@ -107,9 +107,10 @@ object Rdbms {
     }
   }
 
-  /** Insert an event into an event-sourcing table. Type must be a variant
-    * whose cases are flat records.
-    */
+  /**
+   * Insert an event into an event-sourcing table. Type must be a variant whose
+   * cases are flat records.
+   */
   def insertEvent[A](event: A)(implicit
     schema: Schema[A],
     ev: Allows[A, Variant[Record[FlatRow]]]
@@ -155,7 +156,7 @@ object Rdbms {
         case PrimitiveType.LocalDateTime(_) => "TIMESTAMP"
         case _                              => "TEXT"
       }
-    case _: Reflect.Map[_, _, _, _]  => "JSONB"
+    case _: Reflect.Map[_, _, _, _]   => "JSONB"
     case _: Reflect.Sequence[_, _, _] => "TEXT[]"
     case _                            => "TEXT"
   }
