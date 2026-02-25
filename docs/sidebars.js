@@ -36,6 +36,7 @@ const sidebars = {
       type: "category",
       label: "Guides",
       items: [
+        "guides/zio-schema-migration",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
         "guides/query-dsl-extending",

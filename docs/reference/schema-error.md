@@ -522,10 +522,10 @@ object PositiveInt {
 
 When `make` throws a `SchemaError`, the codec catches it, preserves the full error (including any path already annotated), and surfaces it as `Left(schemaError)` from `Schema#fromDynamicValue` or `Codec#decode`. See [Schema](./schema.md) for the full `transform` API.
 
-A runnable version of this example, including composite types and error aggregation, is available in the `zio-blocks-examples` module:
+A runnable version of this example, including composite types and error aggregation, is available in the `schema-examples` module:
 
 ```bash
-sbt "examples/runMain schemaerror.SchemaErrorExample"
+sbt "schema-examples/runMain schemaerror.SchemaErrorExample"
 ```
 
 ### With Validation
