@@ -987,7 +987,8 @@ object DeriveGen extends Deriver[Gen] {
     examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = {
     // Cast binding to Binding.Seq to access the constructor
-    val constructor = binding.asInstanceOf[Binding.Seq[C, A]].constructor
+    val constructor  = binding.asInstanceOf[Binding.Seq[C, A]].constructor
+    val elemClassTag = element.typeId.classTag.asInstanceOf[scala.reflect.ClassTag[A]]
     // Sequences are structurally non-recursive, so we can use monadic .map composition.
     // instance(...).map { elementGen => ... } returns a Lazy that, when forced, builds
     // a Gen[C[A]] with elementGen already resolved — no .force needed at generate()-time.
@@ -995,7 +996,7 @@ object DeriveGen extends Deriver[Gen] {
       new Gen[C[A]] {
         def generate(random: Random): C[A] = {
           val length = random.nextInt(6) // 0 to 5 elements
-          implicit val ct: scala.reflect.ClassTag[A] = scala.reflect.ClassTag.Any.asInstanceOf[scala.reflect.ClassTag[A]]
+          implicit val ct: scala.reflect.ClassTag[A] = elemClassTag
 
           if (length == 0) {
             constructor.empty[A]
@@ -1264,7 +1265,8 @@ def deriveSequence[F[_, _], C[_], A](
   examples: Seq[C[A]]
 )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = {
   // Cast binding to Binding.Seq to access the constructor
-  val constructor = binding.asInstanceOf[Binding.Seq[C, A]].constructor
+  val constructor  = binding.asInstanceOf[Binding.Seq[C, A]].constructor
+  val elemClassTag = element.typeId.classTag.asInstanceOf[scala.reflect.ClassTag[A]]
   // Sequences are structurally non-recursive, so we can use monadic .map composition.
   // instance(...).map { elementGen => ... } returns a Lazy that, when forced, builds
   // a Gen[C[A]] with elementGen already resolved — no .force needed at generate()-time.
@@ -1272,7 +1274,7 @@ def deriveSequence[F[_, _], C[_], A](
     new Gen[C[A]] {
       def generate(random: Random): C[A] = {
         val length = random.nextInt(6) // 0 to 5 elements
-        implicit val ct: scala.reflect.ClassTag[A] = scala.reflect.ClassTag.Any.asInstanceOf[scala.reflect.ClassTag[A]]
+        implicit val ct: scala.reflect.ClassTag[A] = elemClassTag
 
         if (length == 0) {
           constructor.empty[A]

@@ -176,13 +176,13 @@ object DeriveGenExample extends App {
         new Gen[C[A]] {
           def generate(random: Random): C[A] = {
             val length                   = random.nextInt(6) // 0 to 5 elements
-            implicit val ct: ClassTag[A] = ClassTag.Any.asInstanceOf[ClassTag[A]]
+            implicit val ct: ClassTag[A] = elemClassTag
 
             if (length == 0) {
               constructor.empty[A]
             } else {
               // Build the collection by generating each element and adding it to the builder
-              val builder = constructor.newBuilder[A](length)(elemClassTag)
+              val builder = constructor.newBuilder[A](length)
               (0 until length).foreach { _ =>
                 constructor.add(builder, elementGen.generate(random))
               }
