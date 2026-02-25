@@ -12,7 +12,7 @@ The validation system in ZIO Blocks provides:
 - **Declarative constraints** on numeric and string values
 - **Automatic enforcement** during schema-based decoding
 - **Integration with wrapper types** via `transform` for custom validation logic
-- **Schema error reporting** with path information for debugging
+- **Schema error reporting** with path information for debugging via [`SchemaError`](./schema-error.md)
 
 ```
 Validation[A]

@@ -2,7 +2,7 @@
 name: write-how-to-guide
 description: Write a how-to guide on a specific topic in ZIO Blocks. Use when the user asks to write a guide, tutorial, or walkthrough that teaches how to accomplish a concrete goal using ZIO Blocks data types and APIs.
 argument-hint: "[guide title or topic description]"
-allowed-tools: Read, Glob, Grep, Bash(sbt:*)
+allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 ---
 
 # Write a How-To Guide
@@ -64,7 +64,19 @@ Search for realistic usage patterns:
 2. **Test suites**: The best source of idiomatic code. Look for integration tests that combine multiple types.
 3. **Cross-module usages**: Grep for how the core types are used across different modules — this reveals integration patterns.
 
-### 1d. Answer These Research Questions
+### 1d. Search GitHub History
+
+Run `sbt "gh-query --verbose <topic>"` to search GitHub issues, PRs, and comments for discussions related to the guide topic. Use the results to:
+
+- Understand design decisions and rationale behind the APIs involved
+- Find known caveats, gotchas, or non-obvious behavior surfaced in issues
+- Discover common user questions or pain points to address in the guide
+- Identify real-world use cases shared by contributors in PRs or discussions
+- Surface concrete examples or idioms mentioned by contributors
+
+Run multiple queries as needed — use the guide topic, the names of core types involved, and related feature keywords to get thorough coverage.
+
+### 1e. Answer These Research Questions
 
 Before proceeding to writing, you must be able to answer every one of these questions. Write the answers down (internally) as they will directly inform the guide structure:
 
