@@ -53,8 +53,7 @@ All grammar nodes extend `Allows.Structural`.
 | `Primitive.UUID` | `java.util.UUID` only |
 | `Primitive.Currency` | `java.util.Currency` only |
 | `Primitive.Instant` / `LocalDate` / `LocalDateTime` / … | Each specific `java.time.*` type |
-| `Record[A]` | A case class / product type whose every field satisfies `A`. Vacuously true for zero-field records (case objects, enum singletons). |
-| `Variant[A]` | A sealed trait / enum whose every case satisfies at least one branch of `A`. No requirement that all branches of `A` are exercised. |
+| `Record[A]` | A case class / product type whose every field satisfies `A`. Vacuously true for zero-field records. Sealed traits and enums are **automatically unwrapped**: each case is checked individually, so no `Variant` node is needed. |
 | `Sequence[A]` | `List`, `Vector`, `Set`, `Array`, `Chunk`, … whose element type satisfies `A` |
 | `Map[K, V]` | `Map`, `HashMap`, … whose key satisfies `K` and value satisfies `V` |
 | `Optional[A]` | `Option[X]` where the inner type `X` satisfies `A` |
@@ -184,23 +183,24 @@ If a user passes a type with nested records, they get a precise compile-time err
 
 ### Event Bus / Message Broker
 
-Published events must be sealed traits of flat record cases:
+Published events are typically sealed traits of flat record cases. No `Variant` node is needed — sealed traits are automatically unwrapped:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 import zio.blocks.schema.comptime.Allows
 import Allows._
 
+// DomainEvent is a sealed trait; its cases must each satisfy Record[Primitive | Sequence[Primitive]]
 def publish[A: Schema](event: A)(using
-  Allows[A, Variant[Record[Primitive | Optional[Primitive] | Sequence[Primitive]]]]
+  Allows[A, Record[Primitive | Optional[Primitive] | Sequence[Primitive]]]
 ): Unit = ???
 ```
 
-If a plain record (not a variant) is passed:
+If a case of the sealed trait has a nested record field, the error names that case and field:
 
 ```
-[error] Schema shape violation at UserRow: found Record(UserRow),
-        required Variant[...]
+[error] Schema shape violation at DomainEvent.OrderPlaced.items.<element>:
+        found Record(OrderItem), required Primitive | Optional[Primitive] | Sequence[Primitive]
 ```
 
 ### JSON Document Store (Recursive)
@@ -280,11 +280,26 @@ opaque type UserId = java.util.UUID
 // UserId satisfies Allows[UserId, Primitive] — resolved to UUID (a primitive)
 ```
 
-## `Variant[A]` Semantics
+## Sealed Traits and Enums (Auto-Unwrap)
 
-`Variant[A]` means: **every case** of the variant must satisfy at least one branch of `A`. The union inside `Variant[...]` describes allowed case shapes.
+Sealed traits and enums are **automatically unwrapped** by the macro. Whenever a sealed type is encountered at any grammar check position, the macro recursively checks every case against the same grammar. This makes a `Variant` grammar node unnecessary.
 
-No requirement that all branches of `A` are exercised. A variant whose cases all happen to be `Record[Primitive]` satisfies `Variant[Record[Primitive] | Sequence[Primitive]]` — the `Sequence[Primitive]` branch is simply unused, which is fine under upper-bound semantics.
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+sealed trait Shape
+case class Circle(radius: Double)                    extends Shape
+case class Rectangle(width: Double, height: Double)  extends Shape
+case object Point                                    extends Shape
+
+// No Variant node — Shape is auto-unwrapped, all cases checked against Record[Primitive]
+val ev: Allows[Shape, Record[Primitive]] = implicitly
+```
+
+Auto-unwrap is recursive: if a case is itself a sealed trait, its cases are unwrapped too, to any depth.
+
+Union branches (`A | B`) work naturally with auto-unwrap: unused branches are fine under `Allows` upper-bound semantics.
 
 ## Error Messages
 

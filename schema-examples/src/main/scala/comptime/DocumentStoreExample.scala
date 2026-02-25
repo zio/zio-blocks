@@ -2,7 +2,7 @@ package comptime
 
 import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
-import Allows.{Record, Sequence, Variant, `|`}
+import Allows.{Record, Sequence, `|`}
 import Allows.{Optional => AOptional, Self => ASelf}
 
 // ---------------------------------------------------------------------------
@@ -107,9 +107,13 @@ object DocumentStore {
   def serialize[A: Schema](doc: A)(implicit ev: Allows[A, Json]): DynamicValue =
     Schema[A].toDynamicValue(doc)
 
-  /** Index a search result. The type must be a variant of flat JSON records. */
+  /**
+   * Index a search result. The type must be a sealed trait of flat JSON
+   * records. No explicit Variant node needed — sealed traits are
+   * auto-unwrapped.
+   */
   def index[A: Schema](result: A)(implicit
-    ev: Allows[A, Variant[Record[JsonPrimitive | AOptional[JsonPrimitive | ASelf] | Sequence[JsonPrimitive | ASelf]]]]
+    ev: Allows[A, Record[JsonPrimitive | AOptional[JsonPrimitive | ASelf] | Sequence[JsonPrimitive | ASelf]]]
   ): String = {
     val typeName = Schema[A].toDynamicValue(result) match {
       case DynamicValue.Variant(name, _) => name

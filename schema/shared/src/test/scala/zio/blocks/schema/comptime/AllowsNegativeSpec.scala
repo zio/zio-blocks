@@ -180,48 +180,8 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
           )
         )
       },
-      test("Variant type does NOT satisfy Record[...]") {
-        typeCheck("""
-          import zio.blocks.schema.Schema
-          import zio.blocks.schema.comptime.Allows
-          import Allows._
-          sealed trait Ev
-          case class EvA(x: Int) extends Ev
-          object Ev { implicit val schema: Schema[Ev] = Schema.derived }
-          implicitly[Allows[Ev, Record[Primitive]]]
-        """).map(
-          assert(_)(
-            isLeft(
-              containsString("Allows Error") ||
-                containsString("Shape violation") ||
-                containsString("could not find") ||
-                containsString("No given instance")
-            )
-          )
-        )
-      }
-    ),
-    suite("Variant violations")(
-      test("Record type does NOT satisfy Variant[Record[Primitive]]") {
-        typeCheck("""
-          import zio.blocks.schema.Schema
-          import zio.blocks.schema.comptime.Allows
-          import Allows._
-          case class JustARecord(id: Int)
-          object JustARecord { implicit val schema: Schema[JustARecord] = Schema.derived }
-          implicitly[Allows[JustARecord, Variant[Record[Primitive]]]]
-        """).map(
-          assert(_)(
-            isLeft(
-              containsString("Allows Error") ||
-                containsString("Shape violation") ||
-                containsString("could not find") ||
-                containsString("No given instance")
-            )
-          )
-        )
-      },
-      test("Variant case with nested record fails Variant[Record[Primitive]]") {
+      test("Sealed trait with a case that has a nested record fails Record[Primitive] via auto-unwrap") {
+        // Auto-unwrap means the macro checks each case; OA.inner is a Record, not a Primitive
         typeCheck("""
           import zio.blocks.schema.Schema
           import zio.blocks.schema.comptime.Allows
@@ -230,30 +190,14 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
           object Inner { implicit val schema: Schema[Inner] = Schema.derived }
           sealed trait Outer
           case class OA(inner: Inner) extends Outer
-          case class OB(y: String) extends Outer
+          case class OB(y: String)    extends Outer
           object Outer { implicit val schema: Schema[Outer] = Schema.derived }
-          implicitly[Allows[Outer, Variant[Record[Primitive]]]]
+          implicitly[Allows[Outer, Record[Primitive]]]
         """).map(
           assert(_)(
             isLeft(
               (containsString("inner") && containsString("Found")) ||
                 containsString("Allows Error") ||
-                containsString("could not find") ||
-                containsString("No given instance")
-            )
-          )
-        )
-      },
-      test("Primitive type does NOT satisfy Variant[...]") {
-        typeCheck("""
-          import zio.blocks.schema.comptime.Allows
-          import Allows._
-          implicitly[Allows[Int, Variant[Record[Primitive]]]]
-        """).map(
-          assert(_)(
-            isLeft(
-              containsString("Allows Error") ||
-                containsString("Shape violation") ||
                 containsString("could not find") ||
                 containsString("No given instance")
             )

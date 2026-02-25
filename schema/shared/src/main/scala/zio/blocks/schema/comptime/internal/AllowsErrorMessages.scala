@@ -179,15 +179,14 @@ private[comptime] object AllowsErrorMessages {
         "…",
         color
       )}
-       |    ${cyan("Record[A]", color)}  ${cyan("Variant[A]", color)}  ${cyan("Sequence[A]", color)}  ${cyan(
-        "Map[K,V]",
-        color
-      )}
+       |    ${cyan("Record[A]", color)}  ${cyan("Sequence[A]", color)}  ${cyan("Map[K,V]", color)}
        |    ${cyan("Optional[A]", color)}  ${cyan("Wrapped[A]", color)}  ${cyan("Dynamic", color)}  ${cyan(
         "Self",
         color
       )}
        |    ${cyan("A | B", color)} (union)
+       |
+       |  Note: sealed traits / enums are automatically unwrapped — no ${cyan("Variant", color)} node needed.
        |
        |  ${yellow("Fix:", color)} Replace ${cyan(nodeType, color)} with one of the nodes above.
        |

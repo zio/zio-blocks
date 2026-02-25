@@ -58,9 +58,9 @@ package zio.blocks.schema.comptime
  *
  *   - [[Allows.Primitive]] — any primitive scalar; or use a specific subtype
  *     such as [[Allows.Primitive$.Int]] to restrict to a single kind
- *   - [[Allows.Record]] — a product type (case class); fields must satisfy `A`
- *   - [[Allows.Variant]] — a sum type (sealed trait / enum); cases must satisfy
- *     `A`
+ *   - [[Allows.Record]] — a product type (case class); fields must satisfy `A`.
+ *     Sealed traits and enums are automatically unwrapped: each case is checked
+ *     individually against the grammar, so `Variant` is not needed.
  *   - [[Allows.Sequence]] — a collection (List, Vector, Set, …); elements
  *     satisfy `A`
  *   - [[Allows.Map]] — a key-value map; keys satisfy `K`, values satisfy `V`
@@ -268,17 +268,6 @@ object Allows extends AllowsCompanionVersionSpecific {
   abstract class Record[A <: Structural] extends Structural
 
   /**
-   * Matches a variant (sealed trait / enum) whose every case satisfies at least
-   * one branch of `A`. `A` is a union of allowed case shapes, not a union of
-   * the actual concrete case types. No requirement that all branches of `A` are
-   * exercised by actual cases.
-   *
-   * @tparam A
-   *   The constraint that every case of the variant must satisfy.
-   */
-  abstract class Variant[A <: Structural] extends Structural
-
-  /**
    * Matches a sequence type (List, Vector, Set, Array, Chunk, …) whose element
    * type satisfies `A`.
    *
@@ -299,9 +288,9 @@ object Allows extends AllowsCompanionVersionSpecific {
   abstract class Map[K <: Structural, V <: Structural] extends Structural
 
   /**
-   * Matches `Option[A]` where the inner type satisfies `A`. `Option` is
-   * surfaced as a dedicated grammar node for ergonomics rather than as a
-   * generic two-case `Variant`.
+   * Matches `Option[A]` where the inner type satisfies `A`. `Option` is handled
+   * as a dedicated grammar node rather than being auto-unwrapped as a two-case
+   * sealed trait.
    *
    * @tparam A
    *   The constraint that the inner (unwrapped) type of the `Option` must

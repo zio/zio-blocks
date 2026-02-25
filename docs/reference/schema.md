@@ -633,9 +633,9 @@ def writeCsv[A: Schema](rows: Seq[A])(using
   Allows[A, Record[Primitive | Optional[Primitive]]]
 ): Unit = ???
 
-// Require a variant of flat record cases (e.g. for an event bus)
+// Sealed traits auto-unwrap: each case must satisfy Record[...] — no Variant node needed
 def publish[A: Schema](event: A)(using
-  Allows[A, Variant[Record[Primitive | Sequence[Primitive]]]]
+  Allows[A, Record[Primitive | Sequence[Primitive]]]
 ): Unit = ???
 
 // Recursive grammar (e.g. for a JSON document store)

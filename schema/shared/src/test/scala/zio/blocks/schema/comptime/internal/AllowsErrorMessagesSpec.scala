@@ -104,7 +104,7 @@ object AllowsErrorMessagesSpec extends SchemaBaseSpec {
     test("path <root> renders literally") {
       val msg = AllowsErrorMessages.renderShapeViolation(
         "<root>",
-        "Variant(Ev)",
+        "SealedTrait(Ev)",
         "Record[Primitive]",
         "",
         color = false
@@ -195,14 +195,14 @@ object AllowsErrorMessagesSpec extends SchemaBaseSpec {
       val msg = AllowsErrorMessages.renderUnknownGrammarNode("MyCustomType", color = false)
       assertTrue(msg.contains("MyCustomType"))
     },
-    test("lists valid grammar nodes") {
+    test("lists valid grammar nodes (no Variant — sealed traits auto-unwrap)") {
       val msg = AllowsErrorMessages.renderUnknownGrammarNode("Foo", color = false)
       assertTrue(
         msg.contains("Primitive"),
         msg.contains("Record"),
-        msg.contains("Variant"),
         msg.contains("Sequence"),
-        msg.contains("Self")
+        msg.contains("Self"),
+        !msg.contains("Variant[") // Variant is no longer a grammar node
       )
     },
     test("contains Fix section") {

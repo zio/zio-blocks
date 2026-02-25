@@ -5,7 +5,7 @@ import zio.blocks.schema.{DynamicValue, Schema, SchemaBaseSpec}
 import zio.blocks.schema.Schema._ // bring primitive and collection schemas into implicit scope
 import zio.test._
 // Import grammar nodes individually to avoid Allows.Map shadowing scala.collection.immutable.Map
-import Allows.{Dynamic, Optional, Primitive, Record, Self, Sequence, Variant, `|`}
+import Allows.{Dynamic, Optional, Primitive, Record, Self, Sequence, `|`}
 import Allows.{Map => AMap} // Allows.Map grammar node, distinct from scala Map type
 
 // ---------------------------------------------------------------------------
@@ -233,12 +233,17 @@ object AllowsSpec extends SchemaBaseSpec {
   private val recUser: Allows[UserRow, Record[Primitive | Optional[Primitive]]]              = implicitly
   private val recDyn2: Allows[WithDynamic, Record[Primitive | Dynamic]]                      = implicitly
 
-  // 5.3 Variant
-  private val varShape1: Allows[Shape, Variant[Record[Primitive]]]                       = implicitly
-  private val varEvent1: Allows[Event, Variant[Record[Primitive | Sequence[Primitive]]]] = implicitly
-  private val varDom: Allows[DomainEvent, Variant[Record[Primitive]]]                    = implicitly
-  // Unused branch in union is fine under Allows semantics
-  private val varShape2: Allows[Shape, Variant[Record[Primitive] | Primitive]] = implicitly
+  // 5.3 Sealed-trait auto-unwrap — Variant node no longer needed
+  // Shape is a sealed trait: its cases (Circle, Rectangle, Point) each satisfy Record[Primitive]
+  private val varShape1: Allows[Shape, Record[Primitive]] = implicitly
+  // Event has cases with sequence fields
+  private val varEvent1: Allows[Event, Record[Primitive | Sequence[Primitive]]] = implicitly
+  // DomainEvent has three flat record cases
+  private val varDom: Allows[DomainEvent, Record[Primitive]] = implicitly
+  // Unused branch in union: fine under Allows semantics (auto-unwrap + union)
+  private val varShape2: Allows[Shape, Record[Primitive] | Primitive] = implicitly
+  // Nested sealed trait (Outer contains Inner which is itself sealed)
+  private val varOuter: Allows[Outer, Record[Primitive]] = implicitly
 
   // 5.4 Sequence
   private val seqInt: Allows[List[Int], Sequence[Primitive]]                  = implicitly
@@ -273,7 +278,7 @@ object AllowsSpec extends SchemaBaseSpec {
 
   // 5.10 Union grammar — unused branches are fine
   private val unionAll: Allows[AllPrimitives, Record[Primitive | Optional[Primitive]]]                                 = implicitly
-  private val unionShp: Allows[Shape, Variant[Record[Primitive] | Primitive]]                                          = implicitly
+  private val unionShp: Allows[Shape, Record[Primitive] | Primitive]                                                   = implicitly
   private val unionSeq: Allows[WithSeqPrimitive, Record[Primitive | Sequence[Primitive] | AMap[Primitive, Primitive]]] =
     implicitly
 
@@ -340,11 +345,12 @@ object AllowsSpec extends SchemaBaseSpec {
       test("UserRow satisfies Record[Primitive | Optional[Primitive]]")(assertTrue(recUser.ne(null))),
       test("WithDynamic satisfies Record[Primitive | Dynamic]")(assertTrue(recDyn2.ne(null)))
     ),
-    suite("Variant")(
-      test("Shape satisfies Variant[Record[Primitive]]")(assertTrue(varShape1.ne(null))),
-      test("Event satisfies Variant[Record[Primitive | Sequence[Primitive]]]")(assertTrue(varEvent1.ne(null))),
-      test("DomainEvent satisfies Variant[Record[Primitive]]")(assertTrue(varDom.ne(null))),
-      test("Shape satisfies Variant[Record[Primitive] | Primitive] (unused branch ok)")(assertTrue(varShape2.ne(null)))
+    suite("Sealed-trait auto-unwrap (no Variant node needed)")(
+      test("Shape (sealed trait) satisfies Record[Primitive] via auto-unwrap")(assertTrue(varShape1.ne(null))),
+      test("Event satisfies Record[Primitive | Sequence[Primitive]] via auto-unwrap")(assertTrue(varEvent1.ne(null))),
+      test("DomainEvent satisfies Record[Primitive] via auto-unwrap")(assertTrue(varDom.ne(null))),
+      test("Shape satisfies Record[Primitive] | Primitive (unused branch ok)")(assertTrue(varShape2.ne(null))),
+      test("Outer (nested sealed trait) satisfies Record[Primitive] recursively")(assertTrue(varOuter.ne(null)))
     ),
     suite("Sequence")(
       test("List[Int] satisfies Sequence[Primitive]")(assertTrue(seqInt.ne(null))),
@@ -378,7 +384,7 @@ object AllowsSpec extends SchemaBaseSpec {
     ),
     suite("Union grammar (unused branches are fine)")(
       test("AllPrimitives satisfies Record[Primitive | Optional[Primitive]]")(assertTrue(unionAll.ne(null))),
-      test("Shape satisfies Variant[Record[Primitive] | Primitive]")(assertTrue(unionShp.ne(null))),
+      test("Shape satisfies Record[Primitive] | Primitive (auto-unwrap + union)")(assertTrue(unionShp.ne(null))),
       test("WithSeqPrimitive satisfies Record[Primitive | Sequence[...] | Map[...]]")(assertTrue(unionSeq.ne(null)))
     ),
     suite("Composition: realistic library API")(
@@ -388,11 +394,11 @@ object AllowsSpec extends SchemaBaseSpec {
         val nilUUID = new java.util.UUID(0L, 0L)
         assertTrue(insert(UserRow(nilUUID, "Alice", 30, Some("a@b.com"))) == "ok")
       },
-      test("DomainEvent compiles in publish[Variant[Record[Primitive]]] context") {
-        def publish[A: Schema](e: A)(implicit c: Allows[A, Variant[Record[Primitive]]]): String = "ok"
-        implicit val ds: Schema[DomainEvent]                                                    = DomainEvent.schema
-        val nilUUID                                                                             = new java.util.UUID(0L, 0L)
-        val event: DomainEvent                                                                  = AccountOpened(nilUUID, "Alice")
+      test("DomainEvent compiles in publish[Record[Primitive]] context (auto-unwrap)") {
+        def publish[A: Schema](e: A)(implicit c: Allows[A, Record[Primitive]]): String = "ok"
+        implicit val ds: Schema[DomainEvent]                                           = DomainEvent.schema
+        val nilUUID                                                                    = new java.util.UUID(0L, 0L)
+        val event: DomainEvent                                                         = AccountOpened(nilUUID, "Alice")
         assertTrue(publish(event) == "ok")
       }
     )

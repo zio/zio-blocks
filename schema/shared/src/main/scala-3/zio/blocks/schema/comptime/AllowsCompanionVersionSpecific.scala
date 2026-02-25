@@ -25,7 +25,6 @@ private[comptime] object AllowsMacroImpl {
     case object GDynamic                                  extends GrammarNode
     case object GSelf                                     extends GrammarNode
     case class GRecord(inner: GrammarNode)                extends GrammarNode
-    case class GVariant(inner: GrammarNode)               extends GrammarNode
     case class GSequence(inner: GrammarNode)              extends GrammarNode
     case class GMap(key: GrammarNode, value: GrammarNode) extends GrammarNode
     case class GOptional(inner: GrammarNode)              extends GrammarNode
@@ -40,7 +39,6 @@ private[comptime] object AllowsMacroImpl {
     val dynamicClass   = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Dynamic")
     val selfClass      = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Self")
     val recordClass    = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Record")
-    val variantClass   = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Variant")
     val sequenceClass  = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Sequence")
     val mapClass       = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Map")
     val optionalClass  = Symbol.requiredClass("zio.blocks.schema.comptime.Allows.Optional")
@@ -98,7 +96,6 @@ private[comptime] object AllowsMacroImpl {
         val sym = fn.typeSymbol
         if (sym == pipeClass) GUnion(List(decomposeGrammar(args(0)), decomposeGrammar(args(1))))
         else if (sym == recordClass) GRecord(decomposeGrammar(args(0)))
-        else if (sym == variantClass) GVariant(decomposeGrammar(args(0)))
         else if (sym == sequenceClass) GSequence(decomposeGrammar(args(0)))
         else if (sym == mapClass) GMap(decomposeGrammar(args(0)), decomposeGrammar(args(1)))
         else if (sym == optionalClass) GOptional(decomposeGrammar(args(0)))
@@ -351,19 +348,26 @@ private[comptime] object AllowsMacroImpl {
           case GSelf =>
             return // self-recursion via Self: accepted
           case GRecord(_) =>
-            return // root type satisfies Record[...] by assumption (we're in its own check)
+            return // root type satisfies its own Record grammar by assumption
           case GUnion(_) =>
-            // Probe each branch. Use seen without this type to allow re-examination
-            // (the Self branch will re-add it and terminate correctly).
+            // Probe each branch without the root in seen so Self can re-add it
             checkAgainstUnion(tpe, grammar, path, seen - tpeSym, rootTpe)
             return
           case other =>
-            // Root type re-encountered under a terminal grammar (Primitive, Dynamic,
-            // Sequence, Map, Optional, Wrapped, Variant). The root type clearly
-            // does not satisfy these directly — report a violation.
             err(path, describeType(tpe), describeGrammar(other))
             return
         }
+      }
+
+      // Auto-unwrap: if the type is a user-defined sealed trait / enum (not a
+      // stdlib collection or Option), recursively check all cases against the same
+      // grammar. This makes an explicit Variant node unnecessary.
+      if ((isSealed(dt) || isOrType(dt)) && !isOption(dt) && !isSeqType(dt) && !isMapType(dt)) {
+        val cases = if (isOrType(dt)) allOrTypes(dt) else casesOf(dt)
+        cases.foreach { caseTpe =>
+          check(caseTpe, grammar, caseTpe.typeSymbol.name :: path, seen + tpeSym, rootTpe)
+        }
+        return
       }
 
       grammar match {
@@ -398,19 +402,6 @@ private[comptime] object AllowsMacroImpl {
             }
           } else {
             err(path, describeType(tpe), "Record[...]")
-          }
-
-        case GVariant(inner) =>
-          if (isOrType(dt)) {
-            allOrTypes(dt).foreach { caseTpe =>
-              checkAgainstUnion(caseTpe, inner, caseTpe.typeSymbol.name :: path, seen + tpeSym, rootTpe)
-            }
-          } else if (isSealed(dt)) {
-            casesOf(dt).foreach { caseTpe =>
-              checkAgainstUnion(caseTpe, inner, caseTpe.typeSymbol.name :: path, seen + tpeSym, rootTpe)
-            }
-          } else {
-            err(path, describeType(tpe), "Variant[...]")
           }
 
         case GSequence(inner) =>
@@ -507,7 +498,7 @@ private[comptime] object AllowsMacroImpl {
       else if (isDynamic(dt)) "Dynamic"
       else if (isModule(dt)) s"Record(case object ${dt.typeSymbol.name})"
       else if (isProduct(dt)) s"Record(${dt.typeSymbol.name})"
-      else if (isSealed(dt) || isOrType(dt)) s"Variant(${dt.show})"
+      else if (isSealed(dt) || isOrType(dt)) s"SealedTrait(${dt.typeSymbol.name})"
       else if (isOption(dt)) s"Optional[${typeArgs(dt).headOption.map(_.show).getOrElse("?")}]"
       else if (isSeqType(dt)) s"Sequence[${typeArgs(dt).headOption.map(_.show).getOrElse("?")}]"
       else if (isMapType(dt)) {
@@ -523,7 +514,6 @@ private[comptime] object AllowsMacroImpl {
       case GDynamic                => "Dynamic"
       case GSelf                   => "Self"
       case GRecord(inner)          => s"Record[${describeGrammar(inner)}]"
-      case GVariant(inner)         => s"Variant[${describeGrammar(inner)}]"
       case GSequence(inner)        => s"Sequence[${describeGrammar(inner)}]"
       case GMap(k, v)              => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
       case GOptional(inner)        => s"Optional[${describeGrammar(inner)}]"

@@ -23,12 +23,12 @@ private[comptime] object AllowsMacroImpl {
     val color = AllowsErrorMessages.Colors.shouldUseColor
 
     sealed trait GrammarNode
-    case object GPrimitive                                extends GrammarNode // any primitive
-    case class GSpecificPrimitive(scalaFQN: String)       extends GrammarNode // one exact primitive
-    case object GDynamic                                  extends GrammarNode
-    case object GSelf                                     extends GrammarNode
-    case class GRecord(inner: GrammarNode)                extends GrammarNode
-    case class GVariant(inner: GrammarNode)               extends GrammarNode
+    case object GPrimitive                          extends GrammarNode // any primitive
+    case class GSpecificPrimitive(scalaFQN: String) extends GrammarNode // one exact primitive
+    case object GDynamic                            extends GrammarNode
+    case object GSelf                               extends GrammarNode
+    case class GRecord(inner: GrammarNode)          extends GrammarNode
+
     case class GSequence(inner: GrammarNode)              extends GrammarNode
     case class GMap(key: GrammarNode, value: GrammarNode) extends GrammarNode
     case class GOptional(inner: GrammarNode)              extends GrammarNode
@@ -79,7 +79,6 @@ private[comptime] object AllowsMacroImpl {
       "zio.blocks.schema.comptime.Allows.Primitive.ZonedDateTime"  -> "java.time.ZonedDateTime"
     )
     val recordBase   = typeOf[Allows.Record[_]].typeConstructor
-    val variantBase  = typeOf[Allows.Variant[_]].typeConstructor
     val sequenceBase = typeOf[Allows.Sequence[_]].typeConstructor
     val mapBase      = typeOf[Allows.Map[_, _]].typeConstructor
     val optionalBase = typeOf[Allows.Optional[_]].typeConstructor
@@ -102,7 +101,6 @@ private[comptime] object AllowsMacroImpl {
       else {
         val tc = typeConstructorOf(dt)
         if (tc =:= recordBase) GRecord(decomposeGrammar(args.head))
-        else if (tc =:= variantBase) GVariant(decomposeGrammar(args.head))
         else if (tc =:= sequenceBase) GSequence(decomposeGrammar(args.head))
         else if (tc =:= mapBase) GMap(decomposeGrammar(args.head), decomposeGrammar(args.last))
         else if (tc =:= optionalBase) GOptional(decomposeGrammar(args.head))
@@ -296,6 +294,17 @@ private[comptime] object AllowsMacroImpl {
         }
       }
 
+      // Auto-unwrap: if the type is a user-defined sealed trait / enum (not a
+      // stdlib collection or Option), recursively check all cases against the same
+      // grammar. This makes an explicit Variant node unnecessary.
+      if (isSealed(dt) && !isOption(dt) && !isSeq(dt) && !isMap(dt)) {
+        casesOf(dt).foreach { caseTpe =>
+          val caseName = caseTpe.typeSymbol.name.decodedName.toString
+          check(caseTpe, grammar, caseName :: path, seen + tpeSym, rootTpe)
+        }
+        return
+      }
+
       grammar match {
         case GSelf =>
           val seenNext = if (dt =:= rootTpe.dealias) seen + tpeSym else seen
@@ -323,16 +332,6 @@ private[comptime] object AllowsMacroImpl {
             }
           } else {
             err(path, describeType(tpe), "Record[...]")
-          }
-
-        case GVariant(inner) =>
-          if (isSealed(dt)) {
-            casesOf(dt).foreach { caseTpe =>
-              val caseName = caseTpe.typeSymbol.name.decodedName.toString
-              checkAgainstUnion(caseTpe, inner, caseName :: path, seen + tpeSym, rootTpe)
-            }
-          } else {
-            err(path, describeType(tpe), "Variant[...]")
           }
 
         case GSequence(inner) =>
@@ -429,7 +428,7 @@ private[comptime] object AllowsMacroImpl {
       else if (isDynamic(dt)) "Dynamic"
       else if (isModule(dt)) s"Record(case object ${dt.typeSymbol.name})"
       else if (isProduct(dt)) s"Record(${dt.typeSymbol.name})"
-      else if (isSealed(dt)) s"Variant(${dt})"
+      else if (isSealed(dt)) s"SealedTrait(${dt.typeSymbol.name})"
       else if (isOption(dt)) s"Optional[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}]"
       else if (isSeq(dt)) s"Sequence[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}]"
       else if (isMap(dt))
@@ -445,7 +444,6 @@ private[comptime] object AllowsMacroImpl {
       case GDynamic                => "Dynamic"
       case GSelf                   => "Self"
       case GRecord(inner)          => s"Record[${describeGrammar(inner)}]"
-      case GVariant(inner)         => s"Variant[${describeGrammar(inner)}]"
       case GSequence(inner)        => s"Sequence[${describeGrammar(inner)}]"
       case GMap(k, v)              => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
       case GOptional(inner)        => s"Optional[${describeGrammar(inner)}]"

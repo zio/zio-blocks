@@ -2,7 +2,7 @@ package comptime
 
 import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
-import Allows.{Primitive, Record, Variant, `|`}
+import Allows.{Primitive, Record, `|`}
 import Allows.{Map => AMap, Optional => AOptional}
 
 // ---------------------------------------------------------------------------
@@ -108,12 +108,15 @@ object Rdbms {
   }
 
   /**
-   * Insert an event into an event-sourcing table. Type must be a variant whose
-   * cases are flat records.
+   * Insert an event into an event-sourcing table.
+   *
+   * The type must be a sealed trait / enum whose cases are flat records. No
+   * explicit Variant node is needed — sealed traits are auto-unwrapped by the
+   * macro.
    */
   def insertEvent[A](event: A)(implicit
     schema: Schema[A],
-    ev: Allows[A, Variant[Record[FlatRow]]]
+    ev: Allows[A, Record[FlatRow]]
   ): String = {
     val typeName = schema.toDynamicValue(event) match {
       case DynamicValue.Variant(caseName, _) => caseName
