@@ -8,8 +8,8 @@ import scala.io.Source
 /**
  * Prints an expression together with its evaluated result.
  *
- * All consecutive `//` comment lines immediately above the `show(...)` call
- * are printed first as a label, giving output of the form:
+ * All consecutive `//` comment lines immediately above the `show(...)` call are
+ * printed first as a label, giving output of the form:
  *
  * {{{
  *   // Converts all elements from Int to Long.
