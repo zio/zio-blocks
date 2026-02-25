@@ -23,7 +23,15 @@ const sidebars = {
          "reference/chunk",
          "reference/schema-error",
          "reference/validation",
-         "reference/into",
+         {
+           type: "category",
+           label: "Schema Evolution",
+           link: { type: "doc", id: "reference/schema-evolution/index" },
+           items: [
+             "reference/schema-evolution/into",
+             "reference/schema-evolution/as",
+           ]
+         },
          "reference/context",
          "reference/docs",
          "reference/json",
