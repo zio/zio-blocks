@@ -3,13 +3,15 @@ id: allows
 title: "Allows"
 ---
 
-`Allows[A, S]` is a compile-time capability token that proves, at the call site, that type `A` satisfies the structural grammar `S`. It closes the gap between the runtime flexibility of `Schema[A]` and the compile-time safety that DSL authors need.
+`Allows[A, S]` is a compile-time capability token that proves, at the call site, that type `A` satisfies the structural grammar `S`.
+
+`Allows` does **not** require or use `Schema[A]`. It inspects the Scala type structure of `A` directly at compile time, using nothing but the Scala type system. Any `Schema[A]` that appears alongside `Allows` in examples is the library author's own separate constraint — it is not imposed by `Allows` itself.
 
 ## Motivation
 
-ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A` — without knowing anything about `A` at compile time.
+ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. But `Allows` is useful even without a Schema — it can enforce structural preconditions on *any* generic function.
 
-The gap is **structural preconditions**. Many DSLs only make sense for a subset of the types that have schemas:
+The gap is **structural preconditions**. Many generic functions only make sense for a subset of types:
 
 - A CSV serializer requires flat records of scalars.
 - An RDBMS layer cannot handle nested records as column values.
@@ -53,11 +55,10 @@ Union types express "or" in the grammar.
 **Scala 3** uses native union type syntax:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.Schema
 import zio.blocks.schema.comptime.Allows
 import Allows._
 
-def writeCsv[A: Schema](rows: Seq[A])(using
+def writeCsv[A](rows: Seq[A])(using
   Allows[A, Record[Primitive | Optional[Primitive]]]
 ): Unit = ???
 ```
@@ -65,11 +66,10 @@ def writeCsv[A: Schema](rows: Seq[A])(using
 **Scala 2** uses the `` `\|` `` infix operator from `Allows`:
 
 ```scala
-import zio.blocks.schema.Schema
 import zio.blocks.schema.comptime.Allows
 import Allows._
 
-def writeCsv[A: Schema](rows: Seq[A])(implicit
+def writeCsv[A](rows: Seq[A])(implicit
   ev: Allows[A, Record[Primitive | Optional[Primitive]]]
 ): Unit = ???
 ```

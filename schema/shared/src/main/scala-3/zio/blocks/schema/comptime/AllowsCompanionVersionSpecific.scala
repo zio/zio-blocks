@@ -1,11 +1,9 @@
 package zio.blocks.schema.comptime
 
 import scala.quoted.*
-import zio.blocks.schema.Schema
 
 trait AllowsCompanionVersionSpecific {
-  @annotation.nowarn("msg=unused implicit parameter")
-  inline given derived[S <: Allows.Structural, A](using schema: Schema[A]): Allows[A, S] =
+  inline given derived[S <: Allows.Structural, A]: Allows[A, S] =
     ${ AllowsMacroImpl.deriveAllows[S, A] }
 }
 

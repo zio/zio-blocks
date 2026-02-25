@@ -8,6 +8,10 @@ package zio.blocks.schema.comptime
  * of `S` also satisfies it. A type that uses only some of the allowed shapes
  * trivially passes. This is analogous to a subtype bound.
  *
+ * `Allows` does not require or use `Schema[A]`. It inspects the Scala type
+ * structure of `A` directly at compile time. Any `Schema[A]` in the examples
+ * below is the library author's own constraint — independent of `Allows`.
+ *
  * @tparam A
  *   The Scala data type being validated.
  * @tparam S
@@ -16,11 +20,13 @@ package zio.blocks.schema.comptime
  *
  * ==Usage (Scala 3)==
  * {{{
- * import zio.blocks.schema.Schema
  * import zio.blocks.schema.comptime.Allows
  * import Allows._
  *
- * // Flat records only (e.g. CSV, RDBMS row)
+ * // Shape constraint alone — no Schema required
+ * def validate[A](v: A)(using Allows[A, Record[Primitive]]): Boolean = ???
+ *
+ * // Combined with Schema when runtime encoding is also needed
  * def writeCsv[A: Schema](rows: Seq[A])(using
  *   Allows[A, Record[Primitive | Optional[Primitive]]]
  * ): Unit = ???
@@ -42,7 +48,6 @@ package zio.blocks.schema.comptime
  * `Allows` companion written in infix position to express unions:
  *
  * {{{
- * import zio.blocks.schema.Schema
  * import zio.blocks.schema.comptime.Allows
  * import Allows._
  *
