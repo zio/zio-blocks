@@ -3,8 +3,9 @@ package zio.blocks.schema.comptime
 import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
-/** Negative compile-time tests for Allows (Scala 2). Uses `|[A,B]` for unions.
-  */
+/**
+ * Negative compile-time tests for Allows (Scala 2). Uses `|[A,B]` for unions.
+ */
 object AllowsNegativeSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("AllowsNegativeSpec")(

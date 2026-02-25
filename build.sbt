@@ -206,7 +206,12 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     }),
     coverageMinimumStmtTotal   := 86,
     coverageMinimumBranchTotal := 81,
-    coverageExcludedFiles      := ".*BuildInfo.*"
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/schema/comptime/.*",
+      ".*scala-3/zio/blocks/schema/comptime/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {

@@ -5,8 +5,7 @@ import scala.reflect.macros.whitebox
 import scala.reflect.NameTransformer
 
 trait AllowsCompanionVersionSpecific {
-  implicit def derived[S <: Allows.Structural, A]: Allows[A, S] =
-    macro AllowsMacroImpl.deriveAllows[S, A]
+  implicit def derived[S <: Allows.Structural, A]: Allows[A, S] = macro AllowsMacroImpl.deriveAllows[S, A]
 }
 
 private[comptime] object AllowsMacroImpl {
@@ -21,22 +20,22 @@ private[comptime] object AllowsMacroImpl {
     // -----------------------------------------------------------------------
 
     sealed trait GrammarNode
-    case object GPrimitive                                  extends GrammarNode
-    case object GDynamic                                   extends GrammarNode
-    case object GSelf                                      extends GrammarNode
-    case class GRecord(inner: GrammarNode)                 extends GrammarNode
-    case class GVariant(inner: GrammarNode)                extends GrammarNode
-    case class GSequence(inner: GrammarNode)               extends GrammarNode
-    case class GMap(key: GrammarNode, value: GrammarNode)  extends GrammarNode
-    case class GOptional(inner: GrammarNode)               extends GrammarNode
-    case class GWrapped(inner: GrammarNode)                extends GrammarNode
-    case class GUnion(branches: List[GrammarNode])         extends GrammarNode
+    case object GPrimitive                                extends GrammarNode
+    case object GDynamic                                  extends GrammarNode
+    case object GSelf                                     extends GrammarNode
+    case class GRecord(inner: GrammarNode)                extends GrammarNode
+    case class GVariant(inner: GrammarNode)               extends GrammarNode
+    case class GSequence(inner: GrammarNode)              extends GrammarNode
+    case class GMap(key: GrammarNode, value: GrammarNode) extends GrammarNode
+    case class GOptional(inner: GrammarNode)              extends GrammarNode
+    case class GWrapped(inner: GrammarNode)               extends GrammarNode
+    case class GUnion(branches: List[GrammarNode])        extends GrammarNode
 
     // In Scala 2 whitebox macros, weakTypeOf[S] and weakTypeOf[A] are abstract type
     // variables. Extract the concrete types from the macro application's return type.
     val appTpe   = c.macroApplication.tpe
-    val sTpe     = appTpe.typeArgs.last  // Allows[A, S] — S is second type arg
-    val rootTpe0 = appTpe.typeArgs.head  // Allows[A, S] — A is first type arg
+    val sTpe     = appTpe.typeArgs.last // Allows[A, S] — S is second type arg
+    val rootTpe0 = appTpe.typeArgs.head // Allows[A, S] — A is first type arg
 
     val primitiveBase = typeOf[Allows.Primitive]
     val dynamicBase   = typeOf[Allows.Dynamic]
@@ -57,18 +56,18 @@ private[comptime] object AllowsMacroImpl {
     def decomposeGrammar(tpe: Type): GrammarNode = {
       val dt   = tpe.dealias
       val args = dt.typeArgs
-      if (dt =:= primitiveBase)       GPrimitive
-      else if (dt =:= dynamicBase)    GDynamic
-      else if (dt =:= selfBase)       GSelf
+      if (dt =:= primitiveBase) GPrimitive
+      else if (dt =:= dynamicBase) GDynamic
+      else if (dt =:= selfBase) GSelf
       else {
         val tc = typeConstructorOf(dt)
-        if (tc =:= recordBase)        GRecord(decomposeGrammar(args.head))
-        else if (tc =:= variantBase)  GVariant(decomposeGrammar(args.head))
+        if (tc =:= recordBase) GRecord(decomposeGrammar(args.head))
+        else if (tc =:= variantBase) GVariant(decomposeGrammar(args.head))
         else if (tc =:= sequenceBase) GSequence(decomposeGrammar(args.head))
-        else if (tc =:= mapBase)      GMap(decomposeGrammar(args.head), decomposeGrammar(args.last))
+        else if (tc =:= mapBase) GMap(decomposeGrammar(args.head), decomposeGrammar(args.last))
         else if (tc =:= optionalBase) GOptional(decomposeGrammar(args.head))
-        else if (tc =:= wrappedBase)  GWrapped(decomposeGrammar(args.head))
-        else if (tc =:= pipeBase)     GUnion(List(decomposeGrammar(args.head), decomposeGrammar(args.last)))
+        else if (tc =:= wrappedBase) GWrapped(decomposeGrammar(args.head))
+        else if (tc =:= pipeBase) GUnion(List(decomposeGrammar(args.head), decomposeGrammar(args.last)))
         else
           c.abort(
             c.enclosingPosition,
@@ -87,31 +86,41 @@ private[comptime] object AllowsMacroImpl {
     val dynamicValueTpe = typeOf[zio.blocks.schema.DynamicValue]
 
     val javaTimePrimitiveNames = Set(
-      "java.time.DayOfWeek", "java.time.Duration", "java.time.Instant",
-      "java.time.LocalDate", "java.time.LocalDateTime", "java.time.LocalTime",
-      "java.time.Month", "java.time.MonthDay", "java.time.OffsetDateTime",
-      "java.time.OffsetTime", "java.time.Period", "java.time.Year",
-      "java.time.YearMonth", "java.time.ZoneId", "java.time.ZoneOffset",
+      "java.time.DayOfWeek",
+      "java.time.Duration",
+      "java.time.Instant",
+      "java.time.LocalDate",
+      "java.time.LocalDateTime",
+      "java.time.LocalTime",
+      "java.time.Month",
+      "java.time.MonthDay",
+      "java.time.OffsetDateTime",
+      "java.time.OffsetTime",
+      "java.time.Period",
+      "java.time.Year",
+      "java.time.YearMonth",
+      "java.time.ZoneId",
+      "java.time.ZoneOffset",
       "java.time.ZonedDateTime"
     )
 
     def isPrimitive(tpe: Type): Boolean = {
       val dt = tpe.dealias
       dt =:= definitions.BooleanTpe ||
-        dt =:= definitions.ByteTpe   ||
-        dt =:= definitions.ShortTpe  ||
-        dt =:= definitions.IntTpe    ||
-        dt =:= definitions.LongTpe   ||
-        dt =:= definitions.FloatTpe  ||
-        dt =:= definitions.DoubleTpe ||
-        dt =:= definitions.CharTpe   ||
-        dt =:= definitions.UnitTpe   ||
-        dt <:< typeOf[String]                    ||
-        dt <:< typeOf[BigInt]                    ||
-        dt <:< typeOf[BigDecimal]                ||
-        dt <:< typeOf[java.util.UUID]            ||
-        dt <:< typeOf[java.util.Currency]        ||
-        javaTimePrimitiveNames.contains(dt.typeSymbol.fullName)
+      dt =:= definitions.ByteTpe ||
+      dt =:= definitions.ShortTpe ||
+      dt =:= definitions.IntTpe ||
+      dt =:= definitions.LongTpe ||
+      dt =:= definitions.FloatTpe ||
+      dt =:= definitions.DoubleTpe ||
+      dt =:= definitions.CharTpe ||
+      dt =:= definitions.UnitTpe ||
+      dt <:< typeOf[String] ||
+      dt <:< typeOf[BigInt] ||
+      dt <:< typeOf[BigDecimal] ||
+      dt <:< typeOf[java.util.UUID] ||
+      dt <:< typeOf[java.util.Currency] ||
+      javaTimePrimitiveNames.contains(dt.typeSymbol.fullName)
     }
 
     def isDynamic(tpe: Type): Boolean = tpe.dealias <:< dynamicValueTpe
@@ -161,7 +170,7 @@ private[comptime] object AllowsMacroImpl {
 
     def casesOf(tpe: Type): List[Type] = {
       implicit val positionOrdering: Ordering[Symbol] = (x: Symbol, y: Symbol) => {
-        val xPos  = x.pos; val yPos  = y.pos
+        val xPos  = x.pos; val yPos                      = y.pos
         val xFile = xPos.source.file.absolute; val yFile = yPos.source.file.absolute
         var diff  = xFile.path.compareTo(yFile.path)
         if (diff == 0) diff = xFile.name.compareTo(yFile.name)
@@ -241,7 +250,7 @@ private[comptime] object AllowsMacroImpl {
       if (isAlready && (dt =:= rootTpe.dealias)) {
         grammar match {
           case GSelf => return
-          case _ =>
+          case _     =>
             check(tpe, grammar, path, seen, rootTpe)
             return
         }
@@ -370,17 +379,18 @@ private[comptime] object AllowsMacroImpl {
 
     def describeType(tpe: Type): String = {
       val dt = tpe.dealias
-      if (isPrimitive(dt))    s"Primitive(${dt})"
+      if (isPrimitive(dt)) s"Primitive(${dt})"
       else if (isDynamic(dt)) "Dynamic"
-      else if (isModule(dt))  s"Record(case object ${dt.typeSymbol.name})"
+      else if (isModule(dt)) s"Record(case object ${dt.typeSymbol.name})"
       else if (isProduct(dt)) s"Record(${dt.typeSymbol.name})"
-      else if (isSealed(dt))  s"Variant(${dt})"
-      else if (isOption(dt))  s"Optional[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}]"
-      else if (isSeq(dt))     s"Sequence[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}]"
-      else if (isMap(dt))     s"Map[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}, " +
-                               s"${dt.typeArgs.lastOption.getOrElse(definitions.AnyTpe)}]"
+      else if (isSealed(dt)) s"Variant(${dt})"
+      else if (isOption(dt)) s"Optional[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}]"
+      else if (isSeq(dt)) s"Sequence[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}]"
+      else if (isMap(dt))
+        s"Map[${dt.typeArgs.headOption.getOrElse(definitions.AnyTpe)}, " +
+          s"${dt.typeArgs.lastOption.getOrElse(definitions.AnyTpe)}]"
       else if (isWrapper(dt)) s"Wrapped[$tpe]"
-      else                    dt.toString
+      else dt.toString
     }
 
     def describeGrammar(g: GrammarNode): String = g match {
