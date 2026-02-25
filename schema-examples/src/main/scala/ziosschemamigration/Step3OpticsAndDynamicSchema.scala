@@ -41,7 +41,7 @@ object Step3OpticsAndDynamicSchema extends App {
     // Obtain lenses from the schema's reflect tree
     // ZIO Schema: schema.makeAccessors(ZioOpticsBuilder) → (nameLens, ageLens, addressLens)
     // ZIO Blocks: schema.reflect.asRecord.get.lensByName[A]("field")
-    private val record = schema.reflect.asRecord.getOrElse(sys.error("Person must be a Record"))
+    private val record             = schema.reflect.asRecord.getOrElse(sys.error("Person must be a Record"))
     val name: Lens[Person, String] =
       record.lensByName[String]("name").getOrElse(sys.error("Field 'name' not found"))
     val age: Lens[Person, Int] =
@@ -88,7 +88,7 @@ object Step3OpticsAndDynamicSchema extends App {
   object Shape {
     implicit val schema: Schema[Shape] = Schema.derived[Shape]
 
-    private val variant = schema.reflect.asVariant.getOrElse(sys.error("Shape must be a Variant"))
+    private val variant              = schema.reflect.asVariant.getOrElse(sys.error("Shape must be a Variant"))
     val circle: Prism[Shape, Circle] =
       variant.prismByName[Circle]("Circle").getOrElse(sys.error("Case 'Circle' not found"))
     val rectangle: Prism[Shape, Rectangle] =

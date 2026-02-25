@@ -20,7 +20,8 @@ import zio.blocks.schema.patch._
  *   - Optics (Lens, Prism) obtained from the schema
  *   - Diff and patch
  *
- * Run with: sbt "schema-examples/runMain ziosschemamigration.CompleteMigrationExample"
+ * Run with: sbt "schema-examples/runMain
+ * ziosschemamigration.CompleteMigrationExample"
  */
 object CompleteMigrationExample extends App {
 
