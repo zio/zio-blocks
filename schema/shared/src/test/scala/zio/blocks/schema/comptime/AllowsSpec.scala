@@ -1,11 +1,11 @@
 package zio.blocks.schema.comptime
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, Schema, SchemaBaseSpec}
 import zio.blocks.schema.Schema._ // bring primitive and collection schemas into implicit scope
-import zio.blocks.chunk.Chunk
 import zio.test._
 // Import grammar nodes individually to avoid Allows.Map shadowing scala.collection.immutable.Map
-import Allows.{Primitive, Record, Variant, Sequence, Optional, Dynamic, Self, `|`}
+import Allows.{Dynamic, Optional, Primitive, Record, Self, Sequence, Variant, `|`}
 import Allows.{Map => AMap} // Allows.Map grammar node, distinct from scala Map type
 
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ object AllowsFixtures {
     implicit val schema: Schema[AllPrimitives] = Schema.derived
   }
 
-  // Zero-field record (case object) — companion is auto-generated, put schema at outer level
+  // Zero-field record (case object) — companion is auto-generated, schema at outer level
   case object EmptyCaseObj
   implicit val emptyCaseObjSchema: Schema[EmptyCaseObj.type] = Schema.derived
 
@@ -155,6 +155,7 @@ object AllowsFixtures {
 
 // ---------------------------------------------------------------------------
 // Positive tests (positive evidence derivation must compile)
+// Use `implicitly` which works on both Scala 2 and Scala 3.
 // ---------------------------------------------------------------------------
 
 object AllowsSpec extends SchemaBaseSpec {
@@ -177,21 +178,21 @@ object AllowsSpec extends SchemaBaseSpec {
   private val primBigInt: Allows[BigInt, Primitive]             = implicitly
   private val primCurr: Allows[java.util.Currency, Primitive]   = implicitly
 
-  // 5.2 Record
-  private val recAll: Allows[AllPrimitives, Record[Primitive]]                                   = implicitly
-  private val recSing: Allows[EmptyCaseObj.type, Record[Primitive]]                              = implicitly // vacuous
-  private val recOpt: Allows[WithOptionalPrimitive, Record[`|`[Primitive, Optional[Primitive]]]] = implicitly
-  private val recSeq: Allows[WithSeqPrimitive, Record[`|`[Primitive, Sequence[Primitive]]]]      = implicitly
-  private val recMap: Allows[WithStringMap, Record[`|`[Primitive, AMap[Primitive, Primitive]]]]  = implicitly
-  private val recUser: Allows[UserRow, Record[`|`[Primitive, Optional[Primitive]]]]              = implicitly
-  private val recDyn2: Allows[WithDynamic, Record[`|`[Primitive, Dynamic]]]                      = implicitly
+  // 5.2 Record — use infix `|` via the Allows.| type
+  private val recAll: Allows[AllPrimitives, Record[Primitive]]                               = implicitly
+  private val recSing: Allows[EmptyCaseObj.type, Record[Primitive]]                          = implicitly // vacuous
+  private val recOpt: Allows[WithOptionalPrimitive, Record[Primitive | Optional[Primitive]]] = implicitly
+  private val recSeq: Allows[WithSeqPrimitive, Record[Primitive | Sequence[Primitive]]]      = implicitly
+  private val recMap: Allows[WithStringMap, Record[Primitive | AMap[Primitive, Primitive]]]  = implicitly
+  private val recUser: Allows[UserRow, Record[Primitive | Optional[Primitive]]]              = implicitly
+  private val recDyn2: Allows[WithDynamic, Record[Primitive | Dynamic]]                      = implicitly
 
   // 5.3 Variant
-  private val varShape1: Allows[Shape, Variant[Record[Primitive]]]                           = implicitly
-  private val varEvent1: Allows[Event, Variant[Record[`|`[Primitive, Sequence[Primitive]]]]] = implicitly
-  private val varDom: Allows[DomainEvent, Variant[Record[Primitive]]]                        = implicitly
-  // Unused branch in union is fine
-  private val varShape2: Allows[Shape, Variant[`|`[Record[Primitive], Primitive]]] = implicitly
+  private val varShape1: Allows[Shape, Variant[Record[Primitive]]]                       = implicitly
+  private val varEvent1: Allows[Event, Variant[Record[Primitive | Sequence[Primitive]]]] = implicitly
+  private val varDom: Allows[DomainEvent, Variant[Record[Primitive]]]                    = implicitly
+  // Unused branch in union is fine under Allows semantics
+  private val varShape2: Allows[Shape, Variant[Record[Primitive] | Primitive]] = implicitly
 
   // 5.4 Sequence
   private val seqInt: Allows[List[Int], Sequence[Primitive]]                  = implicitly
@@ -201,7 +202,7 @@ object AllowsSpec extends SchemaBaseSpec {
   private val seqChk: Allows[Chunk[String], Sequence[Primitive]]              = implicitly
   private val seqSet: Allows[Set[Int], Sequence[Primitive]]                   = implicitly
 
-  // 5.5 Map
+  // 5.5 Map (AMap avoids shadow of scala.collection.immutable.Map)
   private val mapSI: Allows[scala.collection.immutable.Map[String, Int], AMap[Primitive, Primitive]]             = implicitly
   private val mapSA: Allows[scala.collection.immutable.Map[String, Address], AMap[Primitive, Record[Primitive]]] =
     implicitly
@@ -214,22 +215,20 @@ object AllowsSpec extends SchemaBaseSpec {
   private val optSeq: Allows[Option[List[Int]], Optional[Sequence[Primitive]]] = implicitly
 
   // 5.8 Dynamic
-  private val dynDV: Allows[DynamicValue, Dynamic]                         = implicitly
-  private val dynRec: Allows[WithDynamic, Record[`|`[Primitive, Dynamic]]] = implicitly
+  private val dynDV: Allows[DynamicValue, Dynamic]                     = implicitly
+  private val dynRec: Allows[WithDynamic, Record[Primitive | Dynamic]] = implicitly
 
-  // 5.9 Recursive
-  private val recTree: Allows[TreeNode, Record[`|`[Primitive, Sequence[Self]]]]   = implicitly
-  private val recList: Allows[LinkedList, Record[`|`[Primitive, Optional[Self]]]] = implicitly
-  private val recCat: Allows[Category, Record[`|`[Primitive, Sequence[Self]]]]    = implicitly
-  // Non-recursive types with no sequence fields still compile with Sequence[Self] grammar
-  // (AllPrimitives has no Sequence fields, so Sequence[Self] branch is never needed)
-  private val recAllVac: Allows[AllPrimitives, Record[`|`[Primitive, Sequence[Self]]]] = implicitly
+  // 5.9 Recursive — Self refers back to the enclosing Allows grammar
+  private val recTree: Allows[TreeNode, Record[Primitive | Sequence[Self]]]   = implicitly
+  private val recList: Allows[LinkedList, Record[Primitive | Optional[Self]]] = implicitly
+  private val recCat: Allows[Category, Record[Primitive | Sequence[Self]]]    = implicitly
+  // Non-recursive types vacuously satisfy Self-containing grammars when Self is never reached
+  private val recAllVac: Allows[AllPrimitives, Record[Primitive | Sequence[Self]]] = implicitly
 
   // 5.10 Union grammar — unused branches are fine
-  private val unionAll: Allows[AllPrimitives, Record[`|`[Primitive, Optional[Primitive]]]] = implicitly
-  private val unionShp: Allows[Shape, Variant[`|`[Record[Primitive], Primitive]]]          = implicitly
-  private val unionSeq
-    : Allows[WithSeqPrimitive, Record[`|`[Primitive, `|`[Sequence[Primitive], AMap[Primitive, Primitive]]]]] =
+  private val unionAll: Allows[AllPrimitives, Record[Primitive | Optional[Primitive]]]                                 = implicitly
+  private val unionShp: Allows[Shape, Variant[Record[Primitive] | Primitive]]                                          = implicitly
+  private val unionSeq: Allows[WithSeqPrimitive, Record[Primitive | Sequence[Primitive] | AMap[Primitive, Primitive]]] =
     implicitly
 
   def spec: Spec[TestEnvironment, Any] = suite("AllowsSpec")(
@@ -253,15 +252,9 @@ object AllowsSpec extends SchemaBaseSpec {
     suite("Record")(
       test("AllPrimitives satisfies Record[Primitive]")(assertTrue(recAll.ne(null))),
       test("EmptyCaseObj satisfies Record[Primitive] (vacuous)")(assertTrue(recSing.ne(null))),
-      test("WithOptionalPrimitive satisfies Record[Primitive | Optional[Primitive]]") {
-        assertTrue(recOpt.ne(null))
-      },
-      test("WithSeqPrimitive satisfies Record[Primitive | Sequence[Primitive]]") {
-        assertTrue(recSeq.ne(null))
-      },
-      test("WithStringMap satisfies Record[Primitive | AMap[Primitive,Primitive]]") {
-        assertTrue(recMap.ne(null))
-      },
+      test("WithOptionalPrimitive satisfies Record[Primitive | Optional[Primitive]]")(assertTrue(recOpt.ne(null))),
+      test("WithSeqPrimitive satisfies Record[Primitive | Sequence[Primitive]]")(assertTrue(recSeq.ne(null))),
+      test("WithStringMap satisfies Record[Primitive | Map[Primitive,Primitive]]")(assertTrue(recMap.ne(null))),
       test("UserRow satisfies Record[Primitive | Optional[Primitive]]")(assertTrue(recUser.ne(null))),
       test("WithDynamic satisfies Record[Primitive | Dynamic]")(assertTrue(recDyn2.ne(null)))
     ),
@@ -269,9 +262,7 @@ object AllowsSpec extends SchemaBaseSpec {
       test("Shape satisfies Variant[Record[Primitive]]")(assertTrue(varShape1.ne(null))),
       test("Event satisfies Variant[Record[Primitive | Sequence[Primitive]]]")(assertTrue(varEvent1.ne(null))),
       test("DomainEvent satisfies Variant[Record[Primitive]]")(assertTrue(varDom.ne(null))),
-      test("Shape satisfies Variant[Record[Primitive] | Primitive] (unused branch ok)") {
-        assertTrue(varShape2.ne(null))
-      }
+      test("Shape satisfies Variant[Record[Primitive] | Primitive] (unused branch ok)")(assertTrue(varShape2.ne(null)))
     ),
     suite("Sequence")(
       test("List[Int] satisfies Sequence[Primitive]")(assertTrue(seqInt.ne(null))),
@@ -306,13 +297,11 @@ object AllowsSpec extends SchemaBaseSpec {
     suite("Union grammar (unused branches are fine)")(
       test("AllPrimitives satisfies Record[Primitive | Optional[Primitive]]")(assertTrue(unionAll.ne(null))),
       test("Shape satisfies Variant[Record[Primitive] | Primitive]")(assertTrue(unionShp.ne(null))),
-      test("WithSeqPrimitive satisfies Record[Primitive | Sequence[...] | Map[...]]") {
-        assertTrue(unionSeq.ne(null))
-      }
+      test("WithSeqPrimitive satisfies Record[Primitive | Sequence[...] | Map[...]]")(assertTrue(unionSeq.ne(null)))
     ),
     suite("Composition: realistic library API")(
-      test("UserRow compiles in insert[Record[Primitive|Optional[Primitive]]] context") {
-        def insert[A: Schema](v: A)(implicit c: Allows[A, Record[`|`[Primitive, Optional[Primitive]]]]): String = "ok"
+      test("UserRow compiles in insert[Record[Primitive | Optional[Primitive]]] context") {
+        def insert[A: Schema](v: A)(implicit c: Allows[A, Record[Primitive | Optional[Primitive]]]): String = "ok"
         // Use a nil UUID to avoid java.security.SecureRandom (unavailable in Scala.js)
         val nilUUID = new java.util.UUID(0L, 0L)
         assertTrue(insert(UserRow(nilUUID, "Alice", 30, Some("a@b.com"))) == "ok")

@@ -618,3 +618,32 @@ object UserId {
     .transform(UserId(_), _.value)
 }
 ```
+
+## Compile-Time Shape Constraints (`Allows`)
+
+ZIO Blocks provides `Allows[A, S]` — a phantom-typed capability token that proves, at compile time, that type `A` satisfies the structural grammar `S`. This lets library authors express and enforce structural preconditions on their generic APIs without writing macros themselves.
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Require a flat record of scalars (e.g. for CSV or RDBMS)
+def writeCsv[A: Schema](rows: Seq[A])(using
+  Allows[A, Record[Primitive | Optional[Primitive]]]
+): Unit = ???
+
+// Require a variant of flat record cases (e.g. for an event bus)
+def publish[A: Schema](event: A)(using
+  Allows[A, Variant[Record[Primitive | Sequence[Primitive]]]]
+): Unit = ???
+
+// Recursive grammar (e.g. for a JSON document store)
+def toJson[A: Schema](doc: A)(using
+  Allows[A, Record[Primitive | Self | Optional[Primitive | Self] | Sequence[Primitive | Self]]]
+): String = ???
+```
+
+When a type does not satisfy the grammar, the user gets a precise compile-time error naming the violating field and suggesting a fix. No runtime surprises.
+
+See the [`Allows` reference](./allows.md) for the full grammar node table, union syntax, `Self` for recursive types, newtypes, and error message examples.

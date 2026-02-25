@@ -249,16 +249,23 @@ private[comptime] object AllowsMacroImpl {
 
       if (isAlready && (dt =:= rootTpe.dealias)) {
         grammar match {
-          case GSelf => return
-          case _     =>
-            check(tpe, grammar, path, seen, rootTpe)
+          case GSelf =>
+            return
+          case GRecord(_) =>
+            return
+          case GUnion(_) =>
+            checkAgainstUnion(tpe, grammar, path, seen - tpeSym, rootTpe)
+            return
+          case other =>
+            err(path, describeType(tpe), describeGrammar(other))
             return
         }
       }
 
       grammar match {
         case GSelf =>
-          check(tpe, rootGrammar, path, seen + tpeSym, rootTpe)
+          val seenNext = if (dt =:= rootTpe.dealias) seen + tpeSym else seen
+          check(tpe, rootGrammar, path, seenNext, rootTpe)
 
         case GPrimitive =>
           if (!isPrimitive(dt))

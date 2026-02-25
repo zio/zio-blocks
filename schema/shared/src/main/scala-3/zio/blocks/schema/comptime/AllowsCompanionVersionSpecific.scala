@@ -317,17 +317,32 @@ private[comptime] object AllowsMacroImpl {
 
       if (isAlready && (dt =:= rootTpe.dealias)) {
         grammar match {
-          case GSelf => return // self-recursion explicitly accepted
-          case _     =>
-            // Already at root from a recursive field; recurse without re-adding
-            check(tpe, grammar, path, seen, rootTpe)
+          case GSelf =>
+            return // self-recursion via Self: accepted
+          case GRecord(_) =>
+            return // root type satisfies Record[...] by assumption (we're in its own check)
+          case GUnion(_) =>
+            // Probe each branch. Use seen without this type to allow re-examination
+            // (the Self branch will re-add it and terminate correctly).
+            checkAgainstUnion(tpe, grammar, path, seen - tpeSym, rootTpe)
+            return
+          case other =>
+            // Root type re-encountered under a terminal grammar (Primitive, Dynamic,
+            // Sequence, Map, Optional, Wrapped, Variant). The root type clearly
+            // does not satisfy these directly — report a violation.
+            err(path, describeType(tpe), describeGrammar(other))
             return
         }
       }
 
       grammar match {
         case GSelf =>
-          check(tpe, rootGrammar, path, seen + tpeSym, rootTpe)
+          // Expand Self to the root grammar. Only add tpeSym to `seen` if it IS
+          // the root type (preventing infinite self-recursion). For non-root types
+          // (e.g. a nested record Author being checked via Self), do not add to
+          // seen — adding it would incorrectly trigger the mutual-recursion guard.
+          val seenNext = if (dt =:= rootTpe.dealias) seen + tpeSym else seen
+          check(tpe, rootGrammar, path, seenNext, rootTpe)
 
         case GPrimitive =>
           if (!isPrimitive(dt))
