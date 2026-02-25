@@ -163,8 +163,8 @@ object BuildHelper {
         }
       },
       crossScalaVersions       := scalaVersions,
-      scalaVersion             := scalaVersions.head,
       ThisBuild / scalaVersion := scalaVersions.head,
+      scalaVersion             := (ThisBuild / scalaVersion).value,
       ThisBuild / publishTo    := {
         val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
         if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
@@ -206,6 +206,8 @@ object BuildHelper {
             "-language:existentials",
             "-opt:l:method",
             "-Ywarn-unused",
+            "-Wconf:cat=unused&src=.*/test/.*:s",
+            "-Wconf:msg=outer reference.*cannot be checked&src=.*/test/.*:s",
             "-Xfatal-warnings"
           )
       }),
@@ -227,8 +229,23 @@ object BuildHelper {
     )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
+    // Scala.js 3.7.4 compiler fails on virtualfile: URIs during JS builds.
+    scalaVersion := {
+      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
+        case Some((3, _)) => Scala33
+        case _            => (ThisBuild / scalaVersion).value
+      }
+    },
+    crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),
     coverageEnabled          := false,
     Test / parallelExecution := false,
-    Test / fork              := false
+    Test / fork              := false,
+    // Skip JS projects only when the resolved scalaVersion is 3.7.x
+    // (Scala.js doesn't support 3.7.x due to virtualfile: URI issues).
+    // We check scalaVersion (not ThisBuild / scalaVersion) so that ++ version
+    // switches work correctly — ++ changes the project-level scalaVersion but
+    // not the ThisBuild-level one.
+    Compile / skip := scalaVersion.value.startsWith("3.7"),
+    Test / skip    := scalaVersion.value.startsWith("3.7")
   )
 }

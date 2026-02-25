@@ -1,0 +1,4 @@
+let shard = shard("users", 0);
+shard.set("alice", "Alice Smith");
+let result = shard.get("alice");
+result

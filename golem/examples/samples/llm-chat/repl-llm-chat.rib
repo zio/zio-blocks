@@ -1,0 +1,5 @@
+let c = chat("demo");
+let r = c.ask("Say exactly OK and nothing else.");
+let h = c.history();
+{ r: r, h: h }
+

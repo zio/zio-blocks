@@ -1,0 +1,3 @@
+let demo = guards-demo("oplog-test");
+let result = demo.oplog-demo();
+result

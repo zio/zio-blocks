@@ -1,0 +1,15 @@
+let c = coordinator("demo2");
+let r = c.route("demo2", 42, "hello");
+
+// Note: RIB lists must have a single element type; prefer a record/object when combining mixed results.
+let p = {
+  name: "abc",
+  count: 7,
+  note: some("n"),
+  flags: ["x", "y", "z"],
+  nested: { x: 1.5, tags: ["a", "b"] }
+};
+
+let t = c.route-typed("demo2", 42, p);
+
+{ r: r, t: t }

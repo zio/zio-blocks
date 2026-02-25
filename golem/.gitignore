@@ -1,0 +1,11 @@
+.bloop/
+.bsp/
+.idea/
+.metals/
+.vscode/
+node_modules/
+target/
+metals.sbt
+package-lock.json
+.golem-local/
+.golem-apps/

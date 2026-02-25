@@ -1,0 +1,5 @@
+let c = stateful-counter({initial-count: 10});
+let a = c.increment();
+let b = c.increment();
+let cur = c.current();
+{ first: a, second: b, current: cur }

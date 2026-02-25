@@ -1,0 +1,3 @@
+let demo = guards-demo("guards-resource-test");
+let result = demo.guards-resource-demo();
+result

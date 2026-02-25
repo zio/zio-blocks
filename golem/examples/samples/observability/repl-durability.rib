@@ -1,0 +1,3 @@
+let demo = observability-demo("demo");
+let result = demo.durability-demo();
+result

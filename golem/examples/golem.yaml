@@ -1,0 +1,9 @@
+app: scala-examples
+
+environments:
+  local:
+    server: local
+
+includes:
+- .generated/scala-js-template.yaml
+- components-js/scala-examples/golem.yaml

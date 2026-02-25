@@ -1,0 +1,3 @@
+let demo = database-demo("demo");
+let types = demo.type-showcase();
+types
