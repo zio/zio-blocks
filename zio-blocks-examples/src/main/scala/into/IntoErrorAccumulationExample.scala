@@ -7,7 +7,12 @@ import util.ShowExpr.show
 // rather than stopping at the first failure.
 object IntoErrorAccumulationExample extends App {
 
-  case class Email(value: String)
+  final class Email private (val value: String) {
+    override def toString: String = s"Email($value)"
+  }
+  object Email {
+    def apply(value: String): Email = new Email(value)
+  }
 
   implicit val stringToEmail: Into[String, Email] = { s =>
     if (s.contains("@")) Right(Email(s))
