@@ -1054,8 +1054,8 @@ object Json {
     val rightFields = right.value
     val leftLen     = leftFields.length
     val rightLen    = rightFields.length
-    val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen)
-    val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen)
+    val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen << 1)
+    val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen << 1)
     val rightDedup  = new scala.Array[(java.lang.String, Json)](rightLen)
     var merged      = new scala.Array[(java.lang.String, Json)](leftLen + rightLen)
     var idx         = 0
@@ -1607,7 +1607,7 @@ object Json {
           }
         case atMapKeys: DynamicOptic.Node.AtMapKeys =>
           val keys    = atMapKeys.keys
-          val keyStrs = new util.HashSet[java.lang.String](keys.size)
+          val keyStrs = new util.HashSet[java.lang.String](keys.size << 1)
           keys.foreach {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
             case _                                                 => ()

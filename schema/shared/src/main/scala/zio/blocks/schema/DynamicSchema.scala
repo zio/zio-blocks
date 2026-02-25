@@ -303,7 +303,7 @@ object DynamicSchema extends TypeIdSchemas {
     trace: List[DynamicOptic.Node]
   ): Option[SchemaError] = {
     val recordFields = record.fields
-    val schemaFields = new java.util.HashMap[String, Reflect[NoBinding, _]](recordFields.length) {
+    val schemaFields = new java.util.HashMap[String, Reflect[NoBinding, _]](recordFields.length << 1) {
       recordFields.foreach(term => put(term.name, term.value))
     }
     val fieldLen = fields.length
@@ -1672,7 +1672,7 @@ object DynamicSchema extends TypeIdSchemas {
 
     def dvToTerm(dv: DynamicValue): Term[NoBinding, Any, Any] = dv match {
       case DynamicValue.Record(fields) =>
-        val fieldMap = new java.util.HashMap[String, DynamicValue](fields.length) {
+        val fieldMap = new java.util.HashMap[String, DynamicValue](fields.length << 1) {
           fields.foreach(kv => put(kv._1, kv._2))
         }
         val name = fieldMap.get("name") match {
@@ -1768,7 +1768,7 @@ object DynamicSchema extends TypeIdSchemas {
 
     dv match {
       case DynamicValue.Variant(typeName, DynamicValue.Record(fields)) =>
-        val fieldMap = new java.util.HashMap[String, DynamicValue](fields.length) {
+        val fieldMap = new java.util.HashMap[String, DynamicValue](fields.length << 1) {
           fields.foreach(kv => put(kv._1, kv._2))
         }
         val tid       = dvToTypeId(fieldMap.getOrDefault("typeId", DynamicValue.Null))

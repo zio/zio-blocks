@@ -188,7 +188,7 @@ private[schema] object Differ {
     oldFields: Chunk[(String, DynamicValue)],
     newFields: Chunk[(String, DynamicValue)]
   ): DynamicPatch = {
-    val oldMap = new java.util.HashMap[String, DynamicValue](oldFields.length) {
+    val oldMap = new java.util.HashMap[String, DynamicValue](oldFields.length << 1) {
       oldFields.foreach(kv => put(kv._1, kv._2))
     }
     val ops = ChunkBuilder.make[Patch.DynamicPatchOp]()
@@ -309,10 +309,10 @@ private[schema] object Differ {
     oldEntries: Chunk[(DynamicValue, DynamicValue)],
     newEntries: Chunk[(DynamicValue, DynamicValue)]
   ): DynamicPatch = {
-    val oldMap = new java.util.HashMap[DynamicValue, DynamicValue](oldEntries.length) {
+    val oldMap = new java.util.HashMap[DynamicValue, DynamicValue](oldEntries.length << 1) {
       oldEntries.foreach(kv => put(kv._1, kv._2))
     }
-    val newSet = new java.util.HashSet[DynamicValue](newEntries.length)
+    val newSet = new java.util.HashSet[DynamicValue](newEntries.length << 1)
     val ops    = ChunkBuilder.make[Patch.MapOp]()
     // Find added and modified keys
     newEntries.foreach { kv =>

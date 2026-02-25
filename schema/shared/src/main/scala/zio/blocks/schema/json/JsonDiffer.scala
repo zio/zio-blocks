@@ -184,10 +184,10 @@ object JsonDiffer {
    * operations.
    */
   private[this] def diffObject(oldFields: Chunk[(String, Json)], newFields: Chunk[(String, Json)]): JsonPatch = {
-    val oldMap = new java.util.HashMap[String, Json](oldFields.length) {
+    val oldMap = new java.util.HashMap[String, Json](oldFields.length << 1) {
       oldFields.foreach(kv => put(kv._1, kv._2))
     }
-    val newSet = new java.util.HashSet[String](newFields.length)
+    val newSet = new java.util.HashSet[String](newFields.length << 1)
     val ops    = ChunkBuilder.make[JsonPatch.ObjectOp]()
     newFields.foreach { kv =>
       val fieldName = kv._1
