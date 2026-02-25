@@ -558,7 +558,9 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 - [Patching](./reference/patch.md) - Serializable data transformations
 - [Validation](./reference/validation.md) - Data validation and error handling
-- [Into](./reference/into.md) - One-way type-safe conversion with validation
+- [Schema Evolution](./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
+  - [Into](./reference/schema-evolution/into.md) - One-way conversion with validation
+  - [As](./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
 
 ### Other Blocks
 
