@@ -12,8 +12,15 @@ import zio.blocks.typeid.TypeId
  * Implementation of Deriver to derive Show type-class instances for various
  * schema types.
  *
- * Note: Implementation of all schema types would be lazy, and they will be
- * forced later when the Show instance of that type is actually needed.
+ * Implementation pattern (from SchemaDerivationShowSpec):
+ *   - Record/Variant (potentially recursive): pre-compute structural setup
+ *     (field names, bindings, reflects) outside the Lazy block; inside Lazy,
+ *     use `private lazy val resolvedShows` to defer forcing child instances
+ *     until first show() call — this breaks initialization cycles for recursive
+ *     types like `sealed trait Expr; case class Add(a: Expr, b: Expr)`.
+ *   - Sequence/Map/Wrapper (non-recursive): use `instance(...).map` / `.zip`
+ *     monadic composition — no explicit `.force` needed.
+ *   - Primitive/Dynamic: simple `Lazy { new Show { ... } }`.
  */
 object DeriveShowExample extends App {
   trait Show[A] {
@@ -49,47 +56,40 @@ object DeriveShowExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] =
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = {
+      // Pre-compute structural setup outside Lazy — none of this touches Deferred nodes
+      val fieldNames = fields.map(_.name)
+      // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
+      val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
+      // Cast to Binding.Record to access constructor/deconstructor
+      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+      // Build a Reflect.Record to get access to the computed registers for each field
+      val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
       Lazy {
-        // Collecting Lazy[Show] instances for each field from the transformed metadata
-        val fieldShowInstances: IndexedSeq[(String, Lazy[Show[Any]])] = fields.map { field =>
-          val fieldName = field.name
-          // Get the Lazy[Show] instance for this field's type, but we won't force it yet
-          // We'll force it later when we actually need to show a value of this field
-          val fieldShowInstance = D.instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]]
-          (fieldName, fieldShowInstance)
-        }
-
-        // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
-        val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
-
-        // Cast to Binding.Record to access constructor/deconstructor
-        val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-
-        // Build a Reflect.Record to get access to the computed registers for each field
-        val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
-
         new Show[A] {
+          // Defer child-instance resolution to first show() call via lazy val.
+          // For recursive types (e.g. case class Tree(children: List[Tree])), accessing
+          // field.value.metadata during derivation would re-enter a Deferred node that is
+          // still initialising, causing an infinite loop. By using a lazy val here we
+          // guarantee the access only happens after the framework has finished deriving
+          // all instances and every Lazy is fully memoised.
+          private lazy val resolvedShows: IndexedSeq[Show[Any]] =
+            fields.map(field => D.instance(field.value.metadata).asInstanceOf[Lazy[Show[Any]]].force)
           def show(value: A): String = {
-
             // Create registers with space for all used registers to hold deconstructed field values
             val registers = Registers(recordReflect.usedRegisters)
-
             // Deconstruct field values of the record into the registers
             recordBinding.deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-
             // Build string representations for all fields
             val fieldStrings = fields.indices.map { i =>
-              val (fieldName, showInstanceLazy) = fieldShowInstances(i)
-              val fieldValue                    = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
-              val result                        = s"$fieldName = ${showInstanceLazy.force.show(fieldValue)}"
-              result
+              val fieldValue = recordReflect.registers(i).get(registers, RegisterOffset.Zero)
+              s"${fieldNames(i)} = ${resolvedShows(i).show(fieldValue)}"
             }
-
             s"${typeId.name}(${fieldStrings.mkString(", ")})"
           }
         }
       }
+    }
 
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
@@ -99,29 +99,27 @@ object DeriveShowExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
-      // Get Show instances for all cases LAZILY
-      val caseShowInstances: IndexedSeq[Lazy[Show[Any]]] = cases.map { case_ =>
-        D.instance(case_.value.metadata).asInstanceOf[Lazy[Show[Any]]]
-      }
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = {
+      // Collect the Lazy[Show] references for each case outside the Lazy block.
+      // Capturing Lazy refs is safe here; we only .force them later inside the lazy val.
+      val caseShowLazies = cases.map(c => D.instance(c.value.metadata).asInstanceOf[Lazy[Show[Any]]])
 
       // Cast binding to Binding.Variant to access discriminator and matchers
       val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
-      val discriminator  = variantBinding.discriminator
-      val matchers       = variantBinding.matchers
-
-      new Show[A] {
-        // Implement show by using discriminator and matchers to find the right case
-        // The `value` parameter is of type A (the variant type), e.g. an Option[Int] value
-        def show(value: A): String = {
-          // Use discriminator to determine which case this value belongs to
-          val caseIndex = discriminator.discriminate(value)
-
-          // Use matcher to downcast to the specific case type
-          val caseValue = matchers(caseIndex).downcastOrNull(value)
-
-          // Just delegate to the case's Show instance - it already knows its own name
-          caseShowInstances(caseIndex).force.show(caseValue)
+      Lazy {
+        new Show[A] {
+          // Force child instances lazily — same recursive-safety rationale as deriveRecord
+          private lazy val resolvedShows: IndexedSeq[Show[Any]] = caseShowLazies.map(_.force)
+          // Implement show by using discriminator and matchers to find the right case
+          // The `value` parameter is of type A (the variant type), e.g. a Shape value
+          def show(value: A): String = {
+            // Use discriminator to determine which case this value belongs to
+            val caseIndex = variantBinding.discriminator.discriminate(value)
+            // Use matcher to downcast to the specific case type
+            val caseValue = variantBinding.matchers(caseIndex).downcastOrNull(value)
+            // Delegate to the case's Show instance — it already knows its own name
+            resolvedShows(caseIndex).show(caseValue)
+          }
         }
       }
     }
@@ -134,21 +132,19 @@ object DeriveShowExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = Lazy {
-      // Get Show instance for element type LAZILY
-      val elementShowLazy: Lazy[Show[A]] = D.instance(element.metadata)
-
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = {
       // Cast binding to Binding.Seq to access the deconstructor
-      val seqBinding    = binding.asInstanceOf[Binding.Seq[C, A]]
-      val deconstructor = seqBinding.deconstructor
-
-      new Show[C[A]] {
-        def show(value: C[A]): String = {
-          // Use deconstructor to iterate over elements
-          val iterator = deconstructor.deconstruct(value)
-          // Force the element Show instance only when actually showing
-          val elements = iterator.map(elem => elementShowLazy.force.show(elem)).mkString(", ")
-          s"[$elements]"
+      val deconstructor = binding.asInstanceOf[Binding.Seq[C, A]].deconstructor
+      // Sequences are structurally non-recursive, so we can use monadic .map composition.
+      // instance(...).map { elementShow => ... } returns a Lazy that, when forced, builds
+      // a Show[C[A]] with elementShow already resolved — no .force needed at show()-time.
+      D.instance(element.metadata).map { elementShow =>
+        new Show[C[A]] {
+          def show(value: C[A]): String = {
+            // Use deconstructor to iterate over elements and show each one
+            val elements = deconstructor.deconstruct(value).map(elementShow.show)
+            s"[${elements.mkString(", ")}]"
+          }
         }
       }
     }
@@ -162,26 +158,25 @@ object DeriveShowExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = Lazy {
-      // Get Show instances for key and value types LAZILY
-      val keyShowLazy: Lazy[Show[K]]   = D.instance(key.metadata)
-      val valueShowLazy: Lazy[Show[V]] = D.instance(value.metadata)
-
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = {
       // Cast binding to Binding.Map to access the deconstructor
-      val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
-      val deconstructor = mapBinding.deconstructor
-
-      new Show[M[K, V]] {
-        def show(m: M[K, V]): String = {
-          // Use deconstructor to iterate over key-value pairs
-          val iterator = deconstructor.deconstruct(m)
-          // Force the Show instances only when actually showing
-          val entries = iterator.map { kv =>
-            val k = deconstructor.getKey(kv)
-            val v = deconstructor.getValue(kv)
-            s"${keyShowLazy.force.show(k)} -> ${valueShowLazy.force.show(v)}"
-          }.mkString(", ")
-          s"Map($entries)"
+      val deconstructor = binding.asInstanceOf[Binding.Map[M, K, V]].deconstructor
+      // Maps are non-recursive: use .zip to pair the two child Lazy instances, then .map
+      // to build the Show[M[K,V]] with both keyShow and valueShow already resolved.
+      D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (keyShow, valueShow) =>
+        new Show[M[K, V]] {
+          def show(m: M[K, V]): String = {
+            // Use deconstructor to iterate over key-value pairs
+            val entries = deconstructor
+              .deconstruct(m)
+              .map { kv =>
+                val k = deconstructor.getKey(kv)
+                val v = deconstructor.getValue(kv)
+                s"${keyShow.show(k)} -> ${valueShow.show(v)}"
+              }
+              .mkString(", ")
+            s"Map($entries)"
+          }
         }
       }
     }
@@ -231,17 +226,18 @@ object DeriveShowExample extends App {
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
-    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = Lazy {
-      // Get Show instance for the wrapped (underlying) type B LAZILY
-      val wrappedShowLazy: Lazy[Show[B]] = D.instance(wrapped.metadata)
-
-      // Cast binding to Binding.Wrapper to access unwrap function
+    )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = {
+      // Cast binding to Binding.Wrapper to access the unwrap function
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
-
-      new Show[A] {
-        def show(value: A): String = {
-          val unwrapped = wrapperBinding.unwrap(value)
-          s"${typeId.name}(${wrappedShowLazy.force.show(unwrapped)})"
+      // Wrappers are non-recursive: use .map so wrappedShow is already resolved
+      // when show() is called — no .force needed.
+      D.instance(wrapped.metadata).map { wrappedShow =>
+        new Show[A] {
+          def show(value: A): String = {
+            // Unwrap the value to access the underlying type B, then delegate to its Show
+            val unwrapped = wrapperBinding.unwrap(value)
+            s"${typeId.name}(${wrappedShow.show(unwrapped)})"
+          }
         }
       }
     }
