@@ -83,7 +83,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     docs,
-    examples
+    `schema-examples`
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform)
@@ -486,11 +486,14 @@ lazy val benchmarks = project
     coverageMinimumBranchTotal := 42
   )
 
-lazy val examples = project
-  .in(file("zio-blocks-examples"))
-  .settings(stdSettings("zio-blocks-examples"))
+lazy val `schema-examples` = project
+  .in(file("schema-examples"))
+  .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
   .settings(
-    publish / skip := true
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
   .dependsOn(
     schema.jvm,

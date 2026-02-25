@@ -28,7 +28,7 @@ Before writing anything, build a complete mental model of the type:
    - Intended usage patterns and idioms
    - Edge cases and expected behavior
    - Real-world examples
-4. **Find existing examples**: Use Glob and Grep to locate examples in `zio-blocks-examples/` or any directory with "examples" in its name.
+4. **Find existing examples**: Use Glob and Grep to locate examples in `schema-examples/` or any directory with "examples" in its name.
 5. **Find usages**: Grep for the type name across the codebase to find how it's used by other modules — this reveals integration points and relationships.
 6. **Read related docs**: Check `docs/` and `docs/reference/` for pages that reference this type.
 7. **Search GitHub history**: Run `sbt "gh-query --verbose <TypeName>"` to search GitHub issues, PRs, and comments for discussions about the type. Use the results to:

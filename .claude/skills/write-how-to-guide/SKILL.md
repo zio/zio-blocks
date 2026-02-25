@@ -276,7 +276,7 @@ After the "Putting It Together" section, include a **"Running the Examples"** se
 ```markdown
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `zio-blocks-examples` module.
+All code from this guide is available as runnable examples in the `schema-examples` module.
 
 **1. Clone the repository and navigate to the project:**
 
@@ -289,27 +289,27 @@ cd zio-blocks
 
 ​```bash
 # Step 1: <brief step description>
-sbt "examples/runMain <packagename>.<Step1ObjectName>"
+sbt "schema-examples/runMain <packagename>.<Step1ObjectName>"
 
 # Step 2: <brief step description>
-sbt "examples/runMain <packagename>.<Step2ObjectName>"
+sbt "schema-examples/runMain <packagename>.<Step2ObjectName>"
 
 # ...additional steps...
 
 # Complete example
-sbt "examples/runMain <packagename>.<CompleteObjectName>"
+sbt "schema-examples/runMain <packagename>.<CompleteObjectName>"
 ​```
 
 **3. Or compile all examples at once:**
 
 ​```bash
-sbt "examples/compile"
+sbt "schema-examples/compile"
 ​```
 ```
 
 **Key rules for this section:**
 - Use plain `` ```bash `` code blocks (not mdoc — these are shell commands).
-- List every companion example file with its `sbt "examples/runMain ..."` command and a short comment describing what it demonstrates.
+- List every companion example file with its `sbt "schema-examples/runMain ..."` command and a short comment describing what it demonstrates.
 - The clone URL must be `https://github.com/zio/zio-blocks.git`.
 - Keep the section concise and mechanical — no extra prose beyond what is needed to run the code.
 
@@ -401,14 +401,14 @@ Use admonitions sparingly — at most 3-4 in a typical guide. They should highli
 
 ## Step 4: Create Companion Examples
 
-Each guide must have a companion example module in `zio-blocks-examples/src/main/scala/` that provides **runnable code** for the key steps and the final result. This gives readers working code they can clone and run immediately.
+Each guide must have a companion example module in `schema-examples/src/main/scala/` that provides **runnable code** for the key steps and the final result. This gives readers working code they can clone and run immediately.
 
 ### 4a. Directory and Package Structure
 
 Create a package directory matching the guide's kebab-case id (converted to a valid Scala package name):
 
 ```
-zio-blocks-examples/src/main/scala/<packagename>/
+schema-examples/src/main/scala/<packagename>/
 ```
 
 For example, a guide with id `query-dsl-sql` would use the package `querydsl` (drop hyphens). A guide with id `typeclass-derivation` would use `typeclassderivation`.
@@ -443,7 +443,7 @@ import zio.blocks.schema._
  *
  * <1-2 sentence description of what this example demonstrates.>
  *
- * Run with: sbt "examples/runMain <packagename>.<ObjectName>"
+ * Run with: sbt "schema-examples/runMain <packagename>.<ObjectName>"
  */
 object <ObjectName> extends App {
 
@@ -477,7 +477,7 @@ The final `CompleteExample.scala` (or a descriptively-named equivalent like `Com
 After creating all example files, verify they compile:
 
 ```bash
-sbt "examples/compile"
+sbt "schema-examples/compile"
 ```
 
 If any example fails to compile, fix it before proceeding. The examples must compile successfully.
@@ -532,20 +532,20 @@ After writing, verify every item on this checklist:
 - [ ] No deprecated methods or outdated patterns are used
 
 ### Companion Examples
-- [ ] A package directory exists in `zio-blocks-examples/src/main/scala/<packagename>/`
+- [ ] A package directory exists in `schema-examples/src/main/scala/<packagename>/`
 - [ ] There is one example file per major guide step (typically 3-5 files)
 - [ ] There is a `CompleteExample.scala` (or descriptively named equivalent) with the full "Putting It Together" code
 - [ ] Each example file is fully self-contained (compiles and runs independently)
 - [ ] Each example file has complete imports
 - [ ] Each example file has a scaladoc with guide title, step description, and `sbt runMain` command
 - [ ] Each example file includes `println` output showing meaningful results
-- [ ] All examples compile successfully (`sbt "examples/compile"`)
+- [ ] All examples compile successfully (`sbt "schema-examples/compile"`)
 
 ### Running the Examples Section
 - [ ] The guide includes a "Running the Examples" section after "Putting It Together"
 - [ ] The section includes `git clone https://github.com/zio/zio-blocks.git` and `cd zio-blocks`
-- [ ] Every companion example file is listed with its `sbt "examples/runMain ..."` command
-- [ ] The section includes `sbt "examples/compile"` as an alternative
+- [ ] Every companion example file is listed with its `sbt "schema-examples/runMain ..."` command
+- [ ] The section includes `sbt "schema-examples/compile"` as an alternative
 
 ### Style and Integration
 - [ ] The frontmatter `id` matches the filename
