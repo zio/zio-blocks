@@ -978,7 +978,7 @@ object DynamicValue {
       case DynamicOptic.Node.AtMapKeys(keys) =>
         dv match {
           case m: Map =>
-            val keysSet = new util.HashSet[DynamicValue](keys.length)
+            val keysSet = new util.HashSet[DynamicValue](keys.length << 1)
             keys.foreach(keysSet.add)
             var found      = false
             val newEntries = m.entries.map { kv =>
@@ -1189,7 +1189,7 @@ object DynamicValue {
       case DynamicOptic.Node.AtMapKeys(keys) =>
         dv match {
           case m: Map =>
-            val keysSet = new util.HashSet[DynamicValue](keys.length)
+            val keysSet = new util.HashSet[DynamicValue](keys.length << 1)
             keys.foreach(keysSet.add)
             if (isLast) {
               val newEntries = m.entries.filterNot(kv => keysSet.contains(kv._1))
@@ -1423,8 +1423,8 @@ object DynamicValue {
     val rightFields = right.fields
     val leftLen     = leftFields.length
     val rightLen    = rightFields.length
-    val leftSeenAt  = new java.util.HashMap[java.lang.String, Int](leftLen)
-    val rightSeenAt = new java.util.HashMap[java.lang.String, Int](rightLen)
+    val leftSeenAt  = new java.util.HashMap[java.lang.String, Int](leftLen << 1)
+    val rightSeenAt = new java.util.HashMap[java.lang.String, Int](rightLen << 1)
     val rightDedup  = new scala.Array[(java.lang.String, DynamicValue)](rightLen)
     var merged      = new scala.Array[(java.lang.String, DynamicValue)](leftLen + rightLen)
     var idx         = 0
@@ -1501,8 +1501,8 @@ object DynamicValue {
     val rightEntries = right.entries
     val leftLen      = leftEntries.length
     val rightLen     = rightEntries.length
-    val leftSeenAt   = new java.util.HashMap[DynamicValue, Int](leftLen)
-    val rightSeenAt  = new java.util.HashMap[DynamicValue, Int](rightLen)
+    val leftSeenAt   = new java.util.HashMap[DynamicValue, Int](leftLen << 1)
+    val rightSeenAt  = new java.util.HashMap[DynamicValue, Int](rightLen << 1)
     val rightDedup   = new scala.Array[(DynamicValue, DynamicValue)](rightLen)
     var merged       = new scala.Array[(DynamicValue, DynamicValue)](leftLen + rightLen)
     var idx          = 0
@@ -1789,14 +1789,12 @@ object DynamicValue {
     case _           => true
   }
 
-  private def project(dv: DynamicValue, paths: Seq[DynamicOptic]): DynamicValue = {
-    val pathSet = paths.toSet
+  private def project(dv: DynamicValue, paths: Seq[DynamicOptic]): DynamicValue =
     retain(
       dv,
       DynamicOptic.root,
-      (path, _) => pathSet.exists(p => path.nodes.startsWith(p.nodes) || p.nodes.startsWith(path.nodes))
+      (path, _) => paths.exists(p => path.nodes.startsWith(p.nodes) || p.nodes.startsWith(path.nodes))
     )
-  }
 
   private def partition(
     dv: DynamicValue,

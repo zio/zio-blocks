@@ -1145,7 +1145,7 @@ object JsonSchema {
           }
           result = result.withEvaluatedItems(evaluatedIndices)
         case obj: Json.Object => // Object validations
-          val fieldMap = new java.util.HashMap[String, Json](obj.value.length) {
+          val fieldMap = new java.util.HashMap[String, Json](obj.value.length << 1) {
             obj.value.foreach(kv => put(kv._1, kv._2))
           }
           val fieldKeys = fieldMap.keySet()
@@ -1344,7 +1344,7 @@ object JsonSchema {
           unevaluatedProperties match {
             case Some(unevalSchema) =>
               obj.value.foreach {
-                val seen         = new java.util.HashSet[String](obj.value.length)
+                val seen         = new java.util.HashSet[String](obj.value.length << 1)
                 val allEvaluated = result.evaluatedProperties
                 kv =>
                   val key = kv._1
@@ -1378,7 +1378,8 @@ object JsonSchema {
     }
 
     private[this] def uniqueCheck(values: Chunk[Json]): Boolean = values.forall {
-      val seen = new java.util.HashSet[Json](values.length) // Java's HashSet is not affected by hash collision vulns
+      val seen =
+        new java.util.HashSet[Json](values.length << 1) // Java's HashSet is not affected by hash collision vulns
       v => seen.add(v)
     }
   }
@@ -1520,7 +1521,7 @@ object JsonSchema {
   // ===========================================================================
 
   private def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
-    val fieldMap = new java.util.HashMap[java.lang.String, Json](obj.value.length) {
+    val fieldMap = new java.util.HashMap[java.lang.String, Json](obj.value.length << 1) {
       obj.value.foreach(kv => put(kv._1, kv._2))
     }
 

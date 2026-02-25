@@ -184,23 +184,26 @@ object JsonDiffer {
    * operations.
    */
   private[this] def diffObject(oldFields: Chunk[(String, Json)], newFields: Chunk[(String, Json)]): JsonPatch = {
-    val oldMap = oldFields.toMap
-    val newMap = newFields.toMap
-    val ops    = ChunkBuilder.make[JsonPatch.ObjectOp]()
-    for ((fieldName, newValue) <- newFields) {
-      oldMap.get(fieldName) match {
-        case Some(oldValue) =>
-          if (oldValue != newValue) {
-            val fieldPatch = diff(oldValue, newValue)
-            if (!fieldPatch.isEmpty) {
-              ops.addOne(new JsonPatch.ObjectOp.Modify(fieldName, fieldPatch))
-            }
-          }
-        case _ => ops.addOne(new JsonPatch.ObjectOp.Add(fieldName, newValue))
-      }
+    val oldMap = new java.util.HashMap[String, Json](oldFields.length << 1) {
+      oldFields.foreach(kv => put(kv._1, kv._2))
     }
-    for ((fieldName, _) <- oldFields) {
-      if (!newMap.contains(fieldName)) ops.addOne(new JsonPatch.ObjectOp.Remove(fieldName))
+    val newSet = new java.util.HashSet[String](newFields.length << 1)
+    val ops    = ChunkBuilder.make[JsonPatch.ObjectOp]()
+    newFields.foreach { kv =>
+      val fieldName = kv._1
+      val newValue  = kv._2
+      newSet.add(fieldName)
+      val oldValue = oldMap.get(fieldName)
+      if (oldValue ne null) {
+        if (oldValue != newValue) {
+          val fieldPatch = diff(oldValue, newValue)
+          if (!fieldPatch.isEmpty) ops.addOne(new JsonPatch.ObjectOp.Modify(fieldName, fieldPatch))
+        }
+      } else ops.addOne(new JsonPatch.ObjectOp.Add(fieldName, newValue))
+    }
+    oldFields.foreach { kv =>
+      val fieldName = kv._1
+      if (!newSet.contains(fieldName)) ops.addOne(new JsonPatch.ObjectOp.Remove(fieldName))
     }
     val result = ops.result()
     if (result.isEmpty) JsonPatch.empty

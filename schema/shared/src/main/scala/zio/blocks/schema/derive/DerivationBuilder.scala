@@ -158,7 +158,7 @@ final case class DerivationBuilder[TC[_], A](
       instanceByOpticMap
         .get(path)
         .orElse(instanceByTypeMap.get(typeId.asInstanceOf[TypeId[Any]]))
-        .map(_.asInstanceOf[Lazy[TC[A0]]])
+        .asInstanceOf[Option[Lazy[TC[A0]]]]
 
     type F[T, A0] = Binding[T, A0]
     type G[T, A0] = BindingInstance[TC, T, A0]
@@ -186,7 +186,7 @@ final case class DerivationBuilder[TC[_], A](
       pathBuilder: (DynamicOptic, String) => DynamicOptic
     ): IndexedSeq[Term[G, A0, ?]] =
       if (instanceByTypeAndTermNameMap.isEmpty) terms
-      else
+      else {
         terms.map { term =>
           instanceByTypeAndTermNameMap.get((typeId.asInstanceOf[TypeId[Any]], term.name)) match {
             case Some(overrideInstance) =>
@@ -202,6 +202,7 @@ final case class DerivationBuilder[TC[_], A](
             case None => term
           }
         }
+      }
 
     schema.reflect
       .transform[G](
