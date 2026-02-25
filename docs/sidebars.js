@@ -23,7 +23,6 @@ const sidebars = {
          "reference/chunk",
          "reference/validation",
          "reference/into",
-         "reference/schema-evolution",
          "reference/context",
          "reference/docs",
          "reference/json",
