@@ -1789,14 +1789,12 @@ object DynamicValue {
     case _           => true
   }
 
-  private def project(dv: DynamicValue, paths: Seq[DynamicOptic]): DynamicValue = {
-    val pathSet = paths.toSet
+  private def project(dv: DynamicValue, paths: Seq[DynamicOptic]): DynamicValue =
     retain(
       dv,
       DynamicOptic.root,
-      (path, _) => pathSet.exists(p => path.nodes.startsWith(p.nodes) || p.nodes.startsWith(path.nodes))
+      (path, _) => paths.exists(p => path.nodes.startsWith(p.nodes) || p.nodes.startsWith(path.nodes))
     )
-  }
 
   private def partition(
     dv: DynamicValue,

@@ -188,35 +188,39 @@ private[schema] object Differ {
     oldFields: Chunk[(String, DynamicValue)],
     newFields: Chunk[(String, DynamicValue)]
   ): DynamicPatch = {
-    val oldMap = oldFields.toMap
-    val ops    = ChunkBuilder.make[Patch.DynamicPatchOp]()
+    val oldMap = new java.util.HashMap[String, DynamicValue](oldFields.length) {
+      oldFields.foreach(kv => put(kv._1, kv._2))
+    }
+    val ops = ChunkBuilder.make[Patch.DynamicPatchOp]()
     // Check each field in the new record
-    for ((fieldName, newValue) <- newFields) {
-      oldMap.get(fieldName) match {
-        case Some(oldValue) =>
-          if (oldValue != newValue) {
-            // Field exists in both but has different value - recursively diff
-            val fieldPatch = diff(oldValue, newValue)
-            if (!fieldPatch.isEmpty) {
-              // Prepend the field path to each operation
-              for (op <- fieldPatch.ops) {
-                ops.addOne(
-                  new Patch.DynamicPatchOp(
-                    new DynamicOptic(new DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
-                    op.operation
-                  )
+    newFields.foreach { kv =>
+      val fieldName = kv._1
+      val newValue  = kv._2
+      val oldValue  = oldMap.get(fieldName)
+      if (oldValue ne null) {
+        if (oldValue != newValue) {
+          // Field exists in both but has different value - recursively diff
+          val fieldPatch = diff(oldValue, newValue)
+          if (!fieldPatch.isEmpty) {
+            // Prepend the field path to each operation
+            fieldPatch.ops.foreach(op =>
+              ops.addOne(
+                new Patch.DynamicPatchOp(
+                  new DynamicOptic(new DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
+                  op.operation
                 )
-              }
-            }
-          }
-        case _ =>
-          // Field only exists in new record - set it
-          ops.addOne(
-            new Patch.DynamicPatchOp(
-              new DynamicOptic(Chunk.single(new DynamicOptic.Node.Field(fieldName))),
-              new Patch.Operation.Set(newValue)
+              )
             )
+          }
+        }
+      } else {
+        // Field only exists in new record - set it
+        ops.addOne(
+          new Patch.DynamicPatchOp(
+            new DynamicOptic(Chunk.single(new DynamicOptic.Node.Field(fieldName))),
+            new Patch.Operation.Set(newValue)
           )
+        )
       }
     }
     // Fields that exist in old but not in new are ignored
@@ -305,26 +309,29 @@ private[schema] object Differ {
     oldEntries: Chunk[(DynamicValue, DynamicValue)],
     newEntries: Chunk[(DynamicValue, DynamicValue)]
   ): DynamicPatch = {
-    val oldMap = oldEntries.toMap
-    val newMap = newEntries.toMap
+    val oldMap = new java.util.HashMap[DynamicValue, DynamicValue](oldEntries.length) {
+      oldEntries.foreach(kv => put(kv._1, kv._2))
+    }
+    val newSet = new java.util.HashSet[DynamicValue](newEntries.length)
     val ops    = ChunkBuilder.make[Patch.MapOp]()
     // Find added and modified keys
-    for ((key, newValue) <- newEntries) {
-      oldMap.get(key) match {
-        case Some(oldValue) =>
-          if (oldValue != newValue) {
-            // Key exists in both but value changed - recursively diff
-            val valuePatch = diff(oldValue, newValue)
-            if (!valuePatch.isEmpty) {
-              ops.addOne(new Patch.MapOp.Modify(key, valuePatch))
-            }
-          }
-        case _ => ops.addOne(new Patch.MapOp.Add(key, newValue))
-      }
+    newEntries.foreach { kv =>
+      val key      = kv._1
+      val newValue = kv._2
+      newSet.add(key)
+      val oldValue = oldMap.get(key)
+      if (oldValue ne null) {
+        if (oldValue != newValue) {
+          // Key exists in both but value changed - recursively diff
+          val valuePatch = diff(oldValue, newValue)
+          if (!valuePatch.isEmpty) ops.addOne(new Patch.MapOp.Modify(key, valuePatch))
+        }
+      } else ops.addOne(new Patch.MapOp.Add(key, newValue))
     }
     // Find removed keys
-    for ((key, _) <- oldEntries) {
-      if (!newMap.contains(key)) ops.addOne(new Patch.MapOp.Remove(key))
+    oldEntries.foreach { kv =>
+      val key = kv._1
+      if (!newSet.contains(key)) ops.addOne(new Patch.MapOp.Remove(key))
     }
     DynamicPatch.root(new Patch.Operation.MapEdit(ops.result()))
   }
