@@ -561,7 +561,6 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [SchemaError](./reference/schema-error.md) - Structured error type for schema operations
 - [Validation](./reference/validation.md) - Data validation and error handling
 - [Into](./reference/into.md) - One-way type-safe conversion with validation
-- [Schema Evolution](./reference/schema-evolution.md) - Migration and compatibility
 
 ### Other Blocks
 

@@ -24,7 +24,6 @@ const sidebars = {
          "reference/schema-error",
          "reference/validation",
          "reference/into",
-         "reference/schema-evolution",
          "reference/context",
          "reference/docs",
          "reference/json",

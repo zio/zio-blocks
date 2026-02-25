@@ -193,9 +193,11 @@ These instances always succeed because the conversion cannot lose information:
 | `Float`   |         |       |        |         | ✅        |
 
 Each widening conversion always returns `Right` since no information is lost:
+
 ```scala mdoc:invisible
 import zio.blocks.schema.Into
 ```
+
 ```scala mdoc
 Into[Byte, Int].into(42.toByte)
 Into[Int, Long].into(100)
@@ -221,6 +223,7 @@ These instances check at runtime whether the value fits in the target type. They
 | `Double` | `Long`  | value is not a whole number, or outside Long range |
 
 A value within range returns `Right`; an overflow or fractional value returns `Left`:
+
 ```scala mdoc
 Into[Long, Int].into(42L)
 Into[Long, Int].into(Long.MaxValue)
@@ -394,9 +397,34 @@ Missing fields are filled with `None` or their declared defaults — no extra co
 Into.derived[Source, Target].into(Source("Alice"))
 ```
 
+For nested case classes, the macro automatically picks up implicit `Into` instances for the nested types. Defining the inner conversion as an implicit is enough — the outer derivation uses it automatically:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.Into
+
+case class AddressV1(street: String, zip: Int)
+case class AddressV2(street: String, zip: Long)
+
+case class PersonV1(name: String, address: AddressV1)
+case class PersonV2(name: String, address: AddressV2)
+
+implicit val addressConv: Into[AddressV1, AddressV2] =
+  Into.derived[AddressV1, AddressV2]
+
+val personConv = Into.derived[PersonV1, PersonV2]
+```
+
+The `personConv` conversion delegates the `address` field to `addressConv` without any extra wiring:
+
+```scala mdoc
+personConv.into(PersonV1("Alice", AddressV1("123 Main St", 10001)))
+```
+
 ### Coproducts (Sealed Traits and Enums)
 
-Cases are matched by name; for case classes, field types must be convertible:
+Cases are matched by name; for case classes, field types must be convertible. Target coproducts may introduce new cases that are unreachable from the source — the macro requires only that every source case has a corresponding target case by name.
+
+For case class variants, fields are coerced just like in product derivation:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
@@ -423,9 +451,58 @@ conv.into(ShapeV1.Circle(5))
 conv.into(ShapeV1.Square(3))
 ```
 
+For `case object` variants (no fields), the macro matches by name alone. New cases may be added to the target without affecting derivation:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.Into
+
+sealed trait StatusV1
+object StatusV1 {
+  case object Active   extends StatusV1
+  case object Inactive extends StatusV1
+}
+
+sealed trait StatusV2
+object StatusV2 {
+  case object Active   extends StatusV2
+  case object Inactive extends StatusV2
+  case object Pending  extends StatusV2  // new in V2 — unreachable from V1
+}
+
+val conv = Into.derived[StatusV1, StatusV2]
+```
+
+Each source case object maps to the identically-named target case object:
+
+```scala mdoc
+conv.into(StatusV1.Active)
+conv.into(StatusV1.Inactive)
+```
+
 ### ZIO Prelude Newtypes
 
-`Into.derived` automatically detects ZIO Prelude `Newtype` and `Subtype` definitions and validates values through their smart constructors:
+`Into.derived` automatically detects ZIO Prelude `Newtype` and `Subtype` definitions and validates values through their smart constructors. The syntax for defining the assertion differs between Scala versions.
+
+**Scala 2:**
+
+```scala
+object Age extends Subtype[Int] {
+  override def assertion = assert {
+    between(0, 150)
+  }
+}
+```
+
+**Scala 3:**
+
+```scala
+object Age extends Subtype[Int] {
+  override def assertion: Assertion[Int] =
+    zio.prelude.Assertion.between(0, 150)
+}
+```
+
+The Scala 3 form is used in the mdoc examples below:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
@@ -481,27 +558,40 @@ The macro looks for `apply(value: Underlying): Either[_, OpaqueType]` first, the
 
 ### Structural Types (JVM Only)
 
-On JVM, `Into.derived` supports structural types (types defined by their members rather than their name):
+On JVM, `Into.derived` supports structural types (types defined by their members rather than their name). This is not available on Scala.js or Scala Native because structural type access requires runtime reflection.
+
+| Conversion              | JVM | JS/Native |
+|-------------------------|-----|-----------|
+| Structural → Product    | ✅  | ❌         |
+| Product → Structural    | ✅  | ❌         |
+
+On non-JVM platforms, `Into.derived` fails at compile time with a descriptive message:
+
+```
+Cannot derive Into[..., Person]: Structural type conversions are not supported on JS.
+Structural types require reflection APIs which are only available on JVM.
+Consider using a case class or tuple instead.
+```
+
+On JVM, we use `scala.language.reflectiveCalls` and create the structural instance at the call site:
 
 ```scala
 // JVM ONLY — structural types require reflection
 import scala.language.reflectiveCalls
 
+def makePerson(n: String, a: Int): { def name: String; def age: Int } = new {
+  def name: String = n
+  def age: Int = a
+}
+
 case class Person(name: String, age: Int)
 
 val into = Into.derived[{ def name: String; def age: Int }, Person]
+// into.into(makePerson("Alice", 30)) == Right(Person("Alice", 30))
 ```
 
 :::warning
-Structural type conversions are not available on Scala.js or Scala Native. `Into.derived` fails at compile time with a descriptive error message on non-JVM platforms:
-
-```
-
-Cannot derive Into[..., Person]: Structural type conversions are not supported on JS.
-
-```
-
-For cross-platform code, use case classes or tuples instead of structural types.
+For cross-platform code, replace structural types with case classes or tuples.
 :::
 
 ## Error Handling
@@ -566,7 +656,7 @@ println(err.message)
 
 ## Related Type: `As[A, B]`
 
-`As[A, B]` extends `Into[A, B]` with a reverse direction `from(b: B): Either[SchemaError, A]`. Use `As` when you need bidirectional, round-trip safe conversions:
+`As[A, B]` extends `Into[A, B]` with a reverse direction `from(b: B): Either[SchemaError, A]`. Use `As` when you need bidirectional, round-trip safe conversions. Because `As` must guarantee round-trip correctness, it has stricter derivation requirements than `Into`.
 
 ```scala
 trait As[A, B] extends Into[A, B] {
@@ -574,6 +664,8 @@ trait As[A, B] extends Into[A, B] {
   def reverse: As[B, A]
 }
 ```
+
+### Bidirectional Conversion
 
 We derive an `As` for two case classes and obtain its reverse using `as.reverse`:
 
@@ -615,7 +707,143 @@ Passing `as` where an `Into` is expected works without any cast since `As` is a 
 migrate(P2D(1, 2))
 ```
 
-See [Schema Evolution](./schema-evolution.md) for a detailed guide on using `Into` and `As` together for schema migration scenarios.
+### Restrictions
+
+`As` enforces constraints that `Into` does not, because every `As[A, B]` must also be a valid `As[B, A]`.
+
+**Default values on asymmetric fields are rejected.** If a field has a default in one type but does not exist in the other, round-tripping would silently lose data:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.As
+
+case class WithDefault(name: String, age: Int = 25)
+case class NoDefault(name: String)
+
+// Does NOT compile — age has a default but is absent from NoDefault:
+// As.derived[WithDefault, NoDefault]
+
+// Use Into for one-way conversion instead:
+import zio.blocks.schema.Into
+Into.derived[NoDefault, WithDefault]  // compiles fine
+```
+
+Default values are permitted when the field exists in **both** types, because the value is never discarded:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.As
+
+case class PersonA(name: String, age: Int = 25)
+case class PersonB(name: String, age: Int)
+
+As.derived[PersonA, PersonB]  // compiles — age is present in both
+```
+
+**`Option` fields on one side are allowed.** `None` round-trips cleanly, so an `Option` field that has no counterpart in the other type is safe:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.As
+
+case class TypeA(name: String, nickname: Option[String])
+case class TypeB(name: String)
+
+As.derived[TypeA, TypeB]  // compiles
+```
+
+**Numeric coercions must be invertible in both directions.** Widening `Int → Long` is paired with narrowing `Long → Int`, which validates at runtime, so the round-trip is safe:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.As
+
+case class IntVersion(value: Int)
+case class LongVersion(value: Long)
+
+As.derived[IntVersion, LongVersion]  // compiles — widening + narrowing form a valid pair
+```
+
+## Best Practices
+
+Following a few conventions avoids common pitfalls when working with `Into` and `As`.
+
+**Prefer `As` when round-trip correctness is required.** For data sync or bidirectional serialization, use `As`. For one-way migrations or API responses, use `Into`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Into, As}
+
+case class LocalModel(id: Long, name: String)
+case class RemoteModel(id: Long, name: String)
+
+case class OldFormat(value: Int)
+case class NewFormat(value: Long)
+
+val sync: As[LocalModel, RemoteModel]    = As.derived    // round-trip
+val migrate: Into[OldFormat, NewFormat]  = Into.derived  // one-way
+```
+
+**Use `Option` for truly optional fields, not default values.** Default values prevent `As` derivation when the field is absent from the other type; `Option` always works:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Into, As}
+
+// Good — Option works with both Into and As
+case class V2Good(name: String, email: Option[String])
+
+// Risky — default value prevents As derivation when field is absent from the other side
+case class V2Risky(name: String, email: String = "")
+```
+
+**Provide explicit implicits for complex nested types.** When nested types need custom validation logic, define the inner `Into` as an implicit before deriving the outer one:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Into
+
+case class AddressV1(street: String, zip: Int)
+case class AddressV2(street: String, zip: Long, country: String = "US")
+
+case class PersonV1(name: String, address: AddressV1)
+case class PersonV2(name: String, address: AddressV2)
+
+implicit val addressMigrate: Into[AddressV1, AddressV2] =
+  Into.derived[AddressV1, AddressV2]
+
+val personMigrate: Into[PersonV1, PersonV2] =
+  Into.derived[PersonV1, PersonV2]  // picks up addressMigrate automatically
+```
+
+## Advanced Usage
+
+The real power of `Into` emerges in multi-version schema evolution scenarios where types gain new fields, change numeric precision, and introduce new coproduct cases simultaneously. The following example migrates a two-level object graph from V1 to V2:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.Into
+
+object V1 {
+  case class Address(street: String, city: String)
+  case class Person(name: String, age: Int, address: Address)
+}
+
+object V2 {
+  case class Address(street: String, city: String, country: String = "US")
+  case class Person(
+    name: String,
+    age: Long,                  // widened from Int
+    address: Address,
+    email: Option[String]       // new optional field
+  )
+}
+
+implicit val addressMigrate: Into[V1.Address, V2.Address] =
+  Into.derived[V1.Address, V2.Address]
+
+val personMigrate: Into[V1.Person, V2.Person] =
+  Into.derived[V1.Person, V2.Person]
+```
+
+A V1 record converts to V2 in one call — all defaults, widenings, and nested conversions are applied automatically:
+
+```scala mdoc
+val oldPerson = V1.Person("Alice", 30, V1.Address("123 Main St", "NYC"))
+personMigrate.into(oldPerson)
+```
 
 ## Scala 2 vs Scala 3 Differences
 
@@ -625,4 +853,5 @@ See [Schema Evolution](./schema-evolution.md) for a detailed guide on using `Int
 | Enum support | Sealed traits only | Scala 3 enums + sealed traits |
 | Opaque types | N/A | ✅ Supported |
 | Structural types | JVM only (reflection) | JVM only (reflection) |
-| ZIO Prelude newtypes | ✅ | ✅ |
+| ZIO Prelude newtypes | ✅ `assert { between(...) }` | ✅ `override def assertion` |
+| Error messages | Detailed macro errors | Detailed macro errors |
