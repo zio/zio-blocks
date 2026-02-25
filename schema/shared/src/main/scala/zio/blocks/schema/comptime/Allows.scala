@@ -83,7 +83,7 @@ object Allows extends AllowsCompanionVersionSpecific {
   private[comptime] val instance: Allows[Any, Structural] = new Allows[Any, Structural] {}
 
   /** Root of the grammar type hierarchy. All shape descriptors extend this. */
-  abstract class Structural
+  sealed abstract class Structural
 
   /**
    * Matches any primitive type. Also serves as the parent of all specific
@@ -102,159 +102,159 @@ object Allows extends AllowsCompanionVersionSpecific {
    *
    * In Scala 2 you may also write `` Primitive.Int `|` Primitive.Long ``.
    */
-  abstract class Primitive extends Structural
+  sealed abstract class Primitive extends Structural
 
   object Primitive {
 
     /**
      * Matches `scala.Unit` only.
      */
-    abstract class Unit extends Primitive
+    sealed abstract class Unit extends Primitive
 
     /**
      * Matches `scala.Boolean` only.
      */
-    abstract class Boolean extends Primitive
+    sealed abstract class Boolean extends Primitive
 
     /**
      * Matches `scala.Byte` only.
      */
-    abstract class Byte extends Primitive
+    sealed abstract class Byte extends Primitive
 
     /**
      * Matches `scala.Short` only.
      */
-    abstract class Short extends Primitive
+    sealed abstract class Short extends Primitive
 
     /**
      * Matches `scala.Int` only.
      */
-    abstract class Int extends Primitive
+    sealed abstract class Int extends Primitive
 
     /**
      * Matches `scala.Long` only.
      */
-    abstract class Long extends Primitive
+    sealed abstract class Long extends Primitive
 
     /**
      * Matches `scala.Float` only.
      */
-    abstract class Float extends Primitive
+    sealed abstract class Float extends Primitive
 
     /**
      * Matches `scala.Double` only.
      */
-    abstract class Double extends Primitive
+    sealed abstract class Double extends Primitive
 
     /**
      * Matches `scala.Char` only.
      */
-    abstract class Char extends Primitive
+    sealed abstract class Char extends Primitive
 
     /**
      * Matches `java.lang.String` only.
      */
-    abstract class String extends Primitive
+    sealed abstract class String extends Primitive
 
     /**
      * Matches `scala.BigInt` only.
      */
-    abstract class BigInt extends Primitive
+    sealed abstract class BigInt extends Primitive
 
     /**
      * Matches `scala.BigDecimal` only.
      */
-    abstract class BigDecimal extends Primitive
+    sealed abstract class BigDecimal extends Primitive
 
     /**
      * Matches `java.util.UUID` only.
      */
-    abstract class UUID extends Primitive
+    sealed abstract class UUID extends Primitive
 
     /**
      * Matches `java.util.Currency` only.
      */
-    abstract class Currency extends Primitive
+    sealed abstract class Currency extends Primitive
 
     /**
      * Matches `java.time.DayOfWeek` only.
      */
-    abstract class DayOfWeek extends Primitive
+    sealed abstract class DayOfWeek extends Primitive
 
     /**
      * Matches `java.time.Duration` only.
      */
-    abstract class Duration extends Primitive
+    sealed abstract class Duration extends Primitive
 
     /**
      * Matches `java.time.Instant` only.
      */
-    abstract class Instant extends Primitive
+    sealed abstract class Instant extends Primitive
 
     /**
      * Matches `java.time.LocalDate` only.
      */
-    abstract class LocalDate extends Primitive
+    sealed abstract class LocalDate extends Primitive
 
     /**
      * Matches `java.time.LocalDateTime` only.
      */
-    abstract class LocalDateTime extends Primitive
+    sealed abstract class LocalDateTime extends Primitive
 
     /**
      * Matches `java.time.LocalTime` only.
      */
-    abstract class LocalTime extends Primitive
+    sealed abstract class LocalTime extends Primitive
 
     /**
      * Matches `java.time.Month` only.
      */
-    abstract class Month extends Primitive
+    sealed abstract class Month extends Primitive
 
     /**
      * Matches `java.time.MonthDay` only.
      */
-    abstract class MonthDay extends Primitive
+    sealed abstract class MonthDay extends Primitive
 
     /**
      * Matches `java.time.OffsetDateTime` only.
      */
-    abstract class OffsetDateTime extends Primitive
+    sealed abstract class OffsetDateTime extends Primitive
 
     /**
      * Matches `java.time.OffsetTime` only.
      */
-    abstract class OffsetTime extends Primitive
+    sealed abstract class OffsetTime extends Primitive
 
     /**
      * Matches `java.time.Period` only.
      */
-    abstract class Period extends Primitive
+    sealed abstract class Period extends Primitive
 
     /**
      * Matches `java.time.Year` only.
      */
-    abstract class Year extends Primitive
+    sealed abstract class Year extends Primitive
 
     /**
      * Matches `java.time.YearMonth` only.
      */
-    abstract class YearMonth extends Primitive
+    sealed abstract class YearMonth extends Primitive
 
     /**
      * Matches `java.time.ZoneId` only.
      */
-    abstract class ZoneId extends Primitive
+    sealed abstract class ZoneId extends Primitive
 
     /**
      * Matches `java.time.ZoneOffset` only.
      */
-    abstract class ZoneOffset extends Primitive
+    sealed abstract class ZoneOffset extends Primitive
 
     /**
      * Matches `java.time.ZonedDateTime` only.
      */
-    abstract class ZonedDateTime extends Primitive
+    sealed abstract class ZonedDateTime extends Primitive
   }
 
   /**
@@ -265,7 +265,7 @@ object Allows extends AllowsCompanionVersionSpecific {
    * @tparam A
    *   The constraint that every field of the record must satisfy.
    */
-  abstract class Record[A <: Structural] extends Structural
+  sealed abstract class Record[A <: Structural] extends Structural
 
   /**
    * Matches a sequence type (List, Vector, Set, Array, Chunk, …) whose element
@@ -274,7 +274,7 @@ object Allows extends AllowsCompanionVersionSpecific {
    * @tparam A
    *   The constraint that the element type of the sequence must satisfy.
    */
-  abstract class Sequence[A <: Structural] extends Structural
+  sealed abstract class Sequence[A <: Structural] extends Structural
 
   /**
    * Matches a map type (Map, HashMap, …) whose key type satisfies `K` and whose
@@ -285,7 +285,7 @@ object Allows extends AllowsCompanionVersionSpecific {
    * @tparam V
    *   The constraint that the value type of the map must satisfy.
    */
-  abstract class Map[K <: Structural, V <: Structural] extends Structural
+  sealed abstract class Map[K <: Structural, V <: Structural] extends Structural
 
   /**
    * Matches `Option[A]` where the inner type satisfies `A`. `Option` is handled
@@ -296,7 +296,7 @@ object Allows extends AllowsCompanionVersionSpecific {
    *   The constraint that the inner (unwrapped) type of the `Option` must
    *   satisfy.
    */
-  abstract class Optional[A <: Structural] extends Structural
+  sealed abstract class Optional[A <: Structural] extends Structural
 
   /**
    * Matches a wrapper / newtype / opaque type whose underlying type satisfies
@@ -305,13 +305,13 @@ object Allows extends AllowsCompanionVersionSpecific {
    * @tparam A
    *   The constraint that the underlying type of the wrapper must satisfy.
    */
-  abstract class Wrapped[A <: Structural] extends Structural
+  sealed abstract class Wrapped[A <: Structural] extends Structural
 
   /**
    * Matches `DynamicValue` — the schema-less escape hatch. No further
    * constraint is imposed on the value.
    */
-  abstract class Dynamic extends Structural
+  sealed abstract class Dynamic extends Structural
 
   /**
    * Recursive self-reference. When used inside a grammar expression, `Self`
@@ -325,7 +325,7 @@ object Allows extends AllowsCompanionVersionSpecific {
    * the `Self` position is never reached, the constraint is vacuously
    * satisfied.
    */
-  abstract class Self extends Structural
+  sealed abstract class Self extends Structural
 
   /**
    * Union of two grammar nodes. Write in infix position: `A | B`.
@@ -346,5 +346,5 @@ object Allows extends AllowsCompanionVersionSpecific {
    * Allows[Person, Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]
    * }}}
    */
-  abstract class `|`[A <: Structural, B <: Structural] extends Structural
+  sealed abstract class `|`[A <: Structural, B <: Structural] extends Structural
 }
