@@ -75,6 +75,8 @@ Supported Scala versions: 2.13.x and 3.x.
 
 ## Creating Instances
 
+There are four ways to obtain an `Into[A, B]` instance: summon a pre-existing implicit, derive one at compile time via macro, use the built-in identity instance, or implement the trait directly for custom logic.
+
 ### `Into.apply` — Summoning
 
 Summons an implicit `Into[A, B]` instance from the implicit scope. This is the standard way to access a pre-existing instance:
@@ -157,6 +159,8 @@ Into[Celsius, Fahrenheit].into(Celsius(100.0))
 ```
 
 ## Predefined Instances
+
+ZIO Blocks ships built-in `Into` instances for all standard numeric types and common container types. These are resolved automatically from implicit scope — no import or explicit call is needed.
 
 ### Numeric Widening (Lossless)
 
@@ -280,6 +284,8 @@ Converting to `Set` removes duplicates. Converting from `Set` does not guarantee
 :::
 
 ## Core Operation
+
+`Into` exposes a single abstract method. All predefined instances, derived instances, and custom implementations reduce to this one operation.
 
 #### `into`
 
