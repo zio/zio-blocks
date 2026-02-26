@@ -16,8 +16,14 @@ object MigrationValidationMacros {
 
     val autoMapped = computeAutoMappedWithNested[A, B]("")
 
-    val coveredSource = handledFields ++ autoMapped
-    val coveredTarget = providedFields ++ autoMapped
+    val allExplicitlyHandled = handledFields ++ providedFields
+    val crossTypeAutoMapped  = computeCrossTypeAutoMapped[A, B](allExplicitlyHandled, "")
+
+    var coveredSource = handledFields ++ autoMapped ++ crossTypeAutoMapped
+    var coveredTarget = providedFields ++ autoMapped ++ crossTypeAutoMapped
+
+    coveredSource = inferParentCoverage(sourceFields, coveredSource)
+    coveredTarget = inferParentCoverage(targetFields, coveredTarget)
 
     val missingTarget   = targetFields -- coveredTarget
     val unhandledSource = sourceFields -- coveredSource
@@ -162,5 +168,78 @@ object MigrationValidationMacros {
     } else {
       Set.empty
     }
+  }
+
+  private def computeCrossTypeAutoMapped[A: Type, B: Type](explicitlyHandled: Set[String], prefix: String)(using
+    Quotes
+  ): Set[String] = {
+    import quotes.reflect.*
+
+    val sourceType = TypeRepr.of[A]
+    val targetType = TypeRepr.of[B]
+
+    val sourceFieldTypes: Map[String, TypeRepr] =
+      if (sourceType.typeSymbol.flags.is(Flags.Case) && sourceType.typeSymbol.caseFields.nonEmpty)
+        sourceType.typeSymbol.caseFields.map(f => f.name -> sourceType.memberType(f)).toMap
+      else Map.empty
+
+    val targetFieldTypes: Map[String, TypeRepr] =
+      if (targetType.typeSymbol.flags.is(Flags.Case) && targetType.typeSymbol.caseFields.nonEmpty)
+        targetType.typeSymbol.caseFields.map(f => f.name -> targetType.memberType(f)).toMap
+      else Map.empty
+
+    val commonFields = sourceFieldTypes.keySet.intersect(targetFieldTypes.keySet)
+
+    commonFields.flatMap { fieldName =>
+      val fullFieldName = if (prefix.isEmpty) fieldName else s"$prefix.$fieldName"
+      (sourceFieldTypes.get(fieldName), targetFieldTypes.get(fieldName)) match {
+        case (Some(srcType), Some(tgtType)) if !(srcType =:= tgtType) =>
+          val hasExplicitChild = explicitlyHandled.exists(_.startsWith(s"$fullFieldName."))
+          if (hasExplicitChild)
+            crossTypeAutoMapLeaves(srcType, tgtType, fullFieldName)
+          else Set.empty[String]
+        case _ => Set.empty[String]
+      }
+    }
+  }
+
+  private def crossTypeAutoMapLeaves(using
+    q: Quotes
+  )(srcType: q.reflect.TypeRepr, tgtType: q.reflect.TypeRepr, prefix: String): Set[String] = {
+    import q.reflect.*
+
+    val srcFields =
+      if (srcType.typeSymbol.flags.is(Flags.Case) && srcType.typeSymbol.caseFields.nonEmpty)
+        srcType.typeSymbol.caseFields.map(f => f.name -> srcType.memberType(f)).toMap
+      else Map.empty
+
+    val tgtFields =
+      if (tgtType.typeSymbol.flags.is(Flags.Case) && tgtType.typeSymbol.caseFields.nonEmpty)
+        tgtType.typeSymbol.caseFields.map(f => f.name -> tgtType.memberType(f)).toMap
+      else Map.empty
+
+    val common = srcFields.keySet.intersect(tgtFields.keySet)
+
+    common.flatMap { fieldName =>
+      val fullName = s"$prefix.$fieldName"
+      (srcFields(fieldName), tgtFields(fieldName)) match {
+        case (s, t) if s =:= t => Set(fullName)
+        case _                 => Set.empty[String]
+      }
+    }
+  }
+
+  private def inferParentCoverage(allFields: Set[String], covered: Set[String]): Set[String] = {
+    var result  = covered
+    val parents = allFields.flatMap { f =>
+      val parts = f.split('.')
+      if (parts.length > 1) Some(parts.init.mkString(".")) else None
+    }
+    for (parent <- parents) {
+      val children = allFields.filter(_.startsWith(s"$parent."))
+      if (children.nonEmpty && children.forall(result.contains))
+        result = result + parent
+    }
+    result
   }
 }
