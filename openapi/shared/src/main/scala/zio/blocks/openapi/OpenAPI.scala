@@ -16,7 +16,7 @@ import zio.blocks.schema.json.Json
  *   REQUIRED. Provides metadata about the API. The metadata MAY be used by
  *   tooling as required.
  * @param jsonSchemaDialect
- *   The default value for the $schema keyword within Schema Objects contained
+ *   The default value for the $$schema keyword within Schema Objects contained
  *   within this OAS document. This MUST be in the form of a URI.
  * @param servers
  *   An array of Server Objects, which provide connectivity information to a
@@ -345,7 +345,7 @@ object Operation {
  * A simple object to allow referencing other components in the OpenAPI
  * document, internally and externally.
  *
- * @param `$ref`
+ * @param `$$ref`
  *   REQUIRED. The reference identifier. This MUST be in the form of a URI.
  * @param summary
  *   A short summary which by default SHOULD override that of the referenced
@@ -379,7 +379,7 @@ object ReferenceOr {
    * A reference to a component defined elsewhere in the OpenAPI document.
    *
    * @param reference
-   *   The Reference object containing the $ref URI.
+ *   The Reference object containing the $$ref URI.
    */
   final case class Ref(reference: Reference) extends ReferenceOr[Nothing]
 
