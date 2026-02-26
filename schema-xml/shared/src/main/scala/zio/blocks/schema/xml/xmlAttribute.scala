@@ -10,9 +10,9 @@ import zio.blocks.schema.Modifier
  * @param name
  *   Optional custom name for the attribute. If empty, the field name is used.
  */
-@field case class XmlAttribute(name: String = "") extends StaticAnnotation
+@field case class xmlAttribute(name: String = "") extends StaticAnnotation
 
-object XmlAttribute {
+object xmlAttribute {
   val configKey = "xml.attribute"
 
   def isXmlAttribute(modifiers: Seq[Modifier.Term]): Option[String] =
