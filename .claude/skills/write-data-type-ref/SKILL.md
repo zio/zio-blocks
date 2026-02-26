@@ -280,7 +280,10 @@ Do **not** use `mdoc:compile-only` and manually write `// Right(Target("events",
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
 - **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
-- **Instance methods and companion object members**: When referencing an instance method, use the `#` notation (e.g., `Ref#update`). For companion object members, use the `.` notation (e.g., `Ref.make`).
+- **Referencing types, operations, and constructors**: Apply these conventions consistently in all prose, section headings, and inline code:
+  - **Type name alone** — when talking about the type itself, use only its name with no qualifier: "derives automatically via `As`", "`Into` is a one-way conversion".
+  - **Instance method** — use `TypeName#methodName` (the `#` convention signals a non-static member): `As#from`, `As#into`, `As#reverse`, `Into#into`.
+  - **Companion object operation or constructor** — use `TypeName.methodName` (the `.` convention signals a companion/static member): `As.derived`, `As.apply`, `Into.derived`, `Into.apply`.
 
 ### Docusaurus Admonitions
 
