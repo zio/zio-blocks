@@ -720,6 +720,98 @@ object MigrationSpec extends ZIOSpecDefault {
       }
     ),
 
+    suite("Deep Nested Selectors")(
+      test("renameField with deep nested selector") {
+        case class Address1(street: String, city: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Address2(streetName: String, city: String)
+        case class Person2(name: String, address: Address2)
+
+        implicit val a1Schema: Schema[Address1] = Schema.derived
+        implicit val p1Schema: Schema[Person1]  = Schema.derived
+        implicit val a2Schema: Schema[Address2] = Schema.derived
+        implicit val p2Schema: Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .renameField(_.address.street, _.address.streetName)
+          .buildPartial
+
+        val input  = Person1("Alice", Address1("123 Main", "NYC"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2("123 Main", "NYC"))))
+      },
+      test("addField with deep nested selector") {
+        case class Address1(street: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Address2(street: String, number: Int)
+        case class Person2(name: String, address: Address2)
+
+        implicit val a1Schema: Schema[Address1] = Schema.derived
+        implicit val p1Schema: Schema[Person1]  = Schema.derived
+        implicit val a2Schema: Schema[Address2] = Schema.derived
+        implicit val p2Schema: Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .addField(_.address.number, literal(0))
+          .buildPartial
+
+        val input  = Person1("Alice", Address1("123 Main"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2("123 Main", 0))))
+      },
+      test("dropField with deep nested selector") {
+        case class Address1(street: String, zip: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Address2(street: String)
+        case class Person2(name: String, address: Address2)
+
+        implicit val a1Schema: Schema[Address1] = Schema.derived
+        implicit val p1Schema: Schema[Person1]  = Schema.derived
+        implicit val a2Schema: Schema[Address2] = Schema.derived
+        implicit val p2Schema: Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .dropField(_.address.zip, literal("00000"))
+          .buildPartial
+
+        val input  = Person1("Alice", Address1("123 Main", "10001"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2("123 Main"))))
+      },
+      test("combined deep rename and add with nested selectors") {
+        case class Address1(street: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Address2(streetName: String, number: Int)
+        case class Person2(name: String, address: Address2)
+
+        implicit val a1Schema: Schema[Address1] = Schema.derived
+        implicit val p1Schema: Schema[Person1]  = Schema.derived
+        implicit val a2Schema: Schema[Address2] = Schema.derived
+        implicit val p2Schema: Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .renameField(_.address.street, _.address.streetName)
+          .addField(_.address.number, literal(0))
+          .buildPartial
+
+        val input  = Person1("Alice", Address1("123 Main"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2("123 Main", 0))))
+      }
+    ),
+
     suite("Recursive Type Limitations")(
       test("recursive type basic migration works with buildPartial") {
         // This test documents that recursive types require special care.
