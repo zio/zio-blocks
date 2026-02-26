@@ -130,6 +130,21 @@ object TuplesSpec extends ZIOSpecDefault {
         val combined: combiner.Out = combiner.combine((), 42)
         val separated              = separator.separate(combined.asInstanceOf[Int])
         assertTrue(separated == ((), 42))
+      },
+      test("roundtrip with tuple flattening (arity 3)") {
+        val combined  = Tuples.combine((1, "a"), true)
+        val separated = Tuples.separate(combined.asInstanceOf[(Int, String, Boolean)])
+        assertTrue(separated == ((1, "a"), true))
+      },
+      test("roundtrip with tuple flattening (arity 5)") {
+        val combined  = Tuples.combine((1, "a", true, 2.0), 'x')
+        val separated = Tuples.separate(combined.asInstanceOf[(Int, String, Boolean, Double, Char)])
+        assertTrue(separated == ((1, "a", true, 2.0), 'x'))
+      },
+      test("roundtrip with tuple flattening (arity 10)") {
+        val combined  = Tuples.combine((1, 2, 3, 4, 5, 6, 7, 8, 9), 10)
+        val separated = Tuples.separate(combined.asInstanceOf[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        assertTrue(separated == ((1, 2, 3, 4, 5, 6, 7, 8, 9), 10))
       }
     ),
     suite("Precise output types")(

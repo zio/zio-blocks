@@ -95,39 +95,14 @@ object Tuples {
     implicit def combineTuple[L, R]: Combiner[L, R] = macro TuplesMacros.combinerImpl[L, R]
   }
 
-  object Separator extends SeparatorLowPriority1 {
+  object Separator {
 
     /**
      * Type alias for a Separator with specific left and right types.
      */
     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
-    implicit def separateTuple[A]: Separator[A] = macro TuplesMacros.separatorImpl[A]
-  }
-
-  trait SeparatorLowPriority1 extends SeparatorLowPriority2 {
-    implicit def leftUnitSep[A]: Separator.WithTypes[A, Unit, A] =
-      new Separator[A] {
-        type Left  = Unit
-        type Right = A
-        def separate(a: A): (Unit, A) = ((), a)
-      }
-
-    implicit def rightUnitSep[A]: Separator.WithTypes[A, A, Unit] =
-      new Separator[A] {
-        type Left  = A
-        type Right = Unit
-        def separate(a: A): (A, Unit) = (a, ())
-      }
-  }
-
-  trait SeparatorLowPriority2 {
-    implicit def separate2[A, B]: Separator.WithTypes[(A, B), A, B] =
-      new Separator[(A, B)] {
-        type Left  = A
-        type Right = B
-        def separate(a: (A, B)): (A, B) = a
-      }
+    implicit def separateAny[A, L, R]: Separator.WithTypes[A, L, R] = macro TuplesMacros.separatorImpl[A, L, R]
   }
 
   def combine[L, R](l: L, r: R)(implicit c: Combiner[L, R]): c.Out = c.combine(l, r)
@@ -195,10 +170,11 @@ object Tuples {
       }
     }
 
-    def separatorImpl[A: c.WeakTypeTag](c: whitebox.Context): c.Tree = {
+    def separatorImpl[A: c.WeakTypeTag, L: c.WeakTypeTag, R: c.WeakTypeTag](c: whitebox.Context): c.Tree = {
       import c.universe._
 
-      val aType = weakTypeOf[A].dealias
+      val aType    = weakTypeOf[A].dealias
+      val unitType = typeOf[Unit]
 
       if (isTuple(c)(aType)) {
         val arity    = tupleArity(c)(aType)
@@ -230,14 +206,28 @@ object Tuples {
           """
         }
       } else {
-        val unitType = typeOf[Unit]
-        q"""
-          new _root_.zio.blocks.combinators.Tuples.Separator[$aType] {
-            type Left = $unitType
-            type Right = $aType
-            def separate(a: $aType): ($unitType, $aType) = ((), a)
-          }
-        """
+        val expectedL = weakTypeOf[L].dealias
+        val expectedR = weakTypeOf[R].dealias
+        val isLUnit   = expectedL =:= unitType || expectedL =:= definitions.NothingTpe
+        val isRUnit   = expectedR =:= unitType
+
+        if (isRUnit && !isLUnit) {
+          q"""
+            new _root_.zio.blocks.combinators.Tuples.Separator[$aType] {
+              type Left = $aType
+              type Right = $unitType
+              def separate(a: $aType): ($aType, $unitType) = (a, ())
+            }
+          """
+        } else {
+          q"""
+            new _root_.zio.blocks.combinators.Tuples.Separator[$aType] {
+              type Left = $unitType
+              type Right = $aType
+              def separate(a: $aType): ($unitType, $aType) = ((), a)
+            }
+          """
+        }
       }
     }
   }
