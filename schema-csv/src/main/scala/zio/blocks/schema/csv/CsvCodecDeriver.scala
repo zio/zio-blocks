@@ -65,7 +65,94 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] = Lazy(???)
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] =
+    if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
+      val recordBinding                         = binding.asInstanceOf[Binding.Record[A]]
+      val len                                   = fields.length
+      val fieldNames                            = new Array[String](len)
+      val fieldCodecs                           = new Array[CsvCodec[Any]](len)
+      val fieldOffsets                          = new Array[Long](len)
+      var offset: RegisterOffset.RegisterOffset = 0L
+      var idx                                   = 0
+      while (idx < len) {
+        val field = fields(idx)
+        fieldNames(idx) = field.name
+        val codec = D.instance(field.value.metadata).force.asInstanceOf[CsvCodec[Any]]
+        fieldCodecs(idx) = codec
+        fieldOffsets(idx) = offset
+        offset = RegisterOffset.add(codec.valueOffset, offset)
+        idx += 1
+      }
+      val headers = IndexedSeq.newBuilder[String]
+      idx = 0
+      while (idx < len) {
+        headers += fieldNames(idx)
+        idx += 1
+      }
+      val headerResult = headers.result()
+      new CsvCodec[A] {
+        private[this] val deconstructor     = recordBinding.deconstructor
+        private[this] val constructor       = recordBinding.constructor
+        private[this] var usedRegisters     = offset
+        val headerNames: IndexedSeq[String] = headerResult
+        def nullValue: A                    = {
+          if (len > 0 && usedRegisters == 0L)
+            usedRegisters = RegisterOffset.add(fieldCodecs(len - 1).valueOffset, fieldOffsets(len - 1))
+          val regs = Registers(usedRegisters)
+          constructor.construct(regs, 0)
+        }
+        def encode(value: A, output: CharBuffer): Unit = {
+          if (len > 0 && usedRegisters == 0L)
+            usedRegisters = RegisterOffset.add(fieldCodecs(len - 1).valueOffset, fieldOffsets(len - 1))
+          val regs = Registers(usedRegisters)
+          deconstructor.deconstruct(regs, 0, value)
+          val fieldStrings = new Array[String](len)
+          var i            = 0
+          while (i < len) {
+            val fieldCodec  = fieldCodecs(i)
+            val fieldOffset = fieldOffsets(i)
+            val fieldValue  = readFieldFromRegisters(fieldCodec, regs, fieldOffset)
+            val buf         = CharBuffer.allocate(1024)
+            fieldCodec.encode(fieldValue, buf)
+            buf.flip()
+            fieldStrings(i) = buf.toString
+            i += 1
+          }
+          val row =
+            CsvWriter.writeRow(scala.collection.immutable.ArraySeq.unsafeWrapArray(fieldStrings), CsvConfig.default)
+          output.put(row)
+        }
+        def decode(input: CharBuffer): Either[SchemaError, A] = {
+          if (len > 0 && usedRegisters == 0L)
+            usedRegisters = RegisterOffset.add(fieldCodecs(len - 1).valueOffset, fieldOffsets(len - 1))
+          val str = input.toString
+          input.position(input.limit())
+          CsvReader.readRow(str, 0, CsvConfig.default) match {
+            case Left(err)                => new Left(SchemaError.expectationMismatch(Nil, err.formatMessage))
+            case Right((parsedFields, _)) =>
+              if (parsedFields.length != len)
+                new Left(SchemaError.expectationMismatch(Nil, s"Expected $len fields, got ${parsedFields.length}"))
+              else {
+                val regs = Registers(usedRegisters)
+                var i    = 0
+                while (i < len) {
+                  val fieldCodec  = fieldCodecs(i)
+                  val fieldOffset = fieldOffsets(i)
+                  val fieldStr    = parsedFields(i)
+                  fieldCodec.decode(CharBuffer.wrap(fieldStr)) match {
+                    case Left(err)         => return new Left(err)
+                    case Right(fieldValue) =>
+                      writeFieldToRegisters(fieldCodec, regs, fieldOffset, fieldValue)
+                  }
+                  i += 1
+                }
+                new Right(constructor.construct(regs, 0))
+              }
+          }
+        }
+      }
+    }
+    else binding.asInstanceOf[BindingInstance[CsvCodec, ?, A]].instance
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
@@ -75,7 +162,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] = Lazy(???)
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] = Lazy(
+    throw new UnsupportedOperationException("CSV does not support variant/sum types. Use a flat case class instead.")
+  )
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -85,7 +174,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[C[A]]] = Lazy(???)
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[C[A]]] = Lazy(
+    throw new UnsupportedOperationException("CSV does not support sequence fields.")
+  )
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -96,7 +187,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[M[K, V]]] = Lazy(???)
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[M[K, V]]] = Lazy(
+    throw new UnsupportedOperationException("CSV does not support map fields.")
+  )
 
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
@@ -104,7 +197,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[DynamicValue]] = Lazy(???)
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[DynamicValue]] = Lazy(
+    throw new UnsupportedOperationException("CSV does not support dynamic values.")
+  )
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -114,7 +209,25 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] = Lazy(???)
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] =
+    if (binding.isInstanceOf[Binding[?, ?]]) {
+      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+      D.instance(wrapped.metadata).map { codec =>
+        new CsvCodec[A](codec.valueType) {
+          private[this] val wrap                                = wrapperBinding.wrap
+          private[this] val unwrap                              = wrapperBinding.unwrap
+          private[this] val wrappedCodec                        = codec
+          val headerNames: IndexedSeq[String]                   = wrappedCodec.headerNames
+          def nullValue: A                                      = wrap(wrappedCodec.nullValue)
+          def encode(value: A, output: CharBuffer): Unit        = wrappedCodec.encode(unwrap(value), output)
+          def decode(input: CharBuffer): Either[SchemaError, A] =
+            wrappedCodec.decode(input) match {
+              case Right(b) => new Right(wrap(b))
+              case left     => left.asInstanceOf[Either[SchemaError, A]]
+            }
+        }
+      }
+    } else binding.asInstanceOf[BindingInstance[CsvCodec, ?, A]].instance
 
   override def instanceOverrides: IndexedSeq[InstanceOverride] = Chunk.empty
 
@@ -129,14 +242,14 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val singleHeader: IndexedSeq[String] = IndexedSeq("value")
 
-  private val unitCodec: CsvCodec[Unit] = new CsvCodec[Unit] {
+  private val unitCodec: CsvCodec[Unit] = new CsvCodec[Unit](CsvCodec.unitType) {
     val headerNames: IndexedSeq[String]                      = singleHeader
     def nullValue: Unit                                      = ()
     def encode(value: Unit, output: CharBuffer): Unit        = ()
     def decode(input: CharBuffer): Either[SchemaError, Unit] = new Right(())
   }
 
-  private val booleanCodec: CsvCodec[Boolean] = new CsvCodec[Boolean] {
+  private val booleanCodec: CsvCodec[Boolean] = new CsvCodec[Boolean](CsvCodec.booleanType) {
     val headerNames: IndexedSeq[String]                         = singleHeader
     def nullValue: Boolean                                      = false
     def encode(value: Boolean, output: CharBuffer): Unit        = output.put(value.toString)
@@ -150,7 +263,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val byteCodec: CsvCodec[Byte] = new CsvCodec[Byte] {
+  private val byteCodec: CsvCodec[Byte] = new CsvCodec[Byte](CsvCodec.byteType) {
     val headerNames: IndexedSeq[String]                      = singleHeader
     def nullValue: Byte                                      = 0
     def encode(value: Byte, output: CharBuffer): Unit        = output.put(value.toString)
@@ -161,7 +274,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val shortCodec: CsvCodec[Short] = new CsvCodec[Short] {
+  private val shortCodec: CsvCodec[Short] = new CsvCodec[Short](CsvCodec.shortType) {
     val headerNames: IndexedSeq[String]                       = singleHeader
     def nullValue: Short                                      = 0
     def encode(value: Short, output: CharBuffer): Unit        = output.put(value.toString)
@@ -172,7 +285,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val intCodec: CsvCodec[scala.Int] = new CsvCodec[scala.Int] {
+  private val intCodec: CsvCodec[scala.Int] = new CsvCodec[scala.Int](CsvCodec.intType) {
     val headerNames: IndexedSeq[String]                           = singleHeader
     def nullValue: scala.Int                                      = 0
     def encode(value: scala.Int, output: CharBuffer): Unit        = output.put(value.toString)
@@ -183,7 +296,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val longCodec: CsvCodec[Long] = new CsvCodec[Long] {
+  private val longCodec: CsvCodec[Long] = new CsvCodec[Long](CsvCodec.longType) {
     val headerNames: IndexedSeq[String]                      = singleHeader
     def nullValue: Long                                      = 0L
     def encode(value: Long, output: CharBuffer): Unit        = output.put(value.toString)
@@ -194,7 +307,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val floatCodec: CsvCodec[Float] = new CsvCodec[Float] {
+  private val floatCodec: CsvCodec[Float] = new CsvCodec[Float](CsvCodec.floatType) {
     val headerNames: IndexedSeq[String]                       = singleHeader
     def nullValue: Float                                      = 0.0f
     def encode(value: Float, output: CharBuffer): Unit        = output.put(value.toString)
@@ -205,7 +318,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val doubleCodec: CsvCodec[Double] = new CsvCodec[Double] {
+  private val doubleCodec: CsvCodec[Double] = new CsvCodec[Double](CsvCodec.doubleType) {
     val headerNames: IndexedSeq[String]                        = singleHeader
     def nullValue: Double                                      = 0.0d
     def encode(value: Double, output: CharBuffer): Unit        = output.put(value.toString)
@@ -216,7 +329,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val charCodec: CsvCodec[Char] = new CsvCodec[Char] {
+  private val charCodec: CsvCodec[Char] = new CsvCodec[Char](CsvCodec.charType) {
     val headerNames: IndexedSeq[String]                      = singleHeader
     def nullValue: Char                                      = '\u0000'
     def encode(value: Char, output: CharBuffer): Unit        = output.put(value)
@@ -460,4 +573,41 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     input.position(input.limit())
     str
   }
+
+  private def readFieldFromRegisters(
+    codec: CsvCodec[Any],
+    regs: Registers,
+    offset: RegisterOffset.RegisterOffset
+  ): Any =
+    (codec.valueType: @scala.annotation.switch) match {
+      case 0 => regs.getObject(offset)
+      case 1 => regs.getInt(offset)
+      case 2 => regs.getLong(offset)
+      case 3 => regs.getFloat(offset)
+      case 4 => regs.getDouble(offset)
+      case 5 => regs.getBoolean(offset)
+      case 6 => regs.getByte(offset)
+      case 7 => regs.getChar(offset)
+      case 8 => regs.getShort(offset)
+      case _ => ()
+    }
+
+  private def writeFieldToRegisters(
+    codec: CsvCodec[Any],
+    regs: Registers,
+    offset: RegisterOffset.RegisterOffset,
+    value: Any
+  ): Unit =
+    (codec.valueType: @scala.annotation.switch) match {
+      case 0 => regs.setObject(offset, value.asInstanceOf[AnyRef])
+      case 1 => regs.setInt(offset, value.asInstanceOf[Int])
+      case 2 => regs.setLong(offset, value.asInstanceOf[Long])
+      case 3 => regs.setFloat(offset, value.asInstanceOf[Float])
+      case 4 => regs.setDouble(offset, value.asInstanceOf[Double])
+      case 5 => regs.setBoolean(offset, value.asInstanceOf[Boolean])
+      case 6 => regs.setByte(offset, value.asInstanceOf[Byte])
+      case 7 => regs.setChar(offset, value.asInstanceOf[Char])
+      case 8 => regs.setShort(offset, value.asInstanceOf[Short])
+      case _ => ()
+    }
 }
