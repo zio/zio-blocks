@@ -658,3 +658,21 @@ val schema: Schema[JsonPatch] = implicitly[Schema[JsonPatch]]
 ```
 
 See [Codec & Format](./codec.md) for how to derive and use codecs.
+
+## Examples
+
+Runnable examples are in `schema-examples/src/main/scala/jsonpatch/`:
+
+| File | Topic |
+|------|-------|
+| `Step1DiffAndApply.scala` | `JsonPatch.diff`, `Json#diff`, `Json#patch`, roundtrip guarantee |
+| `Step2ManualPatches.scala` | `JsonPatch.root`, `JsonPatch.apply` with paths, `JsonPatch.empty` |
+| `Step3PatchOperations.scala` | All `Op` types — `Set`, `NumberDelta`, `StringEdit`, `ArrayEdit`, `ObjectEdit` |
+| `Step4CompositionAndModes.scala` | `++`, `PatchMode`, `toDynamicPatch`, `fromDynamicPatch` |
+| `CompleteJsonPatchExample.scala` | Collaborative document editor with a full patch log, replay, and sync |
+
+Run any example with:
+
+```bash
+sbt "schema-examples/runMain jsonpatch.CompleteJsonPatchExample"
+```
