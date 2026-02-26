@@ -23,7 +23,11 @@ object ShowExpr {
   def show[A](expr: Text[A])(implicit file: File, line: Line): Unit = {
     commentsAbove(file.value, line.value).foreach(println)
     println(expr.source)
-    println(s"// ${expr.value}")
+    val resultLines = expr.value.toString.linesIterator.toList
+    resultLines match {
+      case single :: Nil => println(s"// $single")
+      case multiple      => multiple.foreach(l => println(s"// $l"))
+    }
     println()
   }
 
