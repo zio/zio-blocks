@@ -426,7 +426,7 @@ Cases are matched by name; for case classes, field types must be convertible. Ta
 
 For case class variants, fields are coerced just like in product derivation:
 
-```scala mdoc:silent:nest
+```scala
 import zio.blocks.schema.Into
 
 sealed trait ShapeV1
@@ -446,14 +446,14 @@ val conv = Into.derived[ShapeV1, ShapeV2]
 
 Each case is matched by name and its fields are coerced from `Int` to `Long`:
 
-```scala mdoc
+```scala
 conv.into(ShapeV1.Circle(5))
 conv.into(ShapeV1.Square(3))
 ```
 
 For `case object` variants (no fields), the macro matches by name alone. New cases may be added to the target without affecting derivation:
 
-```scala mdoc:silent:nest
+```scala
 import zio.blocks.schema.Into
 
 sealed trait StatusV1
@@ -474,7 +474,7 @@ val conv = Into.derived[StatusV1, StatusV2]
 
 Each source case object maps to the identically-named target case object:
 
-```scala mdoc
+```scala
 conv.into(StatusV1.Active)
 conv.into(StatusV1.Inactive)
 ```
@@ -504,7 +504,7 @@ object Age extends Subtype[Int] {
 
 The Scala 3 form is used in the mdoc examples below:
 
-```scala mdoc:silent:nest
+```scala mdoc:silent:reset
 import zio.blocks.schema.Into
 import zio.prelude._
 
@@ -531,8 +531,8 @@ validate.into(PersonRaw("Bob", 200))
 
 In Scala 3, `Into.derived` detects opaque types with companion `apply` or `unsafe` methods:
 
-```scala mdoc:silent:nest
-import zio.blocks.schema.Into
+```scala mdoc:silent:reset
+import zio.blocks.schema._
 
 opaque type Email = String
 object Email {
@@ -623,7 +623,7 @@ result match {
 
 When multiple fields fail, all errors are collected and reported together. The field `c` above succeeds (42 fits in `Int`), so only errors for `a` and `b` appear.
 
-```scala mdoc:silent:nest
+```scala mdoc:silent:reset
 import zio.blocks.schema.Into
 
 case class UserRaw(id: Long, email: String, age: Long)
@@ -645,13 +645,16 @@ object Email {
 case class UserValidated(id: PositiveId, email: Email, age: Int)
 
 val conv = Into.derived[UserRaw, UserValidated]
-val err  = conv.into(UserRaw(-1L, "not-an-email", 200L)).swap.toOption.get
+val res = conv.into(UserRaw(-1L, "not-an-email", 200L))
 ```
 
 All three field errors are accumulated into a single `SchemaError` with a combined message:
 
 ```scala mdoc
-println(err.message)
+res match {
+  case Left(error) => println(s"Validation failed: ${error.message}")
+  case Right(value) => println(s"Validation succeeded: $value")
+} 
 ```
 
 ## Related Type: `As[A, B]`
