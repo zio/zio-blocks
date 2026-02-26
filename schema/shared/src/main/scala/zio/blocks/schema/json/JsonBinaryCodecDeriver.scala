@@ -1980,8 +1980,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
 
           override def decodeKey(in: JsonReader): A =
-            try
-              wrap(wrappedCodec.decodeKey(in))
+            try wrap(wrappedCodec.decodeKey(in))
             catch {
               case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
             }

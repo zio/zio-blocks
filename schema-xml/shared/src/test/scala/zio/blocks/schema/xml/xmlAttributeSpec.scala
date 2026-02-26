@@ -3,8 +3,8 @@ package zio.blocks.schema.xml
 import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec}
 import zio.test._
 
-object XmlAttributeSpec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment, Any] = suite("XmlAttributeSpec")(
+object xmlAttributeSpec extends SchemaBaseSpec {
+  def spec: Spec[TestEnvironment, Any] = suite("xmlAttributeSpec")(
     test("simple case class with xml attributes") {
       case class Person(
         @Modifier.config("xml.attribute", "") id: String,

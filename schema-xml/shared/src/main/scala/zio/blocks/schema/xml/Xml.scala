@@ -78,8 +78,7 @@ object Xml {
       else None
 
     override def unwrap(xmlType: XmlType): Option[xmlType.Unwrap] =
-      if (xmlType eq XmlType.Element)
-        new Some((name, attributes, children).asInstanceOf[xmlType.Unwrap])
+      if (xmlType eq XmlType.Element) new Some((name, attributes, children).asInstanceOf[xmlType.Unwrap])
       else None
 
     override def typeIndex: Int = 0
@@ -88,19 +87,18 @@ object Xml {
   object Element {
 
     /** Creates an empty element with the given name. */
-    val empty: Element = Element(XmlName("root"), Chunk.empty, Chunk.empty)
+    val empty: Element = new Element(new XmlName("root"), Chunk.empty, Chunk.empty)
 
     /** Creates an element with just a name (no attributes or children). */
-    def apply(name: String): Element =
-      Element(XmlName(name), Chunk.empty, Chunk.empty)
+    def apply(name: String): Element = new Element(new XmlName(name), Chunk.empty, Chunk.empty)
 
     /** Creates an element with a name and children. */
     def apply(name: String, children: Xml*): Element =
-      Element(XmlName(name), Chunk.empty, Chunk.from(children))
+      new Element(new XmlName(name), Chunk.empty, Chunk.from(children))
 
     /** Creates an element with a name and namespace. */
     def apply(name: String, namespace: String): Element =
-      Element(XmlName(name, namespace), Chunk.empty, Chunk.empty)
+      new Element(XmlName(name, namespace), Chunk.empty, Chunk.empty)
   }
 
   /**
@@ -161,13 +159,11 @@ object Xml {
     override def xmlType: XmlType = XmlType.ProcessingInstruction
 
     override def as(xmlType: XmlType): Option[xmlType.Type] =
-      if (xmlType eq XmlType.ProcessingInstruction)
-        new Some(this.asInstanceOf[xmlType.Type])
+      if (xmlType eq XmlType.ProcessingInstruction) new Some(this.asInstanceOf[xmlType.Type])
       else None
 
     override def unwrap(xmlType: XmlType): Option[xmlType.Unwrap] =
-      if (xmlType eq XmlType.ProcessingInstruction)
-        new Some((target, data).asInstanceOf[xmlType.Unwrap])
+      if (xmlType eq XmlType.ProcessingInstruction) new Some((target, data).asInstanceOf[xmlType.Unwrap])
       else None
 
     override def typeIndex: Int = 4

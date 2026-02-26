@@ -16,7 +16,5 @@ object xmlAttribute {
   val configKey = "xml.attribute"
 
   def isXmlAttribute(modifiers: Seq[Modifier.Term]): Option[String] =
-    modifiers.collectFirst { case Modifier.config(`configKey`, value) =>
-      value
-    }
+    modifiers.collectFirst { case Modifier.config(`configKey`, value) => value }
 }
