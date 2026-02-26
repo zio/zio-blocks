@@ -548,7 +548,7 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio"     %% "zio-prelude" % "1.0.0-RC46"
+      "dev.zio" %% "zio-prelude" % "1.0.0-RC46"
     )
   )
   .dependsOn(
