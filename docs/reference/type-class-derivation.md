@@ -128,7 +128,7 @@ Given a `Schema[A]`, you can call the `derive` method to get an instance of the 
 
 ```scala
 case class Schema[A](reflect: Reflect.Bound[A]) {
-  def derive[TC[_]](deriver: Deriver[TC]): TC[A] = ???
+   def derive[D, TC[_]](d: D)(implicit ev: Derivable[D, TC]): TC[A] = ???
 }
 ```
 
@@ -158,13 +158,7 @@ val result: Either[SchemaError, Person] =
   )
 ```
 
-There is another overloaded version of the `Schema#derive` method that takes a `Format` instead of a `Deriver`:
-
-```scala
-case class Schema[A](reflect: Reflect.Bound[A]) {
-  def derive[F <: codec.Format](format: F): format.TypeClass[A] = derive(format.deriver)
-}
-```
+There is a `Derivable` type class that enables seamless overloading between `Deriver[TC]` and `Format` arguments, allowing the same `derive` method to work with both:
 
 For example, by calling `Person.schema.derive(JsonFormat)`, we can derive a `JsonCodec[Person]` instance:
 
