@@ -41,7 +41,9 @@ output.
   the actual evaluated output instead. Requires definitions to be in scope from a prior
   `silent`/`silent:nest` block.
 - **`mdoc:invisible`** is like `silent` but signals "hidden imports only." Rare — prefer including
-  imports in the `compile-only` block itself.
+  imports directly in the `mdoc:silent` setup block (so they are in shared scope) or inside a
+  `compile-only` block (for self-contained examples). Use `invisible` only when you need imports
+  shared across blocks but must not appear anywhere in the rendered output.
 - **No mdoc** (plain ` ```scala `) — not compiled. Use for pseudocode, ASCII diagrams, type
   signatures for illustration, or sbt/non-Scala syntax.
 
