@@ -3,7 +3,7 @@ id: into
 title: "Into"
 ---
 
-`Into[-A, +B]` is a **one-way conversion type class** that converts values of type `A` into values of type `B`, returning `Either[SchemaError, B]` to represent both successful conversions and validation failures. The fundamental operation is `into`, which performs the conversion at runtime.
+`Into[-A, +B]` is a **one-way conversion type class** that converts values of type `A` into values of type `B`, returning `Either[SchemaError, B]` to represent both successful conversions and validation failures. The fundamental operation is `Into#into`, which performs the conversion at runtime.
 
 `Into`:
 - is contravariant in `A` and covariant in `B`, following standard type class variance
@@ -91,7 +91,7 @@ object Into {
 }
 ```
 
-We summon the pre-existing `Into[Int, Long]` widening instance and call `into` on it:
+We summon the pre-existing `Into[Int, Long]` widening instance and call `Into#into` on it:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.Into
@@ -99,7 +99,7 @@ import zio.blocks.schema.Into
 val intToLong: Into[Int, Long] = Into[Int, Long]
 ```
 
-With `intToLong` in scope, `into` converts the value and returns a `Right`:
+With `intToLong` in scope, `Into#into` converts the value and returns a `Right`:
 
 ```scala mdoc
 intToLong.into(42)
@@ -315,7 +315,7 @@ Converting to `Set` removes duplicates. Converting from `Set` does not guarantee
 
 ## Core Operation
 
-`Into` exposes a single abstract method, `into`. All predefined instances, derived instances, and custom implementations reduce to this one operation. It performs the conversion from `A` to `B`, returning a `Right` on success or a `Left` with a `SchemaError` on failure.
+`Into` exposes a single abstract method, `Into#into`. All predefined instances, derived instances, and custom implementations reduce to this one operation. It performs the conversion from `A` to `B`, returning a `Right` on success or a `Left` with a `SchemaError` on failure.
 
 ```scala
 trait Into[-A, +B] {
@@ -680,7 +680,7 @@ val sync: As[LocalModel, RemoteModel]    = As.derived    // round-trip
 val migrate: Into[OldFormat, NewFormat]  = Into.derived  // one-way
 ```
 
-**Use `Option` for truly optional fields, not default values.** Default values prevent `As` derivation when the field is absent from the other type; `Option` always works:
+**Use `Option` for truly optional fields, not default values.** Default values prevent `As.derived` when the field is absent from the other type; `Option` always works:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.{Into, As}

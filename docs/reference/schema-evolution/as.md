@@ -3,7 +3,7 @@ id: as
 title: "As"
 ---
 
-`As[A, B]` is a **bidirectional conversion type class** that extends `Into[A, B]` with a reverse direction. In addition to converting `A → B` via `into`, it also converts `B → A` via `from`, providing a round-trip guarantee.
+`As[A, B]` is a **bidirectional conversion type class** that extends `Into[A, B]` with a reverse direction. In addition to converting `A → B` via `As#into`, it also converts `B → A` via `As#from`, providing a round-trip guarantee.
 
 `As`:
 - extends `Into[A, B]`, so every `As` can be used wherever an `Into` is expected
@@ -106,7 +106,7 @@ case class PersonB(name: String, age: Long)
 val personAs: As[PersonA, PersonB] = As.derived[PersonA, PersonB]
 ```
 
-Both `into` and `from` are now available, and we can verify that `A → B → A` restores the original value:
+Both `As#into` and `As#from` are now available, and we can verify that `A → B → A` restores the original value:
 
 ```scala mdoc
 personAs.into(PersonA("Alice", 30))
@@ -142,11 +142,11 @@ summoned.from(Bar(2))
 
 ## Core Operations
 
-`As` exposes three operations: `into`, `from`, and `reverse`.
+`As` exposes three operations: `As#into`, `As#from`, and `As#reverse`.
 
-### `into` — Forward Conversion
+### `As#into` — Forward Conversion
 
-`into` is inherited from `Into[A, B]` and converts an `A` into `Either[SchemaError, B]`:
+`As#into` is inherited from `Into[A, B]` and converts an `A` into `Either[SchemaError, B]`:
 
 ```scala
 trait As[A, B] extends Into[A, B] {
@@ -154,9 +154,9 @@ trait As[A, B] extends Into[A, B] {
 }
 ```
 
-### `from` — Reverse Conversion
+### `As#from` — Reverse Conversion
 
-`from` is the operation that distinguishes `As` from `Into`. It converts a `B` back to `Either[SchemaError, A]`:
+`As#from` is the operation that distinguishes `As` from `Into`. It converts a `B` back to `Either[SchemaError, A]`:
 
 ```scala
 trait As[A, B] {
@@ -175,7 +175,7 @@ case class LongBox(value: Long)
 val boxAs: As[IntBox, LongBox] = As.derived[IntBox, LongBox]
 ```
 
-`into` widens the value while `from` narrows it, validating that the result fits in the target type:
+`As#into` widens the value while `As#from` narrows it, validating that the result fits in the target type:
 
 ```scala mdoc
 boxAs.into(IntBox(42))
@@ -183,9 +183,9 @@ boxAs.from(LongBox(99L))
 boxAs.from(LongBox(Long.MaxValue))
 ```
 
-### `reverse` — Flipping Directions
+### `As#reverse` — Flipping Directions
 
-`reverse` returns an `As[B, A]` whose `into` and `from` are swapped:
+`As#reverse` returns an `As[B, A]` whose `As#into` and `As#from` are swapped:
 
 ```scala
 trait As[A, B] {
@@ -193,7 +193,7 @@ trait As[A, B] {
 }
 ```
 
-`reverse` creates a new `As` without touching the original:
+`As#reverse` creates a new `As` without touching the original:
 
 ```scala mdoc
 val revAs: As[LongBox, IntBox] = boxAs.reverse
@@ -226,9 +226,9 @@ Passing `pointAs` where the function expects `Into[P2D, Coord]` works because `A
 migrate(P2D(1, 2))
 ```
 
-## `reverseInto` Implicit
+## `As.reverseInto` Implicit
 
-`AsLowPriorityImplicits` provides a `reverseInto` implicit that materialises an `Into[B, A]` from any `As[A, B]` in scope. This lets libraries that only require `Into` automatically benefit from `As` instances without any extra wiring:
+`AsLowPriorityImplicits` provides `As.reverseInto`, an implicit that materialises an `Into[B, A]` from any `As[A, B]` in scope. This lets libraries that only require `Into` automatically benefit from `As` instances without any extra wiring:
 
 ```scala
 trait AsLowPriorityImplicits {
@@ -236,7 +236,7 @@ trait AsLowPriorityImplicits {
 }
 ```
 
-With an `As[String, Int]` in scope, `reverseInto` synthesises `Into[Int, String]` automatically:
+With an `As[String, Int]` in scope, `As.reverseInto` synthesises `Into[Int, String]` automatically:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.{As, Into, SchemaError}
@@ -249,7 +249,7 @@ implicit val stringIntAs: As[String, Int] = new As[String, Int] {
 }
 ```
 
-We import `reverseInto` and use it to obtain the reverse `Into[Int, String]`:
+We import `As.reverseInto` and use it to obtain the reverse `Into[Int, String]`:
 
 ```scala mdoc
 import As.reverseInto
