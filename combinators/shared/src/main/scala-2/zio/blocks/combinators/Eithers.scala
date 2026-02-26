@@ -98,16 +98,7 @@ object Eithers {
      */
     type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
 
-    implicit def separator[L, R](implicit
-      c: Combiner[L, R]
-    ): Separator[Either[L, R]] =
-      new Separator[Either[L, R]] {
-        type Left  = Any
-        type Right = Any
-
-        def separate(a: Either[L, R]): Either[Any, Any] =
-          c.combine(a).asInstanceOf[Either[Any, Any]]
-      }
+    implicit def separateEither[A]: Separator[A] = macro EithersMacros.separatorImpl[A]
   }
 
   def combine[L, R](either: Either[L, R])(implicit c: Combiner[L, R]): c.Out = c.combine(either)
@@ -116,7 +107,7 @@ object Eithers {
   private[combinators] object EithersMacros {
 
     private def isEither(c: whitebox.Context)(tpe: c.universe.Type): Boolean = {
-      val sym = tpe.typeSymbol
+      val sym = tpe.dealias.typeSymbol
       sym.fullName == "scala.util.Either"
     }
 
@@ -299,14 +290,37 @@ object Eithers {
       val aType = weakTypeOf[A].dealias
 
       if (isEither(c)(aType)) {
-        val (leftType, rightType) = eitherTypes(c)(aType)
-        q"""
-          new _root_.zio.blocks.combinators.Eithers.Separator[$aType] {
-            type Left = $leftType
-            type Right = $rightType
-            def separate(a: $aType): Either[$leftType, $rightType] = a
+        val (lType, rType) = eitherTypes(c)(aType)
+        val inputEither    = appliedType(typeOf[Either[_, _]].typeConstructor, List(lType, rType))
+        val leaves         = collectLeaves(c)(inputEither)
+        val canonicalType  = buildLeftNested(c)(leaves)
+
+        if (isEither(c)(canonicalType)) {
+          val (leftType, rightType) = eitherTypes(c)(canonicalType)
+
+          if (!isEither(c)(lType) && !isEither(c)(rType)) {
+            // Atomic: no canonicalization needed, identity
+            q"""
+              new _root_.zio.blocks.combinators.Eithers.Separator[$aType] {
+                type Left = $leftType
+                type Right = $rightType
+                def separate(a: $aType): Either[$leftType, $rightType] = a
+              }
+            """
+          } else {
+            // Nested: needs canonicalization via combiner
+            val combineBody = generateCombineBody(c)(lType, rType)
+            q"""
+              new _root_.zio.blocks.combinators.Eithers.Separator[$aType] {
+                type Left = $leftType
+                type Right = $rightType
+                def separate(either: $aType): Either[$leftType, $rightType] = $combineBody.asInstanceOf[Either[$leftType, $rightType]]
+              }
+            """
           }
-        """
+        } else {
+          c.abort(c.enclosingPosition, s"Cannot separate type: canonical form is not an Either")
+        }
       } else {
         c.abort(c.enclosingPosition, s"Cannot separate non-Either type: $aType")
       }
