@@ -72,8 +72,12 @@ object CompleteJsonPatchExample extends App {
 
   printHeader("1. Patch log — tracking every change")
 
-  var doc = initialDoc
+  // Explicit Json type so that patch.apply's return type (Json) is accepted.
+  var doc: Json = initialDoc
   var log = List.empty[(String, JsonPatch)]   // (author, patch)
+
+  // Navigate a Json value as an object (safe cast — we always patch objects).
+  def asObj(json: Json): Json.Object = json.asInstanceOf[Json.Object]
 
   // Helper: record a change made by an author
   def commit(author: String, patch: JsonPatch): Unit = {
@@ -90,8 +94,8 @@ object CompleteJsonPatchExample extends App {
     JsonPatch(DynamicOptic.root.field("meta").field("version"), Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
 
   commit("alice", publishPatch)
-  println(s"  meta.draft   = ${doc.get("meta").get("draft").one}")
-  println(s"  meta.version = ${doc.get("meta").get("version").one}")
+  println(s"  meta.draft   = ${asObj(doc).get("meta").get("draft").one}")
+  println(s"  meta.version = ${asObj(doc).get("meta").get("version").one}")
 
   printSection("Bob adds a tag and refines the title")
 
@@ -104,12 +108,15 @@ object CompleteJsonPatchExample extends App {
     )))
 
   commit("bob", editPatch)
-  println(s"  title = ${doc.get("title").one}")
-  println(s"  tags  = ${doc.get("tags").one}")
+  println(s"  title = ${asObj(doc).get("title").one}")
+  println(s"  tags  = ${asObj(doc).get("tags").one}")
 
   printSection("Carol fixes a typo in the content")
 
-  val contentSource = doc.get("content").one.get.asInstanceOf[Json.String].value
+  val contentSource = asObj(doc).get("content").one match {
+    case Right(s: Json.String) => s.value
+    case _                     => ""
+  }
   val fixedContent  = contentSource.replace("type-safe", "type-safe, modular")
   val fixPatch      = JsonPatch(
     DynamicOptic.root.field("content"),
@@ -117,7 +124,7 @@ object CompleteJsonPatchExample extends App {
   )
 
   commit("carol", fixPatch)
-  println(s"  content = ${doc.get("content").one}")
+  println(s"  content = ${asObj(doc).get("content").one}")
 
   // ═══════════════════════════════════════════════════════════════════════
   // 2. Replaying the log to reconstruct historical versions
@@ -126,17 +133,17 @@ object CompleteJsonPatchExample extends App {
   printHeader("2. Replay — reconstruct any historical version")
 
   // Replay from the beginning to get the current state
-  val replayed = log.foldLeft(initialDoc) { case (state, (author, patch)) =>
+  val replayed = log.foldLeft(initialDoc: Json) { case (state, (_, patch)) =>
     patch.apply(state).getOrElse(state)
   }
   println(s"  Replayed == current: ${replayed == doc}")
 
   // Replay only the first commit to inspect state after Alice's change
-  val afterAlice = log.take(1).foldLeft(initialDoc) { case (state, (_, patch)) =>
+  val afterAlice = log.take(1).foldLeft(initialDoc: Json) { case (state, (_, patch)) =>
     patch.apply(state).getOrElse(state)
   }
-  println(s"  After Alice — draft: ${afterAlice.get("meta").get("draft").one}")
-  println(s"  After Alice — tags : ${afterAlice.get("tags").one}")
+  println(s"  After Alice — draft: ${asObj(afterAlice).get("meta").get("draft").one}")
+  println(s"  After Alice — tags : ${asObj(afterAlice).get("tags").one}")
 
   // ═══════════════════════════════════════════════════════════════════════
   // 3. Composing all patches into a single aggregate patch
