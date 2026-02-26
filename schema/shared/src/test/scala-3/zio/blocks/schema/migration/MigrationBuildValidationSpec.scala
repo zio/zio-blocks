@@ -279,6 +279,104 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         val result = migration(input)
 
         assertTrue(result == Right(Person2("Alice", Address2("123 Main", "NYC"))))
+      },
+      test("build succeeds with 3-level deep addField") {
+        case class Street1(name: String)
+        case class Address1(street: Street1, city: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Street2(name: String, number: Int)
+        case class Address2(street: Street2, city: String)
+        case class Person2(name: String, address: Address2)
+
+        given Schema[Street1]  = Schema.derived
+        given Schema[Address1] = Schema.derived
+        given Schema[Person1]  = Schema.derived
+        given Schema[Street2]  = Schema.derived
+        given Schema[Address2] = Schema.derived
+        given Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .addField(_.address.street.number, literal(0))
+          .build
+
+        val input  = Person1("Alice", Address1(Street1("Main"), "NYC"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2(Street2("Main", 0), "NYC"))))
+      },
+      test("build fails when deep nested target field not provided") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          case class Street1(name: String)
+          case class Address1(street: Street1)
+          case class Person1(info: Address1)
+
+          case class Street2(name: String, number: Int)
+          case class Address2(street: Street2)
+          case class Person2(info: Address2)
+
+          given Schema[Street1]  = Schema.derived
+          given Schema[Address1] = Schema.derived
+          given Schema[Person1]  = Schema.derived
+          given Schema[Street2]  = Schema.derived
+          given Schema[Address2] = Schema.derived
+          given Schema[Person2]  = Schema.derived
+
+          Migration.newBuilder[Person1, Person2].build
+          """
+        }.map { result =>
+          assertTrue(result.isLeft)
+        }
+      },
+      test("phantom type tracks deep field path correctly") {
+        case class Inner1(x: Int)
+        case class Outer1(inner: Inner1, y: String)
+
+        case class Inner2(x: Int, z: Boolean)
+        case class Outer2(inner: Inner2, y: String)
+
+        given Schema[Inner1] = Schema.derived
+        given Schema[Outer1] = Schema.derived
+        given Schema[Inner2] = Schema.derived
+        given Schema[Outer2] = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Outer1, Outer2]
+          .addField(_.inner.z, literal(false))
+          .build
+
+        val input  = Outer1(Inner1(42), "hello")
+        val result = migration(input)
+
+        assertTrue(result == Right(Outer2(Inner2(42, false), "hello")))
+      },
+      test("phantom type distinguishes depth: shallow field does not satisfy deep requirement") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          case class Inner1(x: Int)
+          case class Outer1(inner: Inner1, extra: String)
+
+          case class Inner2(x: Int, extra: String)
+          case class Outer2(inner: Inner2, extra: String)
+
+          given Schema[Inner1] = Schema.derived
+          given Schema[Outer1] = Schema.derived
+          given Schema[Inner2] = Schema.derived
+          given Schema[Outer2] = Schema.derived
+
+          Migration.newBuilder[Outer1, Outer2].build
+          """
+        }.map { result =>
+          assertTrue(result.isLeft)
+        }
       }
     )
   )
