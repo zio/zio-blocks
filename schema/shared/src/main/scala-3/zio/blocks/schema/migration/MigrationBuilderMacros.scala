@@ -13,8 +13,8 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, SH, ?]] = {
     import q.reflect.*
 
-    val fieldName        = extractFieldNameFromTerm(target.asTerm)
-    val fieldNameType    = ConstantType(StringConstant(fieldName))
+    val fieldPath        = extractFieldPathFromTerm(target.asTerm)
+    val fieldNameType    = ConstantType(StringConstant(fieldPath))
     val fieldNameWrapped = TypeRepr.of[FieldName].appliedTo(fieldNameType)
     val newTPType        = AndType(TypeRepr.of[TP], fieldNameWrapped)
 
@@ -38,8 +38,8 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, TP]] = {
     import q.reflect.*
 
-    val fieldName        = extractFieldNameFromTerm(source.asTerm)
-    val fieldNameType    = ConstantType(StringConstant(fieldName))
+    val fieldPath        = extractFieldPathFromTerm(source.asTerm)
+    val fieldNameType    = ConstantType(StringConstant(fieldPath))
     val fieldNameWrapped = TypeRepr.of[FieldName].appliedTo(fieldNameType)
     val newSHType        = AndType(TypeRepr.of[SH], fieldNameWrapped)
 
@@ -63,11 +63,12 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val fromFieldName     = extractFieldNameFromTerm(from.asTerm)
-    val toFieldName       = extractFieldNameFromTerm(to.asTerm)
-    val fromFieldNameType = ConstantType(StringConstant(fromFieldName))
-    val toFieldNameType   = ConstantType(StringConstant(toFieldName))
-    val toNameExpr        = Expr(toFieldName)
+    val fromFieldPath     = extractFieldPathFromTerm(from.asTerm)
+    val toFieldPath       = extractFieldPathFromTerm(to.asTerm)
+    val toLeafName        = extractLeafFieldName(to.asTerm)
+    val fromFieldNameType = ConstantType(StringConstant(fromFieldPath))
+    val toFieldNameType   = ConstantType(StringConstant(toFieldPath))
+    val toNameExpr        = Expr(toLeafName)
     val fromFieldWrapped  = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
     val toFieldWrapped    = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
     val newSHType         = AndType(TypeRepr.of[SH], fromFieldWrapped)
@@ -94,10 +95,10 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val fromFieldName     = extractFieldNameFromTerm(from.asTerm)
-    val toFieldName       = extractFieldNameFromTerm(to.asTerm)
-    val fromFieldNameType = ConstantType(StringConstant(fromFieldName))
-    val toFieldNameType   = ConstantType(StringConstant(toFieldName))
+    val fromFieldPath     = extractFieldPathFromTerm(from.asTerm)
+    val toFieldPath       = extractFieldPathFromTerm(to.asTerm)
+    val fromFieldNameType = ConstantType(StringConstant(fromFieldPath))
+    val toFieldNameType   = ConstantType(StringConstant(toFieldPath))
     val fromFieldWrapped  = TypeRepr.of[FieldName].appliedTo(fromFieldNameType)
     val toFieldWrapped    = TypeRepr.of[FieldName].appliedTo(toFieldNameType)
     val newSHType         = AndType(TypeRepr.of[SH], fromFieldWrapped)
@@ -124,10 +125,10 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val sourceFieldName     = extractFieldNameFromTerm(source.asTerm)
-    val targetFieldName     = extractFieldNameFromTerm(target.asTerm)
-    val sourceFieldNameType = ConstantType(StringConstant(sourceFieldName))
-    val targetFieldNameType = ConstantType(StringConstant(targetFieldName))
+    val sourceFieldPath     = extractFieldPathFromTerm(source.asTerm)
+    val targetFieldPath     = extractFieldPathFromTerm(target.asTerm)
+    val sourceFieldNameType = ConstantType(StringConstant(sourceFieldPath))
+    val targetFieldNameType = ConstantType(StringConstant(targetFieldPath))
     val sourceFieldWrapped  = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
     val targetFieldWrapped  = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
     val newSHType           = AndType(TypeRepr.of[SH], sourceFieldWrapped)
@@ -153,10 +154,10 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val sourceFieldName     = extractFieldNameFromTerm(source.asTerm)
-    val targetFieldName     = extractFieldNameFromTerm(target.asTerm)
-    val sourceFieldNameType = ConstantType(StringConstant(sourceFieldName))
-    val targetFieldNameType = ConstantType(StringConstant(targetFieldName))
+    val sourceFieldPath     = extractFieldPathFromTerm(source.asTerm)
+    val targetFieldPath     = extractFieldPathFromTerm(target.asTerm)
+    val sourceFieldNameType = ConstantType(StringConstant(sourceFieldPath))
+    val targetFieldNameType = ConstantType(StringConstant(targetFieldPath))
     val sourceFieldWrapped  = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
     val targetFieldWrapped  = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
     val newSHType           = AndType(TypeRepr.of[SH], sourceFieldWrapped)
@@ -183,10 +184,10 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val sourceFieldName     = extractFieldNameFromTerm(source.asTerm)
-    val targetFieldName     = extractFieldNameFromTerm(target.asTerm)
-    val sourceFieldNameType = ConstantType(StringConstant(sourceFieldName))
-    val targetFieldNameType = ConstantType(StringConstant(targetFieldName))
+    val sourceFieldPath     = extractFieldPathFromTerm(source.asTerm)
+    val targetFieldPath     = extractFieldPathFromTerm(target.asTerm)
+    val sourceFieldNameType = ConstantType(StringConstant(sourceFieldPath))
+    val targetFieldNameType = ConstantType(StringConstant(targetFieldPath))
     val sourceFieldWrapped  = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
     val targetFieldWrapped  = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
     val newSHType           = AndType(TypeRepr.of[SH], sourceFieldWrapped)
@@ -212,30 +213,30 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?, ?]] = {
     import q.reflect.*
 
-    val sourceFieldName = extractFieldNameFromTerm(source.asTerm)
+    val sourceFieldPath = extractFieldPathFromTerm(source.asTerm)
 
     val nestedSourceFields = extractCaseClassFieldNames[F1]
     val nestedTargetFields = extractCaseClassFieldNames[F2]
 
     var newSHType              = TypeRepr.of[SH]
-    val sourceFieldNameType    = ConstantType(StringConstant(sourceFieldName))
+    val sourceFieldNameType    = ConstantType(StringConstant(sourceFieldPath))
     val sourceFieldNameWrapped = TypeRepr.of[FieldName].appliedTo(sourceFieldNameType)
     newSHType = AndType(newSHType, sourceFieldNameWrapped)
 
     for (nestedField <- nestedSourceFields) {
-      val dotPath             = s"$sourceFieldName.$nestedField"
+      val dotPath             = s"$sourceFieldPath.$nestedField"
       val dotPathType         = ConstantType(StringConstant(dotPath))
       val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
       newSHType = AndType(newSHType, dotPathFieldWrapped)
     }
 
     var newTPType              = TypeRepr.of[TP]
-    val targetFieldNameType    = ConstantType(StringConstant(sourceFieldName))
+    val targetFieldNameType    = ConstantType(StringConstant(sourceFieldPath))
     val targetFieldNameWrapped = TypeRepr.of[FieldName].appliedTo(targetFieldNameType)
     newTPType = AndType(newTPType, targetFieldNameWrapped)
 
     for (nestedField <- nestedTargetFields) {
-      val dotPath             = s"$sourceFieldName.$nestedField"
+      val dotPath             = s"$sourceFieldPath.$nestedField"
       val dotPathType         = ConstantType(StringConstant(dotPath))
       val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
       newTPType = AndType(newTPType, dotPathFieldWrapped)
@@ -274,7 +275,31 @@ object MigrationBuilderMacros {
     }
   }
 
-  private def extractFieldNameFromTerm(term: Any)(using q: Quotes): String = {
+  private def extractFieldPathFromTerm(term: Any)(using q: Quotes): String = {
+    import q.reflect.*
+
+    @tailrec
+    def toPathBody(t: Term): Term = t match {
+      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
+      case _                                               => report.errorAndAbort(s"Expected a lambda expression, got '${t.show}'")
+    }
+
+    def extractPath(t: Term): List[String] = t match {
+      case Select(parent, fieldName) => extractPath(parent) :+ fieldName
+      case Ident(_)                  => Nil
+      case _                         => report.errorAndAbort(s"Cannot extract field path from: ${t.show}")
+    }
+
+    val pathBody = toPathBody(term.asInstanceOf[Term])
+    val segments = extractPath(pathBody)
+    if (segments.isEmpty) {
+      report.errorAndAbort("Selector must access at least one field")
+    }
+    segments.mkString(".")
+  }
+
+  private def extractLeafFieldName(term: Any)(using q: Quotes): String = {
     import q.reflect.*
 
     @tailrec
