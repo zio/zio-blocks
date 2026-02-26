@@ -86,9 +86,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
         }
         if (isRecursive) recursiveRecordCache.get.put(typeId, cachedInfo)
       }
-      val fieldNames   = cachedInfo.fieldNames
-      val fieldCodecs  = cachedInfo.fieldCodecs
-      val fieldOffsets = cachedInfo.fieldOffsets
+      val fieldNames                            = cachedInfo.fieldNames
+      val fieldCodecs                           = cachedInfo.fieldCodecs
+      val fieldOffsets                          = cachedInfo.fieldOffsets
       var offset: RegisterOffset.RegisterOffset = 0L
       var idx                                   = 0
       while (idx < len) {
