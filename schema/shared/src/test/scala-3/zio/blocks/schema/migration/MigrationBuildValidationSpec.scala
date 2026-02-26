@@ -235,6 +235,50 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         val result = migration(input)
 
         assertTrue(result == Right(PersonV2("Alice", Address("123 Main St", "Springfield"), 0)))
+      },
+      test("build succeeds with deep nested addField") {
+        case class Address1(street: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Address2(street: String, number: Int)
+        case class Person2(name: String, address: Address2)
+
+        given Schema[Address1] = Schema.derived
+        given Schema[Person1]  = Schema.derived
+        given Schema[Address2] = Schema.derived
+        given Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .addField(_.address.number, literal(0))
+          .build
+
+        val input  = Person1("Alice", Address1("123 Main"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2("123 Main", 0))))
+      },
+      test("build succeeds with deep nested renameField") {
+        case class Address1(street: String, city: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Address2(streetName: String, city: String)
+        case class Person2(name: String, address: Address2)
+
+        given Schema[Address1] = Schema.derived
+        given Schema[Person1]  = Schema.derived
+        given Schema[Address2] = Schema.derived
+        given Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .renameField(_.address.street, _.address.streetName)
+          .build
+
+        val input  = Person1("Alice", Address1("123 Main", "NYC"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2("123 Main", "NYC"))))
       }
     )
   )
