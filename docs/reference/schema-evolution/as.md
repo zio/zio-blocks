@@ -97,7 +97,7 @@ object As {
 
 The macro works with case classes, sealed traits, Scala 3 enums, tuples, ZIO Prelude newtypes, Scala 3 opaque types, and structural types (JVM only). We derive an `As` for two case classes with matching fields:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class PersonA(name: String, age: Int)
@@ -126,7 +126,7 @@ object As {
 
 This is useful when you want to retrieve a type-class instance by type rather than by variable name:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class Foo(x: Int)
@@ -166,7 +166,7 @@ trait As[A, B] {
 
 We define two simple wrapper types and derive an `As` between them to show both directions:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class IntBox(value: Int)
@@ -208,7 +208,7 @@ Because `As[A, B]` extends `Into[A, B]`, any `As` instance can be passed whereve
 
 We write a generic migration helper that requires only an `Into`, then pass an `As` directly:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.{Into, As, SchemaError}
 
 case class P2D(x: Int, y: Int)
@@ -222,7 +222,7 @@ implicit val pointAs: As[P2D, Coord] = As.derived[P2D, Coord]
 
 Passing `pointAs` where the function expects `Into[P2D, Coord]` works because `As` is a subtype of `Into`:
 
-```scala mdoc
+```scala mdoc:nest
 migrate(P2D(1, 2))
 ```
 
@@ -238,7 +238,7 @@ trait AsLowPriorityImplicits {
 
 With an `As[String, Int]` in scope, `reverseInto` synthesises `Into[Int, String]` automatically:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.{As, Into, SchemaError}
 
 implicit val stringIntAs: As[String, Int] = new As[String, Int] {
@@ -270,7 +270,7 @@ For two case classes `A` and `B`, the macro checks:
 
 We derive `As` for two structurally compatible case classes:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class UserV1(name: String, age: Int)
@@ -281,7 +281,7 @@ val userAs: As[UserV1, UserV2] = As.derived[UserV1, UserV2]
 
 Tuples are matched positionally, so field name checks are skipped:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 val tupleAs: As[(Int, String), (Long, String)] = As.derived[(Int, String), (Long, String)]
@@ -291,8 +291,8 @@ val tupleAs: As[(Int, String), (Long, String)] = As.derived[(Int, String), (Long
 
 `As.derived` handles sealed traits and Scala 3 enums the same way `Into.derived` does — each subtype is matched by name and derived recursively:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.As
+```scala
+import zio.blocks.schema._
 
 sealed trait ShapeV1
 object ShapeV1 {
@@ -313,7 +313,7 @@ val shapeAs: As[ShapeV1, ShapeV2] = As.derived[ShapeV1, ShapeV2]
 
 All numeric primitive types (`Byte`, `Short`, `Int`, `Long`, `Float`, `Double`) are bidirectionally coercible. Widening always succeeds; narrowing validates at runtime and returns a `Left` on overflow:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class IntModel(value: Int)
@@ -335,8 +335,8 @@ numericAs.from(LongModel(Long.MaxValue))
 
 **Default values on asymmetric fields are rejected.** A field with a default that has no counterpart in the other type cannot be round-tripped: when converting back, the field is missing and there is no way to distinguish a real default from a missing value:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.As
+```scala
+import zio.blocks.schema._
 
 case class WithDefault(name: String, age: Int = 25)
 case class NoDefault(name: String)
