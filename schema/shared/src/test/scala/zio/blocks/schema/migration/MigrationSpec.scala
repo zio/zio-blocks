@@ -809,6 +809,109 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
 
         assertTrue(result == Right(Person2("Alice", Address2("123 Main", 0))))
+      },
+      test("3-level deep addField") {
+        case class Street1(name: String)
+        case class Address1(street: Street1, city: String)
+        case class Person1(name: String, address: Address1)
+
+        case class Street2(name: String, number: Int)
+        case class Address2(street: Street2, city: String)
+        case class Person2(name: String, address: Address2)
+
+        implicit val s1: Schema[Street1]  = Schema.derived
+        implicit val a1: Schema[Address1] = Schema.derived
+        implicit val p1: Schema[Person1]  = Schema.derived
+        implicit val s2: Schema[Street2]  = Schema.derived
+        implicit val a2: Schema[Address2] = Schema.derived
+        implicit val p2: Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .addField(_.address.street.number, literal(0))
+          .buildPartial
+
+        val input  = Person1("Alice", Address1(Street1("Main"), "NYC"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2("Alice", Address2(Street2("Main", 0), "NYC"))))
+      },
+      test("3-level deep renameField") {
+        case class Street1(name: String)
+        case class Address1(street: Street1)
+        case class Person1(info: Address1)
+
+        case class Street2(label: String)
+        case class Address2(street: Street2)
+        case class Person2(info: Address2)
+
+        implicit val s1: Schema[Street1]  = Schema.derived
+        implicit val a1: Schema[Address1] = Schema.derived
+        implicit val p1: Schema[Person1]  = Schema.derived
+        implicit val s2: Schema[Street2]  = Schema.derived
+        implicit val a2: Schema[Address2] = Schema.derived
+        implicit val p2: Schema[Person2]  = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Person1, Person2]
+          .renameField(_.info.street.name, _.info.street.label)
+          .buildPartial
+
+        val input  = Person1(Address1(Street1("Main")))
+        val result = migration(input)
+
+        assertTrue(result == Right(Person2(Address2(Street2("Main")))))
+      },
+      test("3-level deep combined rename and drop") {
+        case class Geo1(lat: Double, lng: Double, alt: Double)
+        case class Location1(geo: Geo1)
+        case class Event1(location: Location1)
+
+        case class Geo2(latitude: Double, lng: Double)
+        case class Location2(geo: Geo2)
+        case class Event2(location: Location2)
+
+        implicit val g1: Schema[Geo1]      = Schema.derived
+        implicit val l1: Schema[Location1] = Schema.derived
+        implicit val e1: Schema[Event1]    = Schema.derived
+        implicit val g2: Schema[Geo2]      = Schema.derived
+        implicit val l2: Schema[Location2] = Schema.derived
+        implicit val e2: Schema[Event2]    = Schema.derived
+
+        val migration = Migration
+          .newBuilder[Event1, Event2]
+          .renameField(_.location.geo.lat, _.location.geo.latitude)
+          .dropField(_.location.geo.alt, literal(0.0))
+          .buildPartial
+
+        val input  = Event1(Location1(Geo1(40.7, -74.0, 10.0)))
+        val result = migration(input)
+
+        assertTrue(result == Right(Event2(Location2(Geo2(40.7, -74.0)))))
+      },
+      test("fromActions with deep optic paths") {
+        case class Addr1(street: String, city: String)
+        case class Org1(name: String, addr: Addr1)
+
+        case class Addr2(street: String, city: String, zip: String)
+        case class Org2(name: String, addr: Addr2)
+
+        implicit val a1: Schema[Addr1] = Schema.derived
+        implicit val o1: Schema[Org1]  = Schema.derived
+        implicit val a2: Schema[Addr2] = Schema.derived
+        implicit val o2: Schema[Org2]  = Schema.derived
+
+        val migration = Migration.fromActions[Org1, Org2](
+          MigrationAction.AddField(
+            DynamicOptic.root.field("addr").field("zip"),
+            dynamicLiteral("00000")
+          )
+        )
+
+        val input  = Org1("Acme", Addr1("123 Main", "NYC"))
+        val result = migration(input)
+
+        assertTrue(result == Right(Org2("Acme", Addr2("123 Main", "NYC", "00000"))))
       }
     ),
 
