@@ -130,6 +130,34 @@ object EithersSpec extends ZIOSpecDefault {
         val combined                   = Eithers.combine(input)
         val separated                  = Eithers.separate(combined)
         assertTrue(separated.asInstanceOf[Any] == Right("hello"))
+      },
+      test("roundtrip for right-nested Either preserves all branches") {
+        val left: Either[Int, Either[String, Boolean]]  = Left(42)
+        val mid: Either[Int, Either[String, Boolean]]   = Right(Left("hello"))
+        val right: Either[Int, Either[String, Boolean]] = Right(Right(true))
+
+        assertTrue(
+          Eithers.separate(left).asInstanceOf[Any] == Eithers.combine(left).asInstanceOf[Any] &&
+            Eithers.separate(mid).asInstanceOf[Any] == Eithers.combine(mid).asInstanceOf[Any] &&
+            Eithers.separate(right).asInstanceOf[Any] == Eithers.combine(right).asInstanceOf[Any]
+        )
+      },
+      test("roundtrip for deeply nested Either (4 alternatives)") {
+        val input1: Either[Int, Either[String, Either[Boolean, Double]]] = Left(1)
+        val input2: Either[Int, Either[String, Either[Boolean, Double]]] = Right(Left("a"))
+        val input3: Either[Int, Either[String, Either[Boolean, Double]]] = Right(Right(Left(true)))
+        val input4: Either[Int, Either[String, Either[Boolean, Double]]] = Right(Right(Right(3.14)))
+
+        assertTrue(
+          Eithers.combine(input1).asInstanceOf[Any] == Left(Left(Left(1))) &&
+            Eithers.combine(input2).asInstanceOf[Any] == Left(Left(Right("a"))) &&
+            Eithers.combine(input3).asInstanceOf[Any] == Left(Right(true)) &&
+            Eithers.combine(input4).asInstanceOf[Any] == Right(3.14) &&
+            Eithers.separate(input1).asInstanceOf[Any] == Left(Left(Left(1))) &&
+            Eithers.separate(input2).asInstanceOf[Any] == Left(Left(Right("a"))) &&
+            Eithers.separate(input3).asInstanceOf[Any] == Left(Right(true)) &&
+            Eithers.separate(input4).asInstanceOf[Any] == Right(3.14)
+        )
       }
     ),
     suite("Top-level convenience methods")(
